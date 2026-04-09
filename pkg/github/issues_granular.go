@@ -42,8 +42,8 @@ func issueUpdateTool(
 
 	required := append([]string{"owner", "repo", "issue_number"}, extraRequired...)
 
-	return NewTool(
-		ToolsetMetadataIssuesGranular,
+	st := NewTool(
+		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        name,
 			Description: t("TOOL_"+name+"_DESCRIPTION", description),
@@ -96,12 +96,14 @@ func issueUpdateTool(
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	return st
 }
 
 // GranularCreateIssue creates a tool to create a new issue.
 func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
-		ToolsetMetadataIssuesGranular,
+	st := NewTool(
+		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "create_issue",
 			Description: t("TOOL_CREATE_ISSUE_DESCRIPTION", "Create a new issue in a GitHub repository with a title and optional body."),
@@ -174,6 +176,8 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	return st
 }
 
 // GranularUpdateIssueTitle creates a tool to update an issue's title.
@@ -360,8 +364,8 @@ func GranularUpdateIssueState(t translations.TranslationHelperFunc) inventory.Se
 
 // GranularAddSubIssue creates a tool to add a sub-issue.
 func GranularAddSubIssue(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
-		ToolsetMetadataIssuesGranular,
+	st := NewTool(
+		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "add_sub_issue",
 			Description: t("TOOL_ADD_SUB_ISSUE_DESCRIPTION", "Add a sub-issue to a parent issue."),
@@ -428,12 +432,14 @@ func GranularAddSubIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			return result, nil, err
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	return st
 }
 
 // GranularRemoveSubIssue creates a tool to remove a sub-issue.
 func GranularRemoveSubIssue(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
-		ToolsetMetadataIssuesGranular,
+	st := NewTool(
+		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "remove_sub_issue",
 			Description: t("TOOL_REMOVE_SUB_ISSUE_DESCRIPTION", "Remove a sub-issue from a parent issue."),
@@ -495,12 +501,14 @@ func GranularRemoveSubIssue(t translations.TranslationHelperFunc) inventory.Serv
 			return result, nil, err
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	return st
 }
 
 // GranularReprioritizeSubIssue creates a tool to reorder a sub-issue.
 func GranularReprioritizeSubIssue(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
-		ToolsetMetadataIssuesGranular,
+	st := NewTool(
+		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "reprioritize_sub_issue",
 			Description: t("TOOL_REPRIORITIZE_SUB_ISSUE_DESCRIPTION", "Reprioritize (reorder) a sub-issue relative to other sub-issues."),
@@ -578,4 +586,6 @@ func GranularReprioritizeSubIssue(t translations.TranslationHelperFunc) inventor
 			return result, nil, err
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	return st
 }

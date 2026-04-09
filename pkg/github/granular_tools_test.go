@@ -15,10 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func granularToolsForToolset(id inventory.ToolsetID) []inventory.ServerTool {
+func granularToolsForToolset(toolsetID inventory.ToolsetID, featureFlag string) []inventory.ServerTool {
 	var result []inventory.ServerTool
 	for _, tool := range AllTools(translations.NullTranslationHelper) {
-		if tool.Toolset.ID == id {
+		if tool.Toolset.ID == toolsetID && tool.FeatureFlagEnable == featureFlag {
 			result = append(result, tool)
 		}
 	}
@@ -59,8 +59,8 @@ func TestGranularToolSnaps(t *testing.T) {
 }
 
 func TestIssuesGranularToolset(t *testing.T) {
-	t.Run("toolset contains expected tools", func(t *testing.T) {
-		tools := granularToolsForToolset(ToolsetMetadataIssuesGranular.ID)
+	t.Run("toolset contains expected granular tools", func(t *testing.T) {
+		tools := granularToolsForToolset(ToolsetMetadataIssues.ID, FeatureFlagIssuesGranular)
 
 		toolNames := make([]string, 0, len(tools))
 		for _, tool := range tools {
@@ -86,38 +86,16 @@ func TestIssuesGranularToolset(t *testing.T) {
 		assert.Len(t, tools, len(expected))
 	})
 
-	t.Run("all tools belong to issues_granular toolset", func(t *testing.T) {
-		for _, tool := range granularToolsForToolset(ToolsetMetadataIssuesGranular.ID) {
-			assert.Equal(t, ToolsetMetadataIssuesGranular.ID, tool.Toolset.ID, "tool %s", tool.Tool.Name)
-		}
-	})
-
-	t.Run("all tools are write tools", func(t *testing.T) {
-		for _, tool := range granularToolsForToolset(ToolsetMetadataIssuesGranular.ID) {
-			assert.False(t, tool.Tool.Annotations.ReadOnlyHint, "tool %s should have ReadOnlyHint=false", tool.Tool.Name)
-		}
-	})
-
-	t.Run("toolset is non-default", func(t *testing.T) {
-		assert.False(t, ToolsetMetadataIssuesGranular.Default)
-	})
-
-	t.Run("no duplicate names with issues toolset", func(t *testing.T) {
-		issueTools := make(map[string]bool)
-		for _, tool := range AllTools(translations.NullTranslationHelper) {
-			if tool.Toolset.ID == ToolsetMetadataIssues.ID {
-				issueTools[tool.Tool.Name] = true
-			}
-		}
-		for _, tool := range granularToolsForToolset(ToolsetMetadataIssuesGranular.ID) {
-			assert.False(t, issueTools[tool.Tool.Name], "tool %s duplicates a tool in the issues toolset", tool.Tool.Name)
+	t.Run("all granular tools have correct feature flag", func(t *testing.T) {
+		for _, tool := range granularToolsForToolset(ToolsetMetadataIssues.ID, FeatureFlagIssuesGranular) {
+			assert.Equal(t, FeatureFlagIssuesGranular, tool.FeatureFlagEnable, "tool %s", tool.Tool.Name)
 		}
 	})
 }
 
 func TestPullRequestsGranularToolset(t *testing.T) {
-	t.Run("toolset contains expected tools", func(t *testing.T) {
-		tools := granularToolsForToolset(ToolsetMetadataPullRequestsGranular.ID)
+	t.Run("toolset contains expected granular tools", func(t *testing.T) {
+		tools := granularToolsForToolset(ToolsetMetadataPullRequests.ID, FeatureFlagPullRequestsGranular)
 
 		toolNames := make([]string, 0, len(tools))
 		for _, tool := range tools {
@@ -141,25 +119,9 @@ func TestPullRequestsGranularToolset(t *testing.T) {
 		assert.Len(t, tools, len(expected))
 	})
 
-	t.Run("all tools belong to pull_requests_granular toolset", func(t *testing.T) {
-		for _, tool := range granularToolsForToolset(ToolsetMetadataPullRequestsGranular.ID) {
-			assert.Equal(t, ToolsetMetadataPullRequestsGranular.ID, tool.Toolset.ID, "tool %s", tool.Tool.Name)
-		}
-	})
-
-	t.Run("toolset is non-default", func(t *testing.T) {
-		assert.False(t, ToolsetMetadataPullRequestsGranular.Default)
-	})
-
-	t.Run("no duplicate names with pull_requests toolset", func(t *testing.T) {
-		prTools := make(map[string]bool)
-		for _, tool := range AllTools(translations.NullTranslationHelper) {
-			if tool.Toolset.ID == ToolsetMetadataPullRequests.ID {
-				prTools[tool.Tool.Name] = true
-			}
-		}
-		for _, tool := range granularToolsForToolset(ToolsetMetadataPullRequestsGranular.ID) {
-			assert.False(t, prTools[tool.Tool.Name], "tool %s duplicates a tool in the pull_requests toolset", tool.Tool.Name)
+	t.Run("all granular tools have correct feature flag", func(t *testing.T) {
+		for _, tool := range granularToolsForToolset(ToolsetMetadataPullRequests.ID, FeatureFlagPullRequestsGranular) {
+			assert.Equal(t, FeatureFlagPullRequestsGranular, tool.FeatureFlagEnable, "tool %s", tool.Tool.Name)
 		}
 	})
 }

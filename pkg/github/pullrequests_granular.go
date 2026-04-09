@@ -44,8 +44,8 @@ func prUpdateTool(
 
 	required := append([]string{"owner", "repo", "pullNumber"}, extraRequired...)
 
-	return NewTool(
-		ToolsetMetadataPullRequestsGranular,
+	st := NewTool(
+		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        name,
 			Description: t("TOOL_"+name+"_DESCRIPTION", description),
@@ -98,6 +98,8 @@ func prUpdateTool(
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	return st
 }
 
 // GranularUpdatePullRequestTitle creates a tool to update a PR's title.
@@ -166,8 +168,8 @@ func GranularUpdatePullRequestState(t translations.TranslationHelperFunc) invent
 
 // GranularUpdatePullRequestDraftState creates a tool to toggle draft state.
 func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
-		ToolsetMetadataPullRequestsGranular,
+	st := NewTool(
+		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "update_pull_request_draft_state",
 			Description: t("TOOL_UPDATE_PULL_REQUEST_DRAFT_STATE_DESCRIPTION", "Mark a pull request as draft or ready for review."),
@@ -261,12 +263,14 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 			return utils.NewToolResultText("pull request marked as ready for review"), nil, nil
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	return st
 }
 
 // GranularRequestPullRequestReviewers creates a tool to request reviewers.
 func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
-		ToolsetMetadataPullRequestsGranular,
+	st := NewTool(
+		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "request_pull_request_reviewers",
 			Description: t("TOOL_REQUEST_PULL_REQUEST_REVIEWERS_DESCRIPTION", "Request reviewers for a pull request."),
@@ -333,12 +337,14 @@ func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) i
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	return st
 }
 
 // GranularCreatePullRequestReview creates a tool to create a PR review.
 func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
-		ToolsetMetadataPullRequestsGranular,
+	st := NewTool(
+		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "create_pull_request_review",
 			Description: t("TOOL_CREATE_PULL_REQUEST_REVIEW_DESCRIPTION", "Create a review on a pull request. If event is provided, the review is submitted immediately; otherwise a pending review is created."),
@@ -400,12 +406,14 @@ func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inven
 			return result, nil, err
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	return st
 }
 
 // GranularSubmitPendingPullRequestReview creates a tool to submit a pending review.
 func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
-		ToolsetMetadataPullRequestsGranular,
+	st := NewTool(
+		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "submit_pending_pull_request_review",
 			Description: t("TOOL_SUBMIT_PENDING_PULL_REQUEST_REVIEW_DESCRIPTION", "Submit a pending pull request review."),
@@ -462,12 +470,14 @@ func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc
 			return result, nil, err
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	return st
 }
 
 // GranularDeletePendingPullRequestReview creates a tool to delete a pending review.
 func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
-		ToolsetMetadataPullRequestsGranular,
+	st := NewTool(
+		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "delete_pending_pull_request_review",
 			Description: t("TOOL_DELETE_PENDING_PULL_REQUEST_REVIEW_DESCRIPTION", "Delete a pending pull request review."),
@@ -515,12 +525,14 @@ func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc
 			return result, nil, err
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	return st
 }
 
 // GranularAddPullRequestReviewComment creates a tool to add a review comment.
 func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
-		ToolsetMetadataPullRequestsGranular,
+	st := NewTool(
+		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "add_pull_request_review_comment",
 			Description: t("TOOL_ADD_PULL_REQUEST_REVIEW_COMMENT_DESCRIPTION", "Add a review comment to the current user's pending pull request review."),
@@ -684,4 +696,6 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 			return utils.NewToolResultText("pull request review comment successfully added to pending review"), nil, nil
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	return st
 }

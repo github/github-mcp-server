@@ -141,17 +141,10 @@ var (
 		Icon:        "copilot",
 	}
 
-	ToolsetMetadataIssuesGranular = inventory.ToolsetMetadata{
-		ID:          "issues_granular",
-		Description: "Granular issue tools with fine-grained control over individual operations",
-		Icon:        "issue-opened",
-	}
-
-	ToolsetMetadataPullRequestsGranular = inventory.ToolsetMetadata{
-		ID:          "pull_requests_granular",
-		Description: "Granular pull request tools with fine-grained control over individual operations",
-		Icon:        "git-pull-request",
-	}
+	// Feature flag names for granular tool variants.
+	// When active, consolidated tools are replaced by single-purpose granular tools.
+	FeatureFlagIssuesGranular       = "issues_granular"
+	FeatureFlagPullRequestsGranular = "pull_requests_granular"
 
 	// Remote-only toolsets - these are only available in the remote MCP server
 	// but are documented here for consistency and to enable automated documentation.
@@ -287,7 +280,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListLabels(t),
 		LabelWrite(t),
 
-		// Granular issue tools (opt-in, non-default)
+		// Granular issue tools (feature-flagged, replace consolidated issue_write/sub_issue_write)
 		GranularCreateIssue(t),
 		GranularUpdateIssueTitle(t),
 		GranularUpdateIssueBody(t),
@@ -300,7 +293,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GranularRemoveSubIssue(t),
 		GranularReprioritizeSubIssue(t),
 
-		// Granular pull request tools (opt-in, non-default)
+		// Granular pull request tools (feature-flagged, replace consolidated update_pull_request/pull_request_review_write)
 		GranularUpdatePullRequestTitle(t),
 		GranularUpdatePullRequestBody(t),
 		GranularUpdatePullRequestState(t),

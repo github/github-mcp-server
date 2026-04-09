@@ -566,13 +566,11 @@ The following sets of tools are available:
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/logo-gist-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/logo-gist-light.png"><img src="pkg/octicons/icons/logo-gist-light.png" width="20" height="20" alt="logo-gist"></picture> | `gists` | GitHub Gist related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-branch-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-branch-light.png"><img src="pkg/octicons/icons/git-branch-light.png" width="20" height="20" alt="git-branch"></picture> | `git` | GitHub Git API related tools for low-level Git operations |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/issue-opened-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/issue-opened-light.png"><img src="pkg/octicons/icons/issue-opened-light.png" width="20" height="20" alt="issue-opened"></picture> | `issues` | GitHub Issues related tools |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/issue-opened-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/issue-opened-light.png"><img src="pkg/octicons/icons/issue-opened-light.png" width="20" height="20" alt="issue-opened"></picture> | `issues_granular` | Granular issue tools with fine-grained control over individual operations |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/tag-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/tag-light.png"><img src="pkg/octicons/icons/tag-light.png" width="20" height="20" alt="tag"></picture> | `labels` | GitHub Labels related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/bell-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/bell-light.png"><img src="pkg/octicons/icons/bell-light.png" width="20" height="20" alt="bell"></picture> | `notifications` | GitHub Notifications related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/organization-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/organization-light.png"><img src="pkg/octicons/icons/organization-light.png" width="20" height="20" alt="organization"></picture> | `orgs` | GitHub Organization related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/project-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/project-light.png"><img src="pkg/octicons/icons/project-light.png" width="20" height="20" alt="project"></picture> | `projects` | GitHub Projects related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-pull-request-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-pull-request-light.png"><img src="pkg/octicons/icons/git-pull-request-light.png" width="20" height="20" alt="git-pull-request"></picture> | `pull_requests` | GitHub Pull Request related tools |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-pull-request-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-pull-request-light.png"><img src="pkg/octicons/icons/git-pull-request-light.png" width="20" height="20" alt="git-pull-request"></picture> | `pull_requests_granular` | Granular pull request tools with fine-grained control over individual operations |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/repo-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/repo-light.png"><img src="pkg/octicons/icons/repo-light.png" width="20" height="20" alt="repo"></picture> | `repos` | GitHub Repository related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/shield-lock-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/shield-lock-light.png"><img src="pkg/octicons/icons/shield-lock-light.png" width="20" height="20" alt="shield-lock"></picture> | `secret_protection` | Secret protection related tools, such as GitHub Secret Scanning |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/shield-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/shield-light.png"><img src="pkg/octicons/icons/shield-light.png" width="20" height="20" alt="shield"></picture> | `security_advisories` | Security advisories related tools |
@@ -905,93 +903,6 @@ The following sets of tools are available:
 
 <details>
 
-<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/issue-opened-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/issue-opened-light.png"><img src="pkg/octicons/icons/issue-opened-light.png" width="20" height="20" alt="issue-opened"></picture> Issues Granular</summary>
-
-- **add_sub_issue** - Add Sub-Issue
-  - **Required OAuth Scopes**: `repo`
-  - `issue_number`: The parent issue number (number, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `replace_parent`: If true, reparent the sub-issue if it already has a parent (boolean, optional)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to add. ID is not the same as issue number (number, required)
-
-- **create_issue** - Create Issue
-  - **Required OAuth Scopes**: `repo`
-  - `body`: Issue body content (optional) (string, optional)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-  - `title`: Issue title (string, required)
-
-- **remove_sub_issue** - Remove Sub-Issue
-  - **Required OAuth Scopes**: `repo`
-  - `issue_number`: The parent issue number (number, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to remove. ID is not the same as issue number (number, required)
-
-- **reprioritize_sub_issue** - Reprioritize Sub-Issue
-  - **Required OAuth Scopes**: `repo`
-  - `after_id`: The ID of the sub-issue to place this after (either after_id OR before_id should be specified) (number, optional)
-  - `before_id`: The ID of the sub-issue to place this before (either after_id OR before_id should be specified) (number, optional)
-  - `issue_number`: The parent issue number (number, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to reorder. ID is not the same as issue number (number, required)
-
-- **update_issue_assignees** - Update Issue Assignees
-  - **Required OAuth Scopes**: `repo`
-  - `assignees`: GitHub usernames to assign to this issue (string[], required)
-  - `issue_number`: The issue number to update (number, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-
-- **update_issue_body** - Update Issue Body
-  - **Required OAuth Scopes**: `repo`
-  - `body`: The new body content for the issue (string, required)
-  - `issue_number`: The issue number to update (number, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-
-- **update_issue_labels** - Update Issue Labels
-  - **Required OAuth Scopes**: `repo`
-  - `issue_number`: The issue number to update (number, required)
-  - `labels`: Labels to apply to this issue (string[], required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-
-- **update_issue_milestone** - Update Issue Milestone
-  - **Required OAuth Scopes**: `repo`
-  - `issue_number`: The issue number to update (number, required)
-  - `milestone`: The milestone number to set on the issue (integer, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-
-- **update_issue_state** - Update Issue State
-  - **Required OAuth Scopes**: `repo`
-  - `issue_number`: The issue number to update (number, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-  - `state`: The new state for the issue (string, required)
-  - `state_reason`: The reason for the state change (only for closed state) (string, optional)
-
-- **update_issue_title** - Update Issue Title
-  - **Required OAuth Scopes**: `repo`
-  - `issue_number`: The issue number to update (number, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-  - `title`: The new title for the issue (string, required)
-
-- **update_issue_type** - Update Issue Type
-  - **Required OAuth Scopes**: `repo`
-  - `issue_number`: The issue number to update (number, required)
-  - `issue_type`: The issue type to set (string, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-
-</details>
-
-<details>
-
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/tag-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/tag-light.png"><img src="pkg/octicons/icons/tag-light.png" width="20" height="20" alt="tag"></picture> Labels</summary>
 
 - **get_label** - Get a specific label from a repository.
@@ -1239,83 +1150,6 @@ The following sets of tools are available:
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
-
-</details>
-
-<details>
-
-<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-pull-request-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-pull-request-light.png"><img src="pkg/octicons/icons/git-pull-request-light.png" width="20" height="20" alt="git-pull-request"></picture> Pull Requests Granular</summary>
-
-- **add_pull_request_review_comment** - Add Pull Request Review Comment
-  - **Required OAuth Scopes**: `repo`
-  - `body`: The comment body (string, required)
-  - `line`: The line number in the diff to comment on (optional) (number, optional)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: The relative path of the file to comment on (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
-  - `side`: The side of the diff to comment on (optional) (string, optional)
-  - `startLine`: The start line of a multi-line comment (optional) (number, optional)
-  - `startSide`: The start side of a multi-line comment (optional) (string, optional)
-  - `subjectType`: The subject type of the comment (string, required)
-
-- **create_pull_request_review** - Create Pull Request Review
-  - **Required OAuth Scopes**: `repo`
-  - `body`: The review body text (optional) (string, optional)
-  - `commitID`: The SHA of the commit to review (optional, defaults to latest) (string, optional)
-  - `event`: The review action to perform. If omitted, creates a pending review. (string, optional)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **delete_pending_pull_request_review** - Delete Pending Pull Request Review
-  - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **request_pull_request_reviewers** - Request Pull Request Reviewers
-  - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
-  - `reviewers`: GitHub usernames to request reviews from (string[], required)
-
-- **submit_pending_pull_request_review** - Submit Pending Pull Request Review
-  - **Required OAuth Scopes**: `repo`
-  - `body`: The review body text (optional) (string, optional)
-  - `event`: The review action to perform (string, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **update_pull_request_body** - Update Pull Request Body
-  - **Required OAuth Scopes**: `repo`
-  - `body`: The new body content for the pull request (string, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **update_pull_request_draft_state** - Update Pull Request Draft State
-  - **Required OAuth Scopes**: `repo`
-  - `draft`: Set to true to convert to draft, false to mark as ready for review (boolean, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **update_pull_request_state** - Update Pull Request State
-  - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
-  - `state`: The new state for the pull request (string, required)
-
-- **update_pull_request_title** - Update Pull Request Title
-  - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
-  - `title`: The new title for the pull request (string, required)
 
 </details>
 
