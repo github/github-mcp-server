@@ -5,9 +5,12 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/github/github-mcp-server/internal/githubv4mock"
+	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v82/github"
+	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,6 +23,39 @@ func granularToolsForToolset(id inventory.ToolsetID) []inventory.ServerTool {
 		}
 	}
 	return result
+}
+
+func TestGranularToolSnaps(t *testing.T) {
+	// Test toolsnaps for all granular tools
+	toolConstructors := []func(translations.TranslationHelperFunc) inventory.ServerTool{
+		GranularCreateIssue,
+		GranularUpdateIssueTitle,
+		GranularUpdateIssueBody,
+		GranularUpdateIssueAssignees,
+		GranularUpdateIssueLabels,
+		GranularUpdateIssueMilestone,
+		GranularUpdateIssueType,
+		GranularUpdateIssueState,
+		GranularAddSubIssue,
+		GranularRemoveSubIssue,
+		GranularReprioritizeSubIssue,
+		GranularUpdatePullRequestTitle,
+		GranularUpdatePullRequestBody,
+		GranularUpdatePullRequestState,
+		GranularUpdatePullRequestDraftState,
+		GranularRequestPullRequestReviewers,
+		GranularCreatePullRequestReview,
+		GranularSubmitPendingPullRequestReview,
+		GranularDeletePendingPullRequestReview,
+		GranularAddPullRequestReviewComment,
+	}
+
+	for _, constructor := range toolConstructors {
+		serverTool := constructor(translations.NullTranslationHelper)
+		t.Run(serverTool.Tool.Name, func(t *testing.T) {
+			require.NoError(t, toolsnaps.Test(serverTool.Tool.Name, serverTool.Tool))
+		})
+	}
 }
 
 func TestIssuesGranularToolset(t *testing.T) {
@@ -469,13 +505,47 @@ func TestGranularRequestPullRequestReviewers(t *testing.T) {
 }
 
 func TestGranularCreatePullRequestReview(t *testing.T) {
-	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-		"POST /repos/{owner}/{repo}/pulls/{pull_number}/reviews": mockResponse(t, http.StatusOK, &gogithub.PullRequestReview{
-			ID:    gogithub.Ptr(int64(1)),
-			State: gogithub.Ptr("APPROVED"),
-		}),
-	}))
-	deps := BaseDeps{Client: client}
+	mockedClient := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			struct {
+				Repository struct {
+					PullRequest struct {
+						ID githubv4.ID
+					} `graphql:"pullRequest(number: $prNum)"`
+				} `graphql:"repository(owner: $owner, name: $repo)"`
+			}{},
+			map[string]any{
+				"owner": githubv4.String("owner"),
+				"repo":  githubv4.String("repo"),
+				"prNum": githubv4.Int(1),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"pullRequest": map[string]any{
+						"id": "PR_123",
+					},
+				},
+			}),
+		),
+		githubv4mock.NewMutationMatcher(
+			struct {
+				AddPullRequestReview struct {
+					PullRequestReview struct {
+						ID githubv4.ID
+					}
+				} `graphql:"addPullRequestReview(input: $input)"`
+			}{},
+			githubv4.AddPullRequestReviewInput{
+				PullRequestID: githubv4.ID("PR_123"),
+				Body:          githubv4.NewString("LGTM"),
+				Event:         githubv4mock.Ptr(githubv4.PullRequestReviewEventApprove),
+			},
+			nil,
+			githubv4mock.DataResponse(map[string]any{}),
+		),
+	)
+	gqlClient := githubv4.NewClient(mockedClient)
+	deps := BaseDeps{GQLClient: gqlClient}
 	serverTool := GranularCreatePullRequestReview(translations.NullTranslationHelper)
 	handler := serverTool.Handler(deps)
 

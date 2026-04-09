@@ -913,7 +913,7 @@ The following sets of tools are available:
   - `owner`: Repository owner (username or organization) (string, required)
   - `replace_parent`: If true, reparent the sub-issue if it already has a parent (boolean, optional)
   - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The global node ID of the issue to add as a sub-issue (number, required)
+  - `sub_issue_id`: The ID of the sub-issue to add. ID is not the same as issue number (number, required)
 
 - **create_issue** - Create Issue
   - **Required OAuth Scopes**: `repo`
@@ -927,16 +927,16 @@ The following sets of tools are available:
   - `issue_number`: The parent issue number (number, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The global node ID of the sub-issue to remove (number, required)
+  - `sub_issue_id`: The ID of the sub-issue to remove. ID is not the same as issue number (number, required)
 
 - **reprioritize_sub_issue** - Reprioritize Sub-Issue
   - **Required OAuth Scopes**: `repo`
-  - `after_id`: The global node ID of the sub-issue to place this after (optional) (number, optional)
-  - `before_id`: The global node ID of the sub-issue to place this before (optional) (number, optional)
+  - `after_id`: The ID of the sub-issue to place this after (either after_id OR before_id should be specified) (number, optional)
+  - `before_id`: The ID of the sub-issue to place this before (either after_id OR before_id should be specified) (number, optional)
   - `issue_number`: The parent issue number (number, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The global node ID of the sub-issue to reorder (number, required)
+  - `sub_issue_id`: The ID of the sub-issue to reorder. ID is not the same as issue number (number, required)
 
 - **update_issue_assignees** - Update Issue Assignees
   - **Required OAuth Scopes**: `repo`
@@ -962,7 +962,7 @@ The following sets of tools are available:
 - **update_issue_milestone** - Update Issue Milestone
   - **Required OAuth Scopes**: `repo`
   - `issue_number`: The issue number to update (number, required)
-  - `milestone`: The milestone number to set on the issue (number, required)
+  - `milestone`: The milestone number to set on the issue (integer, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)
 

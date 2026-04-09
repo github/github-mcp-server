@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 
+	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -211,48 +212,53 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
 
-			prNodeID, err := getGranularPullRequestNodeID(ctx, gqlClient, owner, repo, pullNumber)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get pull request", err), nil, nil
+			// Get PR node ID
+			var prQuery struct {
+				Repository struct {
+					PullRequest struct {
+						ID githubv4.ID
+					} `graphql:"pullRequest(number: $number)"`
+				} `graphql:"repository(owner: $owner, name: $name)"`
+			}
+			if err := gqlClient.Query(ctx, &prQuery, map[string]any{
+				"owner":  githubv4.String(owner),
+				"name":   githubv4.String(repo),
+				"number": githubv4.Int(pullNumber), // #nosec G115 - PR numbers are always small positive integers
+			}); err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get pull request", err), nil, nil
 			}
 
 			if draft {
 				var mutation struct {
 					ConvertPullRequestToDraft struct {
 						PullRequest struct {
-							ID, Title, URL string
-							IsDraft        bool
+							ID      githubv4.ID
+							IsDraft githubv4.Boolean
 						}
 					} `graphql:"convertPullRequestToDraft(input: $input)"`
 				}
-				input := map[string]any{"pullRequestId": githubv4.ID(prNodeID)}
-				if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
-					return utils.NewToolResultErrorFromErr("failed to convert to draft", err), nil, nil
+				if err := gqlClient.Mutate(ctx, &mutation, githubv4.ConvertPullRequestToDraftInput{
+					PullRequestID: prQuery.Repository.PullRequest.ID,
+				}, nil); err != nil {
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to convert to draft", err), nil, nil
 				}
-				r, err := json.Marshal(mutation.ConvertPullRequestToDraft.PullRequest)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
-				}
-				return utils.NewToolResultText(string(r)), nil, nil
+				return utils.NewToolResultText("pull request converted to draft"), nil, nil
 			}
 
 			var mutation struct {
 				MarkPullRequestReadyForReview struct {
 					PullRequest struct {
-						ID, Title, URL string
-						IsDraft        bool
+						ID      githubv4.ID
+						IsDraft githubv4.Boolean
 					}
 				} `graphql:"markPullRequestReadyForReview(input: $input)"`
 			}
-			input := map[string]any{"pullRequestId": githubv4.ID(prNodeID)}
-			if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
-				return utils.NewToolResultErrorFromErr("failed to mark ready for review", err), nil, nil
+			if err := gqlClient.Mutate(ctx, &mutation, githubv4.MarkPullRequestReadyForReviewInput{
+				PullRequestID: prQuery.Repository.PullRequest.ID,
+			}, nil); err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to mark ready for review", err), nil, nil
 			}
-			r, err := json.Marshal(mutation.MarkPullRequestReadyForReview.PullRequest)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
-			}
-			return utils.NewToolResultText(string(r)), nil, nil
+			return utils.NewToolResultText("pull request marked as ready for review"), nil, nil
 		},
 	)
 }
@@ -373,32 +379,25 @@ func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inven
 			event, _ := OptionalParam[string](args, "event")
 			commitID, _ := OptionalParam[string](args, "commitID")
 
-			reviewReq := &gogithub.PullRequestReviewRequest{}
-			if body != "" {
-				reviewReq.Body = &body
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
-			if event != "" {
-				reviewReq.Event = &event
-			}
+
+			var commitIDPtr *string
 			if commitID != "" {
-				reviewReq.CommitID = &commitID
+				commitIDPtr = &commitID
 			}
 
-			client, err := deps.GetClient(ctx)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
-			}
-
-			review, _, err := client.PullRequests.CreateReview(ctx, owner, repo, pullNumber, reviewReq)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to create review", err), nil, nil
-			}
-
-			r, err := json.Marshal(review)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
-			}
-			return utils.NewToolResultText(string(r)), nil, nil
+			result, err := CreatePullRequestReview(ctx, gqlClient, PullRequestReviewWriteParams{
+				Owner:      owner,
+				Repo:       repo,
+				PullNumber: int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers
+				Body:       body,
+				Event:      event,
+				CommitID:   commitIDPtr,
+			})
+			return result, nil, err
 		},
 	)
 }
@@ -453,65 +452,14 @@ func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
 
-			prNodeID, err := getGranularPullRequestNodeID(ctx, gqlClient, owner, repo, pullNumber)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get pull request", err), nil, nil
-			}
-
-			// Find pending review
-			var reviewQuery struct {
-				Repository struct {
-					PullRequest struct {
-						Reviews struct {
-							Nodes []struct {
-								ID, State string
-							}
-						} `graphql:"reviews(first: 1, states: PENDING)"`
-					} `graphql:"pullRequest(number: $number)"`
-				} `graphql:"repository(owner: $owner, name: $name)"`
-			}
-
-			vars := map[string]any{
-				"owner":  githubv4.String(owner),
-				"name":   githubv4.String(repo),
-				"number": githubv4.Int(pullNumber), // #nosec G115 - PR numbers are always small positive integers
-			}
-			if err := gqlClient.Query(ctx, &reviewQuery, vars); err != nil {
-				return utils.NewToolResultErrorFromErr("failed to find pending review", err), nil, nil
-			}
-
-			if len(reviewQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
-				return utils.NewToolResultError("no pending review found for the current user"), nil, nil
-			}
-
-			reviewID := reviewQuery.Repository.PullRequest.Reviews.Nodes[0].ID
-
-			var mutation struct {
-				SubmitPullRequestReview struct {
-					PullRequestReview struct {
-						ID, State, URL string
-					}
-				} `graphql:"submitPullRequestReview(input: $input)"`
-			}
-
-			submitInput := map[string]any{
-				"pullRequestId":       githubv4.ID(prNodeID),
-				"pullRequestReviewId": githubv4.ID(reviewID),
-				"event":               githubv4.PullRequestReviewEvent(event),
-			}
-			if body != "" {
-				submitInput["body"] = githubv4.String(body)
-			}
-
-			if err := gqlClient.Mutate(ctx, &mutation, submitInput, nil); err != nil {
-				return utils.NewToolResultErrorFromErr("failed to submit review", err), nil, nil
-			}
-
-			r, err := json.Marshal(mutation.SubmitPullRequestReview.PullRequestReview)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
-			}
-			return utils.NewToolResultText(string(r)), nil, nil
+			result, err := SubmitPendingPullRequestReview(ctx, gqlClient, PullRequestReviewWriteParams{
+				Owner:      owner,
+				Repo:       repo,
+				PullNumber: int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers
+				Event:      event,
+				Body:       body,
+			})
+			return result, nil, err
 		},
 	)
 }
@@ -559,45 +507,12 @@ func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
 
-			// Find pending review
-			var reviewQuery struct {
-				Repository struct {
-					PullRequest struct {
-						Reviews struct {
-							Nodes []struct{ ID string }
-						} `graphql:"reviews(first: 1, states: PENDING)"`
-					} `graphql:"pullRequest(number: $number)"`
-				} `graphql:"repository(owner: $owner, name: $name)"`
-			}
-
-			vars := map[string]any{
-				"owner":  githubv4.String(owner),
-				"name":   githubv4.String(repo),
-				"number": githubv4.Int(pullNumber), // #nosec G115 - PR numbers are always small positive integers
-			}
-			if err := gqlClient.Query(ctx, &reviewQuery, vars); err != nil {
-				return utils.NewToolResultErrorFromErr("failed to find pending review", err), nil, nil
-			}
-
-			if len(reviewQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
-				return utils.NewToolResultError("no pending review found for the current user"), nil, nil
-			}
-
-			reviewID := reviewQuery.Repository.PullRequest.Reviews.Nodes[0].ID
-
-			var mutation struct {
-				DeletePullRequestReview struct {
-					PullRequestReview struct{ ID string }
-				} `graphql:"deletePullRequestReview(input: $input)"`
-			}
-
-			input := map[string]any{"pullRequestReviewId": githubv4.ID(reviewID)}
-
-			if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
-				return utils.NewToolResultErrorFromErr("failed to delete pending review", err), nil, nil
-			}
-
-			return utils.NewToolResultText(`{"message": "Pending review deleted successfully"}`), nil, nil
+			result, err := DeletePendingPullRequestReview(ctx, gqlClient, PullRequestReviewWriteParams{
+				Owner:      owner,
+				Repo:       repo,
+				PullNumber: int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers
+			})
+			return result, nil, err
 		},
 	)
 }
@@ -658,9 +573,15 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			line, _ := OptionalParam[float64](args, "line")
+			line, err := OptionalIntParam(args, "line")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			side, _ := OptionalParam[string](args, "side")
-			startLine, _ := OptionalParam[float64](args, "startLine")
+			startLine, err := OptionalIntParam(args, "startLine")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			startSide, _ := OptionalParam[string](args, "startSide")
 
 			gqlClient, err := deps.GetGQLClient(ctx)
@@ -668,75 +589,99 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
 
-			prNodeID, err := getGranularPullRequestNodeID(ctx, gqlClient, owner, repo, pullNumber)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get pull request", err), nil, nil
+			// Get the current user to find their pending review
+			var getViewerQuery struct {
+				Viewer struct {
+					Login githubv4.String
+				}
+			}
+			if err := gqlClient.Query(ctx, &getViewerQuery, nil); err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get current user", err), nil, nil
 			}
 
-			var mutation struct {
+			// Find the viewer's latest review (must be pending)
+			var getLatestReviewForViewerQuery struct {
+				Repository struct {
+					PullRequest struct {
+						Reviews struct {
+							Nodes []struct {
+								ID    githubv4.ID
+								State githubv4.PullRequestReviewState
+								URL   githubv4.URI
+							}
+						} `graphql:"reviews(first: 1, author: $author)"`
+					} `graphql:"pullRequest(number: $prNum)"`
+				} `graphql:"repository(owner: $owner, name: $name)"`
+			}
+
+			vars := map[string]any{
+				"author": githubv4.String(getViewerQuery.Viewer.Login),
+				"owner":  githubv4.String(owner),
+				"name":   githubv4.String(repo),
+				"prNum":  githubv4.Int(pullNumber), // #nosec G115 - PR numbers are always small positive integers
+			}
+
+			if err := gqlClient.Query(ctx, &getLatestReviewForViewerQuery, vars); err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get latest review for current user", err), nil, nil
+			}
+
+			if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
+				return utils.NewToolResultError("No pending review found for the viewer"), nil, nil
+			}
+
+			review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
+			if review.State != githubv4.PullRequestReviewStatePending {
+				errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
+				return utils.NewToolResultError(errText), nil, nil
+			}
+
+			// Add review thread comment to the pending review
+			var addPullRequestReviewThreadMutation struct {
 				AddPullRequestReviewThread struct {
 					Thread struct {
-						ID       string
-						Comments struct {
-							Nodes []struct {
-								ID, Body, URL string
-							}
-						} `graphql:"comments(first: 1)"`
+						ID githubv4.ID
 					}
 				} `graphql:"addPullRequestReviewThread(input: $input)"`
 			}
 
-			input := map[string]any{
-				"pullRequestId": githubv4.ID(prNodeID),
-				"path":          githubv4.String(path),
-				"body":          githubv4.String(body),
-				"subjectType":   githubv4.PullRequestReviewThreadSubjectType(subjectType),
-			}
+			// Convert optional int params to *int32 for GraphQL helper
+			var linePtr, startLinePtr *int32
 			if line != 0 {
-				input["line"] = githubv4.Int(int(line)) // #nosec G115
-			}
-			if side != "" {
-				input["side"] = githubv4.DiffSide(side)
+				l := int32(line) // #nosec G115
+				linePtr = &l
 			}
 			if startLine != 0 {
-				input["startLine"] = githubv4.Int(int(startLine)) // #nosec G115
-			}
-			if startSide != "" {
-				input["startSide"] = githubv4.DiffSide(startSide)
+				sl := int32(startLine) // #nosec G115
+				startLinePtr = &sl
 			}
 
-			if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
-				return utils.NewToolResultErrorFromErr("failed to add review comment", err), nil, nil
+			if err := gqlClient.Mutate(
+				ctx,
+				&addPullRequestReviewThreadMutation,
+				githubv4.AddPullRequestReviewThreadInput{
+					Path:                githubv4.String(path),
+					Body:                githubv4.String(body),
+					SubjectType:         newGQLStringlikePtr[githubv4.PullRequestReviewThreadSubjectType](&subjectType),
+					Line:                newGQLIntPtr(linePtr),
+					Side:                newGQLStringlikePtr[githubv4.DiffSide](&side),
+					StartLine:           newGQLIntPtr(startLinePtr),
+					StartSide:           newGQLStringlikePtr[githubv4.DiffSide](&startSide),
+					PullRequestReviewID: &review.ID,
+				},
+				nil,
+			); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			r, err := json.Marshal(mutation.AddPullRequestReviewThread)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			if addPullRequestReviewThreadMutation.AddPullRequestReviewThread.Thread.ID == nil {
+				return utils.NewToolResultError(`Failed to add comment to pending review. Possible reasons:
+	- The line number doesn't exist in the pull request diff
+	- The file path is incorrect
+	- The side (LEFT/RIGHT) is invalid for the specified line
+`), nil, nil
 			}
-			return utils.NewToolResultText(string(r)), nil, nil
+
+			return utils.NewToolResultText("pull request review comment successfully added to pending review"), nil, nil
 		},
 	)
-}
-
-// getGranularPullRequestNodeID fetches the GraphQL node ID for a pull request.
-func getGranularPullRequestNodeID(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, pullNumber int) (string, error) {
-	var query struct {
-		Repository struct {
-			PullRequest struct {
-				ID string
-			} `graphql:"pullRequest(number: $number)"`
-		} `graphql:"repository(owner: $owner, name: $name)"`
-	}
-
-	vars := map[string]any{
-		"owner":  githubv4.String(owner),
-		"name":   githubv4.String(repo),
-		"number": githubv4.Int(pullNumber), // #nosec G115 - PR numbers are always small positive integers
-	}
-
-	if err := gqlClient.Query(ctx, &query, vars); err != nil {
-		return "", fmt.Errorf("failed to query pull request node ID: %w", err)
-	}
-
-	return query.Repository.PullRequest.ID, nil
 }

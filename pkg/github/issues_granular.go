@@ -13,7 +13,6 @@ import (
 	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/shurcooL/githubv4"
 )
 
 // issueUpdateTool is a helper to create single-field issue update tools.
@@ -285,19 +284,18 @@ func GranularUpdateIssueMilestone(t translations.TranslationHelperFunc) inventor
 		"Update Issue Milestone",
 		map[string]*jsonschema.Schema{
 			"milestone": {
-				Type:        "number",
+				Type:        "integer",
 				Description: "The milestone number to set on the issue",
 				Minimum:     jsonschema.Ptr(0.0),
 			},
 		},
 		[]string{"milestone"},
 		func(args map[string]any) (*github.IssueRequest, error) {
-			milestone, err := RequiredParam[float64](args, "milestone")
+			milestone, err := RequiredInt(args, "milestone")
 			if err != nil {
 				return nil, err
 			}
-			m := int(milestone)
-			return &github.IssueRequest{Milestone: &m}, nil
+			return &github.IssueRequest{Milestone: &milestone}, nil
 		},
 	)
 }
@@ -391,7 +389,7 @@ func GranularAddSubIssue(t translations.TranslationHelperFunc) inventory.ServerT
 					},
 					"sub_issue_id": {
 						Type:        "number",
-						Description: "The global node ID of the issue to add as a sub-issue",
+						Description: "The ID of the sub-issue to add. ID is not the same as issue number",
 					},
 					"replace_parent": {
 						Type:        "boolean",
@@ -415,52 +413,19 @@ func GranularAddSubIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			subIssueID, err := RequiredParam[float64](args, "sub_issue_id")
+			subIssueID, err := RequiredInt(args, "sub_issue_id")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			replaceParent, _ := OptionalParam[bool](args, "replace_parent")
 
-			gqlClient, err := deps.GetGQLClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			parentNodeID, err := getGranularIssueNodeID(ctx, gqlClient, owner, repo, issueNumber)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get parent issue", err), nil, nil
-			}
-
-			var mutation struct {
-				AddSubIssue struct {
-					Issue struct {
-						ID    string
-						Title string
-						URL   string
-					}
-					SubIssue struct {
-						ID    string
-						Title string
-						URL   string
-					}
-				} `graphql:"addSubIssue(input: $input)"`
-			}
-
-			input := GranularAddSubIssueInput{
-				IssueID:       parentNodeID,
-				SubIssueID:    fmt.Sprintf("%d", int(subIssueID)),
-				ReplaceParent: githubv4.Boolean(replaceParent),
-			}
-
-			if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
-				return utils.NewToolResultErrorFromErr("failed to add sub-issue", err), nil, nil
-			}
-
-			r, err := json.Marshal(mutation.AddSubIssue)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
-			}
-			return utils.NewToolResultText(string(r)), nil, nil
+			result, err := AddSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, replaceParent)
+			return result, nil, err
 		},
 	)
 }
@@ -496,7 +461,7 @@ func GranularRemoveSubIssue(t translations.TranslationHelperFunc) inventory.Serv
 					},
 					"sub_issue_id": {
 						Type:        "number",
-						Description: "The global node ID of the sub-issue to remove",
+						Description: "The ID of the sub-issue to remove. ID is not the same as issue number",
 					},
 				},
 				Required: []string{"owner", "repo", "issue_number", "sub_issue_id"},
@@ -516,50 +481,18 @@ func GranularRemoveSubIssue(t translations.TranslationHelperFunc) inventory.Serv
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			subIssueID, err := RequiredParam[float64](args, "sub_issue_id")
+			subIssueID, err := RequiredInt(args, "sub_issue_id")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			gqlClient, err := deps.GetGQLClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			parentNodeID, err := getGranularIssueNodeID(ctx, gqlClient, owner, repo, issueNumber)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get parent issue", err), nil, nil
-			}
-
-			var mutation struct {
-				RemoveSubIssue struct {
-					Issue struct {
-						ID    string
-						Title string
-						URL   string
-					}
-					SubIssue struct {
-						ID    string
-						Title string
-						URL   string
-					}
-				} `graphql:"removeSubIssue(input: $input)"`
-			}
-
-			input := GranularRemoveSubIssueInput{
-				IssueID:    parentNodeID,
-				SubIssueID: fmt.Sprintf("%d", int(subIssueID)),
-			}
-
-			if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
-				return utils.NewToolResultErrorFromErr("failed to remove sub-issue", err), nil, nil
-			}
-
-			r, err := json.Marshal(mutation.RemoveSubIssue)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
-			}
-			return utils.NewToolResultText(string(r)), nil, nil
+			result, err := RemoveSubIssue(ctx, client, owner, repo, issueNumber, subIssueID)
+			return result, nil, err
 		},
 	)
 }
@@ -595,15 +528,15 @@ func GranularReprioritizeSubIssue(t translations.TranslationHelperFunc) inventor
 					},
 					"sub_issue_id": {
 						Type:        "number",
-						Description: "The global node ID of the sub-issue to reorder",
+						Description: "The ID of the sub-issue to reorder. ID is not the same as issue number",
 					},
 					"after_id": {
 						Type:        "number",
-						Description: "The global node ID of the sub-issue to place this after (optional)",
+						Description: "The ID of the sub-issue to place this after (either after_id OR before_id should be specified)",
 					},
 					"before_id": {
 						Type:        "number",
-						Description: "The global node ID of the sub-issue to place this before (optional)",
+						Description: "The ID of the sub-issue to place this before (either after_id OR before_id should be specified)",
 					},
 				},
 				Required: []string{"owner", "repo", "issue_number", "sub_issue_id"},
@@ -623,101 +556,26 @@ func GranularReprioritizeSubIssue(t translations.TranslationHelperFunc) inventor
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			subIssueID, err := RequiredParam[float64](args, "sub_issue_id")
+			subIssueID, err := RequiredInt(args, "sub_issue_id")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			afterID, _ := OptionalParam[float64](args, "after_id")
-			beforeID, _ := OptionalParam[float64](args, "before_id")
-
-			gqlClient, err := deps.GetGQLClient(ctx)
+			afterID, err := OptionalIntParam(args, "after_id")
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-
-			parentNodeID, err := getGranularIssueNodeID(ctx, gqlClient, owner, repo, issueNumber)
+			beforeID, err := OptionalIntParam(args, "before_id")
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get parent issue", err), nil, nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			var mutation struct {
-				ReprioritizeSubIssue struct {
-					Issue struct {
-						ID    string
-						Title string
-						URL   string
-					}
-				} `graphql:"reprioritizeSubIssue(input: $input)"`
-			}
-
-			input := GranularReprioritizeSubIssueInput{
-				IssueID:    parentNodeID,
-				SubIssueID: fmt.Sprintf("%d", int(subIssueID)),
-			}
-			if afterID != 0 {
-				id := githubv4.ID(fmt.Sprintf("%d", int(afterID)))
-				input.AfterID = &id
-			}
-			if beforeID != 0 {
-				id := githubv4.ID(fmt.Sprintf("%d", int(beforeID)))
-				input.BeforeID = &id
-			}
-
-			if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
-				return utils.NewToolResultErrorFromErr("failed to reprioritize sub-issue", err), nil, nil
-			}
-
-			r, err := json.Marshal(mutation.ReprioritizeSubIssue)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
-			return utils.NewToolResultText(string(r)), nil, nil
+
+			result, err := ReprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID)
+			return result, nil, err
 		},
 	)
-}
-
-// GraphQL input types for sub-issue mutations.
-
-// GranularAddSubIssueInput is the input for the addSubIssue GraphQL mutation.
-type GranularAddSubIssueInput struct {
-	IssueID       string           `json:"issueId"`
-	SubIssueID    string           `json:"subIssueId"`
-	ReplaceParent githubv4.Boolean `json:"replaceParent"`
-}
-
-// GranularRemoveSubIssueInput is the input for the removeSubIssue GraphQL mutation.
-type GranularRemoveSubIssueInput struct {
-	IssueID    string `json:"issueId"`
-	SubIssueID string `json:"subIssueId"`
-}
-
-// GranularReprioritizeSubIssueInput is the input for the reprioritizeSubIssue GraphQL mutation.
-type GranularReprioritizeSubIssueInput struct {
-	IssueID    string       `json:"issueId"`
-	SubIssueID string       `json:"subIssueId"`
-	AfterID    *githubv4.ID `json:"afterId,omitempty"`
-	BeforeID   *githubv4.ID `json:"beforeId,omitempty"`
-}
-
-// getGranularIssueNodeID fetches the GraphQL node ID for an issue.
-func getGranularIssueNodeID(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueNumber int) (string, error) {
-	var query struct {
-		Repository struct {
-			Issue struct {
-				ID string
-			} `graphql:"issue(number: $number)"`
-		} `graphql:"repository(owner: $owner, name: $name)"`
-	}
-
-	vars := map[string]any{
-		"owner":  githubv4.String(owner),
-		"name":   githubv4.String(repo),
-		"number": githubv4.Int(issueNumber), // #nosec G115 - issue numbers are always small positive integers
-	}
-
-	if err := gqlClient.Query(ctx, &query, vars); err != nil {
-		return "", fmt.Errorf("failed to query issue node ID: %w", err)
-	}
-
-	return query.Repository.Issue.ID, nil
 }
