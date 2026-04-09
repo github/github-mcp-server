@@ -300,3 +300,151 @@ func TestSanitizeRemovesInvisibleCodeFenceMetadata(t *testing.T) {
 	result := Sanitize(input)
 	assert.Equal(t, expected, result)
 }
+
+func TestProtectCodeAngles(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "no code blocks",
+			input:    "Hello <b>World</b>",
+			expected: "Hello <b>World</b>",
+		},
+		{
+			name:     "fenced code block with angle brackets",
+			input:    "```\nvector<int> v;\n```",
+			expected: "```\nvector" + codeLtPlaceholder + "int" + codeGtPlaceholder + " v;\n```",
+		},
+		{
+			name:     "fenced code block with language tag",
+			input:    "```cpp\nmap<string, int> m;\n```",
+			expected: "```cpp\nmap" + codeLtPlaceholder + "string, int" + codeGtPlaceholder + " m;\n```",
+		},
+		{
+			name:     "multiple code blocks",
+			input:    "text\n```\na<b>c\n```\nmiddle\n```\nd<e>f\n```",
+			expected: "text\n```\na" + codeLtPlaceholder + "b" + codeGtPlaceholder + "c\n```\nmiddle\n```\nd" + codeLtPlaceholder + "e" + codeGtPlaceholder + "f\n```",
+		},
+		{
+			name:     "angle brackets outside code blocks preserved as-is",
+			input:    "Use <b>bold</b>\n```\ncode<T>\n```\nMore <em>text</em>",
+			expected: "Use <b>bold</b>\n```\ncode" + codeLtPlaceholder + "T" + codeGtPlaceholder + "\n```\nMore <em>text</em>",
+		},
+		{
+			name:     "four-backtick fence",
+			input:    "````\nfn foo<T>()\n````",
+			expected: "````\nfn foo" + codeLtPlaceholder + "T" + codeGtPlaceholder + "()\n````",
+		},
+		{
+			name:     "shorter fence inside code does not close block",
+			input:    "````\nline<A>\n```\nstill<B>\n````",
+			expected: "````\nline" + codeLtPlaceholder + "A" + codeGtPlaceholder + "\n```\nstill" + codeLtPlaceholder + "B" + codeGtPlaceholder + "\n````",
+		},
+		{
+			name:     "longer closing fence closes the block (CommonMark)",
+			input:    "```\ncode<T>\n````\noutside<b>text</b>",
+			expected: "```\ncode" + codeLtPlaceholder + "T" + codeGtPlaceholder + "\n````\noutside<b>text</b>",
+		},
+		{
+			name:     "unclosed fence protects remaining lines",
+			input:    "```\na<b>c\nmore<d>",
+			expected: "```\na" + codeLtPlaceholder + "b" + codeGtPlaceholder + "c\nmore" + codeLtPlaceholder + "d" + codeGtPlaceholder,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := protectCodeAngles(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestRestoreCodeAngles(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "no placeholders",
+			input:    "Hello World",
+			expected: "Hello World",
+		},
+		{
+			name:     "restores lt and gt",
+			input:    "vector" + codeLtPlaceholder + "int" + codeGtPlaceholder,
+			expected: "vector<int>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := restoreCodeAngles(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestSanitizePreservesAngleBracketsInCodeBlocks(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "issue 2202: template parameter in code block",
+			input:    "```\nlet ptr: mut_raw_ptr<int> = raw_new int;\n```",
+			expected: "```\nlet ptr: mut_raw_ptr<int> = raw_new int;\n```",
+		},
+		{
+			name:     "C++ template in code block",
+			input:    "```cpp\nstd::vector<std::string> items;\n```",
+			expected: "```cpp\nstd::vector<std::string> items;\n```",
+		},
+		{
+			name:     "HTML-like tags outside code blocks still sanitized",
+			input:    "<script>alert(1)</script>\n```\nvector<int> v;\n```",
+			expected: "\n```\nvector<int> v;\n```",
+		},
+		{
+			name:     "allowed HTML outside code blocks preserved",
+			input:    "<b>bold</b>\n```\nfoo<T>()\n```",
+			expected: "<b>bold</b>\n```\nfoo<T>()\n```",
+		},
+		{
+			name:     "multiple angle brackets in code",
+			input:    "```\nMap<String, List<Integer>> m;\n```",
+			expected: "```\nMap<String, List<Integer>> m;\n```",
+		},
+		{
+			name:     "script tags after code block still sanitized",
+			input:    "```\nvector<int> v;\n```\n<script>alert(1)</script>",
+			expected: "```\nvector<int> v;\n```\n",
+		},
+		{
+			name:     "longer closing fence does not leak protection",
+			input:    "```\ncode<T>\n````\n<script>alert(1)</script>",
+			expected: "```\ncode<T>\n````\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := Sanitize(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
