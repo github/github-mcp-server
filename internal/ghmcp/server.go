@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -115,18 +114,8 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
 	}
 
-	// Create feature checker — insiders mode expands InsidersFeatureFlags
-	enabledFeatures := cfg.EnabledFeatures
-	if cfg.InsidersMode {
-		enabledFeatures = slices.Clone(enabledFeatures)
-		for _, flag := range github.InsidersFeatureFlags {
-			if !slices.Contains(enabledFeatures, flag) {
-				enabledFeatures = append(enabledFeatures, flag)
-			}
-		}
-	}
-	featureChecker := createFeatureChecker(enabledFeatures)
-	mcpAppsEnabled := slices.Contains(enabledFeatures, github.MCPAppsFeatureFlag)
+	// Create feature checker — resolves explicit features + insiders expansion
+	featureChecker := createFeatureChecker(cfg.EnabledFeatures, cfg.InsidersMode)
 
 	// Create dependencies for tool handlers
 	obs, err := observability.NewExporters(cfg.Logger, metrics.NewNoopMetrics())
@@ -155,8 +144,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		WithTools(github.CleanTools(cfg.EnabledTools)).
 		WithExcludeTools(cfg.ExcludeTools).
 		WithServerInstructions().
-		WithFeatureChecker(featureChecker).
-		WithMCPApps(mcpAppsEnabled)
+		WithFeatureChecker(featureChecker)
 
 	// Apply token scope filtering if scopes are known (for PAT filtering)
 	if cfg.TokenScopes != nil {
@@ -177,6 +165,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	// and UI assets are available (requires running script/build-ui).
 	// We check availability to allow the feature flag to be enabled without
 	// requiring a UI build (graceful degradation).
+	mcpAppsEnabled, _ := featureChecker(context.Background(), github.MCPAppsFeatureFlag)
 	if mcpAppsEnabled && github.UIAssetsAvailable() {
 		github.RegisterUIResources(ghServer)
 	}
@@ -346,15 +335,11 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	return nil
 }
 
-// createFeatureChecker returns a FeatureFlagChecker that checks if a flag name
-// is present in the provided list of enabled features. For the local server,
-// this is populated from the --features CLI flag.
-func createFeatureChecker(enabledFeatures []string) inventory.FeatureFlagChecker {
-	// Build a set for O(1) lookup
-	featureSet := make(map[string]bool, len(enabledFeatures))
-	for _, f := range enabledFeatures {
-		featureSet[f] = true
-	}
+// createFeatureChecker returns a FeatureFlagChecker that resolves features
+// using the centralized ResolveFeatureFlags function. For the local server,
+// features are resolved once at startup from --features CLI flag + insiders mode.
+func createFeatureChecker(enabledFeatures []string, insidersMode bool) inventory.FeatureFlagChecker {
+	featureSet := github.ResolveFeatureFlags(enabledFeatures, insidersMode)
 	return func(_ context.Context, flagName string) (bool, error) {
 		return featureSet[flagName], nil
 	}

@@ -14,6 +14,11 @@ var (
 	ErrUnknownTools = errors.New("unknown tools specified in WithTools")
 )
 
+// mcpAppsFeatureFlag is the feature flag name that controls MCP Apps UI metadata.
+// This is defined here to avoid importing pkg/github (which imports pkg/inventory).
+// The value must match github.MCPAppsFeatureFlag.
+const mcpAppsFeatureFlag = "remote_mcp_ui_apps"
+
 // ToolFilter is a function that determines if a tool should be included.
 // Returns true if the tool should be included, false to exclude it.
 type ToolFilter func(ctx context.Context, tool *ServerTool) (bool, error)
@@ -48,7 +53,6 @@ type Builder struct {
 	featureChecker       FeatureFlagChecker
 	filters              []ToolFilter // filters to apply to all tools
 	generateInstructions bool
-	mcpApps              bool
 }
 
 // NewBuilder creates a new Builder.
@@ -154,15 +158,6 @@ func (b *Builder) WithExcludeTools(toolNames []string) *Builder {
 	return b
 }
 
-// WithMCPApps enables or disables MCP Apps UI features.
-// When disabled (default), the "ui" Meta key is stripped from tools
-// so clients won't attempt to load UI resources.
-// Returns self for chaining.
-func (b *Builder) WithMCPApps(enabled bool) *Builder {
-	b.mcpApps = enabled
-	return b
-}
-
 // CreateExcludeToolsFilter creates a ToolFilter that excludes tools by name.
 // Any tool whose name appears in the excluded list will be filtered out.
 // The input slice should already be cleaned (trimmed, deduplicated).
@@ -195,6 +190,19 @@ func cleanTools(tools []string) []string {
 	return cleaned
 }
 
+// checkFeatureFlag checks a feature flag at build time using the builder's feature checker.
+// Returns false if no checker is configured or the flag is not enabled.
+func (b *Builder) checkFeatureFlag(flag string) bool {
+	if b.featureChecker == nil {
+		return false
+	}
+	enabled, err := b.featureChecker(context.Background(), flag)
+	if err != nil {
+		return false
+	}
+	return enabled
+}
+
 // Build creates the final Inventory with all configuration applied.
 // This processes toolset filtering, tool name resolution, and sets up
 // the inventory for use. The returned Inventory is ready for use with
@@ -206,8 +214,10 @@ func cleanTools(tools []string) []string {
 func (b *Builder) Build() (*Inventory, error) {
 	tools := b.tools
 
-	// When MCP Apps is disabled, strip UI metadata from tools
-	if !b.mcpApps {
+	// When MCP Apps feature flag is not enabled, strip UI metadata from tools
+	// so clients won't attempt to load UI resources.
+	// The feature checker is the single source of truth for flag evaluation.
+	if !b.checkFeatureFlag(mcpAppsFeatureFlag) {
 		tools = stripMCPAppsMetadata(tools)
 	}
 

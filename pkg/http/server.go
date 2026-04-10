@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"slices"
 	"syscall"
 	"time"
 
@@ -24,12 +23,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 )
-
-// knownFeatureFlags are the feature flags that can be enabled via X-MCP-Features header.
-// Only these flags are accepted from headers.
-var knownFeatureFlags = []string{
-	github.MCPAppsFeatureFlag,
-}
 
 type ServerConfig struct {
 	// Version of the server
@@ -213,30 +206,14 @@ func initGlobalToolScopeMap(t translations.TranslationHelperFunc) error {
 	return nil
 }
 
-// createHTTPFeatureChecker creates a feature checker that reads header features from context
-// and validates them against the knownFeatureFlags whitelist.
-// When insiders mode is active, InsidersFeatureFlags are also treated as enabled.
+// createHTTPFeatureChecker creates a feature checker that resolves features
+// per-request by reading header features and insiders mode from context,
+// then validating against the centralized AllowedFeatureFlags allowlist.
 func createHTTPFeatureChecker() inventory.FeatureFlagChecker {
-	// Pre-compute whitelist as set for O(1) lookup
-	knownSet := make(map[string]bool, len(knownFeatureFlags))
-	for _, f := range knownFeatureFlags {
-		knownSet[f] = true
-	}
-
-	// Pre-compute insiders flags as set for O(1) lookup
-	insidersSet := make(map[string]bool, len(github.InsidersFeatureFlags))
-	for _, f := range github.InsidersFeatureFlags {
-		insidersSet[f] = true
-	}
-
 	return func(ctx context.Context, flag string) (bool, error) {
-		if knownSet[flag] && slices.Contains(ghcontext.GetHeaderFeatures(ctx), flag) {
-			return true, nil
-		}
-		// Insiders mode enables all InsidersFeatureFlags
-		if insidersSet[flag] && ghcontext.IsInsidersMode(ctx) {
-			return true, nil
-		}
-		return false, nil
+		headerFeatures := ghcontext.GetHeaderFeatures(ctx)
+		insidersMode := ghcontext.IsInsidersMode(ctx)
+		effective := github.ResolveFeatureFlags(headerFeatures, insidersMode)
+		return effective[flag], nil
 	}
 }

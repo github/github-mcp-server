@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"slices"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
@@ -254,20 +253,14 @@ func DefaultInventoryFactory(_ *ServerConfig, t translations.TranslationHelperFu
 }
 
 // InventoryFiltersForRequest applies filters to the inventory builder
-// based on the request context and headers
+// based on the request context and headers.
+// MCP Apps UI metadata is handled by the builder via the feature checker —
+// no need to check headers here.
 func InventoryFiltersForRequest(r *http.Request, builder *inventory.Builder) *inventory.Builder {
 	ctx := r.Context()
 
 	if ghcontext.IsReadonly(ctx) {
 		builder = builder.WithReadOnly(true)
-	}
-
-	// Enable MCP Apps if the feature flag is present in the request headers
-	// or if insiders mode is active (insiders expands InsidersFeatureFlags).
-	headerFeatures := ghcontext.GetHeaderFeatures(ctx)
-	mcpApps := slices.Contains(headerFeatures, github.MCPAppsFeatureFlag) || ghcontext.IsInsidersMode(ctx)
-	if mcpApps {
-		builder = builder.WithMCPApps(true)
 	}
 
 	toolsets := ghcontext.GetToolsets(ctx)

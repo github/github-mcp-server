@@ -1723,6 +1723,10 @@ func TestFilteringOrder(t *testing.T) {
 		WithFeatureChecker(checker).
 		WithFilter(filter))
 
+	// Reset call order — Build() may call the checker for MCP Apps metadata.
+	// We're testing the AvailableTools filter order here.
+	callOrder = callOrder[:0]
+
 	_ = reg.AvailableTools(context.Background())
 
 	// Expected order: Enabled, FeatureFlag, ReadOnly (stops here because it's write tool)
@@ -1881,11 +1885,14 @@ func TestWithMCPApps_EnabledPreservesUIMetadata(t *testing.T) {
 		"description": "kept",
 	})
 
-	// MCP Apps enabled - UI meta should be preserved
+	// Feature checker enables MCP Apps - UI meta should be preserved
+	mcpAppsChecker := func(_ context.Context, flag string) (bool, error) {
+		return flag == mcpAppsFeatureFlag, nil
+	}
 	reg := mustBuild(t, NewBuilder().
 		SetTools([]ServerTool{toolWithUI}).
 		WithToolsets([]string{"all"}).
-		WithMCPApps(true))
+		WithFeatureChecker(mcpAppsChecker))
 	available := reg.AvailableTools(context.Background())
 
 	require.Len(t, available, 1)
