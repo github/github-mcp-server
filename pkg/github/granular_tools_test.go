@@ -522,3 +522,181 @@ func TestGranularCreatePullRequestReview(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
 }
+
+func TestGranularUpdatePullRequestDraftState(t *testing.T) {
+	tests := []struct {
+		name  string
+		draft bool
+	}{
+		{name: "convert to draft", draft: true},
+		{name: "mark ready for review", draft: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var matchers []githubv4mock.Matcher
+
+			matchers = append(matchers, githubv4mock.NewQueryMatcher(
+				struct {
+					Repository struct {
+						PullRequest struct {
+							ID githubv4.ID
+						} `graphql:"pullRequest(number: $number)"`
+					} `graphql:"repository(owner: $owner, name: $name)"`
+				}{},
+				map[string]any{
+					"owner":  githubv4.String("owner"),
+					"name":   githubv4.String("repo"),
+					"number": githubv4.Int(1),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"repository": map[string]any{
+						"pullRequest": map[string]any{"id": "PR_123"},
+					},
+				}),
+			))
+
+			if tc.draft {
+				matchers = append(matchers, githubv4mock.NewMutationMatcher(
+					struct {
+						ConvertPullRequestToDraft struct {
+							PullRequest struct {
+								ID      githubv4.ID
+								IsDraft githubv4.Boolean
+							}
+						} `graphql:"convertPullRequestToDraft(input: $input)"`
+					}{},
+					githubv4.ConvertPullRequestToDraftInput{PullRequestID: githubv4.ID("PR_123")},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"convertPullRequestToDraft": map[string]any{
+							"pullRequest": map[string]any{"id": "PR_123", "isDraft": true},
+						},
+					}),
+				))
+			} else {
+				matchers = append(matchers, githubv4mock.NewMutationMatcher(
+					struct {
+						MarkPullRequestReadyForReview struct {
+							PullRequest struct {
+								ID      githubv4.ID
+								IsDraft githubv4.Boolean
+							}
+						} `graphql:"markPullRequestReadyForReview(input: $input)"`
+					}{},
+					githubv4.MarkPullRequestReadyForReviewInput{PullRequestID: githubv4.ID("PR_123")},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"markPullRequestReadyForReview": map[string]any{
+							"pullRequest": map[string]any{"id": "PR_123", "isDraft": false},
+						},
+					}),
+				))
+			}
+
+			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matchers...))
+			deps := BaseDeps{GQLClient: gqlClient}
+			serverTool := GranularUpdatePullRequestDraftState(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(1),
+				"draft":      tc.draft,
+			})
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			assert.False(t, result.IsError)
+		})
+	}
+}
+
+func TestGranularAddPullRequestReviewComment(t *testing.T) {
+	mockedClient := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			struct {
+				Viewer struct {
+					Login githubv4.String
+				}
+			}{},
+			nil,
+			githubv4mock.DataResponse(map[string]any{
+				"viewer": map[string]any{"login": "testuser"},
+			}),
+		),
+		githubv4mock.NewQueryMatcher(
+			struct {
+				Repository struct {
+					PullRequest struct {
+						Reviews struct {
+							Nodes []struct {
+								ID    githubv4.ID
+								State githubv4.PullRequestReviewState
+								URL   githubv4.URI
+							}
+						} `graphql:"reviews(first: 1, author: $author)"`
+					} `graphql:"pullRequest(number: $prNum)"`
+				} `graphql:"repository(owner: $owner, name: $name)"`
+			}{},
+			map[string]any{
+				"author": githubv4.String("testuser"),
+				"owner":  githubv4.String("owner"),
+				"name":   githubv4.String("repo"),
+				"prNum":  githubv4.Int(1),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"pullRequest": map[string]any{
+						"reviews": map[string]any{
+							"nodes": []map[string]any{
+								{"id": "PRR_123", "state": "PENDING", "url": "https://github.com/owner/repo/pull/1#pullrequestreview-123"},
+							},
+						},
+					},
+				},
+			}),
+		),
+		githubv4mock.NewMutationMatcher(
+			struct {
+				AddPullRequestReviewThread struct {
+					Thread struct {
+						ID githubv4.ID
+					}
+				} `graphql:"addPullRequestReviewThread(input: $input)"`
+			}{},
+			githubv4.AddPullRequestReviewThreadInput{
+				Path:                githubv4.String("src/main.go"),
+				Body:                githubv4.String("This needs a fix"),
+				SubjectType:         githubv4mock.Ptr(githubv4.PullRequestReviewThreadSubjectTypeLine),
+				Line:                githubv4mock.Ptr(githubv4.Int(42)),
+				Side:                githubv4mock.Ptr(githubv4.DiffSideRight),
+				PullRequestReviewID: githubv4mock.Ptr(githubv4.ID("PRR_123")),
+			},
+			nil,
+			githubv4mock.DataResponse(map[string]any{
+				"addPullRequestReviewThread": map[string]any{
+					"thread": map[string]any{"id": "PRRT_456"},
+				},
+			}),
+		),
+	)
+	gqlClient := githubv4.NewClient(mockedClient)
+	deps := BaseDeps{GQLClient: gqlClient}
+	serverTool := GranularAddPullRequestReviewComment(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":       "owner",
+		"repo":        "repo",
+		"pullNumber":  float64(1),
+		"path":        "src/main.go",
+		"body":        "This needs a fix",
+		"subjectType": "LINE",
+		"line":        float64(42),
+		"side":        "RIGHT",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+}

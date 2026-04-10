@@ -14,7 +14,7 @@
       },
       "milestone": {
         "description": "The milestone number to set on the issue",
-        "minimum": 0,
+        "minimum": 1,
         "type": "integer"
       },
       "owner": {

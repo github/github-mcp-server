@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 
+	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -84,12 +85,16 @@ func issueUpdateTool(
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			issue, _, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueReq)
+			issue, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueReq)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to update issue", err), nil, nil
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue", resp, err), nil, nil
 			}
+			defer func() { _ = resp.Body.Close() }()
 
-			r, err := json.Marshal(issue)
+			r, err := json.Marshal(MinimalResponse{
+				ID:  fmt.Sprintf("%d", issue.GetID()),
+				URL: issue.GetHTMLURL(),
+			})
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
@@ -164,12 +169,16 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			issue, _, err := client.Issues.Create(ctx, owner, repo, issueReq)
+			issue, resp, err := client.Issues.Create(ctx, owner, repo, issueReq)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to create issue", err), nil, nil
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create issue", resp, err), nil, nil
 			}
+			defer func() { _ = resp.Body.Close() }()
 
-			r, err := json.Marshal(issue)
+			r, err := json.Marshal(MinimalResponse{
+				ID:  fmt.Sprintf("%d", issue.GetID()),
+				URL: issue.GetHTMLURL(),
+			})
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
@@ -235,15 +244,12 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 		},
 		[]string{"assignees"},
 		func(args map[string]any) (*github.IssueRequest, error) {
-			raw, _ := OptionalParam[[]any](args, "assignees")
-			if len(raw) == 0 {
-				return nil, fmt.Errorf("missing required parameter: assignees")
+			assignees, err := OptionalStringArrayParam(args, "assignees")
+			if err != nil {
+				return nil, err
 			}
-			assignees := make([]string, 0, len(raw))
-			for _, v := range raw {
-				if s, ok := v.(string); ok {
-					assignees = append(assignees, s)
-				}
+			if len(assignees) == 0 {
+				return nil, fmt.Errorf("missing required parameter: assignees")
 			}
 			return &github.IssueRequest{Assignees: &assignees}, nil
 		},
@@ -265,15 +271,12 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 		},
 		[]string{"labels"},
 		func(args map[string]any) (*github.IssueRequest, error) {
-			raw, _ := OptionalParam[[]any](args, "labels")
-			if len(raw) == 0 {
-				return nil, fmt.Errorf("missing required parameter: labels")
+			labels, err := OptionalStringArrayParam(args, "labels")
+			if err != nil {
+				return nil, err
 			}
-			labels := make([]string, 0, len(raw))
-			for _, v := range raw {
-				if s, ok := v.(string); ok {
-					labels = append(labels, s)
-				}
+			if len(labels) == 0 {
+				return nil, fmt.Errorf("missing required parameter: labels")
 			}
 			return &github.IssueRequest{Labels: &labels}, nil
 		},
@@ -290,7 +293,7 @@ func GranularUpdateIssueMilestone(t translations.TranslationHelperFunc) inventor
 			"milestone": {
 				Type:        "integer",
 				Description: "The milestone number to set on the issue",
-				Minimum:     jsonschema.Ptr(0.0),
+				Minimum:     jsonschema.Ptr(1.0),
 			},
 		},
 		[]string{"milestone"},

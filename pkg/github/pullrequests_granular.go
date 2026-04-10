@@ -86,12 +86,16 @@ func prUpdateTool(
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			pr, _, err := client.PullRequests.Edit(ctx, owner, repo, pullNumber, prReq)
+			pr, resp, err := client.PullRequests.Edit(ctx, owner, repo, pullNumber, prReq)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to update pull request", err), nil, nil
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update pull request", resp, err), nil, nil
 			}
+			defer func() { _ = resp.Body.Close() }()
 
-			r, err := json.Marshal(pr)
+			r, err := json.Marshal(MinimalResponse{
+				ID:  fmt.Sprintf("%d", pr.GetID()),
+				URL: pr.GetHTMLURL(),
+			})
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
@@ -204,7 +208,11 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			draft, err := RequiredParam[bool](args, "draft")
+			// Use presence check + OptionalParam since RequiredParam rejects false (zero-value for bool)
+			if _, ok := args["draft"]; !ok {
+				return utils.NewToolResultError("missing required parameter: draft"), nil, nil
+			}
+			draft, err := OptionalParam[bool](args, "draft")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -309,15 +317,12 @@ func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) i
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			rawReviewers, _ := OptionalParam[[]any](args, "reviewers")
-			if len(rawReviewers) == 0 {
-				return utils.NewToolResultError("missing required parameter: reviewers"), nil, nil
+			reviewers, err := OptionalStringArrayParam(args, "reviewers")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			reviewers := make([]string, 0, len(rawReviewers))
-			for _, v := range rawReviewers {
-				if s, ok := v.(string); ok {
-					reviewers = append(reviewers, s)
-				}
+			if len(reviewers) == 0 {
+				return utils.NewToolResultError("missing required parameter: reviewers"), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -325,12 +330,16 @@ func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) i
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			pr, _, err := client.PullRequests.RequestReviewers(ctx, owner, repo, pullNumber, gogithub.ReviewersRequest{Reviewers: reviewers})
+			pr, resp, err := client.PullRequests.RequestReviewers(ctx, owner, repo, pullNumber, gogithub.ReviewersRequest{Reviewers: reviewers})
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to request reviewers", err), nil, nil
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to request reviewers", resp, err), nil, nil
 			}
+			defer func() { _ = resp.Body.Close() }()
 
-			r, err := json.Marshal(pr)
+			r, err := json.Marshal(MinimalResponse{
+				ID:  fmt.Sprintf("%d", pr.GetID()),
+				URL: pr.GetHTMLURL(),
+			})
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
@@ -667,6 +676,15 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 				startLinePtr = &sl
 			}
 
+			// Convert optional string params: pass nil (not empty string) when absent
+			var sidePtr, startSidePtr *string
+			if side != "" {
+				sidePtr = &side
+			}
+			if startSide != "" {
+				startSidePtr = &startSide
+			}
+
 			if err := gqlClient.Mutate(
 				ctx,
 				&addPullRequestReviewThreadMutation,
@@ -675,9 +693,9 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 					Body:                githubv4.String(body),
 					SubjectType:         newGQLStringlikePtr[githubv4.PullRequestReviewThreadSubjectType](&subjectType),
 					Line:                newGQLIntPtr(linePtr),
-					Side:                newGQLStringlikePtr[githubv4.DiffSide](&side),
+					Side:                newGQLStringlikePtr[githubv4.DiffSide](sidePtr),
 					StartLine:           newGQLIntPtr(startLinePtr),
-					StartSide:           newGQLStringlikePtr[githubv4.DiffSide](&startSide),
+					StartSide:           newGQLStringlikePtr[githubv4.DiffSide](startSidePtr),
 					PullRequestReviewID: &review.ID,
 				},
 				nil,

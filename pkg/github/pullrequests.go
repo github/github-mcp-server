@@ -751,7 +751,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 		Required: []string{"owner", "repo", "pullNumber"},
 	}
 
-	return NewTool(
+	st := NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "update_pull_request",
@@ -990,6 +990,8 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
+	st.FeatureFlagDisable = FeatureFlagPullRequestsGranular
+	return st
 }
 
 // AddReplyToPullRequestComment creates a tool to add a reply to an existing pull request comment.
@@ -1555,7 +1557,7 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.Serv
 		Required: []string{"method", "owner", "repo", "pullNumber"},
 	}
 
-	return NewTool(
+	st := NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name: "pull_request_review_write",
@@ -1607,6 +1609,8 @@ Available methods:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
 			}
 		})
+	st.FeatureFlagDisable = FeatureFlagPullRequestsGranular
+	return st
 }
 
 func CreatePullRequestReview(ctx context.Context, client *githubv4.Client, params PullRequestReviewWriteParams) (*mcp.CallToolResult, error) {
@@ -1947,7 +1951,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 		Required: []string{"owner", "repo", "pullNumber", "path", "body", "subjectType"},
 	}
 
-	return NewTool(
+	st := NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "add_comment_to_pending_review",
@@ -2074,6 +2078,8 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			// API implementation details to the LLM.
 			return utils.NewToolResultText("pull request review comment successfully added to pending review"), nil, nil
 		})
+	st.FeatureFlagDisable = FeatureFlagPullRequestsGranular
+	return st
 }
 
 // newGQLString like takes something that approximates a string (of which there are many types in shurcooL/githubv4)
