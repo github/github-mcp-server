@@ -6,7 +6,7 @@ This directory contains detailed installation instructions for the GitHub MCP Se
 - **[Copilot CLI](install-copilot-cli.md)** - Installation guide for GitHub Copilot CLI
 - **[GitHub Copilot in other IDEs](install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
 - **[Antigravity](install-antigravity.md)** - Installation for Google Antigravity IDE
-- **[Claude Applications](install-claude.md)** - Installation guide for Claude Web, Claude Desktop and Claude Code CLI
+- **[Claude Applications](install-claude.md)** - Installation guide for Claude Desktop and Claude Code CLI
 - **[Cline](install-cline.md)** - Installation guide for Cline
 - **[Cursor](install-cursor.md)** - Installation guide for Cursor IDE
 - **[Google Gemini CLI](install-gemini-cli.md)** - Installation guide for Google Gemini CLI
