@@ -303,6 +303,8 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GranularSubmitPendingPullRequestReview(t),
 		GranularDeletePendingPullRequestReview(t),
 		GranularAddPullRequestReviewComment(t),
+		GranularResolveReviewThread(t),
+		GranularUnresolveReviewThread(t),
 	}
 }
 

@@ -48,6 +48,8 @@ func TestGranularToolSnaps(t *testing.T) {
 		GranularSubmitPendingPullRequestReview,
 		GranularDeletePendingPullRequestReview,
 		GranularAddPullRequestReviewComment,
+		GranularResolveReviewThread,
+		GranularUnresolveReviewThread,
 	}
 
 	for _, constructor := range toolConstructors {
@@ -112,6 +114,8 @@ func TestPullRequestsGranularToolset(t *testing.T) {
 			"submit_pending_pull_request_review",
 			"delete_pending_pull_request_review",
 			"add_pull_request_review_comment",
+			"resolve_review_thread",
+			"unresolve_review_thread",
 		}
 		for _, name := range expected {
 			assert.Contains(t, toolNames, name)
@@ -695,6 +699,76 @@ func TestGranularAddPullRequestReviewComment(t *testing.T) {
 		"subjectType": "LINE",
 		"line":        float64(42),
 		"side":        "RIGHT",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+}
+
+func TestGranularResolveReviewThread(t *testing.T) {
+	mockedClient := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewMutationMatcher(
+			struct {
+				ResolveReviewThread struct {
+					Thread struct {
+						ID         githubv4.ID
+						IsResolved githubv4.Boolean
+					}
+				} `graphql:"resolveReviewThread(input: $input)"`
+			}{},
+			githubv4.ResolveReviewThreadInput{
+				ThreadID: githubv4.ID("PRRT_123"),
+			},
+			nil,
+			githubv4mock.DataResponse(map[string]any{
+				"resolveReviewThread": map[string]any{
+					"thread": map[string]any{"id": "PRRT_123", "isResolved": true},
+				},
+			}),
+		),
+	)
+	gqlClient := githubv4.NewClient(mockedClient)
+	deps := BaseDeps{GQLClient: gqlClient}
+	serverTool := GranularResolveReviewThread(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"threadID": "PRRT_123",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+}
+
+func TestGranularUnresolveReviewThread(t *testing.T) {
+	mockedClient := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewMutationMatcher(
+			struct {
+				UnresolveReviewThread struct {
+					Thread struct {
+						ID         githubv4.ID
+						IsResolved githubv4.Boolean
+					}
+				} `graphql:"unresolveReviewThread(input: $input)"`
+			}{},
+			githubv4.UnresolveReviewThreadInput{
+				ThreadID: githubv4.ID("PRRT_123"),
+			},
+			nil,
+			githubv4mock.DataResponse(map[string]any{
+				"unresolveReviewThread": map[string]any{
+					"thread": map[string]any{"id": "PRRT_123", "isResolved": false},
+				},
+			}),
+		),
+	)
+	gqlClient := githubv4.NewClient(mockedClient)
+	deps := BaseDeps{GQLClient: gqlClient}
+	serverTool := GranularUnresolveReviewThread(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"threadID": "PRRT_123",
 	})
 	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)

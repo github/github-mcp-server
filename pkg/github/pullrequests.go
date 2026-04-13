@@ -1890,6 +1890,113 @@ func ResolveReviewThread(ctx context.Context, client *githubv4.Client, threadID 
 	return utils.NewToolResultText("review thread unresolved successfully"), nil
 }
 
+// AddCommentToPendingReviewParams contains the parameters for adding a comment to a pending review.
+type AddCommentToPendingReviewParams struct {
+	Owner       string
+	Repo        string
+	PullNumber  int32
+	Path        string
+	Body        string
+	SubjectType string
+	Line        *int32
+	Side        *string
+	StartLine   *int32
+	StartSide   *string
+}
+
+// AddCommentToPendingReviewCall adds a review comment to the viewer's pending pull request review.
+func AddCommentToPendingReviewCall(ctx context.Context, client *githubv4.Client, params AddCommentToPendingReviewParams) (*mcp.CallToolResult, error) {
+	// Get the current user
+	var getViewerQuery struct {
+		Viewer struct {
+			Login githubv4.String
+		}
+	}
+
+	if err := client.Query(ctx, &getViewerQuery, nil); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+			"failed to get current user",
+			err,
+		), nil
+	}
+
+	var getLatestReviewForViewerQuery struct {
+		Repository struct {
+			PullRequest struct {
+				Reviews struct {
+					Nodes []struct {
+						ID    githubv4.ID
+						State githubv4.PullRequestReviewState
+						URL   githubv4.URI
+					}
+				} `graphql:"reviews(first: 1, author: $author)"`
+			} `graphql:"pullRequest(number: $prNum)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
+	}
+
+	vars := map[string]any{
+		"author": githubv4.String(getViewerQuery.Viewer.Login),
+		"owner":  githubv4.String(params.Owner),
+		"name":   githubv4.String(params.Repo),
+		"prNum":  githubv4.Int(params.PullNumber),
+	}
+
+	if err := client.Query(ctx, &getLatestReviewForViewerQuery, vars); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+			"failed to get latest review for current user",
+			err,
+		), nil
+	}
+
+	// Validate there is one review and the state is pending
+	if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
+		return utils.NewToolResultError("No pending review found for the viewer"), nil
+	}
+
+	review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
+	if review.State != githubv4.PullRequestReviewStatePending {
+		errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
+		return utils.NewToolResultError(errText), nil
+	}
+
+	// Create a new review thread comment on the review.
+	var addPullRequestReviewThreadMutation struct {
+		AddPullRequestReviewThread struct {
+			Thread struct {
+				ID githubv4.ID
+			}
+		} `graphql:"addPullRequestReviewThread(input: $input)"`
+	}
+
+	if err := client.Mutate(
+		ctx,
+		&addPullRequestReviewThreadMutation,
+		githubv4.AddPullRequestReviewThreadInput{
+			Path:                githubv4.String(params.Path),
+			Body:                githubv4.String(params.Body),
+			SubjectType:         newGQLStringlikePtr[githubv4.PullRequestReviewThreadSubjectType](&params.SubjectType),
+			Line:                newGQLIntPtr(params.Line),
+			Side:                newGQLStringlikePtr[githubv4.DiffSide](params.Side),
+			StartLine:           newGQLIntPtr(params.StartLine),
+			StartSide:           newGQLStringlikePtr[githubv4.DiffSide](params.StartSide),
+			PullRequestReviewID: &review.ID,
+		},
+		nil,
+	); err != nil {
+		return utils.NewToolResultError(err.Error()), nil
+	}
+
+	if addPullRequestReviewThreadMutation.AddPullRequestReviewThread.Thread.ID == nil {
+		return utils.NewToolResultError(`Failed to add comment to pending review. Possible reasons:
+	- The line number doesn't exist in the pull request diff
+	- The file path is incorrect
+	- The side (LEFT/RIGHT) is invalid for the specified line
+`), nil
+	}
+
+	return utils.NewToolResultText("pull request review comment successfully added to pending review"), nil
+}
+
 // AddCommentToPendingReview creates a tool to add a comment to a pull request review.
 func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
@@ -1985,98 +2092,19 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
 			}
 
-			// First we'll get the current user
-			var getViewerQuery struct {
-				Viewer struct {
-					Login githubv4.String
-				}
-			}
-
-			if err := client.Query(ctx, &getViewerQuery, nil); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
-					"failed to get current user",
-					err,
-				), nil, nil
-			}
-
-			var getLatestReviewForViewerQuery struct {
-				Repository struct {
-					PullRequest struct {
-						Reviews struct {
-							Nodes []struct {
-								ID    githubv4.ID
-								State githubv4.PullRequestReviewState
-								URL   githubv4.URI
-							}
-						} `graphql:"reviews(first: 1, author: $author)"`
-					} `graphql:"pullRequest(number: $prNum)"`
-				} `graphql:"repository(owner: $owner, name: $name)"`
-			}
-
-			vars := map[string]any{
-				"author": githubv4.String(getViewerQuery.Viewer.Login),
-				"owner":  githubv4.String(params.Owner),
-				"name":   githubv4.String(params.Repo),
-				"prNum":  githubv4.Int(params.PullNumber),
-			}
-
-			if err := client.Query(ctx, &getLatestReviewForViewerQuery, vars); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
-					"failed to get latest review for current user",
-					err,
-				), nil, nil
-			}
-
-			// Validate there is one review and the state is pending
-			if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
-				return utils.NewToolResultError("No pending review found for the viewer"), nil, nil
-			}
-
-			review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
-			if review.State != githubv4.PullRequestReviewStatePending {
-				errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
-				return utils.NewToolResultError(errText), nil, nil
-			}
-
-			// Then we can create a new review thread comment on the review.
-			var addPullRequestReviewThreadMutation struct {
-				AddPullRequestReviewThread struct {
-					Thread struct {
-						ID githubv4.ID // We don't need this, but a selector is required or GQL complains.
-					}
-				} `graphql:"addPullRequestReviewThread(input: $input)"`
-			}
-
-			if err := client.Mutate(
-				ctx,
-				&addPullRequestReviewThreadMutation,
-				githubv4.AddPullRequestReviewThreadInput{
-					Path:                githubv4.String(params.Path),
-					Body:                githubv4.String(params.Body),
-					SubjectType:         newGQLStringlikePtr[githubv4.PullRequestReviewThreadSubjectType](&params.SubjectType),
-					Line:                newGQLIntPtr(params.Line),
-					Side:                newGQLStringlikePtr[githubv4.DiffSide](params.Side),
-					StartLine:           newGQLIntPtr(params.StartLine),
-					StartSide:           newGQLStringlikePtr[githubv4.DiffSide](params.StartSide),
-					PullRequestReviewID: &review.ID,
-				},
-				nil,
-			); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			if addPullRequestReviewThreadMutation.AddPullRequestReviewThread.Thread.ID == nil {
-				return utils.NewToolResultError(`Failed to add comment to pending review. Possible reasons:
-	- The line number doesn't exist in the pull request diff
-	- The file path is incorrect
-	- The side (LEFT/RIGHT) is invalid for the specified line
-`), nil, nil
-			}
-
-			// Return nothing interesting, just indicate success for the time being.
-			// In future, we may want to return the review ID, but for the moment, we're not leaking
-			// API implementation details to the LLM.
-			return utils.NewToolResultText("pull request review comment successfully added to pending review"), nil, nil
+			result, err := AddCommentToPendingReviewCall(ctx, client, AddCommentToPendingReviewParams{
+				Owner:       params.Owner,
+				Repo:        params.Repo,
+				PullNumber:  params.PullNumber,
+				Path:        params.Path,
+				Body:        params.Body,
+				SubjectType: params.SubjectType,
+				Line:        params.Line,
+				Side:        params.Side,
+				StartLine:   params.StartLine,
+				StartSide:   params.StartSide,
+			})
+			return result, nil, err
 		})
 	st.FeatureFlagDisable = FeatureFlagPullRequestsGranular
 	return st

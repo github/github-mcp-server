@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -48,9 +49,9 @@ func prUpdateTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        name,
-			Description: t("TOOL_"+name+"_DESCRIPTION", description),
+			Description: t("TOOL_"+strings.ToUpper(name)+"_DESCRIPTION", description),
 			Annotations: &mcp.ToolAnnotations{
-				Title:           t("TOOL_"+name+"_USER_TITLE", title),
+				Title:           t("TOOL_"+strings.ToUpper(name)+"_USER_TITLE", title),
 				ReadOnlyHint:    false,
 				DestructiveHint: jsonschema.Ptr(false),
 				OpenWorldHint:   jsonschema.Ptr(true),
@@ -610,62 +611,7 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
 
-			// Get the current user to find their pending review
-			var getViewerQuery struct {
-				Viewer struct {
-					Login githubv4.String
-				}
-			}
-			if err := gqlClient.Query(ctx, &getViewerQuery, nil); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get current user", err), nil, nil
-			}
-
-			// Find the viewer's latest review (must be pending)
-			var getLatestReviewForViewerQuery struct {
-				Repository struct {
-					PullRequest struct {
-						Reviews struct {
-							Nodes []struct {
-								ID    githubv4.ID
-								State githubv4.PullRequestReviewState
-								URL   githubv4.URI
-							}
-						} `graphql:"reviews(first: 1, author: $author)"`
-					} `graphql:"pullRequest(number: $prNum)"`
-				} `graphql:"repository(owner: $owner, name: $name)"`
-			}
-
-			vars := map[string]any{
-				"author": githubv4.String(getViewerQuery.Viewer.Login),
-				"owner":  githubv4.String(owner),
-				"name":   githubv4.String(repo),
-				"prNum":  githubv4.Int(pullNumber), // #nosec G115 - PR numbers are always small positive integers
-			}
-
-			if err := gqlClient.Query(ctx, &getLatestReviewForViewerQuery, vars); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get latest review for current user", err), nil, nil
-			}
-
-			if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
-				return utils.NewToolResultError("No pending review found for the viewer"), nil, nil
-			}
-
-			review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
-			if review.State != githubv4.PullRequestReviewStatePending {
-				errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
-				return utils.NewToolResultError(errText), nil, nil
-			}
-
-			// Add review thread comment to the pending review
-			var addPullRequestReviewThreadMutation struct {
-				AddPullRequestReviewThread struct {
-					Thread struct {
-						ID githubv4.ID
-					}
-				} `graphql:"addPullRequestReviewThread(input: $input)"`
-			}
-
-			// Convert optional int params to *int32 for GraphQL helper
+			// Convert optional int params to *int32 for the helper
 			var linePtr, startLinePtr *int32
 			if line != 0 {
 				l := int32(line) // #nosec G115
@@ -685,33 +631,107 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 				startSidePtr = &startSide
 			}
 
-			if err := gqlClient.Mutate(
-				ctx,
-				&addPullRequestReviewThreadMutation,
-				githubv4.AddPullRequestReviewThreadInput{
-					Path:                githubv4.String(path),
-					Body:                githubv4.String(body),
-					SubjectType:         newGQLStringlikePtr[githubv4.PullRequestReviewThreadSubjectType](&subjectType),
-					Line:                newGQLIntPtr(linePtr),
-					Side:                newGQLStringlikePtr[githubv4.DiffSide](sidePtr),
-					StartLine:           newGQLIntPtr(startLinePtr),
-					StartSide:           newGQLStringlikePtr[githubv4.DiffSide](startSidePtr),
-					PullRequestReviewID: &review.ID,
+			result, err := AddCommentToPendingReviewCall(ctx, gqlClient, AddCommentToPendingReviewParams{
+				Owner:       owner,
+				Repo:        repo,
+				PullNumber:  int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers
+				Path:        path,
+				Body:        body,
+				SubjectType: subjectType,
+				Line:        linePtr,
+				Side:        sidePtr,
+				StartLine:   startLinePtr,
+				StartSide:   startSidePtr,
+			})
+			return result, nil, err
+		},
+	)
+	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	return st
+}
+
+// GranularResolveReviewThread creates a tool to resolve a review thread.
+func GranularResolveReviewThread(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataPullRequests,
+		mcp.Tool{
+			Name:        "resolve_review_thread",
+			Description: t("TOOL_RESOLVE_REVIEW_THREAD_DESCRIPTION", "Resolve a review thread on a pull request. Resolving an already-resolved thread is a no-op."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_RESOLVE_REVIEW_THREAD_USER_TITLE", "Resolve Review Thread"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"threadID": {
+						Type:        "string",
+						Description: "The node ID of the review thread to resolve (e.g., PRRT_kwDOxxx)",
+					},
 				},
-				nil,
-			); err != nil {
+				Required: []string{"threadID"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			threadID, err := RequiredParam[string](args, "threadID")
+			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			if addPullRequestReviewThreadMutation.AddPullRequestReviewThread.Thread.ID == nil {
-				return utils.NewToolResultError(`Failed to add comment to pending review. Possible reasons:
-	- The line number doesn't exist in the pull request diff
-	- The file path is incorrect
-	- The side (LEFT/RIGHT) is invalid for the specified line
-`), nil, nil
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
 
-			return utils.NewToolResultText("pull request review comment successfully added to pending review"), nil, nil
+			result, err := ResolveReviewThread(ctx, gqlClient, threadID, true)
+			return result, nil, err
+		},
+	)
+	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	return st
+}
+
+// GranularUnresolveReviewThread creates a tool to unresolve a review thread.
+func GranularUnresolveReviewThread(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataPullRequests,
+		mcp.Tool{
+			Name:        "unresolve_review_thread",
+			Description: t("TOOL_UNRESOLVE_REVIEW_THREAD_DESCRIPTION", "Unresolve a previously resolved review thread on a pull request. Unresolving an already-unresolved thread is a no-op."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_UNRESOLVE_REVIEW_THREAD_USER_TITLE", "Unresolve Review Thread"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"threadID": {
+						Type:        "string",
+						Description: "The node ID of the review thread to unresolve (e.g., PRRT_kwDOxxx)",
+					},
+				},
+				Required: []string{"threadID"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			threadID, err := RequiredParam[string](args, "threadID")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
+			}
+
+			result, err := ResolveReviewThread(ctx, gqlClient, threadID, false)
+			return result, nil, err
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular

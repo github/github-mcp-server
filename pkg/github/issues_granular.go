@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -47,9 +48,9 @@ func issueUpdateTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        name,
-			Description: t("TOOL_"+name+"_DESCRIPTION", description),
+			Description: t("TOOL_"+strings.ToUpper(name)+"_DESCRIPTION", description),
 			Annotations: &mcp.ToolAnnotations{
-				Title:           t("TOOL_"+name+"_USER_TITLE", title),
+				Title:           t("TOOL_"+strings.ToUpper(name)+"_USER_TITLE", title),
 				ReadOnlyHint:    false,
 				DestructiveHint: jsonschema.Ptr(false),
 				OpenWorldHint:   jsonschema.Ptr(true),
@@ -244,12 +245,12 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 		},
 		[]string{"assignees"},
 		func(args map[string]any) (*github.IssueRequest, error) {
+			if _, ok := args["assignees"]; !ok {
+				return nil, fmt.Errorf("missing required parameter: assignees")
+			}
 			assignees, err := OptionalStringArrayParam(args, "assignees")
 			if err != nil {
 				return nil, err
-			}
-			if len(assignees) == 0 {
-				return nil, fmt.Errorf("missing required parameter: assignees")
 			}
 			return &github.IssueRequest{Assignees: &assignees}, nil
 		},
@@ -271,12 +272,12 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 		},
 		[]string{"labels"},
 		func(args map[string]any) (*github.IssueRequest, error) {
+			if _, ok := args["labels"]; !ok {
+				return nil, fmt.Errorf("missing required parameter: labels")
+			}
 			labels, err := OptionalStringArrayParam(args, "labels")
 			if err != nil {
 				return nil, err
-			}
-			if len(labels) == 0 {
-				return nil, fmt.Errorf("missing required parameter: labels")
 			}
 			return &github.IssueRequest{Labels: &labels}, nil
 		},
