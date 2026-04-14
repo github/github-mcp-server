@@ -23,6 +23,10 @@ import (
 )
 
 func mockTool(name, toolsetID string, readOnly bool) inventory.ServerTool {
+	return mockToolFull(name, toolsetID, readOnly, false)
+}
+
+func mockToolFull(name, toolsetID string, readOnly bool, isDefault bool) inventory.ServerTool {
 	return inventory.ServerTool{
 		Tool: mcp.Tool{
 			Name:        name,
@@ -31,6 +35,7 @@ func mockTool(name, toolsetID string, readOnly bool) inventory.ServerTool {
 		Toolset: inventory.ToolsetMetadata{
 			ID:          inventory.ToolsetID(toolsetID),
 			Description: "Test: " + toolsetID,
+			Default:     isDefault,
 		},
 	}
 }
@@ -103,6 +108,31 @@ func TestInventoryFiltersForRequest(t *testing.T) {
 				return ctx
 			},
 			expectedTools: []string{"get_file_contents", "create_repository", "list_issues"},
+		},
+		{
+			name: "excluded tools removes specific tools",
+			contextSetup: func(ctx context.Context) context.Context {
+				return ghcontext.WithExcludeTools(ctx, []string{"create_repository", "issue_write"})
+			},
+			expectedTools: []string{"get_file_contents", "list_issues"},
+		},
+		{
+			name: "excluded tools overrides explicit tools",
+			contextSetup: func(ctx context.Context) context.Context {
+				ctx = ghcontext.WithTools(ctx, []string{"list_issues", "create_repository"})
+				ctx = ghcontext.WithExcludeTools(ctx, []string{"create_repository"})
+				return ctx
+			},
+			expectedTools: []string{"list_issues"},
+		},
+		{
+			name: "excluded tools combines with readonly",
+			contextSetup: func(ctx context.Context) context.Context {
+				ctx = ghcontext.WithReadonly(ctx, true)
+				ctx = ghcontext.WithExcludeTools(ctx, []string{"list_issues"})
+				return ctx
+			},
+			expectedTools: []string{"get_file_contents"},
 		},
 	}
 
@@ -267,6 +297,40 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			},
 			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "hidden_by_holdback"},
 		},
+		{
+			name: "X-MCP-Exclude-Tools header removes specific tools",
+			path: "/",
+			headers: map[string]string{
+				headers.MCPExcludeToolsHeader: "create_issue,create_pull_request",
+			},
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "list_pull_requests", "hidden_by_holdback"},
+		},
+		{
+			name: "X-MCP-Exclude-Tools with toolset header",
+			path: "/",
+			headers: map[string]string{
+				headers.MCPToolsetsHeader:     "issues",
+				headers.MCPExcludeToolsHeader: "create_issue",
+			},
+			expectedTools: []string{"list_issues"},
+		},
+		{
+			name: "X-MCP-Exclude-Tools overrides X-MCP-Tools",
+			path: "/",
+			headers: map[string]string{
+				headers.MCPToolsHeader:        "list_issues,create_issue",
+				headers.MCPExcludeToolsHeader: "create_issue",
+			},
+			expectedTools: []string{"list_issues"},
+		},
+		{
+			name: "X-MCP-Exclude-Tools with readonly path",
+			path: "/readonly",
+			headers: map[string]string{
+				headers.MCPExcludeToolsHeader: "list_issues",
+			},
+			expectedTools: []string{"get_file_contents", "list_pull_requests", "hidden_by_holdback"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -349,4 +413,254 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			assert.Equal(t, expectedSorted, toolNames, "tools should match expected")
 		})
 	}
+}
+
+func TestStaticConfigEnforcement(t *testing.T) {
+	// Use default toolsets to match real-world behavior where repos/issues/pull_requests are defaults
+	tools := []inventory.ServerTool{
+		mockToolFull("get_file_contents", "repos", true, true),
+		mockToolFull("create_repository", "repos", false, true),
+		mockToolFull("list_issues", "issues", true, true),
+		mockToolFull("create_issue", "issues", false, true),
+		mockToolFull("list_pull_requests", "pull_requests", true, true),
+		mockToolFull("create_pull_request", "pull_requests", false, true),
+		mockToolWithFeatureFlag("hidden_by_holdback", "repos", true, "", "mcp_holdback_consolidated_projects"),
+	}
+
+	tests := []struct {
+		name          string
+		config        *ServerConfig
+		path          string
+		headers       map[string]string
+		expectedTools []string
+	}{
+		{
+			name:          "no static config preserves existing behavior",
+			config:        &ServerConfig{Version: "test"},
+			path:          "/",
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "hidden_by_holdback"},
+		},
+		{
+			name:          "static read-only filters write tools",
+			config:        &ServerConfig{Version: "test", ReadOnly: true},
+			path:          "/",
+			expectedTools: []string{"get_file_contents", "list_issues", "list_pull_requests", "hidden_by_holdback"},
+		},
+		{
+			name:   "static read-only cannot be overridden by header",
+			config: &ServerConfig{Version: "test", ReadOnly: true},
+			path:   "/",
+			headers: map[string]string{
+				headers.MCPReadOnlyHeader: "false",
+			},
+			expectedTools: []string{"get_file_contents", "list_issues", "list_pull_requests", "hidden_by_holdback"},
+		},
+		{
+			name:          "static toolsets restricts available tools",
+			config:        &ServerConfig{Version: "test", EnabledToolsets: []string{"repos"}},
+			path:          "/",
+			expectedTools: []string{"get_file_contents", "create_repository", "hidden_by_holdback"},
+		},
+		{
+			name:   "static toolsets cannot be expanded by header",
+			config: &ServerConfig{Version: "test", EnabledToolsets: []string{"repos"}},
+			path:   "/",
+			headers: map[string]string{
+				headers.MCPToolsetsHeader: "issues",
+			},
+			// Header asks for "issues" but only "repos" tools exist in the static universe
+			expectedTools: []string{},
+		},
+		{
+			name:   "per-request header can narrow within static toolset bounds",
+			config: &ServerConfig{Version: "test", EnabledToolsets: []string{"repos", "issues"}},
+			path:   "/",
+			headers: map[string]string{
+				headers.MCPToolsetsHeader: "repos",
+			},
+			expectedTools: []string{"get_file_contents", "create_repository", "hidden_by_holdback"},
+		},
+		{
+			name:          "static exclude-tools removes tools",
+			config:        &ServerConfig{Version: "test", ExcludeTools: []string{"create_repository", "create_issue"}},
+			path:          "/",
+			expectedTools: []string{"get_file_contents", "list_issues", "list_pull_requests", "create_pull_request", "hidden_by_holdback"},
+		},
+		{
+			name:   "static exclude-tools cannot be re-included by header",
+			config: &ServerConfig{Version: "test", ExcludeTools: []string{"create_repository"}},
+			path:   "/",
+			headers: map[string]string{
+				headers.MCPToolsHeader: "create_repository,list_issues",
+			},
+			// create_repository was excluded at static level, only list_issues available
+			expectedTools: []string{"list_issues"},
+		},
+		{
+			name:   "static read-only combined with per-request toolset",
+			config: &ServerConfig{Version: "test", ReadOnly: true},
+			path:   "/",
+			headers: map[string]string{
+				headers.MCPToolsetsHeader: "repos",
+			},
+			expectedTools: []string{"get_file_contents", "hidden_by_holdback"},
+		},
+		{
+			name:          "static toolset with URL readonly",
+			config:        &ServerConfig{Version: "test", EnabledToolsets: []string{"repos", "issues"}},
+			path:          "/readonly",
+			expectedTools: []string{"get_file_contents", "list_issues", "hidden_by_holdback"},
+		},
+		{
+			name:          "static tools enables specific tools only",
+			config:        &ServerConfig{Version: "test", EnabledTools: []string{"list_issues", "get_file_contents"}},
+			path:          "/",
+			expectedTools: []string{"list_issues", "get_file_contents"},
+		},
+		{
+			name:   "static tools cannot be expanded by header",
+			config: &ServerConfig{Version: "test", EnabledTools: []string{"list_issues"}},
+			path:   "/",
+			headers: map[string]string{
+				headers.MCPToolsHeader: "create_repository",
+			},
+			// create_repository isn't in the static universe so it's silently dropped;
+			// the empty filter shows all tools within static bounds
+			expectedTools: []string{"list_issues"},
+		},
+		{
+			name:   "static exclude-tools combined with per-request exclude",
+			config: &ServerConfig{Version: "test", ExcludeTools: []string{"create_repository"}},
+			path:   "/",
+			headers: map[string]string{
+				headers.MCPExcludeToolsHeader: "create_issue",
+			},
+			// Both static and per-request exclusions apply
+			expectedTools: []string{"get_file_contents", "list_issues", "list_pull_requests", "create_pull_request", "hidden_by_holdback"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedInventory *inventory.Inventory
+			var capturedCtx context.Context
+
+			featureChecker := func(ctx context.Context, flag string) (bool, error) {
+				return slices.Contains(ghcontext.GetHeaderFeatures(ctx), flag), nil
+			}
+
+			apiHost, err := utils.NewAPIHost("https://api.github.com")
+			require.NoError(t, err)
+
+			// Build static tools the same way the production code does
+			staticTools, staticResources, staticPrompts := buildStaticInventoryFromTools(tt.config, tools, featureChecker)
+			hasStatic := hasStaticConfig(tt.config)
+
+			validToolNames := make(map[string]bool, len(staticTools))
+			for _, tool := range staticTools {
+				validToolNames[tool.Tool.Name] = true
+			}
+
+			inventoryFactory := func(r *http.Request) (*inventory.Inventory, error) {
+				capturedCtx = r.Context()
+				builder := inventory.NewBuilder().
+					SetTools(staticTools).
+					SetResources(staticResources).
+					SetPrompts(staticPrompts).
+					WithDeprecatedAliases(github.DeprecatedToolAliases).
+					WithFeatureChecker(featureChecker)
+
+				if hasStatic {
+					builder = builder.WithToolsets([]string{"all"})
+				}
+				if tt.config.ReadOnly {
+					builder = builder.WithReadOnly(true)
+				}
+				if tt.config.InsidersMode {
+					builder = builder.WithInsidersMode(true)
+				}
+
+				if hasStatic {
+					r = filterRequestTools(r, validToolNames)
+				}
+
+				builder = InventoryFiltersForRequest(r, builder)
+				inv, buildErr := builder.Build()
+				if buildErr != nil {
+					return nil, buildErr
+				}
+				capturedInventory = inv
+				return inv, nil
+			}
+
+			mcpServerFactory := func(_ *http.Request, _ github.ToolDependencies, _ *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+				return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+			}
+
+			handler := NewHTTPMcpHandler(
+				context.Background(),
+				tt.config,
+				nil,
+				translations.NullTranslationHelper,
+				slog.Default(),
+				apiHost,
+				WithInventoryFactory(inventoryFactory),
+				WithGitHubMCPServerFactory(mcpServerFactory),
+				WithScopeFetcher(allScopesFetcher{}),
+			)
+
+			r := chi.NewRouter()
+			handler.RegisterMiddleware(r)
+			handler.RegisterRoutes(r)
+
+			req := httptest.NewRequest(http.MethodPost, tt.path, nil)
+			req.Header.Set(headers.AuthorizationHeader, "Bearer ghp_testtoken")
+			for k, v := range tt.headers {
+				req.Header.Set(k, v)
+			}
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			require.NotNil(t, capturedInventory, "inventory should have been created")
+
+			toolNames := extractToolNames(capturedCtx, capturedInventory)
+			expectedSorted := make([]string, len(tt.expectedTools))
+			copy(expectedSorted, tt.expectedTools)
+			sort.Strings(expectedSorted)
+
+			assert.Equal(t, expectedSorted, toolNames, "tools should match expected")
+		})
+	}
+}
+
+// buildStaticInventoryFromTools is a test helper that mirrors buildStaticInventory
+// but uses the provided mock tools instead of calling github.AllTools.
+func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTool, featureChecker inventory.FeatureFlagChecker) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt) {
+	if !hasStaticConfig(cfg) {
+		return tools, nil, nil
+	}
+
+	b := inventory.NewBuilder().
+		SetTools(tools).
+		WithFeatureChecker(featureChecker).
+		WithReadOnly(cfg.ReadOnly).
+		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools)).
+		WithInsidersMode(cfg.InsidersMode)
+
+	if len(cfg.EnabledTools) > 0 {
+		b = b.WithTools(github.CleanTools(cfg.EnabledTools))
+	}
+
+	if len(cfg.ExcludeTools) > 0 {
+		b = b.WithExcludeTools(cfg.ExcludeTools)
+	}
+
+	inv, err := b.Build()
+	if err != nil {
+		return tools, nil, nil
+	}
+
+	ctx := context.Background()
+	return inv.AvailableTools(ctx), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx)
 }

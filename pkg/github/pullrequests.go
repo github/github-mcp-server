@@ -33,13 +33,14 @@ func PullRequestRead(t translations.TranslationHelperFunc) inventory.ServerTool 
 Possible options: 
  1. get - Get details of a specific pull request.
  2. get_diff - Get the diff of a pull request.
- 3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
+ 3. get_status - Get combined commit status of a head commit in a pull request.
  4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
  5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
  6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
  7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
+ 8. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
 `,
-				Enum: []any{"get", "get_diff", "get_status", "get_files", "get_review_comments", "get_reviews", "get_comments"},
+				Enum: []any{"get", "get_diff", "get_status", "get_files", "get_review_comments", "get_reviews", "get_comments", "get_check_runs"},
 			},
 			"owner": {
 				Type:        "string",
@@ -127,6 +128,9 @@ Possible options:
 				return result, nil, err
 			case "get_comments":
 				result, err := GetIssueComments(ctx, client, deps, owner, repo, pullNumber, pagination)
+				return result, nil, err
+			case "get_check_runs":
+				result, err := GetPullRequestCheckRuns(ctx, client, owner, repo, pullNumber, pagination)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -267,6 +271,71 @@ func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, rep
 	return utils.NewToolResultText(string(r)), nil
 }
 
+func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	// First get the PR to get the head SHA
+	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get pull request",
+			resp,
+			err,
+		), nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
+	}
+
+	// Get check runs for the head SHA
+	opts := &github.ListCheckRunsOptions{
+		ListOptions: github.ListOptions{
+			PerPage: pagination.PerPage,
+			Page:    pagination.Page,
+		},
+	}
+
+	checkRuns, resp, err := client.Checks.ListCheckRunsForRef(ctx, owner, repo, *pr.Head.SHA, opts)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get check runs",
+			resp,
+			err,
+		), nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get check runs", resp, body), nil
+	}
+
+	// Convert to minimal check runs to reduce context usage
+	minimalCheckRuns := make([]MinimalCheckRun, 0, len(checkRuns.CheckRuns))
+	for _, checkRun := range checkRuns.CheckRuns {
+		minimalCheckRuns = append(minimalCheckRuns, convertToMinimalCheckRun(checkRun))
+	}
+
+	minimalResult := MinimalCheckRunsResult{
+		TotalCount: checkRuns.GetTotal(),
+		CheckRuns:  minimalCheckRuns,
+	}
+
+	r, err := json.Marshal(minimalResult)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(r)), nil
+}
+
 func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
 	opts := &github.ListOptions{
 		PerPage: pagination.PerPage,
@@ -290,12 +359,9 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request files", resp, body), nil
 	}
 
-	r, err := json.Marshal(files)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
-	}
+	minimalFiles := convertToMinimalPRFiles(files)
 
-	return utils.NewToolResultText(string(r)), nil
+	return MarshalledTextResult(minimalFiles), nil
 }
 
 // GraphQL types for review threads query
@@ -409,24 +475,7 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 		}
 	}
 
-	// Build response with review threads and pagination info
-	response := map[string]any{
-		"reviewThreads": query.Repository.PullRequest.ReviewThreads.Nodes,
-		"pageInfo": map[string]any{
-			"hasNextPage":     query.Repository.PullRequest.ReviewThreads.PageInfo.HasNextPage,
-			"hasPreviousPage": query.Repository.PullRequest.ReviewThreads.PageInfo.HasPreviousPage,
-			"startCursor":     string(query.Repository.PullRequest.ReviewThreads.PageInfo.StartCursor),
-			"endCursor":       string(query.Repository.PullRequest.ReviewThreads.PageInfo.EndCursor),
-		},
-		"totalCount": int(query.Repository.PullRequest.ReviewThreads.TotalCount),
-	}
-
-	r, err := json.Marshal(response)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
-	}
-
-	return utils.NewToolResultText(string(r)), nil
+	return MarshalledTextResult(convertToMinimalReviewThreadsResponse(query)), nil
 }
 
 func GetPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
@@ -474,12 +523,12 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, deps Tool
 		}
 	}
 
-	r, err := json.Marshal(reviews)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	minimalReviews := make([]MinimalPullRequestReview, 0, len(reviews))
+	for _, review := range reviews {
+		minimalReviews = append(minimalReviews, convertToMinimalPullRequestReview(review))
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return MarshalledTextResult(minimalReviews), nil
 }
 
 // PullRequestWriteUIResourceURI is the URI for the create_pull_request tool's MCP App UI resource.
@@ -557,8 +606,8 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			// to distinguish form submissions from LLM calls.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(req) && !uiSubmitted {
-				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. The user will review and confirm via the interactive form.", owner, repo)), nil, nil
+			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(ctx, req) && !uiSubmitted {
+				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. IMPORTANT: The PR has NOT been created yet. Do NOT tell the user the PR was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
 			}
 
 			// When creating PR, title/head/base are required
@@ -1168,7 +1217,14 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				}
 			}
 
-			r, err := json.Marshal(prs)
+			minimalPRs := make([]MinimalPullRequest, 0, len(prs))
+			for _, pr := range prs {
+				if pr != nil {
+					minimalPRs = append(minimalPRs, convertToMinimalPullRequest(pr))
+				}
+			}
+
+			r, err := json.Marshal(minimalPRs)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
@@ -1451,6 +1507,7 @@ type PullRequestReviewWriteParams struct {
 	Body       string
 	Event      string
 	CommitID   *string
+	ThreadID   string
 }
 
 func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -1463,7 +1520,7 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.Serv
 			"method": {
 				Type:        "string",
 				Description: `The write operation to perform on pull request review.`,
-				Enum:        []any{"create", "submit_pending", "delete_pending"},
+				Enum:        []any{"create", "submit_pending", "delete_pending", "resolve_thread", "unresolve_thread"},
 			},
 			"owner": {
 				Type:        "string",
@@ -1490,6 +1547,10 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.Serv
 				Type:        "string",
 				Description: "SHA of commit to review",
 			},
+			"threadId": {
+				Type:        "string",
+				Description: "The node ID of the review thread (e.g., PRRT_kwDOxxx). Required for resolve_thread and unresolve_thread methods. Get thread IDs from pull_request_read with method get_review_comments.",
+			},
 		},
 		Required: []string{"method", "owner", "repo", "pullNumber"},
 	}
@@ -1504,6 +1565,8 @@ Available methods:
 - create: Create a new review of a pull request. If "event" parameter is provided, the review is submitted. If "event" is omitted, a pending review is created.
 - submit_pending: Submit an existing pending review of a pull request. This requires that a pending review exists for the current user on the specified pull request. The "body" and "event" parameters are used when submitting the review.
 - delete_pending: Delete an existing pending review of a pull request. This requires that a pending review exists for the current user on the specified pull request.
+- resolve_thread: Resolve a review thread. Requires only "threadId" parameter with the thread's node ID (e.g., PRRT_kwDOxxx). The owner, repo, and pullNumber parameters are not used for this method. Resolving an already-resolved thread is a no-op.
+- unresolve_thread: Unresolve a previously resolved review thread. Requires only "threadId" parameter. The owner, repo, and pullNumber parameters are not used for this method. Unresolving an already-unresolved thread is a no-op.
 `),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews."),
@@ -1514,7 +1577,7 @@ Available methods:
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params PullRequestReviewWriteParams
-			if err := mapstructure.Decode(args, &params); err != nil {
+			if err := mapstructure.WeakDecode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
@@ -1533,6 +1596,12 @@ Available methods:
 				return result, nil, err
 			case "delete_pending":
 				result, err := DeletePendingPullRequestReview(ctx, client, params)
+				return result, nil, err
+			case "resolve_thread":
+				result, err := ResolveReviewThread(ctx, client, params.ThreadID, true)
+				return result, nil, err
+			case "unresolve_thread":
+				result, err := ResolveReviewThread(ctx, client, params.ThreadID, false)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
@@ -1763,6 +1832,60 @@ func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client
 	return utils.NewToolResultText("pending pull request review successfully deleted"), nil
 }
 
+// ResolveReviewThread resolves or unresolves a PR review thread using GraphQL mutations.
+func ResolveReviewThread(ctx context.Context, client *githubv4.Client, threadID string, resolve bool) (*mcp.CallToolResult, error) {
+	if threadID == "" {
+		return utils.NewToolResultError("threadId is required for resolve_thread and unresolve_thread methods"), nil
+	}
+
+	if resolve {
+		var mutation struct {
+			ResolveReviewThread struct {
+				Thread struct {
+					ID         githubv4.ID
+					IsResolved githubv4.Boolean
+				}
+			} `graphql:"resolveReviewThread(input: $input)"`
+		}
+
+		input := githubv4.ResolveReviewThreadInput{
+			ThreadID: githubv4.ID(threadID),
+		}
+
+		if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+				"failed to resolve review thread",
+				err,
+			), nil
+		}
+
+		return utils.NewToolResultText("review thread resolved successfully"), nil
+	}
+
+	// Unresolve
+	var mutation struct {
+		UnresolveReviewThread struct {
+			Thread struct {
+				ID         githubv4.ID
+				IsResolved githubv4.Boolean
+			}
+		} `graphql:"unresolveReviewThread(input: $input)"`
+	}
+
+	input := githubv4.UnresolveReviewThreadInput{
+		ThreadID: githubv4.ID(threadID),
+	}
+
+	if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+			"failed to unresolve review thread",
+			err,
+		), nil
+	}
+
+	return utils.NewToolResultText("review thread unresolved successfully"), nil
+}
+
 // AddCommentToPendingReview creates a tool to add a comment to a pull request review.
 func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
@@ -1849,7 +1972,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 				StartLine   *int32
 				StartSide   *string
 			}
-			if err := mapstructure.Decode(args, &params); err != nil {
+			if err := mapstructure.WeakDecode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
@@ -1950,95 +2073,6 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			// In future, we may want to return the review ID, but for the moment, we're not leaking
 			// API implementation details to the LLM.
 			return utils.NewToolResultText("pull request review comment successfully added to pending review"), nil, nil
-		})
-}
-
-// RequestCopilotReview creates a tool to request a Copilot review for a pull request.
-// Note that this tool will not work on GHES where this feature is unsupported. In future, we should not expose this
-// tool if the configured host does not support it.
-func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.ServerTool {
-	schema := &jsonschema.Schema{
-		Type: "object",
-		Properties: map[string]*jsonschema.Schema{
-			"owner": {
-				Type:        "string",
-				Description: "Repository owner",
-			},
-			"repo": {
-				Type:        "string",
-				Description: "Repository name",
-			},
-			"pullNumber": {
-				Type:        "number",
-				Description: "Pull request number",
-			},
-		},
-		Required: []string{"owner", "repo", "pullNumber"},
-	}
-
-	return NewTool(
-		ToolsetMetadataPullRequests,
-		mcp.Tool{
-			Name:        "request_copilot_review",
-			Description: t("TOOL_REQUEST_COPILOT_REVIEW_DESCRIPTION", "Request a GitHub Copilot code review for a pull request. Use this for automated feedback on pull requests, usually before requesting a human reviewer."),
-			Icons:       octicons.Icons("copilot"),
-			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_REQUEST_COPILOT_REVIEW_USER_TITLE", "Request Copilot review"),
-				ReadOnlyHint: false,
-			},
-			InputSchema: schema,
-		},
-		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			pullNumber, err := RequiredInt(args, "pullNumber")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			client, err := deps.GetClient(ctx)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
-			}
-
-			_, resp, err := client.PullRequests.RequestReviewers(
-				ctx,
-				owner,
-				repo,
-				pullNumber,
-				github.ReviewersRequest{
-					// The login name of the copilot reviewer bot
-					Reviewers: []string{"copilot-pull-request-reviewer[bot]"},
-				},
-			)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to request copilot review",
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusCreated {
-				bodyBytes, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
-				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to request copilot review", resp, bodyBytes), nil, nil
-			}
-
-			// Return nothing on success, as there's not much value in returning the Pull Request itself
-			return utils.NewToolResultText(""), nil, nil
 		})
 }
 
