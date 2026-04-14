@@ -317,6 +317,21 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		errC <- ghServer.Run(ctx, &mcp.IOTransport{Reader: in, Writer: out})
 	}()
 
+	// Stdin watchdog: detect ungraceful client disconnect and self-terminate.
+	// Without this, orphaned containers accumulate when the MCP client (e.g. Cursor/VS Code)
+	// is force-killed or crashes, because `--rm` only fires on graceful exit.
+	go func() {
+		buf := make([]byte, 1)
+		for {
+			n, err := os.Stdin.Read(buf)
+			if tn == 0 || err != nil {
+				logger.Info("stdin closed, shutting down server")
+				stop()
+				return
+			}
+		}
+	}()
+
 	// Output github-mcp-server string
 	_, _ = fmt.Fprintf(os.Stderr, "GitHub MCP Server running on stdio\n")
 
