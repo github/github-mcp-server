@@ -324,7 +324,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		buf := make([]byte, 1)
 		for {
 			n, err := os.Stdin.Read(buf)
-			if tn == 0 || err != nil {
+			if n == 0 || err != nil {
 				logger.Info("stdin closed, shutting down server")
 				stop()
 				return
