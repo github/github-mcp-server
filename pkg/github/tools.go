@@ -141,6 +141,11 @@ var (
 		Icon:        "copilot",
 	}
 
+	// Feature flag names for granular tool variants.
+	// When active, consolidated tools are replaced by single-purpose granular tools.
+	FeatureFlagIssuesGranular       = "issues_granular"
+	FeatureFlagPullRequestsGranular = "pull_requests_granular"
+
 	// Remote-only toolsets - these are only available in the remote MCP server
 	// but are documented here for consistency and to enable automated documentation.
 	ToolsetMetadataCopilotSpaces = inventory.ToolsetMetadata{
@@ -274,6 +279,32 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GetLabelForLabelsToolset(t),
 		ListLabels(t),
 		LabelWrite(t),
+
+		// Granular issue tools (feature-flagged, replace consolidated issue_write/sub_issue_write)
+		GranularCreateIssue(t),
+		GranularUpdateIssueTitle(t),
+		GranularUpdateIssueBody(t),
+		GranularUpdateIssueAssignees(t),
+		GranularUpdateIssueLabels(t),
+		GranularUpdateIssueMilestone(t),
+		GranularUpdateIssueType(t),
+		GranularUpdateIssueState(t),
+		GranularAddSubIssue(t),
+		GranularRemoveSubIssue(t),
+		GranularReprioritizeSubIssue(t),
+
+		// Granular pull request tools (feature-flagged, replace consolidated update_pull_request/pull_request_review_write)
+		GranularUpdatePullRequestTitle(t),
+		GranularUpdatePullRequestBody(t),
+		GranularUpdatePullRequestState(t),
+		GranularUpdatePullRequestDraftState(t),
+		GranularRequestPullRequestReviewers(t),
+		GranularCreatePullRequestReview(t),
+		GranularSubmitPendingPullRequestReview(t),
+		GranularDeletePendingPullRequestReview(t),
+		GranularAddPullRequestReviewComment(t),
+		GranularResolveReviewThread(t),
+		GranularUnresolveReviewThread(t),
 	}
 }
 
