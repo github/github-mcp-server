@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Request Pull Request Reviewers"
+  },
+  "description": "Request reviewers for a pull request.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "The pull request number",
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "reviewers": {
+        "description": "GitHub usernames to request reviews from",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber",
+      "reviewers"
+    ],
+    "type": "object"
+  },
+  "name": "request_pull_request_reviewers"
+}

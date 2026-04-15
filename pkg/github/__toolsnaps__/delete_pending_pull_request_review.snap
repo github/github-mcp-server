@@ -1,35 +1,32 @@
 {
   "annotations": {
-    "destructiveHint": false,
+    "destructiveHint": true,
     "openWorldHint": true,
-    "title": "Create Issue"
+    "title": "Delete Pending Pull Request Review"
   },
-  "description": "Create a new issue in a GitHub repository with a title and optional body.",
+  "description": "Delete a pending pull request review.",
   "inputSchema": {
     "properties": {
-      "body": {
-        "description": "Issue body content (optional)",
-        "type": "string"
-      },
       "owner": {
         "description": "Repository owner (username or organization)",
         "type": "string"
       },
+      "pullNumber": {
+        "description": "The pull request number",
+        "minimum": 1,
+        "type": "number"
+      },
       "repo": {
         "description": "Repository name",
-        "type": "string"
-      },
-      "title": {
-        "description": "Issue title",
         "type": "string"
       }
     },
     "required": [
       "owner",
       "repo",
-      "title"
+      "pullNumber"
     ],
     "type": "object"
   },
-  "name": "create_issue"
+  "name": "delete_pending_pull_request_review"
 }
