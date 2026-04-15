@@ -275,11 +275,6 @@ func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelper
 			b = b.WithReadOnly(true)
 		}
 
-		// Static insiders mode — enforce before request filters
-		if cfg.InsidersMode {
-			b = b.WithInsidersMode(true)
-		}
-
 		// Filter request tool names to only those in the static universe,
 		// so requests for statically-excluded tools degrade gracefully.
 		if hasStaticFilters {
@@ -336,8 +331,7 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 	b := github.NewInventory(t).
 		WithFeatureChecker(featureChecker).
 		WithReadOnly(cfg.ReadOnly).
-		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools)).
-		WithInsidersMode(cfg.InsidersMode)
+		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools))
 
 	if len(cfg.EnabledTools) > 0 {
 		b = b.WithTools(github.CleanTools(cfg.EnabledTools))
@@ -359,7 +353,9 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 }
 
 // InventoryFiltersForRequest applies filters to the inventory builder
-// based on the request context and headers
+// based on the request context and headers.
+// MCP Apps UI metadata is handled by the builder via the feature checker —
+// no need to check headers here.
 func InventoryFiltersForRequest(r *http.Request, builder *inventory.Builder) *inventory.Builder {
 	ctx := r.Context()
 
