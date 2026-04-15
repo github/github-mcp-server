@@ -147,6 +147,18 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Type:        "string",
 						Description: "Author username or email address to filter commits by",
 					},
+					"path": {
+						Type:        "string",
+						Description: "Only commits containing this file path will be returned",
+					},
+					"since": {
+						Type:        "string",
+						Description: "Only commits after this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)",
+					},
+					"until": {
+						Type:        "string",
+						Description: "Only commits before this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)",
+					},
 				},
 				Required: []string{"owner", "repo"},
 			}),
@@ -169,6 +181,18 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			path, err := OptionalParam[string](args, "path")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			sinceStr, err := OptionalParam[string](args, "since")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			untilStr, err := OptionalParam[string](args, "until")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -180,11 +204,26 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 			opts := &github.CommitsListOptions{
 				SHA:    sha,
+				Path:   path,
 				Author: author,
 				ListOptions: github.ListOptions{
 					Page:    pagination.Page,
 					PerPage: perPage,
 				},
+			}
+			if sinceStr != "" {
+				sinceTime, err := parseISOTimestamp(sinceStr)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("invalid since timestamp: %s", err)), nil, nil
+				}
+				opts.Since = sinceTime
+			}
+			if untilStr != "" {
+				untilTime, err := parseISOTimestamp(untilStr)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("invalid until timestamp: %s", err)), nil, nil
+				}
+				opts.Until = untilTime
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -1233,7 +1272,8 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Type:        "array",
 						Description: "Array of file objects to push, each object with path (string) and content (string)",
 						Items: &jsonschema.Schema{
-							Type: "object",
+							Type:                 "object",
+							AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 							Properties: map[string]*jsonschema.Schema{
 								"path": {
 									Type:        "string",

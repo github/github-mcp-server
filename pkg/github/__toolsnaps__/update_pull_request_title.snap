@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Update Pull Request Title"
+  },
+  "description": "Update the title of an existing pull request.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "The pull request number",
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "title": {
+        "description": "The new title for the pull request",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber",
+      "title"
+    ],
+    "type": "object"
+  },
+  "name": "update_pull_request_title"
+}

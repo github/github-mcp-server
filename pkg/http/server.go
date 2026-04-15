@@ -17,6 +17,8 @@ import (
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/observability"
+	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -25,7 +27,7 @@ import (
 
 // knownFeatureFlags are the feature flags that can be enabled via X-MCP-Features header.
 // Only these flags are accepted from headers.
-var knownFeatureFlags = []string{}
+var knownFeatureFlags = github.HeaderAllowedFeatureFlags()
 
 type ServerConfig struct {
 	// Version of the server
@@ -67,6 +69,28 @@ type ServerConfig struct {
 	// ScopeChallenge indicates if we should return OAuth scope challenges, and if we should perform
 	// tool filtering based on token scopes.
 	ScopeChallenge bool
+
+	// ReadOnly indicates if we should only register read-only tools.
+	// When set via CLI flag, this acts as an upper bound — per-request headers
+	// cannot re-enable write tools.
+	ReadOnly bool
+
+	// EnabledToolsets is a list of toolsets to enable.
+	// When set via CLI flag, per-request headers can only narrow within these toolsets.
+	EnabledToolsets []string
+
+	// EnabledTools is a list of specific tools to enable (additive to toolsets).
+	EnabledTools []string
+
+	// DynamicToolsets enables dynamic toolset discovery mode.
+	DynamicToolsets bool
+
+	// ExcludeTools is a list of tool names to disable regardless of other settings.
+	// When set via CLI flag, per-request headers cannot re-include these tools.
+	ExcludeTools []string
+
+	// InsidersMode indicates if we should enable experimental features.
+	InsidersMode bool
 }
 
 func RunHTTPServer(cfg ServerConfig) error {
@@ -90,7 +114,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo})
 	}
 	logger := slog.New(slogHandler)
-	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "lockdownEnabled", cfg.LockdownMode)
+	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "lockdownEnabled", cfg.LockdownMode, "readOnly", cfg.ReadOnly, "insidersMode", cfg.InsidersMode)
 
 	apiHost, err := utils.NewAPIHost(cfg.Host)
 	if err != nil {
@@ -106,6 +130,11 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	featureChecker := createHTTPFeatureChecker()
 
+	obs, err := observability.NewExporters(logger, metrics.NewNoopMetrics())
+	if err != nil {
+		return fmt.Errorf("failed to create observability exporters: %w", err)
+	}
+
 	deps := github.NewRequestDeps(
 		apiHost,
 		cfg.Version,
@@ -114,6 +143,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 		t,
 		cfg.ContentWindowSize,
 		featureChecker,
+		obs,
 	)
 
 	// Initialize the global tool scope map

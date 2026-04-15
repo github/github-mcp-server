@@ -105,6 +105,28 @@ var (
 		Short: "Start HTTP server",
 		Long:  `Start an HTTP server that listens for MCP requests over HTTP.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			// Parse toolsets (same approach as stdio — see comment there)
+			var enabledToolsets []string
+			if viper.IsSet("toolsets") {
+				if err := viper.UnmarshalKey("toolsets", &enabledToolsets); err != nil {
+					return fmt.Errorf("failed to unmarshal toolsets: %w", err)
+				}
+			}
+
+			var enabledTools []string
+			if viper.IsSet("tools") {
+				if err := viper.UnmarshalKey("tools", &enabledTools); err != nil {
+					return fmt.Errorf("failed to unmarshal tools: %w", err)
+				}
+			}
+
+			var excludeTools []string
+			if viper.IsSet("exclude_tools") {
+				if err := viper.UnmarshalKey("exclude_tools", &excludeTools); err != nil {
+					return fmt.Errorf("failed to unmarshal exclude-tools: %w", err)
+				}
+			}
+
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			httpConfig := ghhttp.ServerConfig{
 				Version:              version,
@@ -119,6 +141,12 @@ var (
 				LockdownMode:         viper.GetBool("lockdown-mode"),
 				RepoAccessCacheTTL:   &ttl,
 				ScopeChallenge:       viper.GetBool("scope-challenge"),
+				ReadOnly:             viper.GetBool("read-only"),
+				EnabledToolsets:      enabledToolsets,
+				EnabledTools:         enabledTools,
+				DynamicToolsets:      viper.GetBool("dynamic_toolsets"),
+				ExcludeTools:         excludeTools,
+				InsidersMode:         viper.GetBool("insiders"),
 			}
 
 			return ghhttp.RunHTTPServer(httpConfig)
