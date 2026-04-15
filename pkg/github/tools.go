@@ -147,14 +147,19 @@ var (
 	FeatureFlagPullRequestsGranular = "pull_requests_granular"
 )
 
-// HeaderAllowedFeatureFlags are the feature flags that clients may enable via the
+// headerAllowedFeatureFlags are the feature flags that clients may enable via the
 // X-MCP-Features header. Only these flags are accepted from headers; unknown flags
 // are silently ignored.
-var HeaderAllowedFeatureFlags = []string{
+var headerAllowedFeatureFlags = []string{
 	FeatureFlagIssuesGranular,
 	FeatureFlagPullRequestsGranular,
 }
 
+// HeaderAllowedFeatureFlags returns the feature flags that clients may enable via
+// the X-MCP-Features header.
+func HeaderAllowedFeatureFlags() []string {
+	return slices.Clone(headerAllowedFeatureFlags)
+}
 var (
 	// Remote-only toolsets - these are only available in the remote MCP server
 	// but are documented here for consistency and to enable automated documentation.
