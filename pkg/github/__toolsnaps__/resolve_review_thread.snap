@@ -1,0 +1,21 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Resolve Review Thread"
+  },
+  "description": "Resolve a review thread on a pull request. Resolving an already-resolved thread is a no-op.",
+  "inputSchema": {
+    "properties": {
+      "threadID": {
+        "description": "The node ID of the review thread to resolve (e.g., PRRT_kwDOxxx)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "threadID"
+    ],
+    "type": "object"
+  },
+  "name": "resolve_review_thread"
+}

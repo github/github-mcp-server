@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Update Pull Request Draft State"
+  },
+  "description": "Mark a pull request as draft or ready for review.",
+  "inputSchema": {
+    "properties": {
+      "draft": {
+        "description": "Set to true to convert to draft, false to mark as ready for review",
+        "type": "boolean"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "The pull request number",
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber",
+      "draft"
+    ],
+    "type": "object"
+  },
+  "name": "update_pull_request_draft_state"
+}
