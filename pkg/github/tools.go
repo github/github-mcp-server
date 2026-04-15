@@ -160,6 +160,7 @@ var headerAllowedFeatureFlags = []string{
 func HeaderAllowedFeatureFlags() []string {
 	return slices.Clone(headerAllowedFeatureFlags)
 }
+
 var (
 	// Remote-only toolsets - these are only available in the remote MCP server
 	// but are documented here for consistency and to enable automated documentation.
