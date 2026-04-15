@@ -7,9 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/github/github-mcp-server/internal/buildinfo"
 	"github.com/github/github-mcp-server/internal/ghmcp"
+	"github.com/github/github-mcp-server/internal/oauth"
 	"github.com/github/github-mcp-server/pkg/github"
 	ghhttp "github.com/github/github-mcp-server/pkg/http"
+	ghoauth "github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -34,8 +37,12 @@ var (
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			token := viper.GetString("personal_access_token")
-			if token == "" {
-				return errors.New("GITHUB_PERSONAL_ACCESS_TOKEN not set")
+
+			// Resolve OAuth credentials: explicit config > build-time > none
+			oauthClientID, oauthClientSecret := resolveOAuthCredentials()
+
+			if token == "" && oauthClientID == "" {
+				return errors.New("GITHUB_PERSONAL_ACCESS_TOKEN not set and no OAuth credentials available")
 			}
 
 			// If you're wondering why we're not using viper.GetStringSlice("toolsets"),
@@ -96,6 +103,22 @@ var (
 				ExcludeTools:         excludeTools,
 				RepoAccessCacheTTL:   &ttl,
 			}
+
+			// Configure OAuth if credentials are available and no PAT is set.
+			// PAT takes priority — if both are configured, PAT is used directly.
+			if token == "" && oauthClientID != "" {
+				oauthScopes := getOAuthScopes()
+				oauthCfg := oauth.GetGitHubOAuthConfig(
+					oauthClientID,
+					oauthClientSecret,
+					oauthScopes,
+					viper.GetString("host"),
+					viper.GetInt("oauth-callback-port"),
+				)
+				stdioServerConfig.OAuthManager = oauth.NewManager(oauthCfg, nil)
+				stdioServerConfig.OAuthScopes = oauthScopes
+			}
+
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
 	}
@@ -182,6 +205,12 @@ func init() {
 	httpCmd.Flags().String("base-path", "", "Externally visible base path for the HTTP server (for OAuth resource metadata)")
 	httpCmd.Flags().Bool("scope-challenge", false, "Enable OAuth scope challenge responses")
 
+	// OAuth flags (stdio only)
+	stdioCmd.Flags().String("oauth-client-id", "", "OAuth client ID for browser-based authentication")
+	stdioCmd.Flags().String("oauth-client-secret", "", "OAuth client secret")
+	stdioCmd.Flags().StringSlice("oauth-scopes", nil, "Explicit OAuth scopes to request (overrides automatic computation)")
+	stdioCmd.Flags().Int("oauth-callback-port", 0, "Fixed port for OAuth callback server (0 for random, required for Docker with -p)")
+
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
 	_ = viper.BindPFlag("tools", rootCmd.PersistentFlags().Lookup("tools"))
@@ -201,6 +230,10 @@ func init() {
 	_ = viper.BindPFlag("base-url", httpCmd.Flags().Lookup("base-url"))
 	_ = viper.BindPFlag("base-path", httpCmd.Flags().Lookup("base-path"))
 	_ = viper.BindPFlag("scope-challenge", httpCmd.Flags().Lookup("scope-challenge"))
+	_ = viper.BindPFlag("oauth-client-id", stdioCmd.Flags().Lookup("oauth-client-id"))
+	_ = viper.BindPFlag("oauth-client-secret", stdioCmd.Flags().Lookup("oauth-client-secret"))
+	_ = viper.BindPFlag("oauth-scopes", stdioCmd.Flags().Lookup("oauth-scopes"))
+	_ = viper.BindPFlag("oauth-callback-port", stdioCmd.Flags().Lookup("oauth-callback-port"))
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
 	rootCmd.AddCommand(httpCmd)
@@ -227,4 +260,39 @@ func wordSepNormalizeFunc(_ *pflag.FlagSet, name string) pflag.NormalizedName {
 		name = strings.ReplaceAll(name, sep, to)
 	}
 	return pflag.NormalizedName(name)
+}
+
+// resolveOAuthCredentials returns OAuth client credentials from the best
+// available source. Priority: explicit config > build-time baked > none.
+func resolveOAuthCredentials() (clientID, clientSecret string) {
+	clientID = viper.GetString("oauth-client-id")
+	clientSecret = viper.GetString("oauth-client-secret")
+	if clientID != "" {
+		return clientID, clientSecret
+	}
+
+	if buildinfo.OAuthClientID != "" {
+		return buildinfo.OAuthClientID, buildinfo.OAuthClientSecret
+	}
+
+	return "", ""
+}
+
+// getOAuthScopes returns the OAuth scopes to request. Uses explicit override
+// if provided, otherwise falls back to the canonical SupportedScopes list
+// which covers all tools the server may expose.
+func getOAuthScopes() []string {
+
+	if viper.IsSet("oauth-scopes") {
+		var scopes []string
+		if err := viper.UnmarshalKey("oauth-scopes", &scopes); err == nil && len(scopes) > 0 {
+			return scopes
+		}
+	}
+
+	// Use the canonical list maintained alongside the HTTP OAuth metadata.
+	// This requests all scopes any tool might need. The consent screen shows
+	// the user exactly what is being requested, and scope-based tool filtering
+	// hides tools the granted token cannot satisfy.
+	return ghoauth.SupportedScopes
 }

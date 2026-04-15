@@ -49,6 +49,7 @@ The following packages are included for the 386, amd64, arm64 architectures.
  - [go.yaml.in/yaml/v3](https://pkg.go.dev/go.yaml.in/yaml/v3) ([MIT](https://github.com/yaml/go-yaml/blob/v3.0.4/LICENSE))
  - [golang.org/x/exp/slices](https://pkg.go.dev/golang.org/x/exp/slices) ([BSD-3-Clause](https://cs.opensource.google/go/x/exp/+/054e65f0:LICENSE))
  - [golang.org/x/net/html](https://pkg.go.dev/golang.org/x/net/html) ([BSD-3-Clause](https://cs.opensource.google/go/x/net/+/v0.38.0:LICENSE))
+ - [golang.org/x/oauth2](https://pkg.go.dev/golang.org/x/oauth2) ([BSD-3-Clause](https://cs.opensource.google/go/x/oauth2/+/v0.34.0:LICENSE))
  - [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys) ([BSD-3-Clause](https://cs.opensource.google/go/x/sys/+/v0.40.0:LICENSE))
  - [golang.org/x/text](https://pkg.go.dev/golang.org/x/text) ([BSD-3-Clause](https://cs.opensource.google/go/x/text/+/v0.28.0:LICENSE))
  - [gopkg.in/yaml.v3](https://pkg.go.dev/gopkg.in/yaml.v3) ([MIT](https://github.com/go-yaml/yaml/blob/v3.0.1/LICENSE))
