@@ -2,13 +2,18 @@
   "annotations": {
     "destructiveHint": false,
     "openWorldHint": true,
-    "title": "Create Issue"
+    "title": "Update Issue Type"
   },
-  "description": "Create a new issue in a GitHub repository with a title and optional body.",
+  "description": "Update the type of an existing issue (e.g. 'bug', 'feature').",
   "inputSchema": {
     "properties": {
-      "body": {
-        "description": "Issue body content (optional)",
+      "issue_number": {
+        "description": "The issue number to update",
+        "minimum": 1,
+        "type": "number"
+      },
+      "issue_type": {
+        "description": "The issue type to set",
         "type": "string"
       },
       "owner": {
@@ -18,18 +23,15 @@
       "repo": {
         "description": "Repository name",
         "type": "string"
-      },
-      "title": {
-        "description": "Issue title",
-        "type": "string"
       }
     },
     "required": [
       "owner",
       "repo",
-      "title"
+      "issue_number",
+      "issue_type"
     ],
     "type": "object"
   },
-  "name": "create_issue"
+  "name": "update_issue_type"
 }

@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Update Issue Labels"
+  },
+  "description": "Update the labels of an existing issue. This replaces the current labels with the provided list.",
+  "inputSchema": {
+    "properties": {
+      "issue_number": {
+        "description": "The issue number to update",
+        "minimum": 1,
+        "type": "number"
+      },
+      "labels": {
+        "description": "Labels to apply to this issue",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "issue_number",
+      "labels"
+    ],
+    "type": "object"
+  },
+  "name": "update_issue_labels"
+}
