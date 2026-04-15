@@ -1,0 +1,49 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Create Pull Request Review"
+  },
+  "description": "Create a review on a pull request. If event is provided, the review is submitted immediately; otherwise a pending review is created.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "The review body text (optional)",
+        "type": "string"
+      },
+      "commitID": {
+        "description": "The SHA of the commit to review (optional, defaults to latest)",
+        "type": "string"
+      },
+      "event": {
+        "description": "The review action to perform. If omitted, creates a pending review.",
+        "enum": [
+          "APPROVE",
+          "REQUEST_CHANGES",
+          "COMMENT"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "The pull request number",
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber"
+    ],
+    "type": "object"
+  },
+  "name": "create_pull_request_review"
+}
