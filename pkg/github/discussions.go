@@ -507,6 +507,140 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 	)
 }
 
+// getDiscussionRepositoryID fetches the repository ID needed for createDiscussion mutation
+func getDiscussionRepositoryID(ctx context.Context, client *githubv4.Client, owner, repo string) (githubv4.ID, error) {
+	var repoQuery struct {
+		Repository struct {
+			ID githubv4.ID
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+	vars := map[string]any{
+		"owner": githubv4.String(owner),
+		"repo":  githubv4.String(repo),
+	}
+	if err := client.Query(ctx, &repoQuery, vars); err != nil {
+		return "", err
+	}
+	return repoQuery.Repository.ID, nil
+}
+
+func CreateDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataDiscussions,
+		mcp.Tool{
+			Name:        "create_discussion",
+			Description: t("TOOL_CREATE_DISCUSSION_DESCRIPTION", "Create a new discussion in a repository or organisation."),
+			Annotations: &mcp.ToolAnnotations{
+				Title: t("TOOL_CREATE_DISCUSSION_USER_TITLE", "Create discussion"),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name. If not provided, the discussion will be created at the organisation level.",
+					},
+					"categoryId": {
+						Type:        "string",
+						Description: "Category ID where the discussion should be created (obtainable via list_discussion_categories)",
+					},
+					"title": {
+						Type:        "string",
+						Description: "Discussion title",
+					},
+					"body": {
+						Type:        "string",
+						Description: "Discussion body text in markdown format",
+					},
+				},
+				Required: []string{"owner", "categoryId", "title", "body"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := OptionalParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			// when not provided, default to the .github repository
+			// this will create the discussion at the organisation level
+			if repo == "" {
+				repo = ".github"
+			}
+
+			categoryID, err := RequiredParam[string](args, "categoryId")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			title, err := RequiredParam[string](args, "title")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			body, err := RequiredParam[string](args, "body")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+			}
+
+			// Get repository ID first
+			repoID, err := getDiscussionRepositoryID(ctx, client, owner, repo)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to get repository ID: %v", err)), nil, nil
+			}
+
+			// Define the mutation
+			var mutation struct {
+				CreateDiscussion struct {
+					Discussion struct {
+						ID     githubv4.ID
+						Number githubv4.Int
+						URL    githubv4.String
+					}
+				} `graphql:"createDiscussion(input: $input)"`
+			}
+
+			input := githubv4.CreateDiscussionInput{
+				RepositoryID: repoID,
+				CategoryID:   githubv4.ID(categoryID),
+				Title:        githubv4.String(title),
+				Body:         githubv4.String(body),
+			}
+
+			if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to create discussion: %v", err)), nil, nil
+			}
+
+			// Build response
+			response := map[string]interface{}{
+				"id":     fmt.Sprint(mutation.CreateDiscussion.Discussion.ID),
+				"number": int(mutation.CreateDiscussion.Discussion.Number),
+				"url":    string(mutation.CreateDiscussion.Discussion.URL),
+			}
+
+			out, err := json.Marshal(response)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal discussion: %w", err)
+			}
+
+			return utils.NewToolResultText(string(out)), nil, nil
+		},
+	)
+}
+
 func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataDiscussions,
