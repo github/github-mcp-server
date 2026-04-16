@@ -5,10 +5,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v82/github"
 	"github.com/shurcooL/githubv4"
+
+	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/translations"
 )
 
 type GetClientFn func(context.Context) (*github.Client, error)
@@ -213,6 +214,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		SubIssueWrite(t),
 
 		// User tools
+		GetUser(t),
 		SearchUsers(t),
 
 		// Organization tools
