@@ -12,7 +12,12 @@ var policy *bluemonday.Policy
 var policyOnce sync.Once
 
 func Sanitize(input string) string {
-	return FilterHTMLTags(FilterCodeFenceMetadata(FilterInvisibleCharacters(input)))
+	s := FilterInvisibleCharacters(input)
+	s = FilterCodeFenceMetadata(s)
+	s = protectCodeAngles(s)
+	s = FilterHTMLTags(s)
+	s = restoreCodeAngles(s)
+	return s
 }
 
 // FilterInvisibleCharacters removes invisible or control characters that should not appear
@@ -206,4 +211,73 @@ func shouldRemoveRune(r rune) bool {
 	}
 
 	return false
+}
+
+// Placeholders used to shield angle brackets inside code regions from
+// the HTML sanitizer.  They must not look like HTML tags themselves and
+// must be unlikely to appear in real content.
+const (
+	codeLtPlaceholder = "\x00CODELT\x00"
+	codeGtPlaceholder = "\x00CODEGT\x00"
+)
+
+// protectCodeAngles replaces < and > with unique placeholders inside
+// fenced code blocks so that bluemonday does not strip them as HTML tags.
+// This must run after FilterCodeFenceMetadata (which cleans fence info
+// strings) and before FilterHTMLTags.
+func protectCodeAngles(input string) string {
+	if input == "" {
+		return input
+	}
+
+	lines := strings.Split(input, "\n")
+	insideFence := false
+	currentFenceLen := 0
+
+	for i, line := range lines {
+		fenceIdx := strings.Index(line, "```")
+
+		if fenceIdx != -1 && !hasNonWhitespace(line[:fenceIdx]) {
+			fenceEnd := fenceIdx
+			for fenceEnd < len(line) && line[fenceEnd] == '`' {
+				fenceEnd++
+			}
+			fenceLen := fenceEnd - fenceIdx
+
+			if fenceLen >= 3 {
+				if insideFence {
+					if currentFenceLen == 0 || fenceLen >= currentFenceLen {
+						// Valid closing fence (CommonMark: closing fence
+						// must be at least as long as the opening fence).
+						insideFence = false
+						currentFenceLen = 0
+						continue
+					}
+					// Fence length too short — still inside code.
+				} else {
+					// Opening fence.
+					insideFence = true
+					currentFenceLen = fenceLen
+					continue
+				}
+			}
+		}
+
+		if insideFence {
+			lines[i] = strings.ReplaceAll(
+				strings.ReplaceAll(line, "<", codeLtPlaceholder),
+				">", codeGtPlaceholder,
+			)
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// restoreCodeAngles reverses the placeholder substitution performed by
+// protectCodeAngles.
+func restoreCodeAngles(input string) string {
+	s := strings.ReplaceAll(input, codeLtPlaceholder, "<")
+	s = strings.ReplaceAll(s, codeGtPlaceholder, ">")
+	return s
 }
