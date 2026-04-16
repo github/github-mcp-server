@@ -214,6 +214,11 @@ type StdioServerConfig struct {
 	// Path to the log file if not stderr
 	LogFilePath string
 
+	// LogLevel overrides the default log level ("debug", "info", "warn", "error").
+	// When empty, the default depends on LogFilePath: file-backed logs default
+	// to Debug (local troubleshooting), stderr logs default to Info.
+	LogLevel string
+
 	// Content window size
 	ContentWindowSize int
 
@@ -248,11 +253,14 @@ func RunStdioServer(cfg StdioServerConfig) error {
 			return fmt.Errorf("failed to open log file: %w", err)
 		}
 		logOutput = file
-		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelDebug})
 	} else {
 		logOutput = os.Stderr
-		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo})
 	}
+	level, err := observability.ParseLogLevel(cfg.LogLevel, defaultLogLevel(cfg.LogFilePath))
+	if err != nil {
+		return err
+	}
+	slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: level})
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
 
@@ -333,6 +341,16 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	}
 
 	return nil
+}
+
+// defaultLogLevel returns the log level used when the user hasn't specified
+// one. Debug when a log file is configured (intended for local debugging),
+// Info when logs go to stderr (keeps terminal output quiet).
+func defaultLogLevel(logFilePath string) slog.Level {
+	if logFilePath != "" {
+		return slog.LevelDebug
+	}
+	return slog.LevelInfo
 }
 
 // createFeatureChecker returns a FeatureFlagChecker that resolves features

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/http/transport"
@@ -187,7 +186,15 @@ func (d BaseDeps) GetFlags(_ context.Context) FeatureFlags { return d.Flags }
 func (d BaseDeps) GetContentWindowSize() int { return d.ContentWindowSize }
 
 // Logger implements ToolDependencies.
-func (d BaseDeps) Logger(_ context.Context) *slog.Logger {
+// If an enriched logger has been attached to ctx by ToolLoggingMiddleware
+// (via observability.ContextWithLogger), that logger is returned so tool
+// handlers inherit request-scoped attributes such as tool name and
+// mcp.method. Otherwise the base logger from the observability exporters
+// is returned.
+func (d BaseDeps) Logger(ctx context.Context) *slog.Logger {
+	if l := observability.LoggerFromContext(ctx); l != nil {
+		return l
+	}
 	return d.Obsv.Logger()
 }
 
@@ -206,8 +213,12 @@ func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flagName string) bool {
 
 	enabled, err := d.featureChecker(ctx, flagName)
 	if err != nil {
-		// Log error but don't fail the tool - treat as disabled
-		fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", flagName, err)
+		// Treat errors as disabled, but surface them via the logger so
+		// operators can diagnose feature-flag backend issues in production.
+		d.Logger(ctx).Warn("feature flag check failed",
+			slog.String("flag", flagName),
+			slog.String("error", err.Error()),
+		)
 		return false
 	}
 
@@ -406,7 +417,11 @@ func (d *RequestDeps) GetFlags(ctx context.Context) FeatureFlags {
 func (d *RequestDeps) GetContentWindowSize() int { return d.ContentWindowSize }
 
 // Logger implements ToolDependencies.
-func (d *RequestDeps) Logger(_ context.Context) *slog.Logger {
+// See BaseDeps.Logger for the context-scoped logger fallback behaviour.
+func (d *RequestDeps) Logger(ctx context.Context) *slog.Logger {
+	if l := observability.LoggerFromContext(ctx); l != nil {
+		return l
+	}
 	return d.obsv.Logger()
 }
 
@@ -423,8 +438,10 @@ func (d *RequestDeps) IsFeatureEnabled(ctx context.Context, flagName string) boo
 
 	enabled, err := d.featureChecker(ctx, flagName)
 	if err != nil {
-		// Log error but don't fail the tool - treat as disabled
-		fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", flagName, err)
+		d.Logger(ctx).Warn("feature flag check failed",
+			slog.String("flag", flagName),
+			slog.String("error", err.Error()),
+		)
 		return false
 	}
 
