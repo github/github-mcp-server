@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Update Issue Type"
+  },
+  "description": "Update the type of an existing issue (e.g. 'bug', 'feature').",
+  "inputSchema": {
+    "properties": {
+      "issue_number": {
+        "description": "The issue number to update",
+        "minimum": 1,
+        "type": "number"
+      },
+      "issue_type": {
+        "description": "The issue type to set",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "issue_number",
+      "issue_type"
+    ],
+    "type": "object"
+  },
+  "name": "update_issue_type"
+}

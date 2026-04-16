@@ -671,16 +671,16 @@ func Test_ListPullRequests(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedPRs []*github.PullRequest
+			var returnedPRs []MinimalPullRequest
 			err = json.Unmarshal([]byte(textContent.Text), &returnedPRs)
 			require.NoError(t, err)
 			assert.Len(t, returnedPRs, 2)
-			assert.Equal(t, *tc.expectedPRs[0].Number, *returnedPRs[0].Number)
-			assert.Equal(t, *tc.expectedPRs[0].Title, *returnedPRs[0].Title)
-			assert.Equal(t, *tc.expectedPRs[0].State, *returnedPRs[0].State)
-			assert.Equal(t, *tc.expectedPRs[1].Number, *returnedPRs[1].Number)
-			assert.Equal(t, *tc.expectedPRs[1].Title, *returnedPRs[1].Title)
-			assert.Equal(t, *tc.expectedPRs[1].State, *returnedPRs[1].State)
+			assert.Equal(t, *tc.expectedPRs[0].Number, returnedPRs[0].Number)
+			assert.Equal(t, *tc.expectedPRs[0].Title, returnedPRs[0].Title)
+			assert.Equal(t, *tc.expectedPRs[0].State, returnedPRs[0].State)
+			assert.Equal(t, *tc.expectedPRs[1].Number, returnedPRs[1].Number)
+			assert.Equal(t, *tc.expectedPRs[1].Title, returnedPRs[1].Title)
+			assert.Equal(t, *tc.expectedPRs[1].State, returnedPRs[1].State)
 		})
 	}
 }
@@ -1404,6 +1404,161 @@ func Test_GetPullRequestStatus(t *testing.T) {
 	}
 }
 
+func Test_GetPullRequestCheckRuns(t *testing.T) {
+	// Verify tool definition once
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "pull_request_read", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "method")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
+
+	// Setup mock PR for successful PR fetch
+	mockPR := &github.PullRequest{
+		Number:  github.Ptr(42),
+		Title:   github.Ptr("Test PR"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
+		Head: &github.PullRequestBranch{
+			SHA: github.Ptr("abcd1234"),
+			Ref: github.Ptr("feature-branch"),
+		},
+	}
+
+	// Setup mock check runs for success case
+	mockCheckRuns := &github.ListCheckRunsResults{
+		Total: github.Ptr(2),
+		CheckRuns: []*github.CheckRun{
+			{
+				ID:         github.Ptr(int64(1)),
+				Name:       github.Ptr("build"),
+				Status:     github.Ptr("completed"),
+				Conclusion: github.Ptr("success"),
+				HTMLURL:    github.Ptr("https://github.com/owner/repo/runs/1"),
+			},
+			{
+				ID:         github.Ptr(int64(2)),
+				Name:       github.Ptr("test"),
+				Status:     github.Ptr("completed"),
+				Conclusion: github.Ptr("success"),
+				HTMLURL:    github.Ptr("https://github.com/owner/repo/runs/2"),
+			},
+		},
+	}
+
+	tests := []struct {
+		name              string
+		mockedClient      *http.Client
+		requestArgs       map[string]any
+		expectError       bool
+		expectedCheckRuns *github.ListCheckRunsResults
+		expectedErrMsg    string
+	}{
+		{
+			name: "successful check runs fetch",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber:     mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockCheckRuns),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_check_runs",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:       false,
+			expectedCheckRuns: mockCheckRuns,
+		},
+		{
+			name: "PR fetch fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_check_runs",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(999),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get pull request",
+		},
+		{
+			name: "check runs fetch fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_check_runs",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get check runs",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			serverTool := PullRequestRead(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client:          client,
+				RepoAccessCache: stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+			}
+			handler := serverTool.Handler(deps)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			// Verify results
+			if tc.expectError {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			// Parse the result and get the text content if no error
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the result (using minimal type)
+			var returnedCheckRuns MinimalCheckRunsResult
+			err = json.Unmarshal([]byte(textContent.Text), &returnedCheckRuns)
+			require.NoError(t, err)
+			assert.Equal(t, *tc.expectedCheckRuns.Total, returnedCheckRuns.TotalCount)
+			assert.Len(t, returnedCheckRuns.CheckRuns, len(tc.expectedCheckRuns.CheckRuns))
+			for i, checkRun := range returnedCheckRuns.CheckRuns {
+				assert.Equal(t, *tc.expectedCheckRuns.CheckRuns[i].Name, checkRun.Name)
+				assert.Equal(t, *tc.expectedCheckRuns.CheckRuns[i].Status, checkRun.Status)
+				assert.Equal(t, *tc.expectedCheckRuns.CheckRuns[i].Conclusion, checkRun.Conclusion)
+			}
+		})
+	}
+}
+
 func Test_UpdatePullRequestBranch(t *testing.T) {
 	// Verify tool definition once
 	serverTool := UpdatePullRequestBranch(translations.NullTranslationHelper)
@@ -1990,18 +2145,18 @@ func Test_GetPullRequestReviews(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedReviews []*github.PullRequestReview
+			var returnedReviews []MinimalPullRequestReview
 			err = json.Unmarshal([]byte(textContent.Text), &returnedReviews)
 			require.NoError(t, err)
 			assert.Len(t, returnedReviews, len(tc.expectedReviews))
 			for i, review := range returnedReviews {
+				assert.Equal(t, tc.expectedReviews[i].GetID(), review.ID)
+				assert.Equal(t, tc.expectedReviews[i].GetState(), review.State)
+				assert.Equal(t, tc.expectedReviews[i].GetBody(), review.Body)
 				require.NotNil(t, tc.expectedReviews[i].User)
 				require.NotNil(t, review.User)
-				assert.Equal(t, tc.expectedReviews[i].GetID(), review.GetID())
-				assert.Equal(t, tc.expectedReviews[i].GetState(), review.GetState())
-				assert.Equal(t, tc.expectedReviews[i].GetBody(), review.GetBody())
-				assert.Equal(t, tc.expectedReviews[i].GetUser().GetLogin(), review.GetUser().GetLogin())
-				assert.Equal(t, tc.expectedReviews[i].GetHTMLURL(), review.GetHTMLURL())
+				assert.Equal(t, tc.expectedReviews[i].GetUser().GetLogin(), review.User.Login)
+				assert.Equal(t, tc.expectedReviews[i].GetHTMLURL(), review.HTMLURL)
 			}
 		})
 	}
@@ -2185,7 +2340,7 @@ func Test_CreatePullRequest_InsidersMode_UIGate(t *testing.T) {
 	handler := serverTool.Handler(deps)
 
 	t.Run("UI client without _ui_submitted returns form message", func(t *testing.T) {
-		request := createMCPRequestWithSession(t, "Visual Studio Code", map[string]any{
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"owner": "owner",
 			"repo":  "repo",
 			"title": "Test PR",
@@ -2200,7 +2355,7 @@ func Test_CreatePullRequest_InsidersMode_UIGate(t *testing.T) {
 	})
 
 	t.Run("UI client with _ui_submitted executes directly", func(t *testing.T) {
-		request := createMCPRequestWithSession(t, "Visual Studio Code", map[string]any{
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"owner":         "owner",
 			"repo":          "repo",
 			"title":         "Test PR",
@@ -2309,6 +2464,61 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
+				"body":       "This is a test review",
+				"event":      "COMMENT",
+				"commitID":   "abcd1234",
+			},
+			expectToolError: false,
+		},
+		{
+			name: "successful review creation with string pullNumber",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							PullRequest struct {
+								ID githubv4.ID
+							} `graphql:"pullRequest(number: $prNum)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner": githubv4.String("owner"),
+						"repo":  githubv4.String("repo"),
+						"prNum": githubv4.Int(42),
+					},
+					githubv4mock.DataResponse(
+						map[string]any{
+							"repository": map[string]any{
+								"pullRequest": map[string]any{
+									"id": "PR_kwDODKw3uc6WYN1T",
+								},
+							},
+						},
+					),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						AddPullRequestReview struct {
+							PullRequestReview struct {
+								ID githubv4.ID
+							}
+						} `graphql:"addPullRequestReview(input: $input)"`
+					}{},
+					githubv4.AddPullRequestReviewInput{
+						PullRequestID: githubv4.ID("PR_kwDODKw3uc6WYN1T"),
+						Body:          githubv4.NewString("This is a test review"),
+						Event:         githubv4mock.Ptr(githubv4.PullRequestReviewEventComment),
+						CommitOID:     githubv4.NewGitObjectID("abcd1234"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{}),
+				),
+			),
+			requestArgs: map[string]any{
+				"method":     "create",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": "42", // Some MCP clients send numeric values as strings
 				"body":       "This is a test review",
 				"event":      "COMMENT",
 				"commitID":   "abcd1234",
@@ -2694,6 +2904,65 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 						AddPullRequestReviewThread struct {
 							Thread struct {
 								ID githubv4.String // We don't need this, but a selector is required or GQL complains.
+							}
+						} `graphql:"addPullRequestReviewThread(input: $input)"`
+					}{},
+					githubv4.AddPullRequestReviewThreadInput{
+						Path:                githubv4.String("file.go"),
+						Body:                githubv4.String("This is a test comment"),
+						SubjectType:         githubv4mock.Ptr(githubv4.PullRequestReviewThreadSubjectTypeLine),
+						Line:                githubv4.NewInt(10),
+						Side:                githubv4mock.Ptr(githubv4.DiffSideRight),
+						StartLine:           githubv4.NewInt(5),
+						StartSide:           githubv4mock.Ptr(githubv4.DiffSideRight),
+						PullRequestReviewID: githubv4.NewID("PR_kwDODKw3uc6WYN1T"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"addPullRequestReviewThread": map[string]any{
+							"thread": map[string]any{
+								"id": "MDEyOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMTIzNDU2",
+							},
+						},
+					}),
+				),
+			),
+		},
+		{
+			name: "successful line comment with string pullNumber and line",
+			requestArgs: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"pullNumber":  "42", // Some MCP clients send numeric values as strings
+				"path":        "file.go",
+				"body":        "This is a test comment",
+				"subjectType": "LINE",
+				"line":        "10", // string line number
+				"side":        "RIGHT",
+				"startLine":   "5", // string startLine
+				"startSide":   "RIGHT",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				viewerQuery("williammartin"),
+				getLatestPendingReviewQuery(getLatestPendingReviewQueryParams{
+					author: "williammartin",
+					owner:  "owner",
+					repo:   "repo",
+					prNum:  42,
+
+					reviews: []getLatestPendingReviewQueryReview{
+						{
+							id:    "PR_kwDODKw3uc6WYN1T",
+							state: "PENDING",
+							url:   "https://github.com/owner/repo/pull/42",
+						},
+					},
+				}),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						AddPullRequestReviewThread struct {
+							Thread struct {
+								ID githubv4.String
 							}
 						} `graphql:"addPullRequestReviewThread(input: $input)"`
 					}{},
@@ -3337,6 +3606,201 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
 			assert.Contains(t, textContent.Text, "This is a reply to the comment")
+		})
+	}
+}
+
+func TestResolveReviewThread(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		requestArgs        map[string]any
+		mockedClient       *http.Client
+		expectToolError    bool
+		expectedToolErrMsg string
+		expectedResult     string
+	}{
+		{
+			name: "successful resolve thread",
+			requestArgs: map[string]any{
+				"method":     "resolve_thread",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"threadId":   "PRRT_kwDOTest123",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewMutationMatcher(
+					struct {
+						ResolveReviewThread struct {
+							Thread struct {
+								ID         githubv4.ID
+								IsResolved githubv4.Boolean
+							}
+						} `graphql:"resolveReviewThread(input: $input)"`
+					}{},
+					githubv4.ResolveReviewThreadInput{
+						ThreadID: githubv4.ID("PRRT_kwDOTest123"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"resolveReviewThread": map[string]any{
+							"thread": map[string]any{
+								"id":         "PRRT_kwDOTest123",
+								"isResolved": true,
+							},
+						},
+					}),
+				),
+			),
+			expectedResult: "review thread resolved successfully",
+		},
+		{
+			name: "successful unresolve thread",
+			requestArgs: map[string]any{
+				"method":     "unresolve_thread",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"threadId":   "PRRT_kwDOTest123",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewMutationMatcher(
+					struct {
+						UnresolveReviewThread struct {
+							Thread struct {
+								ID         githubv4.ID
+								IsResolved githubv4.Boolean
+							}
+						} `graphql:"unresolveReviewThread(input: $input)"`
+					}{},
+					githubv4.UnresolveReviewThreadInput{
+						ThreadID: githubv4.ID("PRRT_kwDOTest123"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"unresolveReviewThread": map[string]any{
+							"thread": map[string]any{
+								"id":         "PRRT_kwDOTest123",
+								"isResolved": false,
+							},
+						},
+					}),
+				),
+			),
+			expectedResult: "review thread unresolved successfully",
+		},
+		{
+			name: "empty threadId for resolve",
+			requestArgs: map[string]any{
+				"method":     "resolve_thread",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"threadId":   "",
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "threadId is required",
+		},
+		{
+			name: "empty threadId for unresolve",
+			requestArgs: map[string]any{
+				"method":     "unresolve_thread",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"threadId":   "",
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "threadId is required",
+		},
+		{
+			name: "omitted threadId for resolve",
+			requestArgs: map[string]any{
+				"method":     "resolve_thread",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "threadId is required",
+		},
+		{
+			name: "omitted threadId for unresolve",
+			requestArgs: map[string]any{
+				"method":     "unresolve_thread",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "threadId is required",
+		},
+		{
+			name: "thread not found",
+			requestArgs: map[string]any{
+				"method":     "resolve_thread",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"threadId":   "PRRT_invalid",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewMutationMatcher(
+					struct {
+						ResolveReviewThread struct {
+							Thread struct {
+								ID         githubv4.ID
+								IsResolved githubv4.Boolean
+							}
+						} `graphql:"resolveReviewThread(input: $input)"`
+					}{},
+					githubv4.ResolveReviewThreadInput{
+						ThreadID: githubv4.ID("PRRT_invalid"),
+					},
+					nil,
+					githubv4mock.ErrorResponse("Could not resolve to a PullRequestReviewThread with the id of 'PRRT_invalid'"),
+				),
+			),
+			expectToolError:    true,
+			expectedToolErrMsg: "Could not resolve to a PullRequestReviewThread",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Setup client with mock
+			client := githubv4.NewClient(tc.mockedClient)
+			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				GQLClient: client,
+			}
+			handler := serverTool.Handler(deps)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			textContent := getTextResult(t, result)
+
+			if tc.expectToolError {
+				require.True(t, result.IsError)
+				assert.Contains(t, textContent.Text, tc.expectedToolErrMsg)
+				return
+			}
+
+			require.False(t, result.IsError)
+			assert.Equal(t, tc.expectedResult, textContent.Text)
 		})
 	}
 }

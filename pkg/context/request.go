@@ -113,3 +113,19 @@ func GetHeaderFeatures(ctx context.Context) []string {
 	}
 	return nil
 }
+
+// uiSupportCtxKey is a context key for MCP Apps UI support
+type uiSupportCtxKey struct{}
+
+// WithUISupport stores whether the client supports MCP Apps UI in the context.
+// This is used by HTTP/stateless servers where the go-sdk session may not
+// persist client capabilities across requests.
+func WithUISupport(ctx context.Context, supported bool) context.Context {
+	return context.WithValue(ctx, uiSupportCtxKey{}, supported)
+}
+
+// HasUISupport retrieves the MCP Apps UI support flag from context.
+func HasUISupport(ctx context.Context) (supported bool, ok bool) {
+	v, ok := ctx.Value(uiSupportCtxKey{}).(bool)
+	return v, ok
+}

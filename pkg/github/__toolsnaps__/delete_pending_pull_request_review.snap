@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "openWorldHint": true,
+    "title": "Delete Pending Pull Request Review"
+  },
+  "description": "Delete a pending pull request review.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "The pull request number",
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber"
+    ],
+    "type": "object"
+  },
+  "name": "delete_pending_pull_request_review"
+}

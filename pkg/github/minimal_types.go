@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/google/go-github/v82/github"
+
+	"github.com/github/github-mcp-server/pkg/sanitize"
 )
 
 // MinimalUser is the output type for user and organization search results.
@@ -122,6 +124,12 @@ type MinimalBranch struct {
 	Protected bool   `json:"protected"`
 }
 
+// MinimalTag is the trimmed output type for tag objects.
+type MinimalTag struct {
+	Name string `json:"name"`
+	SHA  string `json:"sha"`
+}
+
 // MinimalResponse represents a minimal response for all CRUD operations.
 // Success is implicit in the HTTP response status, and all other information
 // can be derived from the URL or fetched separately if needed.
@@ -170,7 +178,7 @@ type MinimalIssue struct {
 	StateReason       string            `json:"state_reason,omitempty"`
 	Draft             bool              `json:"draft,omitempty"`
 	Locked            bool              `json:"locked,omitempty"`
-	HTMLURL           string            `json:"html_url"`
+	HTMLURL           string            `json:"html_url,omitempty"`
 	User              *MinimalUser      `json:"user,omitempty"`
 	AuthorAssociation string            `json:"author_association,omitempty"`
 	Labels            []string          `json:"labels,omitempty"`
@@ -183,6 +191,13 @@ type MinimalIssue struct {
 	ClosedAt          string            `json:"closed_at,omitempty"`
 	ClosedBy          string            `json:"closed_by,omitempty"`
 	IssueType         string            `json:"issue_type,omitempty"`
+}
+
+// MinimalIssuesResponse is the trimmed output for a paginated list of issues.
+type MinimalIssuesResponse struct {
+	Issues     []MinimalIssue  `json:"issues"`
+	TotalCount int             `json:"totalCount"`
+	PageInfo   MinimalPageInfo `json:"pageInfo"`
 }
 
 // MinimalIssueComment is the trimmed output type for issue comment objects to reduce verbosity.
@@ -272,7 +287,37 @@ type MinimalProjectStatusUpdate struct {
 	Creator    *MinimalUser `json:"creator,omitempty"`
 }
 
+// MinimalPullRequestReview is the trimmed output type for pull request review objects to reduce verbosity.
+type MinimalPullRequestReview struct {
+	ID                int64        `json:"id"`
+	State             string       `json:"state"`
+	Body              string       `json:"body,omitempty"`
+	HTMLURL           string       `json:"html_url"`
+	User              *MinimalUser `json:"user,omitempty"`
+	CommitID          string       `json:"commit_id,omitempty"`
+	SubmittedAt       string       `json:"submitted_at,omitempty"`
+	AuthorAssociation string       `json:"author_association,omitempty"`
+}
+
 // Helper functions
+
+func convertToMinimalPullRequestReview(review *github.PullRequestReview) MinimalPullRequestReview {
+	m := MinimalPullRequestReview{
+		ID:                review.GetID(),
+		State:             review.GetState(),
+		Body:              review.GetBody(),
+		HTMLURL:           review.GetHTMLURL(),
+		User:              convertToMinimalUser(review.GetUser()),
+		CommitID:          review.GetCommitID(),
+		AuthorAssociation: review.GetAuthorAssociation(),
+	}
+
+	if review.SubmittedAt != nil {
+		m.SubmittedAt = review.SubmittedAt.Format(time.RFC3339)
+	}
+
+	return m
+}
 
 func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 	m := MinimalIssue{
@@ -338,6 +383,45 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 	}
 
 	return m
+}
+
+func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
+	m := MinimalIssue{
+		Number:    int(fragment.Number),
+		Title:     sanitize.Sanitize(string(fragment.Title)),
+		Body:      sanitize.Sanitize(string(fragment.Body)),
+		State:     string(fragment.State),
+		Comments:  int(fragment.Comments.TotalCount),
+		CreatedAt: fragment.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: fragment.UpdatedAt.Format(time.RFC3339),
+		User: &MinimalUser{
+			Login: string(fragment.Author.Login),
+		},
+	}
+
+	for _, label := range fragment.Labels.Nodes {
+		m.Labels = append(m.Labels, string(label.Name))
+	}
+
+	return m
+}
+
+func convertToMinimalIssuesResponse(fragment IssueQueryFragment) MinimalIssuesResponse {
+	minimalIssues := make([]MinimalIssue, 0, len(fragment.Nodes))
+	for _, issue := range fragment.Nodes {
+		minimalIssues = append(minimalIssues, fragmentToMinimalIssue(issue))
+	}
+
+	return MinimalIssuesResponse{
+		Issues:     minimalIssues,
+		TotalCount: fragment.TotalCount,
+		PageInfo: MinimalPageInfo{
+			HasNextPage:     bool(fragment.PageInfo.HasNextPage),
+			HasPreviousPage: bool(fragment.PageInfo.HasPreviousPage),
+			StartCursor:     string(fragment.PageInfo.StartCursor),
+			EndCursor:       string(fragment.PageInfo.EndCursor),
+		},
+	}
 }
 
 func convertToMinimalIssueComment(comment *github.IssueComment) MinimalIssueComment {
@@ -614,10 +698,10 @@ func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) 
 
 // MinimalPageInfo contains pagination cursor information.
 type MinimalPageInfo struct {
-	HasNextPage     bool   `json:"has_next_page"`
-	HasPreviousPage bool   `json:"has_previous_page"`
-	StartCursor     string `json:"start_cursor,omitempty"`
-	EndCursor       string `json:"end_cursor,omitempty"`
+	HasNextPage     bool   `json:"hasNextPage"`
+	HasPreviousPage bool   `json:"hasPreviousPage"`
+	StartCursor     string `json:"startCursor,omitempty"`
+	EndCursor       string `json:"endCursor,omitempty"`
 }
 
 // MinimalReviewComment is the trimmed output type for PR review comment objects.
@@ -643,8 +727,8 @@ type MinimalReviewThread struct {
 // MinimalReviewThreadsResponse is the trimmed output for a paginated list of PR review threads.
 type MinimalReviewThreadsResponse struct {
 	ReviewThreads []MinimalReviewThread `json:"review_threads"`
-	TotalCount    int                   `json:"total_count"`
-	PageInfo      MinimalPageInfo       `json:"page_info"`
+	TotalCount    int                   `json:"totalCount"`
+	PageInfo      MinimalPageInfo       `json:"pageInfo"`
 }
 
 func convertToMinimalPRFiles(files []*github.CommitFile) []MinimalPRFile {
@@ -670,6 +754,76 @@ func convertToMinimalBranch(branch *github.Branch) MinimalBranch {
 		SHA:       branch.GetCommit().GetSHA(),
 		Protected: branch.GetProtected(),
 	}
+}
+
+func convertToMinimalRelease(release *github.RepositoryRelease) MinimalRelease {
+	m := MinimalRelease{
+		ID:         release.GetID(),
+		TagName:    release.GetTagName(),
+		Name:       release.GetName(),
+		Body:       release.GetBody(),
+		HTMLURL:    release.GetHTMLURL(),
+		Prerelease: release.GetPrerelease(),
+		Draft:      release.GetDraft(),
+		Author:     convertToMinimalUser(release.GetAuthor()),
+	}
+
+	if release.PublishedAt != nil {
+		m.PublishedAt = release.PublishedAt.Format(time.RFC3339)
+	}
+
+	return m
+}
+
+func convertToMinimalTag(tag *github.RepositoryTag) MinimalTag {
+	m := MinimalTag{
+		Name: tag.GetName(),
+	}
+
+	if commit := tag.GetCommit(); commit != nil {
+		m.SHA = commit.GetSHA()
+	}
+
+	return m
+}
+
+// MinimalCheckRun is the trimmed output type for check run objects.
+type MinimalCheckRun struct {
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Status      string `json:"status"`
+	Conclusion  string `json:"conclusion,omitempty"`
+	HTMLURL     string `json:"html_url,omitempty"`
+	DetailsURL  string `json:"details_url,omitempty"`
+	StartedAt   string `json:"started_at,omitempty"`
+	CompletedAt string `json:"completed_at,omitempty"`
+}
+
+// MinimalCheckRunsResult is the trimmed output type for check runs list results.
+type MinimalCheckRunsResult struct {
+	TotalCount int               `json:"total_count"`
+	CheckRuns  []MinimalCheckRun `json:"check_runs"`
+}
+
+// convertToMinimalCheckRun converts a GitHub API CheckRun to MinimalCheckRun
+func convertToMinimalCheckRun(checkRun *github.CheckRun) MinimalCheckRun {
+	minimalCheckRun := MinimalCheckRun{
+		ID:         checkRun.GetID(),
+		Name:       checkRun.GetName(),
+		Status:     checkRun.GetStatus(),
+		Conclusion: checkRun.GetConclusion(),
+		HTMLURL:    checkRun.GetHTMLURL(),
+		DetailsURL: checkRun.GetDetailsURL(),
+	}
+
+	if checkRun.StartedAt != nil {
+		minimalCheckRun.StartedAt = checkRun.StartedAt.Format("2006-01-02T15:04:05Z")
+	}
+	if checkRun.CompletedAt != nil {
+		minimalCheckRun.CompletedAt = checkRun.CompletedAt.Format("2006-01-02T15:04:05Z")
+	}
+
+	return minimalCheckRun
 }
 
 func convertToMinimalReviewThreadsResponse(query reviewThreadsQuery) MinimalReviewThreadsResponse {
