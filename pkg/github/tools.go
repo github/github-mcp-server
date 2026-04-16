@@ -308,6 +308,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GranularAddSubIssue(t),
 		GranularRemoveSubIssue(t),
 		GranularReprioritizeSubIssue(t),
+		GranularSetIssueFields(t),
 
 		// Granular pull request tools (feature-flagged, replace consolidated update_pull_request/pull_request_review_write)
 		GranularUpdatePullRequestTitle(t),
