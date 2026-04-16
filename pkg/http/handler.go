@@ -401,7 +401,7 @@ func PATScopeFilter(b *inventory.Builder, r *http.Request, fetcher scopes.Fetche
 	// Fine-grained PATs and other token types don't support this, so we skip filtering.
 	if tokenInfo.TokenType == utils.TokenTypePersonalAccessToken {
 		// Check if scopes are already in context (should be set by WithPATScopes). If not, fetch them.
-		existingScopes, ok := ghcontext.GetTokenScopes(ctx)
+		existingScopes, ok := ghcontext.GetTokenScopesForToken(ctx, tokenInfo.Token)
 		if ok {
 			return b.WithFilter(github.CreateToolScopeFilter(existingScopes))
 		}
