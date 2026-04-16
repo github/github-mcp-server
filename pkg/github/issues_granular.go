@@ -731,40 +731,43 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 					FieldID: githubv4.ID(fieldID),
 				}
 
-				// Check for exactly one value type (or delete)
-				hasValue := false
+				// Count how many value keys are present; exactly one is required.
+				valueCount := 0
 
 				if v, err := OptionalParam[string](fieldMap, "text_value"); err == nil && v != "" {
 					input.TextValue = githubv4.NewString(githubv4.String(v))
-					hasValue = true
+					valueCount++
 				}
 				if v, err := OptionalParam[float64](fieldMap, "number_value"); err == nil {
 					if _, exists := fieldMap["number_value"]; exists {
 						gqlFloat := githubv4.Float(v)
 						input.NumberValue = &gqlFloat
-						hasValue = true
+						valueCount++
 					}
 				}
 				if v, err := OptionalParam[string](fieldMap, "date_value"); err == nil && v != "" {
 					input.DateValue = githubv4.NewString(githubv4.String(v))
-					hasValue = true
+					valueCount++
 				}
 				if v, err := OptionalParam[string](fieldMap, "single_select_option_id"); err == nil && v != "" {
 					optionID := githubv4.ID(v)
 					input.SingleSelectOptionID = &optionID
-					hasValue = true
+					valueCount++
 				}
 				if _, exists := fieldMap["delete"]; exists {
 					del, err := OptionalParam[bool](fieldMap, "delete")
 					if err == nil && del {
 						deleteVal := githubv4.Boolean(true)
 						input.Delete = &deleteVal
-						hasValue = true
+						valueCount++
 					}
 				}
 
-				if !hasValue {
+				if valueCount == 0 {
 					return utils.NewToolResultError("each field must have a value (text_value, number_value, date_value, single_select_option_id) or delete: true"), nil, nil
+				}
+				if valueCount > 1 {
+					return utils.NewToolResultError("each field must have exactly one value (text_value, number_value, date_value, single_select_option_id) or delete: true, but multiple were provided"), nil, nil
 				}
 
 				issueFields = append(issueFields, input)

@@ -907,4 +907,42 @@ func TestGranularSetIssueFields(t *testing.T) {
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "each field must have a value")
 	})
+
+	t.Run("multiple value keys returns error", func(t *testing.T) {
+		deps := BaseDeps{}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{"field_id": "FIELD_1", "text_value": "hello", "number_value": float64(42)},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "each field must have exactly one value")
+	})
+
+	t.Run("value key with delete returns error", func(t *testing.T) {
+		deps := BaseDeps{}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{"field_id": "FIELD_1", "text_value": "hello", "delete": true},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "each field must have exactly one value")
+	})
 }
