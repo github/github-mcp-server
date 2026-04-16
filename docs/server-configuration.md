@@ -12,6 +12,7 @@ We currently support the following ways in which the GitHub MCP Server can be co
 | Exclude Tools | `X-MCP-Exclude-Tools` header | `--exclude-tools` flag or `GITHUB_EXCLUDE_TOOLS` env var |
 | Read-Only Mode | `X-MCP-Readonly` header or `/readonly` URL | `--read-only` flag or `GITHUB_READ_ONLY` env var |
 | Dynamic Mode | Not available | `--dynamic-toolsets` flag or `GITHUB_DYNAMIC_TOOLSETS` env var |
+| Strict Toolset Validation | Not available | `--strict-toolsets` flag or `GITHUB_STRICT_TOOLSETS` env var |
 | Lockdown Mode | `X-MCP-Lockdown` header | `--lockdown-mode` flag or `GITHUB_LOCKDOWN_MODE` env var |
 | Insiders Mode | `X-MCP-Insiders` header or `/insiders` URL | `--insiders` flag or `GITHUB_INSIDERS` env var |
 | Scope Filtering | Always enabled | Always enabled |
@@ -115,6 +116,58 @@ The examples below use VS Code configuration format to illustrate the concepts. 
   ],
   "env": {
     "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+  }
+}
+```
+
+</td>
+</tr>
+</table>
+
+---
+
+### Strict Toolset Validation (Local Only)
+
+**Best for:** Users who want startup to fail fast on invalid toolset names (for example, catching typos in CI or shared config files).
+
+When enabled, the local server validates configured toolsets at startup and returns an error if any toolset name is unknown.
+
+<table>
+<tr><th>Local Server Only</th></tr>
+<tr valign="top">
+<td>
+
+```json
+{
+  "type": "stdio",
+  "command": "go",
+  "args": [
+    "run",
+    "./cmd/github-mcp-server",
+    "stdio",
+    "--toolsets=issues,pull_requests",
+    "--strict-toolsets"
+  ],
+  "env": {
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+  }
+}
+```
+
+**Using environment variable instead of flag:**
+```json
+{
+  "type": "stdio",
+  "command": "go",
+  "args": [
+    "run",
+    "./cmd/github-mcp-server",
+    "stdio",
+    "--toolsets=issues,pull_requests"
+  ],
+  "env": {
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}",
+    "GITHUB_STRICT_TOOLSETS": "true"
   }
 }
 ```
@@ -336,6 +389,40 @@ Starts with only discovery tools (`enable_toolset`, `list_available_toolsets`, `
 </table>
 
 When both dynamic mode and specific tools are enabled in the server configuration, the server will start with the 3 dynamic tools + the specified tools.
+
+### Strict Toolset Validation
+
+**Best for:** Locked-down environments where toolset allow-lists must fail closed.
+
+By default, unknown toolset names are ignored and logged as warnings so existing configurations remain backward compatible. If you want startup to fail when a configured toolset name is unknown, enable strict validation.
+
+<table>
+<tr><th>Local Server Only</th></tr>
+<tr valign="top">
+<td>
+
+```json
+{
+  "type": "stdio",
+  "command": "go",
+  "args": [
+    "run",
+    "./cmd/github-mcp-server",
+    "stdio",
+    "--toolsets=repos,issues,typo",
+    "--strict-toolsets"
+  ],
+  "env": {
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+  }
+}
+```
+
+</td>
+</tr>
+</table>
+
+Use this when a typo in a toolset name should be treated as a startup error instead of silently falling back to a narrower or unintended capability set.
 
 ---
 

@@ -30,6 +30,9 @@ type MCPServerConfig struct {
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
 	EnabledToolsets []string
 
+	// StrictToolsetValidation fails startup when EnabledToolsets contains unknown names.
+	StrictToolsetValidation bool
+
 	// EnabledTools is a list of specific tools to enable (additive to toolsets)
 	// When specified, these tools are registered in addition to any specified toolset tools
 	EnabledTools []string

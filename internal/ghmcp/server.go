@@ -141,6 +141,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		WithDeprecatedAliases(github.DeprecatedToolAliases).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools)).
+		WithStrictToolsetValidation(cfg.StrictToolsetValidation).
 		WithTools(github.CleanTools(cfg.EnabledTools)).
 		WithExcludeTools(cfg.ExcludeTools).
 		WithServerInstructions().
@@ -187,6 +188,9 @@ type StdioServerConfig struct {
 	// EnabledToolsets is a list of toolsets to enable
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
 	EnabledToolsets []string
+
+	// StrictToolsetValidation fails startup when enabled toolsets include unknown names.
+	StrictToolsetValidation bool
 
 	// EnabledTools is a list of specific tools to enable (additive to toolsets)
 	// When specified, these tools are registered in addition to any specified toolset tools
@@ -272,22 +276,23 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	}
 
 	ghServer, err := NewStdioMCPServer(ctx, github.MCPServerConfig{
-		Version:           cfg.Version,
-		Host:              cfg.Host,
-		Token:             cfg.Token,
-		EnabledToolsets:   cfg.EnabledToolsets,
-		EnabledTools:      cfg.EnabledTools,
-		EnabledFeatures:   cfg.EnabledFeatures,
-		DynamicToolsets:   cfg.DynamicToolsets,
-		ReadOnly:          cfg.ReadOnly,
-		Translator:        t,
-		ContentWindowSize: cfg.ContentWindowSize,
-		LockdownMode:      cfg.LockdownMode,
-		InsidersMode:      cfg.InsidersMode,
-		ExcludeTools:      cfg.ExcludeTools,
-		Logger:            logger,
-		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
-		TokenScopes:       tokenScopes,
+		Version:                 cfg.Version,
+		Host:                    cfg.Host,
+		Token:                   cfg.Token,
+		EnabledToolsets:         cfg.EnabledToolsets,
+		StrictToolsetValidation: cfg.StrictToolsetValidation,
+		EnabledTools:            cfg.EnabledTools,
+		EnabledFeatures:         cfg.EnabledFeatures,
+		DynamicToolsets:         cfg.DynamicToolsets,
+		ReadOnly:                cfg.ReadOnly,
+		Translator:              t,
+		ContentWindowSize:       cfg.ContentWindowSize,
+		LockdownMode:            cfg.LockdownMode,
+		InsidersMode:            cfg.InsidersMode,
+		ExcludeTools:            cfg.ExcludeTools,
+		Logger:                  logger,
+		RepoAccessTTL:           cfg.RepoAccessCacheTTL,
+		TokenScopes:             tokenScopes,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
