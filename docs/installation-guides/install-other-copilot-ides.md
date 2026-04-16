@@ -8,7 +8,7 @@ Quick setup guide for the GitHub MCP server in GitHub Copilot across different I
 - **MCP Servers in Copilot Policy**: Organizations assigning Copilot seats must enable this policy for all MCP access in Copilot for VS Code and Copilot Coding Agent – all other Copilot IDEs will migrate to this policy in the coming months
 - **Editor Preview Policy**: Organizations assigning Copilot seats must enable this policy for OAuth access while the Remote GitHub MCP Server is in public preview
 
-> **Note:** All Copilot IDEs now support the remote GitHub MCP server. VS Code offers OAuth authentication, while Visual Studio, JetBrains IDEs, Xcode, and Eclipse currently use PAT authentication with OAuth support coming soon.
+> **Note:** All Copilot IDEs now support the remote GitHub MCP server. VS Code offers OAuth authentication, while Visual Studio, JetBrains IDEs, Xcode, Eclipse, and Antigravity currently use PAT authentication with OAuth support coming soon.
 
 ## Visual Studio
 
@@ -241,6 +241,61 @@ For users who prefer to run the GitHub MCP server locally. Requires Docker insta
 ```
 
 **Documentation:** [Eclipse Copilot plugin](https://marketplace.eclipse.org/content/github-copilot)
+
+---
+
+## Antigravity
+
+MCP support available for Google's Antigravity IDE.
+
+### Remote Server (Recommended)
+
+The remote GitHub MCP server is hosted by GitHub and provides automatic updates with no local setup required.
+
+> **Note**: OAuth authentication for the remote GitHub server is not yet supported in Antigravity. You must use a Personal Access Token (PAT).
+
+#### Configuration Steps
+1. Open Antigravity
+2. Click the "..." (Additional Options) menu in the Agent panel → **MCP Servers** → **Manage MCP Servers** → **View raw config**
+3. Add GitHub MCP server configuration to your `mcp_config.json`:
+```json
+{
+  "mcpServers": {
+    "github": {
+      "serverUrl": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer YOUR_GITHUB_PAT"
+      }
+    }
+  }
+}
+```
+4. Save the config and restart Antigravity completely.
+
+### Local Server
+
+For users who prefer to run the GitHub MCP server locally. Requires Docker installed and running.
+
+#### Configuration
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm", 
+        "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT"
+      }
+    }
+  }
+}
+```
+
+**Documentation:** [Antigravity Installation Guide](install-antigravity.md)
 
 ---
 
