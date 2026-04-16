@@ -10,25 +10,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCreateHTTPFeatureChecker_Whitelist(t *testing.T) {
+func TestCreateHTTPFeatureChecker(t *testing.T) {
 	checker := createHTTPFeatureChecker()
 
 	tests := []struct {
 		name           string
 		flagName       string
 		headerFeatures []string
+		insidersMode   bool
 		wantEnabled    bool
 	}{
 		{
-			name:           "whitelisted issues_granular flag accepted from header",
+			name:           "allowed issues_granular flag accepted from header",
 			flagName:       github.FeatureFlagIssuesGranular,
 			headerFeatures: []string{github.FeatureFlagIssuesGranular},
 			wantEnabled:    true,
 		},
 		{
-			name:           "whitelisted pull_requests_granular flag accepted from header",
+			name:           "allowed pull_requests_granular flag accepted from header",
 			flagName:       github.FeatureFlagPullRequestsGranular,
 			headerFeatures: []string{github.FeatureFlagPullRequestsGranular},
+			wantEnabled:    true,
+		},
+		{
+			name:           "MCP Apps flag accepted from header",
+			flagName:       github.MCPAppsFeatureFlag,
+			headerFeatures: []string{github.MCPAppsFeatureFlag},
 			wantEnabled:    true,
 		},
 		{
@@ -38,19 +45,19 @@ func TestCreateHTTPFeatureChecker_Whitelist(t *testing.T) {
 			wantEnabled:    false,
 		},
 		{
-			name:           "whitelisted flag not in header returns false",
+			name:           "allowed flag not in header returns false",
 			flagName:       github.FeatureFlagIssuesGranular,
 			headerFeatures: nil,
 			wantEnabled:    false,
 		},
 		{
-			name:           "whitelisted flag with different flag in header returns false",
+			name:           "allowed flag with different flag in header returns false",
 			flagName:       github.FeatureFlagIssuesGranular,
 			headerFeatures: []string{github.FeatureFlagPullRequestsGranular},
 			wantEnabled:    false,
 		},
 		{
-			name:           "multiple whitelisted flags in header",
+			name:           "multiple allowed flags in header",
 			flagName:       github.FeatureFlagIssuesGranular,
 			headerFeatures: []string{github.FeatureFlagIssuesGranular, github.FeatureFlagPullRequestsGranular},
 			wantEnabled:    true,
@@ -61,6 +68,18 @@ func TestCreateHTTPFeatureChecker_Whitelist(t *testing.T) {
 			headerFeatures: []string{},
 			wantEnabled:    false,
 		},
+		{
+			name:         "insiders mode enables MCP Apps without header",
+			flagName:     github.MCPAppsFeatureFlag,
+			insidersMode: true,
+			wantEnabled:  true,
+		},
+		{
+			name:         "insiders mode does not enable granular flags",
+			flagName:     github.FeatureFlagIssuesGranular,
+			insidersMode: true,
+			wantEnabled:  false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -68,6 +87,9 @@ func TestCreateHTTPFeatureChecker_Whitelist(t *testing.T) {
 			ctx := context.Background()
 			if len(tt.headerFeatures) > 0 {
 				ctx = ghcontext.WithHeaderFeatures(ctx, tt.headerFeatures)
+			}
+			if tt.insidersMode {
+				ctx = ghcontext.WithInsidersMode(ctx, true)
 			}
 
 			enabled, err := checker(ctx, tt.flagName)
@@ -77,10 +99,10 @@ func TestCreateHTTPFeatureChecker_Whitelist(t *testing.T) {
 	}
 }
 
-func TestKnownFeatureFlagsMatchesHeaderAllowed(t *testing.T) {
-	// Ensure knownFeatureFlags stays in sync with HeaderAllowedFeatureFlags
+func TestHeaderAllowedFeatureFlagsMatchesAllowed(t *testing.T) {
+	// Ensure HeaderAllowedFeatureFlags delegates to AllowedFeatureFlags
 	allowed := github.HeaderAllowedFeatureFlags()
-	assert.Equal(t, allowed, knownFeatureFlags,
-		"knownFeatureFlags should match github.HeaderAllowedFeatureFlags()")
-	assert.NotEmpty(t, knownFeatureFlags, "knownFeatureFlags should not be empty")
+	assert.Equal(t, github.AllowedFeatureFlags, allowed,
+		"HeaderAllowedFeatureFlags() should match AllowedFeatureFlags")
+	assert.NotEmpty(t, allowed, "AllowedFeatureFlags should not be empty")
 }

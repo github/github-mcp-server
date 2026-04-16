@@ -576,9 +576,6 @@ func TestStaticConfigEnforcement(t *testing.T) {
 				if tt.config.ReadOnly {
 					builder = builder.WithReadOnly(true)
 				}
-				if tt.config.InsidersMode {
-					builder = builder.WithInsidersMode(true)
-				}
 
 				if hasStatic {
 					r = filterRequestTools(r, validToolNames)
@@ -645,8 +642,7 @@ func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTo
 		SetTools(tools).
 		WithFeatureChecker(featureChecker).
 		WithReadOnly(cfg.ReadOnly).
-		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools)).
-		WithInsidersMode(cfg.InsidersMode)
+		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools))
 
 	if len(cfg.EnabledTools) > 0 {
 		b = b.WithTools(github.CleanTools(cfg.EnabledTools))
