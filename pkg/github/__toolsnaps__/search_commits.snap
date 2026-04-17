@@ -1,0 +1,47 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Search commits"
+  },
+  "description": "Search for commits across GitHub repositories using specialized commit search syntax. Great for finding specific changes, authors, or messages.",
+  "inputSchema": {
+    "properties": {
+      "order": {
+        "description": "Sort order",
+        "enum": [
+          "asc",
+          "desc"
+        ],
+        "type": "string"
+      },
+      "page": {
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "query": {
+        "description": "Commit search query. Examples: 'repo:owner/repo fix bug', 'author:defunkt', 'committer-date:\u003e2024-01-01'. Supports advanced search syntax.",
+        "type": "string"
+      },
+      "sort": {
+        "description": "Sort field ('author-date' or 'committer-date')",
+        "enum": [
+          "author-date",
+          "committer-date"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "type": "object"
+  },
+  "name": "search_commits"
+}
