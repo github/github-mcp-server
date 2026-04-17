@@ -26,6 +26,7 @@ The remote GitHub MCP Server is hosted by GitHub and provides the easiest method
 
 1. A compatible MCP host with remote server support (VS Code 1.101+, Claude Desktop, Cursor, Windsurf, etc.)
 2. Any applicable [policies enabled](https://github.com/github/github-mcp-server/blob/main/docs/policies-and-governance.md)
+3. (Optional) [Tool-level policies](#tool-level-policy-enforcement) configured for rate limiting and access control
 
 ### Install in VS Code
 
@@ -1575,3 +1576,50 @@ The exported Go API of this module should currently be considered unstable, and 
 ## License
 
 This project is licensed under the terms of the MIT open source license. Please refer to [MIT](./LICENSE) for the full terms.
+
+## Tool-level policy enforcement
+
+The [policies and governance](docs/policies-and-governance.md) doc covers access control via PATs, OAuth, and SSO. For tool-level enforcement — rate limiting, daily caps, and blocking specific operations — you can wrap the server with [PolicyLayer Intercept](https://github.com/policylayer/intercept), an open-source MCP proxy.
+
+Three policy presets are included in [`/policies`](/policies):
+
+| Policy | Description |
+|--------|-------------|
+| `recommended.yaml` | Rate limits on writes, blocks `delete_file`, daily caps on merges and pushes |
+| `strict.yaml` | Default deny — only read tools allowed unless explicitly opted in |
+| `permissive.yaml` | Everything allowed, rate limits on destructive and high-risk operations |
+
+### Usage
+
+Local server:
+
+```sh
+npx -y @policylayer/intercept \
+  --policy policies/recommended.yaml \
+  -- docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server
+```
+
+Or in your MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y", "@policylayer/intercept",
+        "--policy", "policies/recommended.yaml",
+        "--", "docker", "run", "-i", "--rm",
+        "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "<your-token>"
+      }
+    }
+  }
+}
+```
+
+Policies are YAML files you can customise. See the [Intercept docs](https://github.com/policylayer/intercept) for the full reference.
+
