@@ -7,7 +7,7 @@ COPY ui/ ./ui/
 RUN mkdir -p ./pkg/github/ui_dist && \
     cd ui && npm run build
 
-FROM golang:1.25.9-alpine@sha256:04d017a27c481185c169884328a5761d052910fdced8c3b8edd686474efdf59b AS build
+FROM golang:1.25.9-alpine@sha256:5caaf1cca9dc351e13deafbc3879fd4754801acba8653fa9540cea125d01a71f AS build
 ARG VERSION="dev"
 
 # Set the working directory
