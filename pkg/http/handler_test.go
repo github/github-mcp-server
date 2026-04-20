@@ -756,3 +756,72 @@ func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTo
 	ctx := context.Background()
 	return inv.AvailableTools(ctx), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx)
 }
+
+func TestCrossOriginProtection(t *testing.T) {
+	jsonRPCBody := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}`
+
+	apiHost, err := utils.NewAPIHost("https://api.githubcopilot.com")
+	require.NoError(t, err)
+
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{
+			Version: "test",
+		},
+		nil,
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+		WithInventoryFactory(func(_ *http.Request) (*inventory.Inventory, error) {
+			return inventory.NewBuilder().Build()
+		}),
+		WithGitHubMCPServerFactory(func(_ *http.Request, _ github.ToolDependencies, _ *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+			return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+		}),
+		WithScopeFetcher(allScopesFetcher{}),
+	)
+
+	r := chi.NewRouter()
+	handler.RegisterMiddleware(r)
+	handler.RegisterRoutes(r)
+
+	tests := []struct {
+		name         string
+		secFetchSite string
+		origin       string
+	}{
+		{
+			name:         "cross-site request with bearer token succeeds",
+			secFetchSite: "cross-site",
+			origin:       "https://example.com",
+		},
+		{
+			name:         "same-origin request succeeds",
+			secFetchSite: "same-origin",
+		},
+		{
+			name:         "native client without Sec-Fetch-Site succeeds",
+			secFetchSite: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(jsonRPCBody))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept", "application/json, text/event-stream")
+			req.Header.Set(headers.AuthorizationHeader, "Bearer github_pat_xyz")
+			if tt.secFetchSite != "" {
+				req.Header.Set("Sec-Fetch-Site", tt.secFetchSite)
+			}
+			if tt.origin != "" {
+				req.Header.Set("Origin", tt.origin)
+			}
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusOK, rr.Code, "unexpected status code; body: %s", rr.Body.String())
+		})
+	}
+}
