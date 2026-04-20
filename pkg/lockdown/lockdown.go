@@ -101,7 +101,8 @@ func newRepoAccessCache(client *githubv4.Client, restClient *github.Client, opts
 		cache:      cache2go.Cache(defaultRepoAccessCacheKey),
 		ttl:        defaultRepoAccessTTL,
 		trustedBotLogins: map[string]struct{}{
-			"copilot": {},
+			"copilot":             {},
+			"github-actions[bot]": {},
 		},
 	}
 	for _, opt := range opts {
@@ -133,6 +134,10 @@ type CacheStats struct {
 // - the repository is private;
 // - the content was created by the viewer.
 func (c *RepoAccessCache) IsSafeContent(ctx context.Context, username, owner, repo string) (bool, error) {
+	if c.isTrustedBot(username) {
+		return true, nil
+	}
+
 	repoInfo, err := c.getRepoAccessInfo(ctx, username, owner, repo)
 	if err != nil {
 		return false, err
@@ -141,7 +146,7 @@ func (c *RepoAccessCache) IsSafeContent(ctx context.Context, username, owner, re
 	c.logDebug(ctx, fmt.Sprintf("evaluated repo access for user %s to %s/%s for content filtering, result: hasPushAccess=%t, isPrivate=%t",
 		username, owner, repo, repoInfo.HasPushAccess, repoInfo.IsPrivate))
 
-	if c.isTrustedBot(username) || repoInfo.IsPrivate || repoInfo.ViewerLogin == strings.ToLower(username) {
+	if repoInfo.IsPrivate || repoInfo.ViewerLogin == strings.ToLower(username) {
 		return true, nil
 	}
 	return repoInfo.HasPushAccess, nil
