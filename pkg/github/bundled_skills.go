@@ -14,13 +14,21 @@ import (
 // Adding a new server-bundled skill is one entry here plus a //go:embed
 // line in package skills.
 func bundledSkills(inv *inventory.Inventory) *skills.Registry {
-	return skills.New().Add(skills.Bundled{
-		Name:        "pull-requests",
-		Description: "Submit a multi-comment GitHub pull request review using the pending-review workflow. Use when leaving line-specific feedback on a pull request, when asked to review a PR, or whenever creating any review with more than one comment.",
-		Content:     skills.PullRequestsSKILL,
-		Icons:       octicons.Icons("light-bulb"),
-		Enabled:     func() bool { return inv.IsToolsetEnabled(ToolsetMetadataPullRequests.ID) },
-	})
+	return skills.New().
+		Add(skills.Bundled{
+			Name:        "pull-requests",
+			Description: "Submit a multi-comment GitHub pull request review using the pending-review workflow. Use when leaving line-specific feedback on a pull request, when asked to review a PR, or whenever creating any review with more than one comment.",
+			Content:     skills.PullRequestsSKILL,
+			Icons:       octicons.Icons("light-bulb"),
+			Enabled:     func() bool { return inv.IsToolsetEnabled(ToolsetMetadataPullRequests.ID) },
+		}).
+		Add(skills.Bundled{
+			Name:        "inbox-triage",
+			Description: "Systematically triage the current user's GitHub notifications inbox — enumerate unread items, prioritize by notification reason (review requests, mentions, assignments, security alerts), act on the high-priority ones, then dismiss the rest. Use when the user asks \"what should I work on?\", \"catch me up on GitHub\", \"triage my inbox\", \"what needs my attention?\", or otherwise wants to clear their notifications backlog.",
+			Content:     skills.InboxTriageSKILL,
+			Icons:       octicons.Icons("bell"),
+			Enabled:     func() bool { return inv.IsToolsetEnabled(ToolsetMetadataNotifications.ID) },
+		})
 }
 
 // DeclareSkillsExtensionIfEnabled adds the skills-over-MCP extension

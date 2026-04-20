@@ -13,10 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// pullRequestsSkillURI is the canonical URI of the bundled pull-requests
-// skill, derived from the skills.Bundled entry so tests never drift from
-// the single source of truth.
-var pullRequestsSkillURI = skills.Bundled{Name: "pull-requests"}.URI()
+// pullRequestsSkillURI / inboxTriageSkillURI are the canonical URIs of the
+// bundled skills, derived from skills.Bundled so tests never drift from the
+// single source of truth.
+var (
+	pullRequestsSkillURI = skills.Bundled{Name: "pull-requests"}.URI()
+	inboxTriageSkillURI  = skills.Bundled{Name: "inbox-triage"}.URI()
+)
 
 // Test_PullRequestsSkill_EmbeddedContent verifies the SEP structural requirement
 // that the frontmatter `name` field matches the final segment of the skill-path
@@ -48,6 +51,35 @@ func Test_PullRequestsSkill_EmbeddedContent(t *testing.T) {
 	assert.Contains(t, body, "pull_request_review_write", "review workflow content must be preserved")
 	assert.Contains(t, body, "add_comment_to_pending_review", "review workflow content must be preserved")
 	assert.Contains(t, body, "submit_pending", "the distinctive tool method must be present")
+}
+
+// Test_InboxTriageSkill_EmbeddedContent verifies the SEP structural
+// requirements for the inbox-triage skill and that its substantive tool
+// references are preserved.
+func Test_InboxTriageSkill_EmbeddedContent(t *testing.T) {
+	require.NotEmpty(t, skills.InboxTriageSKILL, "SKILL.md must be embedded")
+
+	md := strings.ReplaceAll(skills.InboxTriageSKILL, "\r\n", "\n")
+	require.True(t, strings.HasPrefix(md, "---\n"), "SKILL.md must begin with YAML frontmatter")
+
+	end := strings.Index(md[4:], "\n---\n")
+	require.GreaterOrEqual(t, end, 0, "SKILL.md must have closing frontmatter fence")
+	frontmatter := md[4 : 4+end]
+
+	var frontmatterName string
+	for _, line := range strings.Split(frontmatter, "\n") {
+		if strings.HasPrefix(line, "name:") {
+			frontmatterName = strings.TrimSpace(strings.TrimPrefix(line, "name:"))
+			break
+		}
+	}
+	require.NotEmpty(t, frontmatterName, "SKILL.md frontmatter must declare `name`")
+	assert.Equal(t, "inbox-triage", frontmatterName, "frontmatter name must match final skill-path segment in %s", inboxTriageSkillURI)
+
+	body := md[4+end+5:]
+	assert.Contains(t, body, "## Workflow")
+	assert.Contains(t, body, "list_notifications", "triage workflow must reference list_notifications")
+	assert.Contains(t, body, "dismiss_notification", "triage workflow must reference dismiss_notification")
 }
 
 // Test_BundledSkills_Registration verifies that skill resources are
@@ -87,8 +119,52 @@ func Test_BundledSkills_Registration(t *testing.T) {
 
 		for _, r := range listResources(t, ctx, srv) {
 			assert.NotEqual(t, pullRequestsSkillURI, r.URI)
+			assert.NotEqual(t, inboxTriageSkillURI, r.URI)
 			assert.NotEqual(t, skills.IndexURI, r.URI)
 		}
+	})
+
+	t.Run("registers inbox-triage when notifications toolset enabled", func(t *testing.T) {
+		inv, err := NewInventory(translations.NullTranslationHelper).
+			WithToolsets([]string{string(ToolsetMetadataNotifications.ID)}).
+			Build()
+		require.NoError(t, err)
+
+		srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, &mcp.ServerOptions{
+			Capabilities: &mcp.ServerCapabilities{Resources: &mcp.ResourceCapabilities{}},
+		})
+		RegisterBundledSkills(srv, inv)
+
+		uris := map[string]string{}
+		for _, r := range listResources(t, ctx, srv) {
+			uris[r.URI] = r.MIMEType
+		}
+		assert.Equal(t, "text/markdown", uris[inboxTriageSkillURI])
+		assert.NotContains(t, uris, pullRequestsSkillURI, "only notifications enabled — pull-requests should not be registered")
+		assert.Equal(t, "application/json", uris[skills.IndexURI])
+	})
+
+	t.Run("registers both when both toolsets enabled", func(t *testing.T) {
+		inv, err := NewInventory(translations.NullTranslationHelper).
+			WithToolsets([]string{
+				string(ToolsetMetadataPullRequests.ID),
+				string(ToolsetMetadataNotifications.ID),
+			}).
+			Build()
+		require.NoError(t, err)
+
+		srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, &mcp.ServerOptions{
+			Capabilities: &mcp.ServerCapabilities{Resources: &mcp.ResourceCapabilities{}},
+		})
+		RegisterBundledSkills(srv, inv)
+
+		uris := map[string]struct{}{}
+		for _, r := range listResources(t, ctx, srv) {
+			uris[r.URI] = struct{}{}
+		}
+		assert.Contains(t, uris, pullRequestsSkillURI)
+		assert.Contains(t, uris, inboxTriageSkillURI)
+		assert.Contains(t, uris, skills.IndexURI)
 	})
 }
 
@@ -134,6 +210,37 @@ func Test_BundledSkills_ReadContent(t *testing.T) {
 	})
 }
 
+// Test_BundledSkills_Index_MultipleSkills verifies that all enabled skills
+// appear in the discovery index, not just the first one.
+func Test_BundledSkills_Index_MultipleSkills(t *testing.T) {
+	ctx := context.Background()
+	inv, err := NewInventory(translations.NullTranslationHelper).
+		WithToolsets([]string{
+			string(ToolsetMetadataPullRequests.ID),
+			string(ToolsetMetadataNotifications.ID),
+		}).
+		Build()
+	require.NoError(t, err)
+
+	srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, &mcp.ServerOptions{
+		Capabilities: &mcp.ServerCapabilities{Resources: &mcp.ResourceCapabilities{}},
+	})
+	RegisterBundledSkills(srv, inv)
+
+	session := connectClient(t, ctx, srv)
+	res, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: skills.IndexURI})
+	require.NoError(t, err)
+
+	var idx skills.IndexDoc
+	require.NoError(t, json.Unmarshal([]byte(res.Contents[0].Text), &idx))
+	names := map[string]string{}
+	for _, s := range idx.Skills {
+		names[s.Name] = s.URL
+	}
+	assert.Equal(t, pullRequestsSkillURI, names["pull-requests"])
+	assert.Equal(t, inboxTriageSkillURI, names["inbox-triage"])
+}
+
 // Test_DeclareSkillsExtensionIfEnabled verifies that the skills-over-MCP
 // extension (SEP-2133) is declared in ServerOptions.Capabilities when the
 // pull_requests toolset is enabled, and is absent when it is not.
@@ -165,6 +272,20 @@ func Test_DeclareSkillsExtensionIfEnabled(t *testing.T) {
 			_, ok := opts.Capabilities.Extensions[skills.ExtensionKey]
 			assert.False(t, ok, "skills extension must NOT be declared when no skills will be registered")
 		}
+	})
+
+	t.Run("declares when notifications enabled (any skill triggers declaration)", func(t *testing.T) {
+		inv, err := NewInventory(translations.NullTranslationHelper).
+			WithToolsets([]string{string(ToolsetMetadataNotifications.ID)}).
+			Build()
+		require.NoError(t, err)
+
+		opts := &mcp.ServerOptions{}
+		DeclareSkillsExtensionIfEnabled(opts, inv)
+
+		require.NotNil(t, opts.Capabilities)
+		_, ok := opts.Capabilities.Extensions[skills.ExtensionKey]
+		assert.True(t, ok, "skills extension must be declared when any bundled skill is enabled")
 	})
 
 	t.Run("preserves other extensions already declared", func(t *testing.T) {

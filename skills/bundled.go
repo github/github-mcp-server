@@ -14,3 +14,6 @@ import _ "embed"
 
 //go:embed pull-requests/SKILL.md
 var PullRequestsSKILL string
+
+//go:embed inbox-triage/SKILL.md
+var InboxTriageSKILL string
