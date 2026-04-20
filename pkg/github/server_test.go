@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,7 +100,35 @@ func stubGQLClientFnErr(errMsg string) func(context.Context) (*githubv4.Client, 
 
 func stubRepoAccessCache(client *githubv4.Client, ttl time.Duration) *lockdown.RepoAccessCache {
 	cacheName := fmt.Sprintf("repo-access-cache-test-%d", time.Now().UnixNano())
-	return lockdown.GetInstance(client, lockdown.WithTTL(ttl), lockdown.WithCacheName(cacheName))
+	return lockdown.NewRepoAccessCache(client, nil, lockdown.WithTTL(ttl), lockdown.WithCacheName(cacheName))
+}
+
+func stubLockdownCache(t *testing.T, restClient *gogithub.Client, ttl time.Duration) *lockdown.RepoAccessCache {
+	t.Helper()
+	cacheName := fmt.Sprintf("repo-access-cache-test-%d", time.Now().UnixNano())
+	return lockdown.NewRepoAccessCache(
+		githubv4.NewClient(newRepoAccessHTTPClient()),
+		restClient,
+		lockdown.WithTTL(ttl),
+		lockdown.WithCacheName(cacheName),
+	)
+}
+
+func mockRESTPermissionServer(t *testing.T, defaultPerm string, overrides map[string]string) *gogithub.Client {
+	t.Helper()
+	return gogithub.NewClient(MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+		perm := defaultPerm
+		for user, p := range overrides {
+			if strings.Contains(r.URL.Path, "/collaborators/"+user+"/") {
+				perm = p
+				break
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(gogithub.RepositoryPermissionLevel{
+			Permission: gogithub.Ptr(perm),
+		})
+	}))
 }
 
 func stubFeatureFlags(enabledFlags map[string]bool) FeatureFlags {

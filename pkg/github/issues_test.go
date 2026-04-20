@@ -23,17 +23,14 @@ import (
 )
 
 var defaultGQLClient *githubv4.Client = githubv4.NewClient(newRepoAccessHTTPClient())
-var repoAccessCache *lockdown.RepoAccessCache = stubRepoAccessCache(defaultGQLClient, 15*time.Minute)
 
 type repoAccessKey struct {
-	owner    string
-	repo     string
-	username string
+	owner string
+	repo  string
 }
 
 type repoAccessValue struct {
-	isPrivate  bool
-	permission string
+	isPrivate bool
 }
 
 type repoAccessMockTransport struct {
@@ -42,8 +39,8 @@ type repoAccessMockTransport struct {
 
 func newRepoAccessHTTPClient() *http.Client {
 	responses := map[repoAccessKey]repoAccessValue{
-		{owner: "owner2", repo: "repo2", username: "testuser2"}: {isPrivate: true},
-		{owner: "owner", repo: "repo", username: "testuser"}:    {isPrivate: false, permission: "READ"},
+		{owner: "owner2", repo: "repo2"}: {isPrivate: true},
+		{owner: "owner", repo: "repo"}:   {isPrivate: false},
 	}
 
 	return &http.Client{Transport: &repoAccessMockTransport{responses: responses}}
@@ -66,30 +63,19 @@ func (rt *repoAccessMockTransport) RoundTrip(req *http.Request) (*http.Response,
 
 	owner := toString(payload.Variables["owner"])
 	repo := toString(payload.Variables["name"])
-	username := toString(payload.Variables["username"])
 
-	value, ok := rt.responses[repoAccessKey{owner: owner, repo: repo, username: username}]
+	value, ok := rt.responses[repoAccessKey{owner: owner, repo: repo}]
 	if !ok {
-		value = repoAccessValue{isPrivate: false, permission: "WRITE"}
-	}
-
-	edges := []any{}
-	if value.permission != "" {
-		edges = append(edges, map[string]any{
-			"permission": value.permission,
-			"node": map[string]any{
-				"login": username,
-			},
-		})
+		value = repoAccessValue{isPrivate: false}
 	}
 
 	responseBody, err := json.Marshal(map[string]any{
 		"data": map[string]any{
+			"viewer": map[string]any{
+				"login": "test-viewer",
+			},
 			"repository": map[string]any{
 				"isPrivate": value.isPrivate,
-				"collaborators": map[string]any{
-					"edges": edges,
-				},
 			},
 		},
 	})
@@ -170,13 +156,13 @@ func Test_GetIssue(t *testing.T) {
 	tests := []struct {
 		name               string
 		mockedClient       *http.Client
-		gqlHTTPClient      *http.Client
 		requestArgs        map[string]any
 		expectHandlerError bool
 		expectResultError  bool
 		expectedIssue      *github.Issue
 		expectedErrMsg     string
 		lockdownEnabled    bool
+		restPermission     string
 	}{
 		{
 			name: "successful issue retrieval",
@@ -210,36 +196,6 @@ func Test_GetIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue2),
 			}),
-			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							IsPrivate     githubv4.Boolean
-							Collaborators struct {
-								Edges []struct {
-									Permission githubv4.String
-									Node       struct {
-										Login githubv4.String
-									}
-								}
-							} `graphql:"collaborators(query: $username, first: 1)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":    githubv4.String("owner2"),
-						"name":     githubv4.String("repo2"),
-						"username": githubv4.String("testuser2"),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"isPrivate": true,
-							"collaborators": map[string]any{
-								"edges": []any{},
-							},
-						},
-					}),
-				),
-			),
 			requestArgs: map[string]any{
 				"method":       "get",
 				"owner":        "owner2",
@@ -248,49 +204,13 @@ func Test_GetIssue(t *testing.T) {
 			},
 			expectedIssue:   mockIssue2,
 			lockdownEnabled: true,
+			restPermission:  "none",
 		},
 		{
 			name: "lockdown enabled - user lacks push access",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
 			}),
-			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							IsPrivate     githubv4.Boolean
-							Collaborators struct {
-								Edges []struct {
-									Permission githubv4.String
-									Node       struct {
-										Login githubv4.String
-									}
-								}
-							} `graphql:"collaborators(query: $username, first: 1)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":    githubv4.String("owner"),
-						"name":     githubv4.String("repo"),
-						"username": githubv4.String("testuser"),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"isPrivate": false,
-							"collaborators": map[string]any{
-								"edges": []any{
-									map[string]any{
-										"permission": "READ",
-										"node": map[string]any{
-											"login": "testuser",
-										},
-									},
-								},
-							},
-						},
-					}),
-				),
-			),
 			requestArgs: map[string]any{
 				"method":       "get",
 				"owner":        "owner",
@@ -300,6 +220,7 @@ func Test_GetIssue(t *testing.T) {
 			expectResultError: true,
 			expectedErrMsg:    "access to issue details is restricted by lockdown mode",
 			lockdownEnabled:   true,
+			restPermission:    "read",
 		},
 	}
 
@@ -307,13 +228,13 @@ func Test_GetIssue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 
-			var gqlClient *githubv4.Client
-			cache := repoAccessCache
-			if tc.gqlHTTPClient != nil {
-				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
-				cache = stubRepoAccessCache(gqlClient, 15*time.Minute)
+			gqlClient := defaultGQLClient
+			var cache *lockdown.RepoAccessCache
+			if tc.restPermission != "" {
+				restClient := mockRESTPermissionServer(t, tc.restPermission, nil)
+				cache = stubLockdownCache(t, restClient, 15*time.Minute)
 			} else {
-				gqlClient = githubv4.NewClient(nil)
+				cache = stubRepoAccessCache(gqlClient, 15*time.Minute)
 			}
 
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
@@ -1997,7 +1918,6 @@ func Test_GetIssueComments(t *testing.T) {
 	tests := []struct {
 		name             string
 		mockedClient     *http.Client
-		gqlHTTPClient    *http.Client
 		requestArgs      map[string]any
 		expectError      bool
 		expectedComments []*github.IssueComment
@@ -2069,7 +1989,6 @@ func Test_GetIssueComments(t *testing.T) {
 					},
 				}),
 			}),
-			gqlHTTPClient: newRepoAccessHTTPClient(),
 			requestArgs: map[string]any{
 				"method":       "get_comments",
 				"owner":        "owner",
@@ -2092,13 +2011,17 @@ func Test_GetIssueComments(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			var gqlClient *githubv4.Client
-			if tc.gqlHTTPClient != nil {
-				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
+			gqlClient := defaultGQLClient
+			var cache *lockdown.RepoAccessCache
+			if tc.lockdownEnabled {
+				restClient := mockRESTPermissionServer(t, "read", map[string]string{
+					"maintainer": "write",
+					"testuser":   "read",
+				})
+				cache = stubLockdownCache(t, restClient, 15*time.Minute)
 			} else {
-				gqlClient = githubv4.NewClient(nil)
+				cache = stubRepoAccessCache(gqlClient, 15*time.Minute)
 			}
-			cache := stubRepoAccessCache(gqlClient, 15*time.Minute)
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
 			deps := BaseDeps{
 				Client:          client,

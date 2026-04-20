@@ -1939,7 +1939,12 @@ func Test_GetPullRequestComments(t *testing.T) {
 			// Setup cache for lockdown mode
 			var cache *lockdown.RepoAccessCache
 			if tc.lockdownEnabled {
-				cache = stubRepoAccessCache(githubv4.NewClient(newRepoAccessHTTPClient()), 5*time.Minute)
+				restClient := mockRESTPermissionServer(t, "read", map[string]string{
+					"maintainer":    "write",
+					"external-user": "read",
+					"testuser":      "read",
+				})
+				cache = stubLockdownCache(t, restClient, 5*time.Minute)
 			} else {
 				cache = stubRepoAccessCache(gqlClient, 5*time.Minute)
 			}
@@ -2083,7 +2088,6 @@ func Test_GetPullRequestReviews(t *testing.T) {
 					},
 				}),
 			}),
-			gqlHTTPClient: newRepoAccessHTTPClient(),
 			requestArgs: map[string]any{
 				"method":     "get_reviews",
 				"owner":      "owner",
@@ -2107,13 +2111,20 @@ func Test_GetPullRequestReviews(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			var gqlClient *githubv4.Client
+			gqlClient := defaultGQLClient
 			if tc.gqlHTTPClient != nil {
 				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
-			} else {
-				gqlClient = githubv4.NewClient(nil)
 			}
-			cache := stubRepoAccessCache(gqlClient, 5*time.Minute)
+			var cache *lockdown.RepoAccessCache
+			if tc.lockdownEnabled {
+				restClient := mockRESTPermissionServer(t, "read", map[string]string{
+					"maintainer": "write",
+					"testuser":   "read",
+				})
+				cache = stubLockdownCache(t, restClient, 5*time.Minute)
+			} else {
+				cache = stubRepoAccessCache(gqlClient, 5*time.Minute)
+			}
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
 			deps := BaseDeps{
