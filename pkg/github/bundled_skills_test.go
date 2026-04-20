@@ -44,8 +44,9 @@ func Test_PullRequestsSkill_EmbeddedContent(t *testing.T) {
 	assert.Equal(t, "pull-requests", frontmatterName, "frontmatter name must match final skill-path segment in %s", pullRequestsSkillURI)
 
 	body := md[4+end+5:]
-	assert.Contains(t, body, "## PR review workflow")
+	assert.Contains(t, body, "## Workflow", "skill body must carry the workflow section")
 	assert.Contains(t, body, "pull_request_review_write", "review workflow content must be preserved")
+	assert.Contains(t, body, "add_comment_to_pending_review", "review workflow content must be preserved")
 	assert.Contains(t, body, "submit_pending", "the distinctive tool method must be present")
 }
 
