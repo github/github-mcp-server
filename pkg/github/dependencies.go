@@ -386,8 +386,13 @@ func (d *RequestDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAcc
 		return nil, err
 	}
 
+	restClient, err := d.GetClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Create repo access cache
-	instance := lockdown.GetInstance(gqlClient, d.RepoAccessOpts...)
+	instance := lockdown.GetInstance(gqlClient, restClient, d.RepoAccessOpts...)
 	return instance, nil
 }
 
