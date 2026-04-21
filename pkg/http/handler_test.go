@@ -708,7 +708,7 @@ func TestContentTypeHandling(t *testing.T) {
 			body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`
 			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
 			req.Header.Set(headers.AuthorizationHeader, "Bearer ghp_testtoken")
-			req.Header.Set("Accept", "application/json, text/event-stream")
+			req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
 			if tt.contentType != "" {
 				req.Header.Set(headers.ContentTypeHeader, tt.contentType)
 			}
