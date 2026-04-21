@@ -2,34 +2,36 @@
   "annotations": {
     "destructiveHint": false,
     "openWorldHint": true,
-    "title": "Create Issue"
+    "title": "Update Pull Request Body"
   },
-  "description": "Create a new issue in a GitHub repository with a title and optional body.",
+  "description": "Update the body description of an existing pull request.",
   "inputSchema": {
     "properties": {
       "body": {
-        "description": "Issue body content (optional)",
+        "description": "The new body content for the pull request",
         "type": "string"
       },
       "owner": {
         "description": "Repository owner (username or organization)",
         "type": "string"
       },
+      "pullNumber": {
+        "description": "The pull request number",
+        "minimum": 1,
+        "type": "number"
+      },
       "repo": {
         "description": "Repository name",
-        "type": "string"
-      },
-      "title": {
-        "description": "Issue title",
         "type": "string"
       }
     },
     "required": [
       "owner",
       "repo",
-      "title"
+      "pullNumber",
+      "body"
     ],
     "type": "object"
   },
-  "name": "create_issue"
+  "name": "update_pull_request_body"
 }

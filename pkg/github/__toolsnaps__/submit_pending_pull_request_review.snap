@@ -1,0 +1,46 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Submit Pending Pull Request Review"
+  },
+  "description": "Submit a pending pull request review.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "The review body text (optional)",
+        "type": "string"
+      },
+      "event": {
+        "description": "The review action to perform",
+        "enum": [
+          "APPROVE",
+          "REQUEST_CHANGES",
+          "COMMENT"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "The pull request number",
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber",
+      "event"
+    ],
+    "type": "object"
+  },
+  "name": "submit_pending_pull_request_review"
+}
