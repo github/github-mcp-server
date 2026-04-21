@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"sort"
+	"strings"
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
@@ -627,6 +628,101 @@ func TestStaticConfigEnforcement(t *testing.T) {
 			sort.Strings(expectedSorted)
 
 			assert.Equal(t, expectedSorted, toolNames, "tools should match expected")
+		})
+	}
+}
+
+// TestContentTypeHandling verifies that the MCP StreamableHTTP handler
+// accepts Content-Type values with additional parameters like charset=utf-8.
+// This is a regression test for https://github.com/github/github-mcp-server/issues/2333
+// where the Go SDK performs strict string matching against "application/json"
+// and rejects requests with "application/json; charset=utf-8".
+func TestContentTypeHandling(t *testing.T) {
+	tests := []struct {
+		name                 string
+		contentType          string
+		expectUnsupportedMedia bool
+	}{
+		{
+			name:                 "exact application/json is accepted",
+			contentType:          "application/json",
+			expectUnsupportedMedia: false,
+		},
+		{
+			name:                 "application/json with charset=utf-8 should be accepted",
+			contentType:          "application/json; charset=utf-8",
+			expectUnsupportedMedia: false,
+		},
+		{
+			name:                 "application/json with charset=UTF-8 should be accepted",
+			contentType:          "application/json; charset=UTF-8",
+			expectUnsupportedMedia: false,
+		},
+		{
+			name:                 "completely wrong content type is rejected",
+			contentType:          "text/plain",
+			expectUnsupportedMedia: true,
+		},
+		{
+			name:                 "empty content type is rejected",
+			contentType:          "",
+			expectUnsupportedMedia: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a minimal MCP server factory
+			mcpServerFactory := func(_ *http.Request, _ github.ToolDependencies, _ *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+				return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+			}
+
+			// Create a simple inventory factory
+			inventoryFactory := func(_ *http.Request) (*inventory.Inventory, error) {
+				return inventory.NewBuilder().
+					SetTools(testTools()).
+					WithToolsets([]string{"all"}).
+					Build()
+			}
+
+			apiHost, err := utils.NewAPIHost("https://api.github.com")
+			require.NoError(t, err)
+
+			handler := NewHTTPMcpHandler(
+				context.Background(),
+				&ServerConfig{Version: "test"},
+				nil,
+				translations.NullTranslationHelper,
+				slog.Default(),
+				apiHost,
+				WithInventoryFactory(inventoryFactory),
+				WithGitHubMCPServerFactory(mcpServerFactory),
+				WithScopeFetcher(allScopesFetcher{}),
+			)
+
+			r := chi.NewRouter()
+			handler.RegisterMiddleware(r)
+			handler.RegisterRoutes(r)
+
+			// Send an MCP initialize request as a POST with the given Content-Type
+			body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+			req.Header.Set(headers.AuthorizationHeader, "Bearer ghp_testtoken")
+			req.Header.Set("Accept", "application/json, text/event-stream")
+			if tt.contentType != "" {
+				req.Header.Set(headers.ContentTypeHeader, tt.contentType)
+			}
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			if tt.expectUnsupportedMedia {
+				assert.Equal(t, http.StatusUnsupportedMediaType, rr.Code,
+					"expected 415 Unsupported Media Type for Content-Type: %q", tt.contentType)
+			} else {
+				assert.NotEqual(t, http.StatusUnsupportedMediaType, rr.Code,
+					"should not get 415 for Content-Type: %q, got status %d", tt.contentType, rr.Code)
+			}
 		})
 	}
 }
