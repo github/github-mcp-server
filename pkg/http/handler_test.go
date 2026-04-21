@@ -639,33 +639,33 @@ func TestStaticConfigEnforcement(t *testing.T) {
 // and rejects requests with "application/json; charset=utf-8".
 func TestContentTypeHandling(t *testing.T) {
 	tests := []struct {
-		name                 string
-		contentType          string
+		name                   string
+		contentType            string
 		expectUnsupportedMedia bool
 	}{
 		{
-			name:                 "exact application/json is accepted",
-			contentType:          "application/json",
+			name:                   "exact application/json is accepted",
+			contentType:            "application/json",
 			expectUnsupportedMedia: false,
 		},
 		{
-			name:                 "application/json with charset=utf-8 should be accepted",
-			contentType:          "application/json; charset=utf-8",
+			name:                   "application/json with charset=utf-8 should be accepted",
+			contentType:            "application/json; charset=utf-8",
 			expectUnsupportedMedia: false,
 		},
 		{
-			name:                 "application/json with charset=UTF-8 should be accepted",
-			contentType:          "application/json; charset=UTF-8",
+			name:                   "application/json with charset=UTF-8 should be accepted",
+			contentType:            "application/json; charset=UTF-8",
 			expectUnsupportedMedia: false,
 		},
 		{
-			name:                 "completely wrong content type is rejected",
-			contentType:          "text/plain",
+			name:                   "completely wrong content type is rejected",
+			contentType:            "text/plain",
 			expectUnsupportedMedia: true,
 		},
 		{
-			name:                 "empty content type is rejected",
-			contentType:          "",
+			name:                   "empty content type is rejected",
+			contentType:            "",
 			expectUnsupportedMedia: true,
 		},
 	}
