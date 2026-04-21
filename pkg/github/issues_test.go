@@ -13,7 +13,6 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -228,19 +227,16 @@ func Test_GetIssue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 
-			gqlClient := defaultGQLClient
-			var cache *lockdown.RepoAccessCache
+			var restClient *github.Client
 			if tc.restPermission != "" {
-				restClient := mockRESTPermissionServer(t, tc.restPermission, nil)
-				cache = stubLockdownCache(t, restClient, 15*time.Minute)
-			} else {
-				cache = stubRepoAccessCache(gqlClient, 15*time.Minute)
+				restClient = mockRESTPermissionServer(t, tc.restPermission, nil)
 			}
+			cache := stubRepoAccessCache(restClient, 15*time.Minute)
 
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
 			deps := BaseDeps{
 				Client:          client,
-				GQLClient:       gqlClient,
+				GQLClient:       defaultGQLClient,
 				RepoAccessCache: cache,
 				Flags:           flags,
 			}
@@ -2011,21 +2007,18 @@ func Test_GetIssueComments(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			gqlClient := defaultGQLClient
-			var cache *lockdown.RepoAccessCache
+			var restClient *github.Client
 			if tc.lockdownEnabled {
-				restClient := mockRESTPermissionServer(t, "read", map[string]string{
+				restClient = mockRESTPermissionServer(t, "read", map[string]string{
 					"maintainer": "write",
 					"testuser":   "read",
 				})
-				cache = stubLockdownCache(t, restClient, 15*time.Minute)
-			} else {
-				cache = stubRepoAccessCache(gqlClient, 15*time.Minute)
 			}
+			cache := stubRepoAccessCache(restClient, 15*time.Minute)
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
 			deps := BaseDeps{
 				Client:          client,
-				GQLClient:       gqlClient,
+				GQLClient:       defaultGQLClient,
 				RepoAccessCache: cache,
 				Flags:           flags,
 			}
@@ -2146,7 +2139,7 @@ func Test_GetIssueLabels(t *testing.T) {
 			deps := BaseDeps{
 				Client:          client,
 				GQLClient:       gqlClient,
-				RepoAccessCache: stubRepoAccessCache(gqlClient, 15*time.Minute),
+				RepoAccessCache: stubRepoAccessCache(nil, 15*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
 			handler := serverTool.Handler(deps)
@@ -2575,7 +2568,7 @@ func Test_GetSubIssues(t *testing.T) {
 			deps := BaseDeps{
 				Client:          client,
 				GQLClient:       gqlClient,
-				RepoAccessCache: stubRepoAccessCache(gqlClient, 15*time.Minute),
+				RepoAccessCache: stubRepoAccessCache(nil, 15*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
 			handler := serverTool.Handler(deps)

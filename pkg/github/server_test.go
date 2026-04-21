@@ -98,13 +98,7 @@ func stubGQLClientFnErr(errMsg string) func(context.Context) (*githubv4.Client, 
 	}
 }
 
-func stubRepoAccessCache(client *githubv4.Client, ttl time.Duration) *lockdown.RepoAccessCache {
-	cacheName := fmt.Sprintf("repo-access-cache-test-%d", time.Now().UnixNano())
-	return lockdown.NewRepoAccessCache(client, nil, lockdown.WithTTL(ttl), lockdown.WithCacheName(cacheName))
-}
-
-func stubLockdownCache(t *testing.T, restClient *gogithub.Client, ttl time.Duration) *lockdown.RepoAccessCache {
-	t.Helper()
+func stubRepoAccessCache(restClient *gogithub.Client, ttl time.Duration) *lockdown.RepoAccessCache {
 	cacheName := fmt.Sprintf("repo-access-cache-test-%d", time.Now().UnixNano())
 	return lockdown.NewRepoAccessCache(
 		githubv4.NewClient(newRepoAccessHTTPClient()),
@@ -124,10 +118,11 @@ func mockRESTPermissionServer(t *testing.T, defaultPerm string, overrides map[st
 				break
 			}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(gogithub.RepositoryPermissionLevel{
+		resp := gogithub.RepositoryPermissionLevel{
 			Permission: gogithub.Ptr(perm),
-		})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 }
 
