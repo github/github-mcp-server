@@ -517,8 +517,7 @@ func SearchCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search commits", resp, body), nil, nil
 			}
 
-			minimalCommits := make([]MinimalCommit, 0, len(result.Commits))
-			for _, commit := range result.Commits {
+			convertCommitResultToMinimalCommit := func(commit *github.CommitResult) MinimalCommit {
 				minimalCommit := MinimalCommit{
 					SHA:     commit.GetSHA(),
 					HTMLURL: commit.GetHTMLURL(),
@@ -568,7 +567,12 @@ func SearchCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 					}
 				}
 
-				minimalCommits = append(minimalCommits, minimalCommit)
+				return minimalCommit
+			}
+
+			minimalCommits := make([]MinimalCommit, 0, len(result.Commits))
+			for _, commit := range result.Commits {
+				minimalCommits = append(minimalCommits, convertCommitResultToMinimalCommit(commit))
 			}
 
 			minimalResult := &MinimalSearchCommitsResult{
