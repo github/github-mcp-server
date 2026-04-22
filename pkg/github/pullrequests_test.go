@@ -2024,7 +2024,7 @@ func Test_GetPullRequestReviews(t *testing.T) {
 		},
 	}
 
-	tests := []struct { 
+	tests := []struct {
 		name            string
 		mockedClient    *http.Client
 		gqlHTTPClient   *http.Client
