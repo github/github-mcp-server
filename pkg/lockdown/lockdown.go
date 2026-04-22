@@ -134,6 +134,10 @@ type CacheStats struct {
 // - the repository is private;
 // - the content was created by the viewer.
 func (c *RepoAccessCache) IsSafeContent(ctx context.Context, username, owner, repo string) (bool, error) {
+	if c == nil {
+		return false, fmt.Errorf("nil repo access cache")
+	}
+
 	if c.isTrustedBot(username) {
 		return true, nil
 	}
