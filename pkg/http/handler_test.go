@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"sort"
+	"strings"
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
@@ -576,9 +577,6 @@ func TestStaticConfigEnforcement(t *testing.T) {
 				if tt.config.ReadOnly {
 					builder = builder.WithReadOnly(true)
 				}
-				if tt.config.InsidersMode {
-					builder = builder.WithInsidersMode(true)
-				}
 
 				if hasStatic {
 					r = filterRequestTools(r, validToolNames)
@@ -634,6 +632,101 @@ func TestStaticConfigEnforcement(t *testing.T) {
 	}
 }
 
+// TestContentTypeHandling verifies that the MCP StreamableHTTP handler
+// accepts Content-Type values with additional parameters like charset=utf-8.
+// This is a regression test for https://github.com/github/github-mcp-server/issues/2333
+// where the Go SDK performs strict string matching against "application/json"
+// and rejects requests with "application/json; charset=utf-8".
+func TestContentTypeHandling(t *testing.T) {
+	tests := []struct {
+		name                   string
+		contentType            string
+		expectUnsupportedMedia bool
+	}{
+		{
+			name:                   "exact application/json is accepted",
+			contentType:            "application/json",
+			expectUnsupportedMedia: false,
+		},
+		{
+			name:                   "application/json with charset=utf-8 should be accepted",
+			contentType:            "application/json; charset=utf-8",
+			expectUnsupportedMedia: false,
+		},
+		{
+			name:                   "application/json with charset=UTF-8 should be accepted",
+			contentType:            "application/json; charset=UTF-8",
+			expectUnsupportedMedia: false,
+		},
+		{
+			name:                   "completely wrong content type is rejected",
+			contentType:            "text/plain",
+			expectUnsupportedMedia: true,
+		},
+		{
+			name:                   "empty content type is rejected",
+			contentType:            "",
+			expectUnsupportedMedia: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a minimal MCP server factory
+			mcpServerFactory := func(_ *http.Request, _ github.ToolDependencies, _ *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+				return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+			}
+
+			// Create a simple inventory factory
+			inventoryFactory := func(_ *http.Request) (*inventory.Inventory, error) {
+				return inventory.NewBuilder().
+					SetTools(testTools()).
+					WithToolsets([]string{"all"}).
+					Build()
+			}
+
+			apiHost, err := utils.NewAPIHost("https://api.github.com")
+			require.NoError(t, err)
+
+			handler := NewHTTPMcpHandler(
+				context.Background(),
+				&ServerConfig{Version: "test"},
+				nil,
+				translations.NullTranslationHelper,
+				slog.Default(),
+				apiHost,
+				WithInventoryFactory(inventoryFactory),
+				WithGitHubMCPServerFactory(mcpServerFactory),
+				WithScopeFetcher(allScopesFetcher{}),
+			)
+
+			r := chi.NewRouter()
+			handler.RegisterMiddleware(r)
+			handler.RegisterRoutes(r)
+
+			// Send an MCP initialize request as a POST with the given Content-Type
+			body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+			req.Header.Set(headers.AuthorizationHeader, "Bearer ghp_testtoken")
+			req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+			if tt.contentType != "" {
+				req.Header.Set(headers.ContentTypeHeader, tt.contentType)
+			}
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			if tt.expectUnsupportedMedia {
+				assert.Equal(t, http.StatusUnsupportedMediaType, rr.Code,
+					"expected 415 Unsupported Media Type for Content-Type: %q", tt.contentType)
+			} else {
+				assert.NotEqual(t, http.StatusUnsupportedMediaType, rr.Code,
+					"should not get 415 for Content-Type: %q, got status %d", tt.contentType, rr.Code)
+			}
+		})
+	}
+}
+
 // buildStaticInventoryFromTools is a test helper that mirrors buildStaticInventory
 // but uses the provided mock tools instead of calling github.AllTools.
 func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTool, featureChecker inventory.FeatureFlagChecker) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt) {
@@ -645,8 +738,7 @@ func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTo
 		SetTools(tools).
 		WithFeatureChecker(featureChecker).
 		WithReadOnly(cfg.ReadOnly).
-		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools)).
-		WithInsidersMode(cfg.InsidersMode)
+		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools))
 
 	if len(cfg.EnabledTools) > 0 {
 		b = b.WithTools(github.CleanTools(cfg.EnabledTools))
@@ -663,4 +755,73 @@ func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTo
 
 	ctx := context.Background()
 	return inv.AvailableTools(ctx), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx)
+}
+
+func TestCrossOriginProtection(t *testing.T) {
+	jsonRPCBody := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}`
+
+	apiHost, err := utils.NewAPIHost("https://api.githubcopilot.com")
+	require.NoError(t, err)
+
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{
+			Version: "test",
+		},
+		nil,
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+		WithInventoryFactory(func(_ *http.Request) (*inventory.Inventory, error) {
+			return inventory.NewBuilder().Build()
+		}),
+		WithGitHubMCPServerFactory(func(_ *http.Request, _ github.ToolDependencies, _ *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+			return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+		}),
+		WithScopeFetcher(allScopesFetcher{}),
+	)
+
+	r := chi.NewRouter()
+	handler.RegisterMiddleware(r)
+	handler.RegisterRoutes(r)
+
+	tests := []struct {
+		name         string
+		secFetchSite string
+		origin       string
+	}{
+		{
+			name:         "cross-site request with bearer token succeeds",
+			secFetchSite: "cross-site",
+			origin:       "https://example.com",
+		},
+		{
+			name:         "same-origin request succeeds",
+			secFetchSite: "same-origin",
+		},
+		{
+			name:         "native client without Sec-Fetch-Site succeeds",
+			secFetchSite: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(jsonRPCBody))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept", "application/json, text/event-stream")
+			req.Header.Set(headers.AuthorizationHeader, "Bearer github_pat_xyz")
+			if tt.secFetchSite != "" {
+				req.Header.Set("Sec-Fetch-Site", tt.secFetchSite)
+			}
+			if tt.origin != "" {
+				req.Header.Set("Origin", tt.origin)
+			}
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusOK, rr.Code, "unexpected status code; body: %s", rr.Body.String())
+		})
+	}
 }

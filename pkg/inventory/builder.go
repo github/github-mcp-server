@@ -14,6 +14,11 @@ var (
 	ErrUnknownTools = errors.New("unknown tools specified in WithTools")
 )
 
+// mcpAppsFeatureFlag is the feature flag name that controls MCP Apps UI metadata.
+// This is defined here to avoid importing pkg/github (which imports pkg/inventory).
+// The value must match github.MCPAppsFeatureFlag.
+const mcpAppsFeatureFlag = "remote_mcp_ui_apps"
+
 // ToolFilter is a function that determines if a tool should be included.
 // Returns true if the tool should be included, false to exclude it.
 type ToolFilter func(ctx context.Context, tool *ServerTool) (bool, error)
@@ -48,7 +53,6 @@ type Builder struct {
 	featureChecker       FeatureFlagChecker
 	filters              []ToolFilter // filters to apply to all tools
 	generateInstructions bool
-	insidersMode         bool
 }
 
 // NewBuilder creates a new Builder.
@@ -154,15 +158,6 @@ func (b *Builder) WithExcludeTools(toolNames []string) *Builder {
 	return b
 }
 
-// WithInsidersMode enables or disables insiders mode features.
-// When insiders mode is disabled (default), UI metadata is removed from tools
-// so clients won't attempt to load UI resources.
-// Returns self for chaining.
-func (b *Builder) WithInsidersMode(enabled bool) *Builder {
-	b.insidersMode = enabled
-	return b
-}
-
 // CreateExcludeToolsFilter creates a ToolFilter that excludes tools by name.
 // Any tool whose name appears in the excluded list will be filtered out.
 // The input slice should already be cleaned (trimmed, deduplicated).
@@ -195,6 +190,19 @@ func cleanTools(tools []string) []string {
 	return cleaned
 }
 
+// checkFeatureFlag checks a feature flag at build time using the builder's feature checker.
+// Returns false if no checker is configured or the flag is not enabled.
+func (b *Builder) checkFeatureFlag(flag string) bool {
+	if b.featureChecker == nil {
+		return false
+	}
+	enabled, err := b.featureChecker(context.Background(), flag)
+	if err != nil {
+		return false
+	}
+	return enabled
+}
+
 // Build creates the final Inventory with all configuration applied.
 // This processes toolset filtering, tool name resolution, and sets up
 // the inventory for use. The returned Inventory is ready for use with
@@ -204,10 +212,13 @@ func cleanTools(tools []string) []string {
 // (i.e., they don't exist in the tool set and are not deprecated aliases).
 // This ensures invalid tool configurations fail fast at build time.
 func (b *Builder) Build() (*Inventory, error) {
-	// When insiders mode is disabled, strip insiders-only features from tools
 	tools := b.tools
-	if !b.insidersMode {
-		tools = stripInsidersFeatures(b.tools)
+
+	// When MCP Apps feature flag is not enabled, strip UI metadata from tools
+	// so clients won't attempt to load UI resources.
+	// The feature checker is the single source of truth for flag evaluation.
+	if !b.checkFeatureFlag(mcpAppsFeatureFlag) {
+		tools = stripMCPAppsMetadata(tools)
 	}
 
 	r := &Inventory{
@@ -375,24 +386,17 @@ func (b *Builder) processToolsets() (map[ToolsetID]bool, []string, []ToolsetID, 
 	return enabledToolsets, unrecognized, allToolsetIDs, validIDs, defaultToolsetIDList, descriptions
 }
 
-// insidersOnlyMetaKeys lists the Meta keys that are only available in insiders mode.
-// Add new experimental feature keys here to have them automatically stripped
-// when insiders mode is disabled.
-var insidersOnlyMetaKeys = []string{
+// mcpAppsMetaKeys lists the Meta keys controlled by the remote_mcp_ui_apps feature flag.
+var mcpAppsMetaKeys = []string{
 	"ui", // MCP Apps UI metadata
 }
 
-// stripInsidersFeatures removes insiders-only features from tools.
-// This includes removing tools marked with InsidersOnly and stripping
-// Meta keys listed in insidersOnlyMetaKeys from remaining tools.
-func stripInsidersFeatures(tools []ServerTool) []ServerTool {
+// stripMCPAppsMetadata removes MCP Apps UI metadata from tools when the
+// remote_mcp_ui_apps feature flag is not enabled.
+func stripMCPAppsMetadata(tools []ServerTool) []ServerTool {
 	result := make([]ServerTool, 0, len(tools))
 	for _, tool := range tools {
-		// Skip tools marked as insiders-only
-		if tool.InsidersOnly {
-			continue
-		}
-		if stripped := stripInsidersMetaFromTool(tool); stripped != nil {
+		if stripped := stripMetaKeys(tool, mcpAppsMetaKeys); stripped != nil {
 			result = append(result, *stripped)
 		} else {
 			result = append(result, tool)
@@ -401,30 +405,30 @@ func stripInsidersFeatures(tools []ServerTool) []ServerTool {
 	return result
 }
 
-// stripInsidersMetaFromTool removes insiders-only Meta keys from a single tool.
+// stripMetaKeys removes the specified Meta keys from a single tool.
 // Returns a modified copy if changes were made, nil otherwise.
-func stripInsidersMetaFromTool(tool ServerTool) *ServerTool {
-	if tool.Tool.Meta == nil {
+func stripMetaKeys(tool ServerTool, keys []string) *ServerTool {
+	if tool.Tool.Meta == nil || len(keys) == 0 {
 		return nil
 	}
 
-	// Check if any insiders-only keys exist
-	hasInsidersKeys := false
-	for _, key := range insidersOnlyMetaKeys {
-		if tool.Tool.Meta[key] != nil {
-			hasInsidersKeys = true
+	// Check if any of the specified keys exist
+	hasKeys := false
+	for _, key := range keys {
+		if _, ok := tool.Tool.Meta[key]; ok {
+			hasKeys = true
 			break
 		}
 	}
-	if !hasInsidersKeys {
+	if !hasKeys {
 		return nil
 	}
 
-	// Make a shallow copy and remove insiders-only keys
+	// Make a shallow copy and remove specified keys
 	toolCopy := tool
 	newMeta := make(map[string]any, len(tool.Tool.Meta))
 	for k, v := range tool.Tool.Meta {
-		if !slices.Contains(insidersOnlyMetaKeys, k) {
+		if !slices.Contains(keys, k) {
 			newMeta[k] = v
 		}
 	}

@@ -14,6 +14,7 @@ We currently support the following ways in which the GitHub MCP Server can be co
 | Dynamic Mode | Not available | `--dynamic-toolsets` flag or `GITHUB_DYNAMIC_TOOLSETS` env var |
 | Lockdown Mode | `X-MCP-Lockdown` header | `--lockdown-mode` flag or `GITHUB_LOCKDOWN_MODE` env var |
 | Insiders Mode | `X-MCP-Insiders` header or `/insiders` URL | `--insiders` flag or `GITHUB_INSIDERS` env var |
+| Feature Flags | `X-MCP-Features` header | `--features` flag |
 | Scope Filtering | Always enabled | Always enabled |
 | Server Name/Title | Not available | `GITHUB_MCP_SERVER_NAME` / `GITHUB_MCP_SERVER_TITLE` env vars or `github-mcp-server-config.json` |
 
@@ -390,7 +391,7 @@ Lockdown mode ensures the server only surfaces content in public repositories fr
 
 **Best for:** Users who want early access to experimental features and new tools before they reach general availability.
 
-Insiders Mode unlocks experimental features, such as [MCP Apps](./insiders-features.md#mcp-apps) support. We created this mode to have a way to roll out experimental features and collect feedback. So if you are using Insiders, please don't hesitate to share your feedback with us! Features in Insiders Mode may change, evolve, or be removed based on user feedback. 
+Insiders Mode unlocks experimental features, such as [MCP Apps](#mcp-apps) support. We created this mode to have a way to roll out experimental features and collect feedback. So if you are using Insiders, please don't hesitate to share your feedback with us! Features in Insiders Mode may change, evolve, or be removed based on user feedback.
 
 <table>
 <tr><th>Remote Server</th><th>Local Server</th></tr>
@@ -440,6 +441,62 @@ Insiders Mode unlocks experimental features, such as [MCP Apps](./insiders-featu
 </table>
 
 See [Insiders Features](./insiders-features.md) for a full list of what's available in Insiders Mode.
+
+---
+
+### MCP Apps
+
+[MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) is an extension to the Model Context Protocol that enables servers to deliver interactive user interfaces to end users. Instead of returning plain text that the LLM must interpret and relay, tools can render forms, profiles, and dashboards right in the chat.
+
+MCP Apps is enabled by [Insiders Mode](#insiders-mode), or independently via the `remote_mcp_ui_apps` feature flag.
+
+**Supported tools:**
+
+| Tool | Description |
+|------|-------------|
+| `get_me` | Displays your GitHub user profile with avatar, bio, and stats in a rich card |
+| `issue_write` | Opens an interactive form to create or update issues |
+| `create_pull_request` | Provides a full PR creation form to create a pull request (or a draft pull request) |
+
+**Client requirements:** MCP Apps requires a host that supports the [MCP Apps extension](https://modelcontextprotocol.io/docs/extensions/apps). Currently tested with VS Code (`chat.mcp.apps.enabled` setting).
+
+<table>
+<tr><th>Remote Server</th><th>Local Server</th></tr>
+<tr valign="top">
+<td>
+
+```json
+{
+  "type": "http",
+  "url": "https://api.githubcopilot.com/mcp/",
+  "headers": {
+    "X-MCP-Features": "remote_mcp_ui_apps"
+  }
+}
+```
+
+</td>
+<td>
+
+```json
+{
+  "type": "stdio",
+  "command": "go",
+  "args": [
+    "run",
+    "./cmd/github-mcp-server",
+    "stdio",
+    "--features=remote_mcp_ui_apps"
+  ],
+  "env": {
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+  }
+}
+```
+
+</td>
+</tr>
+</table>
 
 ---
 
