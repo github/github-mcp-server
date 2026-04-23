@@ -101,6 +101,11 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 		}
 	}
 
+	// Declare the skills-over-MCP extension (SEP-2133) when bundled skills
+	// will be registered. Must happen before NewServer() since capabilities
+	// are captured at construction.
+	DeclareSkillsExtensionIfEnabled(serverOpts, inv)
+
 	ghServer := NewServer(cfg.Version, cfg.Translator("SERVER_NAME", "github-mcp-server"), cfg.Translator("SERVER_TITLE", "GitHub MCP Server"), serverOpts)
 
 	// Add middlewares. Order matters - for example, the error context middleware should be applied last so that it runs FIRST (closest to the handler) to ensure all errors are captured,
@@ -118,6 +123,12 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	// is empty - users enable toolsets at runtime via the dynamic tools below (but can
 	// enable toolsets or tools explicitly that do need registration).
 	inv.RegisterAll(ctx, ghServer, deps)
+
+	// Register server-bundled Agent Skills (skills-over-MCP SEP prototype).
+	// Each entry is toolset-gated internally. Lives here (not in the ghmcp
+	// bootstrap) so it applies to both stdio and HTTP transports — the HTTP
+	// handler builds an mcp.Server per request via this same constructor.
+	RegisterBundledSkills(ghServer, inv)
 
 	// Register dynamic toolset management tools (enable/disable) - these are separate
 	// meta-tools that control the inventory, not part of the inventory itself
