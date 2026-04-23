@@ -793,9 +793,18 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 						URL    githubv4.String
 					}
 					IssueFieldValues []struct {
-						Field struct {
+						TextValue struct {
+							Value string
+						} `graphql:"... on IssueFieldTextValue"`
+						SingleSelectValue struct {
 							Name string
+						} `graphql:"... on IssueFieldSingleSelectValue"`
+						DateValue struct {
+							Value string
 						} `graphql:"... on IssueFieldDateValue"`
+						NumberValue struct {
+							Value float64
+						} `graphql:"... on IssueFieldNumberValue"`
 					}
 				} `graphql:"setIssueFieldValue(input: $input)"`
 			}
