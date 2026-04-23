@@ -223,10 +223,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Bypass cross-origin protection: this server uses bearer tokens (not
+	// cookies), so Sec-Fetch-Site CSRF checks are unnecessary. See PR #2359.
+	crossOriginProtection := http.NewCrossOriginProtection()
+	crossOriginProtection.AddInsecureBypassPattern("/")
+
 	mcpHandler := mcp.NewStreamableHTTPHandler(func(_ *http.Request) *mcp.Server {
 		return ghServer
 	}, &mcp.StreamableHTTPOptions{
-		Stateless: true,
+		Stateless:             true,
+		CrossOriginProtection: crossOriginProtection,
 	})
 
 	mcpHandler.ServeHTTP(w, r)
@@ -273,11 +279,6 @@ func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelper
 		// Static read-only is an upper bound — enforce before request filters
 		if cfg.ReadOnly {
 			b = b.WithReadOnly(true)
-		}
-
-		// Static insiders mode — enforce before request filters
-		if cfg.InsidersMode {
-			b = b.WithInsidersMode(true)
 		}
 
 		// Filter request tool names to only those in the static universe,
@@ -336,8 +337,7 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 	b := github.NewInventory(t).
 		WithFeatureChecker(featureChecker).
 		WithReadOnly(cfg.ReadOnly).
-		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools)).
-		WithInsidersMode(cfg.InsidersMode)
+		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools))
 
 	if len(cfg.EnabledTools) > 0 {
 		b = b.WithTools(github.CleanTools(cfg.EnabledTools))
@@ -359,7 +359,9 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 }
 
 // InventoryFiltersForRequest applies filters to the inventory builder
-// based on the request context and headers
+// based on the request context and headers.
+// MCP Apps UI metadata is handled by the builder via the feature checker —
+// no need to check headers here.
 func InventoryFiltersForRequest(r *http.Request, builder *inventory.Builder) *inventory.Builder {
 	ctx := r.Context()
 

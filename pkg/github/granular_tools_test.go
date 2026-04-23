@@ -39,6 +39,7 @@ func TestGranularToolSnaps(t *testing.T) {
 		GranularAddSubIssue,
 		GranularRemoveSubIssue,
 		GranularReprioritizeSubIssue,
+		GranularSetIssueFields,
 		GranularUpdatePullRequestTitle,
 		GranularUpdatePullRequestBody,
 		GranularUpdatePullRequestState,
@@ -81,6 +82,7 @@ func TestIssuesGranularToolset(t *testing.T) {
 			"add_sub_issue",
 			"remove_sub_issue",
 			"reprioritize_sub_issue",
+			"set_issue_fields",
 		}
 		for _, name := range expected {
 			assert.Contains(t, toolNames, name)
@@ -773,4 +775,183 @@ func TestGranularUnresolveReviewThread(t *testing.T) {
 	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
+}
+
+func TestGranularSetIssueFields(t *testing.T) {
+	t.Run("successful set with text value", func(t *testing.T) {
+		matchers := []githubv4mock.Matcher{
+			// Mock the issue ID query
+			githubv4mock.NewQueryMatcher(
+				struct {
+					Repository struct {
+						Issue struct {
+							ID githubv4.ID
+						} `graphql:"issue(number: $issueNumber)"`
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}{},
+				map[string]any{
+					"owner":       githubv4.String("owner"),
+					"repo":        githubv4.String("repo"),
+					"issueNumber": githubv4.Int(5),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"repository": map[string]any{
+						"issue": map[string]any{"id": "ISSUE_123"},
+					},
+				}),
+			),
+			// Mock the setIssueFieldValue mutation
+			githubv4mock.NewMutationMatcher(
+				struct {
+					SetIssueFieldValue struct {
+						Issue struct {
+							ID     githubv4.ID
+							Number githubv4.Int
+							URL    githubv4.String
+						}
+						IssueFieldValues []struct {
+							TextValue struct {
+								Value string
+							} `graphql:"... on IssueFieldTextValue"`
+							SingleSelectValue struct {
+								Name string
+							} `graphql:"... on IssueFieldSingleSelectValue"`
+							DateValue struct {
+								Value string
+							} `graphql:"... on IssueFieldDateValue"`
+							NumberValue struct {
+								Value float64
+							} `graphql:"... on IssueFieldNumberValue"`
+						}
+					} `graphql:"setIssueFieldValue(input: $input)"`
+				}{},
+				SetIssueFieldValueInput{
+					IssueID: githubv4.ID("ISSUE_123"),
+					IssueFields: []IssueFieldCreateOrUpdateInput{
+						{
+							FieldID:   githubv4.ID("FIELD_1"),
+							TextValue: githubv4.NewString(githubv4.String("hello")),
+						},
+					},
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"setIssueFieldValue": map[string]any{
+						"issue": map[string]any{
+							"id":     "ISSUE_123",
+							"number": 5,
+							"url":    "https://github.com/owner/repo/issues/5",
+						},
+					},
+				}),
+			),
+		}
+
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matchers...))
+		deps := BaseDeps{GQLClient: gqlClient}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{"field_id": "FIELD_1", "text_value": "hello"},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+	})
+
+	t.Run("missing required parameter fields", func(t *testing.T) {
+		deps := BaseDeps{}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "missing required parameter: fields")
+	})
+
+	t.Run("empty fields array", func(t *testing.T) {
+		deps := BaseDeps{}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields":       []any{},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "fields array must not be empty")
+	})
+
+	t.Run("field missing value", func(t *testing.T) {
+		deps := BaseDeps{}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{"field_id": "FIELD_1"},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "each field must have a value")
+	})
+
+	t.Run("multiple value keys returns error", func(t *testing.T) {
+		deps := BaseDeps{}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{"field_id": "FIELD_1", "text_value": "hello", "number_value": float64(42)},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "each field must have exactly one value")
+	})
+
+	t.Run("value key with delete returns error", func(t *testing.T) {
+		deps := BaseDeps{}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{"field_id": "FIELD_1", "text_value": "hello", "delete": true},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "each field must have exactly one value")
+	})
 }

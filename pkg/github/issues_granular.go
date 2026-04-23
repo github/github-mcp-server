@@ -15,6 +15,7 @@ import (
 	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/shurcooL/githubv4"
 )
 
 // issueUpdateTool is a helper to create single-field issue update tools.
@@ -588,6 +589,243 @@ func GranularReprioritizeSubIssue(t translations.TranslationHelperFunc) inventor
 
 			result, err := ReprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID)
 			return result, nil, err
+		},
+	)
+	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	return st
+}
+
+// SetIssueFieldValueInput represents the input for the setIssueFieldValue GraphQL mutation.
+type SetIssueFieldValueInput struct {
+	IssueID          githubv4.ID                     `json:"issueId"`
+	IssueFields      []IssueFieldCreateOrUpdateInput `json:"issueFields"`
+	ClientMutationID *githubv4.String                `json:"clientMutationId,omitempty"`
+}
+
+// IssueFieldCreateOrUpdateInput represents a single field value to set on an issue.
+type IssueFieldCreateOrUpdateInput struct {
+	FieldID              githubv4.ID       `json:"fieldId"`
+	TextValue            *githubv4.String  `json:"textValue,omitempty"`
+	NumberValue          *githubv4.Float   `json:"numberValue,omitempty"`
+	DateValue            *githubv4.String  `json:"dateValue,omitempty"`
+	SingleSelectOptionID *githubv4.ID      `json:"singleSelectOptionId,omitempty"`
+	Delete               *githubv4.Boolean `json:"delete,omitempty"`
+}
+
+// GranularSetIssueFields creates a tool to set issue field values on an issue using GraphQL.
+func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "set_issue_fields",
+			Description: t("TOOL_SET_ISSUE_FIELDS_DESCRIPTION", "Set issue field values for an issue. Fields are organization-level custom fields (text, number, date, or single select). Use this to create or update field values on an issue."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_SET_ISSUE_FIELDS_USER_TITLE", "Set Issue Fields"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"issue_number": {
+						Type:        "number",
+						Description: "The issue number to update",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"fields": {
+						Type:        "array",
+						Description: "Array of issue field values to set. Each element must have a 'field_id' (string, the GraphQL node ID of the field) and exactly one value field: 'text_value' for text fields, 'number_value' for number fields, 'date_value' (ISO 8601 date string) for date fields, or 'single_select_option_id' (the GraphQL node ID of the option) for single select fields. Set 'delete' to true to remove a field value.",
+						MinItems:    jsonschema.Ptr(1),
+						Items: &jsonschema.Schema{
+							Type: "object",
+							Properties: map[string]*jsonschema.Schema{
+								"field_id": {
+									Type:        "string",
+									Description: "The GraphQL node ID of the issue field",
+								},
+								"text_value": {
+									Type:        "string",
+									Description: "The value to set for a text field",
+								},
+								"number_value": {
+									Type:        "number",
+									Description: "The value to set for a number field",
+								},
+								"date_value": {
+									Type:        "string",
+									Description: "The value to set for a date field (ISO 8601 date string)",
+								},
+								"single_select_option_id": {
+									Type:        "string",
+									Description: "The GraphQL node ID of the option to set for a single select field",
+								},
+								"delete": {
+									Type:        "boolean",
+									Description: "Set to true to delete this field value",
+								},
+							},
+							Required: []string{"field_id"},
+						},
+					},
+				},
+				Required: []string{"owner", "repo", "issue_number", "fields"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			fieldsRaw, ok := args["fields"]
+			if !ok {
+				return utils.NewToolResultError("missing required parameter: fields"), nil, nil
+			}
+
+			// Accept both []any and []map[string]any input forms
+			var fieldMaps []map[string]any
+			switch v := fieldsRaw.(type) {
+			case []any:
+				for _, f := range v {
+					fieldMap, ok := f.(map[string]any)
+					if !ok {
+						return utils.NewToolResultError("each field must be an object with 'field_id' and a value"), nil, nil
+					}
+					fieldMaps = append(fieldMaps, fieldMap)
+				}
+			case []map[string]any:
+				fieldMaps = v
+			default:
+				return utils.NewToolResultError("invalid parameter: fields must be an array"), nil, nil
+			}
+			if len(fieldMaps) == 0 {
+				return utils.NewToolResultError("fields array must not be empty"), nil, nil
+			}
+
+			issueFields := make([]IssueFieldCreateOrUpdateInput, 0, len(fieldMaps))
+			for _, fieldMap := range fieldMaps {
+				fieldID, err := RequiredParam[string](fieldMap, "field_id")
+				if err != nil {
+					return utils.NewToolResultError("field_id is required and must be a string"), nil, nil
+				}
+
+				input := IssueFieldCreateOrUpdateInput{
+					FieldID: githubv4.ID(fieldID),
+				}
+
+				// Count how many value keys are present; exactly one is required.
+				valueCount := 0
+
+				if v, err := OptionalParam[string](fieldMap, "text_value"); err == nil && v != "" {
+					input.TextValue = githubv4.NewString(githubv4.String(v))
+					valueCount++
+				}
+				if v, err := OptionalParam[float64](fieldMap, "number_value"); err == nil {
+					if _, exists := fieldMap["number_value"]; exists {
+						gqlFloat := githubv4.Float(v)
+						input.NumberValue = &gqlFloat
+						valueCount++
+					}
+				}
+				if v, err := OptionalParam[string](fieldMap, "date_value"); err == nil && v != "" {
+					input.DateValue = githubv4.NewString(githubv4.String(v))
+					valueCount++
+				}
+				if v, err := OptionalParam[string](fieldMap, "single_select_option_id"); err == nil && v != "" {
+					optionID := githubv4.ID(v)
+					input.SingleSelectOptionID = &optionID
+					valueCount++
+				}
+				if _, exists := fieldMap["delete"]; exists {
+					del, err := OptionalParam[bool](fieldMap, "delete")
+					if err == nil && del {
+						deleteVal := githubv4.Boolean(true)
+						input.Delete = &deleteVal
+						valueCount++
+					}
+				}
+
+				if valueCount == 0 {
+					return utils.NewToolResultError("each field must have a value (text_value, number_value, date_value, single_select_option_id) or delete: true"), nil, nil
+				}
+				if valueCount > 1 {
+					return utils.NewToolResultError("each field must have exactly one value (text_value, number_value, date_value, single_select_option_id) or delete: true, but multiple were provided"), nil, nil
+				}
+
+				issueFields = append(issueFields, input)
+			}
+
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
+			}
+
+			// Resolve issue node ID
+			issueID, _, err := fetchIssueIDs(ctx, gqlClient, owner, repo, issueNumber, 0)
+			if err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue", err), nil, nil
+			}
+
+			// Execute the setIssueFieldValue mutation
+			var mutation struct {
+				SetIssueFieldValue struct {
+					Issue struct {
+						ID     githubv4.ID
+						Number githubv4.Int
+						URL    githubv4.String
+					}
+					IssueFieldValues []struct {
+						TextValue struct {
+							Value string
+						} `graphql:"... on IssueFieldTextValue"`
+						SingleSelectValue struct {
+							Name string
+						} `graphql:"... on IssueFieldSingleSelectValue"`
+						DateValue struct {
+							Value string
+						} `graphql:"... on IssueFieldDateValue"`
+						NumberValue struct {
+							Value float64
+						} `graphql:"... on IssueFieldNumberValue"`
+					}
+				} `graphql:"setIssueFieldValue(input: $input)"`
+			}
+
+			mutationInput := SetIssueFieldValueInput{
+				IssueID:     issueID,
+				IssueFields: issueFields,
+			}
+
+			if err := gqlClient.Mutate(ctx, &mutation, mutationInput, nil); err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to set issue field values", err), nil, nil
+			}
+
+			r, err := json.Marshal(MinimalResponse{
+				ID:  fmt.Sprintf("%v", mutation.SetIssueFieldValue.Issue.ID),
+				URL: string(mutation.SetIssueFieldValue.Issue.URL),
+			})
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagIssuesGranular

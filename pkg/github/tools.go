@@ -147,18 +147,11 @@ var (
 	FeatureFlagPullRequestsGranular = "pull_requests_granular"
 )
 
-// headerAllowedFeatureFlags are the feature flags that clients may enable via the
-// X-MCP-Features header. Only these flags are accepted from headers; unknown flags
-// are silently ignored.
-var headerAllowedFeatureFlags = []string{
-	FeatureFlagIssuesGranular,
-	FeatureFlagPullRequestsGranular,
-}
-
 // HeaderAllowedFeatureFlags returns the feature flags that clients may enable via
-// the X-MCP-Features header.
+// the X-MCP-Features header. It delegates to AllowedFeatureFlags as the single
+// source of truth.
 func HeaderAllowedFeatureFlags() []string {
-	return slices.Clone(headerAllowedFeatureFlags)
+	return slices.Clone(AllowedFeatureFlags)
 }
 
 var (
@@ -308,6 +301,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GranularAddSubIssue(t),
 		GranularRemoveSubIssue(t),
 		GranularReprioritizeSubIssue(t),
+		GranularSetIssueFields(t),
 
 		// Granular pull request tools (feature-flagged, replace consolidated update_pull_request/pull_request_review_write)
 		GranularUpdatePullRequestTitle(t),
