@@ -138,6 +138,7 @@ const (
 	GetSearchIssues       = "GET /search/issues"
 	GetSearchUsers        = "GET /search/users"
 	GetSearchRepositories = "GET /search/repositories"
+	GetSearchCommits      = "GET /search/commits"
 
 	// Raw content endpoints (used for GitHub raw content API, not standard API)
 	// These are used with the raw content client that interacts with raw.githubusercontent.com

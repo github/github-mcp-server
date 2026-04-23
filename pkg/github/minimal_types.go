@@ -212,6 +212,13 @@ type MinimalIssueComment struct {
 	UpdatedAt         string            `json:"updated_at,omitempty"`
 }
 
+// MinimalSearchCommitsResult is the trimmed output type for commit search results.
+type MinimalSearchCommitsResult struct {
+	TotalCount        int             `json:"total_count"`
+	IncompleteResults bool            `json:"incomplete_results"`
+	Items             []MinimalCommit `json:"items"`
+}
+
 // MinimalFileContentResponse is the trimmed output type for create/update/delete file responses.
 type MinimalFileContentResponse struct {
 	Content *MinimalFileContent `json:"content,omitempty"`
