@@ -267,6 +267,8 @@ func (c *RepoAccessCache) checkPushAccess(ctx context.Context, username, owner, 
 		return false, fmt.Errorf("failed to get user permission level: %w", err)
 	}
 
+	// REST API maps "maintain" to "write" (and "triage" to "read")
+	// https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user
 	permission := permLevel.GetPermission()
 	return permission == "admin" || permission == "write", nil
 }
