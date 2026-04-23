@@ -66,7 +66,23 @@ func Test_GetDependabotAlert(t *testing.T) {
 				"alertNumber": float64(9999),
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to get alert",
+			expectedErrMsg: "Your token may not have access to Dependabot alerts on owner/repo",
+		},
+		{
+			name: "alert fetch forbidden",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposDependabotAlertsByOwnerByRepoByAlertNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusForbidden)
+					_, _ = w.Write([]byte(`{"message": "Resource not accessible by integration"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"alertNumber": float64(42),
+			},
+			expectError:    true,
+			expectedErrMsg: "Your token may not have access to Dependabot alerts on owner/repo",
 		},
 	}
 
@@ -207,6 +223,21 @@ func Test_ListDependabotAlerts(t *testing.T) {
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to list alerts",
+		},
+		{
+			name: "alerts listing forbidden includes token hint",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposDependabotAlertsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusForbidden)
+					_, _ = w.Write([]byte(`{"message": "Resource not accessible by integration"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError:    true,
+			expectedErrMsg: "Your token may not have access to Dependabot alerts on owner/repo",
 		},
 	}
 
