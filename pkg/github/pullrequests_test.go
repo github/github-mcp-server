@@ -9,7 +9,6 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -101,7 +100,7 @@ func Test_GetPullRequest(t *testing.T) {
 			deps := BaseDeps{
 				Client:          client,
 				GQLClient:       gqlClient,
-				RepoAccessCache: stubRepoAccessCache(gqlClient, 5*time.Minute),
+				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
 			handler := serverTool.Handler(deps)
@@ -1202,7 +1201,7 @@ func Test_GetPullRequestFiles(t *testing.T) {
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
 			deps := BaseDeps{
 				Client:          client,
-				RepoAccessCache: stubRepoAccessCache(githubv4.NewClient(githubv4mock.NewMockedHTTPClient()), 5*time.Minute),
+				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
 			handler := serverTool.Handler(deps)
@@ -1362,7 +1361,7 @@ func Test_GetPullRequestStatus(t *testing.T) {
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
 			deps := BaseDeps{
 				Client:          client,
-				RepoAccessCache: stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute),
+				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
 			handler := serverTool.Handler(deps)
@@ -1518,7 +1517,7 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
 			deps := BaseDeps{
 				Client:          client,
-				RepoAccessCache: stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute),
+				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
 			handler := serverTool.Handler(deps)
@@ -1937,12 +1936,15 @@ func Test_GetPullRequestComments(t *testing.T) {
 			}
 
 			// Setup cache for lockdown mode
-			var cache *lockdown.RepoAccessCache
+			var restClient *github.Client
 			if tc.lockdownEnabled {
-				cache = stubRepoAccessCache(githubv4.NewClient(newRepoAccessHTTPClient()), 5*time.Minute)
-			} else {
-				cache = stubRepoAccessCache(gqlClient, 5*time.Minute)
+				restClient = mockRESTPermissionServer(t, "read", map[string]string{
+					"maintainer":    "write",
+					"external-user": "read",
+					"testuser":      "read",
+				})
 			}
+			cache := stubRepoAccessCache(restClient, 5*time.Minute)
 
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
@@ -2083,7 +2085,6 @@ func Test_GetPullRequestReviews(t *testing.T) {
 					},
 				}),
 			}),
-			gqlHTTPClient: newRepoAccessHTTPClient(),
 			requestArgs: map[string]any{
 				"method":     "get_reviews",
 				"owner":      "owner",
@@ -2107,13 +2108,14 @@ func Test_GetPullRequestReviews(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			var gqlClient *githubv4.Client
-			if tc.gqlHTTPClient != nil {
-				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
-			} else {
-				gqlClient = githubv4.NewClient(nil)
+			var restClient *github.Client
+			if tc.lockdownEnabled {
+				restClient = mockRESTPermissionServer(t, "read", map[string]string{
+					"maintainer": "write",
+					"testuser":   "read",
+				})
 			}
-			cache := stubRepoAccessCache(gqlClient, 5*time.Minute)
+			cache := stubRepoAccessCache(restClient, 5*time.Minute)
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
 			deps := BaseDeps{
@@ -3348,7 +3350,7 @@ index 5d6e7b2..8a4f5c3 100644
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
 			deps := BaseDeps{
 				Client:          client,
-				RepoAccessCache: stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute),
+				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
 			handler := serverTool.Handler(deps)
