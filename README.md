@@ -1383,6 +1383,9 @@ The following sets of tools are available:
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/people-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/people-light.png"><img src="pkg/octicons/icons/people-light.png" width="20" height="20" alt="people"></picture> Users</summary>
 
+- **get_user** - Get a user by username
+  - `username`: Username of the user (string, required)
+
 - **search_users** - Search users
   - **Required OAuth Scopes**: `repo`
   - `order`: Sort order (string, optional)
