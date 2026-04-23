@@ -1,13 +1,21 @@
 {
   "annotations": {
     "destructiveHint": true,
-    "title": "Modify GitHub Project items"
+    "title": "Manage GitHub Projects"
   },
-  "description": "Add, update, or delete project items, or create status updates in a GitHub Project.",
+  "description": "Create and manage GitHub Projects: create projects, add/update/delete items, create status updates, and add iteration fields.",
   "inputSchema": {
     "properties": {
       "body": {
         "description": "The body of the status update (markdown). Used for 'create_project_status_update' method.",
+        "type": "string"
+      },
+      "duration": {
+        "description": "Duration in days for each iteration (e.g. 7 for weekly, 14 for bi-weekly). Required for 'create_iteration_field' method.",
+        "type": "number"
+      },
+      "field_name": {
+        "description": "The name of the iteration field (e.g. 'Sprint'). Required for 'create_iteration_field' method.",
         "type": "string"
       },
       "issue_number": {
@@ -34,13 +42,41 @@
         ],
         "type": "string"
       },
+      "iterations": {
+        "description": "Optional array of iteration definitions for 'create_iteration_field' method. Each entry defines a named iteration with a start date and duration. If omitted, the field is created with default iteration settings.",
+        "items": {
+          "properties": {
+            "duration": {
+              "description": "Duration in days",
+              "type": "number"
+            },
+            "start_date": {
+              "description": "Start date in YYYY-MM-DD format",
+              "type": "string"
+            },
+            "title": {
+              "description": "Iteration title (e.g. 'Sprint 1')",
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "start_date",
+            "duration"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
       "method": {
         "description": "The method to execute",
         "enum": [
           "add_project_item",
           "update_project_item",
           "delete_project_item",
-          "create_project_status_update"
+          "create_project_status_update",
+          "create_project",
+          "create_iteration_field"
         ],
         "type": "string"
       },
@@ -49,7 +85,7 @@
         "type": "string"
       },
       "owner_type": {
-        "description": "Owner type (user or org). If not provided, will be automatically detected.",
+        "description": "Owner type (user or org). Required for 'create_project' method. If not provided for other methods, will be automatically detected.",
         "enum": [
           "user",
           "org"
@@ -57,7 +93,7 @@
         "type": "string"
       },
       "project_number": {
-        "description": "The project's number.",
+        "description": "The project's number. Required for all methods except 'create_project'.",
         "type": "number"
       },
       "pull_request_number": {
@@ -65,7 +101,7 @@
         "type": "number"
       },
       "start_date": {
-        "description": "The start date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method.",
+        "description": "Start date in YYYY-MM-DD format. Used for 'create_project_status_update' and 'create_iteration_field' methods.",
         "type": "string"
       },
       "status": {
@@ -83,6 +119,10 @@
         "description": "The target date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method.",
         "type": "string"
       },
+      "title": {
+        "description": "The project title. Required for 'create_project' method.",
+        "type": "string"
+      },
       "updated_field": {
         "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}. Required for 'update_project_item' method.",
         "type": "object"
@@ -90,8 +130,7 @@
     },
     "required": [
       "method",
-      "owner",
-      "project_number"
+      "owner"
     ],
     "type": "object"
   },
