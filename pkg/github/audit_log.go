@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -18,6 +19,33 @@ import (
 )
 
 func SearchOrgAuditLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
+	// GHES does not support the "include" parameter — hide it from the schema
+	// so the AI never sends it. GITHUB_HOST is set by the proxy for Enterprise connectors.
+	isEnterprise := os.Getenv("GITHUB_HOST") != ""
+
+	properties := map[string]*jsonschema.Schema{
+		"org": {
+			Type:        "string",
+			Description: "The organization name. The name is not case sensitive.",
+		},
+		"phrase": {
+			Type:        "string",
+			Description: "A search phrase. Examples: 'created:>2025-01-01', 'action:repo.create', 'country:US', 'repo:my-repo', 'operation:access', 'actor:octocat'. Search phrase cannot be text only, it must be used with filters.",
+		},
+		"order": {
+			Type:        "string",
+			Description: "The order of audit log events. Default value is 'desc'.",
+			Enum:        []any{"asc", "desc"},
+		},
+	}
+	if !isEnterprise {
+		properties["include"] = &jsonschema.Schema{
+			Type:        "string",
+			Description: "Events to include. Default value is 'all'.",
+			Enum:        []any{"web", "git", "all"},
+		}
+	}
+
 	return NewTool(
 		ToolsetMetadataOrgs,
 		mcp.Tool{
@@ -28,28 +56,9 @@ func SearchOrgAuditLogs(t translations.TranslationHelperFunc) inventory.ServerTo
 				ReadOnlyHint: true,
 			},
 			InputSchema: WithCursorPagination(&jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"org": {
-						Type:        "string",
-						Description: "The organization name. The name is not case sensitive.",
-					},
-					"phrase": {
-						Type:        "string",
-						Description: "A search phrase. Examples: 'created:>2025-01-01', 'action:repo.create', 'country:US', 'repo:my-repo', 'operation:access', 'actor:octocat'. Search phrase cannot be text only, it must be used with filters.",
-					},
-					"include": {
-						Type:        "string",
-						Description: "Events to include. Default value is 'all'.",
-						Enum:        []any{"web", "git", "all"},
-					},
-					"order": {
-						Type:        "string",
-						Description: "The order of audit log events. Default value is 'desc'.",
-						Enum:        []any{"asc", "desc"},
-					},
-				},
-				Required: []string{"org"},
+				Type:       "object",
+				Properties: properties,
+				Required:   []string{"org"},
 			}),
 		},
 		[]scopes.Scope{scopes.AdminOrg},
@@ -60,11 +69,6 @@ func SearchOrgAuditLogs(t translations.TranslationHelperFunc) inventory.ServerTo
 			}
 
 			phrase, err := OptionalParam[string](args, "phrase")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			include, err := OptionalParam[string](args, "include")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -80,13 +84,21 @@ func SearchOrgAuditLogs(t translations.TranslationHelperFunc) inventory.ServerTo
 			}
 
 			opts := &github.GetAuditLogOptions{
-				Phrase:  &phrase,
-				Include: &include,
-				Order:   &order,
+				Phrase: &phrase,
+				Order:  &order,
 				ListCursorOptions: github.ListCursorOptions{
 					PerPage: pagination.PerPage,
 					After:   pagination.After,
 				},
+			}
+
+			// Only set Include for Cloud — GHES does not support it
+			if !isEnterprise {
+				include, err := OptionalParam[string](args, "include")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				opts.Include = &include
 			}
 
 			client, err := deps.GetClient(ctx)
