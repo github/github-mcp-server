@@ -1138,38 +1138,38 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, ListPullRequestsResult, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), ListPullRequestsResult{}, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), ListPullRequestsResult{}, nil
 			}
 			state, err := OptionalParam[string](args, "state")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), ListPullRequestsResult{}, nil
 			}
 			head, err := OptionalParam[string](args, "head")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), ListPullRequestsResult{}, nil
 			}
 			base, err := OptionalParam[string](args, "base")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), ListPullRequestsResult{}, nil
 			}
 			sort, err := OptionalParam[string](args, "sort")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), ListPullRequestsResult{}, nil
 			}
 			direction, err := OptionalParam[string](args, "direction")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), ListPullRequestsResult{}, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), ListPullRequestsResult{}, nil
 			}
 
 			opts := &github.PullRequestListOptions{
@@ -1186,7 +1186,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), ListPullRequestsResult{}, nil
 			}
 			prs, resp, err := client.PullRequests.List(ctx, owner, repo, opts)
 			if err != nil {
@@ -1194,16 +1194,16 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 					"failed to list pull requests",
 					resp,
 					err,
-				), nil, nil
+				), ListPullRequestsResult{}, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusOK {
 				bodyBytes, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), ListPullRequestsResult{}, nil
 				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list pull requests", resp, bodyBytes), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list pull requests", resp, bodyBytes), ListPullRequestsResult{}, nil
 			}
 
 			// sanitize title/body on each PR
@@ -1226,12 +1226,8 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				}
 			}
 
-			r, err := json.Marshal(minimalPRs)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
-			}
-
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := ListPullRequestsResult{PullRequests: minimalPRs}
+			return MarshalledTextResult(result), result, nil
 		})
 }
 
@@ -1400,9 +1396,23 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			result, err := searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests")
-			return result, nil, err
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, PullRequestSearchResult, error) {
+			textResult, rawResult, err := searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests")
+			if rawResult == nil {
+				return textResult, PullRequestSearchResult{}, err
+			}
+			issues := make([]MinimalIssue, 0, len(rawResult.Issues))
+			for _, issue := range rawResult.Issues {
+				if issue != nil {
+					issues = append(issues, convertToMinimalIssue(issue))
+				}
+			}
+			structured := PullRequestSearchResult{
+				TotalCount:        rawResult.GetTotal(),
+				IncompleteResults: rawResult.GetIncompleteResults(),
+				Items:             issues,
+			}
+			return textResult, structured, nil
 		})
 }
 
