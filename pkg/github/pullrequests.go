@@ -1307,6 +1307,9 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			if mergeMethod == "" {
+				mergeMethod = "merge"
+			}
 
 			options := &github.PullRequestOptions{
 				CommitTitle: commitTitle,
