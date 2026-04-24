@@ -57,7 +57,7 @@ func allSkills() []skillDefinition {
 func skillGetContext() skillDefinition {
 	return skillDefinition{
 		name:        "get-context",
-		description: "Understand the current user, their permissions, and team membership",
+		description: "Understand the current user, their permissions, and team membership. Use when starting any workflow, checking who you are, what you can access, or looking up team membership.",
 		allowedTools: []string{
 			"get_me",
 			"get_teams",
@@ -70,7 +70,7 @@ func skillGetContext() skillDefinition {
 func skillExploreRepo() skillDefinition {
 	return skillDefinition{
 		name:        "explore-repo",
-		description: "Understand an unfamiliar codebase quickly",
+		description: "Understand an unfamiliar codebase quickly. Use when exploring a new repo, understanding project structure, finding entry points, or getting oriented in code you haven't seen before.",
 		allowedTools: []string{
 			"get_repository_tree",
 			"get_file_contents",
@@ -86,7 +86,7 @@ func skillExploreRepo() skillDefinition {
 func skillSearchCode() skillDefinition {
 	return skillDefinition{
 		name:        "search-code",
-		description: "Find code patterns, symbols, and examples across GitHub",
+		description: "Find code patterns, symbols, and examples across GitHub. Use when searching for code, finding how something is implemented, locating files, or looking for usage examples across repositories.",
 		allowedTools: []string{
 			"search_code",
 			"search_repositories",
@@ -99,7 +99,7 @@ func skillSearchCode() skillDefinition {
 func skillTraceHistory() skillDefinition {
 	return skillDefinition{
 		name:        "trace-history",
-		description: "Understand why code changed by tracing commits and PRs",
+		description: "Understand why code changed by tracing commits and PRs. Use when investigating git history, finding who changed something, understanding the motivation behind a change, or tracking down when a bug was introduced.",
 		allowedTools: []string{
 			"list_commits",
 			"get_commit",
@@ -113,7 +113,7 @@ func skillTraceHistory() skillDefinition {
 func skillCreatePR() skillDefinition {
 	return skillDefinition{
 		name:        "create-pr",
-		description: "Create a well-structured pull request that reviews smoothly",
+		description: "Create a well-structured pull request that reviews smoothly. Use when opening a new PR, pushing changes for review, or submitting code changes to a repository.",
 		allowedTools: []string{
 			"create_pull_request",
 			"get_file_contents",
@@ -130,7 +130,7 @@ func skillCreatePR() skillDefinition {
 func skillReviewPR() skillDefinition {
 	return skillDefinition{
 		name:        "review-pr",
-		description: "Conduct a thorough code review of a pull request",
+		description: "Conduct a thorough code review of a pull request. Use when reviewing someone else's PR, checking code changes, leaving review comments, approving or requesting changes.",
 		allowedTools: []string{
 			"pull_request_read",
 			"get_file_contents",
@@ -152,7 +152,7 @@ func skillReviewPR() skillDefinition {
 func skillSelfReviewPR() skillDefinition {
 	return skillDefinition{
 		name:        "self-review-pr",
-		description: "Review your own PR before requesting team review",
+		description: "Review your own PR before requesting team review. Use when you want to self-check your PR, verify CI status, polish description, or prepare your changes for review.",
 		allowedTools: []string{
 			"pull_request_read",
 			"get_file_contents",
@@ -171,7 +171,7 @@ func skillSelfReviewPR() skillDefinition {
 func skillAddressPRFeedback() skillDefinition {
 	return skillDefinition{
 		name:        "address-pr-feedback",
-		description: "Handle review comments on your PR and push fixes",
+		description: "Handle review comments on your PR and push fixes. Use when you received PR feedback, need to respond to reviewer comments, resolve threads, or push fixes based on review.",
 		allowedTools: []string{
 			"pull_request_read",
 			"add_reply_to_pull_request_comment",
@@ -188,7 +188,7 @@ func skillAddressPRFeedback() skillDefinition {
 func skillMergePR() skillDefinition {
 	return skillDefinition{
 		name:        "merge-pr",
-		description: "Get a PR to merge-ready state and merge it",
+		description: "Get a PR to merge-ready state and merge it. Use when merging a pull request, checking if a PR is ready to merge, updating a PR branch, or converting a draft PR.",
 		allowedTools: []string{
 			"pull_request_read",
 			"merge_pull_request",
@@ -204,7 +204,7 @@ func skillMergePR() skillDefinition {
 func skillTriageIssues() skillDefinition {
 	return skillDefinition{
 		name:        "triage-issues",
-		description: "Categorize, deduplicate, and prioritize incoming issues",
+		description: "Categorize, deduplicate, and prioritize incoming issues. Use when triaging issues, labeling bugs, organizing a backlog, closing duplicates, or processing new issue reports.",
 		allowedTools: []string{
 			"list_issues",
 			"search_issues",
@@ -230,7 +230,7 @@ func skillTriageIssues() skillDefinition {
 func skillCreateIssue() skillDefinition {
 	return skillDefinition{
 		name:        "create-issue",
-		description: "Create well-structured, searchable, actionable issues",
+		description: "Create well-structured, searchable, actionable issues. Use when filing a bug report, requesting a feature, creating a task, or opening any new GitHub issue.",
 		allowedTools: []string{
 			"create_issue",
 			"search_issues",
@@ -245,7 +245,7 @@ func skillCreateIssue() skillDefinition {
 func skillManageSubIssues() skillDefinition {
 	return skillDefinition{
 		name:        "manage-sub-issues",
-		description: "Break down large issues into trackable sub-tasks",
+		description: "Break down large issues into trackable sub-tasks. Use when decomposing epics, creating task breakdowns, organizing work into smaller pieces, or managing parent-child issue relationships.",
 		allowedTools: []string{
 			"issue_read",
 			"create_issue",
@@ -262,7 +262,7 @@ func skillManageSubIssues() skillDefinition {
 func skillDebugCI() skillDefinition {
 	return skillDefinition{
 		name:        "debug-ci",
-		description: "Investigate and fix failing GitHub Actions workflows",
+		description: "Investigate and fix failing GitHub Actions workflows. Use when CI is failing, a workflow run errored, you need to read build logs, or debug why tests aren't passing.",
 		allowedTools: []string{
 			"actions_get",
 			"get_job_logs",
@@ -277,7 +277,7 @@ func skillDebugCI() skillDefinition {
 func skillTriggerWorkflow() skillDefinition {
 	return skillDefinition{
 		name:        "trigger-workflow",
-		description: "Run, rerun, or cancel GitHub Actions workflow runs",
+		description: "Run, rerun, or cancel GitHub Actions workflow runs. Use when triggering a deployment, rerunning failed jobs, canceling a stuck workflow, or dispatching a workflow manually.",
 		allowedTools: []string{
 			"actions_run_trigger",
 			"actions_get",
@@ -291,7 +291,7 @@ func skillTriggerWorkflow() skillDefinition {
 func skillSecurityAudit() skillDefinition {
 	return skillDefinition{
 		name:        "security-audit",
-		description: "Systematically review code scanning, secret, and dependency alerts",
+		description: "Systematically review code scanning, secret, and dependency alerts. Use when auditing repo security, checking for vulnerabilities, reviewing CodeQL alerts, or investigating exposed secrets.",
 		allowedTools: []string{
 			"list_code_scanning_alerts",
 			"get_code_scanning_alert",
@@ -309,7 +309,7 @@ func skillSecurityAudit() skillDefinition {
 func skillFixDependabot() skillDefinition {
 	return skillDefinition{
 		name:        "fix-dependabot",
-		description: "Handle vulnerable dependency alerts and update PRs",
+		description: "Handle vulnerable dependency alerts and update PRs. Use when fixing Dependabot alerts, updating vulnerable packages, reviewing dependency update PRs, or managing supply chain security.",
 		allowedTools: []string{
 			"list_dependabot_alerts",
 			"get_dependabot_alert",
@@ -324,7 +324,7 @@ func skillFixDependabot() skillDefinition {
 func skillResearchVulnerability() skillDefinition {
 	return skillDefinition{
 		name:        "research-vulnerability",
-		description: "Query the GitHub Advisory Database for security advisories",
+		description: "Query the GitHub Advisory Database for security advisories. Use when researching CVEs, looking up GHSA IDs, checking if a package has known vulnerabilities, or reviewing security advisories for a repo or org.",
 		allowedTools: []string{
 			"list_global_security_advisories",
 			"get_global_security_advisory",
@@ -338,7 +338,7 @@ func skillResearchVulnerability() skillDefinition {
 func skillManageProject() skillDefinition {
 	return skillDefinition{
 		name:        "manage-project",
-		description: "Track and update work items in GitHub Projects (v2)",
+		description: "Track and update work items in GitHub Projects (v2). Use when managing a project board, updating issue status fields, adding items to a project, querying project items, or posting project status updates.",
 		allowedTools: []string{
 			"projects_list",
 			"projects_get",
@@ -353,7 +353,7 @@ func skillManageProject() skillDefinition {
 func skillHandleNotifications() skillDefinition {
 	return skillDefinition{
 		name:        "handle-notifications",
-		description: "Process your GitHub notification queue efficiently",
+		description: "Process your GitHub notification queue efficiently. Use when checking notifications, clearing your inbox, managing subscriptions, or finding out what needs your attention on GitHub.",
 		allowedTools: []string{
 			"list_notifications",
 			"get_notification_details",
@@ -369,7 +369,7 @@ func skillHandleNotifications() skillDefinition {
 func skillPrepareRelease() skillDefinition {
 	return skillDefinition{
 		name:        "prepare-release",
-		description: "Compile release notes from commits and merged PRs",
+		description: "Compile release notes from commits and merged PRs. Use when preparing a release, writing a changelog, summarizing changes since last version, or reviewing what shipped.",
 		allowedTools: []string{
 			"list_releases",
 			"get_latest_release",
@@ -386,7 +386,7 @@ func skillPrepareRelease() skillDefinition {
 func skillManageRepo() skillDefinition {
 	return skillDefinition{
 		name:        "manage-repo",
-		description: "Create repos, manage branches, and push file changes",
+		description: "Create repos, manage branches, and push file changes. Use when creating a new repository, making a branch, committing files via the API, forking a repo, or managing repository contents.",
 		allowedTools: []string{
 			"create_repository",
 			"fork_repository",
@@ -404,7 +404,7 @@ func skillManageRepo() skillDefinition {
 func skillManageLabels() skillDefinition {
 	return skillDefinition{
 		name:        "manage-labels",
-		description: "Set up and maintain a consistent label scheme",
+		description: "Set up and maintain a consistent label scheme. Use when creating labels, organizing a label system, cleaning up labels, or standardizing label naming across a repository.",
 		allowedTools: []string{
 			"list_labels",
 			"list_label",
@@ -418,7 +418,7 @@ func skillManageLabels() skillDefinition {
 func skillContributeOSS() skillDefinition {
 	return skillDefinition{
 		name:        "contribute-oss",
-		description: "Fork, branch, and submit PRs to external repositories",
+		description: "Fork, branch, and submit PRs to external repositories. Use when contributing to open source, forking a repo to make changes, or submitting a pull request to a project you don't own.",
 		allowedTools: []string{
 			"fork_repository",
 			"create_branch",
@@ -435,7 +435,7 @@ func skillContributeOSS() skillDefinition {
 func skillBrowseDiscussions() skillDefinition {
 	return skillDefinition{
 		name:        "browse-discussions",
-		description: "Read and explore GitHub Discussions and categories",
+		description: "Read and explore GitHub Discussions and categories. Use when browsing discussions, reading community conversations, checking discussion categories, or looking for answers in a project's discussions.",
 		allowedTools: []string{
 			"list_discussions",
 			"get_discussion",
@@ -449,7 +449,7 @@ func skillBrowseDiscussions() skillDefinition {
 func skillDelegateCopilot() skillDefinition {
 	return skillDefinition{
 		name:        "delegate-to-copilot",
-		description: "Assign Copilot to issues and request Copilot PR reviews",
+		description: "Assign Copilot to issues and request Copilot PR reviews. Use when you want Copilot to work on an issue, get an automated code review, or delegate tasks to GitHub Copilot.",
 		allowedTools: []string{
 			"assign_copilot_to_issue",
 			"request_copilot_review",
@@ -463,7 +463,7 @@ func skillDelegateCopilot() skillDefinition {
 func skillDiscoverGitHub() skillDefinition {
 	return skillDefinition{
 		name:        "discover-github",
-		description: "Search for users, organizations, and repositories",
+		description: "Search for users, organizations, and repositories. Use when finding GitHub users, looking up organizations, discovering repos by topic or language, or managing your starred repositories.",
 		allowedTools: []string{
 			"search_users",
 			"search_orgs",
@@ -479,7 +479,7 @@ func skillDiscoverGitHub() skillDefinition {
 func skillShareSnippet() skillDefinition {
 	return skillDefinition{
 		name:        "share-snippet",
-		description: "Create and manage code snippets via GitHub Gists",
+		description: "Create and manage code snippets via GitHub Gists. Use when sharing a code snippet, creating a quick paste, saving notes as a gist, or managing your existing gists.",
 		allowedTools: []string{
 			"create_gist",
 			"update_gist",
