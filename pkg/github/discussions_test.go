@@ -924,3 +924,195 @@ func Test_ListDiscussionCategories(t *testing.T) {
 		})
 	}
 }
+
+func Test_AddDiscussionComment(t *testing.T) {
+	t.Parallel()
+
+	// Verify tool definition and schema
+	toolDef := AddDiscussionComment(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "add_discussion_comment", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.False(t, tool.Annotations.ReadOnlyHint, "add_discussion_comment should not be read-only")
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "discussionNumber")
+	assert.Contains(t, schema.Properties, "body")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "discussionNumber", "body"})
+
+	tests := []struct {
+		name            string
+		requestArgs     map[string]any
+		mockedClient    *http.Client
+		expectToolError bool
+		expectedErrMsg  string
+		expectedID      string
+		expectedURL     string
+	}{
+		{
+			name: "successful comment creation",
+			requestArgs: map[string]any{
+				"owner":            "owner",
+				"repo":             "repo",
+				"discussionNumber": int32(1),
+				"body":             "This is a test comment",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							Discussion struct {
+								ID githubv4.ID
+							} `graphql:"discussion(number: $discussionNumber)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner":            githubv4.String("owner"),
+						"repo":             githubv4.String("repo"),
+						"discussionNumber": githubv4.Int(1),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"discussion": map[string]any{
+								"id": "D_kwDOTest123",
+							},
+						},
+					}),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						AddDiscussionComment struct {
+							Comment struct {
+								ID  githubv4.ID
+								URL githubv4.String `graphql:"url"`
+							}
+						} `graphql:"addDiscussionComment(input: $input)"`
+					}{},
+					githubv4.AddDiscussionCommentInput{
+						DiscussionID: githubv4.ID("D_kwDOTest123"),
+						Body:         githubv4.String("This is a test comment"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"addDiscussionComment": map[string]any{
+							"comment": map[string]any{
+								"id":  "DC_kwDOComment456",
+								"url": "https://github.com/owner/repo/discussions/1#discussioncomment-456",
+							},
+						},
+					}),
+				),
+			),
+			expectToolError: false,
+			expectedID:      "DC_kwDOComment456",
+			expectedURL:     "https://github.com/owner/repo/discussions/1#discussioncomment-456",
+		},
+		{
+			name: "discussion not found",
+			requestArgs: map[string]any{
+				"owner":            "owner",
+				"repo":             "repo",
+				"discussionNumber": int32(999),
+				"body":             "This is a comment",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							Discussion struct {
+								ID githubv4.ID
+							} `graphql:"discussion(number: $discussionNumber)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner":            githubv4.String("owner"),
+						"repo":             githubv4.String("repo"),
+						"discussionNumber": githubv4.Int(999),
+					},
+					githubv4mock.ErrorResponse("Could not resolve to a Discussion with the number of 999."),
+				),
+			),
+			expectToolError: true,
+			expectedErrMsg:  "Could not resolve to a Discussion with the number of 999.",
+		},
+		{
+			name: "mutation failure",
+			requestArgs: map[string]any{
+				"owner":            "owner",
+				"repo":             "repo",
+				"discussionNumber": int32(1),
+				"body":             "This is a comment",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							Discussion struct {
+								ID githubv4.ID
+							} `graphql:"discussion(number: $discussionNumber)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner":            githubv4.String("owner"),
+						"repo":             githubv4.String("repo"),
+						"discussionNumber": githubv4.Int(1),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"discussion": map[string]any{
+								"id": "D_kwDOTest123",
+							},
+						},
+					}),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						AddDiscussionComment struct {
+							Comment struct {
+								ID  githubv4.ID
+								URL githubv4.String `graphql:"url"`
+							}
+						} `graphql:"addDiscussionComment(input: $input)"`
+					}{},
+					githubv4.AddDiscussionCommentInput{
+						DiscussionID: githubv4.ID("D_kwDOTest123"),
+						Body:         githubv4.String("This is a comment"),
+					},
+					nil,
+					githubv4mock.ErrorResponse("insufficient permissions to comment on this discussion"),
+				),
+			),
+			expectToolError: true,
+			expectedErrMsg:  "insufficient permissions to comment on this discussion",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gqlClient := githubv4.NewClient(tc.mockedClient)
+			deps := BaseDeps{GQLClient: gqlClient}
+			handler := toolDef.Handler(deps)
+
+			req := createMCPRequest(tc.requestArgs)
+			res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+			require.NoError(t, err)
+
+			text := getTextResult(t, res).Text
+
+			if tc.expectToolError {
+				require.True(t, res.IsError)
+				assert.Contains(t, text, tc.expectedErrMsg)
+				return
+			}
+
+			require.False(t, res.IsError)
+			var response MinimalResponse
+			require.NoError(t, json.Unmarshal([]byte(text), &response))
+			assert.Equal(t, tc.expectedID, response.ID)
+			assert.Equal(t, tc.expectedURL, response.URL)
+		})
+	}
+}

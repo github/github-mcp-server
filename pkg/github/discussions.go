@@ -507,6 +507,107 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 	)
 }
 
+func AddDiscussionComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataDiscussions,
+		mcp.Tool{
+			Name:        "add_discussion_comment",
+			Description: t("TOOL_ADD_DISCUSSION_COMMENT_DESCRIPTION", "Add a comment to a discussion"), // TODO: Finalise the description
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_ADD_DISCUSSION_COMMENT_USER_TITLE", "Add discussion comment"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"discussionNumber": {
+						Type:        "number",
+						Description: "Discussion Number",
+					},
+					"body": {
+						Type:        "string",
+						Description: "Comment content",
+					},
+				},
+				Required: []string{"owner", "repo", "discussionNumber", "body"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			// Decode params
+			var params struct {
+				Owner            string
+				Repo             string
+				DiscussionNumber int32
+				Body             string
+			}
+			if err := mapstructure.WeakDecode(args, &params); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			client, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+			}
+
+			// First, get the discussion's node ID using its number
+			var q struct {
+				Repository struct {
+					Discussion struct {
+						ID githubv4.ID
+					} `graphql:"discussion(number: $discussionNumber)"`
+				} `graphql:"repository(owner: $owner, name: $repo)"`
+			}
+			vars := map[string]any{
+				"owner":            githubv4.String(params.Owner),
+				"repo":             githubv4.String(params.Repo),
+				"discussionNumber": githubv4.Int(params.DiscussionNumber),
+			}
+			if err := client.Query(ctx, &q, vars); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Now add the comment using the discussion's node ID
+			input := githubv4.AddDiscussionCommentInput{
+				DiscussionID: q.Repository.Discussion.ID,
+				Body:         githubv4.String(params.Body),
+			}
+
+			var mutation struct {
+				AddDiscussionComment struct {
+					Comment struct {
+						ID  githubv4.ID
+						URL githubv4.String `graphql:"url"`
+					}
+				} `graphql:"addDiscussionComment(input: $input)"`
+			}
+
+			if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			comment := mutation.AddDiscussionComment.Comment
+			minimalResponse := MinimalResponse{
+				ID:  fmt.Sprintf("%v", comment.ID),
+				URL: string(comment.URL),
+			}
+
+			out, err := json.Marshal(minimalResponse)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal comment: %w", err)
+			}
+
+			return utils.NewToolResultText(string(out)), nil, nil
+		})
+}
+
 func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataDiscussions,
