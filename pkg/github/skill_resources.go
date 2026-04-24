@@ -54,11 +54,12 @@ func skillContext() skillDefinition {
 		},
 		body: `# GitHub Context
 
-Always call **get_me** first to understand the current user's permissions and context.
+Always call ` + "`get_me`" + ` first to understand the current user's permissions and context.
 
-- **get_me** — returns the authenticated user's profile and permissions
-- **get_teams** — lists teams the user belongs to
-- **get_team_members** — lists members of a specific team
+## Available Tools
+- ` + "`get_me`" + ` — get the authenticated user's profile and permissions
+- ` + "`get_teams`" + ` — list teams the user belongs to
+- ` + "`get_team_members`" + ` — list members of a specific team
 `,
 	}
 }
@@ -90,16 +91,20 @@ func skillRepos() skillDefinition {
 
 Tools for managing GitHub repositories, browsing code, and working with branches, tags, and releases.
 
-## Tool Selection
-- Use **search_repositories** for finding repos by criteria and **search_code** for finding code containing specific patterns.
-- Use **list_*** tools for broad retrieval with pagination (e.g., all branches, all commits).
-
-## Context Management
-- Use pagination with batches of 5-10 items.
-- Set **minimal_output** to true when full details are not needed.
+## Available Tools
+- ` + "`search_repositories`" + ` — find repos by name, topic, language, org
+- ` + "`get_file_contents`" + ` — read files or directories from a repo
+- ` + "`list_commits`" + ` — get commit history for a branch or path
+- ` + "`search_code`" + ` — search for code patterns across repos
+- ` + "`get_commit`" + ` — get details of a specific commit
+- ` + "`list_branches`" + ` / ` + "`list_tags`" + ` — list branches or tags
+- ` + "`get_tag`" + ` — get details of a specific tag
+- ` + "`list_releases`" + ` / ` + "`get_latest_release`" + ` / ` + "`get_release_by_tag`" + ` — browse releases
+- ` + "`create_or_update_file`" + ` / ` + "`push_files`" + ` / ` + "`delete_file`" + ` — modify files
+- ` + "`create_repository`" + ` / ` + "`fork_repository`" + ` / ` + "`create_branch`" + ` — create repos or branches
 
 ## Sorting
-For search tools, use separate **sort** and **order** parameters — do not include 'sort:' syntax in query strings. Query strings should contain only search criteria (e.g., 'org:google language:python').
+For search tools, use separate ` + "`sort`" + ` and ` + "`order`" + ` parameters — do not include 'sort:' syntax in query strings. Query strings should contain only search criteria (e.g., 'org:google language:python').
 `,
 	}
 }
@@ -135,14 +140,32 @@ func skillIssues() skillDefinition {
 
 Tools for creating, reading, updating, and searching GitHub issues.
 
-## Workflow
-1. Check **list_issue_types** first for organizations to discover proper issue types.
-2. Use **search_issues** before creating new issues to avoid duplicates.
-3. Always set **state_reason** when closing issues.
+## Available Tools
+- ` + "`issue_read`" + ` — get details of a specific issue
+- ` + "`search_issues`" + ` — search for issues with specific criteria or keywords
+- ` + "`list_issues`" + ` — list issues with basic filtering and pagination
+- ` + "`list_issue_types`" + ` — list available issue types for an organization
+- ` + "`issue_write`" + ` — create or update an issue (composite tool)
+- ` + "`add_issue_comment`" + ` — add a comment to an issue
+- ` + "`sub_issue_write`" + ` — manage sub-issues (composite tool)
+- ` + "`get_label`" + ` — get details of a specific label
+- ` + "`create_issue`" + ` — create a new issue
+- ` + "`update_issue_title`" + ` — update an issue's title
+- ` + "`update_issue_body`" + ` — update an issue's body
+- ` + "`update_issue_assignees`" + ` — update an issue's assignees
+- ` + "`update_issue_labels`" + ` — update an issue's labels
+- ` + "`update_issue_milestone`" + ` — update an issue's milestone
+- ` + "`update_issue_type`" + ` — update an issue's type
+- ` + "`update_issue_state`" + ` — update an issue's state (open/closed)
+- ` + "`add_sub_issue`" + ` — add a sub-issue to a parent issue
+- ` + "`remove_sub_issue`" + ` — remove a sub-issue from a parent
+- ` + "`reprioritize_sub_issue`" + ` — change the priority of a sub-issue
+- ` + "`set_issue_fields`" + ` — set custom project fields on an issue
 
-## Tool Selection
-- Use **search_issues** for targeted queries with specific criteria or keywords.
-- Use **list_issues** for broad retrieval of all issues with basic filtering and pagination.
+## Workflow
+1. Call ` + "`list_issue_types`" + ` first for organizations to discover proper issue types.
+2. Call ` + "`search_issues`" + ` before creating new issues to avoid duplicates.
+3. Always set ` + "`state_reason`" + ` when closing issues.
 `,
 	}
 }
@@ -179,18 +202,37 @@ func skillPullRequests() skillDefinition {
 
 Tools for creating, reviewing, merging, and managing GitHub pull requests.
 
+## Available Tools
+- ` + "`pull_request_read`" + ` — get details of a specific pull request
+- ` + "`list_pull_requests`" + ` — list pull requests with basic filtering and pagination
+- ` + "`search_pull_requests`" + ` — search for pull requests with specific criteria
+- ` + "`merge_pull_request`" + ` — merge a pull request
+- ` + "`update_pull_request_branch`" + ` — update a PR branch with the base branch
+- ` + "`create_pull_request`" + ` — create a new pull request
+- ` + "`update_pull_request`" + ` — update a pull request (composite tool)
+- ` + "`pull_request_review_write`" + ` — manage PR reviews (composite tool)
+- ` + "`add_comment_to_pending_review`" + ` — add a line comment to a pending review
+- ` + "`add_reply_to_pull_request_comment`" + ` — reply to a PR review comment
+- ` + "`update_pull_request_title`" + ` — update a PR's title
+- ` + "`update_pull_request_body`" + ` — update a PR's body
+- ` + "`update_pull_request_state`" + ` — update a PR's state (open/closed)
+- ` + "`update_pull_request_draft_state`" + ` — convert between draft and ready
+- ` + "`request_pull_request_reviewers`" + ` — request reviewers for a PR
+- ` + "`create_pull_request_review`" + ` — create a new PR review
+- ` + "`submit_pending_pull_request_review`" + ` — submit a pending review
+- ` + "`delete_pending_pull_request_review`" + ` — delete a pending review
+- ` + "`add_pull_request_review_comment`" + ` — add a review comment to a PR
+- ` + "`resolve_review_thread`" + ` — resolve a review thread
+- ` + "`unresolve_review_thread`" + ` — unresolve a review thread
+
 ## PR Review Workflow
 For complex reviews with line-specific comments:
-1. Use **pull_request_review_write** with method 'create' to create a pending review.
-2. Use **add_comment_to_pending_review** to add line comments.
-3. Use **pull_request_review_write** with method 'submit_pending' to submit the review.
+1. Call ` + "`create_pull_request_review`" + ` or ` + "`pull_request_review_write`" + ` with method 'create' to create a pending review.
+2. Call ` + "`add_comment_to_pending_review`" + ` to add line comments.
+3. Call ` + "`submit_pending_pull_request_review`" + ` or ` + "`pull_request_review_write`" + ` with method 'submit_pending' to submit.
 
 ## Creating Pull Requests
 Before creating a PR, search for pull request templates in the repository. Template files are called pull_request_template.md or located in the '.github/PULL_REQUEST_TEMPLATE' directory. Use the template content to structure the PR description.
-
-## Tool Selection
-- Use **search_pull_requests** for targeted queries with specific criteria.
-- Use **list_pull_requests** for broad retrieval with basic filtering and pagination.
 `,
 	}
 }
@@ -211,12 +253,15 @@ func skillCodeSecurity() skillDefinition {
 
 Tools for viewing security alerts across GitHub repositories.
 
-## Alert Types
-- **Code Scanning** — static analysis alerts (CodeQL, third-party tools)
-- **Secret Scanning** — detected secrets and credentials in code
-- **Dependabot** — vulnerable dependency alerts
+## Available Tools
+- ` + "`get_code_scanning_alert`" + ` — get details of a specific code scanning alert
+- ` + "`list_code_scanning_alerts`" + ` — list code scanning alerts for a repo
+- ` + "`get_secret_scanning_alert`" + ` — get details of a specific secret scanning alert
+- ` + "`list_secret_scanning_alerts`" + ` — list secret scanning alerts for a repo
+- ` + "`get_dependabot_alert`" + ` — get details of a specific Dependabot alert
+- ` + "`list_dependabot_alerts`" + ` — list Dependabot alerts for a repo
 
-Use **list_*** tools to get an overview of alerts, then **get_*** to inspect specific alerts in detail.
+Use ` + "`list_*`" + ` tools to get an overview of alerts, then ` + "`get_*`" + ` to inspect specific alerts in detail.
 `,
 	}
 }
@@ -235,10 +280,11 @@ func skillActions() skillDefinition {
 
 Tools for interacting with GitHub Actions workflows and CI/CD operations.
 
-- **actions_list** — list workflow runs for a repository
-- **actions_get** — get details of a specific workflow run
-- **actions_run_trigger** — trigger a workflow run
-- **get_job_logs** — retrieve logs from a specific job
+## Available Tools
+- ` + "`actions_list`" + ` — list workflow runs for a repository
+- ` + "`actions_get`" + ` — get details of a specific workflow run
+- ` + "`actions_run_trigger`" + ` — trigger a workflow run
+- ` + "`get_job_logs`" + ` — retrieve logs from a specific job
 `,
 	}
 }
@@ -257,7 +303,13 @@ func skillDiscussions() skillDefinition {
 
 Tools for browsing and reading GitHub Discussions.
 
-Use **list_discussion_categories** to understand available categories before creating discussions. Filter by category for better organization.
+## Available Tools
+- ` + "`list_discussions`" + ` — list discussions in a repository
+- ` + "`get_discussion`" + ` — get details of a specific discussion
+- ` + "`get_discussion_comments`" + ` — get comments on a discussion
+- ` + "`list_discussion_categories`" + ` — list available discussion categories
+
+Call ` + "`list_discussion_categories`" + ` to understand available categories before filtering discussions.
 `,
 	}
 }
@@ -275,11 +327,16 @@ func skillProjects() skillDefinition {
 
 Tools for managing GitHub Projects (v2).
 
+## Available Tools
+- ` + "`projects_list`" + ` — list projects for a user, org, or repo
+- ` + "`projects_get`" + ` — get project details, fields, items, or status updates
+- ` + "`projects_write`" + ` — create/update/delete project items, fields, or status updates
+
 ## Workflow
-1. Call **projects_list** to find projects.
-2. Use **projects_get** with list_project_fields to understand available fields and get IDs/types.
-3. Use **projects_get** with list_project_items (with pagination) to browse items.
-4. Use **projects_write** for updates.
+1. Call ` + "`projects_list`" + ` to find projects.
+2. Call ` + "`projects_get`" + ` with list_project_fields to understand available fields and get IDs/types.
+3. Call ` + "`projects_get`" + ` with list_project_items (with pagination) to browse items.
+4. Call ` + "`projects_write`" + ` for updates.
 
 ## Status Updates
 Use list_project_status_updates to read recent project status updates (newest first). Use get_project_status_update with a node ID to get a single update. Use create_project_status_update to create a new status update.
@@ -322,12 +379,13 @@ func skillNotifications() skillDefinition {
 
 Tools for viewing and managing GitHub notifications.
 
-- **list_notifications** — list unread and read notifications
-- **get_notification_details** — get details of a specific notification
-- **dismiss_notification** — mark a notification as done
-- **mark_all_notifications_read** — mark all notifications as read
-- **manage_notification_subscription** — manage thread subscription settings
-- **manage_repository_notification_subscription** — manage repository notification settings
+## Available Tools
+- ` + "`list_notifications`" + ` — list unread and read notifications
+- ` + "`get_notification_details`" + ` — get details of a specific notification
+- ` + "`dismiss_notification`" + ` — mark a notification as done
+- ` + "`mark_all_notifications_read`" + ` — mark all notifications as read
+- ` + "`manage_notification_subscription`" + ` — manage thread subscription settings
+- ` + "`manage_repository_notification_subscription`" + ` — manage repository notification settings
 `,
 	}
 }
@@ -346,10 +404,11 @@ func skillGists() skillDefinition {
 
 Tools for managing GitHub Gists — lightweight code snippets and file sharing.
 
-- **list_gists** — list gists for the authenticated user
-- **get_gist** — retrieve a specific gist by ID
-- **create_gist** — create a new gist (public or private)
-- **update_gist** — update an existing gist's files or description
+## Available Tools
+- ` + "`list_gists`" + ` — list gists for the authenticated user
+- ` + "`get_gist`" + ` — retrieve a specific gist by ID
+- ` + "`create_gist`" + ` — create a new gist (public or private)
+- ` + "`update_gist`" + ` — update an existing gist's files or description
 `,
 	}
 }
@@ -366,10 +425,11 @@ func skillUsersOrgs() skillDefinition {
 
 Tools for searching GitHub users and organizations.
 
-- **search_users** — search for users by username, name, location, or other criteria
-- **search_orgs** — search for organizations by name or other criteria
+## Available Tools
+- ` + "`search_users`" + ` — search for users by username, name, location, or other criteria
+- ` + "`search_orgs`" + ` — search for organizations by name or other criteria
 
-Use separate **sort** and **order** parameters for sorting results — do not include 'sort:' syntax in query strings.
+For search tools, use separate ` + "`sort`" + ` and ` + "`order`" + ` parameters — do not include 'sort:' syntax in query strings.
 `,
 	}
 }
@@ -388,10 +448,11 @@ func skillSecurityAdvisories() skillDefinition {
 
 Tools for browsing security advisories on GitHub.
 
-- **list_global_security_advisories** — search the GitHub Advisory Database
-- **get_global_security_advisory** — get details of a specific global advisory
-- **list_repository_security_advisories** — list advisories for a specific repository
-- **list_org_repository_security_advisories** — list advisories across an organization's repositories
+## Available Tools
+- ` + "`list_global_security_advisories`" + ` — search the GitHub Advisory Database
+- ` + "`get_global_security_advisory`" + ` — get details of a specific global advisory
+- ` + "`list_repository_security_advisories`" + ` — list advisories for a specific repository
+- ` + "`list_org_repository_security_advisories`" + ` — list advisories across an organization's repositories
 `,
 	}
 }
@@ -409,8 +470,10 @@ func skillLabels() skillDefinition {
 
 Tools for managing labels on GitHub repositories.
 
-- **list_label** / **list_labels** — list labels for a repository
-- **label_write** — create, update, or delete labels
+## Available Tools
+- ` + "`list_label`" + ` — get a specific label by name
+- ` + "`list_labels`" + ` — list all labels for a repository
+- ` + "`label_write`" + ` — create, update, or delete labels
 `,
 	}
 }
@@ -426,7 +489,8 @@ func skillGit() skillDefinition {
 
 Low-level Git operations via the GitHub API.
 
-- **get_repository_tree** — retrieve the tree structure of a repository at a given ref, useful for understanding repository layout
+## Available Tools
+- ` + "`get_repository_tree`" + ` — retrieve the tree structure of a repository at a given ref, useful for understanding repository layout
 `,
 	}
 }
@@ -444,9 +508,10 @@ func skillStargazers() skillDefinition {
 
 Tools for managing repository stars.
 
-- **list_starred_repositories** — list repositories starred by the authenticated user
-- **star_repository** — star a repository
-- **unstar_repository** — unstar a repository
+## Available Tools
+- ` + "`list_starred_repositories`" + ` — list repositories starred by the authenticated user
+- ` + "`star_repository`" + ` — star a repository
+- ` + "`unstar_repository`" + ` — unstar a repository
 `,
 	}
 }
@@ -463,8 +528,9 @@ func skillCopilot() skillDefinition {
 
 Tools for using GitHub Copilot in your workflow.
 
-- **assign_copilot_to_issue** — assign Copilot as a collaborator on an issue
-- **request_copilot_review** — request a Copilot review on a pull request
+## Available Tools
+- ` + "`assign_copilot_to_issue`" + ` — assign Copilot as a collaborator on an issue
+- ` + "`request_copilot_review`" + ` — request a Copilot review on a pull request
 `,
 	}
 }
