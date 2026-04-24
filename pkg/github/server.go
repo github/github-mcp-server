@@ -124,8 +124,14 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 		registerDynamicTools(ghServer, inv, deps, cfg.Translator)
 	}
 
-	// Register skill resources for MCP clients that support skills-based discovery
-	RegisterSkillResources(ghServer)
+	// Register skill resources for MCP clients that support skills-based discovery.
+	// Filter allowedTools against actually-registered tools so skills only reference
+	// tools that exist for the current toolset configuration.
+	availableTools := make(map[string]struct{})
+	for _, tool := range inv.AllTools() {
+		availableTools[tool.Tool.Name] = struct{}{}
+	}
+	RegisterSkillResources(ghServer, availableTools)
 
 	return ghServer, nil
 }

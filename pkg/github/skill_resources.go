@@ -508,8 +508,18 @@ func buildSkillContent(skill skillDefinition) string {
 // RegisterSkillResources registers all skill resources with the MCP server.
 // Each skill is a static resource with a skill:// URI that can be discovered
 // by MCP clients supporting the skills pattern.
-func RegisterSkillResources(s *mcp.Server) {
+// The availableTools set filters each skill's allowedTools to only include
+// tools that are actually registered, ensuring skills work correctly
+// regardless of which toolsets are enabled.
+func RegisterSkillResources(s *mcp.Server, availableTools map[string]struct{}) {
 	for _, skill := range allSkills() {
+		// Filter allowedTools to only include tools that are actually registered
+		filtered := filterAvailableTools(skill.allowedTools, availableTools)
+		if len(filtered) == 0 {
+			continue // Skip skills with no available tools
+		}
+		skill.allowedTools = filtered
+
 		content := buildSkillContent(skill)
 		uri := fmt.Sprintf("skill://github/%s/SKILL.md", skill.name)
 
@@ -535,4 +545,19 @@ func RegisterSkillResources(s *mcp.Server) {
 			}(content, uri),
 		)
 	}
+}
+
+// filterAvailableTools returns only the tool names that exist in the available set.
+// If availableTools is nil, all tools are returned (no filtering).
+func filterAvailableTools(tools []string, availableTools map[string]struct{}) []string {
+	if availableTools == nil {
+		return tools
+	}
+	var filtered []string
+	for _, t := range tools {
+		if _, ok := availableTools[t]; ok {
+			filtered = append(filtered, t)
+		}
+	}
+	return filtered
 }
