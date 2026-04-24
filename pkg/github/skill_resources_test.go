@@ -80,5 +80,5 @@ func TestRegisterSkillResources(t *testing.T) {
 
 	// Verify the expected number of skills were registered by counting definitions
 	skills := allSkills()
-	assert.Equal(t, 16, len(skills), "expected 16 skills covering all toolsets")
+	assert.Equal(t, 27, len(skills), "expected 27 workflow-oriented skills")
 }
