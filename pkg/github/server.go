@@ -125,13 +125,13 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	}
 
 	// Register skill resources for MCP clients that support skills-based discovery.
-	// Filter allowedTools against actually-registered tools so skills only reference
-	// tools that exist for the current toolset configuration.
-	availableTools := make(map[string]struct{})
+	// When skills are present, register ALL tools from all toolsets so that skills
+	// can progressively reveal the full tool surface. The skills handle disclosure;
+	// the server exposes everything.
 	for _, tool := range inv.AllTools() {
-		availableTools[tool.Tool.Name] = struct{}{}
+		tool.RegisterFunc(ghServer, deps)
 	}
-	RegisterSkillResources(ghServer, availableTools)
+	RegisterSkillResources(ghServer)
 
 	return ghServer, nil
 }

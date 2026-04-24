@@ -75,69 +75,10 @@ func TestRegisterSkillResources(t *testing.T) {
 		Version: "0.0.1",
 	}, nil)
 
-	// Should not panic with nil (no filtering)
-	RegisterSkillResources(server, nil)
+	// Should not panic
+	RegisterSkillResources(server)
 
 	// Verify the expected number of skills were registered by counting definitions
 	skills := allSkills()
 	assert.Equal(t, 27, len(skills), "expected 27 workflow-oriented skills")
-}
-
-func TestFilterAvailableTools(t *testing.T) {
-	tests := []struct {
-		name      string
-		tools     []string
-		available map[string]struct{}
-		expected  []string
-	}{
-		{
-			name:      "nil available returns all tools",
-			tools:     []string{"a", "b", "c"},
-			available: nil,
-			expected:  []string{"a", "b", "c"},
-		},
-		{
-			name:      "filters to only available tools",
-			tools:     []string{"a", "b", "c"},
-			available: map[string]struct{}{"a": {}, "c": {}},
-			expected:  []string{"a", "c"},
-		},
-		{
-			name:      "returns nil when no tools match",
-			tools:     []string{"a", "b"},
-			available: map[string]struct{}{"x": {}},
-			expected:  nil,
-		},
-		{
-			name:      "empty available set filters everything",
-			tools:     []string{"a", "b"},
-			available: map[string]struct{}{},
-			expected:  nil,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result := filterAvailableTools(tc.tools, tc.available)
-			assert.Equal(t, tc.expected, result)
-		})
-	}
-}
-
-func TestRegisterSkillResourcesFiltering(t *testing.T) {
-	t.Parallel()
-	// Only make get_me available — skills that have no overlap should be skipped
-	available := map[string]struct{}{"get_me": {}}
-
-	server := mcp.NewServer(&mcp.Implementation{
-		Name:    "test-server",
-		Version: "0.0.1",
-	}, nil)
-
-	RegisterSkillResources(server, available)
-
-	// get-context skill includes get_me, so it should be registered.
-	// Skills with zero available tools should be skipped entirely.
-	// We can't easily count resources on mcp.Server, but we verify no panic
-	// and the logic is correct via TestFilterAvailableTools above.
 }
