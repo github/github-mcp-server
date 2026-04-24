@@ -961,9 +961,23 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			result, err := searchHandler(ctx, deps.GetClient, args, "issue", "failed to search issues")
-			return result, nil, err
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, IssueSearchResult, error) {
+			textResult, rawResult, err := searchHandler(ctx, deps.GetClient, args, "issue", "failed to search issues")
+			if rawResult == nil {
+				return textResult, IssueSearchResult{}, err
+			}
+			issues := make([]MinimalIssue, 0, len(rawResult.Issues))
+			for _, issue := range rawResult.Issues {
+				if issue != nil {
+					issues = append(issues, convertToMinimalIssue(issue))
+				}
+			}
+			structured := IssueSearchResult{
+				TotalCount:        rawResult.GetTotal(),
+				IncompleteResults: rawResult.GetIncompleteResults(),
+				Items:             issues,
+			}
+			return textResult, structured, nil
 		})
 }
 
@@ -1419,20 +1433,20 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, MinimalIssuesResponse, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), MinimalIssuesResponse{}, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), MinimalIssuesResponse{}, nil
 			}
 
 			// Set optional parameters if provided
 			state, err := OptionalParam[string](args, "state")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), MinimalIssuesResponse{}, nil
 			}
 
 			// Normalize and filter by state
@@ -1449,17 +1463,17 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// Get labels
 			labels, err := OptionalStringArrayParam(args, "labels")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), MinimalIssuesResponse{}, nil
 			}
 
 			orderBy, err := OptionalParam[string](args, "orderBy")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), MinimalIssuesResponse{}, nil
 			}
 
 			direction, err := OptionalParam[string](args, "direction")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), MinimalIssuesResponse{}, nil
 			}
 
 			// Normalize and validate orderBy
@@ -1482,7 +1496,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			since, err := OptionalParam[string](args, "since")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), MinimalIssuesResponse{}, nil
 			}
 
 			// There are two optional parameters: since and labels.
@@ -1491,7 +1505,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if since != "" {
 				sinceTime, err = parseISOTimestamp(since)
 				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("failed to list issues: %s", err.Error())), nil, nil
+					return utils.NewToolResultError(fmt.Sprintf("failed to list issues: %s", err.Error())), MinimalIssuesResponse{}, nil
 				}
 				hasSince = true
 			}
@@ -1500,12 +1514,12 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// Get pagination parameters and convert to GraphQL format
 			pagination, err := OptionalCursorPaginationParams(args)
 			if err != nil {
-				return nil, nil, err
+				return nil, MinimalIssuesResponse{}, err
 			}
 
 			// Check if someone tried to use page-based pagination instead of cursor-based
 			if _, pageProvided := args["page"]; pageProvided {
-				return utils.NewToolResultError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), nil, nil
+				return utils.NewToolResultError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), MinimalIssuesResponse{}, nil
 			}
 
 			// Check if pagination parameters were explicitly provided
@@ -1514,7 +1528,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			paginationParams, err := pagination.ToGraphQLParams()
 			if err != nil {
-				return nil, nil, err
+				return nil, MinimalIssuesResponse{}, err
 			}
 
 			// Use default of 30 if pagination was not explicitly provided
@@ -1525,7 +1539,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), MinimalIssuesResponse{}, nil
 			}
 
 			vars := map[string]any{
@@ -1564,7 +1578,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 					ctx,
 					"failed to list issues",
 					err,
-				), nil, nil
+				), MinimalIssuesResponse{}, nil
 			}
 
 			var resp MinimalIssuesResponse
@@ -1572,7 +1586,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				resp = convertToMinimalIssuesResponse(queryResult.GetIssueFragment())
 			}
 
-			return MarshalledTextResult(resp), nil, nil
+			return MarshalledTextResult(resp), resp, nil
 		})
 }
 

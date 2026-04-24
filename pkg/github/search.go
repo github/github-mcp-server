@@ -201,22 +201,22 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, CodeSearchResult, error) {
 			query, err := RequiredParam[string](args, "query")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), CodeSearchResult{}, nil
 			}
 			sort, err := OptionalParam[string](args, "sort")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), CodeSearchResult{}, nil
 			}
 			order, err := OptionalParam[string](args, "order")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), CodeSearchResult{}, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), CodeSearchResult{}, nil
 			}
 
 			opts := &github.SearchOptions{
@@ -230,7 +230,7 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), CodeSearchResult{}, nil
 			}
 
 			result, resp, err := client.Search.Code(ctx, query, opts)
@@ -239,24 +239,25 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 					fmt.Sprintf("failed to search code with query '%s'", query),
 					resp,
 					err,
-				), nil, nil
+				), CodeSearchResult{}, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), CodeSearchResult{}, nil
 				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search code", resp, body), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search code", resp, body), CodeSearchResult{}, nil
 			}
 
 			r, err := json.Marshal(result)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), CodeSearchResult{}, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			structured := convertToCodeSearchResult(result)
+			return utils.NewToolResultText(string(r)), structured, nil
 		},
 	)
 }
