@@ -262,6 +262,7 @@ type MinimalPullRequest struct {
 	ClosedAt           string           `json:"closed_at,omitempty"`
 	MergedAt           string           `json:"merged_at,omitempty"`
 	Milestone          string           `json:"milestone,omitempty"`
+	AuthorAssociation  string           `json:"author_association,omitempty"`
 }
 
 // MinimalPRBranch is the trimmed output type for pull request branch references.
@@ -508,7 +509,8 @@ func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
 		Deletions:      pr.GetDeletions(),
 		ChangedFiles:   pr.GetChangedFiles(),
 		Commits:        pr.GetCommits(),
-		Comments:       pr.GetComments(),
+		Comments:          pr.GetComments(),
+		AuthorAssociation: pr.GetAuthorAssociation(),
 	}
 
 	if pr.CreatedAt != nil {
