@@ -3,9 +3,13 @@
     "destructiveHint": true,
     "title": "Modify GitHub Project items"
   },
-  "description": "Add, update, or delete project items in a GitHub Project.",
+  "description": "Add, update, or delete project items, or create status updates in a GitHub Project.",
   "inputSchema": {
     "properties": {
+      "body": {
+        "description": "The body of the status update (markdown). Used for 'create_project_status_update' method.",
+        "type": "string"
+      },
       "issue_number": {
         "description": "The issue number (use when item_type is 'issue' for 'add_project_item' method). Provide either issue_number or pull_request_number.",
         "type": "number"
@@ -35,7 +39,8 @@
         "enum": [
           "add_project_item",
           "update_project_item",
-          "delete_project_item"
+          "delete_project_item",
+          "create_project_status_update"
         ],
         "type": "string"
       },
@@ -58,6 +63,25 @@
       "pull_request_number": {
         "description": "The pull request number (use when item_type is 'pull_request' for 'add_project_item' method). Provide either issue_number or pull_request_number.",
         "type": "number"
+      },
+      "start_date": {
+        "description": "The start date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method.",
+        "type": "string"
+      },
+      "status": {
+        "description": "The status of the project. Used for 'create_project_status_update' method.",
+        "enum": [
+          "INACTIVE",
+          "ON_TRACK",
+          "AT_RISK",
+          "OFF_TRACK",
+          "COMPLETE"
+        ],
+        "type": "string"
+      },
+      "target_date": {
+        "description": "The target date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method.",
+        "type": "string"
       },
       "updated_field": {
         "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}. Required for 'update_project_item' method.",

@@ -8,7 +8,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,7 +40,7 @@ func Test_GetSecretScanningAlert(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedAlert  *github.SecretScanningAlert
 		expectedErrMsg string
@@ -50,7 +50,7 @@ func Test_GetSecretScanningAlert(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposSecretScanningAlertsByOwnerByRepoByAlertNumber: mockResponse(t, http.StatusOK, mockAlert),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner":       "owner",
 				"repo":        "repo",
 				"alertNumber": float64(42),
@@ -66,7 +66,7 @@ func Test_GetSecretScanningAlert(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner":       "owner",
 				"repo":        "repo",
 				"alertNumber": float64(9999),
@@ -156,7 +156,7 @@ func Test_ListSecretScanningAlerts(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedAlerts []*github.SecretScanningAlert
 		expectedErrMsg string
@@ -170,7 +170,7 @@ func Test_ListSecretScanningAlerts(t *testing.T) {
 					mockResponse(t, http.StatusOK, []*github.SecretScanningAlert{&resolvedAlert}),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 				"state": "resolved",
@@ -185,7 +185,7 @@ func Test_ListSecretScanningAlerts(t *testing.T) {
 					mockResponse(t, http.StatusOK, []*github.SecretScanningAlert{&resolvedAlert, &openAlert}),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 			},
@@ -200,7 +200,7 @@ func Test_ListSecretScanningAlerts(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Unauthorized access"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 			},
