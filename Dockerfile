@@ -1,4 +1,4 @@
-FROM golang:1.26.1-alpine AS build
+FROM golang:1.26.2-alpine AS build
 FROM node:20-alpine@sha256:09e2b3d9726018aecf269bd35325f46bf75046a643a66d28360ec71132750ec8 AS ui-build
 WORKDIR /app
 COPY ui/package*.json ./ui/
@@ -8,7 +8,7 @@ COPY ui/ ./ui/
 RUN mkdir -p ./pkg/github/ui_dist && \
     cd ui && npm run build
 
-FROM golang:1.25.8-alpine@sha256:8e02eb337d9e0ea459e041f1ee5eece41cbb61f1d83e7d883a3e2fb4862063fa AS build
+FROM golang:1.26.2-alpine@sha256:f85330846cde1e57ca9ec309382da3b8e6ae3ab943d2739500e08c86393a21b1 AS build
 ARG VERSION="dev"
 
 # Set the working directory
