@@ -1,4 +1,4 @@
-package errors
+﻿package errors
 
 import (
 	"context"
@@ -463,6 +463,28 @@ func TestMiddlewareScenario(t *testing.T) {
 	})
 }
 
+// requireErrorText asserts that result is a non-nil MCP tool error and returns its text content.
+func requireErrorText(t *testing.T, result *mcp.CallToolResult) string {
+	t.Helper()
+	require.NotNil(t, result)
+	require.True(t, result.IsError)
+	require.NotEmpty(t, result.Content)
+	text, ok := result.Content[0].(*mcp.TextContent)
+	require.True(t, ok, "expected *mcp.TextContent, got %T", result.Content[0])
+	return text.Text
+}
+
+// assertContextHasError asserts that exactly one error is stored in ctx and it matches expectedErr.
+//
+//nolint:revive // t must be first for test helpers; context-as-argument doesn't apply here
+func assertContextHasError(t *testing.T, ctx context.Context, expectedErr error) {
+	t.Helper()
+	apiErrors, err := GetGitHubAPIErrors(ctx)
+	require.NoError(t, err)
+	require.Len(t, apiErrors, 1)
+	assert.Equal(t, expectedErr, apiErrors[0].Err)
+}
+
 func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 	t.Run("RateLimitError produces clean message with retry time", func(t *testing.T) {
 		// Given a context with GitHub error tracking enabled
@@ -482,21 +504,14 @@ func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 		// When we create an API error response for a rate limit error
 		result := NewGitHubAPIErrorResponse(ctx, "search code", resp, rateLimitErr)
 
-		// Then it should return an MCP error result
-		require.NotNil(t, result)
-		assert.True(t, result.IsError)
-
-		// And the message should be clean and actionable (no raw URLs or status codes)
-		textContent := result.Content[0].(*mcp.TextContent)
-		assert.Contains(t, textContent.Text, fmt.Sprintf("GitHub API rate limit exceeded. Retry after %v.", expectedRetryIn))
-		assert.NotContains(t, textContent.Text, "https://")
-		assert.NotContains(t, textContent.Text, "403")
+		// Then the message should be clean and actionable (no raw URLs or status codes)
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, fmt.Sprintf("GitHub API rate limit exceeded. Retry after %v.", expectedRetryIn))
+		assert.NotContains(t, text, "https://")
+		assert.NotContains(t, text, "403")
 
 		// And the original error should still be stored in context for middleware
-		apiErrors, err := GetGitHubAPIErrors(ctx)
-		require.NoError(t, err)
-		require.Len(t, apiErrors, 1)
-		assert.Equal(t, rateLimitErr, apiErrors[0].Err)
+		assertContextHasError(t, ctx, rateLimitErr)
 	})
 
 	t.Run("AbuseRateLimitError with RetryAfter produces clean message with wait time", func(t *testing.T) {
@@ -514,21 +529,14 @@ func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 		// When we create an API error response for a secondary rate limit error
 		result := NewGitHubAPIErrorResponse(ctx, "create issue", resp, abuseErr)
 
-		// Then it should return an MCP error result
-		require.NotNil(t, result)
-		assert.True(t, result.IsError)
-
 		// And the message should include the specific retry duration
-		textContent := result.Content[0].(*mcp.TextContent)
-		assert.Contains(t, textContent.Text, "GitHub secondary rate limit exceeded. Retry after 47s.")
-		assert.NotContains(t, textContent.Text, "https://")
-		assert.NotContains(t, textContent.Text, "403")
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "GitHub secondary rate limit exceeded. Retry after 47s.")
+		assert.NotContains(t, text, "https://")
+		assert.NotContains(t, text, "403")
 
 		// And the original error should still be stored in context for middleware
-		apiErrors, err := GetGitHubAPIErrors(ctx)
-		require.NoError(t, err)
-		require.Len(t, apiErrors, 1)
-		assert.Equal(t, abuseErr, apiErrors[0].Err)
+		assertContextHasError(t, ctx, abuseErr)
 	})
 
 	t.Run("AbuseRateLimitError without RetryAfter produces clean message without wait time", func(t *testing.T) {
@@ -545,21 +553,14 @@ func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 		// When we create an API error response for a secondary rate limit error without retry info
 		result := NewGitHubAPIErrorResponse(ctx, "create issue", resp, abuseErr)
 
-		// Then it should return an MCP error result
-		require.NotNil(t, result)
-		assert.True(t, result.IsError)
-
 		// And the message should be clean and actionable
-		textContent := result.Content[0].(*mcp.TextContent)
-		assert.Contains(t, textContent.Text, "GitHub secondary rate limit exceeded. Wait before retrying.")
-		assert.NotContains(t, textContent.Text, "https://")
-		assert.NotContains(t, textContent.Text, "403")
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "GitHub secondary rate limit exceeded. Wait before retrying.")
+		assert.NotContains(t, text, "https://")
+		assert.NotContains(t, text, "403")
 
 		// And the original error should still be stored in context for middleware
-		apiErrors, err := GetGitHubAPIErrors(ctx)
-		require.NoError(t, err)
-		require.Len(t, apiErrors, 1)
-		assert.Equal(t, abuseErr, apiErrors[0].Err)
+		assertContextHasError(t, ctx, abuseErr)
 	})
 
 	t.Run("RateLimitError with reset time in the past falls back to wait message", func(t *testing.T) {
@@ -575,10 +576,8 @@ func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 
 		result := NewGitHubAPIErrorResponse(ctx, "search code", resp, rateLimitErr)
 
-		require.NotNil(t, result)
-		assert.True(t, result.IsError)
-		textContent := result.Content[0].(*mcp.TextContent)
-		assert.Contains(t, textContent.Text, "GitHub API rate limit exceeded. Wait before retrying.")
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "GitHub API rate limit exceeded. Wait before retrying.")
 	})
 
 	t.Run("RateLimitError with zero reset time falls back to wait message", func(t *testing.T) {
@@ -593,10 +592,8 @@ func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 
 		result := NewGitHubAPIErrorResponse(ctx, "search code", resp, rateLimitErr)
 
-		require.NotNil(t, result)
-		assert.True(t, result.IsError)
-		textContent := result.Content[0].(*mcp.TextContent)
-		assert.Contains(t, textContent.Text, "GitHub API rate limit exceeded. Wait before retrying.")
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "GitHub API rate limit exceeded. Wait before retrying.")
 	})
 
 	t.Run("wrapped RateLimitError is handled via errors.As", func(t *testing.T) {
@@ -616,11 +613,9 @@ func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 
 		result := NewGitHubAPIErrorResponse(ctx, "search code", resp, wrappedErr)
 
-		require.NotNil(t, result)
-		assert.True(t, result.IsError)
-		textContent := result.Content[0].(*mcp.TextContent)
-		assert.Contains(t, textContent.Text, fmt.Sprintf("GitHub API rate limit exceeded. Retry after %v.", expectedRetryIn))
-		assert.NotContains(t, textContent.Text, "https://")
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, fmt.Sprintf("GitHub API rate limit exceeded. Retry after %v.", expectedRetryIn))
+		assert.NotContains(t, text, "https://")
 	})
 
 	t.Run("wrapped AbuseRateLimitError is handled via errors.As", func(t *testing.T) {
@@ -637,11 +632,9 @@ func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 
 		result := NewGitHubAPIErrorResponse(ctx, "create issue", resp, wrappedErr)
 
-		require.NotNil(t, result)
-		assert.True(t, result.IsError)
-		textContent := result.Content[0].(*mcp.TextContent)
-		assert.Contains(t, textContent.Text, "GitHub secondary rate limit exceeded. Retry after 30s.")
-		assert.NotContains(t, textContent.Text, "https://")
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "GitHub secondary rate limit exceeded. Retry after 30s.")
+		assert.NotContains(t, text, "https://")
 	})
 
 	t.Run("non-rate-limit GitHub API error passes through the original error message", func(t *testing.T) {
@@ -655,10 +648,8 @@ func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 		result := NewGitHubAPIErrorResponse(ctx, "API call failed", resp, originalErr)
 
 		// Then the message should contain the original error text unchanged
-		require.NotNil(t, result)
-		assert.True(t, result.IsError)
-
-		textContent := result.Content[0].(*mcp.TextContent)
-		assert.Contains(t, textContent.Text, "validation failed")
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "validation failed")
 	})
-}
+}
+
