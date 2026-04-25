@@ -96,9 +96,10 @@ func Test_GetMe(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var deps ToolDependencies
 			if tc.clientErr != "" {
-				deps = stubDeps{clientFn: stubClientFnErr(tc.clientErr)}
+				deps = stubDeps{clientFn: stubClientFnErr(tc.clientErr), obsv: stubExporters()}
 			} else {
-				deps = BaseDeps{Client: github.NewClient(tc.mockedClient)}
+				obs := stubExporters()
+				deps = BaseDeps{Client: github.NewClient(tc.mockedClient), Obsv: obs}
 			}
 			handler := serverTool.Handler(deps)
 
@@ -304,7 +305,7 @@ func Test_GetTeams(t *testing.T) {
 		{
 			name: "getting client fails",
 			makeDeps: func() ToolDependencies {
-				return stubDeps{clientFn: stubClientFnErr("expected test error")}
+				return stubDeps{clientFn: stubClientFnErr("expected test error"), obsv: stubExporters()}
 			},
 			requestArgs:        map[string]any{},
 			expectToolError:    true,
@@ -315,6 +316,7 @@ func Test_GetTeams(t *testing.T) {
 			makeDeps: func() ToolDependencies {
 				return BaseDeps{
 					Client: github.NewClient(httpClientUserFails()),
+					Obsv:   stubExporters(),
 				}
 			},
 			requestArgs:        map[string]any{},
@@ -327,6 +329,7 @@ func Test_GetTeams(t *testing.T) {
 				return stubDeps{
 					clientFn:    stubClientFnFromHTTP(httpClientWithUser()),
 					gqlClientFn: stubGQLClientFnErr("GraphQL client error"),
+					obsv:        stubExporters(),
 				}
 			},
 			requestArgs:        map[string]any{},
@@ -469,7 +472,7 @@ func Test_GetTeamMembers(t *testing.T) {
 		},
 		{
 			name: "getting GraphQL client fails",
-			deps: stubDeps{gqlClientFn: stubGQLClientFnErr("GraphQL client error")},
+			deps: stubDeps{gqlClientFn: stubGQLClientFnErr("GraphQL client error"), obsv: stubExporters()},
 			requestArgs: map[string]any{
 				"org":       "testorg",
 				"team_slug": "testteam",

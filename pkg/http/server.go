@@ -8,24 +8,22 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"slices"
 	"syscall"
 	"time"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/observability"
+	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 )
-
-// knownFeatureFlags are the feature flags that can be enabled via X-MCP-Features header.
-// Only these flags are accepted from headers.
-var knownFeatureFlags = []string{}
 
 type ServerConfig struct {
 	// Version of the server
@@ -67,6 +65,28 @@ type ServerConfig struct {
 	// ScopeChallenge indicates if we should return OAuth scope challenges, and if we should perform
 	// tool filtering based on token scopes.
 	ScopeChallenge bool
+
+	// ReadOnly indicates if we should only register read-only tools.
+	// When set via CLI flag, this acts as an upper bound — per-request headers
+	// cannot re-enable write tools.
+	ReadOnly bool
+
+	// EnabledToolsets is a list of toolsets to enable.
+	// When set via CLI flag, per-request headers can only narrow within these toolsets.
+	EnabledToolsets []string
+
+	// EnabledTools is a list of specific tools to enable (additive to toolsets).
+	EnabledTools []string
+
+	// DynamicToolsets enables dynamic toolset discovery mode.
+	DynamicToolsets bool
+
+	// ExcludeTools is a list of tool names to disable regardless of other settings.
+	// When set via CLI flag, per-request headers cannot re-include these tools.
+	ExcludeTools []string
+
+	// InsidersMode indicates if we should enable experimental features.
+	InsidersMode bool
 }
 
 func RunHTTPServer(cfg ServerConfig) error {
@@ -90,7 +110,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo})
 	}
 	logger := slog.New(slogHandler)
-	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "lockdownEnabled", cfg.LockdownMode)
+	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "lockdownEnabled", cfg.LockdownMode, "readOnly", cfg.ReadOnly, "insidersMode", cfg.InsidersMode)
 
 	apiHost, err := utils.NewAPIHost(cfg.Host)
 	if err != nil {
@@ -106,6 +126,11 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	featureChecker := createHTTPFeatureChecker()
 
+	obs, err := observability.NewExporters(logger, metrics.NewNoopMetrics())
+	if err != nil {
+		return fmt.Errorf("failed to create observability exporters: %w", err)
+	}
+
 	deps := github.NewRequestDeps(
 		apiHost,
 		cfg.Version,
@@ -114,6 +139,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 		t,
 		cfg.ContentWindowSize,
 		featureChecker,
+		obs,
 	)
 
 	// Initialize the global tool scope map
@@ -142,6 +168,8 @@ func RunHTTPServer(cfg ServerConfig) error {
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Use(middleware.SetCorsHeaders)
+
 		// Register Middleware First, needs to be before route registration
 		handler.RegisterMiddleware(r)
 
@@ -203,19 +231,14 @@ func initGlobalToolScopeMap(t translations.TranslationHelperFunc) error {
 	return nil
 }
 
-// createHTTPFeatureChecker creates a feature checker that reads header features from context
-// and validates them against the knownFeatureFlags whitelist
+// createHTTPFeatureChecker creates a feature checker that resolves features
+// per-request by reading header features and insiders mode from context,
+// then validating against the centralized AllowedFeatureFlags allowlist.
 func createHTTPFeatureChecker() inventory.FeatureFlagChecker {
-	// Pre-compute whitelist as set for O(1) lookup
-	knownSet := make(map[string]bool, len(knownFeatureFlags))
-	for _, f := range knownFeatureFlags {
-		knownSet[f] = true
-	}
-
 	return func(ctx context.Context, flag string) (bool, error) {
-		if knownSet[flag] && slices.Contains(ghcontext.GetHeaderFeatures(ctx), flag) {
-			return true, nil
-		}
-		return false, nil
+		headerFeatures := ghcontext.GetHeaderFeatures(ctx)
+		insidersMode := ghcontext.IsInsidersMode(ctx)
+		effective := github.ResolveFeatureFlags(headerFeatures, insidersMode)
+		return effective[flag], nil
 	}
 }

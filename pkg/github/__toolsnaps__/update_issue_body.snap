@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Update Issue Body"
+  },
+  "description": "Update the body content of an existing issue.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "The new body content for the issue",
+        "type": "string"
+      },
+      "issue_number": {
+        "description": "The issue number to update",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "issue_number",
+      "body"
+    ],
+    "type": "object"
+  },
+  "name": "update_issue_body"
+}
