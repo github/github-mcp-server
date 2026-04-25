@@ -2,11 +2,11 @@ package github
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -15,7 +15,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -147,6 +147,18 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Type:        "string",
 						Description: "Author username or email address to filter commits by",
 					},
+					"path": {
+						Type:        "string",
+						Description: "Only commits containing this file path will be returned",
+					},
+					"since": {
+						Type:        "string",
+						Description: "Only commits after this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)",
+					},
+					"until": {
+						Type:        "string",
+						Description: "Only commits before this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)",
+					},
 				},
 				Required: []string{"owner", "repo"},
 			}),
@@ -169,6 +181,18 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			path, err := OptionalParam[string](args, "path")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			sinceStr, err := OptionalParam[string](args, "since")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			untilStr, err := OptionalParam[string](args, "until")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -180,11 +204,26 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 			opts := &github.CommitsListOptions{
 				SHA:    sha,
+				Path:   path,
 				Author: author,
 				ListOptions: github.ListOptions{
 					Page:    pagination.Page,
 					PerPage: perPage,
 				},
+			}
+			if sinceStr != "" {
+				sinceTime, err := parseISOTimestamp(sinceStr)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("invalid since timestamp: %s", err)), nil, nil
+				}
+				opts.Since = sinceTime
+			}
+			if untilStr != "" {
+				untilTime, err := parseISOTimestamp(untilStr)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("invalid until timestamp: %s", err)), nil, nil
+				}
+				opts.Until = untilTime
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -322,9 +361,9 @@ func CreateOrUpdateFile(t translations.TranslationHelperFunc) inventory.ServerTo
 If updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.
 
 In order to obtain the SHA of original file version before updating, use the following git command:
-git ls-tree HEAD <path to file>
+git rev-parse <branch>:<path to file>
 
-If the SHA is not provided, the tool will attempt to acquire it by fetching the current file contents from the repository, which may lead to rewriting latest committed changes if the file has changed since last retrieval.
+SHA MUST be provided for existing file updates.
 `),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_CREATE_OR_UPDATE_FILE_USER_TITLE", "Create or update file"),
@@ -359,7 +398,7 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 					},
 					"sha": {
 						Type:        "string",
-						Description: "The blob SHA of the file being replaced.",
+						Description: "The blob SHA of the file being replaced. Required if the file already exists.",
 					},
 				},
 				Required: []string{"owner", "repo", "path", "content", "message", "branch"},
@@ -419,55 +458,68 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 
 			path = strings.TrimPrefix(path, "/")
 
-			// SHA validation using conditional HEAD request (efficient - no body transfer)
-			var previousSHA string
-			contentURL := fmt.Sprintf("repos/%s/%s/contents/%s", owner, repo, url.PathEscape(path))
-			if branch != "" {
-				contentURL += "?ref=" + url.QueryEscape(branch)
-			}
+			// SHA validation using Contents API to fetch current file metadata (blob SHA)
+			getOpts := &github.RepositoryContentGetOptions{Ref: branch}
 
 			if sha != "" {
 				// User provided SHA - validate it's still current
-				req, err := client.NewRequest("HEAD", contentURL, nil)
-				if err == nil {
-					req.Header.Set("If-None-Match", fmt.Sprintf(`"%s"`, sha))
-					resp, _ := client.Do(ctx, req, nil)
-					if resp != nil {
-						defer resp.Body.Close()
-
-						switch resp.StatusCode {
-						case http.StatusNotModified:
-							// SHA matches current - proceed
-							opts.SHA = github.Ptr(sha)
-						case http.StatusOK:
-							// SHA is stale - reject with current SHA so user can check diff
-							currentSHA := strings.Trim(resp.Header.Get("ETag"), `"`)
-							return utils.NewToolResultError(fmt.Sprintf(
-								"SHA mismatch: provided SHA %s is stale. Current file SHA is %s. "+
-									"Use get_file_contents or compare commits to review changes before updating.",
-								sha, currentSHA)), nil, nil
-						case http.StatusNotFound:
-							// File doesn't exist - this is a create, ignore provided SHA
-						}
+				existingFile, dirContent, respCheck, getErr := client.Repositories.GetContents(ctx, owner, repo, path, getOpts)
+				if respCheck != nil {
+					_ = respCheck.Body.Close()
+				}
+				switch {
+				case getErr != nil:
+					// 404 means file doesn't exist - proceed (new file creation)
+					// Any other error (403, 500, network) should be surfaced
+					if respCheck == nil || respCheck.StatusCode != http.StatusNotFound {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx,
+							"failed to verify file SHA",
+							respCheck,
+							getErr,
+						), nil, nil
+					}
+				case dirContent != nil:
+					return utils.NewToolResultError(fmt.Sprintf(
+						"Path %s is a directory, not a file. This tool only works with files.",
+						path)), nil, nil
+				case existingFile != nil:
+					currentSHA := existingFile.GetSHA()
+					if currentSHA != sha {
+						return utils.NewToolResultError(fmt.Sprintf(
+							"SHA mismatch: provided SHA %s is stale. Current file SHA is %s. "+
+								"Pull the latest changes and use git rev-parse %s:%s to get the current SHA.",
+							sha, currentSHA, branch, path)), nil, nil
 					}
 				}
 			} else {
-				// No SHA provided - check if file exists to warn about blind update
-				req, err := client.NewRequest("HEAD", contentURL, nil)
-				if err == nil {
-					resp, _ := client.Do(ctx, req, nil)
-					if resp != nil {
-						defer resp.Body.Close()
-						if resp.StatusCode == http.StatusOK {
-							previousSHA = strings.Trim(resp.Header.Get("ETag"), `"`)
-						}
-						// 404 = new file, no previous SHA needed
-					}
+				// No SHA provided - check if file already exists
+				existingFile, dirContent, respCheck, getErr := client.Repositories.GetContents(ctx, owner, repo, path, getOpts)
+				if respCheck != nil {
+					_ = respCheck.Body.Close()
 				}
-			}
-
-			if previousSHA != "" {
-				opts.SHA = github.Ptr(previousSHA)
+				switch {
+				case getErr != nil:
+					// 404 means file doesn't exist - proceed with creation
+					// Any other error (403, 500, network) should be surfaced
+					if respCheck == nil || respCheck.StatusCode != http.StatusNotFound {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx,
+							"failed to check if file exists",
+							respCheck,
+							getErr,
+						), nil, nil
+					}
+				case dirContent != nil:
+					return utils.NewToolResultError(fmt.Sprintf(
+						"Path %s is a directory, not a file. This tool only works with files.",
+						path)), nil, nil
+				case existingFile != nil:
+					// File exists but no SHA was provided - reject to prevent blind overwrites
+					return utils.NewToolResultError(fmt.Sprintf(
+						"File already exists at %s. You must provide the current file's SHA when updating. "+
+							"Use git rev-parse %s:%s to get the blob SHA, then retry with the sha parameter.",
+						path, branch, path)), nil, nil
+				}
+				// If file not found, no previous SHA needed (new file creation)
 			}
 
 			fileContent, resp, err := client.Repositories.CreateFile(ctx, owner, repo, path, opts)
@@ -488,25 +540,9 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create/update file", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(fileContent)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
+			minimalResponse := convertToMinimalFileContentResponse(fileContent)
 
-			// Warn if file was updated without SHA validation (blind update)
-			if sha == "" && previousSHA != "" {
-				return utils.NewToolResultText(fmt.Sprintf(
-					"Warning: File updated without SHA validation. Previous file SHA was %s. "+
-						`Verify no unintended changes were overwritten: 
-1. Extract the SHA of the local version using git ls-tree HEAD %s.
-2. Compare with the previous SHA above.
-3. Revert changes if shas do not match.
-
-%s`,
-					previousSHA, path, string(r))), nil, nil
-			}
-
-			return utils.NewToolResultText(string(r)), nil, nil
+			return MarshalledTextResult(minimalResponse), nil, nil
 		},
 	)
 }
@@ -715,86 +751,86 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			if fileContent != nil && fileContent.SHA != nil {
 				fileSHA = *fileContent.SHA
-
-				rawClient, err := deps.GetRawClient(ctx)
+				fileSize := fileContent.GetSize()
+				// Build resource URI for the file using URI templates
+				pathParts := strings.Split(path, "/")
+				resourceURI, err := expandRepoResourceURI(owner, repo, sha, ref, pathParts)
 				if err != nil {
-					return utils.NewToolResultError("failed to get GitHub raw content client"), nil, nil
+					return utils.NewToolResultError("failed to build resource URI"), nil, nil
 				}
-				resp, err := rawClient.GetRawContent(ctx, owner, repo, path, rawOpts)
-				if err != nil {
-					return utils.NewToolResultError("failed to get raw repository content"), nil, nil
+
+				// main branch ref passed in ref parameter but it doesn't exist - default branch was used
+				var successNote string
+				if fallbackUsed {
+					successNote = fmt.Sprintf(" Note: the provided ref '%s' does not exist, default branch '%s' was used instead.", originalRef, rawOpts.Ref)
 				}
-				defer func() {
-					_ = resp.Body.Close()
-				}()
 
-				if resp.StatusCode == http.StatusOK {
-					// If the raw content is found, return it directly
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return ghErrors.NewGitHubRawAPIErrorResponse(ctx, "failed to get raw repository content", resp, err), nil, nil
-					}
-					contentType := resp.Header.Get("Content-Type")
-
-					var resourceURI string
-					switch {
-					case sha != "":
-						resourceURI, err = url.JoinPath("repo://", owner, repo, "sha", sha, "contents", path)
-						if err != nil {
-							return nil, nil, fmt.Errorf("failed to create resource URI: %w", err)
-						}
-					case ref != "":
-						resourceURI, err = url.JoinPath("repo://", owner, repo, ref, "contents", path)
-						if err != nil {
-							return nil, nil, fmt.Errorf("failed to create resource URI: %w", err)
-						}
-					default:
-						resourceURI, err = url.JoinPath("repo://", owner, repo, "contents", path)
-						if err != nil {
-							return nil, nil, fmt.Errorf("failed to create resource URI: %w", err)
-						}
-					}
-
-					// main branch ref passed in ref parameter but it doesn't exist - default branch was used
-					var successNote string
-					if fallbackUsed {
-						successNote = fmt.Sprintf(" Note: the provided ref '%s' does not exist, default branch '%s' was used instead.", originalRef, rawOpts.Ref)
-					}
-
-					// Determine if content is text or binary
-					isTextContent := strings.HasPrefix(contentType, "text/") ||
-						contentType == "application/json" ||
-						contentType == "application/xml" ||
-						strings.HasSuffix(contentType, "+json") ||
-						strings.HasSuffix(contentType, "+xml")
-
-					if isTextContent {
-						result := &mcp.ResourceContents{
-							URI:      resourceURI,
-							Text:     string(body),
-							MIMEType: contentType,
-						}
-						// Include SHA in the result metadata
-						if fileSHA != "" {
-							return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)", fileSHA)+successNote, result), nil, nil
-						}
-						return utils.NewToolResultResource("successfully downloaded text file"+successNote, result), nil, nil
-					}
-
+				// Empty files (0 bytes) have no content to decode; return
+				// them directly as empty text to avoid errors from
+				// GetContent when the API returns null content with a
+				// base64 encoding field, and to avoid DetectContentType
+				// misclassifying them as binary.
+				if fileSize == 0 {
 					result := &mcp.ResourceContents{
 						URI:      resourceURI,
-						Blob:     body,
-						MIMEType: contentType,
+						Text:     "",
+						MIMEType: "text/plain",
 					}
-					// Include SHA in the result metadata
-					if fileSHA != "" {
-						return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)", fileSHA)+successNote, result), nil, nil
-					}
-					return utils.NewToolResultResource("successfully downloaded binary file"+successNote, result), nil, nil
+					return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded empty file (SHA: %s)%s", fileSHA, successNote), result), nil, nil
 				}
 
-				// Raw API call failed
-				return matchFiles(ctx, client, owner, repo, ref, path, rawOpts, resp.StatusCode)
+				// For files >= 1MB, return a ResourceLink instead of content
+				const maxContentSize = 1024 * 1024 // 1MB
+				if fileSize >= maxContentSize {
+					size := int64(fileSize)
+					resourceLink := &mcp.ResourceLink{
+						URI:   resourceURI,
+						Name:  fileContent.GetName(),
+						Title: fmt.Sprintf("File: %s", path),
+						Size:  &size,
+					}
+					return utils.NewToolResultResourceLink(
+						fmt.Sprintf("File %s is too large to display (%d bytes). Use the download URL to fetch the content: %s (SHA: %s)%s",
+							path, fileSize, fileContent.GetDownloadURL(), fileSHA, successNote),
+						resourceLink), nil, nil
+				}
+
+				// For files < 1MB, get content directly from Contents API
+				content, err := fileContent.GetContent()
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("failed to decode file content: %s", err)), nil, nil
+				}
+
+				// Detect content type from the actual content bytes,
+				// mirroring the original approach of using the Content-Type header
+				// from the raw API response.
+				contentBytes := []byte(content)
+				contentType := http.DetectContentType(contentBytes)
+
+				// Determine if content is text or binary based on detected content type
+				isTextContent := strings.HasPrefix(contentType, "text/") ||
+					contentType == "application/json" ||
+					contentType == "application/xml" ||
+					strings.HasSuffix(contentType, "+json") ||
+					strings.HasSuffix(contentType, "+xml")
+
+				if isTextContent {
+					result := &mcp.ResourceContents{
+						URI:      resourceURI,
+						Text:     content,
+						MIMEType: contentType,
+					}
+					return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)%s", fileSHA, successNote), result), nil, nil
+				}
+
+				// Binary content - encode as base64 blob
+				blobContent := base64.StdEncoding.EncodeToString(contentBytes)
+				result := &mcp.ResourceContents{
+					URI:      resourceURI,
+					Blob:     []byte(blobContent),
+					MIMEType: contentType,
+				}
+				return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote), result), nil, nil
 			} else if dirContent != nil {
 				// file content or file SHA is nil which means it's a directory
 				r, err := json.Marshal(dirContent)
@@ -1078,7 +1114,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			// Create a response similar to what the DeleteFile API would return
-			response := map[string]interface{}{
+			response := map[string]any{
 				"commit":  newCommit,
 				"content": nil,
 			}
@@ -1236,7 +1272,8 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Type:        "array",
 						Description: "Array of file objects to push, each object with path (string) and content (string)",
 						Items: &jsonschema.Schema{
-							Type: "object",
+							Type:                 "object",
+							AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 							Properties: map[string]*jsonschema.Schema{
 								"path": {
 									Type:        "string",
@@ -1278,7 +1315,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			// Parse files parameter - this should be an array of objects with path and content
-			filesObj, ok := args["files"].([]interface{})
+			filesObj, ok := args["files"].([]any)
 			if !ok {
 				return utils.NewToolResultError("files parameter must be an array of objects with path and content"), nil, nil
 			}
@@ -1360,7 +1397,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			var entries []*github.TreeEntry
 
 			for _, file := range filesObj {
-				fileMap, ok := file.(map[string]interface{})
+				fileMap, ok := file.(map[string]any)
 				if !ok {
 					return utils.NewToolResultError("each file must be an object with path and content"), nil, nil
 				}
@@ -1509,7 +1546,14 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list tags", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(tags)
+			minimalTags := make([]MinimalTag, 0, len(tags))
+			for _, tag := range tags {
+				if tag != nil {
+					minimalTags = append(minimalTags, convertToMinimalTag(tag))
+				}
+			}
+
+			r, err := json.Marshal(minimalTags)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -1682,7 +1726,14 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list releases", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(releases)
+			minimalReleases := make([]MinimalRelease, 0, len(releases))
+			for _, release := range releases {
+				if release != nil {
+					minimalReleases = append(minimalReleases, convertToMinimalRelease(release))
+				}
+			}
+
+			r, err := json.Marshal(minimalReleases)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}

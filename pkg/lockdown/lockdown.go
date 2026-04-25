@@ -220,7 +220,7 @@ func (c *RepoAccessCache) queryRepoAccessInfo(ctx context.Context, username, own
 		} `graphql:"repository(owner: $owner, name: $name)"`
 	}
 
-	variables := map[string]interface{}{
+	variables := map[string]any{
 		"owner":    githubv4.String(owner),
 		"name":     githubv4.String(repo),
 		"username": githubv4.String(username),

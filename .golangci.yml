@@ -9,12 +9,14 @@ linters:
     - gosec
     - makezero
     - misspell
+    - modernize
     - nakedret
     - revive
     - errcheck
     - staticcheck
     - govet
     - ineffassign
+    - intrange
     - unused
   exclusions:
     generated: lax
@@ -27,6 +29,11 @@ linters:
       - third_party$
       - builtin$
       - examples$
+      - internal/githubv4mock
+    rules:
+      - linters:
+          - revive
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
   settings:
     staticcheck:
       checks:
