@@ -468,7 +468,7 @@ func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 		// Given a context with GitHub error tracking enabled
 		ctx := ContextWithGitHubErrors(context.Background())
 
-		resetTime := time.Now().Add(3 * time.Minute)
+		resetTime := time.Now().Add(30 * time.Minute)
 		rateLimitErr := &github.RateLimitError{
 			Rate:     github.Rate{Reset: github.Timestamp{Time: resetTime}},
 			Response: &http.Response{StatusCode: 403},
@@ -476,9 +476,11 @@ func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 		}
 		resp := &github.Response{Response: rateLimitErr.Response}
 
+		// Capture expected duration before the call so both use the same time.Until snapshot
+		expectedRetryIn := time.Until(resetTime).Round(time.Second)
+
 		// When we create an API error response for a rate limit error
 		result := NewGitHubAPIErrorResponse(ctx, "search code", resp, rateLimitErr)
-		expectedRetryIn := time.Until(resetTime).Round(time.Second)
 
 		// Then it should return an MCP error result
 		require.NotNil(t, result)
@@ -600,7 +602,7 @@ func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 	t.Run("wrapped RateLimitError is handled via errors.As", func(t *testing.T) {
 		ctx := ContextWithGitHubErrors(context.Background())
 
-		resetTime := time.Now().Add(2 * time.Minute)
+		resetTime := time.Now().Add(20 * time.Minute)
 		rateLimitErr := &github.RateLimitError{
 			Rate:     github.Rate{Reset: github.Timestamp{Time: resetTime}},
 			Response: &http.Response{StatusCode: 403},
@@ -609,8 +611,10 @@ func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 		wrappedErr := fmt.Errorf("transport layer: %w", rateLimitErr)
 		resp := &github.Response{Response: rateLimitErr.Response}
 
-		result := NewGitHubAPIErrorResponse(ctx, "search code", resp, wrappedErr)
+		// Capture expected duration before the call so both use the same time.Until snapshot
 		expectedRetryIn := time.Until(resetTime).Round(time.Second)
+
+		result := NewGitHubAPIErrorResponse(ctx, "search code", resp, wrappedErr)
 
 		require.NotNil(t, result)
 		assert.True(t, result.IsError)
