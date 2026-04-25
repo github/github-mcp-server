@@ -1,4 +1,4 @@
-﻿package errors
+package errors
 
 import (
 	"context"
@@ -563,10 +563,46 @@ func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 		assertContextHasError(t, ctx, abuseErr)
 	})
 
+	t.Run("AbuseRateLimitError with sub-second RetryAfter falls back to wait message", func(t *testing.T) {
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		// 200ms rounds to 0s, so should fall back to the generic wait message
+		retryAfter := 200 * time.Millisecond
+		abuseErr := &github.AbuseRateLimitError{
+			Response:   &http.Response{StatusCode: 403},
+			Message:    "You have exceeded a secondary rate limit.",
+			RetryAfter: &retryAfter,
+		}
+		resp := &github.Response{Response: abuseErr.Response}
+
+		result := NewGitHubAPIErrorResponse(ctx, "create issue", resp, abuseErr)
+
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "GitHub secondary rate limit exceeded. Wait before retrying.")
+	})
+
 	t.Run("RateLimitError with reset time in the past falls back to wait message", func(t *testing.T) {
 		ctx := ContextWithGitHubErrors(context.Background())
 
 		resetTime := time.Now().Add(-5 * time.Second) // already passed
+		rateLimitErr := &github.RateLimitError{
+			Rate:     github.Rate{Reset: github.Timestamp{Time: resetTime}},
+			Response: &http.Response{StatusCode: 403},
+			Message:  "API rate limit exceeded",
+		}
+		resp := &github.Response{Response: rateLimitErr.Response}
+
+		result := NewGitHubAPIErrorResponse(ctx, "search code", resp, rateLimitErr)
+
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "GitHub API rate limit exceeded. Wait before retrying.")
+	})
+
+	t.Run("RateLimitError with sub-second reset time falls back to wait message", func(t *testing.T) {
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		// 250ms in the future: still positive, but rounds to 0s, so should fall back
+		resetTime := time.Now().Add(250 * time.Millisecond)
 		rateLimitErr := &github.RateLimitError{
 			Rate:     github.Rate{Reset: github.Timestamp{Time: resetTime}},
 			Response: &http.Response{StatusCode: 403},

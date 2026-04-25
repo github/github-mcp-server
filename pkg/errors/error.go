@@ -165,10 +165,12 @@ func NewGitHubAPIErrorResponse(ctx context.Context, message string, resp *github
 	var rateLimitErr *github.RateLimitError
 	if stderrors.As(err, &rateLimitErr) {
 		resetTime := rateLimitErr.Rate.Reset.Time
-		if !resetTime.IsZero() && resetTime.After(time.Now()) {
+		if !resetTime.IsZero() {
 			retryIn := time.Until(resetTime).Round(time.Second)
-			return utils.NewToolResultError(fmt.Sprintf(
-				"%s: GitHub API rate limit exceeded. Retry after %v.", message, retryIn))
+			if retryIn > 0 {
+				return utils.NewToolResultError(fmt.Sprintf(
+					"%s: GitHub API rate limit exceeded. Retry after %v.", message, retryIn))
+			}
 		}
 		return utils.NewToolResultError(fmt.Sprintf(
 			"%s: GitHub API rate limit exceeded. Wait before retrying.", message))
@@ -176,10 +178,13 @@ func NewGitHubAPIErrorResponse(ctx context.Context, message string, resp *github
 
 	var abuseErr *github.AbuseRateLimitError
 	if stderrors.As(err, &abuseErr) {
-		if abuseErr.RetryAfter != nil && *abuseErr.RetryAfter > 0 {
-			return utils.NewToolResultError(fmt.Sprintf(
-				"%s: GitHub secondary rate limit exceeded. Retry after %v.",
-				message, abuseErr.RetryAfter.Round(time.Second)))
+		if abuseErr.RetryAfter != nil {
+			retryAfter := abuseErr.RetryAfter.Round(time.Second)
+			if retryAfter > 0 {
+				return utils.NewToolResultError(fmt.Sprintf(
+					"%s: GitHub secondary rate limit exceeded. Retry after %v.",
+					message, retryAfter))
+			}
 		}
 		return utils.NewToolResultError(fmt.Sprintf(
 			"%s: GitHub secondary rate limit exceeded. Wait before retrying.", message))
