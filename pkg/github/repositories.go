@@ -357,7 +357,7 @@ func CreateOrUpdateFile(t translations.TranslationHelperFunc) inventory.ServerTo
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name: "create_or_update_file",
-			Description: t("TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION", `Create or update a single file in a GitHub repository. 
+			Description: t("TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION", `Create or update a single file in a GitHub repository.
 If updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.
 
 In order to obtain the SHA of original file version before updating, use the following git command:
@@ -1714,7 +1714,7 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			releases, resp, err := client.Repositories.ListReleases(ctx, owner, repo, opts)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to list releases: %w", err)
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list releases", resp, err), nil, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 

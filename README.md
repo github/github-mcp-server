@@ -1093,8 +1093,8 @@ The following sets of tools are available:
 
 - **pull_request_read** - Get details for a single pull request
   - **Required OAuth Scopes**: `repo`
-  - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
-    Possible options: 
+  - `method`: Action to specify what pull request data needs to be retrieved from GitHub.
+    Possible options:
      1. get - Get details of a specific pull request.
      2. get_diff - Get the diff of a pull request.
      3. get_status - Get combined commit status of a head commit in a pull request.
