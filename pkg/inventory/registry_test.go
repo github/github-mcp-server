@@ -1832,3 +1832,448 @@ func TestWithTools_DeprecatedAliasAndFeatureFlag(t *testing.T) {
 		t.Errorf("Flag ON: Expected new_tool (via alias), got %s", availableOn[0].Tool.Name)
 	}
 }
+
+// mockToolWithMeta creates a ServerTool with Meta for testing insiders mode
+func mockToolWithMeta(name string, toolsetID string, meta map[string]any) ServerTool {
+	return NewServerToolFromHandler(
+		mcp.Tool{
+			Name: name,
+			Annotations: &mcp.ToolAnnotations{
+				ReadOnlyHint: true,
+			},
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+			Meta:        meta,
+		},
+		testToolsetMetadata(toolsetID),
+		func(_ any) mcp.ToolHandler {
+			return func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				return nil, nil
+			}
+		},
+	)
+}
+
+func TestWithInsidersMode_DisabledStripsUIMetadata(t *testing.T) {
+	toolWithUI := mockToolWithMeta("tool_with_ui", "toolset1", map[string]any{
+		"ui":          map[string]any{"html": "<div>hello</div>"},
+		"description": "kept",
+	})
+
+	// Default: insiders mode is disabled - UI meta should be stripped
+	reg := mustBuild(t, NewBuilder().SetTools([]ServerTool{toolWithUI}).WithToolsets([]string{"all"}))
+	available := reg.AvailableTools(context.Background())
+
+	require.Len(t, available, 1)
+	// UI metadata should be stripped
+	if available[0].Tool.Meta["ui"] != nil {
+		t.Errorf("Expected 'ui' meta to be stripped, but it was present")
+	}
+	// Other metadata should be preserved
+	if available[0].Tool.Meta["description"] != "kept" {
+		t.Errorf("Expected 'description' meta to be preserved, got %v", available[0].Tool.Meta["description"])
+	}
+}
+
+func TestWithInsidersMode_EnabledPreservesUIMetadata(t *testing.T) {
+	uiData := map[string]any{"html": "<div>hello</div>"}
+	toolWithUI := mockToolWithMeta("tool_with_ui", "toolset1", map[string]any{
+		"ui":          uiData,
+		"description": "kept",
+	})
+
+	// Insiders mode enabled - UI meta should be preserved
+	reg := mustBuild(t, NewBuilder().
+		SetTools([]ServerTool{toolWithUI}).
+		WithToolsets([]string{"all"}).
+		WithInsidersMode(true))
+	available := reg.AvailableTools(context.Background())
+
+	require.Len(t, available, 1)
+	// UI metadata should be preserved
+	if available[0].Tool.Meta["ui"] == nil {
+		t.Errorf("Expected 'ui' meta to be preserved in insiders mode")
+	}
+	// Other metadata should also be preserved
+	if available[0].Tool.Meta["description"] != "kept" {
+		t.Errorf("Expected 'description' meta to be preserved, got %v", available[0].Tool.Meta["description"])
+	}
+}
+
+func TestWithInsidersMode_EnabledPreservesInsidersOnlyTools(t *testing.T) {
+	normalTool := mockTool("normal", "toolset1", true)
+	insidersTool := mockTool("insiders_only", "toolset1", true)
+	insidersTool.InsidersOnly = true
+
+	// With insiders mode enabled, both tools should be available
+	reg := mustBuild(t, NewBuilder().
+		SetTools([]ServerTool{normalTool, insidersTool}).
+		WithToolsets([]string{"all"}).
+		WithInsidersMode(true))
+	available := reg.AvailableTools(context.Background())
+
+	require.Len(t, available, 2)
+	names := []string{available[0].Tool.Name, available[1].Tool.Name}
+	require.Contains(t, names, "normal")
+	require.Contains(t, names, "insiders_only")
+}
+
+func TestWithInsidersMode_DisabledRemovesInsidersOnlyTools(t *testing.T) {
+	normalTool := mockTool("normal", "toolset1", true)
+	insidersTool := mockTool("insiders_only", "toolset1", true)
+	insidersTool.InsidersOnly = true
+
+	// With insiders mode disabled, insiders-only tool should be removed
+	reg := mustBuild(t, NewBuilder().
+		SetTools([]ServerTool{normalTool, insidersTool}).
+		WithToolsets([]string{"all"}).
+		WithInsidersMode(false))
+	available := reg.AvailableTools(context.Background())
+
+	require.Len(t, available, 1)
+	require.Equal(t, "normal", available[0].Tool.Name)
+}
+
+func TestWithInsidersMode_ToolsWithoutUIMetaUnaffected(t *testing.T) {
+	toolNoUI := mockToolWithMeta("tool_no_ui", "toolset1", map[string]any{
+		"description": "kept",
+		"version":     "1.0",
+	})
+	toolNilMeta := mockTool("tool_nil_meta", "toolset1", true)
+
+	// Test with insiders disabled
+	reg := mustBuild(t, NewBuilder().
+		SetTools([]ServerTool{toolNoUI, toolNilMeta}).
+		WithToolsets([]string{"all"}))
+	available := reg.AvailableTools(context.Background())
+
+	require.Len(t, available, 2)
+
+	// Find toolNoUI
+	var foundNoUI, foundNilMeta *ServerTool
+	for i := range available {
+		switch available[i].Tool.Name {
+		case "tool_no_ui":
+			foundNoUI = &available[i]
+		case "tool_nil_meta":
+			foundNilMeta = &available[i]
+		}
+	}
+
+	require.NotNil(t, foundNoUI)
+	require.NotNil(t, foundNilMeta)
+
+	// toolNoUI should have its metadata preserved
+	if foundNoUI.Tool.Meta["description"] != "kept" || foundNoUI.Tool.Meta["version"] != "1.0" {
+		t.Errorf("Expected toolNoUI meta to be unchanged, got %v", foundNoUI.Tool.Meta)
+	}
+
+	// toolNilMeta should still have nil meta
+	if foundNilMeta.Tool.Meta != nil {
+		t.Errorf("Expected toolNilMeta to have nil meta, got %v", foundNilMeta.Tool.Meta)
+	}
+}
+
+func TestWithInsidersMode_UIOnlyMetaBecomesNil(t *testing.T) {
+	// Tool with ONLY ui metadata - should become nil after stripping
+	toolUIOnly := mockToolWithMeta("tool_ui_only", "toolset1", map[string]any{
+		"ui": map[string]any{"html": "<div>hello</div>"},
+	})
+
+	reg := mustBuild(t, NewBuilder().
+		SetTools([]ServerTool{toolUIOnly}).
+		WithToolsets([]string{"all"}))
+	available := reg.AvailableTools(context.Background())
+
+	require.Len(t, available, 1)
+	// Meta should be nil since ui was the only key
+	if available[0].Tool.Meta != nil {
+		t.Errorf("Expected Meta to be nil after stripping only key, got %v", available[0].Tool.Meta)
+	}
+}
+
+func TestStripInsidersMetaFromTool(t *testing.T) {
+	tests := []struct {
+		name         string
+		meta         map[string]any
+		expectChange bool
+		expectedMeta map[string]any // nil means Meta should be nil
+	}{
+		{
+			name:         "nil meta - no change",
+			meta:         nil,
+			expectChange: false,
+		},
+		{
+			name:         "no insiders keys - no change",
+			meta:         map[string]any{"description": "test", "version": "1.0"},
+			expectChange: false,
+		},
+		{
+			name:         "ui key only - becomes nil",
+			meta:         map[string]any{"ui": "data"},
+			expectChange: true,
+			expectedMeta: nil,
+		},
+		{
+			name:         "ui key with other keys - ui stripped",
+			meta:         map[string]any{"ui": "data", "description": "kept"},
+			expectChange: true,
+			expectedMeta: map[string]any{"description": "kept"},
+		},
+		{
+			name:         "ui is nil value - no change (nil value means key not present)",
+			meta:         map[string]any{"ui": nil, "description": "kept"},
+			expectChange: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tool := mockToolWithMeta("test", "toolset1", tt.meta)
+			result := stripInsidersMetaFromTool(tool)
+
+			if tt.expectChange {
+				require.NotNil(t, result, "expected change but got nil")
+				if tt.expectedMeta == nil {
+					require.Nil(t, result.Tool.Meta, "expected Meta to be nil")
+				} else {
+					// Compare values by key since types may differ (map[string]any vs mcp.Meta)
+					for k, v := range tt.expectedMeta {
+						require.Equal(t, v, result.Tool.Meta[k], "key %s should match", k)
+					}
+					require.Len(t, result.Tool.Meta, len(tt.expectedMeta))
+				}
+			} else {
+				require.Nil(t, result, "expected no change but got result")
+			}
+		})
+	}
+}
+
+func TestStripInsidersFeatures(t *testing.T) {
+	tools := []ServerTool{
+		mockToolWithMeta("tool1", "toolset1", map[string]any{"ui": "data"}),
+		mockToolWithMeta("tool2", "toolset1", map[string]any{"description": "kept"}),
+		mockTool("tool3", "toolset1", true), // nil meta
+	}
+
+	result := stripInsidersFeatures(tools)
+
+	require.Len(t, result, 3)
+
+	// tool1: ui should be stripped, meta becomes nil
+	require.Nil(t, result[0].Tool.Meta, "tool1 meta should be nil after stripping ui")
+
+	// tool2: unchanged (compare by key since types differ)
+	require.Equal(t, "kept", result[1].Tool.Meta["description"])
+	require.Len(t, result[1].Tool.Meta, 1)
+
+	// tool3: unchanged (nil)
+	require.Nil(t, result[2].Tool.Meta)
+}
+
+func TestStripInsidersFeatures_RemovesInsidersOnlyTools(t *testing.T) {
+	// Create tools: one normal, one insiders-only, one normal
+	normalTool1 := mockTool("normal1", "toolset1", true)
+	insidersTool := mockTool("insiders_only", "toolset1", true)
+	insidersTool.InsidersOnly = true
+	normalTool2 := mockTool("normal2", "toolset1", true)
+
+	tools := []ServerTool{normalTool1, insidersTool, normalTool2}
+
+	result := stripInsidersFeatures(tools)
+
+	// Should only have 2 tools (insiders-only tool filtered out)
+	require.Len(t, result, 2)
+	require.Equal(t, "normal1", result[0].Tool.Name)
+	require.Equal(t, "normal2", result[1].Tool.Name)
+}
+
+func TestInsidersOnlyMetaKeys_FutureAdditions(t *testing.T) {
+	// This test verifies the mechanism works for multiple keys
+	// If we add new experimental keys to insidersOnlyMetaKeys, they should be stripped
+
+	// Save original and restore after test
+	originalKeys := insidersOnlyMetaKeys
+	defer func() { insidersOnlyMetaKeys = originalKeys }()
+
+	// Add a hypothetical future experimental key
+	insidersOnlyMetaKeys = []string{"ui", "experimental_feature", "beta"}
+
+	tool := mockToolWithMeta("test", "toolset1", map[string]any{
+		"ui":                   "ui data",
+		"experimental_feature": "exp data",
+		"beta":                 "beta data",
+		"description":          "kept",
+	})
+
+	result := stripInsidersMetaFromTool(tool)
+
+	require.NotNil(t, result)
+	require.NotNil(t, result.Tool.Meta)
+	require.Nil(t, result.Tool.Meta["ui"], "ui should be stripped")
+	require.Nil(t, result.Tool.Meta["experimental_feature"], "experimental_feature should be stripped")
+	require.Nil(t, result.Tool.Meta["beta"], "beta should be stripped")
+	require.Equal(t, "kept", result.Tool.Meta["description"], "description should be preserved")
+}
+
+func TestWithInsidersMode_DoesNotMutateOriginalTools(t *testing.T) {
+	originalMeta := map[string]any{"ui": "data", "description": "kept"}
+	tool := mockToolWithMeta("test", "toolset1", originalMeta)
+	tools := []ServerTool{tool}
+
+	// Build with insiders disabled - should strip ui
+	_ = mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}))
+
+	// Original tool should be unchanged
+	require.Equal(t, "data", tools[0].Tool.Meta["ui"], "original tool should not be mutated")
+	require.Equal(t, "kept", tools[0].Tool.Meta["description"], "original tool should not be mutated")
+}
+
+func TestWithExcludeTools(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+		mockTool("tool2", "toolset1", true),
+		mockTool("tool3", "toolset2", true),
+	}
+
+	tests := []struct {
+		name            string
+		excluded        []string
+		toolsets        []string
+		expectedNames   []string
+		unexpectedNames []string
+	}{
+		{
+			name:            "single tool excluded",
+			excluded:        []string{"tool2"},
+			toolsets:        []string{"all"},
+			expectedNames:   []string{"tool1", "tool3"},
+			unexpectedNames: []string{"tool2"},
+		},
+		{
+			name:            "multiple tools excluded",
+			excluded:        []string{"tool1", "tool3"},
+			toolsets:        []string{"all"},
+			expectedNames:   []string{"tool2"},
+			unexpectedNames: []string{"tool1", "tool3"},
+		},
+		{
+			name:            "empty excluded list is a no-op",
+			excluded:        []string{},
+			toolsets:        []string{"all"},
+			expectedNames:   []string{"tool1", "tool2", "tool3"},
+			unexpectedNames: nil,
+		},
+		{
+			name:            "nil excluded list is a no-op",
+			excluded:        nil,
+			toolsets:        []string{"all"},
+			expectedNames:   []string{"tool1", "tool2", "tool3"},
+			unexpectedNames: nil,
+		},
+		{
+			name:            "excluding non-existent tool is a no-op",
+			excluded:        []string{"nonexistent"},
+			toolsets:        []string{"all"},
+			expectedNames:   []string{"tool1", "tool2", "tool3"},
+			unexpectedNames: nil,
+		},
+		{
+			name:            "exclude all tools",
+			excluded:        []string{"tool1", "tool2", "tool3"},
+			toolsets:        []string{"all"},
+			expectedNames:   nil,
+			unexpectedNames: []string{"tool1", "tool2", "tool3"},
+		},
+		{
+			name:            "whitespace is trimmed",
+			excluded:        []string{" tool2 ", "  tool3  "},
+			toolsets:        []string{"all"},
+			expectedNames:   []string{"tool1"},
+			unexpectedNames: []string{"tool2", "tool3"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := mustBuild(t, NewBuilder().
+				SetTools(tools).
+				WithToolsets(tt.toolsets).
+				WithExcludeTools(tt.excluded))
+
+			available := reg.AvailableTools(context.Background())
+			names := make(map[string]bool)
+			for _, tool := range available {
+				names[tool.Tool.Name] = true
+			}
+
+			for _, expected := range tt.expectedNames {
+				require.True(t, names[expected], "tool %q should be available", expected)
+			}
+			for _, unexpected := range tt.unexpectedNames {
+				require.False(t, names[unexpected], "tool %q should be excluded", unexpected)
+			}
+		})
+	}
+}
+
+func TestWithExcludeTools_OverridesAdditionalTools(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+		mockTool("tool2", "toolset1", true),
+		mockTool("tool3", "toolset2", true),
+	}
+
+	// tool3 is explicitly enabled via WithTools, but also excluded
+	// excluded should win because builder filters run before additional tools check
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"toolset1"}).
+		WithTools([]string{"tool3"}).
+		WithExcludeTools([]string{"tool3"}))
+
+	available := reg.AvailableTools(context.Background())
+	names := make(map[string]bool)
+	for _, tool := range available {
+		names[tool.Tool.Name] = true
+	}
+
+	require.True(t, names["tool1"], "tool1 should be available")
+	require.True(t, names["tool2"], "tool2 should be available")
+	require.False(t, names["tool3"], "tool3 should be excluded even though explicitly added via WithTools")
+}
+
+func TestWithExcludeTools_CombinesWithReadOnly(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("read_tool", "toolset1", true),
+		mockTool("write_tool", "toolset1", false),
+		mockTool("another_read", "toolset1", true),
+	}
+
+	// read-only excludes write_tool, exclude-tools excludes read_tool
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"all"}).
+		WithReadOnly(true).
+		WithExcludeTools([]string{"read_tool"}))
+
+	available := reg.AvailableTools(context.Background())
+	require.Len(t, available, 1)
+	require.Equal(t, "another_read", available[0].Tool.Name)
+}
+
+func TestCreateExcludeToolsFilter(t *testing.T) {
+	filter := CreateExcludeToolsFilter([]string{"blocked_tool"})
+
+	blockedTool := mockTool("blocked_tool", "toolset1", true)
+	allowedTool := mockTool("allowed_tool", "toolset1", true)
+
+	allowed, err := filter(context.Background(), &blockedTool)
+	require.NoError(t, err)
+	require.False(t, allowed, "blocked_tool should be excluded")
+
+	allowed, err = filter(context.Background(), &allowedTool)
+	require.NoError(t, err)
+	require.True(t, allowed, "allowed_tool should be included")
+}
