@@ -26,7 +26,8 @@
         "enum": [
           "get_project",
           "get_project_field",
-          "get_project_item"
+          "get_project_item",
+          "get_project_status_update"
         ],
         "type": "string"
       },
@@ -45,12 +46,14 @@
       "project_number": {
         "description": "The project's number.",
         "type": "number"
+      },
+      "status_update_id": {
+        "description": "The node ID of the project status update. Required for 'get_project_status_update' method.",
+        "type": "string"
       }
     },
     "required": [
-      "method",
-      "owner",
-      "project_number"
+      "method"
     ],
     "type": "object"
   },
