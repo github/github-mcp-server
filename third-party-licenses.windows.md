@@ -29,6 +29,7 @@ The following packages are included for the 386, amd64, arm64 architectures.
  - [github.com/lithammer/fuzzysearch/fuzzy](https://pkg.go.dev/github.com/lithammer/fuzzysearch/fuzzy) ([MIT](https://github.com/lithammer/fuzzysearch/blob/v1.1.8/LICENSE))
  - [github.com/mailru/easyjson](https://pkg.go.dev/github.com/mailru/easyjson) ([MIT](https://github.com/mailru/easyjson/blob/v0.7.7/LICENSE))
  - [github.com/microcosm-cc/bluemonday](https://pkg.go.dev/github.com/microcosm-cc/bluemonday) ([BSD-3-Clause](https://github.com/microcosm-cc/bluemonday/blob/v1.0.27/LICENSE.md))
+ - [github.com/modelcontextprotocol/go-sdk](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk) ([MIT](https://github.com/modelcontextprotocol/go-sdk/blob/v1.3.0/LICENSE))
  - [github.com/modelcontextprotocol/go-sdk](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk) ([Apache-2.0](https://github.com/modelcontextprotocol/go-sdk/blob/b17143f71798/LICENSE))
  - [github.com/modelcontextprotocol/go-sdk](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk) ([MIT](https://github.com/modelcontextprotocol/go-sdk/blob/b17143f71798/LICENSE))
  - [github.com/muesli/cache2go](https://pkg.go.dev/github.com/muesli/cache2go) ([BSD-3-Clause](https://github.com/muesli/cache2go/blob/518229cd8021/LICENSE.txt))

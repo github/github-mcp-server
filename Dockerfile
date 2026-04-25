@@ -1,3 +1,4 @@
+FROM golang:1.26.1-alpine AS build
 FROM node:20-alpine@sha256:09e2b3d9726018aecf269bd35325f46bf75046a643a66d28360ec71132750ec8 AS ui-build
 WORKDIR /app
 COPY ui/package*.json ./ui/
