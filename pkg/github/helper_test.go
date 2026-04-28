@@ -54,15 +54,19 @@ const (
 	GetReposCommitsCheckRunsByOwnerByRepoByRef = "GET /repos/{owner}/{repo}/commits/{ref}/check-runs"
 
 	// Issues endpoints
-	GetReposIssuesByOwnerByRepoByIssueNumber                    = "GET /repos/{owner}/{repo}/issues/{issue_number}"
-	GetReposIssuesCommentsByOwnerByRepoByIssueNumber            = "GET /repos/{owner}/{repo}/issues/{issue_number}/comments"
-	PostReposIssuesByOwnerByRepo                                = "POST /repos/{owner}/{repo}/issues"
-	PostReposIssuesCommentsByOwnerByRepoByIssueNumber           = "POST /repos/{owner}/{repo}/issues/{issue_number}/comments"
-	PatchReposIssuesByOwnerByRepoByIssueNumber                  = "PATCH /repos/{owner}/{repo}/issues/{issue_number}"
-	GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber           = "GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
-	PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber          = "POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
-	DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber         = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/sub_issue"
-	PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber = "PATCH /repos/{owner}/{repo}/issues/{issue_number}/sub_issues/priority"
+	GetReposIssuesByOwnerByRepoByIssueNumber                                  = "GET /repos/{owner}/{repo}/issues/{issue_number}"
+	GetReposIssuesCommentsByOwnerByRepoByIssueNumber                          = "GET /repos/{owner}/{repo}/issues/{issue_number}/comments"
+	PostReposIssuesByOwnerByRepo                                              = "POST /repos/{owner}/{repo}/issues"
+	PostReposIssuesCommentsByOwnerByRepoByIssueNumber                         = "POST /repos/{owner}/{repo}/issues/{issue_number}/comments"
+	PatchReposIssuesByOwnerByRepoByIssueNumber                                = "PATCH /repos/{owner}/{repo}/issues/{issue_number}"
+	GetReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber             = "GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by"
+	PostReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber            = "POST /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by"
+	DeleteReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumberByIssueID = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by/{issue_id}"
+	GetReposIssuesDependenciesBlockingByOwnerByRepoByIssueNumber              = "GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocking"
+	GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber                         = "GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
+	PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber                        = "POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
+	DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber                       = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/sub_issue"
+	PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber               = "PATCH /repos/{owner}/{repo}/issues/{issue_number}/sub_issues/priority"
 
 	// Pull request endpoints
 	GetReposPullsByOwnerByRepo                                = "GET /repos/{owner}/{repo}/pulls"

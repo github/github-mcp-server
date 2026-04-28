@@ -214,8 +214,10 @@ Options are:
 2. get_comments - Get issue comments.
 3. get_sub_issues - Get sub-issues of the issue.
 4. get_labels - Get labels assigned to the issue.
+5. get_dependencies_blocked_by - Get dependencies that block the issue.
+6. get_dependencies_blocking - Get dependencies the issue is blocking.
 `,
-				Enum: []any{"get", "get_comments", "get_sub_issues", "get_labels"},
+				Enum: []any{"get", "get_comments", "get_sub_issues", "get_labels", "get_dependencies_blocked_by", "get_dependencies_blocking"},
 			},
 			"owner": {
 				Type:        "string",
@@ -292,6 +294,12 @@ Options are:
 				return result, nil, err
 			case "get_labels":
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
+				return result, nil, err
+			case "get_dependencies_blocked_by":
+				result, err := GetIssueDependenciesBlockedBy(ctx, client, deps, owner, repo, issueNumber, pagination)
+				return result, nil, err
+			case "get_dependencies_blocking":
+				result, err := GetIssueDependenciesBlocking(ctx, client, deps, owner, repo, issueNumber, pagination)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -475,6 +483,86 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 	}
 
 	return utils.NewToolResultText(string(r)), nil
+}
+
+func GetIssueDependenciesBlockedBy(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	return getIssueDependencies(ctx, client, deps, owner, repo, issueNumber, "blocked_by", pagination)
+}
+
+func GetIssueDependenciesBlocking(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	return getIssueDependencies(ctx, client, deps, owner, repo, issueNumber, "blocking", pagination)
+}
+
+func getIssueDependencies(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, relation string, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	cache, err := deps.GetRepoAccessCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+	}
+	flags := deps.GetFlags(ctx)
+
+	path := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies/%s", owner, repo, issueNumber, relation)
+	req, err := client.NewRequest(http.MethodGet, path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dependencies request: %w", err)
+	}
+
+	q := req.URL.Query()
+	if pagination.Page != 0 {
+		q.Set("page", fmt.Sprintf("%d", pagination.Page))
+	}
+	if pagination.PerPage != 0 {
+		q.Set("per_page", fmt.Sprintf("%d", pagination.PerPage))
+	}
+	req.URL.RawQuery = q.Encode()
+
+	var issues []*github.Issue
+	resp, err := client.Do(ctx, req, &issues)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list issue dependencies", resp, err), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list issue dependencies", resp, body), nil
+	}
+
+	if flags.LockdownMode {
+		if cache == nil {
+			return nil, fmt.Errorf("lockdown cache is not configured")
+		}
+		filteredIssues := make([]*github.Issue, 0, len(issues))
+		for _, issue := range issues {
+			user := issue.GetUser()
+			if user == nil {
+				continue
+			}
+			login := user.GetLogin()
+			if login == "" {
+				continue
+			}
+			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+			}
+			if isSafeContent {
+				filteredIssues = append(filteredIssues, issue)
+			}
+		}
+		issues = filteredIssues
+	}
+
+	minimalIssues := make([]MinimalIssue, 0, len(issues))
+	for _, issue := range issues {
+		if issue != nil {
+			minimalIssues = append(minimalIssues, convertToMinimalIssue(issue))
+		}
+	}
+
+	return MarshalledTextResult(minimalIssues), nil
 }
 
 func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
@@ -673,6 +761,140 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
+}
+
+// IssueDependencyWrite creates a tool to add or remove dependency edges for an issue.
+func IssueDependencyWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "issue_dependency_write",
+			Description: t("TOOL_ISSUE_DEPENDENCY_WRITE_DESCRIPTION", "Add or remove issue dependencies in a GitHub repository."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_ISSUE_DEPENDENCY_WRITE_USER_TITLE", "Change issue dependency"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"method": {
+						Type: "string",
+						Description: `The action to perform on an issue dependency.
+Options are:
+- 'add_blocked_by' - add a blocking dependency to the issue.
+- 'remove_blocked_by' - remove a blocking dependency from the issue.
+`,
+						Enum: []any{"add_blocked_by", "remove_blocked_by"},
+					},
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"issue_number": {
+						Type:        "number",
+						Description: "The issue number to modify",
+					},
+					"issue_id": {
+						Type:        "number",
+						Description: "The ID of the related issue to add or remove as a blocking dependency",
+					},
+				},
+				Required: []string{"method", "owner", "repo", "issue_number", "issue_id"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			method, err := RequiredParam[string](args, "method")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueID, err := RequiredInt(args, "issue_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			switch strings.ToLower(method) {
+			case "add_blocked_by":
+				result, err := AddIssueDependencyBlockedBy(ctx, client, owner, repo, issueNumber, issueID)
+				return result, nil, err
+			case "remove_blocked_by":
+				result, err := RemoveIssueDependencyBlockedBy(ctx, client, owner, repo, issueNumber, issueID)
+				return result, nil, err
+			default:
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+			}
+		})
+}
+
+func AddIssueDependencyBlockedBy(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, issueID int) (*mcp.CallToolResult, error) {
+	path := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies/blocked_by", owner, repo, issueNumber)
+	req, err := client.NewRequest(http.MethodPost, path, map[string]int{"issue_id": issueID})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create add dependency request: %w", err)
+	}
+
+	var issue github.Issue
+	resp, err := client.Do(ctx, req, &issue)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add issue dependency", resp, err), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusCreated {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add issue dependency", resp, body), nil
+	}
+
+	return MarshalledTextResult(convertToMinimalIssue(&issue)), nil
+}
+
+func RemoveIssueDependencyBlockedBy(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, issueID int) (*mcp.CallToolResult, error) {
+	path := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies/blocked_by/%d", owner, repo, issueNumber, issueID)
+	req, err := client.NewRequest(http.MethodDelete, path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create remove dependency request: %w", err)
+	}
+
+	var issue github.Issue
+	resp, err := client.Do(ctx, req, &issue)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to remove issue dependency", resp, err), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to remove issue dependency", resp, body), nil
+	}
+
+	return MarshalledTextResult(convertToMinimalIssue(&issue)), nil
 }
 
 // SubIssueWrite creates a tool to add a sub-issue to a parent issue.
