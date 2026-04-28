@@ -81,7 +81,6 @@ type MCPServerOption func(*mcp.ServerOptions)
 func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependencies, inv *inventory.Inventory, middleware ...mcp.Middleware) (*mcp.Server, error) {
 	// Create the MCP server
 	serverOpts := &mcp.ServerOptions{
-		Instructions:      inv.Instructions(),
 		Logger:            cfg.Logger,
 		CompletionHandler: CompletionsHandler(deps.GetClient),
 	}
@@ -219,6 +218,9 @@ func CompletionsHandler(getClient GetClientFn) func(ctx context.Context, req *mc
 		case "ref/resource":
 			if strings.HasPrefix(req.Params.Ref.URI, "repo://") {
 				return RepositoryResourceCompletionHandler(getClient)(ctx, req)
+			}
+			if strings.HasPrefix(req.Params.Ref.URI, "skill://") {
+				return SkillResourceCompletionHandler(getClient)(ctx, req)
 			}
 			return nil, fmt.Errorf("unsupported resource URI: %s", req.Params.Ref.URI)
 		case "ref/prompt":

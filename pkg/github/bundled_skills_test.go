@@ -106,7 +106,7 @@ func Test_BundledSkills_Registration(t *testing.T) {
 		assert.Equal(t, "application/json", mimes[skills.IndexURI])
 	})
 
-	t.Run("omits when pull_requests toolset disabled", func(t *testing.T) {
+	t.Run("omits toolset-gated skills when their toolsets are disabled", func(t *testing.T) {
 		inv, err := NewInventory(translations.NullTranslationHelper).
 			WithToolsets([]string{string(ToolsetMetadataContext.ID)}).
 			Build()
@@ -117,11 +117,16 @@ func Test_BundledSkills_Registration(t *testing.T) {
 		})
 		RegisterBundledSkills(srv, inv)
 
+		uris := map[string]struct{}{}
 		for _, r := range listResources(t, ctx, srv) {
-			assert.NotEqual(t, pullRequestsSkillURI, r.URI)
-			assert.NotEqual(t, inboxTriageSkillURI, r.URI)
-			assert.NotEqual(t, skills.IndexURI, r.URI)
+			uris[r.URI] = struct{}{}
 		}
+		// Toolset-gated skills must be absent.
+		assert.NotContains(t, uris, pullRequestsSkillURI, "pull-requests is gated on pull_requests toolset")
+		assert.NotContains(t, uris, inboxTriageSkillURI, "inbox-triage is gated on notifications toolset")
+		// Always-on skills (e.g. get-context) and the index remain registered.
+		assert.Contains(t, uris, skills.Bundled{Name: "get-context"}.URI(), "always-on skill must still register")
+		assert.Contains(t, uris, skills.IndexURI, "index is published whenever any skill is enabled")
 	})
 
 	t.Run("registers inbox-triage when notifications toolset enabled", func(t *testing.T) {
@@ -202,11 +207,22 @@ func Test_BundledSkills_ReadContent(t *testing.T) {
 		var idx skills.IndexDoc
 		require.NoError(t, json.Unmarshal([]byte(res.Contents[0].Text), &idx))
 		assert.Equal(t, skills.IndexSchema, idx.Schema)
-		require.Len(t, idx.Skills, 1)
-		assert.Equal(t, "pull-requests", idx.Skills[0].Name)
-		assert.Equal(t, "skill-md", idx.Skills[0].Type)
-		assert.Equal(t, pullRequestsSkillURI, idx.Skills[0].URL)
-		assert.NotEmpty(t, idx.Skills[0].Description)
+
+		// Index size must equal the number of currently-enabled bundled skills.
+		assert.Len(t, idx.Skills, len(bundledSkills(inv).Enabled()))
+
+		// The pull-requests skill (toolset-gated, currently enabled) must be present.
+		var found *skills.IndexEntry
+		for i := range idx.Skills {
+			if idx.Skills[i].Name == "pull-requests" {
+				found = &idx.Skills[i]
+				break
+			}
+		}
+		require.NotNil(t, found, "pull-requests must appear in the index")
+		assert.Equal(t, "skill-md", found.Type)
+		assert.Equal(t, pullRequestsSkillURI, found.URL)
+		assert.NotEmpty(t, found.Description)
 	})
 }
 
@@ -259,7 +275,9 @@ func Test_DeclareSkillsExtensionIfEnabled(t *testing.T) {
 		assert.True(t, ok, "skills extension must be declared")
 	})
 
-	t.Run("does not declare when pull_requests disabled", func(t *testing.T) {
+	t.Run("declares even when no toolset-gated skills enabled (always-on skills exist)", func(t *testing.T) {
+		// Even with only the context toolset, always-on bundled skills (e.g. get-context)
+		// register, so the extension capability MUST still be declared.
 		inv, err := NewInventory(translations.NullTranslationHelper).
 			WithToolsets([]string{string(ToolsetMetadataContext.ID)}).
 			Build()
@@ -268,10 +286,9 @@ func Test_DeclareSkillsExtensionIfEnabled(t *testing.T) {
 		opts := &mcp.ServerOptions{}
 		DeclareSkillsExtensionIfEnabled(opts, inv)
 
-		if opts.Capabilities != nil {
-			_, ok := opts.Capabilities.Extensions[skills.ExtensionKey]
-			assert.False(t, ok, "skills extension must NOT be declared when no skills will be registered")
-		}
+		require.NotNil(t, opts.Capabilities)
+		_, ok := opts.Capabilities.Extensions[skills.ExtensionKey]
+		assert.True(t, ok, "always-on skills register, so the extension must be declared")
 	})
 
 	t.Run("declares when notifications enabled (any skill triggers declaration)", func(t *testing.T) {
@@ -306,6 +323,133 @@ func Test_DeclareSkillsExtensionIfEnabled(t *testing.T) {
 		assert.True(t, hasSkills)
 		assert.True(t, hasOther, "existing extensions must not be overwritten")
 	})
+}
+
+// Test_BundledSkills_AllRegistered_WhenAllToolsetsEnabled verifies that with the
+// "all" toolset, every bundled skill — both the toolset-gated ones and the
+// always-on workflow skills — is registered as an MCP resource. The discovery
+// index entry count must equal the total registered count.
+func Test_BundledSkills_AllRegistered_WhenAllToolsetsEnabled(t *testing.T) {
+	ctx := context.Background()
+	inv, err := NewInventory(translations.NullTranslationHelper).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+
+	srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, &mcp.ServerOptions{
+		Capabilities: &mcp.ServerCapabilities{Resources: &mcp.ResourceCapabilities{}},
+	})
+	RegisterBundledSkills(srv, inv)
+
+	registry := bundledSkills(inv)
+	enabled := registry.Enabled()
+	templates := registry.EnabledTemplates()
+	require.NotEmpty(t, enabled, "expected at least the always-on skills to be enabled")
+
+	// Build the expected set of skill resource URIs (templates aren't installed
+	// as resources by Registry — they ride through the inventory's resource-
+	// template path — so we don't include them in `expected` here).
+	expected := map[string]struct{}{}
+	for _, b := range enabled {
+		expected[b.URI()] = struct{}{}
+	}
+
+	got := map[string]struct{}{}
+	for _, r := range listResources(t, ctx, srv) {
+		got[r.URI] = struct{}{}
+	}
+
+	for uri := range expected {
+		assert.Contains(t, got, uri, "expected skill resource missing")
+	}
+	assert.Contains(t, got, skills.IndexURI)
+
+	// Read the index and confirm it lists exactly the enabled skills + templates.
+	session := connectClient(t, ctx, srv)
+	res, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: skills.IndexURI})
+	require.NoError(t, err)
+	var idx skills.IndexDoc
+	require.NoError(t, json.Unmarshal([]byte(res.Contents[0].Text), &idx))
+	assert.Len(t, idx.Skills, len(enabled)+len(templates), "index entry count must match enabled skill + template count")
+}
+
+// Test_BundledSkills_NoDuplicateURIs guards against accidental duplicate
+// registrations — two skills with the same name would collide on the same
+// skill://github/<name>/SKILL.md URI.
+func Test_BundledSkills_NoDuplicateURIs(t *testing.T) {
+	inv, err := NewInventory(translations.NullTranslationHelper).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+
+	seen := map[string]string{}
+	for _, b := range bundledSkills(inv).Enabled() {
+		uri := b.URI()
+		if prev, dup := seen[uri]; dup {
+			t.Fatalf("duplicate skill URI %q: previously %q, now %q", uri, prev, b.Name)
+		}
+		seen[uri] = b.Name
+	}
+}
+
+// Test_BundledSkills_AllFrontmatterValid verifies that every embedded SKILL.md
+// has YAML frontmatter where the `name` field matches the final segment of the
+// skill's URI — the SEP's structural requirement that lets hosts resolve
+// skill:// URIs back to the declared skill name.
+func Test_BundledSkills_AllFrontmatterValid(t *testing.T) {
+	inv, err := NewInventory(translations.NullTranslationHelper).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+
+	for _, b := range bundledSkills(inv).Enabled() {
+		t.Run(b.Name, func(t *testing.T) {
+			require.NotEmpty(t, b.Content, "embedded SKILL.md is empty")
+
+			md := strings.ReplaceAll(b.Content, "\r\n", "\n")
+			require.True(t, strings.HasPrefix(md, "---\n"), "must begin with YAML frontmatter fence")
+
+			end := strings.Index(md[4:], "\n---\n")
+			require.GreaterOrEqual(t, end, 0, "must have closing frontmatter fence")
+			frontmatter := md[4 : 4+end]
+
+			var name string
+			for _, line := range strings.Split(frontmatter, "\n") {
+				if strings.HasPrefix(line, "name:") {
+					name = strings.TrimSpace(strings.TrimPrefix(line, "name:"))
+					break
+				}
+			}
+			assert.Equal(t, b.Name, name, "frontmatter name must match registered skill name and final URI segment of %s", b.URI())
+		})
+	}
+}
+
+// Test_BundledSkills_AllReadable verifies that every registered skill resource
+// returns its embedded content via resources/read — a round-trip safety net
+// against subtle handler mismatches.
+func Test_BundledSkills_AllReadable(t *testing.T) {
+	ctx := context.Background()
+	inv, err := NewInventory(translations.NullTranslationHelper).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+
+	srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, &mcp.ServerOptions{
+		Capabilities: &mcp.ServerCapabilities{Resources: &mcp.ResourceCapabilities{}},
+	})
+	RegisterBundledSkills(srv, inv)
+	session := connectClient(t, ctx, srv)
+
+	for _, b := range bundledSkills(inv).Enabled() {
+		t.Run(b.Name, func(t *testing.T) {
+			res, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: b.URI()})
+			require.NoError(t, err)
+			require.Len(t, res.Contents, 1)
+			assert.Equal(t, "text/markdown", res.Contents[0].MIMEType)
+			assert.Equal(t, b.Content, res.Contents[0].Text)
+		})
+	}
 }
 
 // listResources enumerates resources/list via an in-memory client session.
