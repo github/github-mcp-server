@@ -677,7 +677,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 // SubIssueWrite creates a tool to add a sub-issue to a parent issue.
 func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "sub_issue_write",
@@ -787,6 +787,8 @@ Options are:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		})
+	st.FeatureFlagDisable = FeatureFlagIssuesGranular
+	return st
 }
 
 func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int, replaceParent bool) (*mcp.CallToolResult, error) {
@@ -970,7 +972,7 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 const IssueWriteUIResourceURI = "ui://github-mcp-server/issue-write"
 
 func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "issue_write",
@@ -1179,6 +1181,8 @@ Options are:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
 			}
 		})
+	st.FeatureFlagDisable = FeatureFlagIssuesGranular
+	return st
 }
 
 func CreateIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string) (*mcp.CallToolResult, error) {

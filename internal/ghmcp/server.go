@@ -91,7 +91,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		if cfg.RepoAccessTTL != nil {
 			opts = append(opts, lockdown.WithTTL(*cfg.RepoAccessTTL))
 		}
-		repoAccessCache = lockdown.GetInstance(gqlClient, opts...)
+		repoAccessCache = lockdown.GetInstance(gqlClient, restClient, opts...)
 	}
 
 	return &githubClients{
@@ -114,8 +114,8 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
 	}
 
-	// Create feature checker
-	featureChecker := createFeatureChecker(cfg.EnabledFeatures)
+	// Create feature checker — resolves explicit features + insiders expansion
+	featureChecker := createFeatureChecker(cfg.EnabledFeatures, cfg.InsidersMode)
 
 	// Create dependencies for tool handlers
 	obs, err := observability.NewExporters(cfg.Logger, metrics.NewNoopMetrics())
@@ -144,8 +144,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		WithTools(github.CleanTools(cfg.EnabledTools)).
 		WithExcludeTools(cfg.ExcludeTools).
 		WithServerInstructions().
-		WithFeatureChecker(featureChecker).
-		WithInsidersMode(cfg.InsidersMode)
+		WithFeatureChecker(featureChecker)
 
 	// Apply token scope filtering if scopes are known (for PAT filtering)
 	if cfg.TokenScopes != nil {
@@ -162,10 +161,12 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to create GitHub MCP server: %w", err)
 	}
 
-	// Register MCP App UI resources if available (requires running script/build-ui).
-	// We check availability to allow Insiders mode to work for non-UI features
-	// even when UI assets haven't been built.
-	if cfg.InsidersMode && github.UIAssetsAvailable() {
+	// Register MCP App UI resources if the remote_mcp_ui_apps feature flag is enabled
+	// and UI assets are available (requires running script/build-ui).
+	// We check availability to allow the feature flag to be enabled without
+	// requiring a UI build (graceful degradation).
+	mcpAppsEnabled, _ := featureChecker(context.Background(), github.MCPAppsFeatureFlag)
+	if mcpAppsEnabled && github.UIAssetsAvailable() {
 		github.RegisterUIResources(ghServer)
 	}
 
@@ -334,15 +335,11 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	return nil
 }
 
-// createFeatureChecker returns a FeatureFlagChecker that checks if a flag name
-// is present in the provided list of enabled features. For the local server,
-// this is populated from the --features CLI flag.
-func createFeatureChecker(enabledFeatures []string) inventory.FeatureFlagChecker {
-	// Build a set for O(1) lookup
-	featureSet := make(map[string]bool, len(enabledFeatures))
-	for _, f := range enabledFeatures {
-		featureSet[f] = true
-	}
+// createFeatureChecker returns a FeatureFlagChecker that resolves features
+// using the centralized ResolveFeatureFlags function. For the local server,
+// features are resolved once at startup from --features CLI flag + insiders mode.
+func createFeatureChecker(enabledFeatures []string, insidersMode bool) inventory.FeatureFlagChecker {
+	featureSet := github.ResolveFeatureFlags(enabledFeatures, insidersMode)
 	return func(_ context.Context, flagName string) (bool, error) {
 		return featureSet[flagName], nil
 	}
