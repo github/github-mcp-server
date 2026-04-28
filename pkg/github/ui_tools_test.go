@@ -27,7 +27,7 @@ func Test_UIGet(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner"})
 	assert.True(t, tool.Annotations.ReadOnlyHint, "ui_get should be read-only")
-	assert.True(t, serverTool.InsidersOnly, "ui_get should be insiders only")
+	assert.Equal(t, MCPAppsFeatureFlag, serverTool.FeatureFlagEnable, "ui_get should be gated on the MCP Apps feature flag")
 
 	// Setup mock data
 	mockAssignees := []*github.User{
