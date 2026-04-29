@@ -362,9 +362,35 @@ For a complete overview of all installation options, see our **[Installation Gui
 
 > **Note:** Any host application that supports local MCP servers should be able to access the local GitHub MCP server. However, the specific configuration process, syntax and stability of the integration will vary by host application. While many may follow a similar format to the examples above, this is not guaranteed. Please refer to your host application's documentation for the correct MCP configuration syntax and setup process.
 
+### Install with Go
+
+If you have Go installed, you can install the server with a single command:
+
+```bash
+go install github.com/github/github-mcp-server/cmd/github-mcp-server@latest
+```
+
+Then configure your MCP client to use the local binary:
+
+```JSON
+{
+  "mcp": {
+    "servers": {
+      "github": {
+        "command": "github-mcp-server",
+        "args": ["stdio"],
+        "env": {
+          "GITHUB_PERSONAL_ACCESS_TOKEN": "<YOUR_TOKEN>"
+        }
+      }
+    }
+  }
+}
+```
+
 ### Build from source
 
-If you don't have Docker, you can use `go build` to build the binary in the
+If you don't have Docker or Go, you can use `go build` to build the binary in the
 `cmd/github-mcp-server` directory, and use the `github-mcp-server stdio` command with the `GITHUB_PERSONAL_ACCESS_TOKEN` environment variable set to your token. To specify the output location of the build, use the `-o` flag. You should configure your server to use the built executable as its `command`. For example:
 
 ```JSON
