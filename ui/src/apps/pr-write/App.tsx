@@ -178,6 +178,23 @@ function CreatePRApp() {
     }
   }, [toolInput, selectedRepo]);
 
+  // Reset all transient form/result state when toolInput changes (new invocation).
+  // Without this, the SuccessView from a previous submit stays visible and stale
+  // form values bleed through because the prefill effect below only sets when
+  // toolInput has truthy values and never clears.
+  useEffect(() => {
+    setTitle("");
+    setBody("");
+    setHeadBranch("");
+    setBaseBranch("");
+    setIsDraft(false);
+    setMaintainerCanModify(true);
+    setSuccessPR(null);
+    setError(null);
+    setSubmittedTitle("");
+    setSelectedRepo(null);
+  }, [toolInput]);
+
   // Pre-fill from toolInput
   useEffect(() => {
     if (toolInput?.title) setTitle(toolInput.title as string);

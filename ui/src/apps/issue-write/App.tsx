@@ -426,10 +426,22 @@ function CreateIssueApp() {
   }
   const [existingIssueData, setExistingIssueData] = useState<ExistingIssueData | null>(null);
 
-  // Reset prefill tracking when toolInput changes (new invocation)
+  // Reset all transient form/result state when toolInput changes (new invocation).
+  // Without this, the SuccessView from a previous submit stays visible and stale
+  // form values (e.g. body) bleed through because prefill effects use truthy guards
+  // that won't overwrite with empty values.
   useEffect(() => {
     prefillApplied.current = { title: false, body: false, labels: false, assignees: false, milestone: false, type: false };
     setExistingIssueData(null);
+    setTitle("");
+    setBody("");
+    setSelectedLabels([]);
+    setSelectedAssignees([]);
+    setSelectedMilestone(null);
+    setSelectedIssueType(null);
+    setSuccessIssue(null);
+    setError(null);
+    setSelectedRepo(null);
   }, [toolInput]);
 
   // Load existing issue data when in update mode
