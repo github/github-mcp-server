@@ -125,6 +125,61 @@ func handleSingleJobLogs(ctx context.Context, client *github.Client, owner, repo
 	return utils.NewToolResultText(string(r)), nil, nil
 }
 
+// handleAllJobLogs gets logs for all jobs in a workflow run
+func handleAllJobLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, any, error) {
+	// First, get all jobs for the workflow run
+	jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, &github.ListWorkflowJobsOptions{
+		Filter: "latest",
+	})
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list workflow jobs", resp, err), nil, nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if len(jobs.Jobs) == 0 {
+		result := map[string]any{
+			"message":    "No jobs found in this workflow run",
+			"run_id":     runID,
+			"total_jobs": 0,
+		}
+		r, _ := json.Marshal(result)
+		return utils.NewToolResultText(string(r)), nil, nil
+	}
+
+	// Collect logs for all jobs
+	var logResults []map[string]any
+	for _, job := range jobs.Jobs {
+		jobResult, resp, err := getJobLogData(ctx, client, owner, repo, job.GetID(), job.GetName(), returnContent, tailLines, contentWindowSize)
+		if err != nil {
+			// Continue with other jobs even if one fails
+			jobResult = map[string]any{
+				"job_id":   job.GetID(),
+				"job_name": job.GetName(),
+				"error":    err.Error(),
+			}
+			// Enable reporting of status codes and error causes
+			_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get job logs", resp, err) // Explicitly ignore error for graceful handling
+		}
+
+		logResults = append(logResults, jobResult)
+	}
+
+	result := map[string]any{
+		"message":       fmt.Sprintf("Retrieved logs for %d jobs", len(jobs.Jobs)),
+		"run_id":        runID,
+		"total_jobs":    len(jobs.Jobs),
+		"logs":          logResults,
+		"return_format": map[string]bool{"content": returnContent, "urls": !returnContent},
+	}
+
+	r, err := json.Marshal(result)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(r)), nil, nil
+}
+
 // getJobLogData retrieves log data for a single job, either as URL or content
 func getJobLogData(ctx context.Context, client *github.Client, owner, repo string, jobID int64, jobName string, returnContent bool, tailLines int, contentWindowSize int) (map[string]any, *github.Response, error) {
 	// Get the download URL for the job logs
@@ -716,19 +771,20 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 			if failedOnly && runID == 0 {
 				return utils.NewToolResultError("run_id is required when failed_only is true"), nil, nil
 			}
-			if !failedOnly && jobID == 0 {
-				return utils.NewToolResultError("job_id is required when failed_only is false"), nil, nil
-			}
 
-			if failedOnly && runID > 0 {
-				// Handle failed-only mode: get logs for all failed jobs in the workflow run
-				return handleFailedJobLogs(ctx, client, owner, repo, int64(runID), returnContent, tailLines, deps.GetContentWindowSize())
+			if runID > 0 {
+				if failedOnly {
+					// Handle failed-only mode: get logs for all failed jobs in the workflow run
+					return handleFailedJobLogs(ctx, client, owner, repo, int64(runID), returnContent, tailLines, deps.GetContentWindowSize())
+				}
+				// Handle all jobs mode: get logs for all jobs in the workflow run
+				return handleAllJobLogs(ctx, client, owner, repo, int64(runID), returnContent, tailLines, deps.GetContentWindowSize())
 			} else if jobID > 0 {
 				// Handle single job mode
 				return handleSingleJobLogs(ctx, client, owner, repo, int64(jobID), returnContent, tailLines, deps.GetContentWindowSize())
 			}
 
-			return utils.NewToolResultError("Either job_id must be provided for single job logs, or run_id with failed_only=true for failed job logs"), nil, nil
+			return utils.NewToolResultError("Either job_id or run_id must be provided"), nil, nil
 		},
 	)
 	return tool
