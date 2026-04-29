@@ -2,8 +2,10 @@ package errors
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v82/github"
@@ -159,6 +161,25 @@ func NewGitHubAPIErrorResponse(ctx context.Context, message string, resp *github
 	if ctx != nil {
 		_, _ = addGitHubAPIErrorToContext(ctx, apiErr) // Explicitly ignore error for graceful handling
 	}
+
+	// Handle rate limit errors with clear, actionable messages
+	var rateLimitErr *github.RateLimitError
+	if errors.As(err, &rateLimitErr) {
+		retryIn := time.Until(rateLimitErr.Rate.Reset.Time).Round(time.Second)
+		return utils.NewToolResultError(fmt.Sprintf(
+			"%s: GitHub API rate limit exceeded. Retry after %v.", message, retryIn))
+	}
+
+	var abuseErr *github.AbuseRateLimitError
+	if errors.As(err, &abuseErr) {
+		if abuseErr.RetryAfter != nil {
+			return utils.NewToolResultError(fmt.Sprintf(
+				"%s: GitHub secondary rate limit exceeded. Retry after %v.", message, abuseErr.RetryAfter.Round(time.Second)))
+		}
+		return utils.NewToolResultError(fmt.Sprintf(
+			"%s: GitHub secondary rate limit exceeded. Wait before retrying.", message))
+	}
+
 	return utils.NewToolResultErrorFromErr(message, err)
 }
 
