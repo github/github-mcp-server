@@ -1279,6 +1279,14 @@ The following sets of tools are available:
   - `query`: Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more. (string, required)
   - `sort`: Sort field ('indexed' only) (string, optional)
 
+- **search_commits** - Search commits
+  - **Required OAuth Scopes**: `repo`
+  - `order`: Sort order (string, optional)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `query`: Commit search query. Examples: 'repo:owner/repo fix bug', 'author:defunkt', 'committer-date:>2024-01-01'. Supports advanced search syntax. (string, required)
+  - `sort`: Sort field ('author-date' or 'committer-date') (string, optional)
+
 - **search_repositories** - Search repositories
   - **Required OAuth Scopes**: `repo`
   - `minimal_output`: Return minimal repository information (default: true). When false, returns full GitHub API repository objects. (boolean, optional)
