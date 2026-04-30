@@ -107,6 +107,9 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	// and any middleware that needs to read or modify the context should be before it.
 	ghServer.AddReceivingMiddleware(middleware...)
 	ghServer.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+	// ToolLoggingMiddleware needs deps in context so it runs after InjectDepsMiddleware.
+	// It enriches the logger with tool/method attributes and times tool calls.
+	ghServer.AddReceivingMiddleware(ToolLoggingMiddleware())
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 
 	if unrecognized := inv.UnrecognizedToolsets(); len(unrecognized) > 0 {
