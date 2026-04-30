@@ -4,7 +4,7 @@
    "settings":[
       {
          "name":"GitHub PAT",
-         "description":"GitHub Personal Access Token. Create at https://github.com/settings/personal-access-tokens.",
+         "description":"GitHub Personal Access Token. Create at https://github.com/settings/personal-access-tokens/new",
          "envVar":"GITHUB_MCP_PAT"
       }
    ],
