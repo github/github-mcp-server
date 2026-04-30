@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/google/go-github/v82/github"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -460,3 +462,230 @@ func TestMiddlewareScenario(t *testing.T) {
 		assert.Contains(t, gqlMessages, "mutation failed")
 	})
 }
+
+// requireErrorText asserts that result is a non-nil MCP tool error and returns its text content.
+func requireErrorText(t *testing.T, result *mcp.CallToolResult) string {
+	t.Helper()
+	require.NotNil(t, result)
+	require.True(t, result.IsError)
+	require.NotEmpty(t, result.Content)
+	text, ok := result.Content[0].(*mcp.TextContent)
+	require.True(t, ok, "expected *mcp.TextContent, got %T", result.Content[0])
+	return text.Text
+}
+
+// assertContextHasError asserts that exactly one error is stored in ctx and it matches expectedErr.
+//
+//nolint:revive // t must be first for test helpers; context-as-argument doesn't apply here
+func assertContextHasError(t *testing.T, ctx context.Context, expectedErr error) {
+	t.Helper()
+	apiErrors, err := GetGitHubAPIErrors(ctx)
+	require.NoError(t, err)
+	require.Len(t, apiErrors, 1)
+	assert.Equal(t, expectedErr, apiErrors[0].Err)
+}
+
+func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
+	t.Run("RateLimitError produces clean message with retry time", func(t *testing.T) {
+		// Given a context with GitHub error tracking enabled
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		resetTime := time.Now().Add(30 * time.Minute)
+		rateLimitErr := &github.RateLimitError{
+			Rate:     github.Rate{Reset: github.Timestamp{Time: resetTime}},
+			Response: &http.Response{StatusCode: 403},
+			Message:  "API rate limit exceeded",
+		}
+		resp := &github.Response{Response: rateLimitErr.Response}
+
+		// Capture expected duration before the call so both use the same time.Until snapshot
+		expectedRetryIn := time.Until(resetTime).Round(time.Second)
+
+		// When we create an API error response for a rate limit error
+		result := NewGitHubAPIErrorResponse(ctx, "search code", resp, rateLimitErr)
+
+		// Then the message should be clean and actionable (no raw URLs or status codes)
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, fmt.Sprintf("GitHub API rate limit exceeded. Retry after %v.", expectedRetryIn))
+		assert.NotContains(t, text, "https://")
+		assert.NotContains(t, text, "403")
+
+		// And the original error should still be stored in context for middleware
+		assertContextHasError(t, ctx, rateLimitErr)
+	})
+
+	t.Run("AbuseRateLimitError with RetryAfter produces clean message with wait time", func(t *testing.T) {
+		// Given a context with GitHub error tracking enabled
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		retryAfter := 47 * time.Second
+		abuseErr := &github.AbuseRateLimitError{
+			Response:   &http.Response{StatusCode: 403},
+			Message:    "You have exceeded a secondary rate limit.",
+			RetryAfter: &retryAfter,
+		}
+		resp := &github.Response{Response: abuseErr.Response}
+
+		// When we create an API error response for a secondary rate limit error
+		result := NewGitHubAPIErrorResponse(ctx, "create issue", resp, abuseErr)
+
+		// And the message should include the specific retry duration
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "GitHub secondary rate limit exceeded. Retry after 47s.")
+		assert.NotContains(t, text, "https://")
+		assert.NotContains(t, text, "403")
+
+		// And the original error should still be stored in context for middleware
+		assertContextHasError(t, ctx, abuseErr)
+	})
+
+	t.Run("AbuseRateLimitError without RetryAfter produces clean message without wait time", func(t *testing.T) {
+		// Given a context with GitHub error tracking enabled
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		abuseErr := &github.AbuseRateLimitError{
+			Response:   &http.Response{StatusCode: 403},
+			Message:    "You have exceeded a secondary rate limit.",
+			RetryAfter: nil,
+		}
+		resp := &github.Response{Response: abuseErr.Response}
+
+		// When we create an API error response for a secondary rate limit error without retry info
+		result := NewGitHubAPIErrorResponse(ctx, "create issue", resp, abuseErr)
+
+		// And the message should be clean and actionable
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "GitHub secondary rate limit exceeded. Wait before retrying.")
+		assert.NotContains(t, text, "https://")
+		assert.NotContains(t, text, "403")
+
+		// And the original error should still be stored in context for middleware
+		assertContextHasError(t, ctx, abuseErr)
+	})
+
+	t.Run("AbuseRateLimitError with sub-second RetryAfter falls back to wait message", func(t *testing.T) {
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		// 200ms rounds to 0s, so should fall back to the generic wait message
+		retryAfter := 200 * time.Millisecond
+		abuseErr := &github.AbuseRateLimitError{
+			Response:   &http.Response{StatusCode: 403},
+			Message:    "You have exceeded a secondary rate limit.",
+			RetryAfter: &retryAfter,
+		}
+		resp := &github.Response{Response: abuseErr.Response}
+
+		result := NewGitHubAPIErrorResponse(ctx, "create issue", resp, abuseErr)
+
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "GitHub secondary rate limit exceeded. Wait before retrying.")
+	})
+
+	t.Run("RateLimitError with reset time in the past falls back to wait message", func(t *testing.T) {
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		resetTime := time.Now().Add(-5 * time.Second) // already passed
+		rateLimitErr := &github.RateLimitError{
+			Rate:     github.Rate{Reset: github.Timestamp{Time: resetTime}},
+			Response: &http.Response{StatusCode: 403},
+			Message:  "API rate limit exceeded",
+		}
+		resp := &github.Response{Response: rateLimitErr.Response}
+
+		result := NewGitHubAPIErrorResponse(ctx, "search code", resp, rateLimitErr)
+
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "GitHub API rate limit exceeded. Wait before retrying.")
+	})
+
+	t.Run("RateLimitError with sub-second reset time falls back to wait message", func(t *testing.T) {
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		// 250ms in the future: still positive, but rounds to 0s, so should fall back
+		resetTime := time.Now().Add(250 * time.Millisecond)
+		rateLimitErr := &github.RateLimitError{
+			Rate:     github.Rate{Reset: github.Timestamp{Time: resetTime}},
+			Response: &http.Response{StatusCode: 403},
+			Message:  "API rate limit exceeded",
+		}
+		resp := &github.Response{Response: rateLimitErr.Response}
+
+		result := NewGitHubAPIErrorResponse(ctx, "search code", resp, rateLimitErr)
+
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "GitHub API rate limit exceeded. Wait before retrying.")
+	})
+
+	t.Run("RateLimitError with zero reset time falls back to wait message", func(t *testing.T) {
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		rateLimitErr := &github.RateLimitError{
+			Rate:     github.Rate{}, // zero Reset time
+			Response: &http.Response{StatusCode: 403},
+			Message:  "API rate limit exceeded",
+		}
+		resp := &github.Response{Response: rateLimitErr.Response}
+
+		result := NewGitHubAPIErrorResponse(ctx, "search code", resp, rateLimitErr)
+
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "GitHub API rate limit exceeded. Wait before retrying.")
+	})
+
+	t.Run("wrapped RateLimitError is handled via errors.As", func(t *testing.T) {
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		resetTime := time.Now().Add(20 * time.Minute)
+		rateLimitErr := &github.RateLimitError{
+			Rate:     github.Rate{Reset: github.Timestamp{Time: resetTime}},
+			Response: &http.Response{StatusCode: 403},
+			Message:  "API rate limit exceeded",
+		}
+		wrappedErr := fmt.Errorf("transport layer: %w", rateLimitErr)
+		resp := &github.Response{Response: rateLimitErr.Response}
+
+		// Capture expected duration before the call so both use the same time.Until snapshot
+		expectedRetryIn := time.Until(resetTime).Round(time.Second)
+
+		result := NewGitHubAPIErrorResponse(ctx, "search code", resp, wrappedErr)
+
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, fmt.Sprintf("GitHub API rate limit exceeded. Retry after %v.", expectedRetryIn))
+		assert.NotContains(t, text, "https://")
+	})
+
+	t.Run("wrapped AbuseRateLimitError is handled via errors.As", func(t *testing.T) {
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		retryAfter := 30 * time.Second
+		abuseErr := &github.AbuseRateLimitError{
+			Response:   &http.Response{StatusCode: 403},
+			Message:    "secondary rate limit",
+			RetryAfter: &retryAfter,
+		}
+		wrappedErr := fmt.Errorf("transport layer: %w", abuseErr)
+		resp := &github.Response{Response: abuseErr.Response}
+
+		result := NewGitHubAPIErrorResponse(ctx, "create issue", resp, wrappedErr)
+
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "GitHub secondary rate limit exceeded. Retry after 30s.")
+		assert.NotContains(t, text, "https://")
+	})
+
+	t.Run("non-rate-limit GitHub API error passes through the original error message", func(t *testing.T) {
+		// Given a context with GitHub error tracking enabled
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		resp := &github.Response{Response: &http.Response{StatusCode: 422}}
+		originalErr := fmt.Errorf("validation failed")
+
+		// When we create an API error response for a non-rate-limit error
+		result := NewGitHubAPIErrorResponse(ctx, "API call failed", resp, originalErr)
+
+		// Then the message should contain the original error text unchanged
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "validation failed")
+	})
+}
+
