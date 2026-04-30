@@ -12,7 +12,14 @@ var policy *bluemonday.Policy
 var policyOnce sync.Once
 
 func Sanitize(input string) string {
-	return FilterHTMLTags(FilterCodeFenceMetadata(FilterInvisibleCharacters(input)))
+	cleaned := FilterCodeFenceMetadata(FilterInvisibleCharacters(input))
+	// Protect angle brackets inside code blocks and inline code spans
+	// from being stripped by the HTML sanitizer. bluemonday treats <int>,
+	// <T>, etc. as unknown HTML tags and removes them.
+	// See https://github.com/github/github-mcp-server/issues/2202
+	protected := protectCodeAngleBrackets(cleaned)
+	sanitized := FilterHTMLTags(protected)
+	return restoreCodeAngleBrackets(sanitized)
 }
 
 // FilterInvisibleCharacters removes invisible or control characters that should not appear
@@ -143,6 +150,157 @@ func isSafeCodeFenceToken(token string) bool {
 		return false
 	}
 	return true
+}
+
+// Sentinels used to protect angle brackets inside code from HTML sanitization.
+// These are chosen to be unlikely to appear in real content.
+const (
+	ltSentinel = "\x00LT\x00"
+	gtSentinel = "\x00GT\x00"
+)
+
+// protectCodeAngleBrackets replaces < and > inside fenced code blocks and
+// inline code spans with sentinels so bluemonday does not strip them as HTML.
+func protectCodeAngleBrackets(input string) string {
+	var b strings.Builder
+	b.Grow(len(input))
+
+	runes := []rune(input)
+	i := 0
+	n := len(runes)
+
+	for i < n {
+		// Fenced code block: ``` ... ```
+		if i+2 < n && runes[i] == '`' && runes[i+1] == '`' && runes[i+2] == '`' {
+			// Find the fence length
+			fenceStart := i
+			fenceLen := 0
+			for i < n && runes[i] == '`' {
+				fenceLen++
+				i++
+			}
+			// Write opening fence + rest of line (info string)
+			for range fenceLen {
+				b.WriteRune('`')
+			}
+			for i < n && runes[i] != '\n' {
+				b.WriteRune(runes[i])
+				i++
+			}
+			if i < n {
+				b.WriteRune(runes[i]) // newline
+				i++
+			}
+			// Inside fence: protect angle brackets until closing fence
+			for i < n {
+				// Check for closing fence
+				if runes[i] == '`' {
+					closeLen := 0
+					j := i
+					for j < n && runes[j] == '`' {
+						closeLen++
+						j++
+					}
+					if closeLen >= fenceLen {
+						for range closeLen {
+							b.WriteRune('`')
+						}
+						i = j
+						break
+					}
+				}
+				switch runes[i] {
+				case '<':
+					b.WriteString(ltSentinel)
+				case '>':
+					b.WriteString(gtSentinel)
+				default:
+					b.WriteRune(runes[i])
+				}
+				i++
+			}
+			_ = fenceStart
+			continue
+		}
+
+		// Inline code: `...`
+		if runes[i] == '`' {
+			// Count opening backticks
+			openLen := 0
+			j := i
+			for j < n && runes[j] == '`' {
+				openLen++
+				j++
+			}
+			// Don't treat ``` as inline code (handled above for fenced blocks)
+			if openLen >= 3 {
+				for range openLen {
+					b.WriteRune('`')
+				}
+				i = j
+				continue
+			}
+			// Find matching closing backticks
+			closeStart := -1
+			for k := j; k <= n-openLen; k++ {
+				match := true
+				for m := range openLen {
+					if runes[k+m] != '`' {
+						match = false
+						break
+					}
+				}
+				if match {
+					// Verify it's exactly openLen backticks (not more)
+					if k+openLen < n && runes[k+openLen] == '`' {
+						continue
+					}
+					closeStart = k
+					break
+				}
+			}
+			if closeStart == -1 {
+				// No closing backticks found; treat as literal
+				for range openLen {
+					b.WriteRune('`')
+				}
+				i = j
+				continue
+			}
+			// Write opening backticks
+			for range openLen {
+				b.WriteRune('`')
+			}
+			// Protect content
+			for i = j; i < closeStart; i++ {
+				switch runes[i] {
+				case '<':
+					b.WriteString(ltSentinel)
+				case '>':
+					b.WriteString(gtSentinel)
+				default:
+					b.WriteRune(runes[i])
+				}
+			}
+			// Write closing backticks
+			for range openLen {
+				b.WriteRune('`')
+			}
+			i = closeStart + openLen
+			continue
+		}
+
+		b.WriteRune(runes[i])
+		i++
+	}
+
+	return b.String()
+}
+
+// restoreCodeAngleBrackets converts sentinels back to angle brackets.
+func restoreCodeAngleBrackets(input string) string {
+	s := strings.ReplaceAll(input, ltSentinel, "<")
+	return strings.ReplaceAll(s, gtSentinel, ">")
 }
 
 func getPolicy() *bluemonday.Policy {
