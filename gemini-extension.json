@@ -1,13 +1,20 @@
 {
-	"name": "github",
-	"version": "1.0.0",
-	"mcpServers": {
-		"github": {
-			"description": "Connect AI assistants to GitHub - manage repos, issues, PRs, and workflows through natural language.",
-			"httpUrl": "https://api.githubcopilot.com/mcp/",
-			"headers": {
-				"Authorization": "Bearer $GITHUB_MCP_PAT"
-			}
-		}
-	}
+   "name":"github",
+   "version":"1.0.0",
+   "settings":[
+      {
+         "name":"GitHub PAT",
+         "description":"GitHub Personal Access Token. Create at https://github.com/settings/personal-access-tokens/new",
+         "envVar":"GITHUB_MCP_PAT"
+      }
+   ],
+   "mcpServers":{
+      "github":{
+         "description":"Connect AI assistants to GitHub - manage repos, issues, PRs, and workflows through natural language.",
+         "httpUrl":"https://api.githubcopilot.com/mcp/",
+         "headers":{
+            "Authorization":"Bearer $GITHUB_MCP_PAT"
+         }
+      }
+   }
 }
