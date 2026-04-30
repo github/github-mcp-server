@@ -45,6 +45,8 @@ const (
 	projectsMethodListProjectStatusUpdates  = "list_project_status_updates"
 	projectsMethodGetProjectStatusUpdate    = "get_project_status_update"
 	projectsMethodCreateProjectStatusUpdate = "create_project_status_update"
+	projectsMethodCreateProject             = "create_project"
+	projectsMethodCreateIterationField      = "create_iteration_field"
 )
 
 // GraphQL types for ProjectV2 status updates
@@ -403,9 +405,9 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "projects_write",
-			Description: t("TOOL_PROJECTS_WRITE_DESCRIPTION", "Add, update, or delete project items, or create status updates in a GitHub Project."),
+			Description: t("TOOL_PROJECTS_WRITE_DESCRIPTION", "Create and manage GitHub Projects: create projects, add/update/delete items, create status updates, and add iteration fields."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:           t("TOOL_PROJECTS_WRITE_USER_TITLE", "Modify GitHub Project items"),
+				Title:           t("TOOL_PROJECTS_WRITE_USER_TITLE", "Manage GitHub Projects"),
 				ReadOnlyHint:    false,
 				DestructiveHint: jsonschema.Ptr(true),
 			},
@@ -420,11 +422,13 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 							projectsMethodUpdateProjectItem,
 							projectsMethodDeleteProjectItem,
 							projectsMethodCreateProjectStatusUpdate,
+							projectsMethodCreateProject,
+							projectsMethodCreateIterationField,
 						},
 					},
 					"owner_type": {
 						Type:        "string",
-						Description: "Owner type (user or org). If not provided, will be automatically detected.",
+						Description: "Owner type (user or org). Required for 'create_project' method. If not provided for other methods, will be automatically detected.",
 						Enum:        []any{"user", "org"},
 					},
 					"owner": {
@@ -433,7 +437,11 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"project_number": {
 						Type:        "number",
-						Description: "The project's number.",
+						Description: "The project's number. Required for all methods except 'create_project'.",
+					},
+					"title": {
+						Type:        "string",
+						Description: "The project title. Required for 'create_project' method.",
 					},
 					"item_id": {
 						Type:        "number",
@@ -475,14 +483,44 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"start_date": {
 						Type:        "string",
-						Description: "The start date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method.",
+						Description: "Start date in YYYY-MM-DD format. Used for 'create_project_status_update' and 'create_iteration_field' methods.",
 					},
 					"target_date": {
 						Type:        "string",
 						Description: "The target date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method.",
 					},
+					"field_name": {
+						Type:        "string",
+						Description: "The name of the iteration field (e.g. 'Sprint'). Required for 'create_iteration_field' method.",
+					},
+					"duration": {
+						Type:        "number",
+						Description: "Duration in days for each iteration (e.g. 7 for weekly, 14 for bi-weekly). Required for 'create_iteration_field' method.",
+					},
+					"iterations": {
+						Type:        "array",
+						Description: "Optional array of iteration definitions for 'create_iteration_field' method. Each entry defines a named iteration with a start date and duration. If omitted, the field is created with default iteration settings.",
+						Items: &jsonschema.Schema{
+							Type: "object",
+							Properties: map[string]*jsonschema.Schema{
+								"title": {
+									Type:        "string",
+									Description: "Iteration title (e.g. 'Sprint 1')",
+								},
+								"start_date": {
+									Type:        "string",
+									Description: "Start date in YYYY-MM-DD format",
+								},
+								"duration": {
+									Type:        "number",
+									Description: "Duration in days",
+								},
+							},
+							Required: []string{"title", "start_date", "duration"},
+						},
+					},
 				},
-				Required: []string{"method", "owner", "project_number"},
+				Required: []string{"method", "owner"},
 			},
 		},
 		[]scopes.Scope{scopes.Project},
@@ -502,17 +540,22 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// create_project does not require project_number or a REST client
+			if method == projectsMethodCreateProject {
+				return createProject(ctx, gqlClient, owner, ownerType, args)
+			}
+
 			projectNumber, err := RequiredInt(args, "project_number")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -595,6 +638,8 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
 				return createProjectStatusUpdate(ctx, gqlClient, owner, ownerType, projectNumber, body, status, startDate, targetDate)
+			case projectsMethodCreateIterationField:
+				return createIterationField(ctx, gqlClient, owner, ownerType, projectNumber, args)
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
@@ -1448,6 +1493,253 @@ func resolvePullRequestNodeID(ctx context.Context, gqlClient *githubv4.Client, o
 	}
 
 	return query.Repository.PullRequest.ID, nil
+}
+
+// createProject handles the create_project method for ProjectsWrite.
+func createProject(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, args map[string]any) (*mcp.CallToolResult, any, error) {
+	if ownerType == "" {
+		return utils.NewToolResultError("owner_type is required for create_project"), nil, nil
+	}
+	if ownerType != "user" && ownerType != "org" {
+		return utils.NewToolResultError(fmt.Sprintf("invalid owner_type %q: must be \"user\" or \"org\"", ownerType)), nil, nil
+	}
+
+	title, err := RequiredParam[string](args, "title")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+
+	ownerID, err := getOwnerNodeID(ctx, gqlClient, owner, ownerType)
+	if err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("failed to get owner ID: %v", err)), nil, nil
+	}
+
+	var mutation struct {
+		CreateProjectV2 struct {
+			ProjectV2 struct {
+				ID     string
+				Number int
+				Title  string
+				URL    string
+			}
+		} `graphql:"createProjectV2(input: $input)"`
+	}
+
+	input := githubv4.CreateProjectV2Input{
+		OwnerID: githubv4.ID(ownerID),
+		Title:   githubv4.String(title),
+	}
+
+	err = gqlClient.Mutate(ctx, &mutation, input, nil)
+	if err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("failed to create project: %v", err)), nil, nil
+	}
+
+	result := struct {
+		ID     string `json:"id"`
+		Number int    `json:"number"`
+		Title  string `json:"title"`
+		URL    string `json:"url"`
+	}{
+		ID:     mutation.CreateProjectV2.ProjectV2.ID,
+		Number: mutation.CreateProjectV2.ProjectV2.Number,
+		Title:  mutation.CreateProjectV2.ProjectV2.Title,
+		URL:    mutation.CreateProjectV2.ProjectV2.URL,
+	}
+
+	return MarshalledTextResult(result), nil, nil
+}
+
+// createIterationField handles the create_iteration_field method for ProjectsWrite.
+func createIterationField(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, args map[string]any) (*mcp.CallToolResult, any, error) {
+	fieldName, err := RequiredParam[string](args, "field_name")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	duration, err := RequiredInt(args, "duration")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	startDateStr, err := RequiredParam[string](args, "start_date")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+
+	projectID, err := resolveProjectNodeID(ctx, gqlClient, owner, ownerType, projectNumber)
+	if err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("failed to get project ID: %v", err)), nil, nil
+	}
+
+	// Step 1: Create the iteration field.
+	var createMutation struct {
+		CreateProjectV2Field struct {
+			ProjectV2Field struct {
+				ProjectV2IterationField struct {
+					ID   string
+					Name string
+				} `graphql:"... on ProjectV2IterationField"`
+			}
+		} `graphql:"createProjectV2Field(input: $input)"`
+	}
+
+	createInput := githubv4.CreateProjectV2FieldInput{
+		ProjectID: githubv4.ID(projectID),
+		DataType:  githubv4.ProjectV2CustomFieldType("ITERATION"),
+		Name:      githubv4.String(fieldName),
+	}
+
+	err = gqlClient.Mutate(ctx, &createMutation, createInput, nil)
+	if err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("failed to create iteration field: %v", err)), nil, nil
+	}
+
+	fieldID := createMutation.CreateProjectV2Field.ProjectV2Field.ProjectV2IterationField.ID
+
+	// Step 2: Configure the iteration field with start date and duration.
+	var updateMutation struct {
+		UpdateProjectV2Field struct {
+			ProjectV2Field struct {
+				ProjectV2IterationField struct {
+					ID            string
+					Name          string
+					Configuration struct {
+						Iterations []struct {
+							ID        string
+							Title     string
+							StartDate string
+							Duration  int
+						}
+					}
+				} `graphql:"... on ProjectV2IterationField"`
+			}
+		} `graphql:"updateProjectV2Field(input: $input)"`
+	}
+
+	parsedStartDate, err := time.Parse("2006-01-02", startDateStr)
+	if err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("failed to parse start_date %s: %v", startDateStr, err)), nil, nil
+	}
+
+	configInput := ProjectV2IterationFieldConfigurationInput{
+		Duration:  githubv4.Int(int32(duration)), //nolint:gosec // Iteration durations are small day counts
+		StartDate: githubv4.Date{Time: parsedStartDate},
+	}
+
+	// Optionally configure specific named iterations.
+	if rawIterations, ok := args["iterations"].([]any); ok && len(rawIterations) > 0 {
+		var iterationsInput []ProjectV2IterationFieldIterationInput
+		for i, item := range rawIterations {
+			iterMap, ok := item.(map[string]any)
+			if !ok {
+				return utils.NewToolResultError(fmt.Sprintf("iterations[%d] must be an object", i)), nil, nil
+			}
+			iterTitle, ok := iterMap["title"].(string)
+			if !ok || iterTitle == "" {
+				return utils.NewToolResultError(fmt.Sprintf("iterations[%d]: title is required and must be a non-empty string", i)), nil, nil
+			}
+			iterStartDate, ok := iterMap["start_date"].(string)
+			if !ok || iterStartDate == "" {
+				return utils.NewToolResultError(fmt.Sprintf("iterations[%d]: start_date is required and must be a non-empty string", i)), nil, nil
+			}
+			iterDuration, ok := iterMap["duration"].(float64)
+			if !ok || iterDuration <= 0 {
+				return utils.NewToolResultError(fmt.Sprintf("iterations[%d]: duration is required and must be a positive number", i)), nil, nil
+			}
+
+			parsedIterStartDate, err := time.Parse("2006-01-02", iterStartDate)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("iterations[%d]: failed to parse start_date %q: %v", i, iterStartDate, err)), nil, nil
+			}
+
+			iterationsInput = append(iterationsInput, ProjectV2IterationFieldIterationInput{
+				Title:     githubv4.String(iterTitle),
+				StartDate: githubv4.Date{Time: parsedIterStartDate},
+				Duration:  githubv4.Int(int32(iterDuration)), //nolint:gosec // Iteration durations are small day counts
+			})
+		}
+		configInput.Iterations = &iterationsInput
+	}
+
+	updateInput := UpdateProjectV2FieldInput{
+		ProjectID:              githubv4.ID(projectID),
+		FieldID:                githubv4.ID(fieldID),
+		IterationConfiguration: &configInput,
+	}
+
+	err = gqlClient.Mutate(ctx, &updateMutation, updateInput, nil)
+	if err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("failed to update iteration configuration: %v", err)), nil, nil
+	}
+
+	field := updateMutation.UpdateProjectV2Field.ProjectV2Field.ProjectV2IterationField
+	iterResults := make([]map[string]any, 0, len(field.Configuration.Iterations))
+	for _, iter := range field.Configuration.Iterations {
+		iterResults = append(iterResults, map[string]any{
+			"id":         iter.ID,
+			"title":      iter.Title,
+			"start_date": iter.StartDate,
+			"duration":   iter.Duration,
+		})
+	}
+
+	result := map[string]any{
+		"id":   field.ID,
+		"name": field.Name,
+		"configuration": map[string]any{
+			"iterations": iterResults,
+		},
+	}
+
+	return MarshalledTextResult(result), nil, nil
+}
+
+// getOwnerNodeID resolves a GitHub user or organization login to its GraphQL node ID.
+func getOwnerNodeID(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string) (string, error) {
+	if ownerType == "org" {
+		var query struct {
+			Organization struct {
+				ID string
+			} `graphql:"organization(login: $login)"`
+		}
+		variables := map[string]any{
+			"login": githubv4.String(owner),
+		}
+		err := gqlClient.Query(ctx, &query, variables)
+		return query.Organization.ID, err
+	}
+
+	var query struct {
+		User struct {
+			ID string
+		} `graphql:"user(login: $login)"`
+	}
+	variables := map[string]any{
+		"login": githubv4.String(owner),
+	}
+	err := gqlClient.Query(ctx, &query, variables)
+	return query.User.ID, err
+}
+
+// UpdateProjectV2FieldInput is the GraphQL input for the updateProjectV2Field mutation.
+// This type is defined locally because the githubv4 package does not expose it.
+type UpdateProjectV2FieldInput struct {
+	ProjectID              githubv4.ID                                `json:"projectId"`
+	FieldID                githubv4.ID                                `json:"fieldId"`
+	IterationConfiguration *ProjectV2IterationFieldConfigurationInput `json:"iterationConfiguration,omitempty"`
+}
+
+// ProjectV2IterationFieldConfigurationInput is the GraphQL input for configuring an iteration field.
+type ProjectV2IterationFieldConfigurationInput struct {
+	Duration   githubv4.Int                             `json:"duration"`
+	StartDate  githubv4.Date                            `json:"startDate"`
+	Iterations *[]ProjectV2IterationFieldIterationInput `json:"iterations,omitempty"`
+}
+
+// ProjectV2IterationFieldIterationInput is the GraphQL input for a single iteration definition.
+type ProjectV2IterationFieldIterationInput struct {
+	StartDate githubv4.Date   `json:"startDate"`
+	Duration  githubv4.Int    `json:"duration"`
+	Title     githubv4.String `json:"title"`
 }
 
 // detectOwnerType attempts to detect the owner type by trying both user and org
