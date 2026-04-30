@@ -3,7 +3,7 @@
    "version":"1.0.0",
    "settings":[
       {
-         "name":"PAT",
+         "name":"GitHub PAT",
          "description":"GitHub Personal Access Token. Create at https://github.com/settings/personal-access-tokens.",
          "envVar":"GITHUB_MCP_PAT"
       }
