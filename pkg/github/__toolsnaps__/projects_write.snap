@@ -15,7 +15,7 @@
         "type": "number"
       },
       "item_id": {
-        "description": "The project item ID. Required for 'update_project_item' and 'delete_project_item' methods.",
+        "description": "The numeric project item ID. Required for 'delete_project_item'. For 'update_project_item', provide this or identify the content with item_owner, item_repo, item_type, and issue_number or pull_request_number.",
         "type": "number"
       },
       "item_owner": {
@@ -84,8 +84,15 @@
         "type": "string"
       },
       "updated_field": {
-        "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}. Required for 'update_project_item' method.",
+        "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}. For 'update_project_item', provide updated_field or updated_fields.",
         "type": "object"
+      },
+      "updated_fields": {
+        "description": "List of project field updates, each with the field ID and new value. Example: [{\"id\": 123456, \"value\": \"In Progress\"}, {\"id\": 234567, \"value\": \"P1\"}].",
+        "items": {
+          "type": "object"
+        },
+        "type": "array"
       }
     },
     "required": [

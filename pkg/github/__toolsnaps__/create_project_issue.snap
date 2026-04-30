@@ -1,0 +1,90 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Create project issue"
+  },
+  "description": "Create a GitHub issue, add it to a GitHub Project, and set initial project Status and Priority fields.",
+  "inputSchema": {
+    "properties": {
+      "assignees": {
+        "description": "GitHub usernames to assign to this issue",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "body": {
+        "description": "Issue body content",
+        "type": "string"
+      },
+      "labels": {
+        "description": "Labels to apply to the issue",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "priority_field_id": {
+        "description": "Project Priority field ID.",
+        "type": "number"
+      },
+      "priority_value": {
+        "description": "Initial Priority field value or option ID.",
+        "type": "string"
+      },
+      "project_number": {
+        "description": "The project's number.",
+        "type": "number"
+      },
+      "project_owner": {
+        "description": "Project owner login. Defaults to the repository owner when omitted.",
+        "type": "string"
+      },
+      "project_owner_type": {
+        "description": "Project owner type.",
+        "enum": [
+          "user",
+          "org"
+        ],
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "status_field_id": {
+        "description": "Project Status field ID.",
+        "type": "number"
+      },
+      "status_value": {
+        "description": "Initial Status field value or option ID. For github-workflow this should be Backlog's option ID.",
+        "type": "string"
+      },
+      "title": {
+        "description": "Issue title",
+        "type": "string"
+      },
+      "type": {
+        "description": "Issue type name, when the repository supports issue types",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "title",
+      "project_number",
+      "status_field_id",
+      "status_value",
+      "priority_field_id",
+      "priority_value"
+    ],
+    "type": "object"
+  },
+  "name": "create_project_issue"
+}

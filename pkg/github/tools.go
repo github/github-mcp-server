@@ -209,6 +209,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListIssues(t),
 		ListIssueTypes(t),
 		IssueWrite(t),
+		IssueLabelWrite(t),
 		AddIssueComment(t),
 		IssueDependencyWrite(t),
 		SubIssueWrite(t),
@@ -283,6 +284,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ProjectsList(t),
 		ProjectsGet(t),
 		ProjectsWrite(t),
+		CreateProjectIssue(t),
 
 		// Label tools
 		GetLabel(t),

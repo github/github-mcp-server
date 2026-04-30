@@ -104,6 +104,7 @@ func getCloseStateReason(stateReason string) IssueClosedStateReason {
 
 // IssueFragment represents a fragment of an issue node in the GraphQL API.
 type IssueFragment struct {
+	ID         githubv4.ID
 	Number     githubv4.Int
 	Title      githubv4.String
 	Body       githubv4.String
@@ -761,6 +762,127 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
+}
+
+// IssueLabelWrite creates a tool to add or remove issue labels without replacing unrelated labels.
+func IssueLabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "issue_label_write",
+			Description: t("TOOL_ISSUE_LABEL_WRITE_DESCRIPTION", "Add or remove labels on an issue without replacing unrelated labels."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_ISSUE_LABEL_WRITE_USER_TITLE", "Change issue labels"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"method": {
+						Type:        "string",
+						Description: "The label operation to perform.",
+						Enum:        []any{"add", "remove"},
+					},
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"issue_number": {
+						Type:        "number",
+						Description: "Issue number to update",
+					},
+					"labels": {
+						Type:        "array",
+						Description: "Labels to add or remove",
+						Items:       &jsonschema.Schema{Type: "string"},
+					},
+				},
+				Required: []string{"method", "owner", "repo", "issue_number", "labels"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			method, err := RequiredParam[string](args, "method")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			labels, err := OptionalStringArrayParam(args, "labels")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if len(labels) == 0 {
+				return utils.NewToolResultError("labels must contain at least one label"), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			switch method {
+			case "add":
+				addedLabels, resp, err := client.Issues.AddLabelsToIssue(ctx, owner, repo, issueNumber, labels)
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add issue labels", resp, err), nil, nil
+				}
+				defer func() { _ = resp.Body.Close() }()
+				return marshalIssueLabelWriteResponse(issueNumber, addedLabels)
+			case "remove":
+				for _, label := range labels {
+					resp, err := client.Issues.RemoveLabelForIssue(ctx, owner, repo, issueNumber, label)
+					if err != nil {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to remove issue label", resp, err), nil, nil
+					}
+					if resp != nil && resp.Body != nil {
+						_ = resp.Body.Close()
+					}
+				}
+				remainingLabels, resp, err := client.Issues.ListLabelsByIssue(ctx, owner, repo, issueNumber, nil)
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list issue labels", resp, err), nil, nil
+				}
+				defer func() { _ = resp.Body.Close() }()
+				return marshalIssueLabelWriteResponse(issueNumber, remainingLabels)
+			default:
+				return utils.NewToolResultError("method must be either 'add' or 'remove'"), nil, nil
+			}
+		},
+	)
+}
+
+func marshalIssueLabelWriteResponse(issueNumber int, labels []*github.Label) (*mcp.CallToolResult, any, error) {
+	labelNames := make([]string, 0, len(labels))
+	for _, label := range labels {
+		if label != nil {
+			labelNames = append(labelNames, label.GetName())
+		}
+	}
+
+	response := map[string]any{
+		"issue_number": issueNumber,
+		"labels":       labelNames,
+	}
+	r, err := json.Marshal(response)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+	return utils.NewToolResultText(string(r)), nil, nil
 }
 
 // IssueDependencyWrite creates a tool to add or remove dependency edges for an issue.
@@ -1448,8 +1570,11 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 
 	// Return minimal response with just essential information
 	minimalResponse := MinimalResponse{
-		ID:  fmt.Sprintf("%d", issue.GetID()),
-		URL: issue.GetHTMLURL(),
+		ID:          fmt.Sprintf("%d", issue.GetID()),
+		URL:         issue.GetHTMLURL(),
+		IssueNumber: issue.GetNumber(),
+		IssueID:     issue.GetID(),
+		IssueNodeID: issue.GetNodeID(),
 	}
 
 	r, err := json.Marshal(minimalResponse)
@@ -1573,8 +1698,11 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 
 	// Return minimal response with just essential information
 	minimalResponse := MinimalResponse{
-		ID:  fmt.Sprintf("%d", updatedIssue.GetID()),
-		URL: updatedIssue.GetHTMLURL(),
+		ID:          fmt.Sprintf("%d", updatedIssue.GetID()),
+		URL:         updatedIssue.GetHTMLURL(),
+		IssueNumber: updatedIssue.GetNumber(),
+		IssueID:     updatedIssue.GetID(),
+		IssueNodeID: updatedIssue.GetNodeID(),
 	}
 
 	r, err := json.Marshal(minimalResponse)
