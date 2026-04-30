@@ -31,9 +31,6 @@ type ToolsetMetadata struct {
 	// Use the base name without size suffix, e.g., "repo" not "repo-16".
 	// See https://primer.style/foundations/icons for available icons.
 	Icon string
-	// InstructionsFunc optionally returns instructions for this toolset.
-	// It receives the inventory so it can check what other toolsets are enabled.
-	InstructionsFunc func(inv *Inventory) string
 }
 
 // Icons returns MCP Icon objects for this toolset, or nil if no icon is set.
@@ -58,6 +55,13 @@ type ServerTool struct {
 	// This allows tools to be passed around without handlers being set up,
 	// and handlers are only created when needed.
 	HandlerFunc HandlerFunc
+
+	// TypedRegisterFunc registers the tool using the typed generic path
+	// (mcp.AddTool[In, Out]). When set, RegisterFunc uses this instead of the
+	// untyped s.AddTool path. This enables the SDK to automatically generate
+	// OutputSchema from the Out type parameter and populate StructuredContent
+	// on tool results, providing structured output alongside text content.
+	TypedRegisterFunc func(s *mcp.Server, deps any)
 
 	// FeatureFlagEnable specifies a feature flag that must be enabled for this tool
 	// to be available. If set and the flag is not enabled, the tool is omitted.
@@ -106,8 +110,14 @@ func (st *ServerTool) Handler(deps any) mcp.ToolHandler {
 // RegisterFunc registers the tool with the server using the provided dependencies.
 // Icons are automatically applied from the toolset metadata if not already set.
 // A shallow copy of the tool is made to avoid mutating the original ServerTool.
+// When TypedRegisterFunc is set, the typed generic path (mcp.AddTool[In, Out])
+// is used, enabling structured output via OutputSchema and StructuredContent.
 // Panics if the tool has no handler - all tools should have handlers.
 func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any) {
+	if st.TypedRegisterFunc != nil {
+		st.TypedRegisterFunc(s, deps)
+		return
+	}
 	handler := st.Handler(deps) // This will panic if HandlerFunc is nil
 	// Make a shallow copy of the tool to avoid mutating the original
 	toolCopy := st.Tool
@@ -139,6 +149,13 @@ func NewServerTool[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, hand
 				return resp, err
 			}
 		},
+		TypedRegisterFunc: func(s *mcp.Server, deps any) {
+			toolCopy := tool
+			if len(toolCopy.Icons) == 0 {
+				toolCopy.Icons = toolset.Icons()
+			}
+			mcp.AddTool(s, &toolCopy, handlerFn(deps))
+		},
 	}
 }
 
@@ -148,6 +165,9 @@ func NewServerTool[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, hand
 //
 // The handler function is stored directly without wrapping in a deps closure.
 // Dependencies should be injected into context before calling tool handlers.
+//
+// TypedRegisterFunc is set to use mcp.AddTool[In, Out] for registration, which enables
+// the SDK to auto-generate OutputSchema from the Out type and populate StructuredContent.
 func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, handler mcp.ToolHandlerFor[In, Out]) ServerTool {
 	return ServerTool{
 		Tool:    tool,
@@ -162,6 +182,13 @@ func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset Too
 				resp, _, err := handler(ctx, req, arguments)
 				return resp, err
 			}
+		},
+		TypedRegisterFunc: func(s *mcp.Server, _ any) {
+			toolCopy := tool
+			if len(toolCopy.Icons) == 0 {
+				toolCopy.Icons = toolset.Icons()
+			}
+			mcp.AddTool(s, &toolCopy, handler)
 		},
 	}
 }

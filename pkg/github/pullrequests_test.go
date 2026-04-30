@@ -670,9 +670,10 @@ func Test_ListPullRequests(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedPRs []MinimalPullRequest
-			err = json.Unmarshal([]byte(textContent.Text), &returnedPRs)
+			var returnedResult ListPullRequestsResult
+			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 			require.NoError(t, err)
+			returnedPRs := returnedResult.PullRequests
 			assert.Len(t, returnedPRs, 2)
 			assert.Equal(t, *tc.expectedPRs[0].Number, returnedPRs[0].Number)
 			assert.Equal(t, *tc.expectedPRs[0].Title, returnedPRs[0].Title)

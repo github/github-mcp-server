@@ -29,11 +29,10 @@ var (
 		Icon:        "check-circle",
 	}
 	ToolsetMetadataContext = inventory.ToolsetMetadata{
-		ID:               "context",
-		Description:      "Tools that provide context about the current user and GitHub context you are operating in",
-		Default:          true,
-		Icon:             "person",
-		InstructionsFunc: generateContextToolsetInstructions,
+		ID:          "context",
+		Description: "Tools that provide context about the current user and GitHub context you are operating in",
+		Default:     true,
+		Icon:        "person",
 	}
 	ToolsetMetadataRepos = inventory.ToolsetMetadata{
 		ID:          "repos",
@@ -44,21 +43,20 @@ var (
 	ToolsetMetadataGit = inventory.ToolsetMetadata{
 		ID:          "git",
 		Description: "GitHub Git API related tools for low-level Git operations",
+		Default:     true,
 		Icon:        "git-branch",
 	}
 	ToolsetMetadataIssues = inventory.ToolsetMetadata{
-		ID:               "issues",
-		Description:      "GitHub Issues related tools",
-		Default:          true,
-		Icon:             "issue-opened",
-		InstructionsFunc: generateIssuesToolsetInstructions,
+		ID:          "issues",
+		Description: "GitHub Issues related tools",
+		Default:     true,
+		Icon:        "issue-opened",
 	}
 	ToolsetMetadataPullRequests = inventory.ToolsetMetadata{
-		ID:               "pull_requests",
-		Description:      "GitHub Pull Request related tools",
-		Default:          true,
-		Icon:             "git-pull-request",
-		InstructionsFunc: generatePullRequestsToolsetInstructions,
+		ID:          "pull_requests",
+		Description: "GitHub Pull Request related tools",
+		Default:     true,
+		Icon:        "git-pull-request",
 	}
 	ToolsetMetadataUsers = inventory.ToolsetMetadata{
 		ID:          "users",
@@ -69,58 +67,67 @@ var (
 	ToolsetMetadataOrgs = inventory.ToolsetMetadata{
 		ID:          "orgs",
 		Description: "GitHub Organization related tools",
+		Default:     true,
 		Icon:        "organization",
 	}
 	ToolsetMetadataActions = inventory.ToolsetMetadata{
 		ID:          "actions",
 		Description: "GitHub Actions workflows and CI/CD operations",
+		Default:     true,
 		Icon:        "workflow",
 	}
 	ToolsetMetadataCodeSecurity = inventory.ToolsetMetadata{
 		ID:          "code_security",
 		Description: "Code security related tools, such as GitHub Code Scanning",
+		Default:     true,
 		Icon:        "codescan",
 	}
 	ToolsetMetadataSecretProtection = inventory.ToolsetMetadata{
 		ID:          "secret_protection",
 		Description: "Secret protection related tools, such as GitHub Secret Scanning",
+		Default:     true,
 		Icon:        "shield-lock",
 	}
 	ToolsetMetadataDependabot = inventory.ToolsetMetadata{
 		ID:          "dependabot",
 		Description: "Dependabot tools",
+		Default:     true,
 		Icon:        "dependabot",
 	}
 	ToolsetMetadataNotifications = inventory.ToolsetMetadata{
 		ID:          "notifications",
 		Description: "GitHub Notifications related tools",
+		Default:     true,
 		Icon:        "bell",
 	}
 	ToolsetMetadataDiscussions = inventory.ToolsetMetadata{
-		ID:               "discussions",
-		Description:      "GitHub Discussions related tools",
-		Icon:             "comment-discussion",
-		InstructionsFunc: generateDiscussionsToolsetInstructions,
+		ID:          "discussions",
+		Description: "GitHub Discussions related tools",
+		Default:     true,
+		Icon:        "comment-discussion",
 	}
 	ToolsetMetadataGists = inventory.ToolsetMetadata{
 		ID:          "gists",
 		Description: "GitHub Gist related tools",
+		Default:     true,
 		Icon:        "logo-gist",
 	}
 	ToolsetMetadataSecurityAdvisories = inventory.ToolsetMetadata{
 		ID:          "security_advisories",
 		Description: "Security advisories related tools",
+		Default:     true,
 		Icon:        "shield",
 	}
 	ToolsetMetadataProjects = inventory.ToolsetMetadata{
-		ID:               "projects",
-		Description:      "GitHub Projects related tools",
-		Icon:             "project",
-		InstructionsFunc: generateProjectsToolsetInstructions,
+		ID:          "projects",
+		Description: "GitHub Projects related tools",
+		Default:     true,
+		Icon:        "project",
 	}
 	ToolsetMetadataStargazers = inventory.ToolsetMetadata{
 		ID:          "stargazers",
 		Description: "GitHub Stargazers related tools",
+		Default:     true,
 		Icon:        "star",
 	}
 	ToolsetMetadataDynamic = inventory.ToolsetMetadata{
@@ -131,6 +138,7 @@ var (
 	ToolsetLabels = inventory.ToolsetMetadata{
 		ID:          "labels",
 		Description: "GitHub Labels related tools",
+		Default:     true,
 		Icon:        "tag",
 	}
 

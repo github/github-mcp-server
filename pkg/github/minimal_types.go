@@ -277,6 +277,58 @@ type MinimalPRBranchRepo struct {
 	Description string `json:"description,omitempty"`
 }
 
+// ListPullRequestsResult wraps the output of list_pull_requests for structured output.
+type ListPullRequestsResult struct {
+	PullRequests []MinimalPullRequest `json:"pull_requests"`
+}
+
+// CodeSearchResult wraps the output of search_code for structured output.
+type CodeSearchResult struct {
+	TotalCount        int                    `json:"total_count"`
+	IncompleteResults bool                   `json:"incomplete_results"`
+	Items             []CodeSearchResultItem `json:"items"`
+}
+
+// CodeSearchResultItem represents a single code search result item.
+type CodeSearchResultItem struct {
+	Name        string             `json:"name"`
+	Path        string             `json:"path"`
+	SHA         string             `json:"sha"`
+	HTMLURL     string             `json:"html_url"`
+	Repository  *MinimalRepository `json:"repository,omitempty"`
+	TextMatches []TextMatch        `json:"text_matches,omitempty"`
+}
+
+// TextMatch represents a text match from a code search result.
+type TextMatch struct {
+	ObjectURL  string  `json:"object_url,omitempty"`
+	ObjectType string  `json:"object_type,omitempty"`
+	Property   string  `json:"property,omitempty"`
+	Fragment   string  `json:"fragment,omitempty"`
+	Matches    []Match `json:"matches,omitempty"`
+}
+
+// Match represents an individual match within a text match fragment.
+type Match struct {
+	Text    string `json:"text,omitempty"`
+	Indices []int  `json:"indices,omitempty"`
+}
+
+// IssueSearchResult wraps the output of search_issues for structured output.
+type IssueSearchResult struct {
+	TotalCount        int            `json:"total_count"`
+	IncompleteResults bool           `json:"incomplete_results"`
+	Items             []MinimalIssue `json:"items"`
+}
+
+// PullRequestSearchResult wraps the output of search_pull_requests for structured output.
+// Note: GitHub's search API returns issue-shaped results for PRs, so items use MinimalIssue.
+type PullRequestSearchResult struct {
+	TotalCount        int            `json:"total_count"`
+	IncompleteResults bool           `json:"incomplete_results"`
+	Items             []MinimalIssue `json:"items"`
+}
+
 type MinimalProjectStatusUpdate struct {
 	ID         string       `json:"id"`
 	Body       string       `json:"body,omitempty"`
@@ -882,4 +934,46 @@ func convertToMinimalReviewComment(c reviewCommentNode) MinimalReviewComment {
 	}
 
 	return m
+}
+
+func convertToCodeSearchResult(result *github.CodeSearchResult) CodeSearchResult {
+	items := make([]CodeSearchResultItem, 0, len(result.CodeResults))
+	for _, cr := range result.CodeResults {
+		item := CodeSearchResultItem{
+			Name:    cr.GetName(),
+			Path:    cr.GetPath(),
+			SHA:     cr.GetSHA(),
+			HTMLURL: cr.GetHTMLURL(),
+		}
+		if repo := cr.GetRepository(); repo != nil {
+			item.Repository = &MinimalRepository{
+				ID:       repo.GetID(),
+				Name:     repo.GetName(),
+				FullName: repo.GetFullName(),
+				HTMLURL:  repo.GetHTMLURL(),
+			}
+		}
+		for _, tm := range cr.TextMatches {
+			textMatch := TextMatch{
+				ObjectURL:  tm.GetObjectURL(),
+				ObjectType: tm.GetObjectType(),
+				Property:   tm.GetProperty(),
+				Fragment:   tm.GetFragment(),
+			}
+			for _, m := range tm.Matches {
+				match := Match{
+					Text:    m.GetText(),
+					Indices: m.Indices,
+				}
+				textMatch.Matches = append(textMatch.Matches, match)
+			}
+			item.TextMatches = append(item.TextMatches, textMatch)
+		}
+		items = append(items, item)
+	}
+	return CodeSearchResult{
+		TotalCount:        result.GetTotal(),
+		IncompleteResults: result.GetIncompleteResults(),
+		Items:             items,
+	}
 }
