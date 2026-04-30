@@ -271,6 +271,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GetGlobalSecurityAdvisory(t),
 		ListRepositorySecurityAdvisories(t),
 		ListOrgRepositorySecurityAdvisories(t),
+		ReportSecurityVulnerability(t),
 
 		// Gist tools
 		ListGists(t),
