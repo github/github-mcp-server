@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -166,6 +167,25 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 	)
 }
 
+// pathQualifierLooksLikeFilename reports whether the query uses a path: token whose
+// value looks like a file name (contains a dot, no path separators). GitHub's code
+// search treats path: as a directory prefix; filtering by file name requires filename:.
+func pathQualifierLooksLikeFilename(q string) bool {
+	for _, part := range strings.Fields(q) {
+		after, ok := strings.CutPrefix(part, "path:")
+		if !ok || after == "" {
+			continue
+		}
+		if strings.ContainsAny(after, "/\\") {
+			continue
+		}
+		if strings.Contains(after, ".") {
+			return true
+		}
+	}
+	return false
+}
+
 // SearchCode creates a tool to search for code across GitHub repositories.
 func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
@@ -173,7 +193,7 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 		Properties: map[string]*jsonschema.Schema{
 			"query": {
 				Type:        "string",
-				Description: "Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more.",
+				Description: "Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more. Important: GitHub's path: qualifier matches directory path prefixes, not file names. To target a specific file (e.g. WaitUtils.cs), use filename:WaitUtils.cs instead of path:WaitUtils.cs. Using path: with a file-like token often returns zero results with no API error.",
 			},
 			"sort": {
 				Type:        "string",
@@ -254,6 +274,21 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 			r, err := json.Marshal(result)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+
+			total := 0
+			if result.Total != nil {
+				total = *result.Total
+			}
+			if total == 0 && pathQualifierLooksLikeFilename(query) {
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{
+						&mcp.TextContent{Text: string(r)},
+						&mcp.TextContent{
+							Text: "Note: GitHub code search treats `path:` as a directory path prefix, not a file name. If you meant to search inside a specific file, use the `filename:` qualifier (for example, `filename:WaitUtils.cs`) instead of `path:WaitUtils.cs`.",
+						},
+					},
+				}, nil, nil
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
