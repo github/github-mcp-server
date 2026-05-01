@@ -10,6 +10,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
+	gogithub "github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -213,6 +214,159 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			return MarshalledTextResult(organizations), nil, nil
+		},
+	)
+}
+
+// UpdateUserProfile creates a tool to update the authenticated user's profile.
+func UpdateUserProfile(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataContext,
+		mcp.Tool{
+			Name:        "update_user_profile",
+			Description: t("TOOL_UPDATE_USER_PROFILE_DESCRIPTION", "Update the authenticated GitHub user's profile information. At least one field to update must be provided."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_UPDATE_USER_PROFILE_USER_TITLE", "Update my user profile"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"name": {
+						Type:        "string",
+						Description: t("TOOL_UPDATE_USER_PROFILE_NAME_DESCRIPTION", "The new name of the user"),
+					},
+					"email": {
+						Type:        "string",
+						Description: t("TOOL_UPDATE_USER_PROFILE_EMAIL_DESCRIPTION", "The publicly visible email address of the user"),
+					},
+					"blog": {
+						Type:        "string",
+						Description: t("TOOL_UPDATE_USER_PROFILE_BLOG_DESCRIPTION", "The new blog URL of the user"),
+					},
+					"twitter_username": {
+						Type:        "string",
+						Description: t("TOOL_UPDATE_USER_PROFILE_TWITTER_USERNAME_DESCRIPTION", "The new Twitter username of the user"),
+					},
+					"company": {
+						Type:        "string",
+						Description: t("TOOL_UPDATE_USER_PROFILE_COMPANY_DESCRIPTION", "The new company of the user"),
+					},
+					"location": {
+						Type:        "string",
+						Description: t("TOOL_UPDATE_USER_PROFILE_LOCATION_DESCRIPTION", "The new location of the user"),
+					},
+					"hireable": {
+						Type:        "boolean",
+						Description: t("TOOL_UPDATE_USER_PROFILE_HIREABLE_DESCRIPTION", "The new hireable value of the user"),
+					},
+					"bio": {
+						Type:        "string",
+						Description: t("TOOL_UPDATE_USER_PROFILE_BIO_DESCRIPTION", "The new short biography of the user"),
+					},
+				},
+			},
+		},
+		[]scopes.Scope{scopes.User},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			name, err := OptionalParam[string](args, "name")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			email, err := OptionalParam[string](args, "email")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			blog, err := OptionalParam[string](args, "blog")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			twitterUsername, err := OptionalParam[string](args, "twitter_username")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			company, err := OptionalParam[string](args, "company")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			location, err := OptionalParam[string](args, "location")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			hireable, err := OptionalParam[bool](args, "hireable")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			bio, err := OptionalParam[string](args, "bio")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Require at least one field to be set
+			_, hasHireable := args["hireable"]
+			if name == "" && email == "" && blog == "" && twitterUsername == "" &&
+				company == "" && location == "" && !hasHireable && bio == "" {
+				return utils.NewToolResultError("at least one field to update must be provided"), nil, nil
+			}
+
+			userReq := &gogithub.User{}
+			if name != "" {
+				userReq.Name = gogithub.Ptr(name)
+			}
+			if email != "" {
+				userReq.Email = gogithub.Ptr(email)
+			}
+			if blog != "" {
+				userReq.Blog = gogithub.Ptr(blog)
+			}
+			if twitterUsername != "" {
+				userReq.TwitterUsername = gogithub.Ptr(twitterUsername)
+			}
+			if company != "" {
+				userReq.Company = gogithub.Ptr(company)
+			}
+			if location != "" {
+				userReq.Location = gogithub.Ptr(location)
+			}
+			if hasHireable {
+				userReq.Hireable = gogithub.Ptr(hireable)
+			}
+			if bio != "" {
+				userReq.Bio = gogithub.Ptr(bio)
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			user, res, err := client.Users.Edit(ctx, userReq)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to update user profile",
+					res,
+					err,
+				), nil, nil
+			}
+
+			minimalUser := MinimalUser{
+				Login:      user.GetLogin(),
+				ID:         user.GetID(),
+				ProfileURL: user.GetHTMLURL(),
+				AvatarURL:  user.GetAvatarURL(),
+				Details: &UserDetails{
+					Name:            user.GetName(),
+					Company:         user.GetCompany(),
+					Blog:            user.GetBlog(),
+					Location:        user.GetLocation(),
+					Email:           user.GetEmail(),
+					Hireable:        user.GetHireable(),
+					Bio:             user.GetBio(),
+					TwitterUsername: user.GetTwitterUsername(),
+				},
+			}
+
+			return MarshalledTextResult(minimalUser), nil, nil
 		},
 	)
 }

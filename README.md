@@ -683,6 +683,17 @@ The following sets of tools are available:
   - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
   - `user`: Username to get teams for. If not provided, uses the authenticated user. (string, optional)
 
+- **update_user_profile** - Update my user profile
+  - **Required OAuth Scopes**: `user`
+  - `bio`: The new short biography of the user (string, optional)
+  - `blog`: The new blog URL of the user (string, optional)
+  - `company`: The new company of the user (string, optional)
+  - `email`: The publicly visible email address of the user (string, optional)
+  - `hireable`: The new hireable value of the user (boolean, optional)
+  - `location`: The new location of the user (string, optional)
+  - `name`: The new name of the user (string, optional)
+  - `twitter_username`: The new Twitter username of the user (string, optional)
+
 </details>
 
 <details>
