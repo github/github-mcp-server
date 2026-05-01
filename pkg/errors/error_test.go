@@ -36,6 +36,7 @@ func TestGitHubErrorContext(t *testing.T) {
 
 		apiError := apiErrors[0]
 		assert.Equal(t, "failed to fetch resource", apiError.Message)
+		assert.Empty(t, apiError.Code)
 		assert.Equal(t, resp, apiError.Response)
 		assert.Equal(t, originalErr, apiError.Err)
 		assert.Equal(t, "failed to fetch resource: resource not found", apiError.Error())
@@ -86,6 +87,7 @@ func TestGitHubErrorContext(t *testing.T) {
 
 		rawError := rawErrors[0]
 		assert.Equal(t, "failed to fetch raw content", rawError.Message)
+		assert.Empty(t, rawError.Code)
 		assert.Equal(t, resp, rawError.Response)
 		assert.Equal(t, originalErr, rawError.Err)
 	})
@@ -360,6 +362,24 @@ func TestGitHubErrorContext(t *testing.T) {
 		// Then it should not return an error (graceful handling)
 		assert.NoError(t, err, "NewGitHubAPIErrorToCtx should handle nil context gracefully")
 		assert.Nil(t, updatedCtx, "Context should remain nil when passed as nil")
+	})
+
+	t.Run("API errors classify invalid token and insufficient scope codes from HTTP status", func(t *testing.T) {
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		unauthorized := &github.Response{Response: &http.Response{StatusCode: http.StatusUnauthorized}}
+		forbidden := &github.Response{Response: &http.Response{StatusCode: http.StatusForbidden}}
+
+		_, err := NewGitHubAPIErrorToCtx(ctx, "token rejected", unauthorized, fmt.Errorf("unauthorized"))
+		require.NoError(t, err)
+		_, err = NewGitHubAPIErrorToCtx(ctx, "insufficient permissions", forbidden, fmt.Errorf("forbidden"))
+		require.NoError(t, err)
+
+		apiErrors, err := GetGitHubAPIErrors(ctx)
+		require.NoError(t, err)
+		require.Len(t, apiErrors, 2)
+		assert.Equal(t, "invalid_token", apiErrors[0].Code)
+		assert.Equal(t, "insufficient_scope", apiErrors[1].Code)
 	})
 }
 
