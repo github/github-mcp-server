@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Codex plugin quality gate
-        uses: hashgraph-online/hol-codex-plugin-scanner-action@v1
+        uses: hashgraph-online/hol-codex-plugin-scanner-action@0f78e6d99032ec198d23a41a8425080a658c07d1
         with:
           plugin_dir: "."
           min_score: 80
