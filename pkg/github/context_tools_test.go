@@ -139,6 +139,138 @@ func Test_GetMe(t *testing.T) {
 	}
 }
 
+func Test_UpdateUserProfile(t *testing.T) {
+	t.Parallel()
+
+	serverTool := UpdateUserProfile(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	// Verify some basic very important properties
+	assert.Equal(t, "update_user_profile", tool.Name)
+	assert.False(t, tool.Annotations.ReadOnlyHint, "update_user_profile tool should not be read-only")
+
+	// Setup mock updated user response
+	mockUpdatedUser := &github.User{
+		Login:           github.Ptr("testuser"),
+		Name:            github.Ptr("Updated Name"),
+		Email:           github.Ptr("updated@example.com"),
+		Bio:             github.Ptr("Updated bio"),
+		Company:         github.Ptr("Updated Company"),
+		Location:        github.Ptr("Updated Location"),
+		Blog:            github.Ptr("https://updated.example.com"),
+		TwitterUsername: github.Ptr("updated_twitter"),
+		Hireable:        github.Ptr(true),
+		HTMLURL:         github.Ptr("https://github.com/testuser"),
+	}
+
+	tests := []struct {
+		name               string
+		mockedClient       *http.Client
+		clientErr          string
+		requestArgs        map[string]any
+		expectToolError    bool
+		expectedToolErrMsg string
+		expectedUser       *github.User
+	}{
+		{
+			name: "successful update with name",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchUser: mockResponse(t, http.StatusOK, mockUpdatedUser),
+			}),
+			requestArgs:     map[string]any{"name": "Updated Name"},
+			expectToolError: false,
+			expectedUser:    mockUpdatedUser,
+		},
+		{
+			name: "successful update with multiple fields",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchUser: mockResponse(t, http.StatusOK, mockUpdatedUser),
+			}),
+			requestArgs: map[string]any{
+				"name":             "Updated Name",
+				"email":            "updated@example.com",
+				"bio":              "Updated bio",
+				"company":          "Updated Company",
+				"location":         "Updated Location",
+				"blog":             "https://updated.example.com",
+				"twitter_username": "updated_twitter",
+				"hireable":         true,
+			},
+			expectToolError: false,
+			expectedUser:    mockUpdatedUser,
+		},
+		{
+			name:               "no fields provided",
+			requestArgs:        map[string]any{},
+			expectToolError:    true,
+			expectedToolErrMsg: "at least one field to update must be provided",
+		},
+		{
+			name:               "getting client fails",
+			clientErr:          "expected test error",
+			requestArgs:        map[string]any{"name": "Updated Name"},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to get GitHub client: expected test error",
+		},
+		{
+			name: "update user profile fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchUser: badRequestHandler("expected test failure"),
+			}),
+			requestArgs:        map[string]any{"name": "Updated Name"},
+			expectToolError:    true,
+			expectedToolErrMsg: "expected test failure",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var deps ToolDependencies
+			if tc.clientErr != "" {
+				deps = stubDeps{clientFn: stubClientFnErr(tc.clientErr), obsv: stubExporters()}
+			} else if tc.mockedClient != nil {
+				obs := stubExporters()
+				deps = BaseDeps{Client: github.NewClient(tc.mockedClient), Obsv: obs}
+			} else {
+				deps = stubDeps{obsv: stubExporters()}
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			if tc.expectToolError {
+				require.True(t, result.IsError, "expected tool call result to be an error")
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedToolErrMsg)
+				return
+			}
+
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+
+			var returnedUser MinimalUser
+			err = json.Unmarshal([]byte(textContent.Text), &returnedUser)
+			require.NoError(t, err)
+
+			assert.Equal(t, *tc.expectedUser.Login, returnedUser.Login)
+			assert.Equal(t, *tc.expectedUser.HTMLURL, returnedUser.ProfileURL)
+
+			require.NotNil(t, returnedUser.Details)
+			assert.Equal(t, *tc.expectedUser.Name, returnedUser.Details.Name)
+			assert.Equal(t, *tc.expectedUser.Email, returnedUser.Details.Email)
+			assert.Equal(t, *tc.expectedUser.Bio, returnedUser.Details.Bio)
+			assert.Equal(t, *tc.expectedUser.Company, returnedUser.Details.Company)
+			assert.Equal(t, *tc.expectedUser.Location, returnedUser.Details.Location)
+			assert.Equal(t, *tc.expectedUser.Blog, returnedUser.Details.Blog)
+			assert.Equal(t, *tc.expectedUser.TwitterUsername, returnedUser.Details.TwitterUsername)
+			assert.Equal(t, *tc.expectedUser.Hireable, returnedUser.Details.Hireable)
+		})
+	}
+}
+
 func Test_GetTeams(t *testing.T) {
 	t.Parallel()
 

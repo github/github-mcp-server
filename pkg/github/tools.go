@@ -175,6 +175,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 	return []inventory.ServerTool{
 		// Context tools
 		GetMe(t),
+		UpdateUserProfile(t),
 		GetTeams(t),
 		GetTeamMembers(t),
 

@@ -1,0 +1,44 @@
+{
+  "annotations": {
+    "title": "Update my user profile"
+  },
+  "description": "Update the authenticated GitHub user's profile information. At least one field to update must be provided.",
+  "inputSchema": {
+    "properties": {
+      "bio": {
+        "description": "The new short biography of the user",
+        "type": "string"
+      },
+      "blog": {
+        "description": "The new blog URL of the user",
+        "type": "string"
+      },
+      "company": {
+        "description": "The new company of the user",
+        "type": "string"
+      },
+      "email": {
+        "description": "The publicly visible email address of the user",
+        "type": "string"
+      },
+      "hireable": {
+        "description": "The new hireable value of the user",
+        "type": "boolean"
+      },
+      "location": {
+        "description": "The new location of the user",
+        "type": "string"
+      },
+      "name": {
+        "description": "The new name of the user",
+        "type": "string"
+      },
+      "twitter_username": {
+        "description": "The new Twitter username of the user",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "name": "update_user_profile"
+}

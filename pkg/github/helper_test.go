@@ -21,6 +21,7 @@ import (
 const (
 	// User endpoints
 	GetUser                        = "GET /user"
+	PatchUser                      = "PATCH /user"
 	GetUserStarred                 = "GET /user/starred"
 	GetUsersGistsByUsername        = "GET /users/{username}/gists"
 	GetUsersStarredByUsername      = "GET /users/{username}/starred"
