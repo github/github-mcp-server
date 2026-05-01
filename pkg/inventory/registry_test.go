@@ -1250,6 +1250,39 @@ func TestFeatureFlagPrompts(t *testing.T) {
 	}
 }
 
+func TestPromptRequiredToolsRespectReadOnlyAndExcludedTools(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("read_tool", "toolset1", true),
+		mockTool("write_tool", "toolset1", false),
+	}
+	prompts := []ServerPrompt{
+		mockPrompt("always_available", "toolset1"),
+		{
+			Prompt:        mcp.Prompt{Name: "needs_write"},
+			Toolset:       testToolsetMetadata("toolset1"),
+			RequiredTools: []string{"write_tool"},
+		},
+	}
+
+	reg := mustBuild(t, NewBuilder().SetTools(tools).SetPrompts(prompts).WithToolsets([]string{"all"}))
+	available := reg.AvailablePrompts(context.Background())
+	if len(available) != 2 {
+		t.Fatalf("Expected 2 prompts before filtering, got %d", len(available))
+	}
+
+	readOnly := mustBuild(t, NewBuilder().SetTools(tools).SetPrompts(prompts).WithToolsets([]string{"all"}).WithReadOnly(true))
+	availableReadOnly := readOnly.AvailablePrompts(context.Background())
+	if len(availableReadOnly) != 1 || availableReadOnly[0].Prompt.Name != "always_available" {
+		t.Fatalf("Expected only always_available in read-only mode, got %#v", availableReadOnly)
+	}
+
+	excluded := mustBuild(t, NewBuilder().SetTools(tools).SetPrompts(prompts).WithToolsets([]string{"all"}).WithExcludeTools([]string{"write_tool"}))
+	availableExcluded := excluded.AvailablePrompts(context.Background())
+	if len(availableExcluded) != 1 || availableExcluded[0].Prompt.Name != "always_available" {
+		t.Fatalf("Expected only always_available when write_tool is excluded, got %#v", availableExcluded)
+	}
+}
+
 func TestServerToolHasHandler(t *testing.T) {
 	// Tool with handler
 	toolWithHandler := mockTool("has_handler", "toolset1", true)

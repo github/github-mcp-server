@@ -100,6 +100,17 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
 	return true
 }
 
+// HasAvailableTool reports whether a tool with the given name survives the current filters.
+func (r *Inventory) HasAvailableTool(ctx context.Context, toolName string) bool {
+	for _, tool := range r.filterToolsByName(toolName) {
+		toolCopy := tool
+		if r.isToolEnabled(ctx, &toolCopy) {
+			return true
+		}
+	}
+	return false
+}
+
 // AvailableTools returns the tools that pass all current filters,
 // sorted deterministically by toolset ID, then tool name.
 // The context is used for feature flag evaluation.
@@ -159,6 +170,16 @@ func (r *Inventory) AvailablePrompts(ctx context.Context) []ServerPrompt {
 		prompt := &r.prompts[i]
 		// Check feature flags
 		if !r.isFeatureFlagAllowed(ctx, prompt.FeatureFlagEnable, prompt.FeatureFlagDisable) {
+			continue
+		}
+		requiredToolsAvailable := true
+		for _, toolName := range prompt.RequiredTools {
+			if !r.HasAvailableTool(ctx, toolName) {
+				requiredToolsAvailable = false
+				break
+			}
+		}
+		if !requiredToolsAvailable {
 			continue
 		}
 		if r.isToolsetEnabled(prompt.Toolset.ID) {
