@@ -1,0 +1,46 @@
+{
+  "annotations": {
+    "title": "Change issue labels"
+  },
+  "description": "Add or remove labels on an issue without replacing unrelated labels.",
+  "inputSchema": {
+    "properties": {
+      "issue_number": {
+        "description": "Issue number to update",
+        "type": "number"
+      },
+      "labels": {
+        "description": "Labels to add or remove",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "method": {
+        "description": "The label operation to perform.",
+        "enum": [
+          "add",
+          "remove"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo",
+      "issue_number",
+      "labels"
+    ],
+    "type": "object"
+  },
+  "name": "issue_label_write"
+}

@@ -94,8 +94,11 @@ func issueUpdateTool(
 			defer func() { _ = resp.Body.Close() }()
 
 			r, err := json.Marshal(MinimalResponse{
-				ID:  fmt.Sprintf("%d", issue.GetID()),
-				URL: issue.GetHTMLURL(),
+				ID:          fmt.Sprintf("%d", issue.GetID()),
+				URL:         issue.GetHTMLURL(),
+				IssueNumber: issue.GetNumber(),
+				IssueID:     issue.GetID(),
+				IssueNodeID: issue.GetNodeID(),
 			})
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
@@ -178,8 +181,11 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			defer func() { _ = resp.Body.Close() }()
 
 			r, err := json.Marshal(MinimalResponse{
-				ID:  fmt.Sprintf("%d", issue.GetID()),
-				URL: issue.GetHTMLURL(),
+				ID:          fmt.Sprintf("%d", issue.GetID()),
+				URL:         issue.GetHTMLURL(),
+				IssueNumber: issue.GetNumber(),
+				IssueID:     issue.GetID(),
+				IssueNodeID: issue.GetNodeID(),
 			})
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
@@ -819,8 +825,10 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 			}
 
 			r, err := json.Marshal(MinimalResponse{
-				ID:  fmt.Sprintf("%v", mutation.SetIssueFieldValue.Issue.ID),
-				URL: string(mutation.SetIssueFieldValue.Issue.URL),
+				ID:          fmt.Sprintf("%v", mutation.SetIssueFieldValue.Issue.ID),
+				URL:         string(mutation.SetIssueFieldValue.Issue.URL),
+				IssueNumber: int(mutation.SetIssueFieldValue.Issue.Number),
+				IssueNodeID: fmt.Sprintf("%v", mutation.SetIssueFieldValue.Issue.ID),
 			})
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
