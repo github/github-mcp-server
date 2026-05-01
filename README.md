@@ -1065,6 +1065,7 @@ The following sets of tools are available:
   - `body`: PR description (string, optional)
   - `draft`: Create as draft PR (boolean, optional)
   - `head`: Branch containing changes (string, required)
+  - `labels`: Labels to apply to this pull request (string[], optional)
   - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
