@@ -2181,6 +2181,7 @@ func Test_CreatePullRequest(t *testing.T) {
 	assert.Contains(t, schema.Properties, "base")
 	assert.Contains(t, schema.Properties, "draft")
 	assert.Contains(t, schema.Properties, "maintainer_can_modify")
+	assert.Contains(t, schema.Properties, "labels")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "title", "head", "base"})
 
 	// Setup mock PR for success case
@@ -2268,6 +2269,46 @@ func Test_CreatePullRequest(t *testing.T) {
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to create pull request",
+		},
+		{
+			name: "successful PR creation with labels",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsByOwnerByRepo: mockResponse(t, http.StatusCreated, mockPR),
+				PostReposIssuesLabelsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, []*github.Label{
+					{Name: github.Ptr("bug")},
+					{Name: github.Ptr("enhancement")},
+				}),
+			}),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"title":  "Test PR",
+				"head":   "feature-branch",
+				"base":   "main",
+				"labels": []any{"bug", "enhancement"},
+			},
+			expectError: false,
+			expectedPR:  mockPR,
+		},
+		{
+			name: "labels addition fails after PR creation",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsByOwnerByRepo: mockResponse(t, http.StatusCreated, mockPR),
+				PostReposIssuesLabelsByOwnerByRepoByIssueNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Label does not exist"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"title":  "Test PR",
+				"head":   "feature-branch",
+				"base":   "main",
+				"labels": []any{"nonexistent-label"},
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to add labels",
 		},
 	}
 

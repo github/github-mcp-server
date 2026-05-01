@@ -119,6 +119,7 @@ function SuccessView({
 function CreatePRApp() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [labels, setLabels] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successPR, setSuccessPR] = useState<PRResult | null>(null);
@@ -140,6 +141,10 @@ function CreatePRApp() {
   useEffect(() => {
     if (toolInput?.title) setTitle(toolInput.title as string);
     if (toolInput?.body) setBody(toolInput.body as string);
+    if (toolInput?.labels) {
+      const labelsArr = toolInput.labels as string[];
+      setLabels(labelsArr.join(", "));
+    }
     if (toolInput?.draft) setIsDraft(toolInput.draft as boolean);
     if (toolInput?.maintainer_can_modify !== undefined) {
       setMaintainerCanModify(toolInput.maintainer_can_modify as boolean);
@@ -154,6 +159,8 @@ function CreatePRApp() {
     setError(null);
     setSubmittedTitle(title);
 
+    const labelsArray = labels.split(",").map(l => l.trim()).filter(l => l !== "");
+
     try {
       const result = await callTool("create_pull_request", {
         owner, repo,
@@ -163,6 +170,7 @@ function CreatePRApp() {
         base,
         draft: isDraft,
         maintainer_can_modify: maintainerCanModify,
+        labels: labelsArray,
         _ui_submitted: true
       });
 
@@ -182,7 +190,7 @@ function CreatePRApp() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [title, body, owner, repo, head, base, isDraft, maintainerCanModify, callTool]);
+  }, [title, body, labels, owner, repo, head, base, isDraft, maintainerCanModify, callTool]);
 
   if (successPR) {
     return (
@@ -255,6 +263,18 @@ function CreatePRApp() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Title"
+            block
+            contrast
+          />
+        </FormControl>
+
+        {/* Labels */}
+        <FormControl sx={{ mb: 3 }}>
+          <FormControl.Label sx={{ fontWeight: "semibold" }}>Labels</FormControl.Label>
+          <TextInput
+            value={labels}
+            onChange={(e) => setLabels(e.target.value)}
+            placeholder="bug, enhancement, help wanted (comma separated)"
             block
             contrast
           />
