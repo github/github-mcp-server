@@ -16,11 +16,15 @@ import (
 
 // mockScopeFetcher is a mock implementation of scopes.FetcherInterface
 type mockScopeFetcher struct {
-	scopes []string
-	err    error
+	scopes    []string
+	err       error
+	callCount int
+	tokens    []string
 }
 
-func (m *mockScopeFetcher) FetchTokenScopes(_ context.Context, _ string) ([]string, error) {
+func (m *mockScopeFetcher) FetchTokenScopes(_ context.Context, token string) ([]string, error) {
+	m.callCount += 1
+	m.tokens = append(m.tokens, token)
 	return m.scopes, m.err
 }
 
@@ -187,4 +191,41 @@ func TestWithPATScopes_PreservesExistingTokenInfo(t *testing.T) {
 	assert.Equal(t, originalTokenInfo.TokenType, capturedTokenInfo.TokenType)
 	assert.True(t, scopesFound)
 	assert.Equal(t, []string{"repo", "user"}, capturedScopes)
+}
+
+func TestWithPATScopes_RefetchesWhenCachedScopesBelongToDifferentToken(t *testing.T) {
+	logger := slog.Default()
+
+	var capturedScopes []string
+	var scopesFound bool
+
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedScopes, scopesFound = ghcontext.GetTokenScopes(r.Context())
+		w.WriteHeader(http.StatusOK)
+	})
+
+	fetcher := &mockScopeFetcher{
+		scopes: []string{"read:org"},
+	}
+
+	middleware := WithPATScopes(logger, fetcher)
+	handler := middleware(nextHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	ctx := req.Context()
+	ctx = ghcontext.WithTokenInfo(ctx, &ghcontext.TokenInfo{
+		Token:     "ghp_new_token",
+		TokenType: utils.TokenTypePersonalAccessToken,
+	})
+	ctx = ghcontext.WithTokenScopesForToken(ctx, "ghp_old_token", []string{"repo"})
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.True(t, scopesFound)
+	assert.Equal(t, []string{"read:org"}, capturedScopes)
+	assert.Equal(t, 1, fetcher.callCount)
+	require.Len(t, fetcher.tokens, 1)
+	assert.Equal(t, "ghp_new_token", fetcher.tokens[0])
 }

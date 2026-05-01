@@ -96,7 +96,7 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 
 			// Get OAuth scopes for Token. First check if scopes are already in context,  then fetch from GitHub if not present.
 			// This allows Remote Server to pass scope info to avoid redundant GitHub API calls.
-			activeScopes, ok := ghcontext.GetTokenScopes(ctx)
+			activeScopes, ok := ghcontext.GetTokenScopesForToken(ctx, tokenInfo.Token)
 			if !ok || (len(activeScopes) == 0 && tokenInfo.Token != "") {
 				activeScopes, err = scopeFetcher.FetchTokenScopes(ctx, tokenInfo.Token)
 				if err != nil {
@@ -106,7 +106,7 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 			}
 
 			// Store active scopes in context for downstream use
-			ctx = ghcontext.WithTokenScopes(ctx, activeScopes)
+			ctx = ghcontext.WithTokenScopesForToken(ctx, tokenInfo.Token, activeScopes)
 			r = r.WithContext(ctx)
 
 			// Check if user has the required scopes
