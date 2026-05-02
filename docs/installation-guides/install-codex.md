@@ -21,8 +21,10 @@ bearer_token_env_var = "GITHUB_PAT_TOKEN"
 You can also add it via the Codex CLI:
 
 ```cli
-codex mcp add github --url https://api.githubcopilot.com/mcp/  
+codex mcp add github --url https://api.githubcopilot.com/mcp/ --bearer-token-env-var GITHUB_PAT_TOKEN
 ```
+
+Using `codex mcp add ... --url ...` without `--bearer-token-env-var` only stores the remote server URL. For the hosted GitHub MCP server, you also need to bind a PAT environment variable so Codex can send the `Authorization` header.
 
 <details>
 <summary><b>Storing Your PAT Securely</b></summary>
