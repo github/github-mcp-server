@@ -13,9 +13,14 @@ import (
 // The Registry's `Enabled` closure is still available for future use
 // (e.g. feature-flagging a skill behind an experimental toolset).
 //
+// In addition to the bundled SKILL.md catalogue, the registry advertises
+// the per-repo skill resource template (skill://{owner}/{repo}/{skill_name}/{+file_path})
+// in the discovery index when the `skills` toolset is enabled. The matching
+// MCP resource template + handler are registered via the inventory.
+//
 // Adding a new server-bundled skill is one entry here plus a //go:embed
 // line in package skills.
-func bundledSkills(_ *inventory.Inventory) *skills.Registry {
+func bundledSkills(inv *inventory.Inventory) *skills.Registry {
 	return skills.New().
 		Add(skills.Bundled{
 			Name:        "review-pr",
@@ -151,6 +156,14 @@ func bundledSkills(_ *inventory.Inventory) *skills.Registry {
 			Name:        "share-snippet",
 			Description: "Create and manage code snippets via GitHub Gists. Use when sharing a code snippet, creating a quick paste, saving notes as a gist, or managing your existing gists.",
 			Content:     skills.ShareSnippetSKILL,
+		}).
+		// Per-repo skill template (SEP-2640 mcp-resource-template entry).
+		// Gated on the `skills` toolset since the matching MCP resource
+		// template is registered there too.
+		AddTemplate(skills.BundledTemplate{
+			Description: "Agent Skills hosted in any GitHub repository — fill in {owner}/{repo}/{skill_name} to read SKILL.md, then extend the URI to read referenced files (e.g. references/GUIDE.md).",
+			URL:         SkillResourceDiscoveryURL,
+			Enabled:     func() bool { return inv.IsToolsetEnabled(ToolsetMetadataSkills.ID) },
 		})
 }
 

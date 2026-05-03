@@ -242,6 +242,69 @@ func Test_DeclareSkillsExtensionIfEnabled(t *testing.T) {
 	})
 }
 
+// Test_BundledSkills_TemplateInIndex_WhenSkillsToolsetEnabled verifies that
+// enabling the `skills` toolset causes the per-repo skill template entry to
+// appear in `skill://index.json` with `type: "mcp-resource-template"`. This
+// is the SEP-2640 discovery story for parameterized skill families.
+func Test_BundledSkills_TemplateInIndex_WhenSkillsToolsetEnabled(t *testing.T) {
+	ctx := context.Background()
+	inv, err := NewInventory(translations.NullTranslationHelper).
+		WithToolsets([]string{string(ToolsetMetadataSkills.ID)}).
+		Build()
+	require.NoError(t, err)
+
+	srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, &mcp.ServerOptions{
+		Capabilities: &mcp.ServerCapabilities{Resources: &mcp.ResourceCapabilities{}},
+	})
+	RegisterBundledSkills(srv, inv)
+
+	session := connectClient(t, ctx, srv)
+	res, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: skills.IndexURI})
+	require.NoError(t, err)
+
+	var idx skills.IndexDoc
+	require.NoError(t, json.Unmarshal([]byte(res.Contents[0].Text), &idx))
+
+	var found *skills.IndexEntry
+	for i := range idx.Skills {
+		if idx.Skills[i].Type == "mcp-resource-template" {
+			found = &idx.Skills[i]
+			break
+		}
+	}
+	require.NotNil(t, found, "index must include an mcp-resource-template entry when skills toolset is enabled")
+	assert.Equal(t, SkillResourceDiscoveryURL, found.URL)
+	assert.Empty(t, found.Name, "mcp-resource-template entries omit `name` per SEP example")
+	assert.NotEmpty(t, found.Description)
+}
+
+// Test_BundledSkills_TemplateAbsent_WhenSkillsToolsetDisabled verifies that
+// without the `skills` toolset, the template is not advertised — but the
+// always-on bundled skills still are.
+func Test_BundledSkills_TemplateAbsent_WhenSkillsToolsetDisabled(t *testing.T) {
+	ctx := context.Background()
+	inv, err := NewInventory(translations.NullTranslationHelper).
+		WithToolsets([]string{string(ToolsetMetadataContext.ID)}).
+		Build()
+	require.NoError(t, err)
+
+	srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, &mcp.ServerOptions{
+		Capabilities: &mcp.ServerCapabilities{Resources: &mcp.ResourceCapabilities{}},
+	})
+	RegisterBundledSkills(srv, inv)
+
+	session := connectClient(t, ctx, srv)
+	res, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: skills.IndexURI})
+	require.NoError(t, err)
+
+	var idx skills.IndexDoc
+	require.NoError(t, json.Unmarshal([]byte(res.Contents[0].Text), &idx))
+
+	for _, entry := range idx.Skills {
+		assert.NotEqual(t, "mcp-resource-template", entry.Type, "template entry must not appear when skills toolset disabled")
+	}
+}
+
 // Test_BundledSkills_NoDuplicateURIs guards against accidental duplicate
 // registrations — two skills with the same name would collide on the same
 // skill://github/<name>/SKILL.md URI.
