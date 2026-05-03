@@ -242,6 +242,85 @@ func Test_DeclareSkillsExtensionIfEnabled(t *testing.T) {
 	})
 }
 
+// Test_BundledSkills_NoDuplicateURIs guards against accidental duplicate
+// registrations — two skills with the same name would collide on the same
+// skill://github/<name>/SKILL.md URI.
+func Test_BundledSkills_NoDuplicateURIs(t *testing.T) {
+	inv, err := NewInventory(translations.NullTranslationHelper).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+
+	seen := map[string]string{}
+	for _, b := range bundledSkills(inv).Enabled() {
+		uri := b.URI()
+		if prev, dup := seen[uri]; dup {
+			t.Fatalf("duplicate skill URI %q: previously %q, now %q", uri, prev, b.Name)
+		}
+		seen[uri] = b.Name
+	}
+}
+
+// Test_BundledSkills_AllFrontmatterValid verifies that every embedded SKILL.md
+// has YAML frontmatter where the `name` field matches the final segment of the
+// skill's URI — the SEP's structural requirement that lets hosts resolve
+// skill:// URIs back to the declared skill name.
+func Test_BundledSkills_AllFrontmatterValid(t *testing.T) {
+	inv, err := NewInventory(translations.NullTranslationHelper).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+
+	for _, b := range bundledSkills(inv).Enabled() {
+		t.Run(b.Name, func(t *testing.T) {
+			require.NotEmpty(t, b.Content, "embedded SKILL.md is empty")
+
+			md := strings.ReplaceAll(b.Content, "\r\n", "\n")
+			require.True(t, strings.HasPrefix(md, "---\n"), "must begin with YAML frontmatter fence")
+
+			end := strings.Index(md[4:], "\n---\n")
+			require.GreaterOrEqual(t, end, 0, "must have closing frontmatter fence")
+			frontmatter := md[4 : 4+end]
+
+			var name string
+			for _, line := range strings.Split(frontmatter, "\n") {
+				if strings.HasPrefix(line, "name:") {
+					name = strings.TrimSpace(strings.TrimPrefix(line, "name:"))
+					break
+				}
+			}
+			assert.Equal(t, b.Name, name, "frontmatter name must match registered skill name and final URI segment of %s", b.URI())
+		})
+	}
+}
+
+// Test_BundledSkills_AllReadable verifies that every registered skill resource
+// returns its embedded content via resources/read — a round-trip safety net
+// against subtle handler mismatches.
+func Test_BundledSkills_AllReadable(t *testing.T) {
+	ctx := context.Background()
+	inv, err := NewInventory(translations.NullTranslationHelper).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+
+	srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, &mcp.ServerOptions{
+		Capabilities: &mcp.ServerCapabilities{Resources: &mcp.ResourceCapabilities{}},
+	})
+	RegisterBundledSkills(srv, inv)
+	session := connectClient(t, ctx, srv)
+
+	for _, b := range bundledSkills(inv).Enabled() {
+		t.Run(b.Name, func(t *testing.T) {
+			res, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: b.URI()})
+			require.NoError(t, err)
+			require.Len(t, res.Contents, 1)
+			assert.Equal(t, "text/markdown", res.Contents[0].MIMEType)
+			assert.Equal(t, b.Content, res.Contents[0].Text)
+		})
+	}
+}
+
 // listResources enumerates resources/list via an in-memory client session.
 func listResources(t *testing.T, ctx context.Context, srv *mcp.Server) []*mcp.Resource {
 	t.Helper()
