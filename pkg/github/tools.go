@@ -304,6 +304,9 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GranularReprioritizeSubIssue(t),
 		GranularSetIssueFields(t),
 
+		// Skill tools (per-repo Agent Skills discovery — see also pkg/github/skills_resource.go)
+		ListRepoSkills(t),
+
 		// Granular pull request tools (feature-flagged, replace consolidated update_pull_request/pull_request_review_write)
 		GranularUpdatePullRequestTitle(t),
 		GranularUpdatePullRequestBody(t),
