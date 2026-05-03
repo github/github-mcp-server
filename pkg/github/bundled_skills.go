@@ -13,11 +13,6 @@ import (
 // The Registry's `Enabled` closure is still available for future use
 // (e.g. feature-flagging a skill behind an experimental toolset).
 //
-// In addition to the bundled SKILL.md catalogue, the registry advertises
-// the per-repo skill resource template (skill://{owner}/{repo}/{skill_name}/{+file_path})
-// in the discovery index when the `skills` toolset is enabled. The matching
-// MCP resource template + handler are registered via the inventory.
-//
 // Adding a new server-bundled skill is one entry here plus a //go:embed
 // line in package skills.
 func bundledSkills(inv *inventory.Inventory) *skills.Registry {
@@ -156,6 +151,17 @@ func bundledSkills(inv *inventory.Inventory) *skills.Registry {
 			Name:        "share-snippet",
 			Description: "Create and manage code snippets via GitHub Gists. Use when sharing a code snippet, creating a quick paste, saving notes as a gist, or managing your existing gists.",
 			Content:     skills.ShareSnippetSKILL,
+		}).
+		// Meta-skill that teaches the model how to discover and load skills
+		// from this server (both bundled and repo-hosted). Bridges the SEP's
+		// discovery gap for autonomous agents. Always-on — the bundled-skill
+		// discovery half is useful regardless of which toolsets are enabled;
+		// the per-repo half (which depends on `list_repo_skills`) is gated
+		// by a caveat in the SKILL.md body.
+		Add(skills.Bundled{
+			Name:        "discover-mcp-skills",
+			Description: "Discover and load Agent Skills (SKILL.md files) exposed by this MCP server — both the skills bundled with the server and skills hosted in any GitHub repository. Use when the user asks \"what skills do you have?\", \"what can you help with?\", \"use the skill from repo X\", \"are there skills for this in any repo?\", or whenever you suspect an unfamiliar workflow has an existing SKILL.md.",
+			Content:     skills.DiscoverMCPSkillsSKILL,
 		}).
 		// Per-repo skill template (SEP-2640 mcp-resource-template entry).
 		// Gated on the `skills` toolset since the matching MCP resource

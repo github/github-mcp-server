@@ -92,3 +92,6 @@ var DiscoverGitHubSKILL string
 
 //go:embed share-snippet/SKILL.md
 var ShareSnippetSKILL string
+
+//go:embed discover-mcp-skills/SKILL.md
+var DiscoverMCPSkillsSKILL string
