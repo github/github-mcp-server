@@ -40,8 +40,10 @@ type Bundled struct {
 	Enabled func() bool
 }
 
-// URI returns the skill's canonical SKILL.md URI: skill://<name>/SKILL.md.
-func (b Bundled) URI() string { return "skill://" + b.Name + "/SKILL.md" }
+// URI returns the skill's canonical SKILL.md URI: skill://github/<name>/SKILL.md.
+// The "github/" segment is the SEP's organizational prefix for this server's
+// bundled skills; the final path segment is the skill name.
+func (b Bundled) URI() string { return "skill://github/" + b.Name + "/SKILL.md" }
 
 func (b Bundled) enabled() bool { return b.Enabled == nil || b.Enabled() }
 
