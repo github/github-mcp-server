@@ -12,8 +12,8 @@ package skills
 
 import _ "embed"
 
-//go:embed pull-requests/SKILL.md
-var PullRequestsSKILL string
+//go:embed review-pr/SKILL.md
+var ReviewPRSKILL string
 
-//go:embed inbox-triage/SKILL.md
-var InboxTriageSKILL string
+//go:embed handle-notifications/SKILL.md
+var HandleNotificationsSKILL string

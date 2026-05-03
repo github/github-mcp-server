@@ -2,32 +2,30 @@ package github
 
 import (
 	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/skills"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // bundledSkills builds the registry of Agent Skills this server ships.
-// Each entry's Enabled closure gates its publication on the relevant
-// toolset being enabled under the given inventory.
+//
+// All bundled skills load uniformly: always-on, no per-skill toolset
+// gating, no icons. Their `allowed-tools` frontmatter is advisory only.
+// The Registry's `Enabled` closure is still available for future use
+// (e.g. feature-flagging a skill behind an experimental toolset).
 //
 // Adding a new server-bundled skill is one entry here plus a //go:embed
 // line in package skills.
-func bundledSkills(inv *inventory.Inventory) *skills.Registry {
+func bundledSkills(_ *inventory.Inventory) *skills.Registry {
 	return skills.New().
 		Add(skills.Bundled{
-			Name:        "pull-requests",
-			Description: "Submit a multi-comment GitHub pull request review using the pending-review workflow. Use when leaving line-specific feedback on a pull request, when asked to review a PR, or whenever creating any review with more than one comment.",
-			Content:     skills.PullRequestsSKILL,
-			Icons:       octicons.Icons("light-bulb"),
-			Enabled:     func() bool { return inv.IsToolsetEnabled(ToolsetMetadataPullRequests.ID) },
+			Name:        "review-pr",
+			Description: "Submit a multi-comment GitHub pull request review using the pending-review workflow (pull_request_review_write → add_comment_to_pending_review → submit_pending). Use when leaving line-specific feedback on a pull request, when asked to review a PR, or whenever creating any review with more than one comment.",
+			Content:     skills.ReviewPRSKILL,
 		}).
 		Add(skills.Bundled{
-			Name:        "inbox-triage",
+			Name:        "handle-notifications",
 			Description: "Systematically triage the current user's GitHub notifications inbox — enumerate unread items, prioritize by notification reason (review requests, mentions, assignments, security alerts), act on the high-priority ones, then dismiss the rest. Use when the user asks \"what should I work on?\", \"catch me up on GitHub\", \"triage my inbox\", \"what needs my attention?\", or otherwise wants to clear their notifications backlog.",
-			Content:     skills.InboxTriageSKILL,
-			Icons:       octicons.Icons("bell"),
-			Enabled:     func() bool { return inv.IsToolsetEnabled(ToolsetMetadataNotifications.ID) },
+			Content:     skills.HandleNotificationsSKILL,
 		})
 }
 

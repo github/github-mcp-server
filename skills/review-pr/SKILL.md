@@ -1,5 +1,5 @@
 ---
-name: pull-requests
+name: review-pr
 description: Submit a multi-comment GitHub pull request review using the pending-review workflow (pull_request_review_write → add_comment_to_pending_review → submit_pending). Use when leaving line-specific feedback on a pull request, when asked to review a PR, or whenever creating any review with more than one comment.
 ---
 

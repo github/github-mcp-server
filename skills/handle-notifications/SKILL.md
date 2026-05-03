@@ -1,5 +1,5 @@
 ---
-name: inbox-triage
+name: handle-notifications
 description: Systematically triage the current user's GitHub notifications inbox — enumerate unread items, prioritize by notification reason (review requests, mentions, assignments, security alerts), act on the high-priority ones, then dismiss the rest. Use when the user asks "what should I work on?", "catch me up on GitHub", "triage my inbox", "what needs my attention?", or otherwise wants to clear their notifications backlog.
 ---
 
@@ -32,7 +32,7 @@ Use this skill when the user asks about their GitHub inbox, pending work, or out
      - `ci_activity` — workflow runs. Look only if you own CI for this repo.
      - `subscribed` — repo-watch updates on threads you haven't participated in.
 
-3. **Drill in on high-priority.** For each high-priority notification, call `get_notification_details` to inspect the item, then take the appropriate action — leave a review (see the `pull-requests` skill), comment, close, etc.
+3. **Drill in on high-priority.** For each high-priority notification, call `get_notification_details` to inspect the item, then take the appropriate action — leave a review (see the `review-pr` skill), comment, close, etc.
 
 4. **Dismiss as you go.** After acting on (or deciding to skip) each high-priority item, call `dismiss_notification` with the `threadID` and a `state`:
    - `state: "done"` archives the notification so it no longer appears in default queries. Use for items you've fully resolved.
