@@ -284,8 +284,6 @@ func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelper
 		b = InventoryFiltersForRequest(r, b)
 		b = PATScopeFilter(b, r, scopeFetcher)
 
-		b.WithServerInstructions()
-
 		return b.Build()
 	}
 }
