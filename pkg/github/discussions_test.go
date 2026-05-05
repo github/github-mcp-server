@@ -1678,7 +1678,7 @@ func Test_SetDiscussionCommentAnswer(t *testing.T) {
 			},
 			mockedClient:    githubv4mock.NewMockedHTTPClient(),
 			expectToolError: true,
-			expectedErrMsg:  "isAnswer is required",
+			expectedErrMsg:  "missing required parameter: isAnswer",
 		},
 	}
 

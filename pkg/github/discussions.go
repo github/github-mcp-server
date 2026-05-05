@@ -622,14 +622,20 @@ func AddDiscussionComment(t translations.TranslationHelperFunc) inventory.Server
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			// Decode params
-			var params struct {
-				Owner            string
-				Repo             string
-				DiscussionNumber int32
-				Body             string
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			if err := mapstructure.WeakDecode(args, &params); err != nil {
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			discussionNumber, err := RequiredInt(args, "discussionNumber")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			body, err := RequiredParam[string](args, "body")
+			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			client, err := deps.GetGQLClient(ctx)
@@ -646,9 +652,9 @@ func AddDiscussionComment(t translations.TranslationHelperFunc) inventory.Server
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
 			vars := map[string]any{
-				"owner":            githubv4.String(params.Owner),
-				"repo":             githubv4.String(params.Repo),
-				"discussionNumber": githubv4.Int(params.DiscussionNumber),
+				"owner":            githubv4.String(owner),
+				"repo":             githubv4.String(repo),
+				"discussionNumber": githubv4.Int(discussionNumber), // #nosec G115 - discussion numbers are always small positive integers
 			}
 			if err := client.Query(ctx, &q, vars); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -657,7 +663,7 @@ func AddDiscussionComment(t translations.TranslationHelperFunc) inventory.Server
 			// Add the comment using the discussion's node ID
 			input := githubv4.AddDiscussionCommentInput{
 				DiscussionID: q.Repository.Discussion.ID,
-				Body:         githubv4.String(params.Body),
+				Body:         githubv4.String(body),
 			}
 
 			replyToCommentNodeID, err := OptionalParam[string](args, "replyToCommentNodeID")
@@ -745,11 +751,12 @@ func UpdateDiscussionComment(t translations.TranslationHelperFunc) inventory.Ser
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			var params struct {
-				CommentNodeID string
-				Body          string
+			commentNodeID, err := RequiredParam[string](args, "commentNodeID")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			if err := mapstructure.WeakDecode(args, &params); err != nil {
+			body, err := RequiredParam[string](args, "body")
+			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			client, err := deps.GetGQLClient(ctx)
@@ -758,8 +765,8 @@ func UpdateDiscussionComment(t translations.TranslationHelperFunc) inventory.Ser
 			}
 
 			input := githubv4.UpdateDiscussionCommentInput{
-				CommentID: githubv4.ID(params.CommentNodeID),
-				Body:      githubv4.String(params.Body),
+				CommentID: githubv4.ID(commentNodeID),
+				Body:      githubv4.String(body),
 			}
 
 			var mutation struct {
@@ -813,10 +820,8 @@ func DeleteDiscussionComment(t translations.TranslationHelperFunc) inventory.Ser
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			var params struct {
-				CommentNodeID string
-			}
-			if err := mapstructure.WeakDecode(args, &params); err != nil {
+			commentNodeID, err := RequiredParam[string](args, "commentNodeID")
+			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			client, err := deps.GetGQLClient(ctx)
@@ -825,7 +830,7 @@ func DeleteDiscussionComment(t translations.TranslationHelperFunc) inventory.Ser
 			}
 
 			input := githubv4.DeleteDiscussionCommentInput{
-				ID: githubv4.ID(params.CommentNodeID),
+				ID: githubv4.ID(commentNodeID),
 			}
 
 			var mutation struct {
@@ -888,7 +893,7 @@ func SetDiscussionCommentAnswer(t translations.TranslationHelperFunc) inventory.
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			if _, ok := args["isAnswer"]; !ok {
-				return utils.NewToolResultError("isAnswer is required"), nil, nil
+				return utils.NewToolResultError("missing required parameter: isAnswer"), nil, nil
 			}
 			isAnswer, err := OptionalParam[bool](args, "isAnswer")
 			if err != nil {
