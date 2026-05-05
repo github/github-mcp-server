@@ -752,7 +752,7 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `repo`
   - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
   - `discussionNumber`: Discussion Number (number, required)
-  - `includeReplies`: When true, each top-level comment will include its replies nested within it. Defaults to false. (boolean, optional)
+  - `includeReplies`: When true, each top-level comment will include its replies nested within it (up to 100 replies per comment, which is the GitHub API maximum). Defaults to false. (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)

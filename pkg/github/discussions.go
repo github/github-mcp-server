@@ -408,7 +408,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 					},
 					"includeReplies": {
 						Type:        "boolean",
-						Description: "When true, each top-level comment will include its replies nested within it. Defaults to false.",
+						Description: "When true, each top-level comment will include its replies nested within it (up to 100 replies per comment, which is the GitHub API maximum). Defaults to false.",
 					},
 				},
 				Required: []string{"owner", "repo", "discussionNumber"},
