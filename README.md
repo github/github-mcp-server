@@ -730,6 +730,18 @@ The following sets of tools are available:
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/comment-discussion-light.png"><img src="pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture> Discussions</summary>
 
+- **add_discussion_comment** - Add discussion comment
+  - **Required OAuth Scopes**: `repo`
+  - `body`: Comment content (string, required)
+  - `discussionNumber`: Discussion Number (number, required)
+  - `owner`: Repository owner (string, required)
+  - `replyToCommentNodeID`: The Node ID of the comment to reply to. If provided, the comment will be posted as a reply. (string, optional)
+  - `repo`: Repository name (string, required)
+
+- **delete_discussion_comment** - Delete discussion comment
+  - **Required OAuth Scopes**: `repo`
+  - `commentNodeID`: The Node ID of the discussion comment to delete (string, required)
+
 - **get_discussion** - Get discussion
   - **Required OAuth Scopes**: `repo`
   - `discussionNumber`: Discussion Number (number, required)
@@ -740,6 +752,7 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `repo`
   - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
   - `discussionNumber`: Discussion Number (number, required)
+  - `includeReplies`: When true, each top-level comment will include its replies nested within it. Defaults to false. (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
@@ -758,6 +771,16 @@ The following sets of tools are available:
   - `owner`: Repository owner (string, required)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name. If not provided, discussions will be queried at the organisation level. (string, optional)
+
+- **set_discussion_comment_answer** - Set discussion comment as answer
+  - **Required OAuth Scopes**: `repo`
+  - `commentNodeID`: The Node ID of the discussion comment to mark or unmark as the answer (string, required)
+  - `isAnswer`: Whether the comment is the answer to the discussion (true to mark, false to unmark) (boolean, required)
+
+- **update_discussion_comment** - Update discussion comment
+  - **Required OAuth Scopes**: `repo`
+  - `body`: The new contents of the comment (string, required)
+  - `commentNodeID`: The Node ID of the discussion comment to update (string, required)
 
 </details>
 

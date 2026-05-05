@@ -14,6 +14,10 @@
         "description": "Discussion Number",
         "type": "number"
       },
+      "includeReplies": {
+        "description": "When true, each top-level comment will include its replies nested within it. Defaults to false.",
+        "type": "boolean"
+      },
       "owner": {
         "description": "Repository owner",
         "type": "string"

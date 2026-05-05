@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
@@ -405,6 +406,10 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 						Type:        "number",
 						Description: "Discussion Number",
 					},
+					"includeReplies": {
+						Type:        "boolean",
+						Description: "When true, each top-level comment will include its replies nested within it. Defaults to false.",
+					},
 				},
 				Required: []string{"owner", "repo", "discussionNumber"},
 			}),
@@ -418,6 +423,11 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				DiscussionNumber int32
 			}
 			if err := mapstructure.WeakDecode(args, &params); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			includeReplies, err := OptionalParam[bool](args, "includeReplies")
+			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
@@ -447,24 +457,6 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
 
-			var q struct {
-				Repository struct {
-					Discussion struct {
-						Comments struct {
-							Nodes []struct {
-								Body githubv4.String
-							}
-							PageInfo struct {
-								HasNextPage     githubv4.Boolean
-								HasPreviousPage githubv4.Boolean
-								StartCursor     githubv4.String
-								EndCursor       githubv4.String
-							}
-							TotalCount int
-						} `graphql:"comments(first: $first, after: $after)"`
-					} `graphql:"discussion(number: $discussionNumber)"`
-				} `graphql:"repository(owner: $owner, name: $repo)"`
-			}
 			vars := map[string]any{
 				"owner":            githubv4.String(params.Owner),
 				"repo":             githubv4.String(params.Repo),
@@ -476,30 +468,488 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 			} else {
 				vars["after"] = (*githubv4.String)(nil)
 			}
-			if err := client.Query(ctx, &q, vars); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
 
-			var comments []*github.IssueComment
-			for _, c := range q.Repository.Discussion.Comments.Nodes {
-				comments = append(comments, &github.IssueComment{Body: github.Ptr(string(c.Body))})
+			var comments []MinimalDiscussionComment
+			var pageInfo struct {
+				HasNextPage     githubv4.Boolean
+				HasPreviousPage githubv4.Boolean
+				StartCursor     githubv4.String
+				EndCursor       githubv4.String
+			}
+			var totalCount int
+
+			if includeReplies {
+				var q struct {
+					Repository struct {
+						Discussion struct {
+							Comments struct {
+								Nodes []struct {
+									ID       githubv4.ID
+									Body     githubv4.String
+									IsAnswer githubv4.Boolean
+									Replies  struct {
+										Nodes []struct {
+											ID   githubv4.ID
+											Body githubv4.String
+										}
+										TotalCount int
+									} `graphql:"replies(first: 100)"`
+								}
+								PageInfo struct {
+									HasNextPage     githubv4.Boolean
+									HasPreviousPage githubv4.Boolean
+									StartCursor     githubv4.String
+									EndCursor       githubv4.String
+								}
+								TotalCount int
+							} `graphql:"comments(first: $first, after: $after)"`
+						} `graphql:"discussion(number: $discussionNumber)"`
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}
+				if err := client.Query(ctx, &q, vars); err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				for _, c := range q.Repository.Discussion.Comments.Nodes {
+					comment := MinimalDiscussionComment{
+						ID:              fmt.Sprintf("%v", c.ID),
+						Body:            string(c.Body),
+						IsAnswer:        bool(c.IsAnswer),
+						ReplyTotalCount: c.Replies.TotalCount,
+					}
+					for _, r := range c.Replies.Nodes {
+						comment.Replies = append(comment.Replies, MinimalDiscussionComment{
+							ID:   fmt.Sprintf("%v", r.ID),
+							Body: string(r.Body),
+						})
+					}
+					comments = append(comments, comment)
+				}
+				pageInfo = q.Repository.Discussion.Comments.PageInfo
+				totalCount = q.Repository.Discussion.Comments.TotalCount
+			} else {
+				var q struct {
+					Repository struct {
+						Discussion struct {
+							Comments struct {
+								Nodes []struct {
+									ID       githubv4.ID
+									Body     githubv4.String
+									IsAnswer githubv4.Boolean
+								}
+								PageInfo struct {
+									HasNextPage     githubv4.Boolean
+									HasPreviousPage githubv4.Boolean
+									StartCursor     githubv4.String
+									EndCursor       githubv4.String
+								}
+								TotalCount int
+							} `graphql:"comments(first: $first, after: $after)"`
+						} `graphql:"discussion(number: $discussionNumber)"`
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}
+				if err := client.Query(ctx, &q, vars); err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				for _, c := range q.Repository.Discussion.Comments.Nodes {
+					comments = append(comments, MinimalDiscussionComment{
+						ID:       fmt.Sprintf("%v", c.ID),
+						Body:     string(c.Body),
+						IsAnswer: bool(c.IsAnswer),
+					})
+				}
+				pageInfo = q.Repository.Discussion.Comments.PageInfo
+				totalCount = q.Repository.Discussion.Comments.TotalCount
 			}
 
 			// Create response with pagination info
 			response := map[string]any{
 				"comments": comments,
 				"pageInfo": map[string]any{
-					"hasNextPage":     q.Repository.Discussion.Comments.PageInfo.HasNextPage,
-					"hasPreviousPage": q.Repository.Discussion.Comments.PageInfo.HasPreviousPage,
-					"startCursor":     string(q.Repository.Discussion.Comments.PageInfo.StartCursor),
-					"endCursor":       string(q.Repository.Discussion.Comments.PageInfo.EndCursor),
+					"hasNextPage":     pageInfo.HasNextPage,
+					"hasPreviousPage": pageInfo.HasPreviousPage,
+					"startCursor":     string(pageInfo.StartCursor),
+					"endCursor":       string(pageInfo.EndCursor),
 				},
-				"totalCount": q.Repository.Discussion.Comments.TotalCount,
+				"totalCount": totalCount,
 			}
 
 			out, err := json.Marshal(response)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal comments: %w", err)
+			}
+
+			return utils.NewToolResultText(string(out)), nil, nil
+		},
+	)
+}
+
+func AddDiscussionComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataDiscussions,
+		mcp.Tool{
+			Name:        "add_discussion_comment",
+			Description: t("TOOL_ADD_DISCUSSION_COMMENT_DESCRIPTION", "Add a comment to a discussion"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_ADD_DISCUSSION_COMMENT_USER_TITLE", "Add discussion comment"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"discussionNumber": {
+						Type:        "number",
+						Description: "Discussion Number",
+					},
+					"body": {
+						Type:        "string",
+						Description: "Comment content",
+					},
+					"replyToCommentNodeID": {
+						Type:        "string",
+						Description: "The Node ID of the comment to reply to. If provided, the comment will be posted as a reply.",
+					},
+				},
+				Required: []string{"owner", "repo", "discussionNumber", "body"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			// Decode params
+			var params struct {
+				Owner            string
+				Repo             string
+				DiscussionNumber int32
+				Body             string
+			}
+			if err := mapstructure.WeakDecode(args, &params); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			client, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+			}
+
+			// Get the discussion's node ID using its number
+			var q struct {
+				Repository struct {
+					Discussion struct {
+						ID githubv4.ID
+					} `graphql:"discussion(number: $discussionNumber)"`
+				} `graphql:"repository(owner: $owner, name: $repo)"`
+			}
+			vars := map[string]any{
+				"owner":            githubv4.String(params.Owner),
+				"repo":             githubv4.String(params.Repo),
+				"discussionNumber": githubv4.Int(params.DiscussionNumber),
+			}
+			if err := client.Query(ctx, &q, vars); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Add the comment using the discussion's node ID
+			input := githubv4.AddDiscussionCommentInput{
+				DiscussionID: q.Repository.Discussion.ID,
+				Body:         githubv4.String(params.Body),
+			}
+
+			replyToCommentNodeID, err := OptionalParam[string](args, "replyToCommentNodeID")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if replyToCommentNodeID != "" {
+				if strings.TrimSpace(replyToCommentNodeID) == "" {
+					return utils.NewToolResultError("replyToCommentNodeID cannot be blank"), nil, nil
+				}
+				// The GitHub API silently ignores an invalid ReplyToID and creates a top-level
+				// comment instead of returning an error, so we validate upfront that the node
+				// exists and is a DiscussionComment to give callers a clear failure.
+				var nodeQuery struct {
+					Node struct {
+						DiscussionComment struct {
+							ID githubv4.ID
+						} `graphql:"... on DiscussionComment"`
+					} `graphql:"node(id: $replyToID)"`
+				}
+				if err := client.Query(ctx, &nodeQuery, map[string]any{
+					"replyToID": githubv4.ID(replyToCommentNodeID),
+				}); err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("failed to validate replyToCommentNodeID: %v", err)), nil, nil
+				}
+				if nodeQuery.Node.DiscussionComment.ID == nil || nodeQuery.Node.DiscussionComment.ID == "" {
+					return utils.NewToolResultError(fmt.Sprintf("replyToCommentNodeID %q does not resolve to a valid discussion comment", replyToCommentNodeID)), nil, nil
+				}
+				id := githubv4.ID(replyToCommentNodeID)
+				input.ReplyToID = &id
+			}
+
+			var mutation struct {
+				AddDiscussionComment struct {
+					Comment struct {
+						ID  githubv4.ID
+						URL githubv4.String `graphql:"url"`
+					}
+				} `graphql:"addDiscussionComment(input: $input)"`
+			}
+
+			if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			comment := mutation.AddDiscussionComment.Comment
+			minimalResponse := MinimalResponse{
+				ID:  fmt.Sprintf("%v", comment.ID),
+				URL: string(comment.URL),
+			}
+
+			out, err := json.Marshal(minimalResponse)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal comment: %w", err)
+			}
+
+			return utils.NewToolResultText(string(out)), nil, nil
+		})
+}
+
+func UpdateDiscussionComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataDiscussions,
+		mcp.Tool{
+			Name:        "update_discussion_comment",
+			Description: t("TOOL_UPDATE_DISCUSSION_COMMENT_DESCRIPTION", "Update a comment on a discussion"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_UPDATE_DISCUSSION_COMMENT_USER_TITLE", "Update discussion comment"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"commentNodeID": {
+						Type:        "string",
+						Description: "The Node ID of the discussion comment to update",
+					},
+					"body": {
+						Type:        "string",
+						Description: "The new contents of the comment",
+					},
+				},
+				Required: []string{"commentNodeID", "body"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			var params struct {
+				CommentNodeID string
+				Body          string
+			}
+			if err := mapstructure.WeakDecode(args, &params); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			client, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+			}
+
+			input := githubv4.UpdateDiscussionCommentInput{
+				CommentID: githubv4.ID(params.CommentNodeID),
+				Body:      githubv4.String(params.Body),
+			}
+
+			var mutation struct {
+				UpdateDiscussionComment struct {
+					Comment struct {
+						ID  githubv4.ID
+						URL githubv4.String `graphql:"url"`
+					}
+				} `graphql:"updateDiscussionComment(input: $input)"`
+			}
+
+			if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			comment := mutation.UpdateDiscussionComment.Comment
+			minimalResponse := MinimalResponse{
+				ID:  fmt.Sprintf("%v", comment.ID),
+				URL: string(comment.URL),
+			}
+
+			out, err := json.Marshal(minimalResponse)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal comment: %w", err)
+			}
+
+			return utils.NewToolResultText(string(out)), nil, nil
+		})
+}
+
+func DeleteDiscussionComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataDiscussions,
+		mcp.Tool{
+			Name:        "delete_discussion_comment",
+			Description: t("TOOL_DELETE_DISCUSSION_COMMENT_DESCRIPTION", "Delete a comment on a discussion"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_DELETE_DISCUSSION_COMMENT_USER_TITLE", "Delete discussion comment"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"commentNodeID": {
+						Type:        "string",
+						Description: "The Node ID of the discussion comment to delete",
+					},
+				},
+				Required: []string{"commentNodeID"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			var params struct {
+				CommentNodeID string
+			}
+			if err := mapstructure.WeakDecode(args, &params); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			client, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+			}
+
+			input := githubv4.DeleteDiscussionCommentInput{
+				ID: githubv4.ID(params.CommentNodeID),
+			}
+
+			var mutation struct {
+				DeleteDiscussionComment struct {
+					Comment struct {
+						ID  githubv4.ID
+						URL githubv4.String `graphql:"url"`
+					}
+				} `graphql:"deleteDiscussionComment(input: $input)"`
+			}
+
+			if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			comment := mutation.DeleteDiscussionComment.Comment
+			minimalResponse := MinimalResponse{
+				ID:  fmt.Sprintf("%v", comment.ID),
+				URL: string(comment.URL),
+			}
+
+			out, err := json.Marshal(minimalResponse)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal comment: %w", err)
+			}
+
+			return utils.NewToolResultText(string(out)), nil, nil
+		})
+}
+
+func SetDiscussionCommentAnswer(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataDiscussions,
+		mcp.Tool{
+			Name:        "set_discussion_comment_answer",
+			Description: t("TOOL_SET_DISCUSSION_COMMENT_ANSWER_DESCRIPTION", "Marks or unmarks a given discussion comment as the answer to the discussion."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_SET_DISCUSSION_COMMENT_ANSWER_USER_TITLE", "Set discussion comment as answer"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"commentNodeID": {
+						Type:        "string",
+						Description: "The Node ID of the discussion comment to mark or unmark as the answer",
+					},
+					"isAnswer": {
+						Type:        "boolean",
+						Description: "Whether the comment is the answer to the discussion (true to mark, false to unmark)",
+					},
+				},
+				Required: []string{"commentNodeID", "isAnswer"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			commentNodeID, err := RequiredParam[string](args, "commentNodeID")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if _, ok := args["isAnswer"]; !ok {
+				return utils.NewToolResultError("isAnswer is required"), nil, nil
+			}
+			isAnswer, err := OptionalParam[bool](args, "isAnswer")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+			}
+
+			var discussionID githubv4.ID
+			var discussionURL githubv4.String
+
+			if isAnswer {
+				input := githubv4.MarkDiscussionCommentAsAnswerInput{
+					ID: githubv4.ID(commentNodeID),
+				}
+				var mutation struct {
+					MarkDiscussionCommentAsAnswer struct {
+						Discussion struct {
+							ID  githubv4.ID
+							URL githubv4.String `graphql:"url"`
+						}
+					} `graphql:"markDiscussionCommentAsAnswer(input: $input)"`
+				}
+				if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				discussionID = mutation.MarkDiscussionCommentAsAnswer.Discussion.ID
+				discussionURL = mutation.MarkDiscussionCommentAsAnswer.Discussion.URL
+			} else {
+				input := githubv4.UnmarkDiscussionCommentAsAnswerInput{
+					ID: githubv4.ID(commentNodeID),
+				}
+				var mutation struct {
+					UnmarkDiscussionCommentAsAnswer struct {
+						Discussion struct {
+							ID  githubv4.ID
+							URL githubv4.String `graphql:"url"`
+						}
+					} `graphql:"unmarkDiscussionCommentAsAnswer(input: $input)"`
+				}
+				if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				discussionID = mutation.UnmarkDiscussionCommentAsAnswer.Discussion.ID
+				discussionURL = mutation.UnmarkDiscussionCommentAsAnswer.Discussion.URL
+			}
+
+			response := struct {
+				DiscussionID  string `json:"discussionID"`
+				DiscussionURL string `json:"discussionURL"`
+			}{
+				DiscussionID:  fmt.Sprintf("%v", discussionID),
+				DiscussionURL: string(discussionURL),
+			}
+
+			out, err := json.Marshal(response)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal discussion: %w", err)
 			}
 
 			return utils.NewToolResultText(string(out)), nil, nil
