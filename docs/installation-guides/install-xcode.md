@@ -16,23 +16,25 @@ Place your MCP server configuration in the relevant directory above rather than 
 ## Setup Guides
 
 - **[Codex](install-codex.md)** — configure `config.toml` inside `~/Library/Developer/Xcode/CodingAssistant/codex/`
-- **[Claude Agent](install-claude.md#claude-desktop)** — configure `.claude.json` inside `~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/`
+- **[Claude Agent](install-claude.md#xcode-claude-agent)** — configure `.claude.json` inside `~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/`
 
 ## macOS Path Note
 
-Xcode runs with a minimal `PATH` that typically excludes `/usr/local/bin`. If you are using a local STDIO server (e.g. Docker or a pre-built binary), use the **full path** to the command in your config:
+Xcode runs with a minimal `PATH` that typically excludes common binary locations. If you are using a local STDIO server (e.g. Docker or a pre-built binary), use the **full path** to the command in your config. Run `which docker` (or `which github-mcp-server`) in Terminal to find the correct path on your system. Common locations:
 
-```
-/usr/local/bin/docker
-/usr/local/bin/github-mcp-server
-```
+| Installation | Typical path |
+|---|---|
+| Docker (Intel Mac) | `/usr/local/bin/docker` |
+| Docker (Apple Silicon) | `/usr/local/bin/docker` |
+| Homebrew (Intel Mac) | `/usr/local/bin/` |
+| Homebrew (Apple Silicon) | `/opt/homebrew/bin/` |
 
 ## Troubleshooting
 
 | Issue | Possible Cause | Fix |
 |-------|----------------|-----|
 | Tools not loading | Config placed in wrong directory | Ensure config is in the Xcode-specific path above, not `~/.codex/` or `~/.claude.json` |
-| Command not found (STDIO) | Xcode's PATH excludes `/usr/local/bin` | Use the full path to the command |
+| Command not found (STDIO) | Xcode's PATH excludes binary location | Use the full path (e.g. `/usr/local/bin/docker` or `/opt/homebrew/bin/docker`); run `which docker` in Terminal to confirm |
 | Docker not found | Docker not running | Start Docker Desktop and restart Xcode |
 | Authentication failed | Invalid or expired PAT | Regenerate PAT and update config |
 

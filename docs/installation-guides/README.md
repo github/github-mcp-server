@@ -33,7 +33,7 @@ This directory contains detailed installation instructions for the GitHub MCP Se
 | Windsurf | ✅ | ✅ PAT + ❌ No OAuth | Docker or Go build, GitHub PAT | Easy |
 | Copilot in Xcode | ✅ | ✅ Full (OAuth + PAT) | Local: Docker or Go build, GitHub PAT<br>Remote: Copilot for Xcode 0.41.0+ | Easy |
 | Copilot in Eclipse | ✅ | ✅ Full (OAuth + PAT) | Local: Docker or Go build, GitHub PAT<br>Remote: Eclipse Plug-in for Copilot 0.10.0+ | Easy |
-| Xcode (Codex) | ✅ | ✅ PAT + ❌ No OAuth | Local: Docker (full path required), GitHub PAT<br>Remote: GitHub PAT + env var | Easy |
+| Xcode (Codex) | ✅ | ✅ PAT + ❌ No OAuth | Local: Docker (full path required), GitHub PAT<br>Remote: GitHub PAT via `GITHUB_PAT_TOKEN` env var (`bearer_token_env_var`) | Easy |
 | Xcode (Claude Agent) | ✅ | ✅ PAT + ❌ No OAuth | Local: Docker (full path required), GitHub PAT<br>Remote: GitHub PAT | Easy |
 
 **Legend:**
