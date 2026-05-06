@@ -10,10 +10,9 @@
 //
 // Example usage:
 //
-//	// Create a label readable by everyone
+//	// Create a label readable by everyone (public)
 //	universe := UniversalReaders[string]()
-//	publicReaders := NewFiniteReaderSetFromSlice([]string{"alice", "bob"})
-//	label, _ := NewPowersetLattice(publicReaders, universe)
+//	label, _ := NewPowersetLattice(universe, universe)
 //
 //	// Create a label for specific readers only
 //	finiteUniverse := NewFiniteReaderSetFromSlice([]string{"alice", "bob", "charlie"})
@@ -25,6 +24,7 @@ package ifc
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -90,7 +90,7 @@ func (f *FiniteReaderSet[T]) IsSubset(other ReaderSet[T]) bool {
 	}
 	otherFinite, ok := other.(*FiniteReaderSet[T])
 	if !ok {
-		return false
+		panic(fmt.Sprintf("unsupported ReaderSet implementation: %T", other))
 	}
 	for member := range f.members {
 		if _, exists := otherFinite.members[member]; !exists {
@@ -106,7 +106,7 @@ func (f *FiniteReaderSet[T]) Union(other ReaderSet[T]) ReaderSet[T] {
 	}
 	otherFinite, ok := other.(*FiniteReaderSet[T])
 	if !ok {
-		return f
+		panic(fmt.Sprintf("unsupported ReaderSet implementation: %T", other))
 	}
 	union := make(map[T]struct{}, len(f.members)+len(otherFinite.members))
 	for member := range f.members {
@@ -124,7 +124,7 @@ func (f *FiniteReaderSet[T]) Intersection(other ReaderSet[T]) ReaderSet[T] {
 	}
 	otherFinite, ok := other.(*FiniteReaderSet[T])
 	if !ok {
-		return NewFiniteReaderSet[T](make(map[T]struct{}))
+		panic(fmt.Sprintf("unsupported ReaderSet implementation: %T", other))
 	}
 	intersection := make(map[T]struct{})
 	for member := range f.members {
@@ -139,15 +139,18 @@ func (f *FiniteReaderSet[T]) String() string {
 	if len(f.members) == 0 {
 		return "FiniteReaderSet({})"
 	}
+	strs := make([]string, 0, len(f.members))
+	for member := range f.members {
+		strs = append(strs, fmt.Sprintf("%v", member))
+	}
+	sort.Strings(strs)
 	var b strings.Builder
 	b.WriteString("FiniteReaderSet({")
-	first := true
-	for member := range f.members {
-		if !first {
+	for i, s := range strs {
+		if i > 0 {
 			b.WriteString(", ")
 		}
-		first = false
-		fmt.Fprintf(&b, "%v", member)
+		b.WriteString(s)
 	}
 	b.WriteString("})")
 	return b.String()
@@ -192,10 +195,12 @@ func copySet[T comparable](in map[T]struct{}) map[T]struct{} {
 }
 
 func (p *PowersetLattice[T]) Leq(other *PowersetLattice[T]) bool {
+	p.mustMatchUniverse(other)
 	return p.subset.IsSubset(other.subset)
 }
 
 func (p *PowersetLattice[T]) Join(other *PowersetLattice[T]) *PowersetLattice[T] {
+	p.mustMatchUniverse(other)
 	return &PowersetLattice[T]{
 		subset:   p.subset.Union(other.subset),
 		universe: p.universe,
@@ -203,9 +208,29 @@ func (p *PowersetLattice[T]) Join(other *PowersetLattice[T]) *PowersetLattice[T]
 }
 
 func (p *PowersetLattice[T]) Meet(other *PowersetLattice[T]) *PowersetLattice[T] {
+	p.mustMatchUniverse(other)
 	return &PowersetLattice[T]{
 		subset:   p.subset.Intersection(other.subset),
 		universe: p.universe,
+	}
+}
+
+func (p *PowersetLattice[T]) mustMatchUniverse(other *PowersetLattice[T]) {
+	pUniv := p.universe.IsUniversal()
+	oUniv := other.universe.IsUniversal()
+	if pUniv != oUniv {
+		panic(fmt.Sprintf("universe mismatch: %s vs %s", p.universe, other.universe))
+	}
+	if pUniv {
+		return
+	}
+	pFinite, pOK := p.universe.(*FiniteReaderSet[T])
+	oFinite, oOK := other.universe.(*FiniteReaderSet[T])
+	if !pOK || !oOK {
+		panic(fmt.Sprintf("universe mismatch: %T vs %T", p.universe, other.universe))
+	}
+	if !pFinite.IsSubset(oFinite) || !oFinite.IsSubset(pFinite) {
+		panic(fmt.Sprintf("universe mismatch: %s vs %s", p.universe, other.universe))
 	}
 }
 
@@ -318,6 +343,7 @@ func (l ReadersSecurityLabel) GetReaders() []string {
 	for reader := range finiteSet.members {
 		readers = append(readers, reader)
 	}
+	sort.Strings(readers)
 	return readers
 }
 
@@ -396,7 +422,7 @@ func (l *ReadersSecurityLabel) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// ReadersSecurityLabelFromDict creates an ReadersSecurityLabel from a dictionary format.
+// ReadersSecurityLabelFromDict creates a ReadersSecurityLabel from a dictionary format.
 func ReadersSecurityLabelFromDict(dict map[string]any) ReadersSecurityLabel {
 	// Parse integrity
 	integrityStr := "high"
