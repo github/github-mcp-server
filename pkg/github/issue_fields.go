@@ -16,20 +16,26 @@ import (
 
 // IssueField represents an organization-level issue field definition.
 type IssueField struct {
-	ID          int64              `json:"id"`
-	NodeID      string             `json:"node_id"`
-	Name        string             `json:"name"`
-	Description string             `json:"description,omitempty"`
-	DataType    string             `json:"data_type"`
-	Options     []IssueFieldOption `json:"options,omitempty"`
-	CreatedAt   string             `json:"created_at"`
-	UpdatedAt   string             `json:"updated_at"`
+	ID          int64                          `json:"id"`
+	NodeID      string                         `json:"node_id"`
+	Name        string                         `json:"name"`
+	Description string                         `json:"description,omitempty"`
+	DataType    string                         `json:"data_type"`
+	Visibility  string                         `json:"visibility"`
+	Options     []IssueSingleSelectFieldOption `json:"options,omitempty"`
+	CreatedAt   string                         `json:"created_at"`
+	UpdatedAt   string                         `json:"updated_at"`
 }
 
-// IssueFieldOption represents an option for a single_select issue field.
-type IssueFieldOption struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
+// IssueSingleSelectFieldOption represents an option for a single_select issue field.
+type IssueSingleSelectFieldOption struct {
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Color       string `json:"color"`
+	Priority    int64  `json:"priority"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 // ListOrgIssueFields creates a tool to list issue field definitions for an organization.

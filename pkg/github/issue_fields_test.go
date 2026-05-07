@@ -34,6 +34,7 @@ func Test_ListOrgIssueFields(t *testing.T) {
 			Name:        "DRI",
 			Description: "Directly responsible individual",
 			DataType:    "text",
+			Visibility:  "organization_members_only",
 			CreatedAt:   "2024-12-11T14:39:09Z",
 			UpdatedAt:   "2024-12-11T14:39:09Z",
 		},
@@ -43,10 +44,11 @@ func Test_ListOrgIssueFields(t *testing.T) {
 			Name:        "Priority",
 			Description: "Level of importance",
 			DataType:    "single_select",
-			Options: []IssueFieldOption{
-				{ID: 1, Name: "High"},
-				{ID: 2, Name: "Medium"},
-				{ID: 3, Name: "Low"},
+			Visibility:  "all",
+			Options: []IssueSingleSelectFieldOption{
+				{ID: 1, Name: "High", Color: "red", Priority: 1, CreatedAt: "2024-12-11T14:39:09Z", UpdatedAt: "2024-12-11T14:39:09Z"},
+				{ID: 2, Name: "Medium", Color: "yellow", Priority: 2, CreatedAt: "2024-12-11T14:39:09Z", UpdatedAt: "2024-12-11T14:39:09Z"},
+				{ID: 3, Name: "Low", Color: "gray", Priority: 3, CreatedAt: "2024-12-11T14:39:09Z", UpdatedAt: "2024-12-11T14:39:09Z"},
 			},
 			CreatedAt: "2024-12-11T14:39:09Z",
 			UpdatedAt: "2024-12-11T14:39:09Z",
@@ -161,10 +163,12 @@ func Test_ListOrgIssueFields(t *testing.T) {
 				assert.Equal(t, expected.ID, returnedFields[i].ID)
 				assert.Equal(t, expected.Name, returnedFields[i].Name)
 				assert.Equal(t, expected.DataType, returnedFields[i].DataType)
+				assert.Equal(t, expected.Visibility, returnedFields[i].Visibility)
 				if expected.Options != nil {
 					require.Equal(t, len(expected.Options), len(returnedFields[i].Options))
 					for j, opt := range expected.Options {
 						assert.Equal(t, opt.Name, returnedFields[i].Options[j].Name)
+						assert.Equal(t, opt.Color, returnedFields[i].Options[j].Color)
 					}
 				}
 			}
