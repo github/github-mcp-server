@@ -1,0 +1,20 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List organization issue fields"
+  },
+  "description": "List issue fields for an organization. Returns field definitions including name, type (text, number, date, single_select), and for single_select fields the list of valid option names.",
+  "inputSchema": {
+    "properties": {
+      "org": {
+        "description": "The organization name. The name is not case sensitive.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "org"
+    ],
+    "type": "object"
+  },
+  "name": "list_org_issue_fields"
+}
