@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 
-	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -86,15 +84,6 @@ func ListOrgIssueFields(t translations.TranslationHelperFunc) inventory.ServerTo
 					return utils.NewToolResultText(string(result)), nil, nil
 				}
 				return utils.NewToolResultErrorFromErr("failed to list issue fields", err), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, readErr := io.ReadAll(resp.Body)
-				if readErr != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", readErr), nil, nil
-				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list issue fields", resp, body), nil, nil
 			}
 
 			r, err := json.Marshal(fields)

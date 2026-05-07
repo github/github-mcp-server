@@ -92,6 +92,28 @@ func Test_ListOrgIssueFields(t *testing.T) {
 			expectError:    false,
 			expectedErrMsg: "missing required parameter: org",
 		},
+		{
+			name: "forbidden returns error",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /orgs/testorg/issue-fields": mockResponse(t, http.StatusForbidden, `{"message": "Forbidden"}`),
+			}),
+			requestArgs: map[string]any{
+				"org": "testorg",
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to list issue fields",
+		},
+		{
+			name: "internal server error returns error",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /orgs/testorg/issue-fields": mockResponse(t, http.StatusInternalServerError, `{"message": "Internal Server Error"}`),
+			}),
+			requestArgs: map[string]any{
+				"org": "testorg",
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to list issue fields",
+		},
 	}
 
 	for _, tc := range tests {
