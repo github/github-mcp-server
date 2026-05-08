@@ -1,7 +1,7 @@
 {
   "manifest_version": "0.3",
   "name": "@nimblebraininc/github",
-  "version": "0.26.3-mcpb.2",
+  "version": "0.26.3-mcpb.3",
   "description": "GitHub MCP server for repository management, issues, PRs, and workflow automation",
   "author": {
     "name": "GitHub (packaged by NimbleBrain Inc)"
