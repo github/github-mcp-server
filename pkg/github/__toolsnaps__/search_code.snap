@@ -26,7 +26,7 @@
         "type": "number"
       },
       "query": {
-        "description": "Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more.",
+        "description": "Search query using GitHub code search syntax. Qualifiers: repo:owner/repo, org:name, language:Go, path:src/*.js, path:/regex/, symbol:Name, content:term, is:archived|fork. Boolean: AND, OR, NOT, parentheses. Regex: surround with slashes e.g. /sparse.*index/. Glob in path: path:*.ts, path:/src/**/*.js. Examples: 'MyFunc language:go repo:owner/repo', 'symbol:WithContext language:go', '/GetAttributes|SetAttributes/ repo:owner/repo', '(Foo OR Bar) path:src repo:owner/repo'.",
         "type": "string"
       },
       "sort": {

@@ -1276,7 +1276,7 @@ The following sets of tools are available:
   - `order`: Sort order for results (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `query`: Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more. (string, required)
+  - `query`: Search query using GitHub code search syntax. Qualifiers: repo:owner/repo, org:name, language:Go, path:src/*.js, path:/regex/, symbol:Name, content:term, is:archived|fork. Boolean: AND, OR, NOT, parentheses. Regex: surround with slashes e.g. /sparse.*index/. Glob in path: path:*.ts, path:/src/**/*.js. Examples: 'MyFunc language:go repo:owner/repo', 'symbol:WithContext language:go', '/GetAttributes|SetAttributes/ repo:owner/repo', '(Foo OR Bar) path:src repo:owner/repo'. (string, required)
   - `sort`: Sort field ('indexed' only) (string, optional)
 
 - **search_repositories** - Search repositories
