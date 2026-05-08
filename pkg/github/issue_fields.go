@@ -77,6 +77,9 @@ func ListOrgIssueFields(t translations.TranslationHelperFunc) inventory.ServerTo
 
 			var fields []*IssueField
 			resp, err := client.Do(ctx, req, &fields)
+			if resp != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 			if err != nil {
 				if resp != nil && resp.StatusCode == http.StatusNotFound {
 					// Org doesn't have issue fields enabled — return empty list

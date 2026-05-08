@@ -87,7 +87,7 @@ func Test_ListOrgIssueFields(t *testing.T) {
 				"GET /orgs/testorg/issue-fields": mockResponse(t, http.StatusOK, mockIssueFields),
 			}),
 			requestArgs:    map[string]any{},
-			expectError:    false,
+			expectError:    true,
 			expectedErrMsg: "missing required parameter: org",
 		},
 		{
