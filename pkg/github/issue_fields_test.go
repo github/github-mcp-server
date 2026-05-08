@@ -35,8 +35,6 @@ func Test_ListOrgIssueFields(t *testing.T) {
 			Description: "Directly responsible individual",
 			DataType:    "text",
 			Visibility:  "organization_members_only",
-			CreatedAt:   "2024-12-11T14:39:09Z",
-			UpdatedAt:   "2024-12-11T14:39:09Z",
 		},
 		{
 			ID:          2,
@@ -46,12 +44,10 @@ func Test_ListOrgIssueFields(t *testing.T) {
 			DataType:    "single_select",
 			Visibility:  "all",
 			Options: []IssueSingleSelectFieldOption{
-				{ID: 1, Name: "High", Color: "red", Priority: 1, CreatedAt: "2024-12-11T14:39:09Z", UpdatedAt: "2024-12-11T14:39:09Z"},
-				{ID: 2, Name: "Medium", Color: "yellow", Priority: 2, CreatedAt: "2024-12-11T14:39:09Z", UpdatedAt: "2024-12-11T14:39:09Z"},
-				{ID: 3, Name: "Low", Color: "gray", Priority: 3, CreatedAt: "2024-12-11T14:39:09Z", UpdatedAt: "2024-12-11T14:39:09Z"},
+				{ID: 1, Name: "High", Color: "red", Priority: 1},
+				{ID: 2, Name: "Medium", Color: "yellow", Priority: 2},
+				{ID: 3, Name: "Low", Color: "gray", Priority: 3},
 			},
-			CreatedAt: "2024-12-11T14:39:09Z",
-			UpdatedAt: "2024-12-11T14:39:09Z",
 		},
 	}
 

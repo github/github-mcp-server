@@ -23,8 +23,6 @@ type IssueField struct {
 	DataType    string                         `json:"data_type"`
 	Visibility  string                         `json:"visibility"`
 	Options     []IssueSingleSelectFieldOption `json:"options,omitempty"`
-	CreatedAt   string                         `json:"created_at"`
-	UpdatedAt   string                         `json:"updated_at"`
 }
 
 // IssueSingleSelectFieldOption represents an option for a single_select issue field.
@@ -34,8 +32,6 @@ type IssueSingleSelectFieldOption struct {
 	Description string `json:"description,omitempty"`
 	Color       string `json:"color"`
 	Priority    int64  `json:"priority"`
-	CreatedAt   string `json:"created_at"`
-	UpdatedAt   string `json:"updated_at"`
 }
 
 // ListOrgIssueFields creates a tool to list issue field definitions for an organization.
