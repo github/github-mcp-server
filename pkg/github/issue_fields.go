@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -85,7 +86,7 @@ func ListOrgIssueFields(t translations.TranslationHelperFunc) inventory.ServerTo
 					}
 					return utils.NewToolResultText(string(result)), nil, nil
 				}
-				return utils.NewToolResultErrorFromErr("failed to list issue fields", err), nil, nil
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list issue fields", resp, err), nil, nil
 			}
 
 			r, err := json.Marshal(fields)

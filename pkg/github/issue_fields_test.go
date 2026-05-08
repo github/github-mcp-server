@@ -98,7 +98,7 @@ func Test_ListOrgIssueFields(t *testing.T) {
 			requestArgs: map[string]any{
 				"org": "testorg",
 			},
-			expectError:    false,
+			expectError:    true,
 			expectedErrMsg: "failed to list issue fields",
 		},
 		{
@@ -109,7 +109,7 @@ func Test_ListOrgIssueFields(t *testing.T) {
 			requestArgs: map[string]any{
 				"org": "testorg",
 			},
-			expectError:    false,
+			expectError:    true,
 			expectedErrMsg: "failed to list issue fields",
 		},
 	}
