@@ -1,11 +1,12 @@
 {
   "manifest_version": "0.3",
   "name": "@nimblebraininc/github",
-  "version": "0.26.3-mcpb.1",
+  "version": "0.26.3-mcpb.2",
   "description": "GitHub MCP server for repository management, issues, PRs, and workflow automation",
   "author": {
     "name": "GitHub (packaged by NimbleBrain Inc)"
   },
+  "icon": "https://static.nimblebrain.ai/icons/github.png",
   "user_config": {
     "personal_access_token": {
       "type": "string",
@@ -20,7 +21,9 @@
     "entry_point": "bin/github-mcp-server",
     "mcp_config": {
       "command": "${__dirname}/bin/github-mcp-server",
-      "args": ["stdio"],
+      "args": [
+        "stdio"
+      ],
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${user_config.personal_access_token}"
       }
