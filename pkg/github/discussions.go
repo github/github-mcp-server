@@ -732,13 +732,21 @@ func addDiscussionComment(ctx context.Context, client *githubv4.Client, args map
 	return utils.NewToolResultText(string(out)), nil, nil
 }
 
-func replyToDiscussionComment(ctx context.Context, client *githubv4.Client, args map[string]any) (*mcp.CallToolResult, any, error) {
+func requiredCommentNodeID(args map[string]any) (string, error) {
 	commentNodeID, err := RequiredParam[string](args, "commentNodeID")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+		return "", err
 	}
 	if strings.TrimSpace(commentNodeID) == "" {
-		return utils.NewToolResultError("commentNodeID cannot be blank"), nil, nil
+		return "", fmt.Errorf("commentNodeID cannot be blank")
+	}
+	return commentNodeID, nil
+}
+
+func replyToDiscussionComment(ctx context.Context, client *githubv4.Client, args map[string]any) (*mcp.CallToolResult, any, error) {
+	commentNodeID, err := requiredCommentNodeID(args)
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
 	owner, err := RequiredParam[string](args, "owner")
@@ -764,7 +772,10 @@ func replyToDiscussionComment(ctx context.Context, client *githubv4.Client, args
 	var nodeQuery struct {
 		Node struct {
 			DiscussionComment struct {
-				ID githubv4.ID
+				ID         *githubv4.ID
+				Discussion struct {
+					ID githubv4.ID
+				} `graphql:"discussion"`
 			} `graphql:"... on DiscussionComment"`
 		} `graphql:"node(id: $replyToID)"`
 	}
@@ -773,7 +784,7 @@ func replyToDiscussionComment(ctx context.Context, client *githubv4.Client, args
 	}); err != nil {
 		return utils.NewToolResultError(fmt.Sprintf("failed to validate commentNodeID: %v", err)), nil, nil
 	}
-	if nodeQuery.Node.DiscussionComment.ID == nil || nodeQuery.Node.DiscussionComment.ID == "" {
+	if nodeQuery.Node.DiscussionComment.ID == nil || *nodeQuery.Node.DiscussionComment.ID == "" {
 		return utils.NewToolResultError(fmt.Sprintf("commentNodeID %q does not resolve to a valid discussion comment", commentNodeID)), nil, nil
 	}
 
@@ -793,10 +804,15 @@ func replyToDiscussionComment(ctx context.Context, client *githubv4.Client, args
 	if err := client.Query(ctx, &q, vars); err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
+	if nodeQuery.Node.DiscussionComment.Discussion.ID != q.Repository.Discussion.ID {
+		return utils.NewToolResultError(
+			fmt.Sprintf("commentNodeID %q does not belong to discussion #%d in %s/%s", commentNodeID, discussionNumber, owner, repo),
+		), nil, nil
+	}
 
 	replyToID := githubv4.ID(commentNodeID)
 	input := githubv4.AddDiscussionCommentInput{
-		DiscussionID: q.Repository.Discussion.ID,
+		DiscussionID: nodeQuery.Node.DiscussionComment.Discussion.ID,
 		Body:         githubv4.String(body),
 		ReplyToID:    &replyToID,
 	}
@@ -827,7 +843,7 @@ func replyToDiscussionComment(ctx context.Context, client *githubv4.Client, args
 }
 
 func updateDiscussionComment(ctx context.Context, client *githubv4.Client, args map[string]any) (*mcp.CallToolResult, any, error) {
-	commentNodeID, err := RequiredParam[string](args, "commentNodeID")
+	commentNodeID, err := requiredCommentNodeID(args)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
@@ -867,7 +883,7 @@ func updateDiscussionComment(ctx context.Context, client *githubv4.Client, args 
 }
 
 func deleteDiscussionComment(ctx context.Context, client *githubv4.Client, args map[string]any) (*mcp.CallToolResult, any, error) {
-	commentNodeID, err := RequiredParam[string](args, "commentNodeID")
+	commentNodeID, err := requiredCommentNodeID(args)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
@@ -902,7 +918,7 @@ func deleteDiscussionComment(ctx context.Context, client *githubv4.Client, args 
 }
 
 func markDiscussionCommentAsAnswer(ctx context.Context, client *githubv4.Client, args map[string]any) (*mcp.CallToolResult, any, error) {
-	commentNodeID, err := RequiredParam[string](args, "commentNodeID")
+	commentNodeID, err := requiredCommentNodeID(args)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
@@ -937,7 +953,7 @@ func markDiscussionCommentAsAnswer(ctx context.Context, client *githubv4.Client,
 }
 
 func unmarkDiscussionCommentAsAnswer(ctx context.Context, client *githubv4.Client, args map[string]any) (*mcp.CallToolResult, any, error) {
-	commentNodeID, err := RequiredParam[string](args, "commentNodeID")
+	commentNodeID, err := requiredCommentNodeID(args)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}

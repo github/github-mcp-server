@@ -973,6 +973,16 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			},
 		}),
 	)
+	replyValidationQuery := struct {
+		Node struct {
+			DiscussionComment struct {
+				ID         *githubv4.ID
+				Discussion struct {
+					ID githubv4.ID
+				} `graphql:"discussion"`
+			} `graphql:"... on DiscussionComment"`
+		} `graphql:"node(id: $replyToID)"`
+	}{}
 
 	tests := []struct {
 		name                  string
@@ -1161,19 +1171,16 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
-					struct {
-						Node struct {
-							DiscussionComment struct {
-								ID githubv4.ID
-							} `graphql:"... on DiscussionComment"`
-						} `graphql:"node(id: $replyToID)"`
-					}{},
+					replyValidationQuery,
 					map[string]any{
 						"replyToID": githubv4.ID("DC_kwDOComment456"),
 					},
 					githubv4mock.DataResponse(map[string]any{
 						"node": map[string]any{
 							"id": "DC_kwDOComment456",
+							"discussion": map[string]any{
+								"id": "D_kwDOTest123",
+							},
 						},
 					}),
 				),
@@ -1245,13 +1252,7 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
-					struct {
-						Node struct {
-							DiscussionComment struct {
-								ID githubv4.ID
-							} `graphql:"... on DiscussionComment"`
-						} `graphql:"node(id: $replyToID)"`
-					}{},
+					replyValidationQuery,
 					map[string]any{
 						"replyToID": githubv4.ID("DC_kwDOInvalid"),
 					},
@@ -1262,6 +1263,36 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			),
 			expectToolError: true,
 			expectedErrMsg:  `commentNodeID "DC_kwDOInvalid" does not resolve to a valid discussion comment`,
+		},
+		{
+			name: "reply: comment from another discussion is rejected",
+			requestArgs: map[string]any{
+				"method":           "reply",
+				"owner":            "owner",
+				"repo":             "repo",
+				"discussionNumber": int32(1),
+				"body":             "This is a reply",
+				"commentNodeID":    "DC_kwDOComment456",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					replyValidationQuery,
+					map[string]any{
+						"replyToID": githubv4.ID("DC_kwDOComment456"),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"node": map[string]any{
+							"id": "DC_kwDOComment456",
+							"discussion": map[string]any{
+								"id": "D_kwDOOtherDiscussion456",
+							},
+						},
+					}),
+				),
+				discussionQueryMatcher,
+			),
+			expectToolError: true,
+			expectedErrMsg:  `commentNodeID "DC_kwDOComment456" does not belong to discussion #1 in owner/repo`,
 		},
 		{
 			name: "reply: validation query failure",
@@ -1275,13 +1306,7 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
-					struct {
-						Node struct {
-							DiscussionComment struct {
-								ID githubv4.ID
-							} `graphql:"... on DiscussionComment"`
-						} `graphql:"node(id: $replyToID)"`
-					}{},
+					replyValidationQuery,
 					map[string]any{
 						"replyToID": githubv4.ID("DC_kwDOComment456"),
 					},
@@ -1446,6 +1471,17 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			expectedErrMsg:  "missing required parameter: commentNodeID",
 		},
 		{
+			name: "update: whitespace-only commentNodeID is rejected",
+			requestArgs: map[string]any{
+				"method":        "update",
+				"commentNodeID": "   ",
+				"body":          "Updated comment text",
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "commentNodeID cannot be blank",
+		},
+		{
 			name: "update: missing body",
 			requestArgs: map[string]any{
 				"method":        "update",
@@ -1550,6 +1586,16 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			expectToolError: true,
 			expectedErrMsg:  "missing required parameter: commentNodeID",
 		},
+		{
+			name: "delete: whitespace-only commentNodeID is rejected",
+			requestArgs: map[string]any{
+				"method":        "delete",
+				"commentNodeID": "   ",
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "commentNodeID cannot be blank",
+		},
 		// mark_answer method tests
 		{
 			name: "mark_answer: successful mark as answer",
@@ -1619,6 +1665,16 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			expectToolError: true,
 			expectedErrMsg:  "missing required parameter: commentNodeID",
 		},
+		{
+			name: "mark_answer: whitespace-only commentNodeID is rejected",
+			requestArgs: map[string]any{
+				"method":        "mark_answer",
+				"commentNodeID": "   ",
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "commentNodeID cannot be blank",
+		},
 		// unmark_answer method tests
 		{
 			name: "unmark_answer: successful unmark as answer",
@@ -1687,6 +1743,16 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			mockedClient:    githubv4mock.NewMockedHTTPClient(),
 			expectToolError: true,
 			expectedErrMsg:  "missing required parameter: commentNodeID",
+		},
+		{
+			name: "unmark_answer: whitespace-only commentNodeID is rejected",
+			requestArgs: map[string]any{
+				"method":        "unmark_answer",
+				"commentNodeID": "   ",
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "commentNodeID cannot be blank",
 		},
 		// invalid method test
 		{
