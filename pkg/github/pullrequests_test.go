@@ -1558,6 +1558,493 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 	}
 }
 
+func Test_GetPullRequestCISummary(t *testing.T) {
+	// Verify tool definition once
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "pull_request_read", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "method")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
+
+	// Setup mock PR for successful PR fetch
+	mockPR := &github.PullRequest{
+		Number:  github.Ptr(42),
+		Title:   github.Ptr("Test PR"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
+		Head: &github.PullRequestBranch{
+			SHA: github.Ptr("abcd1234"),
+			Ref: github.Ptr("feature-branch"),
+		},
+	}
+
+	tests := []struct {
+		name                  string
+		mockedClient          *http.Client
+		requestArgs           map[string]any
+		expectError           bool
+		expectedVerdict       CISummaryVerdict
+		expectedCombinedState string
+		expectedTotalChecks   int
+		expectedPassing       int
+		expectedFailing       int
+		expectedPending       int
+		expectedFailingChecks []string
+		expectedChecksLen     int
+		expectedErrMsg        string
+	}{
+		{
+			name: "all checks passing",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsStatusByOwnerByRepoByRef: mockResponse(t, http.StatusOK, &github.CombinedStatus{
+					State:      github.Ptr("success"),
+					TotalCount: github.Ptr(1),
+					Statuses: []*github.RepoStatus{
+						{
+							State:   github.Ptr("success"),
+							Context: github.Ptr("ci/travis"),
+						},
+					},
+				}),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, &github.ListCheckRunsResults{
+					Total: github.Ptr(2),
+					CheckRuns: []*github.CheckRun{
+						{
+							ID:         github.Ptr(int64(1)),
+							Name:       github.Ptr("CI / test"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("success"),
+						},
+						{
+							ID:         github.Ptr(int64(2)),
+							Name:       github.Ptr("CI / lint"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("success"),
+						},
+					},
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_ci_summary",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:           false,
+			expectedVerdict:       CISummaryVerdictPassing,
+			expectedCombinedState: "success",
+			expectedTotalChecks:   2,
+			expectedPassing:       2,
+			expectedFailing:       0,
+			expectedPending:       0,
+			expectedFailingChecks: []string{},
+			expectedChecksLen:     2,
+		},
+		{
+			name: "combined status failure",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsStatusByOwnerByRepoByRef: mockResponse(t, http.StatusOK, &github.CombinedStatus{
+					State:      github.Ptr("failure"),
+					TotalCount: github.Ptr(1),
+					Statuses: []*github.RepoStatus{
+						{
+							State:   github.Ptr("failure"),
+							Context: github.Ptr("ci/travis"),
+						},
+					},
+				}),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, &github.ListCheckRunsResults{
+					Total:     github.Ptr(0),
+					CheckRuns: []*github.CheckRun{},
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_ci_summary",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:           false,
+			expectedVerdict:       CISummaryVerdictFailing,
+			expectedCombinedState: "failure",
+			expectedTotalChecks:   0,
+			expectedPassing:       0,
+			expectedFailing:       1,
+			expectedPending:       0,
+			expectedFailingChecks: []string{"ci/travis"},
+			expectedChecksLen:     0,
+		},
+		{
+			name: "check run with failure conclusion",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsStatusByOwnerByRepoByRef: mockResponse(t, http.StatusOK, &github.CombinedStatus{
+					State:    github.Ptr("success"),
+					Statuses: []*github.RepoStatus{},
+				}),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, &github.ListCheckRunsResults{
+					Total: github.Ptr(2),
+					CheckRuns: []*github.CheckRun{
+						{
+							ID:         github.Ptr(int64(1)),
+							Name:       github.Ptr("CI / test"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("success"),
+						},
+						{
+							ID:         github.Ptr(int64(2)),
+							Name:       github.Ptr("CI / lint"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("failure"),
+						},
+					},
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_ci_summary",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:           false,
+			expectedVerdict:       CISummaryVerdictFailing,
+			expectedCombinedState: "success",
+			expectedTotalChecks:   2,
+			expectedPassing:       1,
+			expectedFailing:       1,
+			expectedPending:       0,
+			expectedFailingChecks: []string{"CI / lint"},
+			expectedChecksLen:     2,
+		},
+		{
+			name: "check runs in progress",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsStatusByOwnerByRepoByRef: mockResponse(t, http.StatusOK, &github.CombinedStatus{
+					State:    github.Ptr("pending"),
+					Statuses: []*github.RepoStatus{},
+				}),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, &github.ListCheckRunsResults{
+					Total: github.Ptr(2),
+					CheckRuns: []*github.CheckRun{
+						{
+							ID:         github.Ptr(int64(1)),
+							Name:       github.Ptr("CI / test"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("success"),
+						},
+						{
+							ID:         github.Ptr(int64(2)),
+							Name:       github.Ptr("CI / lint"),
+							Status:     github.Ptr("in_progress"),
+							Conclusion: github.Ptr(""),
+						},
+					},
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_ci_summary",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:           false,
+			expectedVerdict:       CISummaryVerdictPending,
+			expectedCombinedState: "pending",
+			expectedTotalChecks:   2,
+			expectedPassing:       1,
+			expectedFailing:       0,
+			expectedPending:       1,
+			expectedFailingChecks: []string{},
+			expectedChecksLen:     2,
+		},
+		{
+			name: "no checks configured",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsStatusByOwnerByRepoByRef: mockResponse(t, http.StatusOK, &github.CombinedStatus{
+					State:    github.Ptr("pending"),
+					Statuses: []*github.RepoStatus{},
+				}),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, &github.ListCheckRunsResults{
+					Total:     github.Ptr(0),
+					CheckRuns: []*github.CheckRun{},
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_ci_summary",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:           false,
+			expectedVerdict:       CISummaryVerdictNoChecks,
+			expectedCombinedState: "pending",
+			expectedTotalChecks:   0,
+			expectedPassing:       0,
+			expectedFailing:       0,
+			expectedPending:       0,
+			expectedFailingChecks: []string{},
+			expectedChecksLen:     0,
+		},
+		{
+			name: "mixed passing and failing",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsStatusByOwnerByRepoByRef: mockResponse(t, http.StatusOK, &github.CombinedStatus{
+					State:    github.Ptr("success"),
+					Statuses: []*github.RepoStatus{},
+				}),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, &github.ListCheckRunsResults{
+					Total: github.Ptr(3),
+					CheckRuns: []*github.CheckRun{
+						{
+							ID:         github.Ptr(int64(1)),
+							Name:       github.Ptr("CI / test"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("success"),
+						},
+						{
+							ID:         github.Ptr(int64(2)),
+							Name:       github.Ptr("CI / lint"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("failure"),
+						},
+						{
+							ID:         github.Ptr(int64(3)),
+							Name:       github.Ptr("CI / build"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("success"),
+						},
+					},
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_ci_summary",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:           false,
+			expectedVerdict:       CISummaryVerdictFailing,
+			expectedCombinedState: "success",
+			expectedTotalChecks:   3,
+			expectedPassing:       2,
+			expectedFailing:       1,
+			expectedPending:       0,
+			expectedFailingChecks: []string{"CI / lint"},
+			expectedChecksLen:     3,
+		},
+		{
+			name: "combined status failure with passing check runs includes status failures in count",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsStatusByOwnerByRepoByRef: mockResponse(t, http.StatusOK, &github.CombinedStatus{
+					State:      github.Ptr("failure"),
+					TotalCount: github.Ptr(1),
+					Statuses: []*github.RepoStatus{
+						{
+							State:   github.Ptr("failure"),
+							Context: github.Ptr("ci/travis"),
+						},
+					},
+				}),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, &github.ListCheckRunsResults{
+					Total: github.Ptr(2),
+					CheckRuns: []*github.CheckRun{
+						{
+							ID:         github.Ptr(int64(1)),
+							Name:       github.Ptr("CI / test"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("success"),
+						},
+						{
+							ID:         github.Ptr(int64(2)),
+							Name:       github.Ptr("CI / lint"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("success"),
+						},
+					},
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_ci_summary",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:           false,
+			expectedVerdict:       CISummaryVerdictFailing,
+			expectedCombinedState: "failure",
+			expectedTotalChecks:   2,
+			expectedPassing:       2,
+			expectedFailing:       1,
+			expectedPending:       0,
+			expectedFailingChecks: []string{"ci/travis"},
+			expectedChecksLen:     2,
+		},
+		{
+			name: "stale check run treated as failing",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsStatusByOwnerByRepoByRef: mockResponse(t, http.StatusOK, &github.CombinedStatus{
+					State:    github.Ptr("success"),
+					Statuses: []*github.RepoStatus{},
+				}),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, &github.ListCheckRunsResults{
+					Total: github.Ptr(1),
+					CheckRuns: []*github.CheckRun{
+						{
+							ID:         github.Ptr(int64(1)),
+							Name:       github.Ptr("CI / test"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("stale"),
+						},
+					},
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_ci_summary",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:           false,
+			expectedVerdict:       CISummaryVerdictFailing,
+			expectedCombinedState: "success",
+			expectedTotalChecks:   1,
+			expectedPassing:       0,
+			expectedFailing:       1,
+			expectedPending:       0,
+			expectedFailingChecks: []string{"CI / test"},
+			expectedChecksLen:     1,
+		},
+		{
+			name: "PR fetch fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_ci_summary",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(999),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get pull request",
+		},
+		{
+			name: "combined status API fails after PR fetch succeeds",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsStatusByOwnerByRepoByRef: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+					_, _ = w.Write([]byte(`{"message": "Internal Server Error"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_ci_summary",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get combined status",
+		},
+		{
+			name: "check runs API fails after PR and combined status succeed",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsStatusByOwnerByRepoByRef: mockResponse(t, http.StatusOK, &github.CombinedStatus{
+					State:    github.Ptr("success"),
+					Statuses: []*github.RepoStatus{},
+				}),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+					_, _ = w.Write([]byte(`{"message": "Internal Server Error"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_ci_summary",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get check runs",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			serverTool := PullRequestRead(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client:          client,
+				RepoAccessCache: stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+			}
+			handler := serverTool.Handler(deps)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			// Verify results
+			if tc.expectError {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			// Parse the result and get the text content if no error
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the full result structure
+			var returnedSummary CISummaryResult
+			err = json.Unmarshal([]byte(textContent.Text), &returnedSummary)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedVerdict, returnedSummary.Verdict)
+			assert.Equal(t, tc.expectedCombinedState, returnedSummary.CombinedStatus)
+			assert.Equal(t, tc.expectedTotalChecks, returnedSummary.TotalCheckRuns)
+			assert.Equal(t, tc.expectedPassing, returnedSummary.Passing)
+			assert.Equal(t, tc.expectedFailing, returnedSummary.Failing)
+			assert.Equal(t, tc.expectedPending, returnedSummary.Pending)
+			assert.Equal(t, tc.expectedChecksLen, len(returnedSummary.Checks))
+
+			// Verify failing checks names
+			var failingNames []string
+			for _, fc := range returnedSummary.FailingChecks {
+				failingNames = append(failingNames, fc.Name)
+			}
+			if len(tc.expectedFailingChecks) == 0 {
+				assert.Empty(t, failingNames)
+			} else {
+				assert.ElementsMatch(t, tc.expectedFailingChecks, failingNames)
+			}
+		})
+	}
+}
+
 func Test_UpdatePullRequestBranch(t *testing.T) {
 	// Verify tool definition once
 	serverTool := UpdatePullRequestBranch(translations.NullTranslationHelper)

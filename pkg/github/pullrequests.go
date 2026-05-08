@@ -39,8 +39,9 @@ Possible options:
  6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
  7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
  8. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
+ 9. get_ci_summary - Get a summary of the CI status for a pull request. Combines the commit status and check runs into a single aggregated result with an overall verdict (passing, failing, pending, or no_checks).
 `,
-				Enum: []any{"get", "get_diff", "get_status", "get_files", "get_review_comments", "get_reviews", "get_comments", "get_check_runs"},
+				Enum: []any{"get", "get_diff", "get_status", "get_files", "get_review_comments", "get_reviews", "get_comments", "get_check_runs", "get_ci_summary"},
 			},
 			"owner": {
 				Type:        "string",
@@ -131,6 +132,9 @@ Possible options:
 				return result, nil, err
 			case "get_check_runs":
 				result, err := GetPullRequestCheckRuns(ctx, client, owner, repo, pullNumber, pagination)
+				return result, nil, err
+			case "get_ci_summary":
+				result, err := GetPullRequestCISummary(ctx, client, owner, repo, pullNumber)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -334,6 +338,196 @@ func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, 
 	}
 
 	return utils.NewToolResultText(string(r)), nil
+}
+
+// CISummaryVerdict represents the possible verdicts for a CI summary.
+type CISummaryVerdict string
+
+const (
+	CISummaryVerdictPassing  CISummaryVerdict = "passing"
+	CISummaryVerdictFailing  CISummaryVerdict = "failing"
+	CISummaryVerdictPending  CISummaryVerdict = "pending"
+	CISummaryVerdictNoChecks CISummaryVerdict = "no_checks"
+)
+
+// CISummaryCheck represents a single check in the CI summary.
+type CISummaryCheck struct {
+	Name       string `json:"name"`
+	Status     string `json:"status"`
+	Conclusion string `json:"conclusion,omitempty"`
+}
+
+// CISummaryResult represents the aggregated CI summary for a pull request.
+type CISummaryResult struct {
+	Verdict        CISummaryVerdict `json:"verdict"`
+	CombinedStatus string           `json:"combinedStatus"`
+	TotalCheckRuns int              `json:"totalCheckRuns"`
+	Passing        int              `json:"passing"`
+	Failing        int              `json:"failing"`
+	Pending        int              `json:"pending"`
+	Checks         []CISummaryCheck `json:"checks"`
+	FailingChecks  []CISummaryCheck `json:"failingChecks"`
+}
+
+func GetPullRequestCISummary(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+	// Get the PR to get the head SHA
+	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get pull request",
+			resp,
+			err,
+		), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
+	}
+
+	headSHA := pr.GetHead().GetSHA()
+
+	// Get combined status
+	status, resp, err := client.Repositories.GetCombinedStatus(ctx, owner, repo, headSHA, nil)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get combined status",
+			resp,
+			err,
+		), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get combined status", resp, body), nil
+	}
+
+	// Get check runs (use PerPage: 100 to reduce risk of incomplete results)
+	checkRunOpts := &github.ListCheckRunsOptions{
+		ListOptions: github.ListOptions{PerPage: 100},
+	}
+	checkRuns, resp, err := client.Checks.ListCheckRunsForRef(ctx, owner, repo, headSHA, checkRunOpts)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get check runs",
+			resp,
+			err,
+		), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get check runs", resp, body), nil
+	}
+
+	// Build check lists
+	var checks []CISummaryCheck
+	var failingChecks []CISummaryCheck
+	passingCount := 0
+	failingCount := 0
+	pendingCount := 0
+
+	for _, cr := range checkRuns.CheckRuns {
+		check := CISummaryCheck{
+			Name:       cr.GetName(),
+			Status:     cr.GetStatus(),
+			Conclusion: cr.GetConclusion(),
+		}
+		checks = append(checks, check)
+
+		if cr.GetStatus() != "completed" {
+			pendingCount++
+		} else {
+			switch cr.GetConclusion() {
+			case "success", "neutral", "skipped":
+				passingCount++
+			case "failure", "cancelled", "timed_out", "action_required", "stale":
+				failingCount++
+				failingChecks = append(failingChecks, check)
+			}
+		}
+	}
+
+	// Aggregate combined status failures into failingChecks before computing counts
+	combinedState := status.GetState()
+	if combinedState == "failure" || combinedState == "error" {
+		for _, s := range status.Statuses {
+			if s.GetState() == "failure" || s.GetState() == "error" {
+				failingChecks = append(failingChecks, CISummaryCheck{
+					Name:       s.GetContext(),
+					Status:     "completed",
+					Conclusion: s.GetState(),
+				})
+				failingCount++
+			}
+		}
+	}
+
+	// Ensure non-nil slices for JSON serialization
+	if checks == nil {
+		checks = []CISummaryCheck{}
+	}
+	if failingChecks == nil {
+		failingChecks = []CISummaryCheck{}
+	}
+
+	// Compute verdict after all failure sources are aggregated
+	verdict := computeCIVerdict(combinedState, len(status.Statuses), len(checkRuns.CheckRuns), failingCount, pendingCount)
+
+	result := CISummaryResult{
+		Verdict:        verdict,
+		CombinedStatus: combinedState,
+		TotalCheckRuns: len(checkRuns.CheckRuns),
+		Passing:        passingCount,
+		Failing:        failingCount,
+		Pending:        pendingCount,
+		Checks:         checks,
+		FailingChecks:  failingChecks,
+	}
+
+	return MarshalledTextResult(result), nil
+}
+
+func computeCIVerdict(combinedState string, statusCount, checkRunCount, failingCount, pendingCount int) CISummaryVerdict {
+	// If combined status is failure/error, verdict is failing
+	if combinedState == "failure" || combinedState == "error" {
+		return CISummaryVerdictFailing
+	}
+
+	// If any check run is failing, verdict is failing
+	if failingCount > 0 {
+		return CISummaryVerdictFailing
+	}
+
+	// If any check run is pending (not completed), verdict is pending
+	if pendingCount > 0 {
+		return CISummaryVerdictPending
+	}
+
+	// If combined status is pending with actual statuses, verdict is pending
+	if combinedState == "pending" && statusCount > 0 {
+		return CISummaryVerdictPending
+	}
+
+	// If no checks at all, verdict is no_checks
+	if combinedState == "pending" && statusCount == 0 && checkRunCount == 0 {
+		return CISummaryVerdictNoChecks
+	}
+
+	// Everything is passing
+	return CISummaryVerdictPassing
 }
 
 func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
