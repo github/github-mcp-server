@@ -1858,22 +1858,22 @@ func mockToolWithMeta(name string, toolsetID string, meta map[string]any) Server
 }
 
 func TestWithMCPApps_DisabledStripsUIMetadata(t *testing.T) {
-toolWithUI := mockToolWithMeta("tool_with_ui", "toolset1", map[string]any{
-"ui":          map[string]any{"html": "<div>hello</div>"},
-"description": "kept",
-})
+	toolWithUI := mockToolWithMeta("tool_with_ui", "toolset1", map[string]any{
+		"ui":          map[string]any{"html": "<div>hello</div>"},
+		"description": "kept",
+	})
 
-// Default: MCP Apps is disabled - UI meta should be stripped on registration.
-reg := mustBuild(t, NewBuilder().SetTools([]ServerTool{toolWithUI}).WithToolsets([]string{"all"}))
-registered := captureRegisteredTools(t, reg, context.Background())
+	// Default: MCP Apps is disabled - UI meta should be stripped on registration.
+	reg := mustBuild(t, NewBuilder().SetTools([]ServerTool{toolWithUI}).WithToolsets([]string{"all"}))
+	registered := captureRegisteredTools(t, reg, context.Background())
 
-require.Len(t, registered, 1)
-if registered[0].Meta["ui"] != nil {
-t.Errorf("Expected 'ui' meta to be stripped, but it was present")
-}
-if registered[0].Meta["description"] != "kept" {
-t.Errorf("Expected 'description' meta to be preserved, got %v", registered[0].Meta["description"])
-}
+	require.Len(t, registered, 1)
+	if registered[0].Meta["ui"] != nil {
+		t.Errorf("Expected 'ui' meta to be stripped, but it was present")
+	}
+	if registered[0].Meta["description"] != "kept" {
+		t.Errorf("Expected 'description' meta to be preserved, got %v", registered[0].Meta["description"])
+	}
 }
 
 func TestWithMCPApps_EnabledPreservesUIMetadata(t *testing.T) {
@@ -1945,19 +1945,19 @@ func TestWithMCPApps_ToolsWithoutUIMetaUnaffected(t *testing.T) {
 }
 
 func TestWithMCPApps_UIOnlyMetaBecomesNil(t *testing.T) {
-toolUIOnly := mockToolWithMeta("tool_ui_only", "toolset1", map[string]any{
-"ui": map[string]any{"html": "<div>hello</div>"},
-})
+	toolUIOnly := mockToolWithMeta("tool_ui_only", "toolset1", map[string]any{
+		"ui": map[string]any{"html": "<div>hello</div>"},
+	})
 
-reg := mustBuild(t, NewBuilder().
-SetTools([]ServerTool{toolUIOnly}).
-WithToolsets([]string{"all"}))
-registered := captureRegisteredTools(t, reg, context.Background())
+	reg := mustBuild(t, NewBuilder().
+		SetTools([]ServerTool{toolUIOnly}).
+		WithToolsets([]string{"all"}))
+	registered := captureRegisteredTools(t, reg, context.Background())
 
-require.Len(t, registered, 1)
-if registered[0].Meta != nil {
-t.Errorf("Expected Meta to be nil after stripping only key, got %v", registered[0].Meta)
-}
+	require.Len(t, registered, 1)
+	if registered[0].Meta != nil {
+		t.Errorf("Expected Meta to be nil after stripping only key, got %v", registered[0].Meta)
+	}
 }
 
 func TestStripMetaKeys(t *testing.T) {
@@ -2240,20 +2240,20 @@ func TestCreateExcludeToolsFilter(t *testing.T) {
 // tests can verify what the wire sees, without requiring tools to have real
 // handlers (RegisterTools panics on tools without HandlerFunc).
 func captureRegisteredTools(t *testing.T, reg *Inventory, ctx context.Context) []*mcp.Tool {
-t.Helper()
-tools := reg.AvailableTools(ctx)
-out := make([]*mcp.Tool, 0, len(tools))
-for i := range tools {
-toolCopy := tools[i].Tool
-out = append(out, &toolCopy)
-}
-if !reg.checkFeatureFlag(ctx, mcpAppsFeatureFlag) {
-for _, tt := range out {
-delete(tt.Meta, "ui")
-if len(tt.Meta) == 0 {
-tt.Meta = nil
-}
-}
-}
-return out
+	t.Helper()
+	tools := reg.AvailableTools(ctx)
+	out := make([]*mcp.Tool, 0, len(tools))
+	for i := range tools {
+		toolCopy := tools[i].Tool
+		out = append(out, &toolCopy)
+	}
+	if !reg.checkFeatureFlag(ctx, mcpAppsFeatureFlag) {
+		for _, tt := range out {
+			delete(tt.Meta, "ui")
+			if len(tt.Meta) == 0 {
+				tt.Meta = nil
+			}
+		}
+	}
+	return out
 }
