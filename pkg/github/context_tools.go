@@ -61,10 +61,10 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 		},
 		nil,
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, MinimalUser, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), MinimalUser{}, nil
 			}
 
 			user, res, err := client.Users.Get(ctx, "")
@@ -73,7 +73,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 					"failed to get user",
 					res,
 					err,
-				), nil, nil
+				), MinimalUser{}, nil
 			}
 
 			// Create minimal user representation instead of returning full user object
@@ -103,7 +103,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 			}
 
-			return MarshalledTextResult(minimalUser), nil, nil
+			return MarshalledTextResult(minimalUser), minimalUser, nil
 		},
 	)
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -182,5 +183,55 @@ func TestToolsetMetadataConsistency(t *testing.T) {
 		} else {
 			toolsetDescriptions[id] = desc
 		}
+	}
+}
+
+// TestStructuredOutputToolsHaveTypedRegisterFunc ensures that tools created via
+// NewTool (which uses NewServerToolWithContextHandler) have TypedRegisterFunc set.
+// This enables the SDK to auto-generate OutputSchema and populate StructuredContent.
+func TestStructuredOutputToolsHaveTypedRegisterFunc(t *testing.T) {
+	tools := AllTools(stubTranslation)
+
+	for _, tool := range tools {
+		t.Run(tool.Tool.Name, func(t *testing.T) {
+			// All tools created with NewTool/NewServerToolWithContextHandler
+			// should have TypedRegisterFunc set
+			assert.NotNil(t, tool.TypedRegisterFunc,
+				"Tool %q should have TypedRegisterFunc set", tool.Tool.Name)
+		})
+	}
+}
+
+// TestStructuredOutputRegistration verifies that tools with typed output
+// register successfully via TypedRegisterFunc without panicking.
+func TestStructuredOutputRegistration(t *testing.T) {
+	// Tools that should have structured output (non-any Out type)
+	expectedStructuredTools := map[string]bool{
+		"get_me":               true,
+		"list_issues":          true,
+		"list_pull_requests":   true,
+		"search_issues":        true,
+		"search_pull_requests": true,
+		"search_code":          true,
+	}
+
+	tools := AllTools(stubTranslation)
+	server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "1.0"}, nil)
+
+	for _, tool := range tools {
+		if !expectedStructuredTools[tool.Tool.Name] {
+			continue
+		}
+
+		t.Run(tool.Tool.Name, func(t *testing.T) {
+			require.NotNil(t, tool.TypedRegisterFunc,
+				"Tool %q must have TypedRegisterFunc", tool.Tool.Name)
+
+			// Register via TypedRegisterFunc — verifies no panics and that the
+			// SDK successfully infers OutputSchema from the Go Out type
+			assert.NotPanics(t, func() {
+				tool.TypedRegisterFunc(server, nil)
+			}, "TypedRegisterFunc should not panic for tool %q", tool.Tool.Name)
+		})
 	}
 }

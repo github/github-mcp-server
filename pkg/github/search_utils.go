@@ -43,10 +43,10 @@ func searchHandler(
 	args map[string]any,
 	searchType string,
 	errorPrefix string,
-) (*mcp.CallToolResult, error) {
+) (*mcp.CallToolResult, *github.IssuesSearchResult, error) {
 	query, err := RequiredParam[string](args, "query")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
 	if !hasSpecificFilter(query, "is", searchType) {
@@ -55,12 +55,12 @@ func searchHandler(
 
 	owner, err := OptionalParam[string](args, "owner")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
 	repo, err := OptionalParam[string](args, "repo")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
 	if owner != "" && repo != "" && !hasRepoFilter(query) {
@@ -69,15 +69,15 @@ func searchHandler(
 
 	sort, err := OptionalParam[string](args, "sort")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 	order, err := OptionalParam[string](args, "order")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 	pagination, err := OptionalPaginationParams(args)
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
 	opts := &github.SearchOptions{
@@ -92,26 +92,26 @@ func searchHandler(
 
 	client, err := getClient(ctx)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub client", err), nil
+		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub client", err), nil, nil
 	}
 	result, resp, err := client.Search.Issues(ctx, query, opts)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr(errorPrefix, err), nil
+		return utils.NewToolResultErrorFromErr(errorPrefix, err), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to read response body", err), nil
+			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to read response body", err), nil, nil
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), nil, nil
 	}
 
 	r, err := json.Marshal(result)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), nil
+		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), nil, nil
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return utils.NewToolResultText(string(r)), result, nil
 }
