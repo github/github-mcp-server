@@ -1865,7 +1865,7 @@ func TestWithMCPApps_DisabledStripsUIMetadata(t *testing.T) {
 
 	// Default: MCP Apps is disabled - UI meta should be stripped on registration.
 	reg := mustBuild(t, NewBuilder().SetTools([]ServerTool{toolWithUI}).WithToolsets([]string{"all"}))
-	registered := captureRegisteredTools(t, reg, context.Background())
+	registered := captureRegisteredTools(context.Background(), t, reg)
 
 	require.Len(t, registered, 1)
 	if registered[0].Meta["ui"] != nil {
@@ -1952,7 +1952,7 @@ func TestWithMCPApps_UIOnlyMetaBecomesNil(t *testing.T) {
 	reg := mustBuild(t, NewBuilder().
 		SetTools([]ServerTool{toolUIOnly}).
 		WithToolsets([]string{"all"}))
-	registered := captureRegisteredTools(t, reg, context.Background())
+	registered := captureRegisteredTools(context.Background(), t, reg)
 
 	require.Len(t, registered, 1)
 	if registered[0].Meta != nil {
@@ -2239,7 +2239,7 @@ func TestCreateExcludeToolsFilter(t *testing.T) {
 // captureRegisteredTools mirrors RegisterTools' per-request strip behavior so
 // tests can verify what the wire sees, without requiring tools to have real
 // handlers (RegisterTools panics on tools without HandlerFunc).
-func captureRegisteredTools(t *testing.T, reg *Inventory, ctx context.Context) []*mcp.Tool {
+func captureRegisteredTools(ctx context.Context, t *testing.T, reg *Inventory) []*mcp.Tool {
 	t.Helper()
 	tools := reg.AvailableTools(ctx)
 	out := make([]*mcp.Tool, 0, len(tools))

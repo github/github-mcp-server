@@ -190,19 +190,6 @@ func cleanTools(tools []string) []string {
 	return cleaned
 }
 
-// checkFeatureFlag checks a feature flag at build time using the builder's feature checker.
-// Returns false if no checker is configured or the flag is not enabled.
-func (b *Builder) checkFeatureFlag(flag string) bool {
-	if b.featureChecker == nil {
-		return false
-	}
-	enabled, err := b.featureChecker(context.Background(), flag)
-	if err != nil {
-		return false
-	}
-	return enabled
-}
-
 // Build creates the final Inventory with all configuration applied.
 // This processes toolset filtering, tool name resolution, and sets up
 // the inventory for use. The returned Inventory is ready for use with
