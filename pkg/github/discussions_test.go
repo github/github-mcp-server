@@ -985,6 +985,22 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 		expectedDiscussionID  string
 		expectedDiscussionURL string
 	}{
+		{
+			name:            "method: missing",
+			requestArgs:     map[string]any{},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "missing required parameter: method",
+		},
+		{
+			name: "method: empty",
+			requestArgs: map[string]any{
+				"method": "",
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "missing required parameter: method",
+		},
 		// add method tests
 		{
 			name: "add: successful comment creation",
@@ -1083,6 +1099,54 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			),
 			expectToolError: true,
 			expectedErrMsg:  "insufficient permissions to comment on this discussion",
+		},
+		{
+			name: "add: missing owner",
+			requestArgs: map[string]any{
+				"method":           "add",
+				"repo":             "repo",
+				"discussionNumber": int32(1),
+				"body":             "This is a comment",
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "missing required parameter: owner",
+		},
+		{
+			name: "add: missing repo",
+			requestArgs: map[string]any{
+				"method":           "add",
+				"owner":            "owner",
+				"discussionNumber": int32(1),
+				"body":             "This is a comment",
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "missing required parameter: repo",
+		},
+		{
+			name: "add: missing discussion number",
+			requestArgs: map[string]any{
+				"method": "add",
+				"owner":  "owner",
+				"repo":   "repo",
+				"body":   "This is a comment",
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "missing required parameter: discussionNumber",
+		},
+		{
+			name: "add: missing body",
+			requestArgs: map[string]any{
+				"method":           "add",
+				"owner":            "owner",
+				"repo":             "repo",
+				"discussionNumber": int32(1),
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "missing required parameter: body",
 		},
 		// reply method tests
 		{
@@ -1199,6 +1263,86 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			expectToolError: true,
 			expectedErrMsg:  `commentNodeID "DC_kwDOInvalid" does not resolve to a valid discussion comment`,
 		},
+		{
+			name: "reply: validation query failure",
+			requestArgs: map[string]any{
+				"method":           "reply",
+				"owner":            "owner",
+				"repo":             "repo",
+				"discussionNumber": int32(1),
+				"body":             "This is a reply",
+				"commentNodeID":    "DC_kwDOComment456",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Node struct {
+							DiscussionComment struct {
+								ID githubv4.ID
+							} `graphql:"... on DiscussionComment"`
+						} `graphql:"node(id: $replyToID)"`
+					}{},
+					map[string]any{
+						"replyToID": githubv4.ID("DC_kwDOComment456"),
+					},
+					githubv4mock.ErrorResponse("Could not resolve to a node with the global id of 'DC_kwDOComment456'."),
+				),
+			),
+			expectToolError: true,
+			expectedErrMsg:  "failed to validate commentNodeID: Could not resolve to a node with the global id of 'DC_kwDOComment456'.",
+		},
+		{
+			name: "reply: missing owner",
+			requestArgs: map[string]any{
+				"method":           "reply",
+				"repo":             "repo",
+				"discussionNumber": int32(1),
+				"body":             "This is a reply",
+				"commentNodeID":    "DC_kwDOComment456",
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "missing required parameter: owner",
+		},
+		{
+			name: "reply: missing repo",
+			requestArgs: map[string]any{
+				"method":           "reply",
+				"owner":            "owner",
+				"discussionNumber": int32(1),
+				"body":             "This is a reply",
+				"commentNodeID":    "DC_kwDOComment456",
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "missing required parameter: repo",
+		},
+		{
+			name: "reply: missing discussion number",
+			requestArgs: map[string]any{
+				"method":        "reply",
+				"owner":         "owner",
+				"repo":          "repo",
+				"body":          "This is a reply",
+				"commentNodeID": "DC_kwDOComment456",
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "missing required parameter: discussionNumber",
+		},
+		{
+			name: "reply: missing body",
+			requestArgs: map[string]any{
+				"method":           "reply",
+				"owner":            "owner",
+				"repo":             "repo",
+				"discussionNumber": int32(1),
+				"commentNodeID":    "DC_kwDOComment456",
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "missing required parameter: body",
+		},
 		// update method tests
 		{
 			name: "update: successful comment update",
@@ -1291,6 +1435,26 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			expectToolError: true,
 			expectedErrMsg:  "insufficient permissions to update this discussion comment",
 		},
+		{
+			name: "update: missing commentNodeID",
+			requestArgs: map[string]any{
+				"method": "update",
+				"body":   "Updated comment text",
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "missing required parameter: commentNodeID",
+		},
+		{
+			name: "update: missing body",
+			requestArgs: map[string]any{
+				"method":        "update",
+				"commentNodeID": "DC_kwDOComment456",
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "missing required parameter: body",
+		},
 		// delete method tests
 		{
 			name: "delete: successful comment delete",
@@ -1377,6 +1541,15 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			expectToolError: true,
 			expectedErrMsg:  "insufficient permissions to delete this discussion comment",
 		},
+		{
+			name: "delete: missing commentNodeID",
+			requestArgs: map[string]any{
+				"method": "delete",
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "missing required parameter: commentNodeID",
+		},
 		// mark_answer method tests
 		{
 			name: "mark_answer: successful mark as answer",
@@ -1437,6 +1610,15 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			expectToolError: true,
 			expectedErrMsg:  "discussion is not a Q&A discussion",
 		},
+		{
+			name: "mark_answer: missing commentNodeID",
+			requestArgs: map[string]any{
+				"method": "mark_answer",
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "missing required parameter: commentNodeID",
+		},
 		// unmark_answer method tests
 		{
 			name: "unmark_answer: successful unmark as answer",
@@ -1496,6 +1678,15 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			),
 			expectToolError: true,
 			expectedErrMsg:  "insufficient permissions",
+		},
+		{
+			name: "unmark_answer: missing commentNodeID",
+			requestArgs: map[string]any{
+				"method": "unmark_answer",
+			},
+			mockedClient:    githubv4mock.NewMockedHTTPClient(),
+			expectToolError: true,
+			expectedErrMsg:  "missing required parameter: commentNodeID",
 		},
 		// invalid method test
 		{
