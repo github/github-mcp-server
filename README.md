@@ -730,17 +730,22 @@ The following sets of tools are available:
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/comment-discussion-light.png"><img src="pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture> Discussions</summary>
 
-- **add_discussion_comment** - Add discussion comment
+- **discussion_comment_write** - Manage discussion comments
   - **Required OAuth Scopes**: `repo`
-  - `body`: Comment content (string, required)
-  - `discussionNumber`: Discussion Number (number, required)
-  - `owner`: Repository owner (string, required)
-  - `replyToCommentNodeID`: The Node ID of the comment to reply to. If provided, the comment will be posted as a reply. (string, optional)
-  - `repo`: Repository name (string, required)
-
-- **delete_discussion_comment** - Delete discussion comment
-  - **Required OAuth Scopes**: `repo`
-  - `commentNodeID`: The Node ID of the discussion comment to delete (string, required)
+  - `body`: Comment content (required for 'add', 'reply', and 'update' methods) (string, optional)
+  - `commentNodeID`: The Node ID of the discussion comment (required for 'reply', 'update', 'delete', 'mark_answer', and 'unmark_answer' methods). For 'reply', this is the top-level comment to reply to; GitHub Discussions only support one level of nesting. (string, optional)
+  - `discussionNumber`: Discussion number (required for 'add' and 'reply' methods) (number, optional)
+  - `method`: Write operation to perform on a discussion comment.
+    Options are:
+    - 'add' - adds a new top-level comment to a discussion.
+    - 'reply' - replies to a top-level discussion comment (GitHub Discussions only support one level of nesting).
+    - 'update' - updates an existing discussion comment.
+    - 'delete' - deletes a discussion comment.
+    - 'mark_answer' - marks a discussion comment as the answer.
+    - 'unmark_answer' - unmarks a discussion comment as the answer.
+     (string, required)
+  - `owner`: Repository owner (required for 'add' and 'reply' methods) (string, optional)
+  - `repo`: Repository name (required for 'add' and 'reply' methods) (string, optional)
 
 - **get_discussion** - Get discussion
   - **Required OAuth Scopes**: `repo`
@@ -771,16 +776,6 @@ The following sets of tools are available:
   - `owner`: Repository owner (string, required)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name. If not provided, discussions will be queried at the organisation level. (string, optional)
-
-- **set_discussion_comment_answer** - Set discussion comment as answer
-  - **Required OAuth Scopes**: `repo`
-  - `commentNodeID`: The Node ID of the discussion comment to mark or unmark as the answer (string, required)
-  - `isAnswer`: Whether the comment is the answer to the discussion (true to mark, false to unmark) (boolean, required)
-
-- **update_discussion_comment** - Update discussion comment
-  - **Required OAuth Scopes**: `repo`
-  - `body`: The new contents of the comment (string, required)
-  - `commentNodeID`: The Node ID of the discussion comment to update (string, required)
 
 </details>
 
