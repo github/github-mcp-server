@@ -214,13 +214,6 @@ func (b *Builder) checkFeatureFlag(flag string) bool {
 func (b *Builder) Build() (*Inventory, error) {
 	tools := b.tools
 
-	// When MCP Apps feature flag is not enabled, strip UI metadata from tools
-	// so clients won't attempt to load UI resources.
-	// The feature checker is the single source of truth for flag evaluation.
-	if !b.checkFeatureFlag(mcpAppsFeatureFlag) {
-		tools = stripMCPAppsMetadata(tools)
-	}
-
 	r := &Inventory{
 		tools:             tools,
 		resourceTemplates: b.resourceTemplates,
