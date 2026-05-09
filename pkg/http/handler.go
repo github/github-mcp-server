@@ -223,10 +223,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Bypass cross-origin protection: this server uses bearer tokens (not
+	// cookies), so Sec-Fetch-Site CSRF checks are unnecessary. See PR #2359.
+	crossOriginProtection := http.NewCrossOriginProtection()
+	crossOriginProtection.AddInsecureBypassPattern("/")
+
 	mcpHandler := mcp.NewStreamableHTTPHandler(func(_ *http.Request) *mcp.Server {
 		return ghServer
 	}, &mcp.StreamableHTTPOptions{
-		Stateless: true,
+		Stateless:             true,
+		CrossOriginProtection: crossOriginProtection,
 	})
 
 	mcpHandler.ServeHTTP(w, r)

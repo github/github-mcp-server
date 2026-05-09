@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"sort"
+	"strings"
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
@@ -631,6 +632,101 @@ func TestStaticConfigEnforcement(t *testing.T) {
 	}
 }
 
+// TestContentTypeHandling verifies that the MCP StreamableHTTP handler
+// accepts Content-Type values with additional parameters like charset=utf-8.
+// This is a regression test for https://github.com/github/github-mcp-server/issues/2333
+// where the Go SDK performs strict string matching against "application/json"
+// and rejects requests with "application/json; charset=utf-8".
+func TestContentTypeHandling(t *testing.T) {
+	tests := []struct {
+		name                   string
+		contentType            string
+		expectUnsupportedMedia bool
+	}{
+		{
+			name:                   "exact application/json is accepted",
+			contentType:            "application/json",
+			expectUnsupportedMedia: false,
+		},
+		{
+			name:                   "application/json with charset=utf-8 should be accepted",
+			contentType:            "application/json; charset=utf-8",
+			expectUnsupportedMedia: false,
+		},
+		{
+			name:                   "application/json with charset=UTF-8 should be accepted",
+			contentType:            "application/json; charset=UTF-8",
+			expectUnsupportedMedia: false,
+		},
+		{
+			name:                   "completely wrong content type is rejected",
+			contentType:            "text/plain",
+			expectUnsupportedMedia: true,
+		},
+		{
+			name:                   "empty content type is rejected",
+			contentType:            "",
+			expectUnsupportedMedia: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a minimal MCP server factory
+			mcpServerFactory := func(_ *http.Request, _ github.ToolDependencies, _ *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+				return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+			}
+
+			// Create a simple inventory factory
+			inventoryFactory := func(_ *http.Request) (*inventory.Inventory, error) {
+				return inventory.NewBuilder().
+					SetTools(testTools()).
+					WithToolsets([]string{"all"}).
+					Build()
+			}
+
+			apiHost, err := utils.NewAPIHost("https://api.github.com")
+			require.NoError(t, err)
+
+			handler := NewHTTPMcpHandler(
+				context.Background(),
+				&ServerConfig{Version: "test"},
+				nil,
+				translations.NullTranslationHelper,
+				slog.Default(),
+				apiHost,
+				WithInventoryFactory(inventoryFactory),
+				WithGitHubMCPServerFactory(mcpServerFactory),
+				WithScopeFetcher(allScopesFetcher{}),
+			)
+
+			r := chi.NewRouter()
+			handler.RegisterMiddleware(r)
+			handler.RegisterRoutes(r)
+
+			// Send an MCP initialize request as a POST with the given Content-Type
+			body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+			req.Header.Set(headers.AuthorizationHeader, "Bearer ghp_testtoken")
+			req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+			if tt.contentType != "" {
+				req.Header.Set(headers.ContentTypeHeader, tt.contentType)
+			}
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			if tt.expectUnsupportedMedia {
+				assert.Equal(t, http.StatusUnsupportedMediaType, rr.Code,
+					"expected 415 Unsupported Media Type for Content-Type: %q", tt.contentType)
+			} else {
+				assert.NotEqual(t, http.StatusUnsupportedMediaType, rr.Code,
+					"should not get 415 for Content-Type: %q, got status %d", tt.contentType, rr.Code)
+			}
+		})
+	}
+}
+
 // buildStaticInventoryFromTools is a test helper that mirrors buildStaticInventory
 // but uses the provided mock tools instead of calling github.AllTools.
 func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTool, featureChecker inventory.FeatureFlagChecker) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt) {
@@ -659,4 +755,126 @@ func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTo
 
 	ctx := context.Background()
 	return inv.AvailableTools(ctx), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx)
+}
+
+func TestCrossOriginProtection(t *testing.T) {
+	jsonRPCBody := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}`
+
+	apiHost, err := utils.NewAPIHost("https://api.githubcopilot.com")
+	require.NoError(t, err)
+
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{
+			Version: "test",
+		},
+		nil,
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+		WithInventoryFactory(func(_ *http.Request) (*inventory.Inventory, error) {
+			return inventory.NewBuilder().Build()
+		}),
+		WithGitHubMCPServerFactory(func(_ *http.Request, _ github.ToolDependencies, _ *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+			return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+		}),
+		WithScopeFetcher(allScopesFetcher{}),
+	)
+
+	r := chi.NewRouter()
+	handler.RegisterMiddleware(r)
+	handler.RegisterRoutes(r)
+
+	tests := []struct {
+		name         string
+		secFetchSite string
+		origin       string
+	}{
+		{
+			name:         "cross-site request with bearer token succeeds",
+			secFetchSite: "cross-site",
+			origin:       "https://example.com",
+		},
+		{
+			name:         "same-origin request succeeds",
+			secFetchSite: "same-origin",
+		},
+		{
+			name:         "native client without Sec-Fetch-Site succeeds",
+			secFetchSite: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(jsonRPCBody))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept", "application/json, text/event-stream")
+			req.Header.Set(headers.AuthorizationHeader, "Bearer github_pat_xyz")
+			if tt.secFetchSite != "" {
+				req.Header.Set("Sec-Fetch-Site", tt.secFetchSite)
+			}
+			if tt.origin != "" {
+				req.Header.Set("Origin", tt.origin)
+			}
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusOK, rr.Code, "unexpected status code; body: %s", rr.Body.String())
+		})
+	}
+}
+
+// TestInsidersRoutePreservesUIMeta is a regression test for the bug where
+// _meta.ui was stripped from tools/list responses on the HTTP /insiders route.
+//
+// Before the fix:
+//   - buildStaticInventory called Build() on a builder configured with the
+//     HTTP feature checker (which reads insiders mode from the request ctx).
+//   - Build() invoked checkFeatureFlag(context.Background()) — bg ctx has no
+//     insiders mode, so the FF reported MCP Apps off, and stripMCPAppsMetadata
+//     ran eagerly against the static tool slice at server startup.
+//   - Per-request inventory factories then served pre-stripped tools regardless
+//     of whether the request actually came in via /insiders.
+//
+// After the fix:
+//   - Build() no longer touches MCP Apps metadata.
+//   - RegisterTools applies the strip per-request, using the request context
+//     where the HTTP feature checker correctly observes insiders mode.
+func TestInsidersRoutePreservesUIMeta(t *testing.T) {
+	const uiURI = "ui://test/widget"
+	uiTool := mockTool("with_ui", "repos", true)
+	uiTool.Tool.Meta = mcp.Meta{"ui": map[string]any{"resourceUri": uiURI}}
+
+	checker := createHTTPFeatureChecker()
+	build := func() *inventory.Inventory {
+		inv, err := inventory.NewBuilder().
+			SetTools([]inventory.ServerTool{uiTool}).
+			WithFeatureChecker(checker).
+			WithToolsets([]string{"all"}).
+			Build()
+		require.NoError(t, err)
+		return inv
+	}
+
+	// Simulate a /insiders request: ctx has insiders mode set.
+	insidersCtx := ghcontext.WithInsidersMode(context.Background(), true)
+
+	// AvailableTools no longer strips _meta.ui (post-fix), regardless of ctx.
+	// The strip lives in RegisterTools, gated on the per-request FF check.
+	insidersTools := build().AvailableTools(insidersCtx)
+	plainTools := build().AvailableTools(context.Background())
+
+	// On the /insiders path, the FF check returns true → no strip → _meta preserved.
+	enabled, _ := checker(insidersCtx, "remote_mcp_ui_apps")
+	require.True(t, enabled, "FF should be on for /insiders ctx")
+	require.Len(t, insidersTools, 1)
+	require.NotNil(t, insidersTools[0].Tool.Meta, "_meta should be present on /insiders")
+	require.Equal(t, uiURI, insidersTools[0].Tool.Meta["ui"].(map[string]any)["resourceUri"])
+
+	// On the non-insiders path, RegisterTools strips _meta.ui.
+	plainEnabled, _ := checker(context.Background(), "remote_mcp_ui_apps")
+	require.False(t, plainEnabled, "FF should be off for non-insiders ctx")
+	require.Len(t, plainTools, 1)
 }

@@ -13,6 +13,7 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
@@ -167,6 +168,8 @@ func RunHTTPServer(cfg ServerConfig) error {
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Use(middleware.SetCorsHeaders)
+
 		// Register Middleware First, needs to be before route registration
 		handler.RegisterMiddleware(r)
 
