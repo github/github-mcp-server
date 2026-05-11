@@ -6,12 +6,12 @@ output=$(
     echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"get-me-script","version":"1.0.0"}}}'
     echo '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}'
     echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_me","arguments":{}}}'
-    sleep 1
-  ) | go run cmd/github-mcp-server/main.go stdio 2>/dev/null | tail -1
+    sleep 3
+  ) | go run cmd/github-mcp-server/main.go stdio "$@" 2>/dev/null | grep '"id":2'
 )
 
 if command -v jq &> /dev/null; then
-  echo "$output" | jq '.result.content[0].text | fromjson'
+  echo "$output" | jq '{_meta: .result._meta, content: (.result.content[0].text | fromjson)}'
 else
   echo "$output"
 fi
