@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
-	gogithub "github.com/google/go-github/v82/github"
+	gogithub "github.com/google/go-github/v86/github"
 )
 
 // GetRawClientFn is a function type that returns a RawClient instance.
@@ -26,11 +26,10 @@ func NewClient(client *gogithub.Client, rawURL *url.URL) *Client {
 }
 
 func (c *Client) newRequest(ctx context.Context, method string, urlStr string, body any, opts ...gogithub.RequestOption) (*http.Request, error) {
-	req, err := c.client.NewRequest(method, urlStr, body, opts...)
+	req, err := c.client.NewRequest(ctx, method, urlStr, body, opts...)
 	if err != nil {
 		return nil, err
 	}
-	req = req.WithContext(ctx)
 	return req, nil
 }
 

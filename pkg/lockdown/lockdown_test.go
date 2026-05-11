@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
-	gogithub "github.com/google/go-github/v82/github"
+	gogithub "github.com/google/go-github/v86/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/require"
 )

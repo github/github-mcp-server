@@ -13,7 +13,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v86/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -618,16 +618,10 @@ func listProjects(ctx context.Context, client *github.Client, args map[string]an
 
 	var resp *github.Response
 	var projects []*github.ProjectV2
-	var queryPtr *string
-
-	if queryStr != "" {
-		queryPtr = &queryStr
-	}
-
 	minimalProjects := []MinimalProject{}
 	opts := &github.ListProjectsOptions{
 		ListProjectsPaginationOptions: pagination,
-		Query:                         queryPtr,
+		Query:                         queryStr,
 	}
 
 	// If owner_type not provided, fetch from both user and org
@@ -801,17 +795,12 @@ func listProjectItems(ctx context.Context, client *github.Client, args map[strin
 
 	var resp *github.Response
 	var projectItems []*github.ProjectV2Item
-	var queryPtr *string
-
-	if queryStr != "" {
-		queryPtr = &queryStr
-	}
 
 	opts := &github.ListProjectItemsOptions{
 		Fields: fields,
 		ListProjectsOptions: github.ListProjectsOptions{
 			ListProjectsPaginationOptions: pagination,
-			Query:                         queryPtr,
+			Query:                         queryStr,
 		},
 	}
 
@@ -1387,16 +1376,16 @@ func extractPaginationOptionsFromArgs(args map[string]any) (github.ListProjectsP
 	}
 
 	opts := github.ListProjectsPaginationOptions{
-		PerPage: &perPage,
+		PerPage: perPage,
 	}
 
 	// Only set After/Before if they have non-empty values
 	if after != "" {
-		opts.After = &after
+		opts.After = after
 	}
 
 	if before != "" {
-		opts.Before = &before
+		opts.Before = before
 	}
 
 	return opts, nil

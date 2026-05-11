@@ -15,7 +15,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v86/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -418,11 +418,9 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 	}
 	featureFlags := deps.GetFlags(ctx)
 
-	opts := &github.IssueListOptions{
-		ListOptions: github.ListOptions{
-			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
-		},
+	opts := &github.ListOptions{
+		Page:    pagination.Page,
+		PerPage: pagination.PerPage,
 	}
 
 	subIssues, resp, err := client.SubIssue.ListByIssue(ctx, owner, repo, int64(issueNumber), opts)
