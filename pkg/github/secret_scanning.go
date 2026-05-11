@@ -95,6 +95,36 @@ func GetSecretScanningAlert(t translations.TranslationHelperFunc) inventory.Serv
 }
 
 func ListSecretScanningAlerts(t translations.TranslationHelperFunc) inventory.ServerTool {
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "The owner of the repository.",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "The name of the repository.",
+			},
+			"state": {
+				Type:        "string",
+				Description: "Filter by state",
+				Enum:        []any{"open", "resolved"},
+			},
+			"secret_type": {
+				Type:        "string",
+				Description: "A comma-separated list of secret types to return. All default secret patterns are returned. To return generic patterns, pass the token name(s) in the parameter.",
+			},
+			"resolution": {
+				Type:        "string",
+				Description: "Filter by resolution",
+				Enum:        []any{"false_positive", "wont_fix", "revoked", "pattern_edited", "pattern_deleted", "used_in_tests"},
+			},
+		},
+		Required: []string{"owner", "repo"},
+	}
+	WithPagination(schema)
+
 	return NewTool(
 		ToolsetMetadataSecretProtection,
 		mcp.Tool{
@@ -104,34 +134,7 @@ func ListSecretScanningAlerts(t translations.TranslationHelperFunc) inventory.Se
 				Title:        t("TOOL_LIST_SECRET_SCANNING_ALERTS_USER_TITLE", "List secret scanning alerts"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner": {
-						Type:        "string",
-						Description: "The owner of the repository.",
-					},
-					"repo": {
-						Type:        "string",
-						Description: "The name of the repository.",
-					},
-					"state": {
-						Type:        "string",
-						Description: "Filter by state",
-						Enum:        []any{"open", "resolved"},
-					},
-					"secret_type": {
-						Type:        "string",
-						Description: "A comma-separated list of secret types to return. All default secret patterns are returned. To return generic patterns, pass the token name(s) in the parameter.",
-					},
-					"resolution": {
-						Type:        "string",
-						Description: "Filter by resolution",
-						Enum:        []any{"false_positive", "wont_fix", "revoked", "pattern_edited", "pattern_deleted", "used_in_tests"},
-					},
-				},
-				Required: []string{"owner", "repo"},
-			},
+			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.SecurityEvents},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -156,11 +159,24 @@ func ListSecretScanningAlerts(t translations.TranslationHelperFunc) inventory.Se
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			pagination, err := OptionalPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			alerts, resp, err := client.SecretScanning.ListAlertsForRepo(ctx, owner, repo, &github.SecretScanningAlertListOptions{State: state, SecretType: secretType, Resolution: resolution})
+			alerts, resp, err := client.SecretScanning.ListAlertsForRepo(ctx, owner, repo, &github.SecretScanningAlertListOptions{
+				State:      state,
+				SecretType: secretType,
+				Resolution: resolution,
+				ListOptions: github.ListOptions{
+					Page:    pagination.Page,
+					PerPage: pagination.PerPage,
+				},
+			})
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					fmt.Sprintf("failed to list alerts for repository '%s/%s'", owner, repo),
