@@ -137,6 +137,8 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 	assert.Contains(t, schema.Properties, "state")
 	assert.Contains(t, schema.Properties, "severity")
 	assert.Contains(t, schema.Properties, "tool_name")
+	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "perPage")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	// Setup mock alerts for success case
@@ -171,6 +173,8 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 					"state":     "open",
 					"severity":  "high",
 					"tool_name": "codeql",
+					"page":      "1",
+					"per_page":  "30",
 				}).andThen(
 					mockResponse(t, http.StatusOK, mockAlerts),
 				),
@@ -182,6 +186,25 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 				"state":     "open",
 				"severity":  "high",
 				"tool_name": "codeql",
+			},
+			expectError:    false,
+			expectedAlerts: mockAlerts,
+		},
+		{
+			name: "successful alerts listing with custom pagination",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCodeScanningAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"page":     "2",
+					"per_page": "50",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockAlerts),
+				),
+			}),
+			requestArgs: map[string]any{
+				"owner":   "owner",
+				"repo":    "repo",
+				"page":    float64(2),
+				"perPage": float64(50),
 			},
 			expectError:    false,
 			expectedAlerts: mockAlerts,
