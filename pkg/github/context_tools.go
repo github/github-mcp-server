@@ -106,9 +106,10 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			result := MarshalledTextResult(minimalUser)
 			if deps.GetFlags(ctx).InsidersMode {
-				result.Meta = mcp.Meta{
-					"ifc": ifc.LabelGetMe(),
+				if result.Meta == nil {
+					result.Meta = mcp.Meta{}
 				}
+				result.Meta["ifc"] = ifc.LabelGetMe()
 			}
 			return result, nil, nil
 		},
