@@ -191,7 +191,7 @@ func Test_GetMe_IFC_InsidersMode(t *testing.T) {
 		err = json.Unmarshal(ifcJSON, &ifcMap)
 		require.NoError(t, err)
 
-		assert.Equal(t, "high", ifcMap["integrity"])
+		assert.Equal(t, "trusted", ifcMap["integrity"])
 		confList, ok := ifcMap["confidentiality"].([]any)
 		require.True(t, ok, "confidentiality should be a list")
 		require.Len(t, confList, 1)
