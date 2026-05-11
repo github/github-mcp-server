@@ -167,7 +167,7 @@ var (
 // AllTools returns all tools with their embedded toolset metadata.
 // Tool functions return ServerTool directly with toolset info.
 func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
-	return []inventory.ServerTool{
+	return withCSVOutputVariants([]inventory.ServerTool{
 		// Context tools
 		GetMe(t),
 		GetTeams(t),
@@ -313,7 +313,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GranularAddPullRequestReviewComment(t),
 		GranularResolveReviewThread(t),
 		GranularUnresolveReviewThread(t),
-	}
+	})
 }
 
 // ToBoolPtr converts a bool to a *bool pointer.

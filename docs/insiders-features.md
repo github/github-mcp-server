@@ -42,3 +42,28 @@ MCP Apps requires a host that supports the [MCP Apps extension](https://modelcon
 
 - **VS Code Insiders** — enable via the `chat.mcp.apps.enabled` setting
 - **Visual Studio Code** — enable via the `chat.mcp.apps.enabled` setting
+
+---
+
+## CSV output for list tools
+
+CSV output mode returns supported list tool responses as CSV instead of JSON. This is intended to reduce response context for agents when scanning or summarising lists of GitHub data.
+
+CSV output applies only to tools in default toolsets whose names start with `list_`, such as `list_issues`, `list_pull_requests`, `list_commits`, and `list_branches`. It does not add new tools or expose a tool argument for selecting the format; the server controls the response format through the Insiders feature flag.
+
+### Format
+
+- Nested objects are flattened into dot-notation columns, for example `user.login`, `category.name`, or `head.ref`.
+- Arrays are represented as compact single-cell values joined with `;`.
+- `body` fields are whitespace-normalized so multiline Markdown does not expand a list response into many output lines.
+- Response metadata present in wrapped responses, such as `pageInfo.*` and `totalCount`, is emitted as `#`-prefixed lines before the CSV rows, followed by a blank line. Tools that return a root JSON array do not include metadata preamble lines.
+
+### Enabling CSV output
+
+CSV output is enabled by Insiders Mode. For local development, it can also be enabled explicitly with the `csv_output` feature flag:
+
+```bash
+github-mcp-server stdio --features csv_output
+```
+
+Because this changes list tool response shape, clients that require JSON list responses should avoid enabling this feature.

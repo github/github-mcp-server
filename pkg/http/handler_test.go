@@ -632,6 +632,31 @@ func TestStaticConfigEnforcement(t *testing.T) {
 	}
 }
 
+func TestStaticInventoryPreservesPerRequestFeatureVariants(t *testing.T) {
+	tools := []inventory.ServerTool{
+		mockToolWithFeatureFlag("list_issues", "issues", true, "", github.FeatureFlagCSVOutput),
+		mockToolWithFeatureFlag("list_issues", "issues", true, github.FeatureFlagCSVOutput, ""),
+	}
+	cfg := &ServerConfig{Version: "test", EnabledToolsets: []string{"issues"}}
+	featureChecker := createHTTPFeatureChecker(nil, false)
+
+	staticTools, _, _ := buildStaticInventoryFromTools(cfg, tools, featureChecker)
+	require.Len(t, staticTools, 2, "static upper bounds should preserve both feature variants")
+
+	inv, err := inventory.NewBuilder().
+		SetTools(staticTools).
+		WithFeatureChecker(featureChecker).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+
+	ctx := ghcontext.WithInsidersMode(context.Background(), true)
+	available := inv.AvailableTools(ctx)
+	require.Len(t, available, 1)
+	assert.Equal(t, "list_issues", available[0].Tool.Name)
+	assert.Equal(t, github.FeatureFlagCSVOutput, available[0].FeatureFlagEnable)
+}
+
 // TestContentTypeHandling verifies that the MCP StreamableHTTP handler
 // accepts Content-Type values with additional parameters like charset=utf-8.
 // This is a regression test for https://github.com/github/github-mcp-server/issues/2333
@@ -754,7 +779,7 @@ func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTo
 	}
 
 	ctx := context.Background()
-	return inv.AvailableTools(ctx), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx)
+	return inv.AvailableToolsWithoutFeatureFiltering(ctx), inv.AvailableResourceTemplatesWithoutFeatureFiltering(ctx), inv.AvailablePromptsWithoutFeatureFiltering(ctx)
 }
 
 func TestCrossOriginProtection(t *testing.T) {
@@ -847,7 +872,7 @@ func TestInsidersRoutePreservesUIMeta(t *testing.T) {
 	uiTool := mockTool("with_ui", "repos", true)
 	uiTool.Tool.Meta = mcp.Meta{"ui": map[string]any{"resourceUri": uiURI}}
 
-	checker := createHTTPFeatureChecker()
+	checker := createHTTPFeatureChecker(nil, false)
 	build := func() *inventory.Inventory {
 		inv, err := inventory.NewBuilder().
 			SetTools([]inventory.ServerTool{uiTool}).

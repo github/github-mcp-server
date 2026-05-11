@@ -139,7 +139,7 @@ func Test_GetMe(t *testing.T) {
 	}
 }
 
-func Test_GetMe_IFC_InsidersMode(t *testing.T) {
+func Test_GetMe_IFC_FeatureFlag(t *testing.T) {
 	t.Parallel()
 
 	serverTool := GetMe(translations.NullTranslationHelper)
@@ -153,11 +153,21 @@ func Test_GetMe_IFC_InsidersMode(t *testing.T) {
 		GetUser: mockResponse(t, http.StatusOK, mockUser),
 	})
 
-	t.Run("insiders mode disabled omits ifc label from result meta", func(t *testing.T) {
-		deps := BaseDeps{
-			Client: mustNewGHClient(t, mockedHTTPClient),
-			Flags:  FeatureFlags{InsidersMode: false},
-		}
+	depsWithIFCFeature := func(enabled bool) *BaseDeps {
+		return NewBaseDeps(
+			mustNewGHClient(t, mockedHTTPClient), nil, nil, nil,
+			translations.NullTranslationHelper,
+			FeatureFlags{},
+			0,
+			func(_ context.Context, flagName string) (bool, error) {
+				return flagName == FeatureFlagIFCLabels && enabled, nil
+			},
+			stubExporters(),
+		)
+	}
+
+	t.Run("feature disabled omits ifc label from result meta", func(t *testing.T) {
+		deps := depsWithIFCFeature(false)
 		handler := serverTool.Handler(deps)
 
 		request := createMCPRequest(map[string]any{})
@@ -165,14 +175,11 @@ func Test_GetMe_IFC_InsidersMode(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, result.IsError)
 
-		assert.Nil(t, result.Meta, "result meta should be nil when insiders mode is disabled")
+		assert.Nil(t, result.Meta, "result meta should be nil when IFC labels are disabled")
 	})
 
-	t.Run("insiders mode enabled includes ifc label in result meta", func(t *testing.T) {
-		deps := BaseDeps{
-			Client: mustNewGHClient(t, mockedHTTPClient),
-			Flags:  FeatureFlags{InsidersMode: true},
-		}
+	t.Run("feature enabled includes ifc label in result meta", func(t *testing.T) {
+		deps := depsWithIFCFeature(true)
 		handler := serverTool.Handler(deps)
 
 		request := createMCPRequest(map[string]any{})
@@ -180,7 +187,7 @@ func Test_GetMe_IFC_InsidersMode(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, result.IsError)
 
-		require.NotNil(t, result.Meta, "result meta should be set when insiders mode is enabled")
+		require.NotNil(t, result.Meta, "result meta should be set when IFC labels are enabled")
 		ifcLabel, ok := result.Meta["ifc"]
 		require.True(t, ok, "result meta should contain ifc key")
 

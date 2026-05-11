@@ -1266,9 +1266,9 @@ func Test_CreateIssue(t *testing.T) {
 	}
 }
 
-// Test_IssueWrite_InsidersMode_UIGate verifies the insiders mode UI gate
+// Test_IssueWrite_MCPAppsFeature_UIGate verifies the MCP Apps feature UI gate
 // behavior: UI clients get a form message, non-UI clients execute directly.
-func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
+func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 	t.Parallel()
 
 	mockIssue := &github.Issue{
@@ -1284,9 +1284,9 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 	}))
 
 	deps := BaseDeps{
-		Client:    client,
-		GQLClient: githubv4.NewClient(nil),
-		Flags:     FeatureFlags{InsidersMode: true},
+		Client:         client,
+		GQLClient:      githubv4.NewClient(nil),
+		featureChecker: featureCheckerFor(MCPAppsFeatureFlag),
 	}
 	handler := serverTool.Handler(deps)
 
@@ -1401,9 +1401,9 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 		))
 
 		closeDeps := BaseDeps{
-			Client:    closeClient,
-			GQLClient: closeGQLClient,
-			Flags:     FeatureFlags{InsidersMode: true},
+			Client:         closeClient,
+			GQLClient:      closeGQLClient,
+			featureChecker: featureCheckerFor(MCPAppsFeatureFlag),
 		}
 		closeHandler := serverTool.Handler(closeDeps)
 
