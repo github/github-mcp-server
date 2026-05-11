@@ -2914,10 +2914,19 @@ func Test_GetTag(t *testing.T) {
 	assert.Contains(t, schema.Properties, "tag")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "tag"})
 
-	mockTagRef := &github.Reference{
+	mockAnnotatedTagRef := &github.Reference{
 		Ref: github.Ptr("refs/tags/v1.0.0"),
 		Object: &github.GitObject{
-			SHA: github.Ptr("v1.0.0-tag-sha"),
+			Type: github.Ptr("tag"),
+			SHA:  github.Ptr("v1.0.0-tag-sha"),
+		},
+	}
+
+	mockLightweightTagRef := &github.Reference{
+		Ref: github.Ptr("refs/tags/v1.0.1"),
+		Object: &github.GitObject{
+			Type: github.Ptr("commit"),
+			SHA:  github.Ptr("abc123"),
 		},
 	}
 
@@ -2937,6 +2946,7 @@ func Test_GetTag(t *testing.T) {
 		requestArgs    map[string]any
 		expectError    bool
 		expectedTag    *github.Tag
+		expectedRef    *github.Reference
 		expectedErrMsg string
 	}{
 		{
@@ -2948,7 +2958,7 @@ func Test_GetTag(t *testing.T) {
 						t,
 						"/repos/owner/repo/git/ref/tags/v1.0.0",
 					).andThen(
-						mockResponse(t, http.StatusOK, mockTagRef),
+						mockResponse(t, http.StatusOK, mockAnnotatedTagRef),
 					),
 				),
 				WithRequestMatchHandler(
@@ -2993,7 +3003,7 @@ func Test_GetTag(t *testing.T) {
 			mockedClient: NewMockedHTTPClient(
 				WithRequestMatch(
 					GetReposGitRefByOwnerByRepoByRef,
-					mockTagRef,
+					mockAnnotatedTagRef,
 				),
 				WithRequestMatchHandler(
 					GetReposGitTagsByOwnerByRepoByTagSHA,
@@ -3010,6 +3020,27 @@ func Test_GetTag(t *testing.T) {
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to get tag object",
+		},
+		{
+			name: "successful lightweight tag retrieval",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetReposGitRefByOwnerByRepoByRef,
+					expectPath(
+						t,
+						"/repos/owner/repo/git/ref/tags/v1.0.1",
+					).andThen(
+						mockResponse(t, http.StatusOK, mockLightweightTagRef),
+					),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"tag":   "v1.0.1",
+			},
+			expectError: false,
+			expectedRef: mockLightweightTagRef,
 		},
 	}
 
@@ -3043,16 +3074,29 @@ func Test_GetTag(t *testing.T) {
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Parse and verify the result
-			var returnedTag github.Tag
-			err = json.Unmarshal([]byte(textContent.Text), &returnedTag)
-			require.NoError(t, err)
+			// Parse and verify the result - annotated tag (full tag object)
+			if tc.expectedTag != nil {
+				var returnedTag github.Tag
+				err = json.Unmarshal([]byte(textContent.Text), &returnedTag)
+				require.NoError(t, err)
 
-			assert.Equal(t, *tc.expectedTag.SHA, *returnedTag.SHA)
-			assert.Equal(t, *tc.expectedTag.Tag, *returnedTag.Tag)
-			assert.Equal(t, *tc.expectedTag.Message, *returnedTag.Message)
-			assert.Equal(t, *tc.expectedTag.Object.Type, *returnedTag.Object.Type)
-			assert.Equal(t, *tc.expectedTag.Object.SHA, *returnedTag.Object.SHA)
+				assert.Equal(t, tc.expectedTag.GetSHA(), returnedTag.GetSHA())
+				assert.Equal(t, tc.expectedTag.GetTag(), returnedTag.GetTag())
+				assert.Equal(t, tc.expectedTag.GetMessage(), returnedTag.GetMessage())
+				assert.Equal(t, tc.expectedTag.Object.GetType(), returnedTag.Object.GetType())
+				assert.Equal(t, tc.expectedTag.Object.GetSHA(), returnedTag.Object.GetSHA())
+			}
+
+			// Parse and verify the result - lightweight tag (reference only)
+			if tc.expectedRef != nil {
+				var returnedRef github.Reference
+				err = json.Unmarshal([]byte(textContent.Text), &returnedRef)
+				require.NoError(t, err)
+
+				assert.Equal(t, tc.expectedRef.GetRef(), returnedRef.GetRef())
+				assert.Equal(t, tc.expectedRef.Object.GetType(), returnedRef.Object.GetType())
+				assert.Equal(t, tc.expectedRef.Object.GetSHA(), returnedRef.Object.GetSHA())
+			}
 		})
 	}
 }
