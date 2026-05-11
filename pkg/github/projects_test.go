@@ -189,7 +189,20 @@ func Test_ProjectsList_ListProjectFields(t *testing.T) {
 func Test_ProjectsList_ListProjectItems(t *testing.T) {
 	toolDef := ProjectsList(translations.NullTranslationHelper)
 
-	items := []map[string]any{{"id": 1001, "archived_at": nil, "content": map[string]any{"title": "Issue 1"}}}
+	items := []map[string]any{{
+		"id":           1001,
+		"node_id":      "PVTI_item1",
+		"content_type": "Issue",
+		"content": map[string]any{
+			"id":             2001,
+			"node_id":        "I_issue1",
+			"number":         42,
+			"title":          "Issue 1",
+			"html_url":       "https://github.com/octo-org/repo/issues/42",
+			"repository_url": "https://api.github.com/repos/octo-org/repo",
+			"labels":         []map[string]any{{"name": "status:ready"}},
+		},
+	}}
 
 	t.Run("success organization", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
@@ -219,6 +232,17 @@ func Test_ProjectsList_ListProjectItems(t *testing.T) {
 		itemsList, ok := response["items"].([]any)
 		require.True(t, ok)
 		assert.Equal(t, 1, len(itemsList))
+		item, ok := itemsList[0].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, float64(1001), item["project_item_id"])
+		assert.Equal(t, "PVTI_item1", item["project_item_node_id"])
+		assert.Equal(t, "issue", item["content_type"])
+		assert.Equal(t, "octo-org", item["content_owner"])
+		assert.Equal(t, "repo", item["content_repo"])
+		assert.Equal(t, float64(42), item["content_number"])
+		assert.Equal(t, float64(2001), item["content_id"])
+		assert.Equal(t, "I_issue1", item["content_node_id"])
+		assert.ElementsMatch(t, []any{"status:ready"}, item["content_labels"])
 	})
 }
 
@@ -353,7 +377,20 @@ func Test_ProjectsGet_GetProjectField(t *testing.T) {
 func Test_ProjectsGet_GetProjectItem(t *testing.T) {
 	toolDef := ProjectsGet(translations.NullTranslationHelper)
 
-	item := map[string]any{"id": 1001, "archived_at": nil, "content": map[string]any{"title": "Issue 1"}}
+	item := map[string]any{
+		"id":           1001,
+		"node_id":      "PVTI_item1",
+		"content_type": "Issue",
+		"content": map[string]any{
+			"id":             2001,
+			"node_id":        "I_issue1",
+			"number":         42,
+			"title":          "Issue 1",
+			"html_url":       "https://github.com/octo-org/repo/issues/42",
+			"repository_url": "https://api.github.com/repos/octo-org/repo",
+			"labels":         []map[string]any{{"name": "status:ready"}},
+		},
+	}
 
 	t.Run("success organization", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
@@ -382,6 +419,13 @@ func Test_ProjectsGet_GetProjectItem(t *testing.T) {
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
 		assert.NotNil(t, response["id"])
+		assert.Equal(t, float64(1001), response["project_item_id"])
+		assert.Equal(t, "PVTI_item1", response["project_item_node_id"])
+		assert.Equal(t, "issue", response["content_type"])
+		assert.Equal(t, "octo-org", response["content_owner"])
+		assert.Equal(t, "repo", response["content_repo"])
+		assert.Equal(t, float64(42), response["content_number"])
+		assert.ElementsMatch(t, []any{"status:ready"}, response["content_labels"])
 	})
 
 	t.Run("missing item_id", func(t *testing.T) {
@@ -425,6 +469,7 @@ func Test_ProjectsWrite(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "issue_number")
 	assert.Contains(t, inputSchema.Properties, "pull_request_number")
 	assert.Contains(t, inputSchema.Properties, "updated_field")
+	assert.Contains(t, inputSchema.Properties, "updated_fields")
 	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner", "project_number"})
 
 	// Verify DestructiveHint is set
@@ -486,7 +531,8 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 				struct {
 					AddProjectV2ItemByID struct {
 						Item struct {
-							ID githubv4.ID
+							ID         githubv4.ID
+							DatabaseID githubv4.Int `graphql:"databaseId"`
 						}
 					} `graphql:"addProjectV2ItemById(input: $input)"`
 				}{},
@@ -498,7 +544,8 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 				githubv4mock.DataResponse(map[string]any{
 					"addProjectV2ItemById": map[string]any{
 						"item": map[string]any{
-							"id": "PVTI_item1",
+							"id":         "PVTI_item1",
+							"databaseId": 1001,
 						},
 					},
 				}),
@@ -530,6 +577,13 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
 		assert.NotNil(t, response["id"])
+		assert.Equal(t, float64(1001), response["project_item_id"])
+		assert.Equal(t, "PVTI_item1", response["project_item_node_id"])
+		assert.Equal(t, "issue", response["content_type"])
+		assert.Equal(t, "item-owner", response["content_owner"])
+		assert.Equal(t, "item-repo", response["content_repo"])
+		assert.Equal(t, float64(123), response["content_number"])
+		assert.Equal(t, "I_issue123", response["content_node_id"])
 		assert.Contains(t, response["message"], "Successfully added")
 	})
 
@@ -583,7 +637,8 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 				struct {
 					AddProjectV2ItemByID struct {
 						Item struct {
-							ID githubv4.ID
+							ID         githubv4.ID
+							DatabaseID githubv4.Int `graphql:"databaseId"`
 						}
 					} `graphql:"addProjectV2ItemById(input: $input)"`
 				}{},
@@ -595,7 +650,8 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 				githubv4mock.DataResponse(map[string]any{
 					"addProjectV2ItemById": map[string]any{
 						"item": map[string]any{
-							"id": "PVTI_item2",
+							"id":         "PVTI_item2",
+							"databaseId": 1002,
 						},
 					},
 				}),
@@ -627,6 +683,10 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
 		assert.NotNil(t, response["id"])
+		assert.Equal(t, float64(1002), response["project_item_id"])
+		assert.Equal(t, "PVTI_item2", response["project_item_node_id"])
+		assert.Equal(t, "pull_request", response["content_type"])
+		assert.Equal(t, float64(456), response["content_number"])
 		assert.Contains(t, response["message"], "Successfully added")
 	})
 
@@ -737,6 +797,98 @@ func Test_ProjectsWrite_UpdateProjectItem(t *testing.T) {
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
 		assert.NotNil(t, response["id"])
+		assert.Equal(t, float64(1001), response["project_item_id"])
+	})
+
+	t.Run("success with multiple updated fields", func(t *testing.T) {
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PatchOrgsProjectsV2ItemsByProjectByItemID: mockResponse(t, http.StatusOK, updatedItem),
+		})
+
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "update_project_item",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+			"item_id":        float64(1001),
+			"updated_fields": []any{
+				map[string]any{
+					"id":    float64(101),
+					"value": "In Progress",
+				},
+				map[string]any{
+					"id":    float64(102),
+					"value": "P1",
+				},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		assert.Equal(t, float64(1001), response["project_item_id"])
+	})
+
+	t.Run("success by issue content identity", func(t *testing.T) {
+		projectItems := []map[string]any{{
+			"id":           1001,
+			"node_id":      "PVTI_item1",
+			"content_type": "Issue",
+			"content": map[string]any{
+				"id":             2001,
+				"node_id":        "I_issue123",
+				"number":         123,
+				"html_url":       "https://github.com/item-owner/item-repo/issues/123",
+				"repository_url": "https://api.github.com/repos/item-owner/item-repo",
+				"labels": []map[string]any{
+					{"name": "status:ready"},
+				},
+			},
+		}}
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetOrgsProjectsV2ItemsByProject:           mockResponse(t, http.StatusOK, projectItems),
+			PatchOrgsProjectsV2ItemsByProjectByItemID: mockResponse(t, http.StatusOK, updatedItem),
+		})
+
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "update_project_item",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+			"item_owner":     "item-owner",
+			"item_repo":      "item-repo",
+			"item_type":      "issue",
+			"issue_number":   float64(123),
+			"updated_field": map[string]any{
+				"id":    float64(101),
+				"value": "In Progress",
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		assert.Equal(t, float64(1001), response["project_item_id"])
 	})
 
 	t.Run("missing updated_field", func(t *testing.T) {
@@ -813,6 +965,128 @@ func Test_ProjectsWrite_DeleteProjectItem(t *testing.T) {
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "missing required parameter: item_id")
 	})
+}
+
+func Test_CreateProjectIssue(t *testing.T) {
+	toolDef := CreateProjectIssue(translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
+
+	assert.Equal(t, "create_project_issue", toolDef.Tool.Name)
+	inputSchema := toolDef.Tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, inputSchema.Properties, "status_field_id")
+	assert.Contains(t, inputSchema.Properties, "priority_field_id")
+	assert.ElementsMatch(t, inputSchema.Required, []string{"owner", "repo", "title", "project_number", "status_field_id", "status_value", "priority_field_id", "priority_value"})
+
+	mockIssue := &gh.Issue{
+		ID:      gh.Ptr(int64(12345)),
+		NodeID:  gh.Ptr("I_issue123"),
+		Number:  gh.Ptr(123),
+		Title:   gh.Ptr("P2 [APP] Task: Build thing"),
+		HTMLURL: gh.Ptr("https://github.com/item-owner/item-repo/issues/123"),
+	}
+	updatedItem := map[string]any{"id": 1001, "archived_at": nil}
+
+	mockedRESTClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PostReposIssuesByOwnerByRepo:                         mockResponse(t, http.StatusCreated, mockIssue),
+		PatchUsersProjectsV2ItemsByUsernameByProjectByItemID: mockResponse(t, http.StatusOK, updatedItem),
+	})
+	mockedGQLClient := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			struct {
+				Repository struct {
+					Issue struct {
+						ID githubv4.ID
+					} `graphql:"issue(number: $issueNumber)"`
+				} `graphql:"repository(owner: $owner, name: $repo)"`
+			}{},
+			map[string]any{
+				"owner":       githubv4.String("item-owner"),
+				"repo":        githubv4.String("item-repo"),
+				"issueNumber": githubv4.Int(123),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"issue": map[string]any{
+						"id": "I_issue123",
+					},
+				},
+			}),
+		),
+		githubv4mock.NewQueryMatcher(
+			struct {
+				User struct {
+					ProjectV2 struct {
+						ID githubv4.ID
+					} `graphql:"projectV2(number: $projectNumber)"`
+				} `graphql:"user(login: $owner)"`
+			}{},
+			map[string]any{
+				"owner":         githubv4.String("project-owner"),
+				"projectNumber": githubv4.Int(1),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"user": map[string]any{
+					"projectV2": map[string]any{
+						"id": "PVT_project1",
+					},
+				},
+			}),
+		),
+		githubv4mock.NewMutationMatcher(
+			struct {
+				AddProjectV2ItemByID struct {
+					Item struct {
+						ID         githubv4.ID
+						DatabaseID githubv4.Int `graphql:"databaseId"`
+					}
+				} `graphql:"addProjectV2ItemById(input: $input)"`
+			}{},
+			githubv4.AddProjectV2ItemByIdInput{
+				ProjectID: githubv4.ID("PVT_project1"),
+				ContentID: githubv4.ID("I_issue123"),
+			},
+			nil,
+			githubv4mock.DataResponse(map[string]any{
+				"addProjectV2ItemById": map[string]any{
+					"item": map[string]any{
+						"id":         "PVTI_item1",
+						"databaseId": 1001,
+					},
+				},
+			}),
+		),
+	)
+
+	restClient := gh.NewClient(mockedRESTClient)
+	gqlClient := githubv4.NewClient(mockedGQLClient)
+	deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
+	handler := toolDef.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"owner":              "item-owner",
+		"repo":               "item-repo",
+		"title":              "P2 [APP] Task: Build thing",
+		"body":               "Body",
+		"labels":             []any{"type:task"},
+		"project_owner":      "project-owner",
+		"project_owner_type": "user",
+		"project_number":     float64(1),
+		"status_field_id":    float64(101),
+		"status_value":       "Backlog",
+		"priority_field_id":  float64(102),
+		"priority_value":     "P2",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	textContent := getTextResult(t, result)
+	var response map[string]any
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &response))
+	assert.Equal(t, float64(123), response["issue_number"])
+	assert.Equal(t, float64(12345), response["issue_id"])
+	assert.Equal(t, "I_issue123", response["issue_node_id"])
+	assert.Equal(t, float64(1001), response["project_item_id"])
+	assert.Equal(t, "PVTI_item1", response["project_item_node_id"])
 }
 
 func Test_ProjectsList_ListProjectStatusUpdates(t *testing.T) {

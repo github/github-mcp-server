@@ -120,6 +120,8 @@ func Test_GetIssue(t *testing.T) {
 
 	// Setup mock issue for success case
 	mockIssue := &github.Issue{
+		ID:      github.Ptr(int64(10042)),
+		NodeID:  github.Ptr("I_10042"),
 		Number:  github.Ptr(42),
 		Title:   github.Ptr("Test Issue"),
 		Body:    github.Ptr("This is a test issue"),
@@ -136,6 +138,8 @@ func Test_GetIssue(t *testing.T) {
 		},
 	}
 	mockIssue2 := &github.Issue{
+		ID:      github.Ptr(int64(10422)),
+		NodeID:  github.Ptr("I_10422"),
 		Number:  github.Ptr(422),
 		Title:   github.Ptr("Test Issue 2"),
 		Body:    github.Ptr("This is a test issue 2"),
@@ -266,6 +270,9 @@ func Test_GetIssue(t *testing.T) {
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedIssue.GetNumber(), returnedIssue.Number)
+			assert.Equal(t, tc.expectedIssue.GetNumber(), returnedIssue.IssueNumber)
+			assert.Equal(t, tc.expectedIssue.GetID(), returnedIssue.IssueID)
+			assert.Equal(t, tc.expectedIssue.GetNodeID(), returnedIssue.IssueNodeID)
 			assert.Equal(t, tc.expectedIssue.GetTitle(), returnedIssue.Title)
 			assert.Equal(t, tc.expectedIssue.GetBody(), returnedIssue.Body)
 			assert.Equal(t, tc.expectedIssue.GetState(), returnedIssue.State)
@@ -384,6 +391,74 @@ func Test_AddIssueComment(t *testing.T) {
 
 		})
 	}
+}
+
+func Test_IssueLabelWrite(t *testing.T) {
+	serverTool := IssueLabelWrite(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "issue_label_write", tool.Name)
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "labels")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number", "labels"})
+
+	t.Run("add labels preserves existing labels", func(t *testing.T) {
+		client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PostReposIssuesLabelsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, []*github.Label{
+				{Name: github.Ptr("type:task")},
+				{Name: github.Ptr("status:ready")},
+			}),
+		}))
+		deps := BaseDeps{Client: client}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"method":       "add",
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(42),
+			"labels":       []any{"status:ready"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		require.NoError(t, json.Unmarshal([]byte(textContent.Text), &response))
+		assert.Equal(t, float64(42), response["issue_number"])
+		assert.ElementsMatch(t, []any{"type:task", "status:ready"}, response["labels"])
+	})
+
+	t.Run("remove label returns remaining labels", func(t *testing.T) {
+		client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			DeleteReposIssuesLabelsByOwnerByRepoByIssueNumberByName: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}),
+			GetReposIssuesLabelsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, []*github.Label{
+				{Name: github.Ptr("type:task")},
+			}),
+		}))
+		deps := BaseDeps{Client: client}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"method":       "remove",
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(42),
+			"labels":       []any{"status:ready"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		require.NoError(t, json.Unmarshal([]byte(textContent.Text), &response))
+		assert.ElementsMatch(t, []any{"type:task"}, response["labels"])
+	})
 }
 
 func Test_SearchIssues(t *testing.T) {
@@ -714,6 +789,8 @@ func Test_CreateIssue(t *testing.T) {
 
 	// Setup mock issue for success case
 	mockIssue := &github.Issue{
+		ID:        github.Ptr(int64(10123)),
+		NodeID:    github.Ptr("I_10123"),
 		Number:    github.Ptr(123),
 		Title:     github.Ptr("Test Issue"),
 		Body:      github.Ptr("This is a test issue"),
@@ -765,6 +842,8 @@ func Test_CreateIssue(t *testing.T) {
 			name: "successful issue creation with minimal fields",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesByOwnerByRepo: mockResponse(t, http.StatusCreated, &github.Issue{
+					ID:      github.Ptr(int64(10124)),
+					NodeID:  github.Ptr("I_10124"),
 					Number:  github.Ptr(124),
 					Title:   github.Ptr("Minimal Issue"),
 					HTMLURL: github.Ptr("https://github.com/owner/repo/issues/124"),
@@ -780,6 +859,8 @@ func Test_CreateIssue(t *testing.T) {
 			},
 			expectError: false,
 			expectedIssue: &github.Issue{
+				ID:      github.Ptr(int64(10124)),
+				NodeID:  github.Ptr("I_10124"),
 				Number:  github.Ptr(124),
 				Title:   github.Ptr("Minimal Issue"),
 				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/124"),
@@ -845,6 +926,9 @@ func Test_CreateIssue(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedIssue.GetHTMLURL(), returnedIssue.URL)
+			assert.Equal(t, tc.expectedIssue.GetNumber(), returnedIssue.IssueNumber)
+			assert.Equal(t, tc.expectedIssue.GetID(), returnedIssue.IssueID)
+			assert.Equal(t, tc.expectedIssue.GetNodeID(), returnedIssue.IssueNodeID)
 		})
 	}
 }
@@ -1047,6 +1131,7 @@ func Test_ListIssues(t *testing.T) {
 	// Mock issues data
 	mockIssuesAll := []map[string]any{
 		{
+			"id":         "I_1001",
 			"number":     123,
 			"title":      "First Issue",
 			"body":       "This is the first test issue",
@@ -1065,6 +1150,7 @@ func Test_ListIssues(t *testing.T) {
 			},
 		},
 		{
+			"id":         "I_1002",
 			"number":     456,
 			"title":      "Second Issue",
 			"body":       "This is the second test issue",
@@ -1087,6 +1173,7 @@ func Test_ListIssues(t *testing.T) {
 	mockIssuesOpen := []map[string]any{mockIssuesAll[0], mockIssuesAll[1]}
 	mockIssuesClosed := []map[string]any{
 		{
+			"id":         "I_1003",
 			"number":     789,
 			"title":      "Closed Issue",
 			"body":       "This is a closed issue",
@@ -1272,8 +1359,8 @@ func Test_ListIssues(t *testing.T) {
 	}
 
 	// Define the actual query strings that match the implementation
-	qBasicNoLabels := "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
-	qWithLabels := "query($after:String$direction:OrderDirection!$first:Int!$labels:[String!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
+	qBasicNoLabels := "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{id,number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
+	qWithLabels := "query($after:String$direction:OrderDirection!$first:Int!$labels:[String!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{id,number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1374,6 +1461,8 @@ func Test_UpdateIssue(t *testing.T) {
 
 	// Mock issues for reuse across test cases
 	mockBaseIssue := &github.Issue{
+		ID:        github.Ptr(int64(20123)),
+		NodeID:    github.Ptr("I_20123"),
 		Number:    github.Ptr(123),
 		Title:     github.Ptr("Title"),
 		Body:      github.Ptr("Description"),
@@ -1386,6 +1475,8 @@ func Test_UpdateIssue(t *testing.T) {
 	}
 
 	mockUpdatedIssue := &github.Issue{
+		ID:          github.Ptr(int64(20123)),
+		NodeID:      github.Ptr("I_20123"),
 		Number:      github.Ptr(123),
 		Title:       github.Ptr("Updated Title"),
 		Body:        github.Ptr("Updated Description"),
@@ -1399,6 +1490,8 @@ func Test_UpdateIssue(t *testing.T) {
 	}
 
 	mockReopenedIssue := &github.Issue{
+		ID:          github.Ptr(int64(20123)),
+		NodeID:      github.Ptr("I_20123"),
 		Number:      github.Ptr(123),
 		Title:       github.Ptr("Title"),
 		State:       github.Ptr("open"),
@@ -1689,6 +1782,8 @@ func Test_UpdateIssue(t *testing.T) {
 					"type":      "Bug",
 				}).andThen(
 					mockResponse(t, http.StatusOK, &github.Issue{
+						ID:        github.Ptr(int64(20123)),
+						NodeID:    github.Ptr("I_20123"),
 						Number:    github.Ptr(123),
 						Title:     github.Ptr("Updated Title"),
 						Body:      github.Ptr("Updated Description"),
@@ -1821,6 +1916,9 @@ func Test_UpdateIssue(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedIssue.GetHTMLURL(), updateResp.URL)
+			assert.Equal(t, tc.expectedIssue.GetNumber(), updateResp.IssueNumber)
+			assert.Equal(t, tc.expectedIssue.GetID(), updateResp.IssueID)
+			assert.Equal(t, tc.expectedIssue.GetNodeID(), updateResp.IssueNodeID)
 		})
 	}
 }
@@ -2197,7 +2295,6 @@ func Test_AddSubIssue(t *testing.T) {
 			},
 		},
 	}
-
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
@@ -2621,6 +2718,284 @@ func Test_GetSubIssues(t *testing.T) {
 	}
 }
 
+func Test_GetIssueDependenciesBlockedBy(t *testing.T) {
+	serverTool := IssueRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	mockIssues := []*github.Issue{
+		{
+			Number:  github.Ptr(101),
+			Title:   github.Ptr("Blocking issue 1"),
+			Body:    github.Ptr("First blocking dependency"),
+			State:   github.Ptr("open"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/101"),
+			User:    &github.User{Login: github.Ptr("user1")},
+		},
+		{
+			Number:  github.Ptr(102),
+			Title:   github.Ptr("Blocking issue 2"),
+			Body:    github.Ptr("Second blocking dependency"),
+			State:   github.Ptr("closed"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/102"),
+			User:    &github.User{Login: github.Ptr("user2")},
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]any
+		expectedIssues []*github.Issue
+		expectedErrMsg string
+	}{
+		{
+			name: "successful blocked_by dependency listing",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssues),
+			}),
+			requestArgs: map[string]any{
+				"method":       "get_dependencies_blocked_by",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectedIssues: mockIssues,
+		},
+		{
+			name: "successful blocked_by dependency listing with pagination",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber: expectQueryParams(t, map[string]string{
+					"page":     "3",
+					"per_page": "25",
+				}).andThen(mockResponse(t, http.StatusOK, mockIssues)),
+			}),
+			requestArgs: map[string]any{
+				"method":       "get_dependencies_blocked_by",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"page":         float64(3),
+				"perPage":      float64(25),
+			},
+			expectedIssues: mockIssues,
+		},
+		{
+			name: "blocked_by dependency listing not found",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message":"Not Found"}`),
+			}),
+			requestArgs: map[string]any{
+				"method":       "get_dependencies_blocked_by",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(999),
+			},
+			expectedErrMsg: "failed to list issue dependencies",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			gqlClient := githubv4.NewClient(nil)
+			deps := BaseDeps{
+				Client:          client,
+				GQLClient:       gqlClient,
+				RepoAccessCache: stubRepoAccessCache(gqlClient, 15*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+			}
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(tc.requestArgs)
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			if tc.expectedErrMsg != "" {
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			textContent := getTextResult(t, result)
+			var returnedIssues []MinimalIssue
+			err = json.Unmarshal([]byte(textContent.Text), &returnedIssues)
+			require.NoError(t, err)
+			require.Len(t, returnedIssues, len(tc.expectedIssues))
+			for i, expected := range tc.expectedIssues {
+				assert.Equal(t, expected.GetNumber(), returnedIssues[i].Number)
+				assert.Equal(t, expected.GetTitle(), returnedIssues[i].Title)
+				assert.Equal(t, expected.GetBody(), returnedIssues[i].Body)
+				assert.Equal(t, expected.GetState(), returnedIssues[i].State)
+				assert.Equal(t, expected.GetHTMLURL(), returnedIssues[i].HTMLURL)
+				assert.Equal(t, expected.GetUser().GetLogin(), returnedIssues[i].User.Login)
+			}
+		})
+	}
+}
+
+func Test_GetIssueDependenciesBlocking(t *testing.T) {
+	serverTool := IssueRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	mockIssues := []*github.Issue{
+		{
+			Number:  github.Ptr(201),
+			Title:   github.Ptr("Blocked issue 1"),
+			Body:    github.Ptr("First issue being blocked"),
+			State:   github.Ptr("open"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/201"),
+			User:    &github.User{Login: github.Ptr("user3")},
+		},
+	}
+
+	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposIssuesDependenciesBlockingByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssues),
+	}))
+	gqlClient := githubv4.NewClient(nil)
+	deps := BaseDeps{
+		Client:          client,
+		GQLClient:       gqlClient,
+		RepoAccessCache: stubRepoAccessCache(gqlClient, 15*time.Minute),
+		Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+	}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":       "get_dependencies_blocking",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(42),
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+
+	textContent := getTextResult(t, result)
+	var returnedIssues []MinimalIssue
+	err = json.Unmarshal([]byte(textContent.Text), &returnedIssues)
+	require.NoError(t, err)
+	require.Len(t, returnedIssues, 1)
+	assert.Equal(t, mockIssues[0].GetNumber(), returnedIssues[0].Number)
+	assert.Equal(t, mockIssues[0].GetTitle(), returnedIssues[0].Title)
+	assert.Equal(t, mockIssues[0].GetUser().GetLogin(), returnedIssues[0].User.Login)
+}
+
+func Test_IssueDependencyWrite(t *testing.T) {
+	serverTool := IssueDependencyWrite(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "issue_dependency_write", tool.Name)
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_id")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number", "issue_id"})
+
+	mockIssue := &github.Issue{
+		Number:  github.Ptr(42),
+		Title:   github.Ptr("Parent issue"),
+		Body:    github.Ptr("Dependency edge updated"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+		User:    &github.User{Login: github.Ptr("maintainer")},
+	}
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]any
+		expectedIssue  *github.Issue
+		expectedErrMsg string
+	}{
+		{
+			name: "successful add blocked_by dependency",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{"issue_id": float64(101)}).andThen(
+					mockResponse(t, http.StatusCreated, mockIssue),
+				),
+			}),
+			requestArgs: map[string]any{
+				"method":       "add_blocked_by",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"issue_id":     float64(101),
+			},
+			expectedIssue: mockIssue,
+		},
+		{
+			name: "successful remove blocked_by dependency",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumberByIssueID: mockResponse(t, http.StatusOK, mockIssue),
+			}),
+			requestArgs: map[string]any{
+				"method":       "remove_blocked_by",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"issue_id":     float64(101),
+			},
+			expectedIssue: mockIssue,
+		},
+		{
+			name: "add blocked_by dependency failure",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusUnprocessableEntity, `{"message":"Validation failed"}`),
+			}),
+			requestArgs: map[string]any{
+				"method":       "add_blocked_by",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"issue_id":     float64(42),
+			},
+			expectedErrMsg: "failed to add issue dependency",
+		},
+		{
+			name:         "missing issue_id parameter",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"method":       "remove_blocked_by",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectedErrMsg: "missing required parameter: issue_id",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(tc.requestArgs)
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			if tc.expectedErrMsg != "" {
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			textContent := getTextResult(t, result)
+			var returnedIssue MinimalIssue
+			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedIssue.GetNumber(), returnedIssue.Number)
+			assert.Equal(t, tc.expectedIssue.GetTitle(), returnedIssue.Title)
+			assert.Equal(t, tc.expectedIssue.GetBody(), returnedIssue.Body)
+			assert.Equal(t, tc.expectedIssue.GetState(), returnedIssue.State)
+			assert.Equal(t, tc.expectedIssue.GetHTMLURL(), returnedIssue.HTMLURL)
+			assert.Equal(t, tc.expectedIssue.GetUser().GetLogin(), returnedIssue.User.Login)
+		})
+	}
+}
+
 func Test_RemoveSubIssue(t *testing.T) {
 	// Verify tool definition once
 	serverTool := SubIssueWrite(translations.NullTranslationHelper)
@@ -2654,7 +3029,6 @@ func Test_RemoveSubIssue(t *testing.T) {
 			},
 		},
 	}
-
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
@@ -2862,7 +3236,6 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			},
 		},
 	}
-
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client

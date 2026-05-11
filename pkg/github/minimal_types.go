@@ -1,6 +1,7 @@
 package github
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/go-github/v82/github"
@@ -134,8 +135,27 @@ type MinimalTag struct {
 // Success is implicit in the HTTP response status, and all other information
 // can be derived from the URL or fetched separately if needed.
 type MinimalResponse struct {
-	ID  string `json:"id"`
-	URL string `json:"url"`
+	ID          string `json:"id"`
+	URL         string `json:"url"`
+	IssueNumber int    `json:"issue_number,omitempty"`
+	IssueID     int64  `json:"issue_id,omitempty"`
+	IssueNodeID string `json:"issue_node_id,omitempty"`
+}
+
+// MinimalProjectItem is the trimmed output type for Project V2 items.
+type MinimalProjectItem struct {
+	ID                any              `json:"id,omitempty"`
+	ProjectItemID     any              `json:"project_item_id,omitempty"`
+	ProjectItemNodeID string           `json:"project_item_node_id,omitempty"`
+	ContentType       string           `json:"content_type,omitempty"`
+	ContentOwner      string           `json:"content_owner,omitempty"`
+	ContentRepo       string           `json:"content_repo,omitempty"`
+	ContentNumber     int              `json:"content_number,omitempty"`
+	ContentID         any              `json:"content_id,omitempty"`
+	ContentNodeID     string           `json:"content_node_id,omitempty"`
+	ContentLabels     []string         `json:"content_labels,omitempty"`
+	Raw               map[string]any   `json:"raw,omitempty"`
+	Fields            []map[string]any `json:"fields,omitempty"`
 }
 
 type MinimalProject struct {
@@ -171,6 +191,9 @@ type MinimalReactions struct {
 
 // MinimalIssue is the trimmed output type for issue objects to reduce verbosity.
 type MinimalIssue struct {
+	IssueNumber       int               `json:"issue_number,omitempty"`
+	IssueID           int64             `json:"issue_id,omitempty"`
+	IssueNodeID       string            `json:"issue_node_id,omitempty"`
 	Number            int               `json:"number"`
 	Title             string            `json:"title"`
 	Body              string            `json:"body,omitempty"`
@@ -321,6 +344,9 @@ func convertToMinimalPullRequestReview(review *github.PullRequestReview) Minimal
 
 func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 	m := MinimalIssue{
+		IssueNumber:       issue.GetNumber(),
+		IssueID:           issue.GetID(),
+		IssueNodeID:       issue.GetNodeID(),
 		Number:            issue.GetNumber(),
 		Title:             issue.GetTitle(),
 		Body:              issue.GetBody(),
@@ -387,13 +413,16 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 
 func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 	m := MinimalIssue{
-		Number:    int(fragment.Number),
-		Title:     sanitize.Sanitize(string(fragment.Title)),
-		Body:      sanitize.Sanitize(string(fragment.Body)),
-		State:     string(fragment.State),
-		Comments:  int(fragment.Comments.TotalCount),
-		CreatedAt: fragment.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: fragment.UpdatedAt.Format(time.RFC3339),
+		IssueNumber: int(fragment.Number),
+		IssueID:     fragment.DatabaseID,
+		IssueNodeID: fmt.Sprintf("%v", fragment.ID),
+		Number:      int(fragment.Number),
+		Title:       sanitize.Sanitize(string(fragment.Title)),
+		Body:        sanitize.Sanitize(string(fragment.Body)),
+		State:       string(fragment.State),
+		Comments:    int(fragment.Comments.TotalCount),
+		CreatedAt:   fragment.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   fragment.UpdatedAt.Format(time.RFC3339),
 		User: &MinimalUser{
 			Login: string(fragment.Author.Login),
 		},

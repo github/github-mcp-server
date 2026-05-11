@@ -2,7 +2,7 @@
   "annotations": {
     "title": "Write operations on repository labels."
   },
-  "description": "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool.",
+  "description": "Perform write operations on repository labels. To add or remove labels on issues, use the 'issue_label_write' tool.",
   "inputSchema": {
     "properties": {
       "color": {

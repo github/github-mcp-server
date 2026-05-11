@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -437,7 +438,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"item_id": {
 						Type:        "number",
-						Description: "The project item ID. Required for 'update_project_item' and 'delete_project_item' methods.",
+						Description: "The numeric project item ID. Required for 'delete_project_item'. For 'update_project_item', provide this or identify the content with item_owner, item_repo, item_type, and issue_number or pull_request_number.",
 					},
 					"item_type": {
 						Type:        "string",
@@ -462,7 +463,12 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"updated_field": {
 						Type:        "object",
-						Description: "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}. Required for 'update_project_item' method.",
+						Description: "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}. For 'update_project_item', provide updated_field or updated_fields.",
+					},
+					"updated_fields": {
+						Type:        "array",
+						Description: "List of project field updates, each with the field ID and new value. Example: [{\"id\": 123456, \"value\": \"In Progress\"}, {\"id\": 234567, \"value\": \"P1\"}].",
+						Items:       &jsonschema.Schema{Type: "object"},
 					},
 					"body": {
 						Type:        "string",
@@ -558,19 +564,15 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 				return addProjectItem(ctx, gqlClient, owner, ownerType, projectNumber, itemOwner, itemRepo, itemNumber, itemType)
 			case projectsMethodUpdateProjectItem:
-				itemID, err := RequiredBigInt(args, "item_id")
+				itemID, err := resolveProjectItemIDForUpdate(ctx, client, owner, ownerType, projectNumber, args)
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				rawUpdatedField, exists := args["updated_field"]
-				if !exists {
-					return utils.NewToolResultError("missing required parameter: updated_field"), nil, nil
+				fieldValues, err := buildProjectFieldValues(args)
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				fieldValue, ok := rawUpdatedField.(map[string]any)
-				if !ok || fieldValue == nil {
-					return utils.NewToolResultError("updated_field must be an object"), nil, nil
-				}
-				return updateProjectItem(ctx, client, owner, ownerType, projectNumber, itemID, fieldValue)
+				return updateProjectItem(ctx, client, owner, ownerType, projectNumber, itemID, fieldValues)
 			case projectsMethodDeleteProjectItem:
 				itemID, err := RequiredBigInt(args, "item_id")
 				if err != nil {
@@ -601,6 +603,222 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 	)
 	return tool
+}
+
+// CreateProjectIssue creates an issue, adds it to a Project V2 board, and sets initial project fields.
+func CreateProjectIssue(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataProjects,
+		mcp.Tool{
+			Name:        "create_project_issue",
+			Description: t("TOOL_CREATE_PROJECT_ISSUE_DESCRIPTION", "Create a GitHub issue, add it to a GitHub Project, and set initial project Status and Priority fields."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_CREATE_PROJECT_ISSUE_TITLE", "Create project issue"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"title": {
+						Type:        "string",
+						Description: "Issue title",
+					},
+					"body": {
+						Type:        "string",
+						Description: "Issue body content",
+					},
+					"labels": {
+						Type:        "array",
+						Description: "Labels to apply to the issue",
+						Items:       &jsonschema.Schema{Type: "string"},
+					},
+					"assignees": {
+						Type:        "array",
+						Description: "GitHub usernames to assign to this issue",
+						Items:       &jsonschema.Schema{Type: "string"},
+					},
+					"type": {
+						Type:        "string",
+						Description: "Issue type name, when the repository supports issue types",
+					},
+					"project_owner": {
+						Type:        "string",
+						Description: "Project owner login. Defaults to the repository owner when omitted.",
+					},
+					"project_owner_type": {
+						Type:        "string",
+						Description: "Project owner type.",
+						Enum:        []any{"user", "org"},
+					},
+					"project_number": {
+						Type:        "number",
+						Description: "The project's number.",
+					},
+					"status_field_id": {
+						Type:        "number",
+						Description: "Project Status field ID.",
+					},
+					"status_value": {
+						Type:        "string",
+						Description: "Initial Status field value or option ID. For github-workflow this should be Backlog's option ID.",
+					},
+					"priority_field_id": {
+						Type:        "number",
+						Description: "Project Priority field ID.",
+					},
+					"priority_value": {
+						Type:        "string",
+						Description: "Initial Priority field value or option ID.",
+					},
+				},
+				Required: []string{"owner", "repo", "title", "project_number", "status_field_id", "status_value", "priority_field_id", "priority_value"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo, scopes.Project},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			title, err := RequiredParam[string](args, "title")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			body, err := OptionalParam[string](args, "body")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			labels, err := OptionalStringArrayParam(args, "labels")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			assignees, err := OptionalStringArrayParam(args, "assignees")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueType, err := OptionalParam[string](args, "type")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			projectOwner, err := OptionalParam[string](args, "project_owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if projectOwner == "" {
+				projectOwner = owner
+			}
+			projectOwnerType, err := OptionalParam[string](args, "project_owner_type")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			projectNumber, err := RequiredInt(args, "project_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			statusFieldID, err := RequiredBigInt(args, "status_field_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			statusValue, ok := args["status_value"]
+			if !ok {
+				return utils.NewToolResultError("missing required parameter: status_value"), nil, nil
+			}
+			priorityFieldID, err := RequiredBigInt(args, "priority_field_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			priorityValue, ok := args["priority_value"]
+			if !ok {
+				return utils.NewToolResultError("missing required parameter: priority_value"), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			if projectOwnerType == "" {
+				projectOwnerType, err = detectOwnerType(ctx, client, projectOwner, projectNumber)
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+			}
+
+			issueRequest := &github.IssueRequest{
+				Title:     github.Ptr(title),
+				Body:      github.Ptr(body),
+				Labels:    &labels,
+				Assignees: &assignees,
+			}
+			if issueType != "" {
+				issueRequest.Type = github.Ptr(issueType)
+			}
+
+			issue, resp, err := client.Issues.Create(ctx, owner, repo, issueRequest)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create issue", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+			if resp.StatusCode != http.StatusCreated {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create issue", resp, body), nil, nil
+			}
+
+			addedItem, err := addProjectItemData(ctx, gqlClient, projectOwner, projectOwnerType, projectNumber, owner, repo, issue.GetNumber(), "issue")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if addedItem.ProjectItemID == 0 {
+				return utils.NewToolResultError("created project item did not include a numeric project_item_id"), nil, nil
+			}
+
+			updateResult, _, err := updateProjectItem(ctx, client, projectOwner, projectOwnerType, projectNumber, addedItem.ProjectItemID, []map[string]any{
+				{"id": statusFieldID, "value": statusValue},
+				{"id": priorityFieldID, "value": priorityValue},
+			})
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if updateResult != nil && updateResult.IsError {
+				return updateResult, nil, nil
+			}
+
+			response := map[string]any{
+				"issue_number":         issue.GetNumber(),
+				"issue_id":             issue.GetID(),
+				"issue_node_id":        issue.GetNodeID(),
+				"html_url":             issue.GetHTMLURL(),
+				"project_item_id":      addedItem.ProjectItemID,
+				"project_item_node_id": addedItem.ProjectItemNodeID,
+			}
+			r, err := json.Marshal(response)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+			return utils.NewToolResultText(string(r)), nil, nil
+		},
+	)
 }
 
 // Helper functions for consolidated projects tools
@@ -830,8 +1048,13 @@ func listProjectItems(ctx context.Context, client *github.Client, args map[strin
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	items, err := convertProjectItemsToResponse(projectItems)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	response := map[string]any{
-		"items":    projectItems,
+		"items":    items,
 		"pageInfo": buildPageInfo(resp),
 	}
 
@@ -949,7 +1172,12 @@ func getProjectItem(ctx context.Context, client *github.Client, owner, ownerType
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get project item", resp, body), nil, nil
 	}
 
-	r, err := json.Marshal(projectItem)
+	item, err := convertProjectItemToResponse(projectItem)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	r, err := json.Marshal(item)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
@@ -957,8 +1185,8 @@ func getProjectItem(ctx context.Context, client *github.Client, owner, ownerType
 	return utils.NewToolResultText(string(r)), nil, nil
 }
 
-func updateProjectItem(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, itemID int64, fieldValue map[string]any) (*mcp.CallToolResult, any, error) {
-	updatePayload, err := buildUpdateProjectItem(fieldValue)
+func updateProjectItem(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, itemID int64, fieldValues []map[string]any) (*mcp.CallToolResult, any, error) {
+	updatePayload, err := buildUpdateProjectItem(fieldValues)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
@@ -988,7 +1216,12 @@ func updateProjectItem(ctx context.Context, client *github.Client, owner, ownerT
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectUpdateFailedError, resp, body), nil, nil
 	}
-	r, err := json.Marshal(updatedItem)
+	item, err := convertProjectItemToResponse(updatedItem)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	r, err := json.Marshal(item)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
@@ -1063,9 +1296,21 @@ func resolveProjectNodeID(ctx context.Context, gqlClient *githubv4.Client, owner
 }
 
 // addProjectItem adds an item to a project by resolving the issue/PR number to a node ID
-func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, itemOwner, itemRepo string, itemNumber int, itemType string) (*mcp.CallToolResult, any, error) {
+type projectItemAddResult struct {
+	ID                string `json:"id"`
+	ProjectItemID     int64  `json:"project_item_id,omitempty"`
+	ProjectItemNodeID string `json:"project_item_node_id"`
+	ContentType       string `json:"content_type"`
+	ContentOwner      string `json:"content_owner"`
+	ContentRepo       string `json:"content_repo"`
+	ContentNumber     int    `json:"content_number"`
+	ContentNodeID     string `json:"content_node_id"`
+	Message           string `json:"message"`
+}
+
+func addProjectItemData(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, itemOwner, itemRepo string, itemNumber int, itemType string) (*projectItemAddResult, error) {
 	if itemType != "issue" && itemType != "pull_request" {
-		return utils.NewToolResultError("item_type must be either 'issue' or 'pull_request'"), nil, nil
+		return nil, fmt.Errorf("item_type must be either 'issue' or 'pull_request'")
 	}
 
 	// Resolve the item number to a node ID
@@ -1077,14 +1322,15 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 		nodeID, err = resolvePullRequestNodeID(ctx, gqlClient, itemOwner, itemRepo, itemNumber)
 	}
 	if err != nil {
-		return utils.NewToolResultError(fmt.Sprintf("failed to resolve %s: %v", itemType, err)), nil, nil
+		return nil, fmt.Errorf("failed to resolve %s: %w", itemType, err)
 	}
 
 	// Use GraphQL to add the item to the project
 	var mutation struct {
 		AddProjectV2ItemByID struct {
 			Item struct {
-				ID githubv4.ID
+				ID         githubv4.ID
+				DatabaseID githubv4.Int `graphql:"databaseId"`
 			}
 		} `graphql:"addProjectV2ItemById(input: $input)"`
 	}
@@ -1092,7 +1338,7 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 	// Resolve the project number to a node ID
 	projectID, err := resolveProjectNodeID(ctx, gqlClient, owner, ownerType, projectNumber)
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+		return nil, err
 	}
 
 	// Add the item to the project
@@ -1103,12 +1349,27 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 
 	err = gqlClient.Mutate(ctx, &mutation, input, nil)
 	if err != nil {
-		return utils.NewToolResultError(fmt.Sprintf(ProjectAddFailedError+": %v", err)), nil, nil
+		return nil, fmt.Errorf(ProjectAddFailedError+": %w", err)
 	}
 
-	result := map[string]any{
-		"id":      mutation.AddProjectV2ItemByID.Item.ID,
-		"message": fmt.Sprintf("Successfully added %s %s/%s#%d to project %s/%d", itemType, itemOwner, itemRepo, itemNumber, owner, projectNumber),
+	itemNodeID := fmt.Sprintf("%v", mutation.AddProjectV2ItemByID.Item.ID)
+	return &projectItemAddResult{
+		ID:                itemNodeID,
+		ProjectItemID:     int64(mutation.AddProjectV2ItemByID.Item.DatabaseID),
+		ProjectItemNodeID: itemNodeID,
+		ContentType:       itemType,
+		ContentOwner:      itemOwner,
+		ContentRepo:       itemRepo,
+		ContentNumber:     itemNumber,
+		ContentNodeID:     fmt.Sprintf("%v", nodeID),
+		Message:           fmt.Sprintf("Successfully added %s %s/%s#%d to project %s/%d", itemType, itemOwner, itemRepo, itemNumber, owner, projectNumber),
+	}, nil
+}
+
+func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, itemOwner, itemRepo string, itemNumber int, itemType string) (*mcp.CallToolResult, any, error) {
+	result, err := addProjectItemData(ctx, gqlClient, owner, ownerType, projectNumber, itemOwner, itemRepo, itemNumber, itemType)
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
 	r, err := json.Marshal(result)
@@ -1327,32 +1588,334 @@ func validateAndConvertToInt64(value any) (int64, error) {
 	}
 }
 
-// buildUpdateProjectItem constructs UpdateProjectItemOptions from the input map.
-func buildUpdateProjectItem(input map[string]any) (*github.UpdateProjectItemOptions, error) {
-	if input == nil {
+func convertProjectItemsToResponse(projectItems []*github.ProjectV2Item) ([]map[string]any, error) {
+	items := make([]map[string]any, 0, len(projectItems))
+	for _, projectItem := range projectItems {
+		item, err := convertProjectItemToResponse(projectItem)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+func convertProjectItemToResponse(projectItem any) (map[string]any, error) {
+	raw, err := projectItemToMap(projectItem)
+	if err != nil {
+		return nil, err
+	}
+	addProjectItemIdentityFields(raw)
+	return raw, nil
+}
+
+func projectItemToMap(projectItem any) (map[string]any, error) {
+	r, err := json.Marshal(projectItem)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal project item: %w", err)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(r, &raw); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal project item: %w", err)
+	}
+	return raw, nil
+}
+
+func addProjectItemIdentityFields(item map[string]any) {
+	if id, ok := item["id"]; ok {
+		item["project_item_id"] = id
+	}
+	if nodeID, ok := item["node_id"].(string); ok && nodeID != "" {
+		item["project_item_node_id"] = nodeID
+	}
+
+	content, ok := item["content"].(map[string]any)
+	if !ok || content == nil {
+		return
+	}
+
+	if contentType := contentTypeFromContent(content); contentType != "" {
+		item["content_type"] = contentType
+	}
+	if id, ok := content["id"]; ok {
+		item["content_id"] = id
+	}
+	if nodeID, ok := content["node_id"].(string); ok && nodeID != "" {
+		item["content_node_id"] = nodeID
+	}
+	if number, ok := numberFromAny(content["number"]); ok {
+		item["content_number"] = number
+	}
+	if owner, repo := ownerRepoFromContent(content); owner != "" && repo != "" {
+		item["content_owner"] = owner
+		item["content_repo"] = repo
+	}
+	if labels := labelsFromContent(content); len(labels) > 0 {
+		item["content_labels"] = labels
+	}
+}
+
+func contentTypeFromContent(content map[string]any) string {
+	for _, key := range []string{"type", "__typename"} {
+		if value, ok := content[key].(string); ok && value != "" {
+			normalized := strings.ToLower(value)
+			if normalized == "pullrequest" {
+				return "pull_request"
+			}
+			return normalized
+		}
+	}
+	if htmlURL, ok := content["html_url"].(string); ok {
+		if strings.Contains(htmlURL, "/pull/") {
+			return "pull_request"
+		}
+		if strings.Contains(htmlURL, "/issues/") {
+			return "issue"
+		}
+	}
+	return ""
+}
+
+func ownerRepoFromContent(content map[string]any) (string, string) {
+	if repositoryURL, ok := content["repository_url"].(string); ok && repositoryURL != "" {
+		if owner, repo := ownerRepoFromURL(repositoryURL, "/repos/"); owner != "" && repo != "" {
+			return owner, repo
+		}
+	}
+	if htmlURL, ok := content["html_url"].(string); ok && htmlURL != "" {
+		return ownerRepoFromURL(htmlURL, "github.com/")
+	}
+	return "", ""
+}
+
+func ownerRepoFromURL(rawURL, marker string) (string, string) {
+	index := strings.Index(rawURL, marker)
+	if index == -1 {
+		return "", ""
+	}
+	path := strings.Trim(rawURL[index+len(marker):], "/")
+	parts := strings.Split(path, "/")
+	if len(parts) < 2 {
+		return "", ""
+	}
+	return parts[0], parts[1]
+}
+
+func labelsFromContent(content map[string]any) []string {
+	rawLabels, ok := content["labels"].([]any)
+	if !ok {
+		return nil
+	}
+	labels := make([]string, 0, len(rawLabels))
+	for _, rawLabel := range rawLabels {
+		switch label := rawLabel.(type) {
+		case string:
+			labels = append(labels, label)
+		case map[string]any:
+			if name, ok := label["name"].(string); ok && name != "" {
+				labels = append(labels, name)
+			}
+		}
+	}
+	return labels
+}
+
+func numberFromAny(value any) (int, bool) {
+	switch v := value.(type) {
+	case float64:
+		return int(v), float64(int(v)) == v
+	case int:
+		return v, true
+	case int64:
+		return int(v), int64(int(v)) == v
+	case json.Number:
+		i, err := v.Int64()
+		return int(i), err == nil
+	default:
+		return 0, false
+	}
+}
+
+func resolveProjectItemIDForUpdate(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, args map[string]any) (int64, error) {
+	if _, exists := args["item_id"]; exists {
+		return RequiredBigInt(args, "item_id")
+	}
+
+	itemType, itemNumber, itemOwner, itemRepo, err := projectContentIdentityFromArgs(args)
+	if err != nil {
+		return 0, err
+	}
+
+	return findProjectItemIDByContent(ctx, client, owner, ownerType, projectNumber, itemOwner, itemRepo, itemNumber, itemType)
+}
+
+func projectContentIdentityFromArgs(args map[string]any) (string, int, string, string, error) {
+	itemOwner, err := RequiredParam[string](args, "item_owner")
+	if err != nil {
+		return "", 0, "", "", err
+	}
+	itemRepo, err := RequiredParam[string](args, "item_repo")
+	if err != nil {
+		return "", 0, "", "", err
+	}
+	itemType, err := OptionalParam[string](args, "item_type")
+	if err != nil {
+		return "", 0, "", "", err
+	}
+
+	if itemType == "" || itemType == "issue" {
+		if _, exists := args["issue_number"]; exists {
+			itemNumber, err := RequiredInt(args, "issue_number")
+			return "issue", itemNumber, itemOwner, itemRepo, err
+		}
+	}
+	if itemType == "" || itemType == "pull_request" {
+		if _, exists := args["pull_request_number"]; exists {
+			itemNumber, err := RequiredInt(args, "pull_request_number")
+			return "pull_request", itemNumber, itemOwner, itemRepo, err
+		}
+	}
+
+	return "", 0, "", "", fmt.Errorf("provide item_id or identify content with item_owner, item_repo, and issue_number or pull_request_number")
+}
+
+func findProjectItemIDByContent(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, itemOwner, itemRepo string, itemNumber int, itemType string) (int64, error) {
+	opts := &github.ListProjectItemsOptions{
+		ListProjectsOptions: github.ListProjectsOptions{
+			ListProjectsPaginationOptions: github.ListProjectsPaginationOptions{
+				PerPage: github.Ptr(MaxProjectsPerPage),
+			},
+		},
+	}
+
+	for {
+		var projectItems []*github.ProjectV2Item
+		var resp *github.Response
+		var err error
+		if ownerType == "org" {
+			projectItems, resp, err = client.Projects.ListOrganizationProjectItems(ctx, owner, projectNumber, opts)
+		} else {
+			projectItems, resp, err = client.Projects.ListUserProjectItems(ctx, owner, projectNumber, opts)
+		}
+		if err != nil {
+			return 0, err
+		}
+
+		for _, projectItem := range projectItems {
+			item, err := convertProjectItemToResponse(projectItem)
+			if err != nil {
+				return 0, err
+			}
+			if projectItemMatchesContent(item, itemOwner, itemRepo, itemNumber, itemType) {
+				id, ok := validateAndConvertProjectItemID(item["project_item_id"])
+				if !ok {
+					return 0, fmt.Errorf("matched project item has no numeric project_item_id")
+				}
+				if resp != nil && resp.Body != nil {
+					_ = resp.Body.Close()
+				}
+				return id, nil
+			}
+		}
+
+		next := ""
+		if resp != nil {
+			next = resp.After
+			if resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+		}
+		if next == "" {
+			break
+		}
+		opts.ListProjectsOptions.ListProjectsPaginationOptions.After = github.Ptr(next)
+	}
+
+	return 0, fmt.Errorf("project item not found for %s %s/%s#%d", itemType, itemOwner, itemRepo, itemNumber)
+}
+
+func projectItemMatchesContent(item map[string]any, owner, repo string, number int, itemType string) bool {
+	contentOwner, _ := item["content_owner"].(string)
+	contentRepo, _ := item["content_repo"].(string)
+	contentType, _ := item["content_type"].(string)
+	contentNumber, ok := numberFromAny(item["content_number"])
+
+	return ok &&
+		strings.EqualFold(contentOwner, owner) &&
+		strings.EqualFold(contentRepo, repo) &&
+		contentNumber == number &&
+		(contentType == "" || contentType == itemType)
+}
+
+func validateAndConvertProjectItemID(value any) (int64, bool) {
+	id, err := validateAndConvertToInt64(value)
+	return id, err == nil
+}
+
+func buildProjectFieldValues(args map[string]any) ([]map[string]any, error) {
+	if rawUpdatedFields, exists := args["updated_fields"]; exists {
+		fields, ok := rawUpdatedFields.([]any)
+		if !ok || len(fields) == 0 {
+			return nil, fmt.Errorf("updated_fields must be a non-empty array")
+		}
+		fieldValues := make([]map[string]any, 0, len(fields))
+		for _, rawField := range fields {
+			fieldValue, ok := rawField.(map[string]any)
+			if !ok || fieldValue == nil {
+				return nil, fmt.Errorf("updated_fields entries must be objects")
+			}
+			fieldValues = append(fieldValues, fieldValue)
+		}
+		return fieldValues, nil
+	}
+
+	rawUpdatedField, exists := args["updated_field"]
+	if !exists {
+		return nil, fmt.Errorf("missing required parameter: updated_field")
+	}
+	fieldValue, ok := rawUpdatedField.(map[string]any)
+	if !ok || fieldValue == nil {
+		return nil, fmt.Errorf("updated_field must be an object")
+	}
+	return []map[string]any{fieldValue}, nil
+}
+
+// buildUpdateProjectItem constructs UpdateProjectItemOptions from the input maps.
+func buildUpdateProjectItem(inputs []map[string]any) (*github.UpdateProjectItemOptions, error) {
+	if len(inputs) == 0 {
 		return nil, fmt.Errorf("updated_field must be an object")
 	}
 
-	idField, ok := input["id"]
-	if !ok {
-		return nil, fmt.Errorf("updated_field.id is required")
-	}
+	fields := make([]*github.UpdateProjectV2Field, 0, len(inputs))
+	for index, input := range inputs {
+		if input == nil {
+			return nil, fmt.Errorf("updated_fields[%d] must be an object", index)
+		}
 
-	fieldID, err := validateAndConvertToInt64(idField)
-	if err != nil {
-		return nil, fmt.Errorf("updated_field.id: %w", err)
-	}
+		idField, ok := input["id"]
+		if !ok {
+			return nil, fmt.Errorf("updated_field.id is required")
+		}
 
-	valueField, ok := input["value"]
-	if !ok {
-		return nil, fmt.Errorf("updated_field.value is required")
+		fieldID, err := validateAndConvertToInt64(idField)
+		if err != nil {
+			return nil, fmt.Errorf("updated_field.id: %w", err)
+		}
+
+		valueField, ok := input["value"]
+		if !ok {
+			return nil, fmt.Errorf("updated_field.value is required")
+		}
+
+		fields = append(fields, &github.UpdateProjectV2Field{
+			ID:    fieldID,
+			Value: valueField,
+		})
 	}
 
 	payload := &github.UpdateProjectItemOptions{
-		Fields: []*github.UpdateProjectV2Field{{
-			ID:    fieldID,
-			Value: valueField,
-		}},
+		Fields: fields,
 	}
 
 	return payload, nil

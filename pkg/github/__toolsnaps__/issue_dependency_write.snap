@@ -1,0 +1,43 @@
+{
+  "annotations": {
+    "title": "Change issue dependency"
+  },
+  "description": "Add or remove issue dependencies in a GitHub repository.",
+  "inputSchema": {
+    "properties": {
+      "issue_id": {
+        "description": "The ID of the related issue to add or remove as a blocking dependency",
+        "type": "number"
+      },
+      "issue_number": {
+        "description": "The issue number to modify",
+        "type": "number"
+      },
+      "method": {
+        "description": "The action to perform on an issue dependency.\nOptions are:\n- 'add_blocked_by' - add a blocking dependency to the issue.\n- 'remove_blocked_by' - remove a blocking dependency from the issue.\n",
+        "enum": [
+          "add_blocked_by",
+          "remove_blocked_by"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo",
+      "issue_number",
+      "issue_id"
+    ],
+    "type": "object"
+  },
+  "name": "issue_dependency_write"
+}
