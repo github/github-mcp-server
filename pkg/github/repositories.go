@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/scopes"
@@ -681,6 +682,17 @@ func FetchRepoCollaborators(ctx context.Context, client *github.Client, owner, r
 	return logins, nil
 }
 
+// FetchRepoIsPrivate returns the visibility of a repository. It is a thin
+// wrapper around the GitHub Repositories.Get endpoint provided as a shared
+// helper for IFC label computation across tools.
+func FetchRepoIsPrivate(ctx context.Context, client *github.Client, owner, repo string) (bool, error) {
+	r, _, err := client.Repositories.Get(ctx, owner, repo)
+	if err != nil {
+		return false, err
+	}
+	return r.GetPrivate(), nil
+}
+
 // GetFileContents creates a tool to get the contents of a file or directory from a GitHub repository.
 func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
@@ -753,6 +765,42 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return utils.NewToolResultError("failed to get GitHub client"), nil, nil
 			}
 
+			// attachIFC adds the IFC label to a successful tool result when
+			// InsidersMode is enabled. The visibility and (for private
+			// repositories) collaborators lookups are performed lazily on
+			// first use and are best-effort: if they fail we still attach
+			// the label, falling back to the repository owner so the reader
+			// set is never empty for a private repo.
+			var (
+				ifcLabelLoaded bool
+				ifcIsPrivate   bool
+				ifcReaders     []string
+			)
+			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
+				if r == nil || r.IsError || !deps.GetFlags(ctx).InsidersMode {
+					return r
+				}
+				if !ifcLabelLoaded {
+					if isPrivate, err := FetchRepoIsPrivate(ctx, client, owner, repo); err == nil {
+						ifcIsPrivate = isPrivate
+					}
+					if ifcIsPrivate {
+						if collaborators, err := FetchRepoCollaborators(ctx, client, owner, repo); err == nil {
+							ifcReaders = collaborators
+						}
+						if len(ifcReaders) == 0 {
+							ifcReaders = []string{owner}
+						}
+					}
+					ifcLabelLoaded = true
+				}
+				if r.Meta == nil {
+					r.Meta = mcp.Meta{}
+				}
+				r.Meta["ifc"] = ifc.LabelGetFileContents(ifcIsPrivate, ifcReaders)
+				return r
+			}
+
 			rawOpts, fallbackUsed, err := resolveGitReference(ctx, client, owner, repo, ref, sha)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to resolve git reference: %s", err)), nil, nil
@@ -774,7 +822,8 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			// The path does not point to a file or directory.
 			// Instead let's try to find it in the Git Tree by matching the end of the path.
 			if err != nil || (fileContent == nil && dirContent == nil) {
-				return matchFiles(ctx, client, owner, repo, ref, path, rawOpts, 0)
+				res, data, err := matchFiles(ctx, client, owner, repo, ref, path, rawOpts, 0)
+				return attachIFC(res), data, err
 			}
 
 			if fileContent != nil && fileContent.SHA != nil {
@@ -804,7 +853,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						Text:     "",
 						MIMEType: "text/plain",
 					}
-					return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded empty file (SHA: %s)%s", fileSHA, successNote), result), nil, nil
+					return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded empty file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
 				}
 
 				// For files >= 1MB, return a ResourceLink instead of content
@@ -817,10 +866,10 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						Title: fmt.Sprintf("File: %s", path),
 						Size:  &size,
 					}
-					return utils.NewToolResultResourceLink(
+					return attachIFC(utils.NewToolResultResourceLink(
 						fmt.Sprintf("File %s is too large to display (%d bytes). Use the download URL to fetch the content: %s (SHA: %s)%s",
 							path, fileSize, fileContent.GetDownloadURL(), fileSHA, successNote),
-						resourceLink), nil, nil
+						resourceLink)), nil, nil
 				}
 
 				// For files < 1MB, get content directly from Contents API
@@ -848,7 +897,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						Text:     content,
 						MIMEType: contentType,
 					}
-					return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)%s", fileSHA, successNote), result), nil, nil
+					return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
 				}
 
 				// Binary content - encode as base64 blob
@@ -858,14 +907,14 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					Blob:     []byte(blobContent),
 					MIMEType: contentType,
 				}
-				return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote), result), nil, nil
+				return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
 			} else if dirContent != nil {
 				// file content or file SHA is nil which means it's a directory
 				r, err := json.Marshal(dirContent)
 				if err != nil {
 					return utils.NewToolResultError("failed to marshal response"), nil, nil
 				}
-				return utils.NewToolResultText(string(r)), nil, nil
+				return attachIFC(utils.NewToolResultText(string(r))), nil, nil
 			}
 
 			return utils.NewToolResultError("failed to get file contents"), nil, nil
