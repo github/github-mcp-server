@@ -1632,7 +1632,15 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get tag reference", resp, body), nil, nil
 			}
 
-			// Then get the tag object
+			// Differentiate between lightweight and annotated tags since lightweight ones don't have a fetchable object
+			if ref.Object.GetType() == "commit" {
+				r, err := json.Marshal(ref)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+				}
+				return utils.NewToolResultText(string(r)), nil, nil
+			}
+
 			tagObj, resp, err := client.Git.GetTag(ctx, owner, repo, *ref.Object.SHA)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
