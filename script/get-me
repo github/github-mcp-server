@@ -7,11 +7,11 @@ output=$(
     echo '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}'
     echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_me","arguments":{}}}'
     sleep 1
-  ) | go run cmd/github-mcp-server/main.go stdio 2>/dev/null | tail -1
+  ) | go run cmd/github-mcp-server/main.go stdio "$@" 2>/dev/null | tail -1
 )
 
 if command -v jq &> /dev/null; then
-  echo "$output" | jq '.result.content[0].text | fromjson'
+  echo "$output" | jq '.result | {_meta, content: (.content[0].text | fromjson)}'
 else
   echo "$output"
 fi
