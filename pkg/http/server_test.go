@@ -11,10 +11,10 @@ import (
 )
 
 func TestCreateHTTPFeatureChecker(t *testing.T) {
-	checker := createHTTPFeatureChecker()
-
 	tests := []struct {
 		name           string
+		staticFeatures []string
+		staticInsiders bool
 		flagName       string
 		headerFeatures []string
 		insidersMode   bool
@@ -75,6 +75,25 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 			wantEnabled:  true,
 		},
 		{
+			name:           "static feature is enabled without header",
+			staticFeatures: []string{github.FeatureFlagCSVOutput},
+			flagName:       github.FeatureFlagCSVOutput,
+			wantEnabled:    true,
+		},
+		{
+			name:           "static features combine with header features",
+			staticFeatures: []string{github.FeatureFlagCSVOutput},
+			flagName:       github.FeatureFlagIssuesGranular,
+			headerFeatures: []string{github.FeatureFlagIssuesGranular},
+			wantEnabled:    true,
+		},
+		{
+			name:           "static insiders enables insiders flags without route context",
+			staticInsiders: true,
+			flagName:       github.FeatureFlagCSVOutput,
+			wantEnabled:    true,
+		},
+		{
 			name:         "insiders mode does not enable granular flags",
 			flagName:     github.FeatureFlagIssuesGranular,
 			insidersMode: true,
@@ -84,6 +103,7 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			checker := createHTTPFeatureChecker(tt.staticFeatures, tt.staticInsiders)
 			ctx := context.Background()
 			if len(tt.headerFeatures) > 0 {
 				ctx = ghcontext.WithHeaderFeatures(ctx, tt.headerFeatures)

@@ -85,6 +85,9 @@ type ServerConfig struct {
 	// When set via CLI flag, per-request headers cannot re-include these tools.
 	ExcludeTools []string
 
+	// EnabledFeatures is a list of feature flags that are enabled.
+	EnabledFeatures []string
+
 	// InsidersMode indicates if we should enable experimental features.
 	InsidersMode bool
 }
@@ -124,7 +127,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 		repoAccessOpts = append(repoAccessOpts, lockdown.WithTTL(*cfg.RepoAccessCacheTTL))
 	}
 
-	featureChecker := createHTTPFeatureChecker()
+	featureChecker := createHTTPFeatureChecker(cfg.EnabledFeatures, cfg.InsidersMode)
 
 	obs, err := observability.NewExporters(logger, metrics.NewNoopMetrics())
 	if err != nil {
@@ -231,14 +234,17 @@ func initGlobalToolScopeMap(t translations.TranslationHelperFunc) error {
 	return nil
 }
 
-// createHTTPFeatureChecker creates a feature checker that resolves features
-// per-request by reading header features and insiders mode from context,
-// then validating against the centralized AllowedFeatureFlags allowlist.
-func createHTTPFeatureChecker() inventory.FeatureFlagChecker {
+// createHTTPFeatureChecker creates a feature checker that resolves static CLI
+// features plus per-request header features and insiders mode, then validates
+// against the centralized AllowedFeatureFlags allowlist.
+func createHTTPFeatureChecker(enabledFeatures []string, insidersMode bool) inventory.FeatureFlagChecker {
 	return func(ctx context.Context, flag string) (bool, error) {
 		headerFeatures := ghcontext.GetHeaderFeatures(ctx)
-		insidersMode := ghcontext.IsInsidersMode(ctx)
-		effective := github.ResolveFeatureFlags(headerFeatures, insidersMode)
+		features := make([]string, 0, len(enabledFeatures)+len(headerFeatures))
+		features = append(features, enabledFeatures...)
+		features = append(features, headerFeatures...)
+
+		effective := github.ResolveFeatureFlags(features, insidersMode || ghcontext.IsInsidersMode(ctx))
 		return effective[flag], nil
 	}
 }
