@@ -653,6 +653,34 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 	)
 }
 
+// FetchRepoCollaborators returns the login names of all collaborators on a
+// repository. It is provided as a shared helper for IFC label computation so
+// tools can populate the reader set for private repositories. The full list
+// is fetched eagerly via pagination; callers are expected to invoke this only
+// when needed (e.g. private repos under InsidersMode).
+func FetchRepoCollaborators(ctx context.Context, client *github.Client, owner, repo string) ([]string, error) {
+	opts := &github.ListCollaboratorsOptions{
+		ListOptions: github.ListOptions{PerPage: 100},
+	}
+	var logins []string
+	for {
+		page, resp, err := client.Repositories.ListCollaborators(ctx, owner, repo, opts)
+		if err != nil {
+			return nil, err
+		}
+		for _, c := range page {
+			if login := c.GetLogin(); login != "" {
+				logins = append(logins, login)
+			}
+		}
+		if resp == nil || resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+	return logins, nil
+}
+
 // GetFileContents creates a tool to get the contents of a file or directory from a GitHub repository.
 func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
