@@ -275,6 +275,127 @@ func Test_GetIssue(t *testing.T) {
 	}
 }
 
+func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
+	t.Parallel()
+
+	serverTool := IssueRead(translations.NullTranslationHelper)
+
+	mockIssue := &github.Issue{
+		Number:  github.Ptr(1),
+		Title:   github.Ptr("Test"),
+		Body:    github.Ptr("body"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/octocat/repo/issues/1"),
+		User:    &github.User{Login: github.Ptr("u")},
+	}
+
+	mockComments := []*github.IssueComment{
+		{Body: github.Ptr("hello"), User: &github.User{Login: github.Ptr("u")}},
+	}
+
+	makeMockClient := func(isPrivate bool, repoStatus int) *http.Client {
+		handlers := map[string]http.HandlerFunc{
+			GetReposIssuesByOwnerByRepoByIssueNumber:         mockResponse(t, http.StatusOK, mockIssue),
+			GetReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockComments),
+			GetReposCollaboratorsByOwnerByRepo: mockResponse(t, http.StatusOK, []*github.User{
+				{Login: github.Ptr("octocat")},
+				{Login: github.Ptr("alice")},
+			}),
+		}
+		if repoStatus != 0 && repoStatus != http.StatusOK {
+			handlers[GetReposByOwnerByRepo] = mockResponse(t, repoStatus, "boom")
+		} else {
+			handlers[GetReposByOwnerByRepo] = mockResponse(t, http.StatusOK, map[string]any{
+				"name":    "repo",
+				"private": isPrivate,
+			})
+		}
+		return MockHTTPClientWithHandlers(handlers)
+	}
+
+	getReq := map[string]any{
+		"method":       "get",
+		"owner":        "octocat",
+		"repo":         "repo",
+		"issue_number": float64(1),
+	}
+	commentsReq := map[string]any{
+		"method":       "get_comments",
+		"owner":        "octocat",
+		"repo":         "repo",
+		"issue_number": float64(1),
+	}
+
+	t.Run("insiders mode disabled omits ifc label", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient(false, 0)),
+			Flags:  FeatureFlags{InsidersMode: false},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(getReq)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		assert.Nil(t, result.Meta)
+	})
+
+	t.Run("insiders mode enabled on public repo emits public untrusted", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient(false, 0)),
+			Flags:  FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(getReq)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, []any{"public"}, ifcMap["confidentiality"])
+	})
+
+	t.Run("insiders mode enabled on private repo with get_comments emits private untrusted", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient(true, 0)),
+			Flags:  FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(commentsReq)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, []any{"octocat", "alice"}, ifcMap["confidentiality"])
+	})
+
+	t.Run("insiders mode skips ifc label when visibility lookup fails", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient(false, http.StatusInternalServerError)),
+			Flags:  FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(getReq)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError, "tool call should still succeed when visibility lookup fails")
+
+		if result.Meta != nil {
+			_, hasIFC := result.Meta["ifc"]
+			assert.False(t, hasIFC, "ifc label should be omitted when visibility lookup fails")
+		}
+	})
+}
+
 func Test_AddIssueComment(t *testing.T) {
 	// Verify tool definition once
 	serverTool := AddIssueComment(translations.NullTranslationHelper)
