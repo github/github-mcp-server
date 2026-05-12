@@ -104,17 +104,22 @@ func LabelGetFileContents(isPrivate bool, readers []string) SecurityLabel {
 //
 // repoVisibilities[i] reports whether the i-th matched repository is private;
 // readerSets[i] is that repository's reader set (only consulted for private
-// repos). The two slices must have the same length.
-func LabelSearchIssues(repoVisibilities []bool, readerSets [][]string) SecurityLabel {
+// repos). The two slices must have the same length; the second return value
+// is false when they do not, in which case the caller should omit the label
+// rather than emit one computed from inconsistent inputs.
+func LabelSearchIssues(repoVisibilities []bool, readerSets [][]string) (SecurityLabel, bool) {
+	if len(repoVisibilities) != len(readerSets) {
+		return SecurityLabel{}, false
+	}
 	if len(repoVisibilities) == 0 {
-		return PublicUntrusted()
+		return PublicUntrusted(), true
 	}
 	for _, isPrivate := range repoVisibilities {
 		if !isPrivate {
-			return PublicUntrusted()
+			return PublicUntrusted(), true
 		}
 	}
-	return PrivateUntrusted(intersectReaders(readerSets))
+	return PrivateUntrusted(intersectReaders(readerSets)), true
 }
 
 // intersectReaders returns the readers present in every set, preserving the

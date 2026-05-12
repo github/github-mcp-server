@@ -1018,16 +1018,21 @@ func searchIssuesIFCPostProcess(deps ToolDependencies) searchPostProcessFn {
 			if err != nil {
 				return
 			}
-			if len(collaborators) == 0 {
-				collaborators = []string{r.owner}
-			}
+			// Preserve an empty collaborator set as-is. Substituting the
+			// owner here would corrupt the cross-repo intersection (the
+			// owner could appear in another repo's collaborator list and
+			// widen the joined reader set incorrectly).
 			readerSets = append(readerSets, collaborators)
 		}
 
+		label, ok := ifc.LabelSearchIssues(visibilities, readerSets)
+		if !ok {
+			return
+		}
 		if callResult.Meta == nil {
 			callResult.Meta = mcp.Meta{}
 		}
-		callResult.Meta["ifc"] = ifc.LabelSearchIssues(visibilities, readerSets)
+		callResult.Meta["ifc"] = label
 	}
 }
 

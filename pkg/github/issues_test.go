@@ -708,11 +708,12 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 	}
 
 	type repoFixture struct {
-		owner         string
-		repo          string
-		isPrivate     bool
-		collaborators []string
-		repoStatus    int
+		owner               string
+		repo                string
+		isPrivate           bool
+		collaborators       []string
+		repoStatus          int
+		collaboratorsStatus int
 	}
 
 	repoHandlers := func(repos []repoFixture) map[string]http.HandlerFunc {
@@ -747,6 +748,10 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 				if !ok {
 					w.WriteHeader(http.StatusOK)
 					_, _ = w.Write([]byte("[]"))
+					return
+				}
+				if r.collaboratorsStatus != 0 && r.collaboratorsStatus != http.StatusOK {
+					w.WriteHeader(r.collaboratorsStatus)
 					return
 				}
 				users := make([]*github.User, len(r.collaborators))
@@ -870,6 +875,27 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 		if result.Meta != nil {
 			_, hasIFC := result.Meta["ifc"]
 			assert.False(t, hasIFC, "ifc label should be omitted when visibility lookup fails")
+		}
+	})
+
+	t.Run("insiders mode skips ifc label when collaborators lookup fails", func(t *testing.T) {
+		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{makeIssue("octocat", "private-repo", 1)}}
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient(searchResult, []repoFixture{
+				{owner: "octocat", repo: "private-repo", isPrivate: true, collaboratorsStatus: http.StatusInternalServerError},
+			})),
+			Flags: FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError, "tool call should still succeed when collaborators lookup fails")
+
+		if result.Meta != nil {
+			_, hasIFC := result.Meta["ifc"]
+			assert.False(t, hasIFC, "ifc label should be omitted when collaborators lookup fails")
 		}
 	})
 
