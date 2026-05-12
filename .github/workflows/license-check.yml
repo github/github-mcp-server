@@ -32,6 +32,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh pr checkout ${{ github.event.pull_request.number }}
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Build UI
+        run: script/build-ui
+
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -67,7 +77,7 @@ jobs:
       - name: Check if already commented
         if: steps.changes.outcome == 'failure' && steps.push.outcome == 'failure'
         id: check_comment
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const { data: comments } = await github.rest.issues.listComments({
@@ -85,7 +95,7 @@ jobs:
 
       - name: Comment with instructions if cannot push
         if: steps.changes.outcome == 'failure' && steps.push.outcome == 'failure' && steps.check_comment.outputs.already_commented == 'false'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             await github.rest.issues.createComment({

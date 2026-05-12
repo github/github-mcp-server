@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Update Issue Assignees"
+  },
+  "description": "Update the assignees of an existing issue. This replaces the current assignees with the provided list.",
+  "inputSchema": {
+    "properties": {
+      "assignees": {
+        "description": "GitHub usernames to assign to this issue",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "issue_number": {
+        "description": "The issue number to update",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "issue_number",
+      "assignees"
+    ],
+    "type": "object"
+  },
+  "name": "update_issue_assignees"
+}

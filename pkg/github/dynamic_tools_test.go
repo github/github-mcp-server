@@ -136,7 +136,7 @@ func TestDynamicTools_EnableToolset(t *testing.T) {
 	deps := DynamicToolDependencies{
 		Server:    server,
 		Inventory: reg,
-		ToolDeps:  NewBaseDeps(nil, nil, nil, nil, translations.NullTranslationHelper, FeatureFlags{}, 0, nil),
+		ToolDeps:  NewBaseDeps(nil, nil, nil, nil, translations.NullTranslationHelper, FeatureFlags{}, 0, nil, stubExporters()),
 		T:         translations.NullTranslationHelper,
 	}
 

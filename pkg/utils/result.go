@@ -47,3 +47,15 @@ func NewToolResultResource(message string, contents *mcp.ResourceContents) *mcp.
 		IsError: false,
 	}
 }
+
+func NewToolResultResourceLink(message string, link *mcp.ResourceLink) *mcp.CallToolResult {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: message,
+			},
+			link,
+		},
+		IsError: false,
+	}
+}

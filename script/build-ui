@@ -1,0 +1,17 @@
+#!/bin/bash
+# Build the MCP App UIs
+set -e
+
+cd "$(dirname "$0")/../ui"
+
+# Install dependencies if needed
+if [ ! -d "node_modules" ]; then
+  echo "Installing UI dependencies..."
+  npm install
+fi
+
+echo "Building UI..."
+npm run build
+
+echo "UI build complete. Output:"
+ls -la ../pkg/github/ui_dist/*.html

@@ -45,7 +45,7 @@ func HelloWorldTool(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if deps.IsFeatureEnabled(ctx, RemoteMCPEnthusiasticGreeting) {
 				greeting += " Welcome to the future of MCP! 🎉"
 			}
-			if deps.GetFlags().InsidersMode {
+			if deps.GetFlags(ctx).InsidersMode {
 				greeting += " Experimental features are enabled! 🚀"
 			}
 
@@ -104,6 +104,7 @@ func TestHelloWorld_ConditionalBehavior_Featureflag(t *testing.T) {
 				FeatureFlags{},
 				0,
 				checker,
+				stubExporters(),
 			)
 
 			// Get the tool and its handler
@@ -131,6 +132,70 @@ func TestHelloWorld_ConditionalBehavior_Featureflag(t *testing.T) {
 
 			// Verify the greeting matches expected based on feature flag
 			assert.Equal(t, tt.expectedGreeting, response["greeting"])
+		})
+	}
+}
+
+func TestResolveFeatureFlags(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		enabledFeatures []string
+		insidersMode    bool
+		expectedFlags   []string
+		unexpectedFlags []string
+	}{
+		{
+			name:            "no features, no insiders",
+			enabledFeatures: nil,
+			insidersMode:    false,
+			expectedFlags:   nil,
+			unexpectedFlags: []string{MCPAppsFeatureFlag},
+		},
+		{
+			name:            "explicit feature enabled",
+			enabledFeatures: []string{MCPAppsFeatureFlag},
+			insidersMode:    false,
+			expectedFlags:   []string{MCPAppsFeatureFlag},
+		},
+		{
+			name:            "insiders mode enables insiders flags",
+			enabledFeatures: nil,
+			insidersMode:    true,
+			expectedFlags:   InsidersFeatureFlags,
+		},
+		{
+			name:            "unknown flags are filtered out",
+			enabledFeatures: []string{"unknown_flag", "another_unknown"},
+			insidersMode:    false,
+			unexpectedFlags: []string{"unknown_flag", "another_unknown"},
+		},
+		{
+			name:            "mix of known and unknown flags",
+			enabledFeatures: []string{MCPAppsFeatureFlag, "unknown_flag"},
+			insidersMode:    false,
+			expectedFlags:   []string{MCPAppsFeatureFlag},
+			unexpectedFlags: []string{"unknown_flag"},
+		},
+		{
+			name:            "explicit plus insiders deduplicates",
+			enabledFeatures: []string{MCPAppsFeatureFlag},
+			insidersMode:    true,
+			expectedFlags:   []string{MCPAppsFeatureFlag},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := ResolveFeatureFlags(tt.enabledFeatures, tt.insidersMode)
+			for _, flag := range tt.expectedFlags {
+				assert.True(t, result[flag], "expected flag %q to be enabled", flag)
+			}
+			for _, flag := range tt.unexpectedFlags {
+				assert.False(t, result[flag], "expected flag %q to not be enabled", flag)
+			}
 		})
 	}
 }
@@ -166,6 +231,7 @@ func TestHelloWorld_ConditionalBehavior_Config(t *testing.T) {
 				FeatureFlags{InsidersMode: tt.insidersMode},
 				0,
 				nil,
+				stubExporters(),
 			)
 
 			// Get the tool and its handler

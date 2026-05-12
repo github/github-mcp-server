@@ -13,9 +13,8 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -23,17 +22,14 @@ import (
 )
 
 var defaultGQLClient *githubv4.Client = githubv4.NewClient(newRepoAccessHTTPClient())
-var repoAccessCache *lockdown.RepoAccessCache = stubRepoAccessCache(defaultGQLClient, 15*time.Minute)
 
 type repoAccessKey struct {
-	owner    string
-	repo     string
-	username string
+	owner string
+	repo  string
 }
 
 type repoAccessValue struct {
-	isPrivate  bool
-	permission string
+	isPrivate bool
 }
 
 type repoAccessMockTransport struct {
@@ -42,8 +38,8 @@ type repoAccessMockTransport struct {
 
 func newRepoAccessHTTPClient() *http.Client {
 	responses := map[repoAccessKey]repoAccessValue{
-		{owner: "owner2", repo: "repo2", username: "testuser2"}: {isPrivate: true},
-		{owner: "owner", repo: "repo", username: "testuser"}:    {isPrivate: false, permission: "READ"},
+		{owner: "owner2", repo: "repo2"}: {isPrivate: true},
+		{owner: "owner", repo: "repo"}:   {isPrivate: false},
 	}
 
 	return &http.Client{Transport: &repoAccessMockTransport{responses: responses}}
@@ -66,30 +62,19 @@ func (rt *repoAccessMockTransport) RoundTrip(req *http.Request) (*http.Response,
 
 	owner := toString(payload.Variables["owner"])
 	repo := toString(payload.Variables["name"])
-	username := toString(payload.Variables["username"])
 
-	value, ok := rt.responses[repoAccessKey{owner: owner, repo: repo, username: username}]
+	value, ok := rt.responses[repoAccessKey{owner: owner, repo: repo}]
 	if !ok {
-		value = repoAccessValue{isPrivate: false, permission: "WRITE"}
-	}
-
-	edges := []any{}
-	if value.permission != "" {
-		edges = append(edges, map[string]any{
-			"permission": value.permission,
-			"node": map[string]any{
-				"login": username,
-			},
-		})
+		value = repoAccessValue{isPrivate: false}
 	}
 
 	responseBody, err := json.Marshal(map[string]any{
 		"data": map[string]any{
+			"viewer": map[string]any{
+				"login": "test-viewer",
+			},
 			"repository": map[string]any{
 				"isPrivate": value.isPrivate,
-				"collaborators": map[string]any{
-					"edges": edges,
-				},
 			},
 		},
 	})
@@ -170,20 +155,20 @@ func Test_GetIssue(t *testing.T) {
 	tests := []struct {
 		name               string
 		mockedClient       *http.Client
-		gqlHTTPClient      *http.Client
-		requestArgs        map[string]interface{}
+		requestArgs        map[string]any
 		expectHandlerError bool
 		expectResultError  bool
 		expectedIssue      *github.Issue
 		expectedErrMsg     string
 		lockdownEnabled    bool
+		restPermission     string
 	}{
 		{
 			name: "successful issue retrieval",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "get",
 				"owner":        "owner2",
 				"repo":         "repo2",
@@ -196,7 +181,7 @@ func Test_GetIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Issue not found"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "get",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -210,37 +195,7 @@ func Test_GetIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue2),
 			}),
-			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							IsPrivate     githubv4.Boolean
-							Collaborators struct {
-								Edges []struct {
-									Permission githubv4.String
-									Node       struct {
-										Login githubv4.String
-									}
-								}
-							} `graphql:"collaborators(query: $username, first: 1)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":    githubv4.String("owner2"),
-						"name":     githubv4.String("repo2"),
-						"username": githubv4.String("testuser2"),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"isPrivate": true,
-							"collaborators": map[string]any{
-								"edges": []any{},
-							},
-						},
-					}),
-				),
-			),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "get",
 				"owner":        "owner2",
 				"repo":         "repo2",
@@ -248,50 +203,14 @@ func Test_GetIssue(t *testing.T) {
 			},
 			expectedIssue:   mockIssue2,
 			lockdownEnabled: true,
+			restPermission:  "none",
 		},
 		{
 			name: "lockdown enabled - user lacks push access",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
 			}),
-			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							IsPrivate     githubv4.Boolean
-							Collaborators struct {
-								Edges []struct {
-									Permission githubv4.String
-									Node       struct {
-										Login githubv4.String
-									}
-								}
-							} `graphql:"collaborators(query: $username, first: 1)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":    githubv4.String("owner"),
-						"name":     githubv4.String("repo"),
-						"username": githubv4.String("testuser"),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"isPrivate": false,
-							"collaborators": map[string]any{
-								"edges": []any{
-									map[string]any{
-										"permission": "READ",
-										"node": map[string]any{
-											"login": "testuser",
-										},
-									},
-								},
-							},
-						},
-					}),
-				),
-			),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "get",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -300,6 +219,7 @@ func Test_GetIssue(t *testing.T) {
 			expectResultError: true,
 			expectedErrMsg:    "access to issue details is restricted by lockdown mode",
 			lockdownEnabled:   true,
+			restPermission:    "read",
 		},
 	}
 
@@ -307,19 +227,16 @@ func Test_GetIssue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 
-			var gqlClient *githubv4.Client
-			cache := repoAccessCache
-			if tc.gqlHTTPClient != nil {
-				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
-				cache = stubRepoAccessCache(gqlClient, 15*time.Minute)
-			} else {
-				gqlClient = githubv4.NewClient(nil)
+			var restClient *github.Client
+			if tc.restPermission != "" {
+				restClient = mockRESTPermissionServer(t, tc.restPermission, nil)
 			}
+			cache := stubRepoAccessCache(restClient, 15*time.Minute)
 
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
 			deps := BaseDeps{
 				Client:          client,
-				GQLClient:       gqlClient,
+				GQLClient:       defaultGQLClient,
 				RepoAccessCache: cache,
 				Flags:           flags,
 			}
@@ -345,15 +262,15 @@ func Test_GetIssue(t *testing.T) {
 
 			textContent := getTextResult(t, result)
 
-			var returnedIssue github.Issue
+			var returnedIssue MinimalIssue
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedIssue.Number, *returnedIssue.Number)
-			assert.Equal(t, *tc.expectedIssue.Title, *returnedIssue.Title)
-			assert.Equal(t, *tc.expectedIssue.Body, *returnedIssue.Body)
-			assert.Equal(t, *tc.expectedIssue.State, *returnedIssue.State)
-			assert.Equal(t, *tc.expectedIssue.HTMLURL, *returnedIssue.HTMLURL)
-			assert.Equal(t, *tc.expectedIssue.User.Login, *returnedIssue.User.Login)
+			assert.Equal(t, tc.expectedIssue.GetNumber(), returnedIssue.Number)
+			assert.Equal(t, tc.expectedIssue.GetTitle(), returnedIssue.Title)
+			assert.Equal(t, tc.expectedIssue.GetBody(), returnedIssue.Body)
+			assert.Equal(t, tc.expectedIssue.GetState(), returnedIssue.State)
+			assert.Equal(t, tc.expectedIssue.GetHTMLURL(), returnedIssue.HTMLURL)
+			assert.Equal(t, tc.expectedIssue.GetUser().GetLogin(), returnedIssue.User.Login)
 		})
 	}
 }
@@ -386,7 +303,7 @@ func Test_AddIssueComment(t *testing.T) {
 	tests := []struct {
 		name            string
 		mockedClient    *http.Client
-		requestArgs     map[string]interface{}
+		requestArgs     map[string]any
 		expectError     bool
 		expectedComment *github.IssueComment
 		expectedErrMsg  string
@@ -396,7 +313,7 @@ func Test_AddIssueComment(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockComment),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -413,7 +330,7 @@ func Test_AddIssueComment(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Invalid request"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -458,13 +375,12 @@ func Test_AddIssueComment(t *testing.T) {
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedComment github.IssueComment
-			err = json.Unmarshal([]byte(textContent.Text), &returnedComment)
+			// Unmarshal and verify the result contains minimal response
+			var minimalResponse MinimalResponse
+			err = json.Unmarshal([]byte(textContent.Text), &minimalResponse)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedComment.ID, *returnedComment.ID)
-			assert.Equal(t, *tc.expectedComment.Body, *returnedComment.Body)
-			assert.Equal(t, *tc.expectedComment.User.Login, *returnedComment.User.Login)
+			assert.Equal(t, fmt.Sprintf("%d", tc.expectedComment.GetID()), minimalResponse.ID)
+			assert.Equal(t, tc.expectedComment.GetHTMLURL(), minimalResponse.URL)
 
 		})
 	}
@@ -520,7 +436,7 @@ func Test_SearchIssues(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedResult *github.IssuesSearchResult
 		expectedErrMsg string
@@ -541,7 +457,7 @@ func Test_SearchIssues(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query":   "repo:owner/repo is:open",
 				"sort":    "created",
 				"order":   "desc",
@@ -567,7 +483,7 @@ func Test_SearchIssues(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "is:open",
 				"owner": "test-owner",
 				"repo":  "test-repo",
@@ -591,7 +507,7 @@ func Test_SearchIssues(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "bug",
 				"owner": "test-owner",
 			},
@@ -612,7 +528,7 @@ func Test_SearchIssues(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "feature",
 				"repo":  "test-repo",
 			},
@@ -624,7 +540,7 @@ func Test_SearchIssues(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetSearchIssues: mockResponse(t, http.StatusOK, mockSearchResult),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "is:issue repo:owner/repo is:open",
 			},
 			expectError:    false,
@@ -644,7 +560,7 @@ func Test_SearchIssues(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "repo:github/github-mcp-server is:issue is:open (label:critical OR label:urgent)",
 			},
 			expectError:    false,
@@ -664,7 +580,7 @@ func Test_SearchIssues(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "repo:github/github-mcp-server critical",
 				"owner": "different-owner",
 				"repo":  "different-repo",
@@ -686,7 +602,7 @@ func Test_SearchIssues(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "is:issue repo:octocat/Hello-World bug",
 			},
 			expectError:    false,
@@ -706,7 +622,7 @@ func Test_SearchIssues(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "repo:github/github-mcp-server is:issue (label:critical OR label:urgent OR label:high-priority OR label:blocker)",
 			},
 			expectError:    false,
@@ -720,7 +636,7 @@ func Test_SearchIssues(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "invalid:query",
 			},
 			expectError:    true,
@@ -812,7 +728,7 @@ func Test_CreateIssue(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedIssue  *github.Issue
 		expectedErrMsg string
@@ -831,7 +747,7 @@ func Test_CreateIssue(t *testing.T) {
 					mockResponse(t, http.StatusCreated, mockIssue),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":    "create",
 				"owner":     "owner",
 				"repo":      "repo",
@@ -855,7 +771,7 @@ func Test_CreateIssue(t *testing.T) {
 					State:   github.Ptr("open"),
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":    "create",
 				"owner":     "owner",
 				"repo":      "repo",
@@ -878,7 +794,7 @@ func Test_CreateIssue(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Validation failed"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method": "create",
 				"owner":  "owner",
 				"repo":   "repo",
@@ -931,6 +847,182 @@ func Test_CreateIssue(t *testing.T) {
 			assert.Equal(t, tc.expectedIssue.GetHTMLURL(), returnedIssue.URL)
 		})
 	}
+}
+
+// Test_IssueWrite_InsidersMode_UIGate verifies the insiders mode UI gate
+// behavior: UI clients get a form message, non-UI clients execute directly.
+func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
+	t.Parallel()
+
+	mockIssue := &github.Issue{
+		Number:  github.Ptr(1),
+		Title:   github.Ptr("Test"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/1"),
+	}
+
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+
+	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PostReposIssuesByOwnerByRepo: mockResponse(t, http.StatusCreated, mockIssue),
+	}))
+
+	deps := BaseDeps{
+		Client:    client,
+		GQLClient: githubv4.NewClient(nil),
+		Flags:     FeatureFlags{InsidersMode: true},
+	}
+	handler := serverTool.Handler(deps)
+
+	t.Run("UI client without _ui_submitted returns form message", func(t *testing.T) {
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"method": "create",
+			"owner":  "owner",
+			"repo":   "repo",
+			"title":  "Test",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "Ready to create an issue")
+	})
+
+	t.Run("UI client with _ui_submitted executes directly", func(t *testing.T) {
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"method":        "create",
+			"owner":         "owner",
+			"repo":          "repo",
+			"title":         "Test",
+			"_ui_submitted": true,
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
+			"tool should return the created issue URL")
+	})
+
+	t.Run("non-UI client executes directly without _ui_submitted", func(t *testing.T) {
+		request := createMCPRequest(map[string]any{
+			"method": "create",
+			"owner":  "owner",
+			"repo":   "repo",
+			"title":  "Test",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
+			"non-UI client should execute directly")
+	})
+
+	t.Run("UI client with state change skips form and executes directly", func(t *testing.T) {
+		mockBaseIssue := &github.Issue{
+			Number:  github.Ptr(1),
+			Title:   github.Ptr("Test"),
+			State:   github.Ptr("open"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/1"),
+		}
+		issueIDQueryResponse := githubv4mock.DataResponse(map[string]any{
+			"repository": map[string]any{
+				"issue": map[string]any{
+					"id": "I_kwDOA0xdyM50BPaO",
+				},
+			},
+		})
+		closeSuccessResponse := githubv4mock.DataResponse(map[string]any{
+			"closeIssue": map[string]any{
+				"issue": map[string]any{
+					"id":     "I_kwDOA0xdyM50BPaO",
+					"number": 1,
+					"url":    "https://github.com/owner/repo/issues/1",
+					"state":  "CLOSED",
+				},
+			},
+		})
+		completedReason := IssueClosedStateReasonCompleted
+
+		closeClient := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockBaseIssue),
+		}))
+		closeGQLClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
+			githubv4mock.NewQueryMatcher(
+				struct {
+					Repository struct {
+						Issue struct {
+							ID githubv4.ID
+						} `graphql:"issue(number: $issueNumber)"`
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}{},
+				map[string]any{
+					"owner":       githubv4.String("owner"),
+					"repo":        githubv4.String("repo"),
+					"issueNumber": githubv4.Int(1),
+				},
+				issueIDQueryResponse,
+			),
+			githubv4mock.NewMutationMatcher(
+				struct {
+					CloseIssue struct {
+						Issue struct {
+							ID     githubv4.ID
+							Number githubv4.Int
+							URL    githubv4.String
+							State  githubv4.String
+						}
+					} `graphql:"closeIssue(input: $input)"`
+				}{},
+				CloseIssueInput{
+					IssueID:     "I_kwDOA0xdyM50BPaO",
+					StateReason: &completedReason,
+				},
+				nil,
+				closeSuccessResponse,
+			),
+		))
+
+		closeDeps := BaseDeps{
+			Client:    closeClient,
+			GQLClient: closeGQLClient,
+			Flags:     FeatureFlags{InsidersMode: true},
+		}
+		closeHandler := serverTool.Handler(closeDeps)
+
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"method":       "update",
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"state":        "closed",
+			"state_reason": "completed",
+		})
+		result, err := closeHandler(ContextWithDeps(context.Background(), closeDeps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.NotContains(t, textContent.Text, "Ready to update issue",
+			"state change should skip UI form")
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
+			"state change should execute directly and return issue URL")
+	})
+
+	t.Run("UI client update without state change returns form message", func(t *testing.T) {
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"method":       "update",
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"title":        "New Title",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "Ready to update issue #1",
+			"update without state should show UI form")
+	})
 }
 
 func Test_ListIssues(t *testing.T) {
@@ -1025,6 +1117,7 @@ func Test_ListIssues(t *testing.T) {
 				},
 				"totalCount": 2,
 			},
+			"isPrivate": false,
 		},
 	})
 
@@ -1040,6 +1133,7 @@ func Test_ListIssues(t *testing.T) {
 				},
 				"totalCount": 2,
 			},
+			"isPrivate": false,
 		},
 	})
 
@@ -1055,57 +1149,58 @@ func Test_ListIssues(t *testing.T) {
 				},
 				"totalCount": 1,
 			},
+			"isPrivate": false,
 		},
 	})
 
 	mockErrorRepoNotFound := githubv4mock.ErrorResponse("repository not found")
 
 	// Variables matching what GraphQL receives after JSON marshaling/unmarshaling
-	varsListAll := map[string]interface{}{
+	varsListAll := map[string]any{
 		"owner":     "owner",
 		"repo":      "repo",
-		"states":    []interface{}{"OPEN", "CLOSED"},
+		"states":    []any{"OPEN", "CLOSED"},
 		"orderBy":   "CREATED_AT",
 		"direction": "DESC",
 		"first":     float64(30),
 		"after":     (*string)(nil),
 	}
 
-	varsOpenOnly := map[string]interface{}{
+	varsOpenOnly := map[string]any{
 		"owner":     "owner",
 		"repo":      "repo",
-		"states":    []interface{}{"OPEN"},
+		"states":    []any{"OPEN"},
 		"orderBy":   "CREATED_AT",
 		"direction": "DESC",
 		"first":     float64(30),
 		"after":     (*string)(nil),
 	}
 
-	varsClosedOnly := map[string]interface{}{
+	varsClosedOnly := map[string]any{
 		"owner":     "owner",
 		"repo":      "repo",
-		"states":    []interface{}{"CLOSED"},
+		"states":    []any{"CLOSED"},
 		"orderBy":   "CREATED_AT",
 		"direction": "DESC",
 		"first":     float64(30),
 		"after":     (*string)(nil),
 	}
 
-	varsWithLabels := map[string]interface{}{
+	varsWithLabels := map[string]any{
 		"owner":     "owner",
 		"repo":      "repo",
-		"states":    []interface{}{"OPEN", "CLOSED"},
-		"labels":    []interface{}{"bug", "enhancement"},
+		"states":    []any{"OPEN", "CLOSED"},
+		"labels":    []any{"bug", "enhancement"},
 		"orderBy":   "CREATED_AT",
 		"direction": "DESC",
 		"first":     float64(30),
 		"after":     (*string)(nil),
 	}
 
-	varsRepoNotFound := map[string]interface{}{
+	varsRepoNotFound := map[string]any{
 		"owner":     "owner",
 		"repo":      "nonexistent-repo",
-		"states":    []interface{}{"OPEN", "CLOSED"},
+		"states":    []any{"OPEN", "CLOSED"},
 		"orderBy":   "CREATED_AT",
 		"direction": "DESC",
 		"first":     float64(30),
@@ -1114,15 +1209,14 @@ func Test_ListIssues(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		reqParams     map[string]interface{}
+		reqParams     map[string]any
 		expectError   bool
 		errContains   string
 		expectedCount int
-		verifyOrder   func(t *testing.T, issues []*github.Issue)
 	}{
 		{
 			name: "list all issues",
-			reqParams: map[string]interface{}{
+			reqParams: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 			},
@@ -1131,7 +1225,7 @@ func Test_ListIssues(t *testing.T) {
 		},
 		{
 			name: "filter by open state",
-			reqParams: map[string]interface{}{
+			reqParams: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 				"state": "OPEN",
@@ -1141,7 +1235,7 @@ func Test_ListIssues(t *testing.T) {
 		},
 		{
 			name: "filter by open state - lc",
-			reqParams: map[string]interface{}{
+			reqParams: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 				"state": "open",
@@ -1151,7 +1245,7 @@ func Test_ListIssues(t *testing.T) {
 		},
 		{
 			name: "filter by closed state",
-			reqParams: map[string]interface{}{
+			reqParams: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 				"state": "CLOSED",
@@ -1161,7 +1255,7 @@ func Test_ListIssues(t *testing.T) {
 		},
 		{
 			name: "filter by labels",
-			reqParams: map[string]interface{}{
+			reqParams: map[string]any{
 				"owner":  "owner",
 				"repo":   "repo",
 				"labels": []any{"bug", "enhancement"},
@@ -1171,7 +1265,7 @@ func Test_ListIssues(t *testing.T) {
 		},
 		{
 			name: "repository not found error",
-			reqParams: map[string]interface{}{
+			reqParams: map[string]any{
 				"owner": "owner",
 				"repo":  "nonexistent-repo",
 			},
@@ -1181,8 +1275,8 @@ func Test_ListIssues(t *testing.T) {
 	}
 
 	// Define the actual query strings that match the implementation
-	qBasicNoLabels := "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
-	qWithLabels := "query($after:String$direction:OrderDirection!$first:Int!$labels:[String!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
+	qBasicNoLabels := "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
+	qWithLabels := "query($after:String$direction:OrderDirection!$first:Int!$labels:[String!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1227,34 +1321,201 @@ func Test_ListIssues(t *testing.T) {
 			require.NoError(t, err)
 
 			// Parse the structured response with pagination info
-			var response struct {
-				Issues   []*github.Issue `json:"issues"`
-				PageInfo struct {
-					HasNextPage     bool   `json:"hasNextPage"`
-					HasPreviousPage bool   `json:"hasPreviousPage"`
-					StartCursor     string `json:"startCursor"`
-					EndCursor       string `json:"endCursor"`
-				} `json:"pageInfo"`
-				TotalCount int `json:"totalCount"`
-			}
+			var response MinimalIssuesResponse
 			err = json.Unmarshal([]byte(text), &response)
 			require.NoError(t, err)
 
 			assert.Len(t, response.Issues, tc.expectedCount, "Expected %d issues, got %d", tc.expectedCount, len(response.Issues))
 
-			// Verify order if verifyOrder function is provided
-			if tc.verifyOrder != nil {
-				tc.verifyOrder(t, response.Issues)
-			}
+			// Verify pagination metadata
+			assert.Equal(t, tc.expectedCount, response.TotalCount)
+			assert.False(t, response.PageInfo.HasNextPage)
+			assert.False(t, response.PageInfo.HasPreviousPage)
 
 			// Verify that returned issues have expected structure
 			for _, issue := range response.Issues {
-				assert.NotNil(t, issue.Number, "Issue should have number")
-				assert.NotNil(t, issue.Title, "Issue should have title")
-				assert.NotNil(t, issue.State, "Issue should have state")
+				assert.NotZero(t, issue.Number, "Issue should have number")
+				assert.NotEmpty(t, issue.Title, "Issue should have title")
+				assert.NotEmpty(t, issue.State, "Issue should have state")
+				assert.NotEmpty(t, issue.CreatedAt, "Issue should have created_at")
+				assert.NotEmpty(t, issue.UpdatedAt, "Issue should have updated_at")
+				assert.NotNil(t, issue.User, "Issue should have user")
+				assert.NotEmpty(t, issue.User.Login, "Issue user should have login")
+				assert.Empty(t, issue.HTMLURL, "html_url should be empty (not populated by GraphQL fragment)")
+
+				// Labels should be flattened to name strings
+				for _, label := range issue.Labels {
+					assert.NotEmpty(t, label, "Label should be a non-empty string")
+				}
 			}
 		})
 	}
+}
+
+func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
+	t.Parallel()
+
+	serverTool := ListIssues(translations.NullTranslationHelper)
+
+	mockIssues := []map[string]any{
+		{
+			"number":     1,
+			"title":      "An issue",
+			"body":       "body",
+			"state":      "OPEN",
+			"databaseId": 1,
+			"createdAt":  "2023-01-01T00:00:00Z",
+			"updatedAt":  "2023-01-01T00:00:00Z",
+			"author":     map[string]any{"login": "user1"},
+			"labels":     map[string]any{"nodes": []map[string]any{}},
+			"comments":   map[string]any{"totalCount": 0},
+		},
+	}
+
+	pageInfo := map[string]any{
+		"hasNextPage":     false,
+		"hasPreviousPage": false,
+		"startCursor":     "",
+		"endCursor":       "",
+	}
+
+	makeResponse := func(isPrivate bool) githubv4mock.GQLResponse {
+		return githubv4mock.DataResponse(map[string]any{
+			"repository": map[string]any{
+				"issues": map[string]any{
+					"nodes":      mockIssues,
+					"pageInfo":   pageInfo,
+					"totalCount": 1,
+				},
+				"isPrivate": isPrivate,
+			},
+		})
+	}
+
+	query := "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
+
+	vars := map[string]any{
+		"owner":     "octocat",
+		"repo":      "hello",
+		"states":    []any{"OPEN", "CLOSED"},
+		"orderBy":   "CREATED_AT",
+		"direction": "DESC",
+		"first":     float64(30),
+		"after":     (*string)(nil),
+	}
+
+	reqParams := map[string]any{"owner": "octocat", "repo": "hello"}
+
+	t.Run("insiders mode disabled omits ifc label from result meta", func(t *testing.T) {
+		matcher := githubv4mock.NewQueryMatcher(query, vars, makeResponse(false))
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+		deps := BaseDeps{
+			GQLClient: gqlClient,
+			Flags:     FeatureFlags{InsidersMode: false},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		assert.Nil(t, result.Meta, "result meta should be nil when insiders mode is disabled")
+	})
+
+	t.Run("insiders mode enabled on public repo emits public untrusted label", func(t *testing.T) {
+		matcher := githubv4mock.NewQueryMatcher(query, vars, makeResponse(false))
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+		deps := BaseDeps{
+			GQLClient: gqlClient,
+			Flags:     FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcLabel, ok := result.Meta["ifc"]
+		require.True(t, ok, "result meta should contain ifc key")
+
+		ifcJSON, err := json.Marshal(ifcLabel)
+		require.NoError(t, err)
+		var ifcMap map[string]any
+		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
+
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		confList, ok := ifcMap["confidentiality"].([]any)
+		require.True(t, ok, "confidentiality should be a list")
+		require.Len(t, confList, 1)
+		assert.Equal(t, "public", confList[0])
+	})
+
+	t.Run("insiders mode enabled on private repo emits private untrusted label with collaborators", func(t *testing.T) {
+		matcher := githubv4mock.NewQueryMatcher(query, vars, makeResponse(true))
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+		restClient := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposCollaboratorsByOwnerByRepo: mockResponse(t, http.StatusOK, []*github.User{
+				{Login: github.Ptr("octocat")},
+				{Login: github.Ptr("alice")},
+				{Login: github.Ptr("bob")},
+			}),
+		}))
+		deps := BaseDeps{
+			Client:    restClient,
+			GQLClient: gqlClient,
+			Flags:     FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcLabel, ok := result.Meta["ifc"]
+		require.True(t, ok, "result meta should contain ifc key")
+
+		ifcJSON, err := json.Marshal(ifcLabel)
+		require.NoError(t, err)
+		var ifcMap map[string]any
+		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
+
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		confList, ok := ifcMap["confidentiality"].([]any)
+		require.True(t, ok, "confidentiality should be a list")
+		assert.Equal(t, []any{"octocat", "alice", "bob"}, confList)
+	})
+
+	t.Run("insiders mode enabled on private repo falls back to owner when collaborators lookup fails", func(t *testing.T) {
+		matcher := githubv4mock.NewQueryMatcher(query, vars, makeResponse(true))
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+		restClient := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposCollaboratorsByOwnerByRepo: mockResponse(t, http.StatusInternalServerError, "boom"),
+		}))
+		deps := BaseDeps{
+			Client:    restClient,
+			GQLClient: gqlClient,
+			Flags:     FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcJSON, err := json.Marshal(result.Meta["ifc"])
+		require.NoError(t, err)
+		var ifcMap map[string]any
+		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
+
+		assert.Equal(t, []any{"octocat"}, ifcMap["confidentiality"])
+	})
 }
 
 func Test_UpdateIssue(t *testing.T) {
@@ -1362,7 +1623,7 @@ func Test_UpdateIssue(t *testing.T) {
 		name             string
 		mockedRESTClient *http.Client
 		mockedGQLClient  *http.Client
-		requestArgs      map[string]interface{}
+		requestArgs      map[string]any
 		expectError      bool
 		expectedIssue    *github.Issue
 		expectedErrMsg   string
@@ -1370,7 +1631,7 @@ func Test_UpdateIssue(t *testing.T) {
 		{
 			name: "partial update of non-state fields only",
 			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]interface{}{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
 					"title": "Updated Title",
 					"body":  "Updated Description",
 				}).andThen(
@@ -1378,7 +1639,7 @@ func Test_UpdateIssue(t *testing.T) {
 				),
 			}),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "update",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -1398,7 +1659,7 @@ func Test_UpdateIssue(t *testing.T) {
 				}),
 			}),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "update",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -1453,7 +1714,7 @@ func Test_UpdateIssue(t *testing.T) {
 					closeSuccessResponse,
 				),
 			),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "update",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -1504,7 +1765,7 @@ func Test_UpdateIssue(t *testing.T) {
 					reopenSuccessResponse,
 				),
 			),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "update",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -1536,7 +1797,7 @@ func Test_UpdateIssue(t *testing.T) {
 					githubv4mock.ErrorResponse("Could not resolve to an Issue with the number of 999."),
 				),
 			),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "update",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -1573,7 +1834,7 @@ func Test_UpdateIssue(t *testing.T) {
 					githubv4mock.ErrorResponse("Could not resolve to an Issue with the number of 999."),
 				),
 			),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "update",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -1588,7 +1849,7 @@ func Test_UpdateIssue(t *testing.T) {
 		{
 			name: "close as duplicate with combined non-state updates",
 			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]interface{}{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
 					"title":     "Updated Title",
 					"body":      "Updated Description",
 					"labels":    []any{"bug", "priority"},
@@ -1649,7 +1910,7 @@ func Test_UpdateIssue(t *testing.T) {
 					closeSuccessResponse,
 				),
 			),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "update",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -1671,7 +1932,7 @@ func Test_UpdateIssue(t *testing.T) {
 			name:             "duplicate_of without duplicate state_reason should fail",
 			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			mockedGQLClient:  githubv4mock.NewMockedHTTPClient(),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "update",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -1822,8 +2083,7 @@ func Test_GetIssueComments(t *testing.T) {
 	tests := []struct {
 		name             string
 		mockedClient     *http.Client
-		gqlHTTPClient    *http.Client
-		requestArgs      map[string]interface{}
+		requestArgs      map[string]any
 		expectError      bool
 		expectedComments []*github.IssueComment
 		expectedErrMsg   string
@@ -1834,7 +2094,7 @@ func Test_GetIssueComments(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockComments),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "get_comments",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -1853,7 +2113,7 @@ func Test_GetIssueComments(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockComments),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "get_comments",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -1869,7 +2129,7 @@ func Test_GetIssueComments(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Issue not found"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "get_comments",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -1894,8 +2154,7 @@ func Test_GetIssueComments(t *testing.T) {
 					},
 				}),
 			}),
-			gqlHTTPClient: newRepoAccessHTTPClient(),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "get_comments",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -1917,17 +2176,18 @@ func Test_GetIssueComments(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			var gqlClient *githubv4.Client
-			if tc.gqlHTTPClient != nil {
-				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
-			} else {
-				gqlClient = githubv4.NewClient(nil)
+			var restClient *github.Client
+			if tc.lockdownEnabled {
+				restClient = mockRESTPermissionServer(t, "read", map[string]string{
+					"maintainer": "write",
+					"testuser":   "read",
+				})
 			}
-			cache := stubRepoAccessCache(gqlClient, 15*time.Minute)
+			cache := stubRepoAccessCache(restClient, 15*time.Minute)
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
 			deps := BaseDeps{
 				Client:          client,
-				GQLClient:       gqlClient,
+				GQLClient:       defaultGQLClient,
 				RepoAccessCache: cache,
 				Flags:           flags,
 			}
@@ -1950,16 +2210,16 @@ func Test_GetIssueComments(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedComments []*github.IssueComment
+			var returnedComments []MinimalIssueComment
 			err = json.Unmarshal([]byte(textContent.Text), &returnedComments)
 			require.NoError(t, err)
 			assert.Equal(t, len(tc.expectedComments), len(returnedComments))
 			for i := range tc.expectedComments {
 				require.NotNil(t, tc.expectedComments[i].User)
 				require.NotNil(t, returnedComments[i].User)
-				assert.Equal(t, tc.expectedComments[i].GetID(), returnedComments[i].GetID())
-				assert.Equal(t, tc.expectedComments[i].GetBody(), returnedComments[i].GetBody())
-				assert.Equal(t, tc.expectedComments[i].GetUser().GetLogin(), returnedComments[i].GetUser().GetLogin())
+				assert.Equal(t, tc.expectedComments[i].GetID(), returnedComments[i].ID)
+				assert.Equal(t, tc.expectedComments[i].GetBody(), returnedComments[i].Body)
+				assert.Equal(t, tc.expectedComments[i].GetUser().GetLogin(), returnedComments[i].User.Login)
 			}
 		})
 	}
@@ -2048,7 +2308,7 @@ func Test_GetIssueLabels(t *testing.T) {
 			deps := BaseDeps{
 				Client:          client,
 				GQLClient:       gqlClient,
-				RepoAccessCache: stubRepoAccessCache(gqlClient, 15*time.Minute),
+				RepoAccessCache: stubRepoAccessCache(nil, 15*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
 			handler := serverTool.Handler(deps)
@@ -2068,730 +2328,6 @@ func Test_GetIssueLabels(t *testing.T) {
 			} else {
 				assert.False(t, result.IsError)
 			}
-		})
-	}
-}
-
-func TestAssignCopilotToIssue(t *testing.T) {
-	t.Parallel()
-
-	// Verify tool definition
-	serverTool := AssignCopilotToIssue(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	assert.Equal(t, "assign_copilot_to_issue", tool.Name)
-	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "base_ref")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "custom_instructions")
-	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "issue_number"})
-
-	// Helper function to create pointer to githubv4.String
-	ptrGitHubv4String := func(s string) *githubv4.String {
-		v := githubv4.String(s)
-		return &v
-	}
-
-	var pageOfFakeBots = func(n int) []struct{} {
-		// We don't _really_ need real bots here, just objects that count as entries for the page
-		bots := make([]struct{}, n)
-		for i := range n {
-			bots[i] = struct{}{}
-		}
-		return bots
-	}
-
-	tests := []struct {
-		name               string
-		requestArgs        map[string]any
-		mockedClient       *http.Client
-		expectToolError    bool
-		expectedToolErrMsg string
-	}{
-		{
-			name: "successful assignment when there are no existing assignees",
-			requestArgs: map[string]any{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(123),
-			},
-			mockedClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							SuggestedActors struct {
-								Nodes []struct {
-									Bot struct {
-										ID       githubv4.ID
-										Login    githubv4.String
-										TypeName string `graphql:"__typename"`
-									} `graphql:"... on Bot"`
-								}
-								PageInfo struct {
-									HasNextPage bool
-									EndCursor   string
-								}
-							} `graphql:"suggestedActors(first: 100, after: $endCursor, capabilities: CAN_BE_ASSIGNED)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":     githubv4.String("owner"),
-						"name":      githubv4.String("repo"),
-						"endCursor": (*githubv4.String)(nil),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"suggestedActors": map[string]any{
-								"nodes": []any{
-									map[string]any{
-										"id":         githubv4.ID("copilot-swe-agent-id"),
-										"login":      githubv4.String("copilot-swe-agent"),
-										"__typename": "Bot",
-									},
-								},
-							},
-						},
-					}),
-				),
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							ID    githubv4.ID
-							Issue struct {
-								ID        githubv4.ID
-								Assignees struct {
-									Nodes []struct {
-										ID githubv4.ID
-									}
-								} `graphql:"assignees(first: 100)"`
-							} `graphql:"issue(number: $number)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":  githubv4.String("owner"),
-						"name":   githubv4.String("repo"),
-						"number": githubv4.Int(123),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"id": githubv4.ID("test-repo-id"),
-							"issue": map[string]any{
-								"id": githubv4.ID("test-issue-id"),
-								"assignees": map[string]any{
-									"nodes": []any{},
-								},
-							},
-						},
-					}),
-				),
-				githubv4mock.NewMutationMatcher(
-					struct {
-						UpdateIssue struct {
-							Issue struct {
-								ID     githubv4.ID
-								Number githubv4.Int
-								URL    githubv4.String
-							}
-						} `graphql:"updateIssue(input: $input)"`
-					}{},
-					UpdateIssueInput{
-						ID:          githubv4.ID("test-issue-id"),
-						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
-						AgentAssignment: &AgentAssignmentInput{
-							BaseRef:            nil,
-							CustomAgent:        ptrGitHubv4String(""),
-							CustomInstructions: ptrGitHubv4String(""),
-							TargetRepositoryID: githubv4.ID("test-repo-id"),
-						},
-					},
-					nil,
-					githubv4mock.DataResponse(map[string]any{
-						"updateIssue": map[string]any{
-							"issue": map[string]any{
-								"id":     githubv4.ID("test-issue-id"),
-								"number": githubv4.Int(123),
-								"url":    githubv4.String("https://github.com/owner/repo/issues/123"),
-							},
-						},
-					}),
-				),
-			),
-		},
-		{
-			name: "successful assignment when there are existing assignees",
-			requestArgs: map[string]any{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(123),
-			},
-			mockedClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							SuggestedActors struct {
-								Nodes []struct {
-									Bot struct {
-										ID       githubv4.ID
-										Login    githubv4.String
-										TypeName string `graphql:"__typename"`
-									} `graphql:"... on Bot"`
-								}
-								PageInfo struct {
-									HasNextPage bool
-									EndCursor   string
-								}
-							} `graphql:"suggestedActors(first: 100, after: $endCursor, capabilities: CAN_BE_ASSIGNED)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":     githubv4.String("owner"),
-						"name":      githubv4.String("repo"),
-						"endCursor": (*githubv4.String)(nil),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"suggestedActors": map[string]any{
-								"nodes": []any{
-									map[string]any{
-										"id":         githubv4.ID("copilot-swe-agent-id"),
-										"login":      githubv4.String("copilot-swe-agent"),
-										"__typename": "Bot",
-									},
-								},
-							},
-						},
-					}),
-				),
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							ID    githubv4.ID
-							Issue struct {
-								ID        githubv4.ID
-								Assignees struct {
-									Nodes []struct {
-										ID githubv4.ID
-									}
-								} `graphql:"assignees(first: 100)"`
-							} `graphql:"issue(number: $number)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":  githubv4.String("owner"),
-						"name":   githubv4.String("repo"),
-						"number": githubv4.Int(123),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"id": githubv4.ID("test-repo-id"),
-							"issue": map[string]any{
-								"id": githubv4.ID("test-issue-id"),
-								"assignees": map[string]any{
-									"nodes": []any{
-										map[string]any{
-											"id": githubv4.ID("existing-assignee-id"),
-										},
-										map[string]any{
-											"id": githubv4.ID("existing-assignee-id-2"),
-										},
-									},
-								},
-							},
-						},
-					}),
-				),
-				githubv4mock.NewMutationMatcher(
-					struct {
-						UpdateIssue struct {
-							Issue struct {
-								ID     githubv4.ID
-								Number githubv4.Int
-								URL    githubv4.String
-							}
-						} `graphql:"updateIssue(input: $input)"`
-					}{},
-					UpdateIssueInput{
-						ID: githubv4.ID("test-issue-id"),
-						AssigneeIDs: []githubv4.ID{
-							githubv4.ID("existing-assignee-id"),
-							githubv4.ID("existing-assignee-id-2"),
-							githubv4.ID("copilot-swe-agent-id"),
-						},
-						AgentAssignment: &AgentAssignmentInput{
-							BaseRef:            nil,
-							CustomAgent:        ptrGitHubv4String(""),
-							CustomInstructions: ptrGitHubv4String(""),
-							TargetRepositoryID: githubv4.ID("test-repo-id"),
-						},
-					},
-					nil,
-					githubv4mock.DataResponse(map[string]any{
-						"updateIssue": map[string]any{
-							"issue": map[string]any{
-								"id":     githubv4.ID("test-issue-id"),
-								"number": githubv4.Int(123),
-								"url":    githubv4.String("https://github.com/owner/repo/issues/123"),
-							},
-						},
-					}),
-				),
-			),
-		},
-		{
-			name: "copilot bot not on first page of suggested actors",
-			requestArgs: map[string]any{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(123),
-			},
-			mockedClient: githubv4mock.NewMockedHTTPClient(
-				// First page of suggested actors
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							SuggestedActors struct {
-								Nodes []struct {
-									Bot struct {
-										ID       githubv4.ID
-										Login    githubv4.String
-										TypeName string `graphql:"__typename"`
-									} `graphql:"... on Bot"`
-								}
-								PageInfo struct {
-									HasNextPage bool
-									EndCursor   string
-								}
-							} `graphql:"suggestedActors(first: 100, after: $endCursor, capabilities: CAN_BE_ASSIGNED)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":     githubv4.String("owner"),
-						"name":      githubv4.String("repo"),
-						"endCursor": (*githubv4.String)(nil),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"suggestedActors": map[string]any{
-								"nodes": pageOfFakeBots(100),
-								"pageInfo": map[string]any{
-									"hasNextPage": true,
-									"endCursor":   githubv4.String("next-page-cursor"),
-								},
-							},
-						},
-					}),
-				),
-				// Second page of suggested actors
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							SuggestedActors struct {
-								Nodes []struct {
-									Bot struct {
-										ID       githubv4.ID
-										Login    githubv4.String
-										TypeName string `graphql:"__typename"`
-									} `graphql:"... on Bot"`
-								}
-								PageInfo struct {
-									HasNextPage bool
-									EndCursor   string
-								}
-							} `graphql:"suggestedActors(first: 100, after: $endCursor, capabilities: CAN_BE_ASSIGNED)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":     githubv4.String("owner"),
-						"name":      githubv4.String("repo"),
-						"endCursor": githubv4.String("next-page-cursor"),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"suggestedActors": map[string]any{
-								"nodes": []any{
-									map[string]any{
-										"id":         githubv4.ID("copilot-swe-agent-id"),
-										"login":      githubv4.String("copilot-swe-agent"),
-										"__typename": "Bot",
-									},
-								},
-							},
-						},
-					}),
-				),
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							ID    githubv4.ID
-							Issue struct {
-								ID        githubv4.ID
-								Assignees struct {
-									Nodes []struct {
-										ID githubv4.ID
-									}
-								} `graphql:"assignees(first: 100)"`
-							} `graphql:"issue(number: $number)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":  githubv4.String("owner"),
-						"name":   githubv4.String("repo"),
-						"number": githubv4.Int(123),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"id": githubv4.ID("test-repo-id"),
-							"issue": map[string]any{
-								"id": githubv4.ID("test-issue-id"),
-								"assignees": map[string]any{
-									"nodes": []any{},
-								},
-							},
-						},
-					}),
-				),
-				githubv4mock.NewMutationMatcher(
-					struct {
-						UpdateIssue struct {
-							Issue struct {
-								ID     githubv4.ID
-								Number githubv4.Int
-								URL    githubv4.String
-							}
-						} `graphql:"updateIssue(input: $input)"`
-					}{},
-					UpdateIssueInput{
-						ID:          githubv4.ID("test-issue-id"),
-						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
-						AgentAssignment: &AgentAssignmentInput{
-							BaseRef:            nil,
-							CustomAgent:        ptrGitHubv4String(""),
-							CustomInstructions: ptrGitHubv4String(""),
-							TargetRepositoryID: githubv4.ID("test-repo-id"),
-						},
-					},
-					nil,
-					githubv4mock.DataResponse(map[string]any{
-						"updateIssue": map[string]any{
-							"issue": map[string]any{
-								"id":     githubv4.ID("test-issue-id"),
-								"number": githubv4.Int(123),
-								"url":    githubv4.String("https://github.com/owner/repo/issues/123"),
-							},
-						},
-					}),
-				),
-			),
-		},
-		{
-			name: "copilot not a suggested actor",
-			requestArgs: map[string]any{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(123),
-			},
-			mockedClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							SuggestedActors struct {
-								Nodes []struct {
-									Bot struct {
-										ID       githubv4.ID
-										Login    githubv4.String
-										TypeName string `graphql:"__typename"`
-									} `graphql:"... on Bot"`
-								}
-								PageInfo struct {
-									HasNextPage bool
-									EndCursor   string
-								}
-							} `graphql:"suggestedActors(first: 100, after: $endCursor, capabilities: CAN_BE_ASSIGNED)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":     githubv4.String("owner"),
-						"name":      githubv4.String("repo"),
-						"endCursor": (*githubv4.String)(nil),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"suggestedActors": map[string]any{
-								"nodes": []any{},
-							},
-						},
-					}),
-				),
-			),
-			expectToolError:    true,
-			expectedToolErrMsg: "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information.",
-		},
-		{
-			name: "successful assignment with base_ref specified",
-			requestArgs: map[string]any{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(123),
-				"base_ref":     "feature-branch",
-			},
-			mockedClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							SuggestedActors struct {
-								Nodes []struct {
-									Bot struct {
-										ID       githubv4.ID
-										Login    githubv4.String
-										TypeName string `graphql:"__typename"`
-									} `graphql:"... on Bot"`
-								}
-								PageInfo struct {
-									HasNextPage bool
-									EndCursor   string
-								}
-							} `graphql:"suggestedActors(first: 100, after: $endCursor, capabilities: CAN_BE_ASSIGNED)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":     githubv4.String("owner"),
-						"name":      githubv4.String("repo"),
-						"endCursor": (*githubv4.String)(nil),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"suggestedActors": map[string]any{
-								"nodes": []any{
-									map[string]any{
-										"id":         githubv4.ID("copilot-swe-agent-id"),
-										"login":      githubv4.String("copilot-swe-agent"),
-										"__typename": "Bot",
-									},
-								},
-							},
-						},
-					}),
-				),
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							ID    githubv4.ID
-							Issue struct {
-								ID        githubv4.ID
-								Assignees struct {
-									Nodes []struct {
-										ID githubv4.ID
-									}
-								} `graphql:"assignees(first: 100)"`
-							} `graphql:"issue(number: $number)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":  githubv4.String("owner"),
-						"name":   githubv4.String("repo"),
-						"number": githubv4.Int(123),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"id": githubv4.ID("test-repo-id"),
-							"issue": map[string]any{
-								"id": githubv4.ID("test-issue-id"),
-								"assignees": map[string]any{
-									"nodes": []any{},
-								},
-							},
-						},
-					}),
-				),
-				githubv4mock.NewMutationMatcher(
-					struct {
-						UpdateIssue struct {
-							Issue struct {
-								ID     githubv4.ID
-								Number githubv4.Int
-								URL    githubv4.String
-							}
-						} `graphql:"updateIssue(input: $input)"`
-					}{},
-					UpdateIssueInput{
-						ID:          githubv4.ID("test-issue-id"),
-						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
-						AgentAssignment: &AgentAssignmentInput{
-							BaseRef:            ptrGitHubv4String("feature-branch"),
-							CustomAgent:        ptrGitHubv4String(""),
-							CustomInstructions: ptrGitHubv4String(""),
-							TargetRepositoryID: githubv4.ID("test-repo-id"),
-						},
-					},
-					nil,
-					githubv4mock.DataResponse(map[string]any{
-						"updateIssue": map[string]any{
-							"issue": map[string]any{
-								"id":     githubv4.ID("test-issue-id"),
-								"number": githubv4.Int(123),
-								"url":    githubv4.String("https://github.com/owner/repo/issues/123"),
-							},
-						},
-					}),
-				),
-			),
-		},
-		{
-			name: "successful assignment with custom_instructions specified",
-			requestArgs: map[string]any{
-				"owner":               "owner",
-				"repo":                "repo",
-				"issue_number":        float64(123),
-				"custom_instructions": "Please ensure all code follows PEP 8 style guidelines and includes comprehensive docstrings",
-			},
-			mockedClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							SuggestedActors struct {
-								Nodes []struct {
-									Bot struct {
-										ID       githubv4.ID
-										Login    githubv4.String
-										TypeName string `graphql:"__typename"`
-									} `graphql:"... on Bot"`
-								}
-								PageInfo struct {
-									HasNextPage bool
-									EndCursor   string
-								}
-							} `graphql:"suggestedActors(first: 100, after: $endCursor, capabilities: CAN_BE_ASSIGNED)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":     githubv4.String("owner"),
-						"name":      githubv4.String("repo"),
-						"endCursor": (*githubv4.String)(nil),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"suggestedActors": map[string]any{
-								"nodes": []any{
-									map[string]any{
-										"id":         githubv4.ID("copilot-swe-agent-id"),
-										"login":      githubv4.String("copilot-swe-agent"),
-										"__typename": "Bot",
-									},
-								},
-							},
-						},
-					}),
-				),
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							ID    githubv4.ID
-							Issue struct {
-								ID        githubv4.ID
-								Assignees struct {
-									Nodes []struct {
-										ID githubv4.ID
-									}
-								} `graphql:"assignees(first: 100)"`
-							} `graphql:"issue(number: $number)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":  githubv4.String("owner"),
-						"name":   githubv4.String("repo"),
-						"number": githubv4.Int(123),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"id": githubv4.ID("test-repo-id"),
-							"issue": map[string]any{
-								"id": githubv4.ID("test-issue-id"),
-								"assignees": map[string]any{
-									"nodes": []any{},
-								},
-							},
-						},
-					}),
-				),
-				githubv4mock.NewMutationMatcher(
-					struct {
-						UpdateIssue struct {
-							Issue struct {
-								ID     githubv4.ID
-								Number githubv4.Int
-								URL    githubv4.String
-							}
-						} `graphql:"updateIssue(input: $input)"`
-					}{},
-					UpdateIssueInput{
-						ID:          githubv4.ID("test-issue-id"),
-						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
-						AgentAssignment: &AgentAssignmentInput{
-							BaseRef:            nil,
-							CustomAgent:        ptrGitHubv4String(""),
-							CustomInstructions: ptrGitHubv4String("Please ensure all code follows PEP 8 style guidelines and includes comprehensive docstrings"),
-							TargetRepositoryID: githubv4.ID("test-repo-id"),
-						},
-					},
-					nil,
-					githubv4mock.DataResponse(map[string]any{
-						"updateIssue": map[string]any{
-							"issue": map[string]any{
-								"id":     githubv4.ID("test-issue-id"),
-								"number": githubv4.Int(123),
-								"url":    githubv4.String("https://github.com/owner/repo/issues/123"),
-							},
-						},
-					}),
-				),
-			),
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-
-			t.Parallel()
-			// Setup client with mock
-			client := githubv4.NewClient(tc.mockedClient)
-			deps := BaseDeps{
-				GQLClient: client,
-			}
-			handler := serverTool.Handler(deps)
-
-			// Create call request
-			request := createMCPRequest(tc.requestArgs)
-
-			// Disable polling in tests to avoid timeouts
-			ctx := ContextWithPollConfig(context.Background(), PollConfig{MaxAttempts: 0})
-			ctx = ContextWithDeps(ctx, deps)
-
-			// Call handler
-			result, err := handler(ctx, &request)
-			require.NoError(t, err)
-
-			textContent := getTextResult(t, result)
-
-			if tc.expectToolError {
-				require.True(t, result.IsError)
-				assert.Contains(t, textContent.Text, tc.expectedToolErrMsg)
-				return
-			}
-
-			require.False(t, result.IsError, fmt.Sprintf("expected there to be no tool error, text was %s", textContent.Text))
-
-			// Verify the JSON response contains expected fields
-			var response map[string]any
-			err = json.Unmarshal([]byte(textContent.Text), &response)
-			require.NoError(t, err, "response should be valid JSON")
-			assert.Equal(t, float64(123), response["issue_number"])
-			assert.Equal(t, "https://github.com/owner/repo/issues/123", response["issue_url"])
-			assert.Equal(t, "owner", response["owner"])
-			assert.Equal(t, "repo", response["repo"])
-			assert.Contains(t, response["message"], "successfully assigned copilot to issue")
 		})
 	}
 }
@@ -2834,7 +2370,7 @@ func Test_AddSubIssue(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedIssue  *github.Issue
 		expectedErrMsg string
@@ -2844,7 +2380,7 @@ func Test_AddSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockIssue),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":         "add",
 				"owner":          "owner",
 				"repo":           "repo",
@@ -2860,7 +2396,7 @@ func Test_AddSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockIssue),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "add",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -2875,7 +2411,7 @@ func Test_AddSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockIssue),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":         "add",
 				"owner":          "owner",
 				"repo":           "repo",
@@ -2891,7 +2427,7 @@ func Test_AddSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Parent issue not found"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "add",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -2906,7 +2442,7 @@ func Test_AddSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Sub-issue not found"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "add",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -2921,7 +2457,7 @@ func Test_AddSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusUnprocessableEntity, `{"message": "Validation failed", "errors": [{"message": "Sub-issue cannot be a parent of itself"}]}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "add",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -2936,7 +2472,7 @@ func Test_AddSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusForbidden, `{"message": "Must have write access to repository"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "add",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -2949,7 +2485,7 @@ func Test_AddSubIssue(t *testing.T) {
 		{
 			name:         "missing required parameter owner",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "add",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2961,7 +2497,7 @@ func Test_AddSubIssue(t *testing.T) {
 		{
 			name:         "missing required parameter sub_issue_id",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "add",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3073,7 +2609,7 @@ func Test_GetSubIssues(t *testing.T) {
 	tests := []struct {
 		name              string
 		mockedClient      *http.Client
-		requestArgs       map[string]interface{}
+		requestArgs       map[string]any
 		expectError       bool
 		expectedSubIssues []*github.Issue
 		expectedErrMsg    string
@@ -3083,7 +2619,7 @@ func Test_GetSubIssues(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockSubIssues),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "get_sub_issues",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3102,7 +2638,7 @@ func Test_GetSubIssues(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSubIssues),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "get_sub_issues",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3118,7 +2654,7 @@ func Test_GetSubIssues(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, []*github.Issue{}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "get_sub_issues",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3132,7 +2668,7 @@ func Test_GetSubIssues(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "get_sub_issues",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3146,7 +2682,7 @@ func Test_GetSubIssues(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "get_sub_issues",
 				"owner":        "nonexistent",
 				"repo":         "repo",
@@ -3160,7 +2696,7 @@ func Test_GetSubIssues(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusGone, `{"message": "This feature has been deprecated"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "get_sub_issues",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3172,7 +2708,7 @@ func Test_GetSubIssues(t *testing.T) {
 		{
 			name:         "missing required parameter owner",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "get_sub_issues",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -3183,7 +2719,7 @@ func Test_GetSubIssues(t *testing.T) {
 		{
 			name:         "missing required parameter issue_number",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method": "get_sub_issues",
 				"owner":  "owner",
 				"repo":   "repo",
@@ -3201,7 +2737,7 @@ func Test_GetSubIssues(t *testing.T) {
 			deps := BaseDeps{
 				Client:          client,
 				GQLClient:       gqlClient,
-				RepoAccessCache: stubRepoAccessCache(gqlClient, 15*time.Minute),
+				RepoAccessCache: stubRepoAccessCache(nil, 15*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
 			handler := serverTool.Handler(deps)
@@ -3291,7 +2827,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedIssue  *github.Issue
 		expectedErrMsg string
@@ -3301,7 +2837,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "remove",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3316,7 +2852,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "remove",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3331,7 +2867,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Sub-issue not found"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "remove",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3346,7 +2882,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusBadRequest, `{"message": "Invalid sub_issue_id"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "remove",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3361,7 +2897,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "remove",
 				"owner":        "nonexistent",
 				"repo":         "repo",
@@ -3376,7 +2912,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusForbidden, `{"message": "Must have write access to repository"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "remove",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3389,7 +2925,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 		{
 			name:         "missing required parameter owner",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "remove",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -3401,7 +2937,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 		{
 			name:         "missing required parameter sub_issue_id",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "remove",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3499,7 +3035,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedIssue  *github.Issue
 		expectedErrMsg string
@@ -3509,7 +3045,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3525,7 +3061,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3539,7 +3075,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		{
 			name:         "validation error - neither after_id nor before_id specified",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3552,7 +3088,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		{
 			name:         "validation error - both after_id and before_id specified",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3569,7 +3105,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3585,7 +3121,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Sub-issue not found"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3601,7 +3137,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusUnprocessableEntity, `{"message": "Validation failed", "errors": [{"message": "Positioning sub-issue not found"}]}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3617,7 +3153,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusForbidden, `{"message": "Must have write access to repository"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3633,7 +3169,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusServiceUnavailable, `{"message": "Service Unavailable"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3647,7 +3183,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		{
 			name:         "missing required parameter owner",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "reprioritize",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -3660,7 +3196,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		{
 			name:         "missing required parameter sub_issue_id",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
@@ -3750,7 +3286,7 @@ func Test_ListIssueTypes(t *testing.T) {
 	tests := []struct {
 		name               string
 		mockedClient       *http.Client
-		requestArgs        map[string]interface{}
+		requestArgs        map[string]any
 		expectError        bool
 		expectedIssueTypes []*github.IssueType
 		expectedErrMsg     string
@@ -3760,7 +3296,7 @@ func Test_ListIssueTypes(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				"GET /orgs/testorg/issue-types": mockResponse(t, http.StatusOK, mockIssueTypes),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner": "testorg",
 			},
 			expectError:        false,
@@ -3771,7 +3307,7 @@ func Test_ListIssueTypes(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				"GET /orgs/nonexistent/issue-types": mockResponse(t, http.StatusNotFound, `{"message": "Organization not found"}`),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner": "nonexistent",
 			},
 			expectError:    true,
@@ -3782,7 +3318,7 @@ func Test_ListIssueTypes(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				"GET /orgs/testorg/issue-types": mockResponse(t, http.StatusOK, mockIssueTypes),
 			}),
-			requestArgs:    map[string]interface{}{},
+			requestArgs:    map[string]any{},
 			expectError:    false, // This should be handled by parameter validation, error returned in result
 			expectedErrMsg: "missing required parameter: owner",
 		},
