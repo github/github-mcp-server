@@ -75,3 +75,14 @@ func LabelListIssues(isPrivate bool, readers []string) SecurityLabel {
 	}
 	return PublicUntrusted()
 }
+
+// LabelGetFileContents returns the IFC label for a get_file_contents result.
+// Public repository file contents may be authored by anyone via pull requests
+// and are therefore untrusted. In private repositories only collaborators can
+// land changes, so contents are treated as trusted.
+func LabelGetFileContents(isPrivate bool, readers []string) SecurityLabel {
+	if isPrivate {
+		return PrivateTrusted(readers)
+	}
+	return PublicUntrusted()
+}
