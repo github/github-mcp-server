@@ -682,11 +682,14 @@ func FetchRepoCollaborators(ctx context.Context, client *github.Client, owner, r
 	return logins, nil
 }
 
-// FetchRepoIsPrivate returns the visibility of a repository. It is a thin
+// FetchRepoIsPrivate returns whether a repository is private. It is a thin
 // wrapper around the GitHub Repositories.Get endpoint provided as a shared
 // helper for IFC label computation across tools.
 func FetchRepoIsPrivate(ctx context.Context, client *github.Client, owner, repo string) (bool, error) {
-	r, _, err := client.Repositories.Get(ctx, owner, repo)
+	r, resp, err := client.Repositories.Get(ctx, owner, repo)
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 	if err != nil {
 		return false, err
 	}
@@ -768,22 +771,26 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			// attachIFC adds the IFC label to a successful tool result when
 			// InsidersMode is enabled. The visibility and (for private
 			// repositories) collaborators lookups are performed lazily on
-			// first use and are best-effort: if they fail we still attach
-			// the label, falling back to the repository owner so the reader
-			// set is never empty for a private repo.
+			// first use. If the visibility lookup fails we skip the label
+			// rather than misclassify the result; the failure is not cached
+			// so a later return path can retry. If only the collaborators
+			// lookup fails for a private repo we fall back to the owner so
+			// the reader set is never empty.
 			var (
-				ifcLabelLoaded bool
-				ifcIsPrivate   bool
-				ifcReaders     []string
+				ifcLabelKnown bool
+				ifcIsPrivate  bool
+				ifcReaders    []string
 			)
 			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
 				if r == nil || r.IsError || !deps.GetFlags(ctx).InsidersMode {
 					return r
 				}
-				if !ifcLabelLoaded {
-					if isPrivate, err := FetchRepoIsPrivate(ctx, client, owner, repo); err == nil {
-						ifcIsPrivate = isPrivate
+				if !ifcLabelKnown {
+					isPrivate, err := FetchRepoIsPrivate(ctx, client, owner, repo)
+					if err != nil {
+						return r
 					}
+					ifcIsPrivate = isPrivate
 					if ifcIsPrivate {
 						if collaborators, err := FetchRepoCollaborators(ctx, client, owner, repo); err == nil {
 							ifcReaders = collaborators
@@ -792,7 +799,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 							ifcReaders = []string{owner}
 						}
 					}
-					ifcLabelLoaded = true
+					ifcLabelKnown = true
 				}
 				if r.Meta == nil {
 					r.Meta = mcp.Meta{}
