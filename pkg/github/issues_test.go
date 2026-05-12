@@ -812,13 +812,13 @@ func Test_CreateIssue(t *testing.T) {
 	}
 
 	tests := []struct {
-		name            string
-		mockedClient    *http.Client
+		name           string
+		mockedClient   *http.Client
 		mockedGQLClient *http.Client
-		requestArgs     map[string]any
-		expectError     bool
-		expectedIssue   *github.Issue
-		expectedErrMsg  string
+		requestArgs    map[string]any
+		expectError    bool
+		expectedIssue  *github.Issue
+		expectedErrMsg string
 	}{
 		{
 			name: "successful issue creation with all fields",
@@ -1685,7 +1685,7 @@ func Test_UpdateIssue(t *testing.T) {
 										"databaseId": 101,
 										"name":       "Priority",
 										"dataType":   "single_select",
-										"options":    []map[string]any{{"databaseId": 9001, "name": "P1"}},
+										"options": []map[string]any{{"databaseId": 9001, "name": "P1"}},
 									},
 									{
 										"databaseId": 102,

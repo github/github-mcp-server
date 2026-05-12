@@ -48,9 +48,9 @@ type issueFieldMetadataOption struct {
 }
 
 type issueFieldMetadataNode struct {
-	DatabaseID        githubv4.Int `graphql:"databaseId"`
-	Name              githubv4.String
-	DataType          githubv4.String
+	DatabaseID githubv4.Int    `graphql:"databaseId"`
+	Name       githubv4.String
+	DataType   githubv4.String
 	SingleSelectField struct {
 		Options []issueFieldMetadataOption `graphql:"options"`
 	} `graphql:"... on IssueFieldSingleSelect"`
