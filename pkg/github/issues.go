@@ -1595,13 +1595,20 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				if result.Meta == nil {
 					result.Meta = mcp.Meta{}
 				}
-				// TODO(fides): for private repos, populate readers with the
-				// repository's collaborator logins. Using [owner] as a
-				// placeholder until a shared visibility/collaborators helper
-				// lands (tracked under copilot-mcp-core#1623).
 				var readers []string
 				if isPrivate {
-					readers = []string{owner}
+					restClient, err := deps.GetClient(ctx)
+					if err == nil {
+						if collaborators, err := FetchRepoCollaborators(ctx, restClient, owner, repo); err == nil {
+							readers = collaborators
+						}
+					}
+					// Fall back to the repository owner so the reader set is
+					// never empty for a private repository even if the
+					// collaborators lookup fails.
+					if len(readers) == 0 {
+						readers = []string{owner}
+					}
 				}
 				result.Meta["ifc"] = ifc.LabelListIssues(isPrivate, readers)
 			}

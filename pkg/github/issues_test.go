@@ -1453,10 +1453,18 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		assert.Equal(t, "public", confList[0])
 	})
 
-	t.Run("insiders mode enabled on private repo emits private untrusted label", func(t *testing.T) {
+	t.Run("insiders mode enabled on private repo emits private untrusted label with collaborators", func(t *testing.T) {
 		matcher := githubv4mock.NewQueryMatcher(query, vars, makeResponse(true))
 		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+		restClient := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposCollaboratorsByOwnerByRepo: mockResponse(t, http.StatusOK, []*github.User{
+				{Login: github.Ptr("octocat")},
+				{Login: github.Ptr("alice")},
+				{Login: github.Ptr("bob")},
+			}),
+		}))
 		deps := BaseDeps{
+			Client:    restClient,
 			GQLClient: gqlClient,
 			Flags:     FeatureFlags{InsidersMode: true},
 		}
@@ -1479,8 +1487,34 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
 		confList, ok := ifcMap["confidentiality"].([]any)
 		require.True(t, ok, "confidentiality should be a list")
-		require.Len(t, confList, 1)
-		assert.Equal(t, "octocat", confList[0])
+		assert.Equal(t, []any{"octocat", "alice", "bob"}, confList)
+	})
+
+	t.Run("insiders mode enabled on private repo falls back to owner when collaborators lookup fails", func(t *testing.T) {
+		matcher := githubv4mock.NewQueryMatcher(query, vars, makeResponse(true))
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+		restClient := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposCollaboratorsByOwnerByRepo: mockResponse(t, http.StatusInternalServerError, "boom"),
+		}))
+		deps := BaseDeps{
+			Client:    restClient,
+			GQLClient: gqlClient,
+			Flags:     FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcJSON, err := json.Marshal(result.Meta["ifc"])
+		require.NoError(t, err)
+		var ifcMap map[string]any
+		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
+
+		assert.Equal(t, []any{"octocat"}, ifcMap["confidentiality"])
 	})
 }
 
