@@ -10,6 +10,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -378,6 +379,64 @@ func Test_SearchCode(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPathQualifierLooksLikeFilename(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		query string
+		want  bool
+	}{
+		{"WaitForElement path:WaitUtils.cs repo:o/r", true},
+		{"foo path:src/pkg file", false},
+		{"path:WaitUtils.cs", true},
+		{"filename:WaitUtils.cs", false},
+		{"path:", false},
+		{"path:dir/sub file.cs", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.query, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, pathQualifierLooksLikeFilename(tc.query), tc.query)
+		})
+	}
+}
+
+func Test_SearchCode_addsHintWhenPathLooksLikeFilenameAndNoResults(t *testing.T) {
+	serverTool := SearchCode(translations.NullTranslationHelper)
+	empty := &github.CodeSearchResult{
+		Total:             github.Ptr(0),
+		IncompleteResults: github.Ptr(false),
+		CodeResults:       []*github.CodeResult{},
+	}
+	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetSearchCode: expectQueryParams(t, map[string]string{
+			"q":        "term path:WaitUtils.cs repo:o/r",
+			"page":     "1",
+			"per_page": "30",
+		}).andThen(
+			mockResponse(t, http.StatusOK, empty),
+		),
+	}))
+	deps := BaseDeps{Client: client}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"query": "term path:WaitUtils.cs repo:o/r",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	require.Len(t, result.Content, 2)
+	first, ok := result.Content[0].(*mcp.TextContent)
+	require.True(t, ok)
+	second, ok := result.Content[1].(*mcp.TextContent)
+	require.True(t, ok)
+	var returned github.CodeSearchResult
+	require.NoError(t, json.Unmarshal([]byte(first.Text), &returned))
+	require.NotNil(t, returned.Total)
+	assert.Equal(t, 0, *returned.Total)
+	assert.Contains(t, second.Text, "filename:")
+	assert.Contains(t, second.Text, "path:")
 }
 
 func Test_SearchUsers(t *testing.T) {

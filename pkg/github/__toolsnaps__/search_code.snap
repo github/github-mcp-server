@@ -26,7 +26,7 @@
         "type": "number"
       },
       "query": {
-        "description": "Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more.",
+        "description": "Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more. Important: GitHub's path: qualifier matches directory path prefixes, not file names. To target a specific file (e.g. WaitUtils.cs), use filename:WaitUtils.cs instead of path:WaitUtils.cs. Using path: with a file-like token often returns zero results with no API error.",
         "type": "string"
       },
       "sort": {
