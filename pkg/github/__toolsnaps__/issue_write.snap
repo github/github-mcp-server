@@ -29,29 +29,6 @@
         "description": "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
         "type": "number"
       },
-      "issue_fields": {
-        "description": "Issue field values to set. Each item requires field_name and either value or field_option_name. field_option_name is for single-select fields and is resolved to the corresponding option ID automatically.",
-        "items": {
-          "properties": {
-            "field_name": {
-              "description": "Issue field name",
-              "type": "string"
-            },
-            "field_option_name": {
-              "description": "Single-select option name to resolve and set for the field",
-              "type": "string"
-            },
-            "value": {
-              "description": "Value for text/number/date/single-select fields. For single-select, you can use field_option_name instead."
-            }
-          },
-          "required": [
-            "field_name"
-          ],
-          "type": "object"
-        },
-        "type": "array"
-      },
       "issue_number": {
         "description": "Issue number to update",
         "type": "number"

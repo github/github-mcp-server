@@ -795,7 +795,6 @@ func Test_CreateIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "labels")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "milestone")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "type")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_fields")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo"})
 
 	// Setup mock issue for success case
@@ -814,7 +813,6 @@ func Test_CreateIssue(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		mockedGQLClient *http.Client
 		requestArgs    map[string]any
 		expectError    bool
 		expectedIssue  *github.Issue
@@ -874,75 +872,6 @@ func Test_CreateIssue(t *testing.T) {
 			},
 		},
 		{
-			name: "successful issue creation with issue fields reconciled by names",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PostReposIssuesByOwnerByRepo: expectRequestBody(t, map[string]any{
-					"title":     "Issue with fields",
-					"body":      "",
-					"labels":    []any{},
-					"assignees": []any{},
-					"issue_field_values": []any{
-						map[string]any{"field_id": float64(101), "value": float64(9001)},
-						map[string]any{"field_id": float64(102), "value": "Acme"},
-					},
-				}).andThen(
-					mockResponse(t, http.StatusCreated, &github.Issue{
-						Number:  github.Ptr(125),
-						Title:   github.Ptr("Issue with fields"),
-						HTMLURL: github.Ptr("https://github.com/owner/repo/issues/125"),
-						State:   github.Ptr("open"),
-					}),
-				),
-			}),
-			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					issueFieldMetadataQuery{},
-					map[string]any{
-						"owner": githubv4.String("owner"),
-						"repo":  githubv4.String("repo"),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"issueFields": map[string]any{
-								"nodes": []map[string]any{
-									{
-										"databaseId": 101,
-										"name":       "Priority",
-										"dataType":   "single_select",
-										"options": []map[string]any{
-											{"databaseId": 9001, "name": "P1"},
-										},
-									},
-									{
-										"databaseId": 102,
-										"name":       "Customer",
-										"dataType":   "text",
-									},
-								},
-							},
-						},
-					}),
-				),
-			),
-			requestArgs: map[string]any{
-				"method": "create",
-				"owner":  "owner",
-				"repo":   "repo",
-				"title":  "Issue with fields",
-				"issue_fields": []any{
-					map[string]any{"field_name": "Priority", "field_option_name": "P1"},
-					map[string]any{"field_name": "Customer", "value": "Acme"},
-				},
-			},
-			expectError: false,
-			expectedIssue: &github.Issue{
-				Number:  github.Ptr(125),
-				Title:   github.Ptr("Issue with fields"),
-				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/125"),
-				State:   github.Ptr("open"),
-			},
-		},
-		{
 			name: "issue creation fails",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -959,32 +888,13 @@ func Test_CreateIssue(t *testing.T) {
 			expectError:    false,
 			expectedErrMsg: "missing required parameter: title",
 		},
-		{
-			name:         "issue_fields rejects both value and field_option_name",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]any{
-				"method": "create",
-				"owner":  "owner",
-				"repo":   "repo",
-				"title":  "Invalid fields",
-				"issue_fields": []any{
-					map[string]any{"field_name": "Priority", "value": "P1", "field_option_name": "P1"},
-				},
-			},
-			expectError:    false,
-			expectedErrMsg: "cannot specify both value and field_option_name",
-		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			gqlHTTPClient := tc.mockedGQLClient
-			if gqlHTTPClient == nil {
-				gqlHTTPClient = githubv4mock.NewMockedHTTPClient()
-			}
-			gqlClient := githubv4.NewClient(gqlHTTPClient)
+			gqlClient := githubv4.NewClient(nil)
 			deps := BaseDeps{
 				Client:    client,
 				GQLClient: gqlClient,
@@ -1545,7 +1455,6 @@ func Test_UpdateIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "state")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "state_reason")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "duplicate_of")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_fields")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo"})
 
 	// Mock issues for reuse across test cases
@@ -1653,61 +1562,6 @@ func Test_UpdateIssue(t *testing.T) {
 				"issue_number": float64(123),
 				"title":        "Updated Title",
 				"body":         "Updated Description",
-			},
-			expectError:   false,
-			expectedIssue: mockUpdatedIssue,
-		},
-		{
-			name: "partial update with issue fields reconciled by names",
-			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
-					"issue_field_values": []any{
-						map[string]any{"field_id": float64(101), "value": float64(9001)},
-						map[string]any{"field_id": float64(102), "value": "Acme"},
-					},
-					"title": "Updated Title",
-				}).andThen(
-					mockResponse(t, http.StatusOK, mockUpdatedIssue),
-				),
-			}),
-			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					issueFieldMetadataQuery{},
-					map[string]any{
-						"owner": githubv4.String("owner"),
-						"repo":  githubv4.String("repo"),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"issueFields": map[string]any{
-								"nodes": []map[string]any{
-									{
-										"databaseId": 101,
-										"name":       "Priority",
-										"dataType":   "single_select",
-										"options": []map[string]any{{"databaseId": 9001, "name": "P1"}},
-									},
-									{
-										"databaseId": 102,
-										"name":       "Customer",
-										"dataType":   "text",
-									},
-								},
-							},
-						},
-					}),
-				),
-			),
-			requestArgs: map[string]any{
-				"method":       "update",
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(123),
-				"title":        "Updated Title",
-				"issue_fields": []any{
-					map[string]any{"field_name": "Priority", "field_option_name": "P1"},
-					map[string]any{"field_name": "Customer", "value": "Acme"},
-				},
 			},
 			expectError:   false,
 			expectedIssue: mockUpdatedIssue,
