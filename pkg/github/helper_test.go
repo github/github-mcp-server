@@ -31,6 +31,7 @@ const (
 	GetReposByOwnerByRepo                = "GET /repos/{owner}/{repo}"
 	GetReposBranchesByOwnerByRepo        = "GET /repos/{owner}/{repo}/branches"
 	GetReposTagsByOwnerByRepo            = "GET /repos/{owner}/{repo}/tags"
+	GetReposCollaboratorsByOwnerByRepo   = "GET /repos/{owner}/{repo}/collaborators"
 	GetReposCommitsByOwnerByRepo         = "GET /repos/{owner}/{repo}/commits"
 	GetReposCommitsByOwnerByRepoByRef    = "GET /repos/{owner}/{repo}/commits/{ref}"
 	GetReposContentsByOwnerByRepoByPath  = "GET /repos/{owner}/{repo}/contents/{path}"

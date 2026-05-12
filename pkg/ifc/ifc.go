@@ -21,9 +21,57 @@ type SecurityLabel struct {
 	Confidentiality []Confidentiality `json:"confidentiality"`
 }
 
-func LabelGetMe() SecurityLabel {
+// PublicTrusted returns a label for trusted, publicly readable data.
+func PublicTrusted() SecurityLabel {
 	return SecurityLabel{
 		Integrity:       IntegrityTrusted,
 		Confidentiality: []Confidentiality{ConfidentialityPublic},
 	}
+}
+
+// PublicUntrusted returns a label for untrusted, publicly readable data.
+func PublicUntrusted() SecurityLabel {
+	return SecurityLabel{
+		Integrity:       IntegrityUntrusted,
+		Confidentiality: []Confidentiality{ConfidentialityPublic},
+	}
+}
+
+// PrivateTrusted returns a label for trusted data restricted to the given readers.
+func PrivateTrusted(readers []string) SecurityLabel {
+	return SecurityLabel{
+		Integrity:       IntegrityTrusted,
+		Confidentiality: toConfidentiality(readers),
+	}
+}
+
+// PrivateUntrusted returns a label for untrusted data restricted to the given readers.
+func PrivateUntrusted(readers []string) SecurityLabel {
+	return SecurityLabel{
+		Integrity:       IntegrityUntrusted,
+		Confidentiality: toConfidentiality(readers),
+	}
+}
+
+func toConfidentiality(readers []string) []Confidentiality {
+	out := make([]Confidentiality, len(readers))
+	for i, r := range readers {
+		out[i] = Confidentiality(r)
+	}
+	return out
+}
+
+func LabelGetMe() SecurityLabel {
+	return PublicTrusted()
+}
+
+// LabelListIssues returns the IFC label for a list_issues result.
+// Public repositories are universally readable; private repositories are
+// restricted to the provided reader set (typically repository collaborators).
+// Issue contents are attacker-controllable, so integrity is always untrusted.
+func LabelListIssues(isPrivate bool, readers []string) SecurityLabel {
+	if isPrivate {
+		return PrivateUntrusted(readers)
+	}
+	return PublicUntrusted()
 }
