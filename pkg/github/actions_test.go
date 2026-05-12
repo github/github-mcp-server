@@ -377,6 +377,37 @@ func Test_ActionsRunTrigger_RunWorkflow(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "ref is required for run_workflow action",
 		},
+		{
+			name: "successful workflow run with inputs",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNoContent)
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":      "run_workflow",
+				"owner":       "owner",
+				"repo":        "repo",
+				"workflow_id": "12345",
+				"ref":         "main",
+				"inputs":      map[string]any{"FIELD1": "value1", "FIELD2": "value2"},
+			},
+			expectError: false,
+		},
+		{
+			name:         "invalid inputs type returns error",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"method":      "run_workflow",
+				"owner":       "owner",
+				"repo":        "repo",
+				"workflow_id": "12345",
+				"ref":         "main",
+				"inputs":      "not a map",
+			},
+			expectError:    true,
+			expectedErrMsg: "parameter inputs is not of type map[string]interface {}, is string",
+		},
 	}
 
 	for _, tc := range tests {

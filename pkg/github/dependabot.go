@@ -69,7 +69,7 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 			alert, resp, err := client.Dependabot.GetRepoAlert(ctx, owner, repo, alertNumber)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					fmt.Sprintf("failed to get alert with number '%d'", alertNumber),
+					dependabotErrMsg(fmt.Sprintf("failed to get alert with number '%d'", alertNumber), owner, repo, resp),
 					resp,
 					err,
 				), nil, nil
@@ -160,7 +160,7 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 			})
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					fmt.Sprintf("failed to list alerts for repository '%s/%s'", owner, repo),
+					dependabotErrMsg(fmt.Sprintf("failed to list alerts for repository '%s/%s'", owner, repo), owner, repo, resp),
 					resp,
 					err,
 				), nil, nil
@@ -183,4 +183,17 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
+}
+
+// dependabotErrMsg enhances error messages for dependabot API failures by
+// appending a hint about token permissions when the response indicates
+// the token may lack access to the repository (403 or 404).
+func dependabotErrMsg(base, owner, repo string, resp *github.Response) string {
+	if resp != nil && (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusNotFound) {
+		return fmt.Sprintf("%s. Your token may not have access to Dependabot alerts on %s/%s. "+
+			"To access Dependabot alerts, the token needs the 'security_events' scope or, for fine-grained tokens, "+
+			"Dependabot alerts read permission for this specific repository.",
+			base, owner, repo)
+	}
+	return base
 }

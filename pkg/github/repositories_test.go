@@ -477,6 +477,158 @@ func Test_GetFileContents(t *testing.T) {
 	}
 }
 
+func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
+	t.Parallel()
+
+	serverTool := GetFileContents(translations.NullTranslationHelper)
+
+	mockRawContent := []byte("hello")
+
+	makeMockClient := func(isPrivate bool) *http.Client {
+		return MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
+			GetReposByOwnerByRepo: mockResponse(t, http.StatusOK, map[string]any{
+				"name":           "repo",
+				"default_branch": "main",
+				"private":        isPrivate,
+			}),
+			GetReposCollaboratorsByOwnerByRepo: mockResponse(t, http.StatusOK, []*github.User{
+				{Login: github.Ptr("octocat")},
+				{Login: github.Ptr("alice")},
+			}),
+			GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				encodedContent := base64.StdEncoding.EncodeToString(mockRawContent)
+				fileContent := &github.RepositoryContent{
+					Name:     github.Ptr("README.md"),
+					Path:     github.Ptr("README.md"),
+					SHA:      github.Ptr("abc123"),
+					Type:     github.Ptr("file"),
+					Content:  github.Ptr(encodedContent),
+					Size:     github.Ptr(len(mockRawContent)),
+					Encoding: github.Ptr("base64"),
+				}
+				contentBytes, _ := json.Marshal(fileContent)
+				_, _ = w.Write(contentBytes)
+			},
+		})
+	}
+
+	reqParams := map[string]any{
+		"owner": "octocat",
+		"repo":  "repo",
+		"path":  "README.md",
+		"ref":   "refs/heads/main",
+	}
+
+	t.Run("insiders mode disabled omits ifc label from result meta", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient(false)),
+			Flags:  FeatureFlags{InsidersMode: false},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		assert.Nil(t, result.Meta, "result meta should be nil when insiders mode is disabled")
+	})
+
+	t.Run("insiders mode enabled on public repo emits public untrusted label", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient(false)),
+			Flags:  FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcLabel, ok := result.Meta["ifc"]
+		require.True(t, ok, "result meta should contain ifc key")
+
+		ifcJSON, err := json.Marshal(ifcLabel)
+		require.NoError(t, err)
+		var ifcMap map[string]any
+		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
+
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		confList, ok := ifcMap["confidentiality"].([]any)
+		require.True(t, ok, "confidentiality should be a list")
+		require.Len(t, confList, 1)
+		assert.Equal(t, "public", confList[0])
+	})
+
+	t.Run("insiders mode enabled on private repo emits private trusted label", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient(true)),
+			Flags:  FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcLabel, ok := result.Meta["ifc"]
+		require.True(t, ok, "result meta should contain ifc key")
+
+		ifcJSON, err := json.Marshal(ifcLabel)
+		require.NoError(t, err)
+		var ifcMap map[string]any
+		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
+
+		assert.Equal(t, "trusted", ifcMap["integrity"])
+		confList, ok := ifcMap["confidentiality"].([]any)
+		require.True(t, ok, "confidentiality should be a list")
+		assert.Equal(t, []any{"octocat", "alice"}, confList)
+	})
+
+	t.Run("insiders mode skips ifc label when visibility lookup fails", func(t *testing.T) {
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
+			GetReposByOwnerByRepo:            mockResponse(t, http.StatusInternalServerError, "boom"),
+			GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				encodedContent := base64.StdEncoding.EncodeToString(mockRawContent)
+				fileContent := &github.RepositoryContent{
+					Name:     github.Ptr("README.md"),
+					Path:     github.Ptr("README.md"),
+					SHA:      github.Ptr("abc123"),
+					Type:     github.Ptr("file"),
+					Content:  github.Ptr(encodedContent),
+					Size:     github.Ptr(len(mockRawContent)),
+					Encoding: github.Ptr("base64"),
+				}
+				contentBytes, _ := json.Marshal(fileContent)
+				_, _ = w.Write(contentBytes)
+			},
+		})
+		deps := BaseDeps{
+			Client: github.NewClient(mockedClient),
+			Flags:  FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError, "tool call should still succeed when visibility lookup fails")
+
+		if result.Meta != nil {
+			_, hasIFC := result.Meta["ifc"]
+			assert.False(t, hasIFC, "ifc label should be omitted when visibility lookup fails")
+		}
+	})
+}
+
 func Test_ForkRepository(t *testing.T) {
 	// Verify tool definition once
 	serverTool := ForkRepository(translations.NullTranslationHelper)
@@ -2914,10 +3066,19 @@ func Test_GetTag(t *testing.T) {
 	assert.Contains(t, schema.Properties, "tag")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "tag"})
 
-	mockTagRef := &github.Reference{
+	mockAnnotatedTagRef := &github.Reference{
 		Ref: github.Ptr("refs/tags/v1.0.0"),
 		Object: &github.GitObject{
-			SHA: github.Ptr("v1.0.0-tag-sha"),
+			Type: github.Ptr("tag"),
+			SHA:  github.Ptr("v1.0.0-tag-sha"),
+		},
+	}
+
+	mockLightweightTagRef := &github.Reference{
+		Ref: github.Ptr("refs/tags/v1.0.1"),
+		Object: &github.GitObject{
+			Type: github.Ptr("commit"),
+			SHA:  github.Ptr("abc123"),
 		},
 	}
 
@@ -2937,6 +3098,7 @@ func Test_GetTag(t *testing.T) {
 		requestArgs    map[string]any
 		expectError    bool
 		expectedTag    *github.Tag
+		expectedRef    *github.Reference
 		expectedErrMsg string
 	}{
 		{
@@ -2948,7 +3110,7 @@ func Test_GetTag(t *testing.T) {
 						t,
 						"/repos/owner/repo/git/ref/tags/v1.0.0",
 					).andThen(
-						mockResponse(t, http.StatusOK, mockTagRef),
+						mockResponse(t, http.StatusOK, mockAnnotatedTagRef),
 					),
 				),
 				WithRequestMatchHandler(
@@ -2993,7 +3155,7 @@ func Test_GetTag(t *testing.T) {
 			mockedClient: NewMockedHTTPClient(
 				WithRequestMatch(
 					GetReposGitRefByOwnerByRepoByRef,
-					mockTagRef,
+					mockAnnotatedTagRef,
 				),
 				WithRequestMatchHandler(
 					GetReposGitTagsByOwnerByRepoByTagSHA,
@@ -3010,6 +3172,27 @@ func Test_GetTag(t *testing.T) {
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to get tag object",
+		},
+		{
+			name: "successful lightweight tag retrieval",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetReposGitRefByOwnerByRepoByRef,
+					expectPath(
+						t,
+						"/repos/owner/repo/git/ref/tags/v1.0.1",
+					).andThen(
+						mockResponse(t, http.StatusOK, mockLightweightTagRef),
+					),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"tag":   "v1.0.1",
+			},
+			expectError: false,
+			expectedRef: mockLightweightTagRef,
 		},
 	}
 
@@ -3043,16 +3226,29 @@ func Test_GetTag(t *testing.T) {
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Parse and verify the result
-			var returnedTag github.Tag
-			err = json.Unmarshal([]byte(textContent.Text), &returnedTag)
-			require.NoError(t, err)
+			// Parse and verify the result - annotated tag (full tag object)
+			if tc.expectedTag != nil {
+				var returnedTag github.Tag
+				err = json.Unmarshal([]byte(textContent.Text), &returnedTag)
+				require.NoError(t, err)
 
-			assert.Equal(t, *tc.expectedTag.SHA, *returnedTag.SHA)
-			assert.Equal(t, *tc.expectedTag.Tag, *returnedTag.Tag)
-			assert.Equal(t, *tc.expectedTag.Message, *returnedTag.Message)
-			assert.Equal(t, *tc.expectedTag.Object.Type, *returnedTag.Object.Type)
-			assert.Equal(t, *tc.expectedTag.Object.SHA, *returnedTag.Object.SHA)
+				assert.Equal(t, tc.expectedTag.GetSHA(), returnedTag.GetSHA())
+				assert.Equal(t, tc.expectedTag.GetTag(), returnedTag.GetTag())
+				assert.Equal(t, tc.expectedTag.GetMessage(), returnedTag.GetMessage())
+				assert.Equal(t, tc.expectedTag.Object.GetType(), returnedTag.Object.GetType())
+				assert.Equal(t, tc.expectedTag.Object.GetSHA(), returnedTag.Object.GetSHA())
+			}
+
+			// Parse and verify the result - lightweight tag (reference only)
+			if tc.expectedRef != nil {
+				var returnedRef github.Reference
+				err = json.Unmarshal([]byte(textContent.Text), &returnedRef)
+				require.NoError(t, err)
+
+				assert.Equal(t, tc.expectedRef.GetRef(), returnedRef.GetRef())
+				assert.Equal(t, tc.expectedRef.Object.GetType(), returnedRef.Object.GetType())
+				assert.Equal(t, tc.expectedRef.Object.GetSHA(), returnedRef.Object.GetSHA())
+			}
 		})
 	}
 }
