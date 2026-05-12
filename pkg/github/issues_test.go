@@ -381,7 +381,6 @@ func Test_AddIssueComment(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, fmt.Sprintf("%d", tc.expectedComment.GetID()), minimalResponse.ID)
 			assert.Equal(t, tc.expectedComment.GetHTMLURL(), minimalResponse.URL)
-
 		})
 	}
 }
@@ -691,6 +690,217 @@ func Test_SearchIssues(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
+	t.Parallel()
+
+	serverTool := SearchIssues(translations.NullTranslationHelper)
+
+	makeIssue := func(owner, repo string, number int) *github.Issue {
+		return &github.Issue{
+			Number:        github.Ptr(number),
+			Title:         github.Ptr("issue"),
+			State:         github.Ptr("open"),
+			RepositoryURL: github.Ptr("https://api.github.com/repos/" + owner + "/" + repo),
+			User:          &github.User{Login: github.Ptr("u")},
+		}
+	}
+
+	type repoFixture struct {
+		owner         string
+		repo          string
+		isPrivate     bool
+		collaborators []string
+		repoStatus    int
+	}
+
+	repoHandlers := func(repos []repoFixture) map[string]http.HandlerFunc {
+		repoByPath := map[string]repoFixture{}
+		for _, r := range repos {
+			repoByPath["/repos/"+r.owner+"/"+r.repo] = r
+		}
+		collaboratorsByPath := map[string]repoFixture{}
+		for _, r := range repos {
+			collaboratorsByPath["/repos/"+r.owner+"/"+r.repo+"/collaborators"] = r
+		}
+		return map[string]http.HandlerFunc{
+			GetReposByOwnerByRepo: func(w http.ResponseWriter, req *http.Request) {
+				r, ok := repoByPath[req.URL.Path]
+				if !ok {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				if r.repoStatus != 0 && r.repoStatus != http.StatusOK {
+					w.WriteHeader(r.repoStatus)
+					return
+				}
+				body, _ := json.Marshal(map[string]any{
+					"name":    r.repo,
+					"private": r.isPrivate,
+				})
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(body)
+			},
+			GetReposCollaboratorsByOwnerByRepo: func(w http.ResponseWriter, req *http.Request) {
+				r, ok := collaboratorsByPath[req.URL.Path]
+				if !ok {
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write([]byte("[]"))
+					return
+				}
+				users := make([]*github.User, len(r.collaborators))
+				for i, login := range r.collaborators {
+					users[i] = &github.User{Login: github.Ptr(login)}
+				}
+				body, _ := json.Marshal(users)
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(body)
+			},
+		}
+	}
+
+	makeMockClient := func(searchResult *github.IssuesSearchResult, repos []repoFixture) *http.Client {
+		handlers := repoHandlers(repos)
+		handlers[GetSearchIssues] = mockResponse(t, http.StatusOK, searchResult)
+		return MockHTTPClientWithHandlers(handlers)
+	}
+
+	reqParams := map[string]any{"query": "bug"}
+
+	t.Run("insiders mode disabled omits ifc label", func(t *testing.T) {
+		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{makeIssue("octocat", "public-repo", 1)}}
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient(searchResult, []repoFixture{{owner: "octocat", repo: "public-repo"}})),
+			Flags:  FeatureFlags{InsidersMode: false},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		assert.Nil(t, result.Meta)
+	})
+
+	t.Run("insiders mode enabled with single public repo emits public untrusted", func(t *testing.T) {
+		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{makeIssue("octocat", "public-repo", 1)}}
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient(searchResult, []repoFixture{{owner: "octocat", repo: "public-repo"}})),
+			Flags:  FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, []any{"public"}, ifcMap["confidentiality"])
+	})
+
+	t.Run("insiders mode mixed public and private collapses to public", func(t *testing.T) {
+		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{
+			makeIssue("octocat", "private-repo", 1),
+			makeIssue("octocat", "public-repo", 2),
+		}}
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient(searchResult, []repoFixture{
+				{owner: "octocat", repo: "private-repo", isPrivate: true, collaborators: []string{"alice"}},
+				{owner: "octocat", repo: "public-repo"},
+			})),
+			Flags: FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, []any{"public"}, ifcMap["confidentiality"])
+	})
+
+	t.Run("insiders mode two private repos intersect collaborators", func(t *testing.T) {
+		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{
+			makeIssue("octocat", "repo-a", 1),
+			makeIssue("octocat", "repo-b", 2),
+		}}
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient(searchResult, []repoFixture{
+				{owner: "octocat", repo: "repo-a", isPrivate: true, collaborators: []string{"alice", "bob", "carol"}},
+				{owner: "octocat", repo: "repo-b", isPrivate: true, collaborators: []string{"bob", "carol", "dan"}},
+			})),
+			Flags: FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, []any{"bob", "carol"}, ifcMap["confidentiality"])
+	})
+
+	t.Run("insiders mode skips ifc label when visibility lookup fails", func(t *testing.T) {
+		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{makeIssue("octocat", "broken", 1)}}
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient(searchResult, []repoFixture{
+				{owner: "octocat", repo: "broken", repoStatus: http.StatusInternalServerError},
+			})),
+			Flags: FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError, "tool call should still succeed when visibility lookup fails")
+
+		if result.Meta != nil {
+			_, hasIFC := result.Meta["ifc"]
+			assert.False(t, hasIFC, "ifc label should be omitted when visibility lookup fails")
+		}
+	})
+
+	t.Run("insiders mode empty results emits public untrusted", func(t *testing.T) {
+		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{}}
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient(searchResult, nil)),
+			Flags:  FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, []any{"public"}, ifcMap["confidentiality"])
+	})
+}
+
+func unmarshalIFC(t *testing.T, ifcLabel any) map[string]any {
+	t.Helper()
+	require.NotNil(t, ifcLabel, "ifc label should be present")
+	ifcJSON, err := json.Marshal(ifcLabel)
+	require.NoError(t, err)
+	var ifcMap map[string]any
+	require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
+	return ifcMap
 }
 
 func Test_CreateIssue(t *testing.T) {

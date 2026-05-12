@@ -543,7 +543,6 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 	}
 
 	return utils.NewToolResultText(string(out)), nil
-
 }
 
 // ListIssueTypes creates a tool to list defined issue types for an organization. This can be used to understand supported issue type values for creating or updating issues.
@@ -838,7 +837,6 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 	}
 
 	return utils.NewToolResultText(string(r)), nil
-
 }
 
 func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int) (*mcp.CallToolResult, error) {
@@ -978,9 +976,108 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			result, err := searchHandler(ctx, deps.GetClient, args, "issue", "failed to search issues")
+			var options []searchOption
+			if deps.GetFlags(ctx).InsidersMode {
+				options = append(options, withSearchPostProcess(searchIssuesIFCPostProcess(deps)))
+			}
+			result, err := searchHandler(ctx, deps.GetClient, args, "issue", "failed to search issues", options...)
 			return result, nil, err
 		})
+}
+
+// searchIssuesIFCPostProcess returns a searchPostProcessFn that attaches the
+// IFC label for a search_issues result. It looks up the visibility (and, for
+// private repos, collaborators) of every repository represented in the search
+// payload and joins the labels via ifc.LabelSearchIssues. If any per-repo
+// lookup fails the label is omitted to avoid misclassifying the result.
+func searchIssuesIFCPostProcess(deps ToolDependencies) searchPostProcessFn {
+	return func(ctx context.Context, result *github.IssuesSearchResult, callResult *mcp.CallToolResult) {
+		if callResult == nil || callResult.IsError || result == nil {
+			return
+		}
+
+		client, err := deps.GetClient(ctx)
+		if err != nil {
+			return
+		}
+
+		uniqueRepos := uniqueSearchIssuesRepos(result)
+		visibilities := make([]bool, 0, len(uniqueRepos))
+		readerSets := make([][]string, 0, len(uniqueRepos))
+		for _, r := range uniqueRepos {
+			isPrivate, err := FetchRepoIsPrivate(ctx, client, r.owner, r.repo)
+			if err != nil {
+				return
+			}
+			visibilities = append(visibilities, isPrivate)
+			if !isPrivate {
+				readerSets = append(readerSets, nil)
+				continue
+			}
+			collaborators, err := FetchRepoCollaborators(ctx, client, r.owner, r.repo)
+			if err != nil {
+				return
+			}
+			if len(collaborators) == 0 {
+				collaborators = []string{r.owner}
+			}
+			readerSets = append(readerSets, collaborators)
+		}
+
+		if callResult.Meta == nil {
+			callResult.Meta = mcp.Meta{}
+		}
+		callResult.Meta["ifc"] = ifc.LabelSearchIssues(visibilities, readerSets)
+	}
+}
+
+type searchIssuesRepoRef struct {
+	owner string
+	repo  string
+}
+
+// uniqueSearchIssuesRepos extracts the owner/repo pairs of every issue in the
+// search result, preserving order of first appearance and deduplicating.
+func uniqueSearchIssuesRepos(result *github.IssuesSearchResult) []searchIssuesRepoRef {
+	if result == nil {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	var out []searchIssuesRepoRef
+	for _, issue := range result.Issues {
+		if issue == nil {
+			continue
+		}
+		owner, repo, ok := parseRepositoryURL(issue.GetRepositoryURL())
+		if !ok {
+			continue
+		}
+		key := owner + "/" + repo
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, searchIssuesRepoRef{owner: owner, repo: repo})
+	}
+	return out
+}
+
+// parseRepositoryURL extracts the owner and repo from a GitHub API repository
+// URL of the form https://api.github.com/repos/{owner}/{repo}.
+func parseRepositoryURL(repoURL string) (string, string, bool) {
+	if repoURL == "" {
+		return "", "", false
+	}
+	const marker = "/repos/"
+	idx := strings.LastIndex(repoURL, marker)
+	if idx < 0 {
+		return "", "", false
+	}
+	parts := strings.Split(strings.Trim(repoURL[idx+len(marker):], "/"), "/")
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	return parts[0], parts[1], true
 }
 
 // IssueWrite creates a tool to create a new or update an existing issue in a GitHub repository.
