@@ -304,24 +304,57 @@ func TestGranularUpdateIssueMilestone(t *testing.T) {
 }
 
 func TestGranularUpdateIssueType(t *testing.T) {
-	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
-			"type": "bug",
-		}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
-	}))
-	deps := BaseDeps{Client: client}
-	serverTool := GranularUpdateIssueType(translations.NullTranslationHelper)
-	handler := serverTool.Handler(deps)
+	tests := []struct {
+		name        string
+		requestArgs map[string]any
+		expectedReq map[string]any
+	}{
+		{
+			name: "type only",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "bug",
+			},
+			expectedReq: map[string]any{
+				"type": "bug",
+			},
+		},
+		{
+			name: "type with rationale",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "feature",
+				"rationale":    "This issue requests a new capability",
+			},
+			expectedReq: map[string]any{
+				"type": map[string]any{
+					"value":     "feature",
+					"rationale": "This issue requests a new capability",
+				},
+			},
+		},
+	}
 
-	request := createMCPRequest(map[string]any{
-		"owner":        "owner",
-		"repo":         "repo",
-		"issue_number": float64(1),
-		"issue_type":   "bug",
-	})
-	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-	require.NoError(t, err)
-	assert.False(t, result.IsError)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+			}))
+			deps := BaseDeps{Client: client}
+			serverTool := GranularUpdateIssueType(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			assert.False(t, result.IsError)
+		})
+	}
 }
 
 func TestGranularUpdateIssueState(t *testing.T) {
