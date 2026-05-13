@@ -807,7 +807,7 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 		assert.Equal(t, []any{"public"}, ifcMap["confidentiality"])
 	})
 
-	t.Run("insiders mode mixed public and private collapses to public", func(t *testing.T) {
+	t.Run("insiders mode mixed public and private keeps the private readers", func(t *testing.T) {
 		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{
 			makeIssue("octocat", "private-repo", 1),
 			makeIssue("octocat", "public-repo", 2),
@@ -829,7 +829,7 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		assert.Equal(t, []any{"public"}, ifcMap["confidentiality"])
+		assert.Equal(t, []any{"alice"}, ifcMap["confidentiality"])
 	})
 
 	t.Run("insiders mode two private repos intersect collaborators", func(t *testing.T) {

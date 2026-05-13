@@ -92,15 +92,18 @@ func LabelGetFileContents(isPrivate bool, readers []string) SecurityLabel {
 //
 // Integrity is always untrusted because issue contents are user-authored.
 //
-// Confidentiality follows the IFC join (least upper bound):
-//   - If any matched repository is public, the joined readers are ["public"]
-//     (the agent can already observe public content as soon as one match is
-//     public, so the public side dominates).
-//   - Otherwise the joined readers are the intersection of the per-repository
-//     reader sets (a reader must have access to every matched private
-//     repository).
-//   - If no repositories matched (empty result set), the label is treated as
+// Confidentiality follows the IFC meet (greatest lower bound): the private
+// side dominates because a reader of the combined result must be authorised
+// to read every matched repository. Public repositories contribute the
+// universe set and therefore drop out of the intersection without shrinking
+// it.
+//
+//   - If no repositories matched (empty result set), the label is
 //     public-untrusted because no repository data is leaked.
+//   - If every matched repository is public, the joined readers are
+//     ["public"].
+//   - Otherwise the joined readers are the intersection of the reader sets
+//     of the matched private repositories only.
 //
 // repoVisibilities[i] reports whether the i-th matched repository is private;
 // readerSets[i] is that repository's reader set (only consulted for private
@@ -114,12 +117,16 @@ func LabelSearchIssues(repoVisibilities []bool, readerSets [][]string) (Security
 	if len(repoVisibilities) == 0 {
 		return PublicUntrusted(), true
 	}
-	for _, isPrivate := range repoVisibilities {
-		if !isPrivate {
-			return PublicUntrusted(), true
+	privateReaderSets := make([][]string, 0, len(repoVisibilities))
+	for i, isPrivate := range repoVisibilities {
+		if isPrivate {
+			privateReaderSets = append(privateReaderSets, readerSets[i])
 		}
 	}
-	return PrivateUntrusted(intersectReaders(readerSets)), true
+	if len(privateReaderSets) == 0 {
+		return PublicUntrusted(), true
+	}
+	return PrivateUntrusted(intersectReaders(privateReaderSets)), true
 }
 
 // intersectReaders returns the readers present in every set, preserving the

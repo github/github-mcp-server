@@ -32,12 +32,12 @@ func TestLabelSearchIssues(t *testing.T) {
 			wantConfidential: []Confidentiality{ConfidentialityPublic},
 		},
 		{
-			name:             "mixed public and private collapses to public",
+			name:             "mixed public and private keeps the private reader set",
 			visibilities:     []bool{true, false},
 			readers:          [][]string{{"alice"}, nil},
 			wantOK:           true,
 			wantIntegrity:    IntegrityUntrusted,
-			wantConfidential: []Confidentiality{ConfidentialityPublic},
+			wantConfidential: []Confidentiality{"alice"},
 		},
 		{
 			name:             "two private repos with intersecting collaborators",
@@ -54,6 +54,14 @@ func TestLabelSearchIssues(t *testing.T) {
 			wantOK:           true,
 			wantIntegrity:    IntegrityUntrusted,
 			wantConfidential: []Confidentiality{},
+		},
+		{
+			name:             "two private plus one public intersects only the private sets",
+			visibilities:     []bool{true, false, true},
+			readers:          [][]string{{"alice", "bob", "carol"}, nil, {"bob", "carol", "dan"}},
+			wantOK:           true,
+			wantIntegrity:    IntegrityUntrusted,
+			wantConfidential: []Confidentiality{"bob", "carol"},
 		},
 		{
 			name:             "intersection preserves first-set order and dedupes",
