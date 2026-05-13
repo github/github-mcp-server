@@ -51,6 +51,10 @@ type ServerTool struct {
 	// Tool is the MCP tool definition containing name, description, schema, etc.
 	Tool mcp.Tool
 
+	// OutputSchema is attached to Tool.OutputSchema at registration time when
+	// the output_schemas feature is enabled.
+	OutputSchema any
+
 	// Toolset contains metadata about which toolset this tool belongs to.
 	Toolset ToolsetMetadata
 
@@ -103,22 +107,15 @@ func (st *ServerTool) Handler(deps any) mcp.ToolHandler {
 	return st.HandlerFunc(deps)
 }
 
+// WithOutputSchema attaches a feature-gated output schema to the tool.
+func (st ServerTool) WithOutputSchema(schema any) ServerTool {
+	st.OutputSchema = schema
+	return st
+}
+
 // RegisterToolOptions controls optional tool registration behavior.
 type RegisterToolOptions struct {
 	IncludeOutputSchema bool
-}
-
-type outputSchemasEnabledKey struct{}
-
-// WithOutputSchemasEnabled marks a tool call context as output-schema aware.
-func WithOutputSchemasEnabled(ctx context.Context) context.Context {
-	return context.WithValue(ctx, outputSchemasEnabledKey{}, true)
-}
-
-// OutputSchemasEnabled reports whether a tool call was registered with output schemas enabled.
-func OutputSchemasEnabled(ctx context.Context) bool {
-	enabled, _ := ctx.Value(outputSchemasEnabledKey{}).(bool)
-	return enabled
 }
 
 // RegisterFunc registers the tool with the server using the provided dependencies.
@@ -134,11 +131,9 @@ func (st *ServerTool) RegisterFuncWithOptions(s *mcp.Server, deps any, opts Regi
 	handler := st.Handler(deps) // This will panic if HandlerFunc is nil
 	// Make a shallow copy of the tool to avoid mutating the original
 	toolCopy := st.Tool
-	if opts.IncludeOutputSchema && toolCopy.OutputSchema != nil {
-		handler = wrapHandlerWithOutputSchemasEnabled(handler)
-		handler = wrapHandlerWithStructuredContent(handler)
-	}
-	if !opts.IncludeOutputSchema {
+	if opts.IncludeOutputSchema && st.OutputSchema != nil {
+		toolCopy.OutputSchema = st.OutputSchema
+	} else {
 		toolCopy.OutputSchema = nil
 	}
 	// Apply icons from toolset metadata if tool doesn't have icons set
@@ -146,12 +141,6 @@ func (st *ServerTool) RegisterFuncWithOptions(s *mcp.Server, deps any, opts Regi
 		toolCopy.Icons = st.Toolset.Icons()
 	}
 	s.AddTool(&toolCopy, handler)
-}
-
-func wrapHandlerWithOutputSchemasEnabled(next mcp.ToolHandler) mcp.ToolHandler {
-	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return next(WithOutputSchemasEnabled(ctx), req)
-	}
 }
 
 // NewServerTool creates a ServerTool from a tool definition, toolset metadata, and a typed handler function.

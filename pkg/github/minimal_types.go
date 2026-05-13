@@ -51,6 +51,22 @@ type MinimalSearchRepositoriesResult struct {
 	Items             []MinimalRepository `json:"items"`
 }
 
+// MinimalCodeSearchResult is the trimmed output type for code search results.
+type MinimalCodeSearchResult struct {
+	TotalCount        int                     `json:"total_count"`
+	IncompleteResults bool                    `json:"incomplete_results"`
+	Items             []MinimalCodeSearchItem `json:"items"`
+}
+
+// MinimalCodeSearchItem is the trimmed output type for code search result objects.
+type MinimalCodeSearchItem struct {
+	Name       string             `json:"name,omitempty"`
+	Path       string             `json:"path,omitempty"`
+	SHA        string             `json:"sha,omitempty"`
+	HTMLURL    string             `json:"html_url,omitempty"`
+	Repository *MinimalRepository `json:"repository,omitempty"`
+}
+
 // MinimalCommitAuthor represents commit author information.
 type MinimalCommitAuthor struct {
 	Name  string `json:"name,omitempty"`
@@ -104,6 +120,11 @@ type MinimalCommit struct {
 	Files     []MinimalCommitFile `json:"files,omitempty"`
 }
 
+// MinimalCommitsResponse wraps commits for MCP structured output.
+type MinimalCommitsResponse struct {
+	Commits []MinimalCommit `json:"commits"`
+}
+
 // MinimalRelease is the trimmed output type for release objects.
 type MinimalRelease struct {
 	ID          int64        `json:"id"`
@@ -117,6 +138,11 @@ type MinimalRelease struct {
 	Author      *MinimalUser `json:"author,omitempty"`
 }
 
+// MinimalReleasesResponse wraps releases for MCP structured output.
+type MinimalReleasesResponse struct {
+	Releases []MinimalRelease `json:"releases"`
+}
+
 // MinimalBranch is the trimmed output type for branch objects.
 type MinimalBranch struct {
 	Name      string `json:"name"`
@@ -124,10 +150,44 @@ type MinimalBranch struct {
 	Protected bool   `json:"protected"`
 }
 
+// MinimalBranchesResponse wraps branches for MCP structured output.
+type MinimalBranchesResponse struct {
+	Branches []MinimalBranch `json:"branches"`
+}
+
 // MinimalTag is the trimmed output type for tag objects.
 type MinimalTag struct {
 	Name string `json:"name"`
 	SHA  string `json:"sha"`
+}
+
+// MinimalTagsResponse wraps tags for MCP structured output.
+type MinimalTagsResponse struct {
+	Tags []MinimalTag `json:"tags"`
+}
+
+// MinimalIssueType is the trimmed output type for issue type objects.
+type MinimalIssueType struct {
+	ID          int64  `json:"id,omitempty"`
+	NodeID      string `json:"node_id,omitempty"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+	Color       string `json:"color,omitempty"`
+	CreatedAt   string `json:"created_at,omitempty"`
+	UpdatedAt   string `json:"updated_at,omitempty"`
+}
+
+// MinimalIssueTypesResponse wraps issue types for MCP structured output.
+type MinimalIssueTypesResponse struct {
+	IssueTypes []MinimalIssueType `json:"issue_types"`
+}
+
+// MinimalLabel is the output type for repository labels.
+type MinimalLabel struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Color       string `json:"color,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 
 // MinimalResponse represents a minimal response for all CRUD operations.
@@ -198,6 +258,13 @@ type MinimalIssuesResponse struct {
 	Issues     []MinimalIssue  `json:"issues"`
 	TotalCount int             `json:"totalCount"`
 	PageInfo   MinimalPageInfo `json:"pageInfo"`
+}
+
+// MinimalSearchIssuesResult is the trimmed output type for issue and pull request search results.
+type MinimalSearchIssuesResult struct {
+	TotalCount        int            `json:"total_count"`
+	IncompleteResults bool           `json:"incomplete_results"`
+	Items             []MinimalIssue `json:"items"`
 }
 
 // MinimalIssueComment is the trimmed output type for issue comment objects to reduce verbosity.
@@ -622,6 +689,36 @@ func convertToMinimalUser(user *github.User) *MinimalUser {
 	}
 }
 
+func convertToMinimalRepository(repo *github.Repository) MinimalRepository {
+	minimalRepo := MinimalRepository{
+		ID:            repo.GetID(),
+		Name:          repo.GetName(),
+		FullName:      repo.GetFullName(),
+		Description:   repo.GetDescription(),
+		HTMLURL:       repo.GetHTMLURL(),
+		Language:      repo.GetLanguage(),
+		Stars:         repo.GetStargazersCount(),
+		Forks:         repo.GetForksCount(),
+		OpenIssues:    repo.GetOpenIssuesCount(),
+		Private:       repo.GetPrivate(),
+		Fork:          repo.GetFork(),
+		Archived:      repo.GetArchived(),
+		DefaultBranch: repo.GetDefaultBranch(),
+	}
+
+	if repo.UpdatedAt != nil {
+		minimalRepo.UpdatedAt = repo.UpdatedAt.Format(time.RFC3339)
+	}
+	if repo.CreatedAt != nil {
+		minimalRepo.CreatedAt = repo.CreatedAt.Format(time.RFC3339)
+	}
+	if repo.Topics != nil {
+		minimalRepo.Topics = repo.Topics
+	}
+
+	return minimalRepo
+}
+
 // convertToMinimalCommit converts a GitHub API RepositoryCommit to MinimalCommit
 func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) MinimalCommit {
 	minimalCommit := MinimalCommit{
@@ -790,6 +887,70 @@ func convertToMinimalTag(tag *github.RepositoryTag) MinimalTag {
 	}
 
 	return m
+}
+
+func convertToMinimalIssueType(issueType *github.IssueType) MinimalIssueType {
+	m := MinimalIssueType{
+		ID:          issueType.GetID(),
+		NodeID:      issueType.GetNodeID(),
+		Name:        issueType.GetName(),
+		Description: issueType.GetDescription(),
+		Color:       issueType.GetColor(),
+	}
+
+	if issueType.CreatedAt != nil {
+		m.CreatedAt = issueType.CreatedAt.Format(time.RFC3339)
+	}
+	if issueType.UpdatedAt != nil {
+		m.UpdatedAt = issueType.UpdatedAt.Format(time.RFC3339)
+	}
+
+	return m
+}
+
+func convertToMinimalCodeSearchResult(result *github.CodeSearchResult) MinimalCodeSearchResult {
+	minimalResult := MinimalCodeSearchResult{
+		TotalCount:        result.GetTotal(),
+		IncompleteResults: result.GetIncompleteResults(),
+		Items:             make([]MinimalCodeSearchItem, 0, len(result.CodeResults)),
+	}
+
+	for _, item := range result.CodeResults {
+		if item == nil {
+			continue
+		}
+
+		minimalItem := MinimalCodeSearchItem{
+			Name:    item.GetName(),
+			Path:    item.GetPath(),
+			SHA:     item.GetSHA(),
+			HTMLURL: item.GetHTMLURL(),
+		}
+		if repo := item.GetRepository(); repo != nil {
+			repository := convertToMinimalRepository(repo)
+			minimalItem.Repository = &repository
+		}
+
+		minimalResult.Items = append(minimalResult.Items, minimalItem)
+	}
+
+	return minimalResult
+}
+
+func convertToMinimalSearchIssuesResult(result *github.IssuesSearchResult) MinimalSearchIssuesResult {
+	minimalResult := MinimalSearchIssuesResult{
+		TotalCount:        result.GetTotal(),
+		IncompleteResults: result.GetIncompleteResults(),
+		Items:             make([]MinimalIssue, 0, len(result.Issues)),
+	}
+
+	for _, issue := range result.Issues {
+		if issue != nil {
+			minimalResult.Items = append(minimalResult.Items, convertToMinimalIssue(issue))
+		}
+	}
+
+	return minimalResult
 }
 
 // MinimalCheckRun is the trimmed output type for check run objects.

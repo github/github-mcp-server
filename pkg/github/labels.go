@@ -93,21 +93,21 @@ func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(fmt.Sprintf("label '%s' not found in %s/%s", name, owner, repo)), nil, nil
 			}
 
-			label := map[string]any{
-				"id":          fmt.Sprintf("%v", query.Repository.Label.ID),
-				"name":        string(query.Repository.Label.Name),
-				"color":       string(query.Repository.Label.Color),
-				"description": string(query.Repository.Label.Description),
+			label := MinimalLabel{
+				ID:          fmt.Sprintf("%v", query.Repository.Label.ID),
+				Name:        string(query.Repository.Label.Name),
+				Color:       string(query.Repository.Label.Color),
+				Description: string(query.Repository.Label.Description),
 			}
 
-			out, err := json.Marshal(label)
+			result, err := structuredTextResult(ctx, deps, label, label)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal label: %w", err)
 			}
 
-			return utils.NewToolResultText(string(out)), nil, nil
+			return result, nil, nil
 		},
-	)
+	).WithOutputSchema(MustOutputSchema[MinimalLabel]())
 }
 
 // GetLabelForLabelsToolset returns the same GetLabel tool but registered in the labels toolset.

@@ -92,7 +92,7 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
-			result, resp, err := client.Search.Repositories(ctx, query, opts)
+			searchResult, resp, err := client.Search.Repositories(ctx, query, opts)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					fmt.Sprintf("failed to search repositories with query '%s'", query),
@@ -110,60 +110,31 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search repositories", resp, body), nil, nil
 			}
 
-			// Return either minimal or full response based on parameter
-			var r []byte
-			if minimalOutput {
-				minimalRepos := make([]MinimalRepository, 0, len(result.Repositories))
-				for _, repo := range result.Repositories {
-					minimalRepo := MinimalRepository{
-						ID:            repo.GetID(),
-						Name:          repo.GetName(),
-						FullName:      repo.GetFullName(),
-						Description:   repo.GetDescription(),
-						HTMLURL:       repo.GetHTMLURL(),
-						Language:      repo.GetLanguage(),
-						Stars:         repo.GetStargazersCount(),
-						Forks:         repo.GetForksCount(),
-						OpenIssues:    repo.GetOpenIssuesCount(),
-						Private:       repo.GetPrivate(),
-						Fork:          repo.GetFork(),
-						Archived:      repo.GetArchived(),
-						DefaultBranch: repo.GetDefaultBranch(),
-					}
-
-					if repo.UpdatedAt != nil {
-						minimalRepo.UpdatedAt = repo.UpdatedAt.Format("2006-01-02T15:04:05Z")
-					}
-					if repo.CreatedAt != nil {
-						minimalRepo.CreatedAt = repo.CreatedAt.Format("2006-01-02T15:04:05Z")
-					}
-					if repo.Topics != nil {
-						minimalRepo.Topics = repo.Topics
-					}
-
-					minimalRepos = append(minimalRepos, minimalRepo)
-				}
-
-				minimalResult := &MinimalSearchRepositoriesResult{
-					TotalCount:        result.GetTotal(),
-					IncompleteResults: result.GetIncompleteResults(),
-					Items:             minimalRepos,
-				}
-
-				r, err = json.Marshal(minimalResult)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to marshal minimal response", err), nil, nil
-				}
-			} else {
-				r, err = json.Marshal(result)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to marshal full response", err), nil, nil
+			minimalRepos := make([]MinimalRepository, 0, len(searchResult.Repositories))
+			for _, repo := range searchResult.Repositories {
+				if repo != nil {
+					minimalRepos = append(minimalRepos, convertToMinimalRepository(repo))
 				}
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			minimalResult := &MinimalSearchRepositoriesResult{
+				TotalCount:        searchResult.GetTotal(),
+				IncompleteResults: searchResult.GetIncompleteResults(),
+				Items:             minimalRepos,
+			}
+
+			textValue := any(minimalResult)
+			if !minimalOutput {
+				textValue = searchResult
+			}
+			result, err := structuredTextResult(ctx, deps, textValue, minimalResult)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+
+			return result, nil, nil
 		},
-	)
+	).WithOutputSchema(MustOutputSchema[MinimalSearchRepositoriesResult]())
 }
 
 // SearchCode creates a tool to search for code across GitHub repositories.
@@ -251,14 +222,14 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search code", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(result)
+			toolResult, err := structuredTextResult(ctx, deps, result, convertToMinimalCodeSearchResult(result))
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return toolResult, nil, nil
 		},
-	)
+	).WithOutputSchema(MustOutputSchema[MinimalCodeSearchResult]())
 }
 
 func userOrOrgHandler(ctx context.Context, accountType string, deps ToolDependencies, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -340,11 +311,11 @@ func userOrOrgHandler(ctx context.Context, accountType string, deps ToolDependen
 		minimalResp.IncompleteResults = *result.IncompleteResults
 	}
 
-	r, err := json.Marshal(minimalResp)
+	toolResult, err := structuredTextResult(ctx, deps, minimalResp, minimalResp)
 	if err != nil {
 		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 	}
-	return utils.NewToolResultText(string(r)), nil, nil
+	return toolResult, nil, nil
 }
 
 // SearchUsers creates a tool to search for GitHub users.
@@ -380,14 +351,13 @@ func SearchUsers(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_SEARCH_USERS_USER_TITLE", "Search users"),
 				ReadOnlyHint: true,
 			},
-			InputSchema:  schema,
-			OutputSchema: MustOutputSchema[MinimalSearchUsersResult](),
+			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			return userOrOrgHandler(ctx, "user", deps, args)
 		},
-	)
+	).WithOutputSchema(MustOutputSchema[MinimalSearchUsersResult]())
 }
 
 // SearchOrgs creates a tool to search for GitHub organizations.
@@ -423,12 +393,11 @@ func SearchOrgs(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_SEARCH_ORGS_USER_TITLE", "Search organizations"),
 				ReadOnlyHint: true,
 			},
-			InputSchema:  schema,
-			OutputSchema: MustOutputSchema[MinimalSearchUsersResult](),
+			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.ReadOrg},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			return userOrOrgHandler(ctx, "org", deps, args)
 		},
-	)
+	).WithOutputSchema(MustOutputSchema[MinimalSearchUsersResult]())
 }

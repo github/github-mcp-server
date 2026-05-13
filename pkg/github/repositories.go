@@ -53,7 +53,6 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 				Required: []string{"owner", "repo", "sha"},
 			}),
-			OutputSchema: MustOutputSchema[MinimalCommit](),
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -108,14 +107,14 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// Convert to minimal commit
 			minimalCommit := convertToMinimalCommit(commit, includeDiff)
 
-			r, err := json.Marshal(minimalCommit)
+			result, err := structuredTextResult(ctx, deps, minimalCommit, minimalCommit)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return result, nil, nil
 		},
-	)
+	).WithOutputSchema(MustOutputSchema[MinimalCommit]())
 }
 
 // ListCommits creates a tool to get commits of a branch in a repository.
@@ -255,14 +254,14 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 				minimalCommits[i] = convertToMinimalCommit(commit, false)
 			}
 
-			r, err := json.Marshal(minimalCommits)
+			result, err := structuredTextResult(ctx, deps, minimalCommits, MinimalCommitsResponse{Commits: minimalCommits})
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return result, nil, nil
 		},
-	)
+	).WithOutputSchema(MustOutputSchema[MinimalCommitsResponse]())
 }
 
 // ListBranches creates a tool to list branches in a GitHub repository.
@@ -342,14 +341,14 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 				minimalBranches = append(minimalBranches, convertToMinimalBranch(branch))
 			}
 
-			r, err := json.Marshal(minimalBranches)
+			result, err := structuredTextResult(ctx, deps, minimalBranches, MinimalBranchesResponse{Branches: minimalBranches})
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return result, nil, nil
 		},
-	)
+	).WithOutputSchema(MustOutputSchema[MinimalBranchesResponse]())
 }
 
 // CreateOrUpdateFile creates a tool to create or update a file in a GitHub repository.
@@ -1582,14 +1581,14 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 				}
 			}
 
-			r, err := json.Marshal(minimalTags)
+			result, err := structuredTextResult(ctx, deps, minimalTags, MinimalTagsResponse{Tags: minimalTags})
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return result, nil, nil
 		},
-	)
+	).WithOutputSchema(MustOutputSchema[MinimalTagsResponse]())
 }
 
 // GetTag creates a tool to get details about a specific tag in a GitHub repository.
@@ -1770,14 +1769,14 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 				}
 			}
 
-			r, err := json.Marshal(minimalReleases)
+			result, err := structuredTextResult(ctx, deps, minimalReleases, MinimalReleasesResponse{Releases: minimalReleases})
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return result, nil, nil
 		},
-	)
+	).WithOutputSchema(MustOutputSchema[MinimalReleasesResponse]())
 }
 
 // GetLatestRelease creates a tool to get the latest release in a GitHub repository.
@@ -1836,14 +1835,14 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get latest release", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(release)
+			result, err := structuredTextResult(ctx, deps, release, convertToMinimalRelease(release))
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return result, nil, nil
 		},
-	)
+	).WithOutputSchema(MustOutputSchema[MinimalRelease]())
 }
 
 func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -1913,14 +1912,14 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get release by tag", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(release)
+			result, err := structuredTextResult(ctx, deps, release, convertToMinimalRelease(release))
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return result, nil, nil
 		},
-	)
+	).WithOutputSchema(MustOutputSchema[MinimalRelease]())
 }
 
 // ListStarredRepositories creates a tool to list starred repositories for the authenticated user or a specified user.

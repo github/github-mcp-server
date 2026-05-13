@@ -2,7 +2,6 @@ package github
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -39,7 +38,7 @@ func hasTypeFilter(query string) bool {
 
 func searchHandler(
 	ctx context.Context,
-	getClient GetClientFn,
+	deps ToolDependencies,
 	args map[string]any,
 	searchType string,
 	errorPrefix string,
@@ -90,7 +89,7 @@ func searchHandler(
 		},
 	}
 
-	client, err := getClient(ctx)
+	client, err := deps.GetClient(ctx)
 	if err != nil {
 		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub client", err), nil
 	}
@@ -108,10 +107,10 @@ func searchHandler(
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), nil
 	}
 
-	r, err := json.Marshal(result)
+	toolResult, err := structuredTextResult(ctx, deps, result, convertToMinimalSearchIssuesResult(result))
 	if err != nil {
 		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), nil
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return toolResult, nil
 }

@@ -593,13 +593,20 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list issue types", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(issueTypes)
+			minimalIssueTypes := make([]MinimalIssueType, 0, len(issueTypes))
+			for _, issueType := range issueTypes {
+				if issueType != nil {
+					minimalIssueTypes = append(minimalIssueTypes, convertToMinimalIssueType(issueType))
+				}
+			}
+
+			result, err := structuredTextResult(ctx, deps, issueTypes, MinimalIssueTypesResponse{IssueTypes: minimalIssueTypes})
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal issue types", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
-		})
+			return result, nil, nil
+		}).WithOutputSchema(MustOutputSchema[MinimalIssueTypesResponse]())
 }
 
 // AddIssueComment creates a tool to add a comment to an issue.
@@ -978,9 +985,9 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			result, err := searchHandler(ctx, deps.GetClient, args, "issue", "failed to search issues")
+			result, err := searchHandler(ctx, deps, args, "issue", "failed to search issues")
 			return result, nil, err
-		})
+		}).WithOutputSchema(MustOutputSchema[MinimalSearchIssuesResult]())
 }
 
 // IssueWrite creates a tool to create a new or update an existing issue in a GitHub repository.
@@ -1432,8 +1439,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_LIST_ISSUES_USER_TITLE", "List issues"),
 				ReadOnlyHint: true,
 			},
-			InputSchema:  schema,
-			OutputSchema: MustOutputSchema[MinimalIssuesResponse](),
+			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -1591,7 +1597,10 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				isPrivate = queryResult.GetIsPrivate()
 			}
 
-			result := MarshalledTextResult(resp)
+			result, err := structuredTextResult(ctx, deps, resp, resp)
+			if err != nil {
+				return nil, nil, err
+			}
 			if deps.GetFlags(ctx).InsidersMode {
 				if result.Meta == nil {
 					result.Meta = mcp.Meta{}
@@ -1614,7 +1623,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				result.Meta["ifc"] = ifc.LabelListIssues(isPrivate, readers)
 			}
 			return result, nil, nil
-		})
+		}).WithOutputSchema(MustOutputSchema[MinimalIssuesResponse]())
 }
 
 // parseISOTimestamp parses an ISO 8601 timestamp string into a time.Time object.

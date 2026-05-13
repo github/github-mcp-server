@@ -1135,8 +1135,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				Title:        t("TOOL_LIST_PULL_REQUESTS_USER_TITLE", "List pull requests"),
 				ReadOnlyHint: true,
 			},
-			InputSchema:  schema,
-			OutputSchema: MustOutputSchema[MinimalPullRequestsResponse](),
+			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -1233,12 +1232,12 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			}
 
 			result := utils.NewToolResultText(string(r))
-			if inventory.OutputSchemasEnabled(ctx) || deps.IsFeatureEnabled(ctx, FeatureFlagOutputSchemas) {
+			if outputSchemasEnabled(ctx, deps) {
 				result.StructuredContent = MinimalPullRequestsResponse{PullRequests: minimalPRs}
 			}
 
 			return result, nil, nil
-		})
+		}).WithOutputSchema(MustOutputSchema[MinimalPullRequestsResponse]())
 }
 
 // MergePullRequest creates a tool to merge a pull request.
@@ -1407,9 +1406,9 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			result, err := searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests")
+			result, err := searchHandler(ctx, deps, args, "pr", "failed to search pull requests")
 			return result, nil, err
-		})
+		}).WithOutputSchema(MustOutputSchema[MinimalSearchIssuesResult]())
 }
 
 // UpdatePullRequestBranch creates a tool to update a pull request branch with the latest changes from the base branch.

@@ -54,8 +54,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			// Use json.RawMessage to ensure "properties" is included even when empty.
 			// OpenAI strict mode requires the properties field to be present.
-			InputSchema:  json.RawMessage(`{"type":"object","properties":{}}`),
-			OutputSchema: MustOutputSchema[MinimalUser](),
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
 			Meta: mcp.Meta{
 				"ui": map[string]any{
 					"resourceUri": GetMeUIResourceURI,
@@ -105,7 +104,10 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 			}
 
-			result := MarshalledTextResult(minimalUser)
+			result, err := structuredTextResult(ctx, deps, minimalUser, minimalUser)
+			if err != nil {
+				return nil, nil, err
+			}
 			if deps.GetFlags(ctx).InsidersMode {
 				if result.Meta == nil {
 					result.Meta = mcp.Meta{}
@@ -114,7 +116,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 			return result, nil, nil
 		},
-	)
+	).WithOutputSchema(MustOutputSchema[MinimalUser]())
 }
 
 type TeamInfo struct {
@@ -126,6 +128,14 @@ type TeamInfo struct {
 type OrganizationTeams struct {
 	Org   string     `json:"org"`
 	Teams []TeamInfo `json:"teams"`
+}
+
+type TeamsResponse struct {
+	Teams []OrganizationTeams `json:"teams"`
+}
+
+type TeamMembersResponse struct {
+	Members []string `json:"members"`
 }
 
 func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -221,9 +231,13 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 				organizations = append(organizations, orgTeams)
 			}
 
-			return MarshalledTextResult(organizations), nil, nil
+			result, err := structuredTextResult(ctx, deps, organizations, TeamsResponse{Teams: organizations})
+			if err != nil {
+				return nil, nil, err
+			}
+			return result, nil, nil
 		},
-	)
+	).WithOutputSchema(MustOutputSchema[TeamsResponse]())
 }
 
 func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -292,7 +306,11 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 				members = append(members, string(member.Login))
 			}
 
-			return MarshalledTextResult(members), nil, nil
+			result, err := structuredTextResult(ctx, deps, members, TeamMembersResponse{Members: members})
+			if err != nil {
+				return nil, nil, err
+			}
+			return result, nil, nil
 		},
-	)
+	).WithOutputSchema(MustOutputSchema[TeamMembersResponse]())
 }
