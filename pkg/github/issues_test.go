@@ -1091,7 +1091,23 @@ func Test_ListIssues(t *testing.T) {
 				"totalCount": 3,
 			},
 			"issueFieldValues": map[string]any{
-				"nodes": []map[string]any{},
+				"nodes": []map[string]any{
+					{
+						"__typename": "IssueFieldDateValue",
+						"field":      map[string]any{"name": "due"},
+						"value":      "2026-06-01",
+					},
+					{
+						"__typename":  "IssueFieldNumberValue",
+						"field":       map[string]any{"name": "estimate"},
+						"valueNumber": 2.5,
+					},
+					{
+						"__typename": "IssueFieldTextValue",
+						"field":      map[string]any{"name": "notes"},
+						"value":      "needs triage",
+					},
+				},
 			},
 		},
 	}
@@ -1364,11 +1380,19 @@ func Test_ListIssues(t *testing.T) {
 					assert.NotEmpty(t, label, "Label should be a non-empty string")
 				}
 
-				// Field values should be flattened to {field, value} pairs. Issue #123 in the mock
-				// data has a SingleSelectValue for "priority"; all others have an empty list.
-				if issue.Number == 123 {
+				// Field values should be flattened to {field, value} pairs. Issue #123 has a
+				// SingleSelectValue; issue #456 exercises the Date/Number/Text branches
+				// (including float formatting); #789 has no field values.
+				switch issue.Number {
+				case 123:
 					assert.Equal(t, []MinimalIssueFieldValue{{Field: "priority", Value: "P1"}}, issue.FieldValues)
-				} else {
+				case 456:
+					assert.Equal(t, []MinimalIssueFieldValue{
+						{Field: "due", Value: "2026-06-01"},
+						{Field: "estimate", Value: "2.5"},
+						{Field: "notes", Value: "needs triage"},
+					}, issue.FieldValues)
+				default:
 					assert.Empty(t, issue.FieldValues)
 				}
 			}
