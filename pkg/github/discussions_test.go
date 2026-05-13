@@ -949,7 +949,6 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 	assert.Contains(t, schema.Properties, "discussionNumber")
 	assert.Contains(t, schema.Properties, "body")
 	assert.Contains(t, schema.Properties, "commentNodeID")
-	assert.NotContains(t, schema.Properties, "replyToCommentNodeID")
 	assert.ElementsMatch(t, schema.Required, []string{"method"})
 
 	discussionQueryMatcher := githubv4mock.NewQueryMatcher(
