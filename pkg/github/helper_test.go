@@ -140,6 +140,11 @@ const (
 	GetSearchUsers        = "GET /search/users"
 	GetSearchRepositories = "GET /search/repositories"
 
+	// Organization endpoints
+	GetOrgsByOrg                        = "GET /orgs/{org}"
+	GetOrgsMembersByOrgByUsername       = "GET /orgs/{org}/members/{username}"
+	GetOrgsPublicMembersByOrgByUsername = "GET /orgs/{org}/public_members/{username}"
+
 	// Raw content endpoints (used for GitHub raw content API, not standard API)
 	// These are used with the raw content client that interacts with raw.githubusercontent.com
 	GetRawReposContentsByOwnerByRepoByPath         = "GET /{owner}/{repo}/HEAD/{path:.*}"

@@ -974,6 +974,12 @@ The following sets of tools are available:
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/organization-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/organization-light.png"><img src="pkg/octicons/icons/organization-light.png" width="20" height="20" alt="organization"></picture> Organizations</summary>
 
+- **check_org_membership** - Check organization membership
+  - **Required OAuth Scopes**: `read:org`
+  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
+  - `org`: GitHub organization login (string, required)
+  - `username`: GitHub username to check (string, required)
+
 - **search_orgs** - Search organizations
   - **Required OAuth Scopes**: `read:org`
   - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`

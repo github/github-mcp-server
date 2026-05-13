@@ -1,0 +1,25 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Check organization membership"
+  },
+  "description": "Check whether a GitHub user is a member of an organization, and report whether that membership is public, private, or not visible.",
+  "inputSchema": {
+    "properties": {
+      "org": {
+        "description": "GitHub organization login",
+        "type": "string"
+      },
+      "username": {
+        "description": "GitHub username to check",
+        "type": "string"
+      }
+    },
+    "required": [
+      "org",
+      "username"
+    ],
+    "type": "object"
+  },
+  "name": "check_org_membership"
+}
