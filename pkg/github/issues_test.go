@@ -405,6 +405,9 @@ func Test_AddIssueComment(t *testing.T) {
 	assert.Equal(t, "add_issue_comment", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 
+	require.NotNil(t, tool.Annotations.DestructiveHint)
+	assert.True(t, *tool.Annotations.DestructiveHint)
+
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
