@@ -308,7 +308,6 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 					Name:        code.GetName(),
 					Path:        code.GetPath(),
 					SHA:         code.GetSHA(),
-					HTMLURL:     code.GetHTMLURL(),
 					TextMatches: code.TextMatches,
 				}
 				if code.Repository != nil {

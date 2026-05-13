@@ -430,10 +430,9 @@ func Test_SearchCode(t *testing.T) {
 		IncompleteResults: github.Ptr(false),
 		CodeResults: []*github.CodeResult{
 			{
-				Name:    github.Ptr("file1.go"),
-				Path:    github.Ptr("path/to/file1.go"),
-				SHA:     github.Ptr("abc123def456"),
-				HTMLURL: github.Ptr("https://github.com/owner/repo/blob/main/path/to/file1.go"),
+				Name: github.Ptr("file1.go"),
+				Path: github.Ptr("path/to/file1.go"),
+				SHA:  github.Ptr("abc123def456"),
 				Repository: &github.Repository{
 					Name:     github.Ptr("repo"),
 					FullName: github.Ptr("owner/repo"),
@@ -445,10 +444,9 @@ func Test_SearchCode(t *testing.T) {
 				},
 			},
 			{
-				Name:    github.Ptr("file2.go"),
-				Path:    github.Ptr("path/to/file2.go"),
-				SHA:     github.Ptr("def456abc123"),
-				HTMLURL: github.Ptr("https://github.com/owner/repo/blob/main/path/to/file2.go"),
+				Name: github.Ptr("file2.go"),
+				Path: github.Ptr("path/to/file2.go"),
+				SHA:  github.Ptr("def456abc123"),
 				Repository: &github.Repository{
 					Name:     github.Ptr("repo"),
 					FullName: github.Ptr("owner/repo"),
@@ -562,7 +560,6 @@ func Test_SearchCode(t *testing.T) {
 				assert.Equal(t, tc.expectedResult.CodeResults[i].GetName(), code.Name)
 				assert.Equal(t, tc.expectedResult.CodeResults[i].GetPath(), code.Path)
 				assert.Equal(t, tc.expectedResult.CodeResults[i].GetSHA(), code.SHA)
-				assert.Equal(t, tc.expectedResult.CodeResults[i].GetHTMLURL(), code.HTMLURL)
 				assert.Equal(t, tc.expectedResult.CodeResults[i].Repository.GetFullName(), code.Repository)
 			}
 

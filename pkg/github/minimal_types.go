@@ -63,7 +63,6 @@ type MinimalCodeResult struct {
 	Name        string              `json:"name"`
 	Path        string              `json:"path"`
 	SHA         string              `json:"sha"`
-	HTMLURL     string              `json:"html_url"`
 	Repository  string              `json:"repository"`
 	TextMatches []*github.TextMatch `json:"text_matches,omitempty"`
 }
