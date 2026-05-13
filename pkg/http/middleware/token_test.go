@@ -232,6 +232,55 @@ func TestExtractUserToken_NilOAuthConfig(t *testing.T) {
 	assert.Equal(t, utils.TokenTypePersonalAccessToken, capturedTokenInfo.TokenType)
 }
 
+func TestExtractUserToken_DefaultTokenFallback(t *testing.T) {
+	var capturedTokenInfo *ghcontext.TokenInfo
+	var tokenInfoCaptured bool
+
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedTokenInfo, tokenInfoCaptured = ghcontext.GetTokenInfo(r.Context())
+		w.WriteHeader(http.StatusOK)
+	})
+
+	middleware := ExtractUserToken(nil, "ghp_defaulttokenxxxxxxxxxxxxxxxxxxxxxxxx")
+	handler := middleware(nextHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	require.True(t, tokenInfoCaptured)
+	require.NotNil(t, capturedTokenInfo)
+	assert.Equal(t, utils.TokenTypePersonalAccessToken, capturedTokenInfo.TokenType)
+	assert.Equal(t, "ghp_defaulttokenxxxxxxxxxxxxxxxxxxxxxxxx", capturedTokenInfo.Token)
+}
+
+func TestExtractUserToken_RequestTokenOverridesDefaultToken(t *testing.T) {
+	var capturedTokenInfo *ghcontext.TokenInfo
+	var tokenInfoCaptured bool
+
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedTokenInfo, tokenInfoCaptured = ghcontext.GetTokenInfo(r.Context())
+		w.WriteHeader(http.StatusOK)
+	})
+
+	middleware := ExtractUserToken(nil, "ghp_defaulttokenxxxxxxxxxxxxxxxxxxxxxxxx")
+	handler := middleware(nextHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set(headers.AuthorizationHeader, "Bearer gho_requesttokenxxxxxxxxxxxxxxxxxxxxxxxx")
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	require.True(t, tokenInfoCaptured)
+	require.NotNil(t, capturedTokenInfo)
+	assert.Equal(t, utils.TokenTypeOAuthAccessToken, capturedTokenInfo.TokenType)
+	assert.Equal(t, "gho_requesttokenxxxxxxxxxxxxxxxxxxxxxxxx", capturedTokenInfo.Token)
+}
+
 func TestExtractUserToken_MissingAuthHeader_WWWAuthenticateFormat(t *testing.T) {
 	oauthCfg := &oauth.Config{
 		BaseURL:             "https://api.example.com",

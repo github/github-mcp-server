@@ -54,6 +54,10 @@ type MCPServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
+	// AllowedPRAuthors restricts mutating pull request tools to PRs authored by
+	// one of these GitHub logins. Empty means unrestricted.
+	AllowedPRAuthors []string
+
 	// InsidersMode indicates if we should enable experimental features
 	InsidersMode bool
 

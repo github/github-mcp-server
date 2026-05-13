@@ -10,7 +10,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/utils"
 )
 
-func ExtractUserToken(oauthCfg *oauth.Config) func(next http.Handler) http.Handler {
+func ExtractUserToken(oauthCfg *oauth.Config, defaultToken ...string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -27,6 +27,20 @@ func ExtractUserToken(oauthCfg *oauth.Config) func(next http.Handler) http.Handl
 			if err != nil {
 				// For missing Authorization header, return 401 with WWW-Authenticate header per MCP spec
 				if errors.Is(err, utils.ErrMissingAuthorizationHeader) {
+					if len(defaultToken) > 0 && defaultToken[0] != "" {
+						tokenType, err := utils.ParseToken(defaultToken[0])
+						if err != nil {
+							http.Error(w, fmt.Sprintf("default token is invalid: %v", err), http.StatusInternalServerError)
+							return
+						}
+
+						ctx = ghcontext.WithTokenInfo(ctx, &ghcontext.TokenInfo{
+							Token:     defaultToken[0],
+							TokenType: tokenType,
+						})
+						next.ServeHTTP(w, r.WithContext(ctx))
+						return
+					}
 					sendAuthChallenge(w, r, oauthCfg)
 					return
 				}

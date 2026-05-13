@@ -71,6 +71,9 @@ func (s stubDeps) Logger(_ context.Context) *slog.Logger {
 func (s stubDeps) Metrics(ctx context.Context) metrics.Metrics {
 	return s.obsv.Metrics(ctx)
 }
+func (s stubDeps) IsPRAuthorAllowed(_ string) (bool, bool) {
+	return true, false
+}
 
 // Helper functions to create stub client functions for error testing
 

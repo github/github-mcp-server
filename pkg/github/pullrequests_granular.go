@@ -77,6 +77,10 @@ func prUpdateTool(
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			if result, err := enforcePRAuthorAllowlist(ctx, deps, owner, repo, pullNumber, nil); result != nil || err != nil {
+				return result, nil, err
+			}
+
 			prReq, err := buildRequest(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -218,6 +222,10 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			if result, err := enforcePRAuthorAllowlist(ctx, deps, owner, repo, pullNumber, nil); result != nil || err != nil {
+				return result, nil, err
+			}
+
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
@@ -326,6 +334,10 @@ func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) i
 				return utils.NewToolResultError("missing required parameter: reviewers"), nil, nil
 			}
 
+			if result, err := enforcePRAuthorAllowlist(ctx, deps, owner, repo, pullNumber, nil); result != nil || err != nil {
+				return result, nil, err
+			}
+
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
@@ -394,6 +406,10 @@ func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inven
 			body, _ := OptionalParam[string](args, "body")
 			event, _ := OptionalParam[string](args, "event")
 			commitID, _ := OptionalParam[string](args, "commitID")
+
+			if result, err := enforcePRAuthorAllowlist(ctx, deps, owner, repo, pullNumber, nil); result != nil || err != nil {
+				return result, nil, err
+			}
 
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
@@ -465,6 +481,10 @@ func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc
 			}
 			body, _ := OptionalParam[string](args, "body")
 
+			if result, err := enforcePRAuthorAllowlist(ctx, deps, owner, repo, pullNumber, nil); result != nil || err != nil {
+				return result, nil, err
+			}
+
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
@@ -520,6 +540,10 @@ func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc
 			pullNumber, err := RequiredInt(args, "pullNumber")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			if result, err := enforcePRAuthorAllowlist(ctx, deps, owner, repo, pullNumber, nil); result != nil || err != nil {
+				return result, nil, err
 			}
 
 			gqlClient, err := deps.GetGQLClient(ctx)
@@ -605,6 +629,10 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			startSide, _ := OptionalParam[string](args, "startSide")
+
+			if result, err := enforcePRAuthorAllowlist(ctx, deps, owner, repo, pullNumber, nil); result != nil || err != nil {
+				return result, nil, err
+			}
 
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {

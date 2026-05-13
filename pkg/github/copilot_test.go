@@ -961,3 +961,31 @@ func Test_RequestCopilotReview(t *testing.T) {
 		})
 	}
 }
+
+func Test_RequestCopilotReview_PRAuthorDenied(t *testing.T) {
+	serverTool := RequestCopilotReview(translations.NullTranslationHelper)
+	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, &github.PullRequest{
+			User: &github.User{Login: github.Ptr("alice")},
+		}),
+		PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: func(w http.ResponseWriter, _ *http.Request) {
+			t.Fatal("reviewer request endpoint should not be called when PR author is denied")
+		},
+	}))
+	deps := BaseDeps{
+		Client:           client,
+		allowedPRAuthors: buildPRAuthorAllowlist([]string{"renovate[bot]"}),
+	}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(42),
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(t, getErrorResult(t, result).Text, `pull request author "alice" is not in --allowed-pr-authors`)
+}

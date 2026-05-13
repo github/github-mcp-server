@@ -507,6 +507,10 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			if result, err := enforcePRAuthorAllowlist(ctx, deps, owner, repo, pullNumber, nil); result != nil || err != nil {
+				return result, nil, err
+			}
+
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil

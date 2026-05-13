@@ -386,6 +386,41 @@ func Test_AddIssueComment(t *testing.T) {
 	}
 }
 
+func Test_AddIssueComment_PRAuthorDenied(t *testing.T) {
+	serverTool := AddIssueComment(translations.NullTranslationHelper)
+	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, &github.Issue{
+			Number: github.Ptr(42),
+			PullRequestLinks: &github.PullRequestLinks{
+				URL: github.Ptr("https://api.github.com/repos/owner/repo/pulls/42"),
+			},
+		}),
+		GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, &github.PullRequest{
+			User: &github.User{Login: github.Ptr("alice")},
+		}),
+		PostReposIssuesCommentsByOwnerByRepoByIssueNumber: func(w http.ResponseWriter, _ *http.Request) {
+			t.Fatal("issue comment endpoint should not be called when PR author is denied")
+		},
+	}))
+	deps := BaseDeps{
+		Client:           client,
+		allowedPRAuthors: buildPRAuthorAllowlist([]string{"renovate[bot]"}),
+	}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(42),
+		"body":         "comment",
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(t, getErrorResult(t, result).Text, `pull request author "alice" is not in --allowed-pr-authors`)
+}
+
 func Test_SearchIssues(t *testing.T) {
 	// Verify tool definition once
 	serverTool := SearchIssues(translations.NullTranslationHelper)

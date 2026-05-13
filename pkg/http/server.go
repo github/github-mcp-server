@@ -32,6 +32,10 @@ type ServerConfig struct {
 	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
 	Host string
 
+	// GitHub Token to use for requests that do not provide Authorization.
+	// If empty, HTTP requests must provide their own Authorization header.
+	Token string
+
 	// Port to listen on (default: 8082)
 	Port int
 
@@ -58,6 +62,10 @@ type ServerConfig struct {
 
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
+
+	// AllowedPRAuthors restricts mutating pull request tools to PRs authored by
+	// one of these GitHub logins. Empty means unrestricted.
+	AllowedPRAuthors []string
 
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
@@ -111,6 +119,12 @@ func RunHTTPServer(cfg ServerConfig) error {
 	}
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "lockdownEnabled", cfg.LockdownMode, "readOnly", cfg.ReadOnly, "insidersMode", cfg.InsidersMode)
+	if len(cfg.AllowedPRAuthors) > 0 {
+		logger.Info("PR author allowlist enforced", "authors", cfg.AllowedPRAuthors)
+	}
+	if cfg.Token != "" {
+		logger.Warn("HTTP default token fallback enabled; requests without Authorization use the server token. Only expose this endpoint on a trusted network.")
+	}
 
 	apiHost, err := utils.NewAPIHost(cfg.Host)
 	if err != nil {
@@ -140,6 +154,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 		cfg.ContentWindowSize,
 		featureChecker,
 		obs,
+		cfg.AllowedPRAuthors,
 	)
 
 	// Initialize the global tool scope map
