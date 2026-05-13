@@ -86,3 +86,80 @@ func LabelGetFileContents(isPrivate bool, readers []string) SecurityLabel {
 	}
 	return PublicUntrusted()
 }
+
+// LabelSearchIssues returns the IFC label for a search_issues result, joining
+// per-repository labels across all matched repositories.
+//
+// Integrity is always untrusted because issue contents are user-authored.
+//
+// Confidentiality follows the IFC meet (greatest lower bound): the private
+// side dominates because a reader of the combined result must be authorised
+// to read every matched repository. Public repositories contribute the
+// universe set and therefore drop out of the intersection without shrinking
+// it.
+//
+//   - If no repositories matched (empty result set), the label is
+//     public-untrusted because no repository data is leaked.
+//   - If every matched repository is public, the joined readers are
+//     ["public"].
+//   - Otherwise the joined readers are the intersection of the reader sets
+//     of the matched private repositories only.
+//
+// repoVisibilities[i] reports whether the i-th matched repository is private;
+// readerSets[i] is that repository's reader set (only consulted for private
+// repos). The two slices must have the same length; the second return value
+// is false when they do not, in which case the caller should omit the label
+// rather than emit one computed from inconsistent inputs.
+func LabelSearchIssues(repoVisibilities []bool, readerSets [][]string) (SecurityLabel, bool) {
+	if len(repoVisibilities) != len(readerSets) {
+		return SecurityLabel{}, false
+	}
+	if len(repoVisibilities) == 0 {
+		return PublicUntrusted(), true
+	}
+	privateReaderSets := make([][]string, 0, len(repoVisibilities))
+	for i, isPrivate := range repoVisibilities {
+		if isPrivate {
+			privateReaderSets = append(privateReaderSets, readerSets[i])
+		}
+	}
+	if len(privateReaderSets) == 0 {
+		return PublicUntrusted(), true
+	}
+	return PrivateUntrusted(intersectReaders(privateReaderSets)), true
+}
+
+// intersectReaders returns the readers present in every set, preserving the
+// order from the first set. Empty input yields nil.
+func intersectReaders(sets [][]string) []string {
+	if len(sets) == 0 {
+		return nil
+	}
+	counts := make(map[string]int, len(sets[0]))
+	for _, login := range sets[0] {
+		if _, seen := counts[login]; seen {
+			continue
+		}
+		counts[login] = 1
+	}
+	for _, set := range sets[1:] {
+		seen := make(map[string]struct{}, len(set))
+		for _, login := range set {
+			if _, dup := seen[login]; dup {
+				continue
+			}
+			seen[login] = struct{}{}
+			if _, ok := counts[login]; ok {
+				counts[login]++
+			}
+		}
+	}
+	out := make([]string, 0, len(counts))
+	for _, login := range sets[0] {
+		if counts[login] == len(sets) {
+			out = append(out, login)
+			delete(counts, login)
+		}
+	}
+	return out
+}
