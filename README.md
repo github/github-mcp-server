@@ -741,8 +741,8 @@ The following sets of tools are available:
     - 'reply' - replies to a top-level discussion comment (GitHub Discussions only support one level of nesting).
     - 'update' - updates an existing discussion comment.
     - 'delete' - deletes a discussion comment.
-    - 'mark_answer' - marks a discussion comment as the answer.
-    - 'unmark_answer' - unmarks a discussion comment as the answer.
+    - 'mark_answer' - marks a discussion comment as the answer (Q&A only).
+    - 'unmark_answer' - unmarks a discussion comment as the answer (Q&A only).
      (string, required)
   - `owner`: Repository owner (required for 'add' and 'reply' methods) (string, optional)
   - `repo`: Repository name (required for 'add' and 'reply' methods) (string, optional)

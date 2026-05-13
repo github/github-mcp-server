@@ -19,7 +19,7 @@
         "type": "number"
       },
       "method": {
-        "description": "Write operation to perform on a discussion comment.\nOptions are:\n- 'add' - adds a new top-level comment to a discussion.\n- 'reply' - replies to a top-level discussion comment (GitHub Discussions only support one level of nesting).\n- 'update' - updates an existing discussion comment.\n- 'delete' - deletes a discussion comment.\n- 'mark_answer' - marks a discussion comment as the answer.\n- 'unmark_answer' - unmarks a discussion comment as the answer.\n",
+        "description": "Write operation to perform on a discussion comment.\nOptions are:\n- 'add' - adds a new top-level comment to a discussion.\n- 'reply' - replies to a top-level discussion comment (GitHub Discussions only support one level of nesting).\n- 'update' - updates an existing discussion comment.\n- 'delete' - deletes a discussion comment.\n- 'mark_answer' - marks a discussion comment as the answer (Q\u0026A only).\n- 'unmark_answer' - unmarks a discussion comment as the answer (Q\u0026A only).\n",
         "enum": [
           "add",
           "reply",
