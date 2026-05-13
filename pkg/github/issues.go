@@ -176,7 +176,7 @@ type IssueFragment struct {
 	} `graphql:"comments"`
 	IssueFieldValues struct {
 		Nodes []IssueFieldValueFragment
-	} `graphql:"issueFieldValues(first: 25)"`
+	} `graphql:"issueFieldValues(first: 25)"` // 25 exceeds the practical max of custom fields per issue in GitHub Projects
 }
 
 // Common interface for all issue query types
@@ -249,7 +249,7 @@ type searchIssuesNodesQuery struct {
 			ID               githubv4.ID
 			IssueFieldValues struct {
 				Nodes []IssueFieldValueFragment
-			} `graphql:"issueFieldValues(first: 25)"`
+			} `graphql:"issueFieldValues(first: 25)"` // 25 exceeds the practical max of custom fields per issue in GitHub Projects
 		} `graphql:"... on Issue"`
 	} `graphql:"nodes(ids: $ids)"`
 }
