@@ -234,6 +234,11 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Description: "Sort order for results",
 				Enum:        []any{"asc", "desc"},
 			},
+			"minimal_output": {
+				Type:        "boolean",
+				Description: "Return minimal repository information (default: true). When false, returns full GitHub API repository objects.",
+				Default:     json.RawMessage(`true`),
+			},
 		},
 		Required: []string{"query"},
 	}
@@ -265,6 +270,10 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			minimalOutput, err := OptionalBoolParamWithDefault(args, "minimal_output", true)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -302,29 +311,37 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search code", resp, body), nil, nil
 			}
 
-			minimalItems := make([]MinimalCodeResult, 0, len(result.CodeResults))
-			for _, code := range result.CodeResults {
-				item := MinimalCodeResult{
-					Name:        code.GetName(),
-					Path:        code.GetPath(),
-					SHA:         code.GetSHA(),
-					TextMatches: code.TextMatches,
+			var r []byte
+			if minimalOutput {
+				minimalItems := make([]MinimalCodeResult, 0, len(result.CodeResults))
+				for _, code := range result.CodeResults {
+					item := MinimalCodeResult{
+						Name:        code.GetName(),
+						Path:        code.GetPath(),
+						SHA:         code.GetSHA(),
+						TextMatches: code.TextMatches,
+					}
+					if code.Repository != nil {
+						item.Repository = code.Repository.GetFullName()
+					}
+					minimalItems = append(minimalItems, item)
 				}
-				if code.Repository != nil {
-					item.Repository = code.Repository.GetFullName()
+
+				minimalResult := &MinimalCodeSearchResult{
+					TotalCount:        result.GetTotal(),
+					IncompleteResults: result.GetIncompleteResults(),
+					Items:             minimalItems,
 				}
-				minimalItems = append(minimalItems, item)
-			}
 
-			minimalResult := &MinimalCodeSearchResult{
-				TotalCount:        result.GetTotal(),
-				IncompleteResults: result.GetIncompleteResults(),
-				Items:             minimalItems,
-			}
-
-			r, err := json.Marshal(minimalResult)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				r, err = json.Marshal(minimalResult)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to marshal minimal response", err), nil, nil
+				}
+			} else {
+				r, err = json.Marshal(result)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				}
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
