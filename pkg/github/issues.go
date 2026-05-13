@@ -297,44 +297,33 @@ Options are:
 			}
 
 			// attachIFC adds the IFC label to a successful tool result when
-			// InsidersMode is enabled. The visibility and (for private
-			// repositories) collaborators lookups are performed lazily on
-			// first use. If the visibility lookup fails the label is omitted
-			// rather than misclassifying the result; the failure is not
-			// cached so a subsequent dispatch branch could retry. If only
-			// the collaborators lookup fails for a private repo we fall back
-			// to the owner so the reader set is never empty. The label
-			// matches list_issues semantics: per-repo visibility, integrity
-			// always untrusted.
-			var (
-				ifcLabelKnown bool
-				ifcIsPrivate  bool
-				ifcReaders    []string
-			)
+			// InsidersMode is enabled. If the visibility lookup fails the
+			// label is omitted rather than misclassifying the result. If
+			// only the collaborators lookup fails for a private repo we
+			// fall back to the owner so the reader set is never empty. The
+			// label matches list_issues semantics: per-repo visibility,
+			// integrity always untrusted.
 			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
 				if r == nil || r.IsError || !deps.GetFlags(ctx).InsidersMode {
 					return r
 				}
-				if !ifcLabelKnown {
-					isPrivate, err := FetchRepoIsPrivate(ctx, client, owner, repo)
-					if err != nil {
-						return r
+				isPrivate, err := FetchRepoIsPrivate(ctx, client, owner, repo)
+				if err != nil {
+					return r
+				}
+				var readers []string
+				if isPrivate {
+					if collaborators, err := FetchRepoCollaborators(ctx, client, owner, repo); err == nil {
+						readers = collaborators
 					}
-					ifcIsPrivate = isPrivate
-					if ifcIsPrivate {
-						if collaborators, err := FetchRepoCollaborators(ctx, client, owner, repo); err == nil {
-							ifcReaders = collaborators
-						}
-						if len(ifcReaders) == 0 {
-							ifcReaders = []string{owner}
-						}
+					if len(readers) == 0 {
+						readers = []string{owner}
 					}
-					ifcLabelKnown = true
 				}
 				if r.Meta == nil {
 					r.Meta = mcp.Meta{}
 				}
-				r.Meta["ifc"] = ifc.LabelListIssues(ifcIsPrivate, ifcReaders)
+				r.Meta["ifc"] = ifc.LabelListIssues(isPrivate, readers)
 				return r
 			}
 
