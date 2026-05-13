@@ -663,6 +663,10 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
+			if result, err := enforceIssueCommentPRAuthorAllowlist(ctx, deps, client, owner, repo, issueNumber); result != nil || err != nil {
+				return result, nil, err
+			}
+
 			createdComment, resp, err := client.Issues.CreateComment(ctx, owner, repo, issueNumber, comment)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to create comment", err), nil, nil

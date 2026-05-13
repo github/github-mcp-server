@@ -55,9 +55,7 @@ func enforcePRAuthorAllowlist(
 	pullNumber int,
 	pr *gogithub.PullRequest,
 ) (*mcp.CallToolResult, error) {
-	if allowed, enforced := deps.IsPRAuthorAllowed(""); !enforced {
-		return nil, nil
-	} else if allowed {
+	if _, enforced := deps.IsPRAuthorAllowed(""); !enforced {
 		return nil, nil
 	}
 
@@ -82,5 +80,50 @@ func enforcePRAuthorAllowlist(
 		return nil, nil
 	}
 
+	logPRAuthorAllowlistDenied(ctx, deps, owner, repo, pullNumber, login)
 	return utils.NewToolResultError(fmt.Sprintf("pull request author %q is not in --allowed-pr-authors", login)), nil
+}
+
+// enforceIssueCommentPRAuthorAllowlist applies the PR author allowlist when
+// an issue-comment target is actually a pull request.
+func enforceIssueCommentPRAuthorAllowlist(
+	ctx context.Context,
+	deps ToolDependencies,
+	client *gogithub.Client,
+	owner, repo string,
+	issueNumber int,
+) (*mcp.CallToolResult, error) {
+	if _, enforced := deps.IsPRAuthorAllowed(""); !enforced {
+		return nil, nil
+	}
+
+	issue, resp, err := client.Issues.Get(ctx, owner, repo, issueNumber)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get issue", resp, err), nil
+	}
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+
+	if issue.GetPullRequestLinks() == nil {
+		return nil, nil
+	}
+
+	return enforcePRAuthorAllowlist(ctx, deps, owner, repo, issueNumber, nil)
+}
+
+func logPRAuthorAllowlistDenied(ctx context.Context, deps ToolDependencies, owner, repo string, pullNumber int, login string) {
+	defer func() {
+		_ = recover()
+	}()
+
+	if logger := deps.Logger(ctx); logger != nil {
+		logger.Warn(
+			"PR mutation denied by allowlist",
+			"owner", owner,
+			"repo", repo,
+			"pr", pullNumber,
+			"author", login,
+		)
+	}
 }

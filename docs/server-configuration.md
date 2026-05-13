@@ -413,7 +413,7 @@ When set, mutating pull request tools first fetch the target pull request and ch
 }
 ```
 
-Known limitations: `actions_run_trigger` operates on refs, not pull request numbers, so it is not gated by this setting. The allowlist checks `pr.User.Login`; PRs from forks authored by allowed bots still pass. Enabling the allowlist adds one API call before a mutating PR operation when the handler does not already have the pull request.
+Known limitations: `actions_run_trigger` operates on refs, not pull request numbers, so it is not gated by this setting. Review-thread resolve and unresolve tools take only opaque thread IDs and are not gated by the PR author allowlist. The allowlist checks `pr.User.Login`; PRs from forks authored by allowed bots still pass. Enabling the allowlist adds one API call before a mutating PR operation when the handler does not already have the pull request.
 
 ---
 

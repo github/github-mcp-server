@@ -260,6 +260,9 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	}
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
+	if len(cfg.AllowedPRAuthors) > 0 {
+		logger.Info("PR author allowlist enforced", "authors", cfg.AllowedPRAuthors)
+	}
 
 	// Fetch token scopes for scope-based tool filtering (PAT tokens only)
 	// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.

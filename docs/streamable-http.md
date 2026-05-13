@@ -101,3 +101,5 @@ GITHUB_PERSONAL_ACCESS_TOKEN=ghp_yourtokenhere github-mcp-server http
 ```
 
 If a request includes `Authorization: Bearer ...`, that request token takes precedence. If no request token is provided and no server-side token is configured, the server returns `401 Unauthorized`.
+
+When this fallback is enabled, the server's GitHub identity is used for every HTTP request without an `Authorization` header. Only expose the endpoint on a trusted network.

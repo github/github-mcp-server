@@ -119,6 +119,12 @@ func RunHTTPServer(cfg ServerConfig) error {
 	}
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "lockdownEnabled", cfg.LockdownMode, "readOnly", cfg.ReadOnly, "insidersMode", cfg.InsidersMode)
+	if len(cfg.AllowedPRAuthors) > 0 {
+		logger.Info("PR author allowlist enforced", "authors", cfg.AllowedPRAuthors)
+	}
+	if cfg.Token != "" {
+		logger.Warn("HTTP default token fallback enabled; requests without Authorization use the server token. Only expose this endpoint on a trusted network.")
+	}
 
 	apiHost, err := utils.NewAPIHost(cfg.Host)
 	if err != nil {
