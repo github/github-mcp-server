@@ -593,8 +593,9 @@ func DiscussionCommentWrite(t translations.TranslationHelperFunc) inventory.Serv
 			Description: t("TOOL_DISCUSSION_COMMENT_WRITE_DESCRIPTION", `Write operations for discussion comments.
 Supports adding top-level comments, replying to existing comments, updating comment content, deleting comments, and marking or unmarking comments as the answer.`),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_DISCUSSION_COMMENT_WRITE_USER_TITLE", "Manage discussion comments"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_DISCUSSION_COMMENT_WRITE_USER_TITLE", "Manage discussion comments"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",

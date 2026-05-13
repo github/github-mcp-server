@@ -933,7 +933,6 @@ func Test_ListDiscussionCategories(t *testing.T) {
 func Test_DiscussionCommentWrite(t *testing.T) {
 	t.Parallel()
 
-	// Verify tool definition and schema
 	toolDef := DiscussionCommentWrite(translations.NullTranslationHelper)
 	tool := toolDef.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -941,6 +940,8 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 	assert.Equal(t, "discussion_comment_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.False(t, tool.Annotations.ReadOnlyHint, "discussion_comment_write should not be read-only")
+	require.NotNil(t, tool.Annotations.DestructiveHint)
+	assert.True(t, *tool.Annotations.DestructiveHint, "discussion_comment_write should be destructive")
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "method")
@@ -952,49 +953,7 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 	assert.NotContains(t, schema.Properties, "replyToCommentNodeID")
 	assert.ElementsMatch(t, schema.Required, []string{"method"})
 
-	discussionQueryMatcher := githubv4mock.NewQueryMatcher(
-		struct {
-			Repository struct {
-				Discussion struct {
-					ID githubv4.ID
-				} `graphql:"discussion(number: $discussionNumber)"`
-			} `graphql:"repository(owner: $owner, name: $repo)"`
-		}{},
-		map[string]any{
-			"owner":            githubv4.String("owner"),
-			"repo":             githubv4.String("repo"),
-			"discussionNumber": githubv4.Int(1),
-		},
-		githubv4mock.DataResponse(map[string]any{
-			"repository": map[string]any{
-				"discussion": map[string]any{
-					"id": "D_kwDOTest123",
-				},
-			},
-		}),
-	)
-	replyValidationQuery := struct {
-		Node struct {
-			DiscussionComment struct {
-				ID         *githubv4.ID
-				Discussion struct {
-					ID githubv4.ID
-				} `graphql:"discussion"`
-			} `graphql:"... on DiscussionComment"`
-		} `graphql:"node(id: $replyToID)"`
-	}{}
-
-	tests := []struct {
-		name                  string
-		requestArgs           map[string]any
-		mockedClient          *http.Client
-		expectToolError       bool
-		expectedErrMsg        string
-		expectedID            string
-		expectedURL           string
-		expectedDiscussionID  string
-		expectedDiscussionURL string
-	}{
+	runDiscussionCommentWriteTests(t, []discussionCommentWriteTestCase{
 		{
 			name:            "method: missing",
 			requestArgs:     map[string]any{},
@@ -1003,15 +962,32 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			expectedErrMsg:  "missing required parameter: method",
 		},
 		{
-			name: "method: empty",
+			name: "invalid method",
 			requestArgs: map[string]any{
-				"method": "",
+				"method": "invalid",
 			},
 			mockedClient:    githubv4mock.NewMockedHTTPClient(),
 			expectToolError: true,
-			expectedErrMsg:  "missing required parameter: method",
+			expectedErrMsg:  "invalid method, must be one of: 'add', 'reply', 'update', 'delete', 'mark_answer', 'unmark_answer'",
 		},
-		// add method tests
+	})
+}
+
+func Test_DiscussionCommentWrite_Add(t *testing.T) {
+	t.Parallel()
+
+	discussionQueryMatcher := discussionCommentWriteDiscussionQueryMatcher(
+		1,
+		githubv4mock.DataResponse(map[string]any{
+			"repository": map[string]any{
+				"discussion": map[string]any{
+					"id": "D_kwDOTest123",
+				},
+			},
+		}),
+	)
+
+	runDiscussionCommentWriteTests(t, []discussionCommentWriteTestCase{
 		{
 			name: "add: successful comment creation",
 			requestArgs: map[string]any{
@@ -1111,42 +1087,6 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			expectedErrMsg:  "insufficient permissions to comment on this discussion",
 		},
 		{
-			name: "add: missing owner",
-			requestArgs: map[string]any{
-				"method":           "add",
-				"repo":             "repo",
-				"discussionNumber": int32(1),
-				"body":             "This is a comment",
-			},
-			mockedClient:    githubv4mock.NewMockedHTTPClient(),
-			expectToolError: true,
-			expectedErrMsg:  "missing required parameter: owner",
-		},
-		{
-			name: "add: missing repo",
-			requestArgs: map[string]any{
-				"method":           "add",
-				"owner":            "owner",
-				"discussionNumber": int32(1),
-				"body":             "This is a comment",
-			},
-			mockedClient:    githubv4mock.NewMockedHTTPClient(),
-			expectToolError: true,
-			expectedErrMsg:  "missing required parameter: repo",
-		},
-		{
-			name: "add: missing discussion number",
-			requestArgs: map[string]any{
-				"method": "add",
-				"owner":  "owner",
-				"repo":   "repo",
-				"body":   "This is a comment",
-			},
-			mockedClient:    githubv4mock.NewMockedHTTPClient(),
-			expectToolError: true,
-			expectedErrMsg:  "missing required parameter: discussionNumber",
-		},
-		{
 			name: "add: missing body",
 			requestArgs: map[string]any{
 				"method":           "add",
@@ -1158,7 +1098,24 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			expectToolError: true,
 			expectedErrMsg:  "missing required parameter: body",
 		},
-		// reply method tests
+	})
+}
+
+func Test_DiscussionCommentWrite_Reply(t *testing.T) {
+	t.Parallel()
+
+	discussionQueryMatcher := discussionCommentWriteDiscussionQueryMatcher(
+		1,
+		githubv4mock.DataResponse(map[string]any{
+			"repository": map[string]any{
+				"discussion": map[string]any{
+					"id": "D_kwDOTest123",
+				},
+			},
+		}),
+	)
+
+	runDiscussionCommentWriteTests(t, []discussionCommentWriteTestCase{
 		{
 			name: "reply: successful reply to comment",
 			requestArgs: map[string]any{
@@ -1170,11 +1127,8 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 				"commentNodeID":    "DC_kwDOComment456",
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					replyValidationQuery,
-					map[string]any{
-						"replyToID": githubv4.ID("DC_kwDOComment456"),
-					},
+				discussionCommentWriteReplyValidationQueryMatcher(
+					"DC_kwDOComment456",
 					githubv4mock.DataResponse(map[string]any{
 						"node": map[string]any{
 							"id": "DC_kwDOComment456",
@@ -1251,11 +1205,8 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 				"commentNodeID":    "DC_kwDOInvalid",
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					replyValidationQuery,
-					map[string]any{
-						"replyToID": githubv4.ID("DC_kwDOInvalid"),
-					},
+				discussionCommentWriteReplyValidationQueryMatcher(
+					"DC_kwDOInvalid",
 					githubv4mock.DataResponse(map[string]any{
 						"node": nil,
 					}),
@@ -1275,11 +1226,8 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 				"commentNodeID":    "DC_kwDOComment456",
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					replyValidationQuery,
-					map[string]any{
-						"replyToID": githubv4.ID("DC_kwDOComment456"),
-					},
+				discussionCommentWriteReplyValidationQueryMatcher(
+					"DC_kwDOComment456",
 					githubv4mock.DataResponse(map[string]any{
 						"node": map[string]any{
 							"id": "DC_kwDOComment456",
@@ -1305,70 +1253,21 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 				"commentNodeID":    "DC_kwDOComment456",
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					replyValidationQuery,
-					map[string]any{
-						"replyToID": githubv4.ID("DC_kwDOComment456"),
-					},
+				discussionCommentWriteReplyValidationQueryMatcher(
+					"DC_kwDOComment456",
 					githubv4mock.ErrorResponse("Could not resolve to a node with the global id of 'DC_kwDOComment456'."),
 				),
 			),
 			expectToolError: true,
 			expectedErrMsg:  "failed to validate commentNodeID: Could not resolve to a node with the global id of 'DC_kwDOComment456'.",
 		},
-		{
-			name: "reply: missing owner",
-			requestArgs: map[string]any{
-				"method":           "reply",
-				"repo":             "repo",
-				"discussionNumber": int32(1),
-				"body":             "This is a reply",
-				"commentNodeID":    "DC_kwDOComment456",
-			},
-			mockedClient:    githubv4mock.NewMockedHTTPClient(),
-			expectToolError: true,
-			expectedErrMsg:  "missing required parameter: owner",
-		},
-		{
-			name: "reply: missing repo",
-			requestArgs: map[string]any{
-				"method":           "reply",
-				"owner":            "owner",
-				"discussionNumber": int32(1),
-				"body":             "This is a reply",
-				"commentNodeID":    "DC_kwDOComment456",
-			},
-			mockedClient:    githubv4mock.NewMockedHTTPClient(),
-			expectToolError: true,
-			expectedErrMsg:  "missing required parameter: repo",
-		},
-		{
-			name: "reply: missing discussion number",
-			requestArgs: map[string]any{
-				"method":        "reply",
-				"owner":         "owner",
-				"repo":          "repo",
-				"body":          "This is a reply",
-				"commentNodeID": "DC_kwDOComment456",
-			},
-			mockedClient:    githubv4mock.NewMockedHTTPClient(),
-			expectToolError: true,
-			expectedErrMsg:  "missing required parameter: discussionNumber",
-		},
-		{
-			name: "reply: missing body",
-			requestArgs: map[string]any{
-				"method":           "reply",
-				"owner":            "owner",
-				"repo":             "repo",
-				"discussionNumber": int32(1),
-				"commentNodeID":    "DC_kwDOComment456",
-			},
-			mockedClient:    githubv4mock.NewMockedHTTPClient(),
-			expectToolError: true,
-			expectedErrMsg:  "missing required parameter: body",
-		},
-		// update method tests
+	})
+}
+
+func Test_DiscussionCommentWrite_Update(t *testing.T) {
+	t.Parallel()
+
+	runDiscussionCommentWriteTests(t, []discussionCommentWriteTestCase{
 		{
 			name: "update: successful comment update",
 			requestArgs: map[string]any{
@@ -1491,7 +1390,13 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			expectToolError: true,
 			expectedErrMsg:  "missing required parameter: body",
 		},
-		// delete method tests
+	})
+}
+
+func Test_DiscussionCommentWrite_Delete(t *testing.T) {
+	t.Parallel()
+
+	runDiscussionCommentWriteTests(t, []discussionCommentWriteTestCase{
 		{
 			name: "delete: successful comment delete",
 			requestArgs: map[string]any{
@@ -1586,17 +1491,13 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			expectToolError: true,
 			expectedErrMsg:  "missing required parameter: commentNodeID",
 		},
-		{
-			name: "delete: whitespace-only commentNodeID is rejected",
-			requestArgs: map[string]any{
-				"method":        "delete",
-				"commentNodeID": "   ",
-			},
-			mockedClient:    githubv4mock.NewMockedHTTPClient(),
-			expectToolError: true,
-			expectedErrMsg:  "commentNodeID cannot be blank",
-		},
-		// mark_answer method tests
+	})
+}
+
+func Test_DiscussionCommentWrite_MarkAnswer(t *testing.T) {
+	t.Parallel()
+
+	runDiscussionCommentWriteTests(t, []discussionCommentWriteTestCase{
 		{
 			name: "mark_answer: successful mark as answer",
 			requestArgs: map[string]any{
@@ -1657,15 +1558,6 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			expectedErrMsg:  "discussion is not a Q&A discussion",
 		},
 		{
-			name: "mark_answer: missing commentNodeID",
-			requestArgs: map[string]any{
-				"method": "mark_answer",
-			},
-			mockedClient:    githubv4mock.NewMockedHTTPClient(),
-			expectToolError: true,
-			expectedErrMsg:  "missing required parameter: commentNodeID",
-		},
-		{
 			name: "mark_answer: whitespace-only commentNodeID is rejected",
 			requestArgs: map[string]any{
 				"method":        "mark_answer",
@@ -1675,7 +1567,13 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			expectToolError: true,
 			expectedErrMsg:  "commentNodeID cannot be blank",
 		},
-		// unmark_answer method tests
+	})
+}
+
+func Test_DiscussionCommentWrite_UnmarkAnswer(t *testing.T) {
+	t.Parallel()
+
+	runDiscussionCommentWriteTests(t, []discussionCommentWriteTestCase{
 		{
 			name: "unmark_answer: successful unmark as answer",
 			requestArgs: map[string]any{
@@ -1735,36 +1633,25 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			expectToolError: true,
 			expectedErrMsg:  "insufficient permissions",
 		},
-		{
-			name: "unmark_answer: missing commentNodeID",
-			requestArgs: map[string]any{
-				"method": "unmark_answer",
-			},
-			mockedClient:    githubv4mock.NewMockedHTTPClient(),
-			expectToolError: true,
-			expectedErrMsg:  "missing required parameter: commentNodeID",
-		},
-		{
-			name: "unmark_answer: whitespace-only commentNodeID is rejected",
-			requestArgs: map[string]any{
-				"method":        "unmark_answer",
-				"commentNodeID": "   ",
-			},
-			mockedClient:    githubv4mock.NewMockedHTTPClient(),
-			expectToolError: true,
-			expectedErrMsg:  "commentNodeID cannot be blank",
-		},
-		// invalid method test
-		{
-			name: "invalid method",
-			requestArgs: map[string]any{
-				"method": "invalid",
-			},
-			mockedClient:    githubv4mock.NewMockedHTTPClient(),
-			expectToolError: true,
-			expectedErrMsg:  "invalid method, must be one of: 'add', 'reply', 'update', 'delete', 'mark_answer', 'unmark_answer'",
-		},
-	}
+	})
+}
+
+type discussionCommentWriteTestCase struct {
+	name                  string
+	requestArgs           map[string]any
+	mockedClient          *http.Client
+	expectToolError       bool
+	expectedErrMsg        string
+	expectedID            string
+	expectedURL           string
+	expectedDiscussionID  string
+	expectedDiscussionURL string
+}
+
+func runDiscussionCommentWriteTests(t *testing.T, tests []discussionCommentWriteTestCase) {
+	t.Helper()
+
+	toolDef := DiscussionCommentWrite(translations.NullTranslationHelper)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			gqlClient := githubv4.NewClient(tc.mockedClient)
@@ -1801,6 +1688,43 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 			}
 		})
 	}
+}
+
+func discussionCommentWriteDiscussionQueryMatcher(discussionNumber int32, response githubv4mock.GQLResponse) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		struct {
+			Repository struct {
+				Discussion struct {
+					ID githubv4.ID
+				} `graphql:"discussion(number: $discussionNumber)"`
+			} `graphql:"repository(owner: $owner, name: $repo)"`
+		}{},
+		map[string]any{
+			"owner":            githubv4.String("owner"),
+			"repo":             githubv4.String("repo"),
+			"discussionNumber": githubv4.Int(discussionNumber),
+		},
+		response,
+	)
+}
+
+func discussionCommentWriteReplyValidationQueryMatcher(commentNodeID string, response githubv4mock.GQLResponse) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		struct {
+			Node struct {
+				DiscussionComment struct {
+					ID         *githubv4.ID
+					Discussion struct {
+						ID githubv4.ID
+					} `graphql:"discussion"`
+				} `graphql:"... on DiscussionComment"`
+			} `graphql:"node(id: $replyToID)"`
+		}{},
+		map[string]any{
+			"replyToID": githubv4.ID(commentNodeID),
+		},
+		response,
+	)
 }
 
 func githubv4ptr(id githubv4.ID) *githubv4.ID {

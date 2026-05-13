@@ -1,5 +1,6 @@
 {
   "annotations": {
+    "destructiveHint": true,
     "title": "Manage discussion comments"
   },
   "description": "Write operations for discussion comments.\nSupports adding top-level comments, replying to existing comments, updating comment content, deleting comments, and marking or unmarking comments as the answer.",
