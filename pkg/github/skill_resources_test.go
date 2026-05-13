@@ -42,8 +42,8 @@ func TestBuildSkillContent(t *testing.T) {
 	assert.Contains(t, content, "---\n")
 	assert.Contains(t, content, "name: test-skill\n")
 	assert.Contains(t, content, "description: A test skill\n")
-	assert.Contains(t, content, "  - tool_a\n")
-	assert.Contains(t, content, "  - tool_b\n")
+	assert.Contains(t, content, "metadata:\n")
+	assert.Contains(t, content, "  io.modelcontextprotocol/tools: \"tool_a tool_b\"\n")
 	assert.Contains(t, content, "# Test\n")
 }
 

@@ -496,10 +496,8 @@ func buildSkillContent(skill skillDefinition) string {
 	b.WriteString("---\n")
 	fmt.Fprintf(&b, "name: %s\n", skill.name)
 	fmt.Fprintf(&b, "description: %s\n", skill.description)
-	b.WriteString("allowed-tools:\n")
-	for _, tool := range skill.allowedTools {
-		fmt.Fprintf(&b, "  - %s\n", tool)
-	}
+	b.WriteString("metadata:\n")
+	fmt.Fprintf(&b, "  io.modelcontextprotocol/tools: \"%s\"\n", strings.Join(skill.allowedTools, " "))
 	b.WriteString("---\n\n")
 	b.WriteString(skill.body)
 	return b.String()
