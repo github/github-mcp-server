@@ -1205,6 +1205,17 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `sha`: Commit SHA, branch name, or tag name (string, required)
 
+- **get_file_blame** - Get file blame information
+  - **Required OAuth Scopes**: `repo`
+  - `end_line`: Optional 1-based ending line of the window of interest. Must be >= start_line when both are provided. (number, optional)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `path`: Path to the file in the repository, relative to the repository root (string, required)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `ref`: Git reference (branch, tag, or commit SHA). Defaults to the repository's default branch (HEAD). (string, optional)
+  - `repo`: Repository name (string, required)
+  - `start_line`: Optional 1-based starting line of the window of interest. Only ranges overlapping [start_line, end_line] are returned, clamped to the window. (number, optional)
+
 - **get_file_contents** - Get file or directory contents
   - **Required OAuth Scopes**: `repo`
   - `owner`: Repository owner (username or organization) (string, required)

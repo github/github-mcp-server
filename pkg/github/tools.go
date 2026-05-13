@@ -184,6 +184,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListCommits(t),
 		SearchCode(t),
 		GetCommit(t),
+		GetFileBlame(t),
 		ListBranches(t),
 		ListTags(t),
 		GetTag(t),
