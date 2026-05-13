@@ -1050,7 +1050,7 @@ func unmarshalIFC(t *testing.T, ifcLabel any) map[string]any {
 	return ifcMap
 }
 
-func Test_CreateIssue(t *testing.T) {
+func Test_IssueWrite_Create(t *testing.T) {
 	// Verify tool definition once
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
@@ -1058,6 +1058,7 @@ func Test_CreateIssue(t *testing.T) {
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	require.NotNil(t, tool.Annotations)
 	require.NotNil(t, tool.Annotations.DestructiveHint)
 	assert.True(t, *tool.Annotations.DestructiveHint)
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
