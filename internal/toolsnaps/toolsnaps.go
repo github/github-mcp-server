@@ -23,6 +23,10 @@ func Test(toolName string, tool any) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal tool %s: %w", toolName, err)
 	}
+	toolJSON, err = sortJSONKeys(toolJSON)
+	if err != nil {
+		return fmt.Errorf("failed to normalize tool %s: %w", toolName, err)
+	}
 
 	snapPath := fmt.Sprintf("__toolsnaps__/%s.snap", toolName)
 
@@ -95,6 +99,12 @@ func sortJSONKeys(jsonData []byte) ([]byte, error) {
 	var data any
 	if err := json.Unmarshal(jsonData, &data); err != nil {
 		return nil, err
+	}
+
+	// outputSchema is feature-gated at registration time, so default tool
+	// snapshots continue to represent the non-opt-in tool surface.
+	if object, ok := data.(map[string]any); ok {
+		delete(object, "outputSchema")
 	}
 
 	return json.MarshalIndent(data, "", "  ")

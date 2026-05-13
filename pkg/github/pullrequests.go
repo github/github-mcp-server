@@ -1138,7 +1138,8 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				Title:        t("TOOL_LIST_PULL_REQUESTS_USER_TITLE", "List pull requests"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: schema,
+			InputSchema:  schema,
+			OutputSchema: MustOutputSchema[MinimalPullRequestsResponse](),
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -1234,7 +1235,12 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			if inventory.OutputSchemasEnabled(ctx) || deps.IsFeatureEnabled(ctx, FeatureFlagOutputSchemas) {
+				result.StructuredContent = MinimalPullRequestsResponse{PullRequests: minimalPRs}
+			}
+
+			return result, nil, nil
 		})
 }
 

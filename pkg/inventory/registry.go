@@ -182,8 +182,11 @@ func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any) 
 	if !r.checkFeatureFlag(ctx, mcpAppsFeatureFlag) {
 		tools = stripMCPAppsMetadata(tools)
 	}
+	registerOpts := RegisterToolOptions{
+		IncludeOutputSchema: r.checkFeatureFlag(ctx, outputSchemasFeatureFlag),
+	}
 	for _, tool := range tools {
-		tool.RegisterFunc(s, deps)
+		tool.RegisterFuncWithOptions(s, deps, registerOpts)
 	}
 }
 

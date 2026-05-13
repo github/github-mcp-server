@@ -380,7 +380,8 @@ func SearchUsers(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_SEARCH_USERS_USER_TITLE", "Search users"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: schema,
+			InputSchema:  schema,
+			OutputSchema: MustOutputSchema[MinimalSearchUsersResult](),
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -422,7 +423,8 @@ func SearchOrgs(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_SEARCH_ORGS_USER_TITLE", "Search organizations"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: schema,
+			InputSchema:  schema,
+			OutputSchema: MustOutputSchema[MinimalSearchUsersResult](),
 		},
 		[]scopes.Scope{scopes.ReadOrg},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
