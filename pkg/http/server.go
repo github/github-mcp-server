@@ -32,6 +32,10 @@ type ServerConfig struct {
 	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
 	Host string
 
+	// GitHub Token to use for requests that do not provide Authorization.
+	// If empty, HTTP requests must provide their own Authorization header.
+	Token string
+
 	// Port to listen on (default: 8082)
 	Port int
 

@@ -91,3 +91,13 @@ To provide PAT credentials, or to customize server behavior preferences, you can
 ```
 
 See [Remote Server](./remote-server.md) documentation for more details on client configuration options.
+
+### Using a Server-Side Default Token
+
+For trusted local deployments, HTTP mode can use `GITHUB_PERSONAL_ACCESS_TOKEN` as a fallback when a request does not include an `Authorization` header:
+
+```bash
+GITHUB_PERSONAL_ACCESS_TOKEN=ghp_yourtokenhere github-mcp-server http
+```
+
+If a request includes `Authorization: Bearer ...`, that request token takes precedence. If no request token is provided and no server-side token is configured, the server returns `401 Unauthorized`.

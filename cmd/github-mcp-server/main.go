@@ -146,6 +146,7 @@ var (
 			httpConfig := ghhttp.ServerConfig{
 				Version:              version,
 				Host:                 viper.GetString("host"),
+				Token:                viper.GetString("personal_access_token"),
 				Port:                 viper.GetInt("port"),
 				BaseURL:              viper.GetString("base-url"),
 				ResourcePath:         viper.GetString("base-path"),
