@@ -1050,6 +1050,100 @@ func unmarshalIFC(t *testing.T, ifcLabel any) map[string]any {
 	return ifcMap
 }
 
+func Test_SearchIssues_FieldValuesEnrichment(t *testing.T) {
+	serverTool := SearchIssues(translations.NullTranslationHelper)
+
+	mockSearchResult := &github.IssuesSearchResult{
+		Total:             github.Ptr(2),
+		IncompleteResults: github.Ptr(false),
+		Issues: []*github.Issue{
+			{
+				Number:  github.Ptr(42),
+				Title:   github.Ptr("Bug: Something is broken"),
+				State:   github.Ptr("open"),
+				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+				NodeID:  github.Ptr("I_node_42"),
+				User:    &github.User{Login: github.Ptr("user1")},
+			},
+			{
+				Number:  github.Ptr(43),
+				Title:   github.Ptr("Feature request"),
+				State:   github.Ptr("open"),
+				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/43"),
+				NodeID:  github.Ptr("I_node_43"),
+				User:    &github.User{Login: github.Ptr("user2")},
+			},
+		},
+	}
+
+	restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetSearchIssues: mockResponse(t, http.StatusOK, mockSearchResult),
+	})
+
+	gqlVars := map[string]any{
+		"ids": []any{"I_node_42", "I_node_43"},
+	}
+	gqlResponse := githubv4mock.DataResponse(map[string]any{
+		"nodes": []map[string]any{
+			{
+				"id": "I_node_42",
+				"issueFieldValues": map[string]any{
+					"nodes": []map[string]any{
+						{
+							"__typename": "IssueFieldSingleSelectValue",
+							"field":      map[string]any{"name": "priority"},
+							"value":      "P1",
+						},
+						{
+							"__typename":  "IssueFieldNumberValue",
+							"field":       map[string]any{"name": "estimate"},
+							"valueNumber": 2.5,
+						},
+					},
+				},
+			},
+			{
+				"id": "I_node_43",
+				"issueFieldValues": map[string]any{
+					"nodes": []map[string]any{},
+				},
+			},
+		},
+	})
+
+	const nodesQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value}}}}}}"
+	matcher := githubv4mock.NewQueryMatcher(nodesQueryString, gqlVars, gqlResponse)
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+
+	deps := BaseDeps{
+		Client:    github.NewClient(restClient),
+		GQLClient: gqlClient,
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"query": "repo:owner/repo is:open",
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, "expected result to not be an error")
+
+	textContent := getTextResult(t, result)
+
+	var response SearchIssuesResponse
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &response))
+	require.Equal(t, 2, *response.Total)
+	require.Len(t, response.Items, 2)
+	assert.Equal(t, 42, *response.Items[0].Number)
+	assert.Equal(t, []MinimalIssueFieldValue{
+		{Field: "priority", Value: "P1"},
+		{Field: "estimate", Value: "2.5"},
+	}, response.Items[0].FieldValues)
+	assert.Equal(t, 43, *response.Items[1].Number)
+	assert.Empty(t, response.Items[1].FieldValues)
+}
+
 func Test_CreateIssue(t *testing.T) {
 	// Verify tool definition once
 	serverTool := IssueWrite(translations.NullTranslationHelper)
