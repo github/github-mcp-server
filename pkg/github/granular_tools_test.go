@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
@@ -328,7 +329,7 @@ func TestGranularUpdateIssueType(t *testing.T) {
 				"repo":         "repo",
 				"issue_number": float64(1),
 				"issue_type":   "feature",
-				"rationale":    "This issue requests a new capability",
+				"rationale":    "  This issue requests a new capability  ",
 			},
 			expectedReq: map[string]any{
 				"type": map[string]any{
@@ -353,6 +354,52 @@ func TestGranularUpdateIssueType(t *testing.T) {
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 			assert.False(t, result.IsError)
+		})
+	}
+}
+
+func TestGranularUpdateIssueTypeInvalidRationale(t *testing.T) {
+	tests := []struct {
+		name           string
+		requestArgs     map[string]any
+		expectedErrText string
+	}{
+		{
+			name: "rationale wrong type",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "feature",
+				"rationale":    float64(123),
+			},
+			expectedErrText: "parameter rationale is not of type string, is float64",
+		},
+		{
+			name: "rationale too long",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "feature",
+				"rationale":    strings.Repeat("a", 281),
+			},
+			expectedErrText: "parameter rationale must be 280 characters or less",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			deps := BaseDeps{Client: gogithub.NewClient(MockHTTPClientWithHandlers(nil))}
+			serverTool := GranularUpdateIssueType(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			errorContent := getErrorResult(t, result)
+			assert.Contains(t, errorContent.Text, tc.expectedErrText)
 		})
 	}
 }

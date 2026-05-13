@@ -383,7 +383,14 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			rationale, _ := OptionalParam[string](args, "rationale")
+			rationale, err := OptionalParam[string](args, "rationale")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			rationale = strings.TrimSpace(rationale)
+			if len([]rune(rationale)) > 280 {
+				return utils.NewToolResultError("parameter rationale must be 280 characters or less"), nil, nil
+			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
