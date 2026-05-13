@@ -53,7 +53,7 @@ func issueUpdateTool(
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_"+strings.ToUpper(name)+"_USER_TITLE", title),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(false),
+				DestructiveHint: jsonschema.Ptr(true),
 				OpenWorldHint:   jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
@@ -332,7 +332,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_TYPE_USER_TITLE", "Update Issue Type"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(false),
+				DestructiveHint: jsonschema.Ptr(true),
 				OpenWorldHint:   jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{

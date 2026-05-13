@@ -1,6 +1,6 @@
 {
   "annotations": {
-    "destructiveHint": false,
+    "destructiveHint": true,
     "openWorldHint": true,
     "title": "Update Issue Assignees"
   },
