@@ -296,19 +296,50 @@ Options are:
 				return utils.NewToolResultErrorFromErr("failed to get GitHub graphql client", err), nil, nil
 			}
 
+			// attachIFC adds the IFC label to a successful tool result when
+			// InsidersMode is enabled. If the visibility lookup fails the
+			// label is omitted rather than misclassifying the result. If
+			// only the collaborators lookup fails for a private repo we
+			// fall back to the owner so the reader set is never empty. The
+			// label matches list_issues semantics: per-repo visibility,
+			// integrity always untrusted.
+			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
+				if r == nil || r.IsError || !deps.GetFlags(ctx).InsidersMode {
+					return r
+				}
+				isPrivate, err := FetchRepoIsPrivate(ctx, client, owner, repo)
+				if err != nil {
+					return r
+				}
+				var readers []string
+				if isPrivate {
+					if collaborators, err := FetchRepoCollaborators(ctx, client, owner, repo); err == nil {
+						readers = collaborators
+					}
+					if len(readers) == 0 {
+						readers = []string{owner}
+					}
+				}
+				if r.Meta == nil {
+					r.Meta = mcp.Meta{}
+				}
+				r.Meta["ifc"] = ifc.LabelListIssues(isPrivate, readers)
+				return r
+			}
+
 			switch method {
 			case "get":
 				result, err := GetIssue(ctx, client, deps, owner, repo, issueNumber)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_comments":
 				result, err := GetIssueComments(ctx, client, deps, owner, repo, issueNumber, pagination)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_sub_issues":
 				result, err := GetSubIssues(ctx, client, deps, owner, repo, issueNumber, pagination)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_labels":
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
