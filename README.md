@@ -1502,6 +1502,16 @@ Following tools will filter out content from users lacking the push access:
 - `pull_request_read:get_review_comments`
 - `pull_request_read:get_reviews`
 
+## Pull Request Author Allowlist
+
+To restrict mutating pull request tools to bot-authored PRs, use `--allowed-pr-authors` or `GITHUB_ALLOWED_PR_AUTHORS` with a comma-separated list of GitHub logins:
+
+```bash
+GITHUB_ALLOWED_PR_AUTHORS='renovate[bot],github-actions[bot]' ./github-mcp-server stdio --toolsets=pull_requests,actions
+```
+
+When set, tools such as `merge_pull_request`, `update_pull_request`, review-write tools, and PR branch updates fetch the target PR and reject the call unless `pr.User.Login` is in the allowlist. Read-only PR tools and `create_pull_request` are not restricted. `actions_run_trigger` is not gated by this setting because it targets a ref rather than a PR number.
+
 ## i18n / Overriding Descriptions
 
 The descriptions of the tools can be overridden by creating a

@@ -69,6 +69,13 @@ var (
 				}
 			}
 
+			var allowedPRAuthors []string
+			if viper.IsSet("allowed_pr_authors") {
+				if err := viper.UnmarshalKey("allowed_pr_authors", &allowedPRAuthors); err != nil {
+					return fmt.Errorf("failed to unmarshal allowed-pr-authors: %w", err)
+				}
+			}
+
 			// Parse enabled features (similar to toolsets)
 			var enabledFeatures []string
 			if viper.IsSet("features") {
@@ -92,6 +99,7 @@ var (
 				LogFilePath:          viper.GetString("log-file"),
 				ContentWindowSize:    viper.GetInt("content-window-size"),
 				LockdownMode:         viper.GetBool("lockdown-mode"),
+				AllowedPRAuthors:     allowedPRAuthors,
 				InsidersMode:         viper.GetBool("insiders"),
 				ExcludeTools:         excludeTools,
 				RepoAccessCacheTTL:   &ttl,
@@ -127,6 +135,13 @@ var (
 				}
 			}
 
+			var allowedPRAuthors []string
+			if viper.IsSet("allowed_pr_authors") {
+				if err := viper.UnmarshalKey("allowed_pr_authors", &allowedPRAuthors); err != nil {
+					return fmt.Errorf("failed to unmarshal allowed-pr-authors: %w", err)
+				}
+			}
+
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			httpConfig := ghhttp.ServerConfig{
 				Version:              version,
@@ -139,6 +154,7 @@ var (
 				LogFilePath:          viper.GetString("log-file"),
 				ContentWindowSize:    viper.GetInt("content-window-size"),
 				LockdownMode:         viper.GetBool("lockdown-mode"),
+				AllowedPRAuthors:     allowedPRAuthors,
 				RepoAccessCacheTTL:   &ttl,
 				ScopeChallenge:       viper.GetBool("scope-challenge"),
 				ReadOnly:             viper.GetBool("read-only"),
@@ -173,6 +189,7 @@ func init() {
 	rootCmd.PersistentFlags().String("gh-host", "", "Specify the GitHub hostname (for GitHub Enterprise etc.)")
 	rootCmd.PersistentFlags().Int("content-window-size", 5000, "Specify the content window size")
 	rootCmd.PersistentFlags().Bool("lockdown-mode", false, "Enable lockdown mode")
+	rootCmd.PersistentFlags().StringSlice("allowed-pr-authors", nil, "Comma-separated list of pull request author logins allowed for mutating pull request tools")
 	rootCmd.PersistentFlags().Bool("insiders", false, "Enable insiders features")
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
 
@@ -195,6 +212,7 @@ func init() {
 	_ = viper.BindPFlag("host", rootCmd.PersistentFlags().Lookup("gh-host"))
 	_ = viper.BindPFlag("content-window-size", rootCmd.PersistentFlags().Lookup("content-window-size"))
 	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
+	_ = viper.BindPFlag("allowed_pr_authors", rootCmd.PersistentFlags().Lookup("allowed-pr-authors"))
 	_ = viper.BindPFlag("insiders", rootCmd.PersistentFlags().Lookup("insiders"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
 	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))

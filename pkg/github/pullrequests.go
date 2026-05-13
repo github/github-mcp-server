@@ -838,6 +838,10 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError("No update parameters provided."), nil, nil
 			}
 
+			if result, err := enforcePRAuthorAllowlist(ctx, deps, owner, repo, pullNumber, nil); result != nil || err != nil {
+				return result, nil, err
+			}
+
 			// Handle REST API updates (title, body, state, base, maintainer_can_modify)
 			if restUpdateNeeded {
 				client, err := deps.GetClient(ctx)
@@ -1058,6 +1062,10 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 			body, err := RequiredParam[string](args, "body")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			if result, err := enforcePRAuthorAllowlist(ctx, deps, owner, repo, pullNumber, nil); result != nil || err != nil {
+				return result, nil, err
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -1311,6 +1319,10 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			if result, err := enforcePRAuthorAllowlist(ctx, deps, owner, repo, pullNumber, nil); result != nil || err != nil {
+				return result, nil, err
+			}
+
 			options := &github.PullRequestOptions{
 				CommitTitle: commitTitle,
 				MergeMethod: mergeMethod,
@@ -1468,6 +1480,10 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 				opts.ExpectedHeadSHA = github.Ptr(expectedHeadSHA)
 			}
 
+			if result, err := enforcePRAuthorAllowlist(ctx, deps, owner, repo, pullNumber, nil); result != nil || err != nil {
+				return result, nil, err
+			}
+
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
@@ -1584,6 +1600,13 @@ Available methods:
 			var params PullRequestReviewWriteParams
 			if err := mapstructure.WeakDecode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			switch params.Method {
+			case "create", "submit_pending", "delete_pending":
+				if result, err := enforcePRAuthorAllowlist(ctx, deps, params.Owner, params.Repo, int(params.PullNumber), nil); result != nil || err != nil {
+					return result, nil, err
+				}
 			}
 
 			// Given our owner, repo and PR number, lookup the GQL ID of the PR.
@@ -2088,6 +2111,10 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			}
 			if err := mapstructure.WeakDecode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			if result, err := enforcePRAuthorAllowlist(ctx, deps, params.Owner, params.Repo, int(params.PullNumber), nil); result != nil || err != nil {
+				return result, nil, err
 			}
 
 			client, err := deps.GetGQLClient(ctx)

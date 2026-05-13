@@ -13,6 +13,7 @@ We currently support the following ways in which the GitHub MCP Server can be co
 | Read-Only Mode | `X-MCP-Readonly` header or `/readonly` URL | `--read-only` flag or `GITHUB_READ_ONLY` env var |
 | Dynamic Mode | Not available | `--dynamic-toolsets` flag or `GITHUB_DYNAMIC_TOOLSETS` env var |
 | Lockdown Mode | `X-MCP-Lockdown` header | `--lockdown-mode` flag or `GITHUB_LOCKDOWN_MODE` env var |
+| PR Author Allowlist | Server `--allowed-pr-authors` flag or `GITHUB_ALLOWED_PR_AUTHORS` env var | `--allowed-pr-authors` flag or `GITHUB_ALLOWED_PR_AUTHORS` env var |
 | Insiders Mode | `X-MCP-Insiders` header or `/insiders` URL | `--insiders` flag or `GITHUB_INSIDERS` env var |
 | Feature Flags | `X-MCP-Features` header | `--features` flag |
 | Scope Filtering | Always enabled | Always enabled |
@@ -29,6 +30,8 @@ All configuration options are **composable**: you can combine toolsets, individu
 Note: **read-only** mode acts as a strict security filter that takes precedence over any other configuration, by disabling write tools even when explicitly requested.
 
 Note: **excluded tools** takes precedence over toolsets and individual tools — listed tools are always excluded, even if their toolset is enabled or they are explicitly added via `--tools` / `X-MCP-Tools`.
+
+Note: **PR author allowlist** restricts mutating pull request tools to existing pull requests authored by the configured GitHub logins. Read-only PR tools and `create_pull_request` are not restricted. `actions_run_trigger` is not restricted by this setting because it targets a ref rather than a pull request number.
 
 ---
 
@@ -384,6 +387,33 @@ Lockdown mode ensures the server only surfaces content in public repositories fr
 </td>
 </tr>
 </table>
+
+---
+
+### PR Author Allowlist
+
+**Best for:** Automation workflows that may mutate bot-authored pull requests but should never mutate human-authored pull requests.
+
+When set, mutating pull request tools first fetch the target pull request and check `pr.User.Login`. If the author is not in the allowlist, the tool returns an error before making the mutation. Empty or unset means unrestricted behavior.
+
+```json
+{
+  "type": "stdio",
+  "command": "go",
+  "args": [
+    "run",
+    "./cmd/github-mcp-server",
+    "stdio",
+    "--toolsets=pull_requests,actions",
+    "--allowed-pr-authors=renovate[bot],github-actions[bot]"
+  ],
+  "env": {
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+  }
+}
+```
+
+Known limitations: `actions_run_trigger` operates on refs, not pull request numbers, so it is not gated by this setting. The allowlist checks `pr.User.Login`; PRs from forks authored by allowed bots still pass. Enabling the allowlist adds one API call before a mutating PR operation when the handler does not already have the pull request.
 
 ---
 

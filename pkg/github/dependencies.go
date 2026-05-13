@@ -105,6 +105,10 @@ type ToolDependencies interface {
 
 	// Metrics returns the metrics client
 	Metrics(ctx context.Context) metrics.Metrics
+
+	// IsPRAuthorAllowed checks whether a pull request author is allowed for
+	// mutating pull request tools. enforced is false when no allowlist is set.
+	IsPRAuthorAllowed(login string) (allowed bool, enforced bool)
 }
 
 // BaseDeps is the standard implementation of ToolDependencies for the local server.
@@ -127,6 +131,8 @@ type BaseDeps struct {
 
 	// Observability exporters (includes logger)
 	Obsv observability.Exporters
+
+	allowedPRAuthors map[string]struct{}
 }
 
 // Compile-time assertion to verify that BaseDeps implements the ToolDependencies interface.
@@ -143,6 +149,7 @@ func NewBaseDeps(
 	contentWindowSize int,
 	featureChecker inventory.FeatureFlagChecker,
 	obsv observability.Exporters,
+	allowedPRAuthors ...[]string,
 ) *BaseDeps {
 	return &BaseDeps{
 		Client:            client,
@@ -154,6 +161,7 @@ func NewBaseDeps(
 		ContentWindowSize: contentWindowSize,
 		featureChecker:    featureChecker,
 		Obsv:              obsv,
+		allowedPRAuthors:  buildPRAuthorAllowlist(firstStringSlice(allowedPRAuthors)),
 	}
 }
 
@@ -194,6 +202,11 @@ func (d BaseDeps) Logger(_ context.Context) *slog.Logger {
 // Metrics implements ToolDependencies.
 func (d BaseDeps) Metrics(ctx context.Context) metrics.Metrics {
 	return d.Obsv.Metrics(ctx)
+}
+
+// IsPRAuthorAllowed implements ToolDependencies.
+func (d BaseDeps) IsPRAuthorAllowed(login string) (bool, bool) {
+	return isPRAuthorAllowed(d.allowedPRAuthors, login)
 }
 
 // IsFeatureEnabled checks if a feature flag is enabled.
@@ -276,6 +289,8 @@ type RequestDeps struct {
 
 	// Observability exporters (includes logger)
 	obsv observability.Exporters
+
+	allowedPRAuthors map[string]struct{}
 }
 
 // NewRequestDeps creates a RequestDeps with the provided clients and configuration.
@@ -288,6 +303,7 @@ func NewRequestDeps(
 	contentWindowSize int,
 	featureChecker inventory.FeatureFlagChecker,
 	obsv observability.Exporters,
+	allowedPRAuthors ...[]string,
 ) *RequestDeps {
 	return &RequestDeps{
 		apiHosts:          apiHosts,
@@ -298,6 +314,7 @@ func NewRequestDeps(
 		ContentWindowSize: contentWindowSize,
 		featureChecker:    featureChecker,
 		obsv:              obsv,
+		allowedPRAuthors:  buildPRAuthorAllowlist(firstStringSlice(allowedPRAuthors)),
 	}
 }
 
@@ -418,6 +435,11 @@ func (d *RequestDeps) Logger(_ context.Context) *slog.Logger {
 // Metrics implements ToolDependencies.
 func (d *RequestDeps) Metrics(ctx context.Context) metrics.Metrics {
 	return d.obsv.Metrics(ctx)
+}
+
+// IsPRAuthorAllowed implements ToolDependencies.
+func (d *RequestDeps) IsPRAuthorAllowed(login string) (bool, bool) {
+	return isPRAuthorAllowed(d.allowedPRAuthors, login)
 }
 
 // IsFeatureEnabled checks if a feature flag is enabled.

@@ -59,6 +59,10 @@ type ServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
+	// AllowedPRAuthors restricts mutating pull request tools to PRs authored by
+	// one of these GitHub logins. Empty means unrestricted.
+	AllowedPRAuthors []string
+
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
 
@@ -140,6 +144,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 		cfg.ContentWindowSize,
 		featureChecker,
 		obs,
+		cfg.AllowedPRAuthors,
 	)
 
 	// Initialize the global tool scope map

@@ -135,6 +135,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		cfg.ContentWindowSize,
 		featureChecker,
 		obs,
+		cfg.AllowedPRAuthors,
 	)
 	// Build and register the tool/resource/prompt inventory
 	inventoryBuilder := github.NewInventory(cfg.Translator).
@@ -220,6 +221,10 @@ type StdioServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
+	// AllowedPRAuthors restricts mutating pull request tools to PRs authored by
+	// one of these GitHub logins. Empty means unrestricted.
+	AllowedPRAuthors []string
+
 	// InsidersMode indicates if we should enable experimental features
 	InsidersMode bool
 
@@ -284,6 +289,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Translator:        t,
 		ContentWindowSize: cfg.ContentWindowSize,
 		LockdownMode:      cfg.LockdownMode,
+		AllowedPRAuthors:  cfg.AllowedPRAuthors,
 		InsidersMode:      cfg.InsidersMode,
 		ExcludeTools:      cfg.ExcludeTools,
 		Logger:            logger,
