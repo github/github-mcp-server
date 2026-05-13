@@ -309,27 +309,131 @@ func GranularUpdateIssueMilestone(t translations.TranslationHelperFunc) inventor
 	)
 }
 
+// issueTypeWithRationale represents the object form of the issue type field,
+// allowing a rationale to be sent alongside the type name.
+type issueTypeWithRationale struct {
+	Value     string `json:"value"`
+	Rationale string `json:"rationale"`
+}
+
+// issueTypeUpdateRequest is a custom request body for updating an issue type
+// with an optional rationale, using the object form that the REST API accepts.
+type issueTypeUpdateRequest struct {
+	Type issueTypeWithRationale `json:"type"`
+}
+
 // GranularUpdateIssueType creates a tool to update an issue's type.
 func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return issueUpdateTool(t,
-		"update_issue_type",
-		"Update the type of an existing issue (e.g. 'bug', 'feature').",
-		"Update Issue Type",
-		map[string]*jsonschema.Schema{
-			"issue_type": {
-				Type:        "string",
-				Description: "The issue type to set",
+	st := NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "update_issue_type",
+			Description: t("TOOL_UPDATE_ISSUE_TYPE_DESCRIPTION", "Update the type of an existing issue (e.g. 'bug', 'feature')."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_UPDATE_ISSUE_TYPE_USER_TITLE", "Update Issue Type"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"issue_number": {
+						Type:        "number",
+						Description: "The issue number to update",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"issue_type": {
+						Type:        "string",
+						Description: "The issue type to set",
+					},
+					"rationale": {
+						Type: "string",
+						Description: "One concise sentence explaining what specifically about the issue led you to choose this type. " +
+							"State the concrete signal (e.g. 'Reports a crash when saving' → bug, 'Asks for dark mode support' → feature).",
+						MaxLength: jsonschema.Ptr(280),
+					},
+				},
+				Required: []string{"owner", "repo", "issue_number", "issue_type"},
 			},
 		},
-		[]string{"issue_type"},
-		func(args map[string]any) (*github.IssueRequest, error) {
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			issueType, err := RequiredParam[string](args, "issue_type")
 			if err != nil {
-				return nil, err
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			return &github.IssueRequest{Type: &issueType}, nil
+			rationale, err := OptionalParam[string](args, "rationale")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			rationale = strings.TrimSpace(rationale)
+			if len([]rune(rationale)) > 280 {
+				return utils.NewToolResultError("parameter rationale must be 280 characters or less"), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			var body any
+			if rationale != "" {
+				body = &issueTypeUpdateRequest{
+					Type: issueTypeWithRationale{
+						Value:     issueType,
+						Rationale: rationale,
+					},
+				}
+			} else {
+				body = &github.IssueRequest{Type: &issueType}
+			}
+
+			apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
+			req, err := client.NewRequest("PATCH", apiURL, body)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to create request", err), nil, nil
+			}
+
+			issue := &github.Issue{}
+			resp, err := client.Do(ctx, req, issue)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			r, err := json.Marshal(MinimalResponse{
+				ID:  fmt.Sprintf("%d", issue.GetID()),
+				URL: issue.GetHTMLURL(),
+			})
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	return st
 }
 
 // GranularUpdateIssueState creates a tool to update an issue's state.
