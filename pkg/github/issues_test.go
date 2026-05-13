@@ -405,6 +405,7 @@ func Test_AddIssueComment(t *testing.T) {
 	assert.Equal(t, "add_issue_comment", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 
+	require.NotNil(t, tool.Annotations)
 	require.NotNil(t, tool.Annotations.DestructiveHint)
 	assert.True(t, *tool.Annotations.DestructiveHint)
 
