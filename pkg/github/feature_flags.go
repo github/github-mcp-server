@@ -3,6 +3,9 @@ package github
 // MCPAppsFeatureFlag is the feature flag name for MCP Apps (interactive UI forms).
 const MCPAppsFeatureFlag = "remote_mcp_ui_apps"
 
+// FeatureFlagOutputSchemas is the feature flag name for MCP tool output schemas.
+const FeatureFlagOutputSchemas = "output_schemas"
+
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag or X-MCP-Features HTTP header.
 // Only flags in this list are accepted; unknown flags are silently ignored.
@@ -11,6 +14,7 @@ var AllowedFeatureFlags = []string{
 	MCPAppsFeatureFlag,
 	FeatureFlagIssuesGranular,
 	FeatureFlagPullRequestsGranular,
+	FeatureFlagOutputSchemas,
 }
 
 // InsidersFeatureFlags is the list of feature flags that insiders mode enables.

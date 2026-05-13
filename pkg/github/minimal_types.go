@@ -264,6 +264,11 @@ type MinimalPullRequest struct {
 	Milestone          string           `json:"milestone,omitempty"`
 }
 
+// MinimalPullRequestsResponse wraps pull requests for MCP structured output.
+type MinimalPullRequestsResponse struct {
+	PullRequests []MinimalPullRequest `json:"pull_requests"`
+}
+
 // MinimalPRBranch is the trimmed output type for pull request branch references.
 type MinimalPRBranch struct {
 	Ref  string               `json:"ref"`

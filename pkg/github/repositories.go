@@ -53,6 +53,7 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 				Required: []string{"owner", "repo", "sha"},
 			}),
+			OutputSchema: MustOutputSchema[MinimalCommit](),
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {

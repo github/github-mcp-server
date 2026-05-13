@@ -1432,7 +1432,8 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_LIST_ISSUES_USER_TITLE", "List issues"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: schema,
+			InputSchema:  schema,
+			OutputSchema: MustOutputSchema[MinimalIssuesResponse](),
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
