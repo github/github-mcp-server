@@ -360,7 +360,7 @@ func TestGranularUpdateIssueType(t *testing.T) {
 
 func TestGranularUpdateIssueTypeInvalidRationale(t *testing.T) {
 	tests := []struct {
-		name           string
+		name            string
 		requestArgs     map[string]any
 		expectedErrText string
 	}{
