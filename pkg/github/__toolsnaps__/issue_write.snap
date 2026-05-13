@@ -9,6 +9,7 @@
     }
   },
   "annotations": {
+    "destructiveHint": true,
     "title": "Create or update issue."
   },
   "description": "Create a new or update an existing issue in a GitHub repository.",

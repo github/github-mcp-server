@@ -117,7 +117,7 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_CREATE_ISSUE_USER_TITLE", "Create Issue"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(false),
+				DestructiveHint: jsonschema.Ptr(true),
 				OpenWorldHint:   jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
