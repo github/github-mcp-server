@@ -545,8 +545,9 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			Name:        "create_pull_request",
 			Description: t("TOOL_CREATE_PULL_REQUEST_DESCRIPTION", "Create a new pull request in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_CREATE_PULL_REQUEST_USER_TITLE", "Open new pull request"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_CREATE_PULL_REQUEST_USER_TITLE", "Open new pull request"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(true),
 			},
 			Meta: mcp.Meta{
 				"ui": map[string]any{

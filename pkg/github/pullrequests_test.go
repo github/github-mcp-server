@@ -2198,6 +2198,8 @@ func Test_CreatePullRequest(t *testing.T) {
 
 	assert.Equal(t, "create_pull_request", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	require.NotNil(t, tool.Annotations.DestructiveHint)
+	assert.True(t, *tool.Annotations.DestructiveHint)
 	schema := tool.InputSchema.(*jsonschema.Schema)
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")

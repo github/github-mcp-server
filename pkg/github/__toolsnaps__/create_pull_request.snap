@@ -9,6 +9,7 @@
     }
   },
   "annotations": {
+    "destructiveHint": true,
     "title": "Open new pull request"
   },
   "description": "Create a new pull request in a GitHub repository.",
