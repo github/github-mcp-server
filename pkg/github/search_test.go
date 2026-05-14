@@ -422,7 +422,6 @@ func Test_SearchCode(t *testing.T) {
 	assert.Contains(t, schema.Properties, "order")
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.Contains(t, schema.Properties, "page")
-	assert.Contains(t, schema.Properties, "minimal_output")
 	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
 	// Setup mock search results
@@ -467,7 +466,6 @@ func Test_SearchCode(t *testing.T) {
 		expectError    bool
 		expectedResult *github.CodeSearchResult
 		expectedErrMsg string
-		minimalOutput  bool
 	}{
 		{
 			name: "successful code search with all parameters",
@@ -491,7 +489,6 @@ func Test_SearchCode(t *testing.T) {
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
-			minimalOutput:  true,
 		},
 		{
 			name: "code search with minimal parameters",
@@ -509,26 +506,6 @@ func Test_SearchCode(t *testing.T) {
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
-			minimalOutput:  true,
-		},
-		{
-			name: "code search with full output",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetSearchCode: expectQueryParams(t, map[string]string{
-					"q":        "fmt.Println language:go",
-					"page":     "1",
-					"per_page": "30",
-				}).withHeaders(textMatchAcceptHeader).andThen(
-					mockResponse(t, http.StatusOK, mockSearchResult),
-				),
-			}),
-			requestArgs: map[string]any{
-				"query":          "fmt.Println language:go",
-				"minimal_output": false,
-			},
-			expectError:    false,
-			expectedResult: mockSearchResult,
-			minimalOutput:  false,
 		},
 		{
 			name: "search code fails",
@@ -575,43 +552,26 @@ func Test_SearchCode(t *testing.T) {
 
 			textContent := getTextResult(t, result)
 
-			if tc.minimalOutput {
-				// Unmarshal and verify the minimal result
-				var returnedResult MinimalCodeSearchResult
-				err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
-				require.NoError(t, err)
-				assert.Equal(t, *tc.expectedResult.Total, returnedResult.TotalCount)
-				assert.Equal(t, *tc.expectedResult.IncompleteResults, returnedResult.IncompleteResults)
-				assert.Len(t, returnedResult.Items, len(tc.expectedResult.CodeResults))
-				for i, code := range returnedResult.Items {
-					assert.Equal(t, tc.expectedResult.CodeResults[i].GetName(), code.Name)
-					assert.Equal(t, tc.expectedResult.CodeResults[i].GetPath(), code.Path)
-					assert.Equal(t, tc.expectedResult.CodeResults[i].GetSHA(), code.SHA)
-					assert.Equal(t, tc.expectedResult.CodeResults[i].Repository.GetFullName(), code.Repository)
-				}
+			var returnedResult MinimalCodeSearchResult
+			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+			require.NoError(t, err)
+			assert.Equal(t, *tc.expectedResult.Total, returnedResult.TotalCount)
+			assert.Equal(t, *tc.expectedResult.IncompleteResults, returnedResult.IncompleteResults)
+			assert.Len(t, returnedResult.Items, len(tc.expectedResult.CodeResults))
+			for i, code := range returnedResult.Items {
+				assert.Equal(t, tc.expectedResult.CodeResults[i].GetName(), code.Name)
+				assert.Equal(t, tc.expectedResult.CodeResults[i].GetPath(), code.Path)
+				assert.Equal(t, tc.expectedResult.CodeResults[i].GetSHA(), code.SHA)
+				assert.Equal(t, tc.expectedResult.CodeResults[i].Repository.GetFullName(), code.Repository)
+			}
 
-				// Verify text matches are included when present
-				if len(tc.expectedResult.CodeResults[0].TextMatches) > 0 {
-					require.NotEmpty(t, returnedResult.Items[0].TextMatches)
-					assert.Equal(t,
-						tc.expectedResult.CodeResults[0].TextMatches[0].GetFragment(),
-						returnedResult.Items[0].TextMatches[0].GetFragment(),
-					)
-				}
-			} else {
-				// Verify the full result is returned
-				var returnedResult github.CodeSearchResult
-				err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
-				require.NoError(t, err)
-				assert.Equal(t, *tc.expectedResult.Total, *returnedResult.Total)
-				assert.Equal(t, *tc.expectedResult.IncompleteResults, *returnedResult.IncompleteResults)
-				assert.Len(t, returnedResult.CodeResults, len(tc.expectedResult.CodeResults))
-				for i, code := range returnedResult.CodeResults {
-					assert.Equal(t, *tc.expectedResult.CodeResults[i].Name, *code.Name)
-					assert.Equal(t, *tc.expectedResult.CodeResults[i].Path, *code.Path)
-					assert.Equal(t, *tc.expectedResult.CodeResults[i].SHA, *code.SHA)
-					assert.Equal(t, *tc.expectedResult.CodeResults[i].Repository.FullName, *code.Repository.FullName)
-				}
+			// Verify text matches are included when present
+			if len(tc.expectedResult.CodeResults[0].TextMatches) > 0 {
+				require.NotEmpty(t, returnedResult.Items[0].TextMatches)
+				assert.Equal(t,
+					tc.expectedResult.CodeResults[0].TextMatches[0].GetFragment(),
+					returnedResult.Items[0].TextMatches[0].GetFragment(),
+				)
 			}
 		})
 	}

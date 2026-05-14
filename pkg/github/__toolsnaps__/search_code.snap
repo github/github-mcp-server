@@ -6,11 +6,6 @@
   "description": "Fast and precise code search across ALL GitHub repositories using GitHub's native search engine. Best for finding exact symbols, functions, classes, or specific code patterns.",
   "inputSchema": {
     "properties": {
-      "minimal_output": {
-        "default": true,
-        "description": "Return minimal repository information (default: true). When false, returns full GitHub API repository objects.",
-        "type": "boolean"
-      },
       "order": {
         "description": "Sort order for results",
         "enum": [
