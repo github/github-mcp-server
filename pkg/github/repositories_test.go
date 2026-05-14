@@ -492,10 +492,6 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 				"default_branch": "main",
 				"private":        isPrivate,
 			}),
-			GetReposCollaboratorsByOwnerByRepo: mockResponse(t, http.StatusOK, []*github.User{
-				{Login: github.Ptr("octocat")},
-				{Login: github.Ptr("alice")},
-			}),
 			GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 				encodedContent := base64.StdEncoding.EncodeToString(mockRawContent)
@@ -588,7 +584,7 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 		assert.Equal(t, "trusted", ifcMap["integrity"])
 		confList, ok := ifcMap["confidentiality"].([]any)
 		require.True(t, ok, "confidentiality should be a list")
-		assert.Equal(t, []any{"octocat", "alice"}, confList)
+		assert.Equal(t, []any{"private"}, confList)
 	})
 
 	t.Run("insiders mode skips ifc label when visibility lookup fails", func(t *testing.T) {

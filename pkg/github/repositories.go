@@ -769,17 +769,15 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 
 			// attachIFC adds the IFC label to a successful tool result when
-			// InsidersMode is enabled. The visibility and (for private
-			// repositories) collaborators lookups are performed lazily on
-			// first use. If the visibility lookup fails we skip the label
-			// rather than misclassify the result; the failure is not cached
-			// so a later return path can retry. If only the collaborators
-			// lookup fails for a private repo we fall back to the owner so
-			// the reader set is never empty.
+			// InsidersMode is enabled. The visibility lookup is performed
+			// lazily on first use and cached because GetFileContents has
+			// many possible return paths and would otherwise re-fetch on
+			// each. If the visibility lookup fails we skip the label rather
+			// than misclassify the result; the failure is not cached so a
+			// later return path can retry.
 			var (
 				ifcLabelKnown bool
 				ifcIsPrivate  bool
-				ifcReaders    []string
 			)
 			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
 				if r == nil || r.IsError || !deps.GetFlags(ctx).InsidersMode {
@@ -791,20 +789,12 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						return r
 					}
 					ifcIsPrivate = isPrivate
-					if ifcIsPrivate {
-						if collaborators, err := FetchRepoCollaborators(ctx, client, owner, repo); err == nil {
-							ifcReaders = collaborators
-						}
-						if len(ifcReaders) == 0 {
-							ifcReaders = []string{owner}
-						}
-					}
 					ifcLabelKnown = true
 				}
 				if r.Meta == nil {
 					r.Meta = mcp.Meta{}
 				}
-				r.Meta["ifc"] = ifc.LabelGetFileContents(ifcIsPrivate, ifcReaders)
+				r.Meta["ifc"] = ifc.LabelGetFileContents(ifcIsPrivate)
 				return r
 			}
 

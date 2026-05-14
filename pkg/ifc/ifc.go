@@ -13,7 +13,8 @@ const (
 type Confidentiality string
 
 const (
-	ConfidentialityPublic Confidentiality = "public"
+	ConfidentialityPublic  Confidentiality = "public"
+	ConfidentialityPrivate Confidentiality = "private"
 )
 
 type SecurityLabel struct {
@@ -37,28 +38,25 @@ func PublicUntrusted() SecurityLabel {
 	}
 }
 
-// PrivateTrusted returns a label for trusted data restricted to the given readers.
-func PrivateTrusted(readers []string) SecurityLabel {
+// PrivateTrusted returns a label for trusted data restricted to the readers
+// of the originating repository. The reader set is opaque on the wire (a
+// single "private" marker); the client engine resolves the concrete readers
+// from the GitHub API on demand at egress decision time.
+func PrivateTrusted() SecurityLabel {
 	return SecurityLabel{
 		Integrity:       IntegrityTrusted,
-		Confidentiality: toConfidentiality(readers),
+		Confidentiality: []Confidentiality{ConfidentialityPrivate},
 	}
 }
 
-// PrivateUntrusted returns a label for untrusted data restricted to the given readers.
-func PrivateUntrusted(readers []string) SecurityLabel {
+// PrivateUntrusted returns a label for untrusted data restricted to the
+// readers of the originating repository. See PrivateTrusted for the reader
+// resolution model.
+func PrivateUntrusted() SecurityLabel {
 	return SecurityLabel{
 		Integrity:       IntegrityUntrusted,
-		Confidentiality: toConfidentiality(readers),
+		Confidentiality: []Confidentiality{ConfidentialityPrivate},
 	}
-}
-
-func toConfidentiality(readers []string) []Confidentiality {
-	out := make([]Confidentiality, len(readers))
-	for i, r := range readers {
-		out[i] = Confidentiality(r)
-	}
-	return out
 }
 
 func LabelGetMe() SecurityLabel {
@@ -67,11 +65,11 @@ func LabelGetMe() SecurityLabel {
 
 // LabelListIssues returns the IFC label for a list_issues result.
 // Public repositories are universally readable; private repositories are
-// restricted to the provided reader set (typically repository collaborators).
+// restricted to their collaborators (resolved client-side from the marker).
 // Issue contents are attacker-controllable, so integrity is always untrusted.
-func LabelListIssues(isPrivate bool, readers []string) SecurityLabel {
+func LabelListIssues(isPrivate bool) SecurityLabel {
 	if isPrivate {
-		return PrivateUntrusted(readers)
+		return PrivateUntrusted()
 	}
 	return PublicUntrusted()
 }
@@ -80,86 +78,31 @@ func LabelListIssues(isPrivate bool, readers []string) SecurityLabel {
 // Public repository file contents may be authored by anyone via pull requests
 // and are therefore untrusted. In private repositories only collaborators can
 // land changes, so contents are treated as trusted.
-func LabelGetFileContents(isPrivate bool, readers []string) SecurityLabel {
+func LabelGetFileContents(isPrivate bool) SecurityLabel {
 	if isPrivate {
-		return PrivateTrusted(readers)
+		return PrivateTrusted()
 	}
 	return PublicUntrusted()
 }
 
-// LabelSearchIssues returns the IFC label for a search_issues result, joining
-// per-repository labels across all matched repositories.
+// LabelSearchIssues returns the IFC label for a multi-repository search
+// result, joining per-repository labels across all matched repositories.
+// Used by both search_issues and search_repositories.
 //
-// Integrity is always untrusted because issue contents are user-authored.
+// Integrity is always untrusted because results expose user-authored content.
 //
-// Confidentiality follows the IFC meet (greatest lower bound): the private
-// side dominates because a reader of the combined result must be authorised
-// to read every matched repository. Public repositories contribute the
-// universe set and therefore drop out of the intersection without shrinking
-// it.
+// Confidentiality follows the IFC meet (greatest lower bound): if any matched
+// repository is private the joined label is private; otherwise public. The
+// reader set is opaque (the "private" marker); the client engine resolves
+// concrete readers on demand at egress decision time.
 //
-//   - If no repositories matched (empty result set), the label is
-//     public-untrusted because no repository data is leaked.
-//   - If every matched repository is public, the joined readers are
-//     ["public"].
-//   - Otherwise the joined readers are the intersection of the reader sets
-//     of the matched private repositories only.
-//
-// repoVisibilities[i] reports whether the i-th matched repository is private;
-// readerSets[i] is that repository's reader set (only consulted for private
-// repos). The two slices must have the same length; the second return value
-// is false when they do not, in which case the caller should omit the label
-// rather than emit one computed from inconsistent inputs.
-func LabelSearchIssues(repoVisibilities []bool, readerSets [][]string) (SecurityLabel, bool) {
-	if len(repoVisibilities) != len(readerSets) {
-		return SecurityLabel{}, false
-	}
-	if len(repoVisibilities) == 0 {
-		return PublicUntrusted(), true
-	}
-	privateReaderSets := make([][]string, 0, len(repoVisibilities))
-	for i, isPrivate := range repoVisibilities {
+// An empty result set is treated as public-untrusted (no repository data is
+// leaked).
+func LabelSearchIssues(repoVisibilities []bool) SecurityLabel {
+	for _, isPrivate := range repoVisibilities {
 		if isPrivate {
-			privateReaderSets = append(privateReaderSets, readerSets[i])
+			return PrivateUntrusted()
 		}
 	}
-	if len(privateReaderSets) == 0 {
-		return PublicUntrusted(), true
-	}
-	return PrivateUntrusted(intersectReaders(privateReaderSets)), true
-}
-
-// intersectReaders returns the readers present in every set, preserving the
-// order from the first set. Empty input yields nil.
-func intersectReaders(sets [][]string) []string {
-	if len(sets) == 0 {
-		return nil
-	}
-	counts := make(map[string]int, len(sets[0]))
-	for _, login := range sets[0] {
-		if _, seen := counts[login]; seen {
-			continue
-		}
-		counts[login] = 1
-	}
-	for _, set := range sets[1:] {
-		seen := make(map[string]struct{}, len(set))
-		for _, login := range set {
-			if _, dup := seen[login]; dup {
-				continue
-			}
-			seen[login] = struct{}{}
-			if _, ok := counts[login]; ok {
-				counts[login]++
-			}
-		}
-	}
-	out := make([]string, 0, len(counts))
-	for _, login := range sets[0] {
-		if counts[login] == len(sets) {
-			out = append(out, login)
-			delete(counts, login)
-		}
-	}
-	return out
+	return PublicUntrusted()
 }

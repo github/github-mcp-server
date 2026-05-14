@@ -297,10 +297,6 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 		handlers := map[string]http.HandlerFunc{
 			GetReposIssuesByOwnerByRepoByIssueNumber:         mockResponse(t, http.StatusOK, mockIssue),
 			GetReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockComments),
-			GetReposCollaboratorsByOwnerByRepo: mockResponse(t, http.StatusOK, []*github.User{
-				{Login: github.Ptr("octocat")},
-				{Login: github.Ptr("alice")},
-			}),
 		}
 		if repoStatus != 0 && repoStatus != http.StatusOK {
 			handlers[GetReposByOwnerByRepo] = mockResponse(t, repoStatus, "boom")
@@ -374,7 +370,7 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		assert.Equal(t, []any{"octocat", "alice"}, ifcMap["confidentiality"])
+		assert.Equal(t, []any{"private"}, ifcMap["confidentiality"])
 	})
 
 	t.Run("insiders mode skips ifc label when visibility lookup fails", func(t *testing.T) {
@@ -829,22 +825,16 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 	}
 
 	type repoFixture struct {
-		owner               string
-		repo                string
-		isPrivate           bool
-		collaborators       []string
-		repoStatus          int
-		collaboratorsStatus int
+		owner      string
+		repo       string
+		isPrivate  bool
+		repoStatus int
 	}
 
 	repoHandlers := func(repos []repoFixture) map[string]http.HandlerFunc {
 		repoByPath := map[string]repoFixture{}
 		for _, r := range repos {
 			repoByPath["/repos/"+r.owner+"/"+r.repo] = r
-		}
-		collaboratorsByPath := map[string]repoFixture{}
-		for _, r := range repos {
-			collaboratorsByPath["/repos/"+r.owner+"/"+r.repo+"/collaborators"] = r
 		}
 		return map[string]http.HandlerFunc{
 			GetReposByOwnerByRepo: func(w http.ResponseWriter, req *http.Request) {
@@ -861,25 +851,6 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 					"name":    r.repo,
 					"private": r.isPrivate,
 				})
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write(body)
-			},
-			GetReposCollaboratorsByOwnerByRepo: func(w http.ResponseWriter, req *http.Request) {
-				r, ok := collaboratorsByPath[req.URL.Path]
-				if !ok {
-					w.WriteHeader(http.StatusOK)
-					_, _ = w.Write([]byte("[]"))
-					return
-				}
-				if r.collaboratorsStatus != 0 && r.collaboratorsStatus != http.StatusOK {
-					w.WriteHeader(r.collaboratorsStatus)
-					return
-				}
-				users := make([]*github.User, len(r.collaborators))
-				for i, login := range r.collaborators {
-					users[i] = &github.User{Login: github.Ptr(login)}
-				}
-				body, _ := json.Marshal(users)
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write(body)
 			},
@@ -909,7 +880,7 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 		assert.Nil(t, result.Meta)
 	})
 
-	t.Run("insiders mode enabled with single public repo emits public untrusted", func(t *testing.T) {
+	t.Run("insiders mode all public emits public untrusted", func(t *testing.T) {
 		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{makeIssue("octocat", "public-repo", 1)}}
 		deps := BaseDeps{
 			Client: github.NewClient(makeMockClient(searchResult, []repoFixture{{owner: "octocat", repo: "public-repo"}})),
@@ -928,14 +899,14 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 		assert.Equal(t, []any{"public"}, ifcMap["confidentiality"])
 	})
 
-	t.Run("insiders mode mixed public and private keeps the private readers", func(t *testing.T) {
+	t.Run("insiders mode mixed public and private emits private untrusted", func(t *testing.T) {
 		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{
 			makeIssue("octocat", "private-repo", 1),
 			makeIssue("octocat", "public-repo", 2),
 		}}
 		deps := BaseDeps{
 			Client: github.NewClient(makeMockClient(searchResult, []repoFixture{
-				{owner: "octocat", repo: "private-repo", isPrivate: true, collaborators: []string{"alice"}},
+				{owner: "octocat", repo: "private-repo", isPrivate: true},
 				{owner: "octocat", repo: "public-repo"},
 			})),
 			Flags: FeatureFlags{InsidersMode: true},
@@ -950,32 +921,7 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		assert.Equal(t, []any{"alice"}, ifcMap["confidentiality"])
-	})
-
-	t.Run("insiders mode two private repos intersect collaborators", func(t *testing.T) {
-		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{
-			makeIssue("octocat", "repo-a", 1),
-			makeIssue("octocat", "repo-b", 2),
-		}}
-		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient(searchResult, []repoFixture{
-				{owner: "octocat", repo: "repo-a", isPrivate: true, collaborators: []string{"alice", "bob", "carol"}},
-				{owner: "octocat", repo: "repo-b", isPrivate: true, collaborators: []string{"bob", "carol", "dan"}},
-			})),
-			Flags: FeatureFlags{InsidersMode: true},
-		}
-		handler := serverTool.Handler(deps)
-
-		request := createMCPRequest(reqParams)
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-		require.False(t, result.IsError)
-
-		require.NotNil(t, result.Meta)
-		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
-		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		assert.Equal(t, []any{"bob", "carol"}, ifcMap["confidentiality"])
+		assert.Equal(t, []any{"private"}, ifcMap["confidentiality"])
 	})
 
 	t.Run("insiders mode skips ifc label when visibility lookup fails", func(t *testing.T) {
@@ -996,27 +942,6 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 		if result.Meta != nil {
 			_, hasIFC := result.Meta["ifc"]
 			assert.False(t, hasIFC, "ifc label should be omitted when visibility lookup fails")
-		}
-	})
-
-	t.Run("insiders mode skips ifc label when collaborators lookup fails", func(t *testing.T) {
-		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{makeIssue("octocat", "private-repo", 1)}}
-		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient(searchResult, []repoFixture{
-				{owner: "octocat", repo: "private-repo", isPrivate: true, collaboratorsStatus: http.StatusInternalServerError},
-			})),
-			Flags: FeatureFlags{InsidersMode: true},
-		}
-		handler := serverTool.Handler(deps)
-
-		request := createMCPRequest(reqParams)
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-		require.False(t, result.IsError, "tool call should still succeed when collaborators lookup fails")
-
-		if result.Meta != nil {
-			_, hasIFC := result.Meta["ifc"]
-			assert.False(t, hasIFC, "ifc label should be omitted when collaborators lookup fails")
 		}
 	})
 
@@ -1810,18 +1735,10 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		assert.Equal(t, "public", confList[0])
 	})
 
-	t.Run("insiders mode enabled on private repo emits private untrusted label with collaborators", func(t *testing.T) {
+	t.Run("insiders mode enabled on private repo emits private untrusted label", func(t *testing.T) {
 		matcher := githubv4mock.NewQueryMatcher(query, vars, makeResponse(true))
 		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
-		restClient := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			GetReposCollaboratorsByOwnerByRepo: mockResponse(t, http.StatusOK, []*github.User{
-				{Login: github.Ptr("octocat")},
-				{Login: github.Ptr("alice")},
-				{Login: github.Ptr("bob")},
-			}),
-		}))
 		deps := BaseDeps{
-			Client:    restClient,
 			GQLClient: gqlClient,
 			Flags:     FeatureFlags{InsidersMode: true},
 		}
@@ -1844,34 +1761,7 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
 		confList, ok := ifcMap["confidentiality"].([]any)
 		require.True(t, ok, "confidentiality should be a list")
-		assert.Equal(t, []any{"octocat", "alice", "bob"}, confList)
-	})
-
-	t.Run("insiders mode enabled on private repo falls back to owner when collaborators lookup fails", func(t *testing.T) {
-		matcher := githubv4mock.NewQueryMatcher(query, vars, makeResponse(true))
-		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
-		restClient := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			GetReposCollaboratorsByOwnerByRepo: mockResponse(t, http.StatusInternalServerError, "boom"),
-		}))
-		deps := BaseDeps{
-			Client:    restClient,
-			GQLClient: gqlClient,
-			Flags:     FeatureFlags{InsidersMode: true},
-		}
-		handler := serverTool.Handler(deps)
-
-		request := createMCPRequest(reqParams)
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-		require.False(t, result.IsError)
-
-		require.NotNil(t, result.Meta)
-		ifcJSON, err := json.Marshal(result.Meta["ifc"])
-		require.NoError(t, err)
-		var ifcMap map[string]any
-		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
-
-		assert.Equal(t, []any{"octocat"}, ifcMap["confidentiality"])
+		assert.Equal(t, []any{"private"}, confList)
 	})
 }
 

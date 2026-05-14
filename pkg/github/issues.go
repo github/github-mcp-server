@@ -298,11 +298,7 @@ Options are:
 
 			// attachIFC adds the IFC label to a successful tool result when
 			// InsidersMode is enabled. If the visibility lookup fails the
-			// label is omitted rather than misclassifying the result. If
-			// only the collaborators lookup fails for a private repo we
-			// fall back to the owner so the reader set is never empty. The
-			// label matches list_issues semantics: per-repo visibility,
-			// integrity always untrusted.
+			// label is omitted rather than misclassifying the result.
 			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
 				if r == nil || r.IsError || !deps.GetFlags(ctx).InsidersMode {
 					return r
@@ -311,19 +307,10 @@ Options are:
 				if err != nil {
 					return r
 				}
-				var readers []string
-				if isPrivate {
-					if collaborators, err := FetchRepoCollaborators(ctx, client, owner, repo); err == nil {
-						readers = collaborators
-					}
-					if len(readers) == 0 {
-						readers = []string{owner}
-					}
-				}
 				if r.Meta == nil {
 					r.Meta = mcp.Meta{}
 				}
-				r.Meta["ifc"] = ifc.LabelListIssues(isPrivate, readers)
+				r.Meta["ifc"] = ifc.LabelListIssues(isPrivate)
 				return r
 			}
 
@@ -1034,36 +1021,18 @@ func searchIssuesIFCPostProcess(deps ToolDependencies) searchPostProcessFn {
 
 		uniqueRepos := uniqueSearchIssuesRepos(result)
 		visibilities := make([]bool, 0, len(uniqueRepos))
-		readerSets := make([][]string, 0, len(uniqueRepos))
 		for _, r := range uniqueRepos {
 			isPrivate, err := FetchRepoIsPrivate(ctx, client, r.owner, r.repo)
 			if err != nil {
 				return
 			}
 			visibilities = append(visibilities, isPrivate)
-			if !isPrivate {
-				readerSets = append(readerSets, nil)
-				continue
-			}
-			collaborators, err := FetchRepoCollaborators(ctx, client, r.owner, r.repo)
-			if err != nil {
-				return
-			}
-			// Preserve an empty collaborator set as-is. Substituting the
-			// owner here would corrupt the cross-repo intersection (the
-			// owner could appear in another repo's collaborator list and
-			// widen the joined reader set incorrectly).
-			readerSets = append(readerSets, collaborators)
 		}
 
-		label, ok := ifc.LabelSearchIssues(visibilities, readerSets)
-		if !ok {
-			return
-		}
 		if callResult.Meta == nil {
 			callResult.Meta = mcp.Meta{}
 		}
-		callResult.Meta["ifc"] = label
+		callResult.Meta["ifc"] = ifc.LabelSearchIssues(visibilities)
 	}
 }
 
@@ -1728,22 +1697,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				if result.Meta == nil {
 					result.Meta = mcp.Meta{}
 				}
-				var readers []string
-				if isPrivate {
-					restClient, err := deps.GetClient(ctx)
-					if err == nil {
-						if collaborators, err := FetchRepoCollaborators(ctx, restClient, owner, repo); err == nil {
-							readers = collaborators
-						}
-					}
-					// Fall back to the repository owner so the reader set is
-					// never empty for a private repository even if the
-					// collaborators lookup fails.
-					if len(readers) == 0 {
-						readers = []string{owner}
-					}
-				}
-				result.Meta["ifc"] = ifc.LabelListIssues(isPrivate, readers)
+				result.Meta["ifc"] = ifc.LabelListIssues(isPrivate)
 			}
 			return result, nil, nil
 		})
