@@ -4416,7 +4416,7 @@ func Test_ListRepositoryCollaborators(t *testing.T) {
 			},
 			mockResponses: []MockBackendOption{
 				WithRequestMatch(
-					GetReposCollaboratorsByOwnerByRepo,
+					ListCollaborators,
 					mockCollaborators,
 				),
 			},
@@ -4430,7 +4430,7 @@ func Test_ListRepositoryCollaborators(t *testing.T) {
 			},
 			mockResponses: []MockBackendOption{
 				WithRequestMatch(
-					GetReposCollaboratorsByOwnerByRepo,
+					ListCollaborators,
 					mockCollaborators,
 				),
 			},
@@ -4459,7 +4459,7 @@ func Test_ListRepositoryCollaborators(t *testing.T) {
 			},
 			mockResponses: []MockBackendOption{
 				WithRequestMatch(
-					GetReposCollaboratorsByOwnerByRepo,
+					ListCollaborators,
 					[]*github.User{},
 				),
 			},

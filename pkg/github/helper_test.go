@@ -39,6 +39,7 @@ const (
 	GetReposSubscriptionByOwnerByRepo    = "GET /repos/{owner}/{repo}/subscription"
 	PutReposSubscriptionByOwnerByRepo    = "PUT /repos/{owner}/{repo}/subscription"
 	DeleteReposSubscriptionByOwnerByRepo = "DELETE /repos/{owner}/{repo}/subscription"
+	ListCollaborators                    = "GET /repos/{owner}/{repo}/collaborators"
 
 	// Git endpoints
 	GetReposGitTreesByOwnerByRepoByTree        = "GET /repos/{owner}/{repo}/git/trees/{tree}"
