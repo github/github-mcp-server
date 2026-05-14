@@ -1,0 +1,54 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get file blame information"
+  },
+  "description": "Get git blame information for a file, showing the commit that last modified each line. Ranges share commit metadata via the top-level 'commits' map keyed by SHA. Use 'start_line'/'end_line' to restrict the result to a window of the file, and 'perPage'/'after' to cursor-page through returned ranges. Matching ranges are capped at 1000; when the cap is hit 'truncated' is set to true and 'total_ranges' reports the pre-cap match count.",
+  "inputSchema": {
+    "properties": {
+      "after": {
+        "description": "Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs.",
+        "type": "string"
+      },
+      "end_line": {
+        "description": "Optional 1-based ending line of the window of interest. Must be \u003e= start_line when both are provided.",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "path": {
+        "description": "Path to the file in the repository, relative to the repository root",
+        "type": "string"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "ref": {
+        "description": "Git reference (branch, tag, or commit SHA). Defaults to the repository's default branch (HEAD).",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "start_line": {
+        "description": "Optional 1-based starting line of the window of interest. Only ranges overlapping [start_line, end_line] are returned, clamped to the window.",
+        "minimum": 1,
+        "type": "number"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "path"
+    ],
+    "type": "object"
+  },
+  "name": "get_file_blame"
+}

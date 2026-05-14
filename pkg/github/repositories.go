@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -19,6 +21,7 @@ import (
 	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/shurcooL/githubv4"
 )
 
 func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -2199,6 +2202,398 @@ func UnstarRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 			}
 
 			return utils.NewToolResultText(fmt.Sprintf("Successfully unstarred repository %s/%s", owner, repo)), nil, nil
+		},
+	)
+}
+
+// maxBlameRanges caps the number of matching blame ranges considered for one response.
+const maxBlameRanges = 1000
+
+const blameCursorPrefix = "blame-range:"
+
+func encodeBlameCursor(offset int) string {
+	return base64.RawURLEncoding.EncodeToString(fmt.Appendf(nil, "%s%d", blameCursorPrefix, offset))
+}
+
+func decodeBlameCursor(cursor string) (int, error) {
+	if cursor == "" {
+		return 0, nil
+	}
+
+	decoded, err := base64.RawURLEncoding.DecodeString(cursor)
+	if err != nil {
+		return 0, fmt.Errorf("after cursor is invalid")
+	}
+
+	value := string(decoded)
+	if !strings.HasPrefix(value, blameCursorPrefix) {
+		return 0, fmt.Errorf("after cursor is invalid")
+	}
+
+	offset, err := strconv.Atoi(strings.TrimPrefix(value, blameCursorPrefix))
+	if err != nil || offset < 0 {
+		return 0, fmt.Errorf("after cursor is invalid")
+	}
+
+	return offset, nil
+}
+
+// BlameAuthor describes the author of a commit referenced by a BlameRange.
+type BlameAuthor struct {
+	Name  string  `json:"name"`
+	Email string  `json:"email"`
+	Login *string `json:"login,omitempty"`
+	URL   *string `json:"url,omitempty"`
+}
+
+// BlameCommit holds commit metadata shared by one or more blame ranges.
+type BlameCommit struct {
+	SHA             string      `json:"sha"`
+	MessageHeadline string      `json:"message_headline"`
+	CommittedDate   string      `json:"committed_date"`
+	Author          BlameAuthor `json:"author"`
+}
+
+// BlameRange is a contiguous run of lines attributed to a single commit.
+//
+// Age is the relative position of this range's commit among distinct commits
+// touching the file (0 = newest), not an absolute time delta. See:
+// https://docs.github.com/en/graphql/reference/objects#blamerange
+type BlameRange struct {
+	StartingLine int    `json:"starting_line"`
+	EndingLine   int    `json:"ending_line"`
+	Age          int    `json:"age"`
+	CommitSHA    string `json:"commit_sha"`
+}
+
+// BlameResult is the response payload returned by the get_file_blame tool.
+//
+// Commits is keyed by SHA. TotalRanges counts matching ranges before cursor
+// pagination or truncation. Truncated reports whether maxBlameRanges was hit.
+type BlameResult struct {
+	Repository  string                 `json:"repository"`
+	Path        string                 `json:"path"`
+	Ref         string                 `json:"ref"`
+	Ranges      []BlameRange           `json:"ranges"`
+	Commits     map[string]BlameCommit `json:"commits"`
+	PageInfo    MinimalPageInfo        `json:"pageInfo"`
+	TotalRanges int                    `json:"total_ranges"`
+	Truncated   bool                   `json:"truncated,omitempty"`
+}
+
+// validateBlamePath rejects empty, leading-slash, traversal-laden, or
+// control-character paths before any network call is made.
+func validateBlamePath(p string) error {
+	if strings.TrimSpace(p) == "" {
+		return fmt.Errorf("path must not be empty")
+	}
+	if strings.HasPrefix(p, "/") {
+		return fmt.Errorf("path must be relative to the repository root (no leading '/')")
+	}
+	if slices.Contains(strings.Split(p, "/"), "..") {
+		return fmt.Errorf("path must not contain '..' segments")
+	}
+	for _, r := range p {
+		if r < 0x20 || r == 0x7f {
+			return fmt.Errorf("path must not contain control characters")
+		}
+	}
+	return nil
+}
+
+func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name: "get_file_blame",
+			Description: t("TOOL_GET_FILE_BLAME_DESCRIPTION",
+				"Get git blame information for a file, showing the commit that last modified each line. "+
+					"Ranges share commit metadata via the top-level 'commits' map keyed by SHA. "+
+					"Use 'start_line'/'end_line' to restrict the result to a window of the file, and "+
+					"'perPage'/'after' to cursor-page through returned ranges. Matching ranges are capped at "+
+					"1000; when the cap is hit 'truncated' is set to true and 'total_ranges' reports the pre-cap match count.",
+			),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_GET_FILE_BLAME_USER_TITLE", "Get file blame information"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: WithCursorPagination(&jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"path": {
+						Type:        "string",
+						Description: "Path to the file in the repository, relative to the repository root",
+					},
+					"ref": {
+						Type:        "string",
+						Description: "Git reference (branch, tag, or commit SHA). Defaults to the repository's default branch (HEAD).",
+					},
+					"start_line": {
+						Type:        "number",
+						Description: "Optional 1-based starting line of the window of interest. Only ranges overlapping [start_line, end_line] are returned, clamped to the window.",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"end_line": {
+						Type:        "number",
+						Description: "Optional 1-based ending line of the window of interest. Must be >= start_line when both are provided.",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+				},
+				Required: []string{"owner", "repo", "path"},
+			}),
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			path, err := RequiredParam[string](args, "path")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if err := validateBlamePath(path); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			ref, err := OptionalParam[string](args, "ref")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			_, hasStartLine := args["start_line"]
+			startLine, err := OptionalIntParam(args, "start_line")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if hasStartLine && startLine < 1 {
+				return utils.NewToolResultError("start_line must be omitted or >= 1"), nil, nil
+			}
+			_, hasEndLine := args["end_line"]
+			endLine, err := OptionalIntParam(args, "end_line")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if hasEndLine && endLine < 1 {
+				return utils.NewToolResultError("end_line must be omitted or >= 1"), nil, nil
+			}
+			if hasStartLine && hasEndLine && endLine < startLine {
+				return utils.NewToolResultError("end_line must be >= start_line when both are provided"), nil, nil
+			}
+			if _, hasPage := args["page"]; hasPage {
+				return utils.NewToolResultError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), nil, nil
+			}
+			pagination, err := OptionalCursorPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if _, hasPerPage := args["perPage"]; hasPerPage {
+				perPage, err := OptionalIntParam(args, "perPage")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				if perPage < 1 || perPage > 100 {
+					return utils.NewToolResultError("perPage must be between 1 and 100 when provided"), nil, nil
+				}
+				pagination.PerPage = perPage
+			}
+			afterOffset, err := decodeBlameCursor(pagination.After)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub GraphQL client: %w", err)
+			}
+
+			// Default to HEAD and fetch defaultBranchRef.name in the same query
+			// so the response can echo a readable ref.
+			refExpression := ref
+			if refExpression == "" {
+				refExpression = "HEAD"
+			}
+
+			var blameQuery struct {
+				Repository struct {
+					DefaultBranchRef struct {
+						Name githubv4.String
+					}
+					Object struct {
+						Typename githubv4.String `graphql:"__typename"`
+						Commit   struct {
+							Blame struct {
+								Ranges []struct {
+									StartingLine githubv4.Int
+									EndingLine   githubv4.Int
+									Age          githubv4.Int
+									Commit       struct {
+										OID           githubv4.String
+										Message       githubv4.String
+										CommittedDate githubv4.DateTime
+										Author        struct {
+											Name  githubv4.String
+											Email githubv4.String
+											User  *struct {
+												Login githubv4.String
+												URL   githubv4.String
+											}
+										}
+									}
+								}
+							} `graphql:"blame(path: $path)"`
+						} `graphql:"... on Commit"`
+					} `graphql:"object(expression: $ref)"`
+				} `graphql:"repository(owner: $owner, name: $repo)"`
+			}
+
+			vars := map[string]any{
+				"owner": githubv4.String(owner),
+				"repo":  githubv4.String(repo),
+				"ref":   githubv4.String(refExpression),
+				"path":  githubv4.String(path),
+			}
+
+			if err := client.Query(ctx, &blameQuery, vars); err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+					fmt.Sprintf("failed to get blame for file: %s", path),
+					err,
+				), nil, nil
+			}
+
+			// The ref must resolve to a commit. Empty typename means not found;
+			// any other type is unsupported for blame.
+			objectTypename := string(blameQuery.Repository.Object.Typename)
+			if objectTypename == "" {
+				return utils.NewToolResultError(
+					fmt.Sprintf("ref %q was not found in %s/%s", refExpression, owner, repo),
+				), nil, nil
+			}
+			if objectTypename != "Commit" {
+				return utils.NewToolResultError(
+					fmt.Sprintf("ref %q did not resolve to a commit in %s/%s (resolved to %s)",
+						refExpression, owner, repo, objectTypename),
+				), nil, nil
+			}
+
+			// Echo the caller's ref, otherwise prefer the default branch name.
+			responseRef := ref
+			if responseRef == "" {
+				if name := string(blameQuery.Repository.DefaultBranchRef.Name); name != "" {
+					responseRef = name
+				} else {
+					responseRef = refExpression
+				}
+			}
+
+			rawRanges := blameQuery.Repository.Object.Commit.Blame.Ranges
+			pageRanges := make([]BlameRange, 0, pagination.PerPage)
+			commits := make(map[string]BlameCommit)
+			totalRanges := 0
+			truncated := false
+
+			for _, r := range rawRanges {
+				start := int(r.StartingLine)
+				end := int(r.EndingLine)
+				if startLine > 0 && end < startLine {
+					continue
+				}
+				if endLine > 0 && start > endLine {
+					continue
+				}
+				if startLine > 0 && start < startLine {
+					start = startLine
+				}
+				if endLine > 0 && end > endLine {
+					end = endLine
+				}
+
+				matchIndex := totalRanges
+				totalRanges++
+				if matchIndex >= maxBlameRanges {
+					truncated = true
+					continue
+				}
+				if matchIndex < afterOffset || len(pageRanges) >= pagination.PerPage {
+					continue
+				}
+
+				blameRange := BlameRange{
+					StartingLine: start,
+					EndingLine:   end,
+					Age:          int(r.Age),
+					CommitSHA:    string(r.Commit.OID),
+				}
+				pageRanges = append(pageRanges, blameRange)
+
+				sha := string(r.Commit.OID)
+				if _, seen := commits[sha]; seen {
+					continue
+				}
+				headline := string(r.Commit.Message)
+				if idx := strings.IndexByte(headline, '\n'); idx >= 0 {
+					headline = headline[:idx]
+				}
+				headline = strings.TrimRight(headline, " \t\r")
+				bc := BlameCommit{
+					SHA:             sha,
+					MessageHeadline: headline,
+					CommittedDate:   r.Commit.CommittedDate.Format("2006-01-02T15:04:05Z"),
+					Author: BlameAuthor{
+						Name:  string(r.Commit.Author.Name),
+						Email: string(r.Commit.Author.Email),
+					},
+				}
+				if r.Commit.Author.User != nil {
+					login := string(r.Commit.Author.User.Login)
+					url := string(r.Commit.Author.User.URL)
+					bc.Author.Login = &login
+					bc.Author.URL = &url
+				}
+				commits[sha] = bc
+			}
+
+			cappedRanges := min(totalRanges, maxBlameRanges)
+			consumedRanges := min(afterOffset+len(pageRanges), cappedRanges)
+			pageInfo := MinimalPageInfo{
+				HasNextPage:     consumedRanges < cappedRanges,
+				HasPreviousPage: afterOffset > 0,
+			}
+			if len(pageRanges) > 0 {
+				pageInfo.StartCursor = encodeBlameCursor(afterOffset)
+				pageInfo.EndCursor = encodeBlameCursor(consumedRanges)
+			}
+
+			result := BlameResult{
+				Repository:  fmt.Sprintf("%s/%s", owner, repo),
+				Path:        path,
+				Ref:         responseRef,
+				Ranges:      pageRanges,
+				Commits:     commits,
+				PageInfo:    pageInfo,
+				TotalRanges: totalRanges,
+				Truncated:   truncated,
+			}
+			if result.Ranges == nil {
+				result.Ranges = []BlameRange{}
+			}
+
+			payload, err := json.Marshal(result)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return utils.NewToolResultText(string(payload)), nil, nil
 		},
 	)
 }
