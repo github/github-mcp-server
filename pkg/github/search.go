@@ -164,7 +164,7 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 
 			callResult := utils.NewToolResultText(string(r))
 			if deps.GetFlags(ctx).InsidersMode {
-				attachSearchRepositoriesIFCLabel(ctx, client, result.Repositories, callResult)
+				attachSearchRepositoriesIFCLabel(result.Repositories, callResult)
 			}
 			return callResult, nil, nil
 		},
@@ -173,47 +173,24 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 
 // attachSearchRepositoriesIFCLabel joins per-repository IFC labels across
 // every matched repository and attaches the result to callResult. Visibility
-// is read directly from the search response (no extra API call); collaborators
-// are fetched once per private repository. If any collaborators lookup fails
-// the label is omitted to avoid misclassifying the result. The join math is
-// shared with search_issues via ifc.LabelSearchIssues: integrity is always
-// untrusted, and confidentiality is the intersection of the reader sets of
-// the matched private repositories (public matches contribute the universe
-// set and drop out without shrinking it).
-func attachSearchRepositoriesIFCLabel(ctx context.Context, client *github.Client, repos []*github.Repository, callResult *mcp.CallToolResult) {
+// is read directly from the search response — no extra API call. The join
+// math is shared with search_issues via ifc.LabelSearchIssues: integrity is
+// always untrusted; confidentiality is private if any matched repository is
+// private, otherwise public.
+func attachSearchRepositoriesIFCLabel(repos []*github.Repository, callResult *mcp.CallToolResult) {
 	if callResult == nil || callResult.IsError {
 		return
 	}
 
 	visibilities := make([]bool, 0, len(repos))
-	readerSets := make([][]string, 0, len(repos))
 	for _, repo := range repos {
-		isPrivate := repo.GetPrivate()
-		visibilities = append(visibilities, isPrivate)
-		if !isPrivate {
-			readerSets = append(readerSets, nil)
-			continue
-		}
-		owner := repo.GetOwner().GetLogin()
-		name := repo.GetName()
-		if owner == "" || name == "" {
-			return
-		}
-		collaborators, err := FetchRepoCollaborators(ctx, client, owner, name)
-		if err != nil {
-			return
-		}
-		readerSets = append(readerSets, collaborators)
+		visibilities = append(visibilities, repo.GetPrivate())
 	}
 
-	label, ok := ifc.LabelSearchIssues(visibilities, readerSets)
-	if !ok {
-		return
-	}
 	if callResult.Meta == nil {
 		callResult.Meta = mcp.Meta{}
 	}
-	callResult.Meta["ifc"] = label
+	callResult.Meta["ifc"] = ifc.LabelSearchIssues(visibilities)
 }
 
 // SearchCode creates a tool to search for code across GitHub repositories.
