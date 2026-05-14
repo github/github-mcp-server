@@ -31,7 +31,6 @@ const (
 	GetReposByOwnerByRepo                = "GET /repos/{owner}/{repo}"
 	GetReposBranchesByOwnerByRepo        = "GET /repos/{owner}/{repo}/branches"
 	GetReposTagsByOwnerByRepo            = "GET /repos/{owner}/{repo}/tags"
-	GetReposCollaboratorsByOwnerByRepo   = "GET /repos/{owner}/{repo}/collaborators"
 	GetReposCommitsByOwnerByRepo         = "GET /repos/{owner}/{repo}/commits"
 	GetReposCommitsByOwnerByRepoByRef    = "GET /repos/{owner}/{repo}/commits/{ref}"
 	GetReposContentsByOwnerByRepoByPath  = "GET /repos/{owner}/{repo}/contents/{path}"
@@ -220,9 +219,15 @@ func expectRequestBody(t *testing.T, expectedRequestBody any) *partialMock {
 type partialMock struct {
 	t *testing.T
 
-	expectedPath        string
-	expectedQueryParams map[string]string
-	expectedRequestBody any
+	expectedPath           string
+	expectedQueryParams    map[string]string
+	expectedRequestBody    any
+	expectedHeaderContains map[string]string
+}
+
+func (p *partialMock) withHeaders(headers map[string]string) *partialMock {
+	p.expectedHeaderContains = headers
+	return p
 }
 
 func (p *partialMock) andThen(responseHandler http.HandlerFunc) http.HandlerFunc {
@@ -245,6 +250,12 @@ func (p *partialMock) andThen(responseHandler http.HandlerFunc) http.HandlerFunc
 			require.NoError(p.t, err)
 
 			require.Equal(p.t, p.expectedRequestBody, unmarshaledRequestBody)
+		}
+
+		if p.expectedHeaderContains != nil {
+			for k, v := range p.expectedHeaderContains {
+				require.Contains(p.t, r.Header.Get(k), v, "expected header %q to contain %q", k, v)
+			}
 		}
 
 		responseHandler(w, r)

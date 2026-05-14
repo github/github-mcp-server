@@ -164,7 +164,7 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 
 			callResult := utils.NewToolResultText(string(r))
 			if deps.GetFlags(ctx).InsidersMode {
-				attachSearchRepositoriesIFCLabel(ctx, client, result.Repositories, callResult)
+				attachSearchRepositoriesIFCLabel(result.Repositories, callResult)
 			}
 			return callResult, nil, nil
 		},
@@ -173,47 +173,24 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 
 // attachSearchRepositoriesIFCLabel joins per-repository IFC labels across
 // every matched repository and attaches the result to callResult. Visibility
-// is read directly from the search response (no extra API call); collaborators
-// are fetched once per private repository. If any collaborators lookup fails
-// the label is omitted to avoid misclassifying the result. The join math is
-// shared with search_issues via ifc.LabelSearchIssues: integrity is always
-// untrusted, and confidentiality is the intersection of the reader sets of
-// the matched private repositories (public matches contribute the universe
-// set and drop out without shrinking it).
-func attachSearchRepositoriesIFCLabel(ctx context.Context, client *github.Client, repos []*github.Repository, callResult *mcp.CallToolResult) {
+// is read directly from the search response — no extra API call. The join
+// math is shared with search_issues via ifc.LabelSearchIssues: integrity is
+// always untrusted; confidentiality is private if any matched repository is
+// private, otherwise public.
+func attachSearchRepositoriesIFCLabel(repos []*github.Repository, callResult *mcp.CallToolResult) {
 	if callResult == nil || callResult.IsError {
 		return
 	}
 
 	visibilities := make([]bool, 0, len(repos))
-	readerSets := make([][]string, 0, len(repos))
 	for _, repo := range repos {
-		isPrivate := repo.GetPrivate()
-		visibilities = append(visibilities, isPrivate)
-		if !isPrivate {
-			readerSets = append(readerSets, nil)
-			continue
-		}
-		owner := repo.GetOwner().GetLogin()
-		name := repo.GetName()
-		if owner == "" || name == "" {
-			return
-		}
-		collaborators, err := FetchRepoCollaborators(ctx, client, owner, name)
-		if err != nil {
-			return
-		}
-		readerSets = append(readerSets, collaborators)
+		visibilities = append(visibilities, repo.GetPrivate())
 	}
 
-	label, ok := ifc.LabelSearchIssues(visibilities, readerSets)
-	if !ok {
-		return
-	}
 	if callResult.Meta == nil {
 		callResult.Meta = mcp.Meta{}
 	}
-	callResult.Meta["ifc"] = label
+	callResult.Meta["ifc"] = ifc.LabelSearchIssues(visibilities)
 }
 
 // SearchCode creates a tool to search for code across GitHub repositories.
@@ -270,8 +247,9 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			opts := &github.SearchOptions{
-				Sort:  sort,
-				Order: order,
+				Sort:      sort,
+				Order:     order,
+				TextMatch: true,
 				ListOptions: github.ListOptions{
 					PerPage: pagination.PerPage,
 					Page:    pagination.Page,
@@ -301,7 +279,27 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search code", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(result)
+			minimalItems := make([]MinimalCodeResult, 0, len(result.CodeResults))
+			for _, code := range result.CodeResults {
+				item := MinimalCodeResult{
+					Name:        code.GetName(),
+					Path:        code.GetPath(),
+					SHA:         code.GetSHA(),
+					TextMatches: code.TextMatches,
+				}
+				if code.Repository != nil {
+					item.Repository = code.Repository.GetFullName()
+				}
+				minimalItems = append(minimalItems, item)
+			}
+
+			minimalResult := &MinimalCodeSearchResult{
+				TotalCount:        result.GetTotal(),
+				IncompleteResults: result.GetIncompleteResults(),
+				Items:             minimalItems,
+			}
+
+			r, err := json.Marshal(minimalResult)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}

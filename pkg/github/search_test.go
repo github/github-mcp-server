@@ -173,11 +173,9 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 	serverTool := SearchRepositories(translations.NullTranslationHelper)
 
 	type repoFixture struct {
-		owner               string
-		name                string
-		isPrivate           bool
-		collaborators       []string
-		collaboratorsStatus int
+		owner     string
+		name      string
+		isPrivate bool
 	}
 
 	makeRepo := func(r repoFixture) *github.Repository {
@@ -198,33 +196,8 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 		for _, r := range repos {
 			searchResult.Repositories = append(searchResult.Repositories, makeRepo(r))
 		}
-
-		collaboratorsByPath := map[string]repoFixture{}
-		for _, r := range repos {
-			collaboratorsByPath["/repos/"+r.owner+"/"+r.name+"/collaborators"] = r
-		}
-
 		return MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetSearchRepositories: mockResponse(t, http.StatusOK, searchResult),
-			GetReposCollaboratorsByOwnerByRepo: func(w http.ResponseWriter, req *http.Request) {
-				r, ok := collaboratorsByPath[req.URL.Path]
-				if !ok {
-					w.WriteHeader(http.StatusOK)
-					_, _ = w.Write([]byte("[]"))
-					return
-				}
-				if r.collaboratorsStatus != 0 && r.collaboratorsStatus != http.StatusOK {
-					w.WriteHeader(r.collaboratorsStatus)
-					return
-				}
-				users := make([]*github.User, len(r.collaborators))
-				for i, login := range r.collaborators {
-					users[i] = &github.User{Login: github.Ptr(login)}
-				}
-				body, _ := json.Marshal(users)
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write(body)
-			},
 		})
 	}
 
@@ -262,13 +235,13 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		assert.Equal(t, []any{"public"}, ifcMap["confidentiality"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 
-	t.Run("insiders mode mixed public and private keeps the private readers", func(t *testing.T) {
+	t.Run("insiders mode any private match emits private untrusted", func(t *testing.T) {
 		deps := BaseDeps{
 			Client: github.NewClient(makeMockClient([]repoFixture{
-				{owner: "octocat", name: "private-repo", isPrivate: true, collaborators: []string{"alice"}},
+				{owner: "octocat", name: "private-repo", isPrivate: true},
 				{owner: "octocat", name: "public-repo"},
 			})),
 			Flags: FeatureFlags{InsidersMode: true},
@@ -283,48 +256,7 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		assert.Equal(t, []any{"alice"}, ifcMap["confidentiality"])
-	})
-
-	t.Run("insiders mode two private repos intersect collaborators", func(t *testing.T) {
-		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient([]repoFixture{
-				{owner: "octocat", name: "repo-a", isPrivate: true, collaborators: []string{"alice", "bob", "carol"}},
-				{owner: "octocat", name: "repo-b", isPrivate: true, collaborators: []string{"bob", "carol", "dan"}},
-			})),
-			Flags: FeatureFlags{InsidersMode: true},
-		}
-		handler := serverTool.Handler(deps)
-
-		request := createMCPRequest(reqParams)
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-		require.False(t, result.IsError)
-
-		require.NotNil(t, result.Meta)
-		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
-		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		assert.Equal(t, []any{"bob", "carol"}, ifcMap["confidentiality"])
-	})
-
-	t.Run("insiders mode skips ifc label when collaborators lookup fails", func(t *testing.T) {
-		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient([]repoFixture{
-				{owner: "octocat", name: "private-repo", isPrivate: true, collaboratorsStatus: http.StatusInternalServerError},
-			})),
-			Flags: FeatureFlags{InsidersMode: true},
-		}
-		handler := serverTool.Handler(deps)
-
-		request := createMCPRequest(reqParams)
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-		require.False(t, result.IsError, "tool call should still succeed when collaborators lookup fails")
-
-		if result.Meta != nil {
-			_, hasIFC := result.Meta["ifc"]
-			assert.False(t, hasIFC, "ifc label should be omitted when collaborators lookup fails")
-		}
+		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
 
 	t.Run("insiders mode empty results emits public untrusted", func(t *testing.T) {
@@ -342,7 +274,7 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		assert.Equal(t, []any{"public"}, ifcMap["confidentiality"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 }
 
@@ -430,20 +362,33 @@ func Test_SearchCode(t *testing.T) {
 		IncompleteResults: github.Ptr(false),
 		CodeResults: []*github.CodeResult{
 			{
-				Name:       github.Ptr("file1.go"),
-				Path:       github.Ptr("path/to/file1.go"),
-				SHA:        github.Ptr("abc123def456"),
-				HTMLURL:    github.Ptr("https://github.com/owner/repo/blob/main/path/to/file1.go"),
-				Repository: &github.Repository{Name: github.Ptr("repo"), FullName: github.Ptr("owner/repo")},
+				Name: github.Ptr("file1.go"),
+				Path: github.Ptr("path/to/file1.go"),
+				SHA:  github.Ptr("abc123def456"),
+				Repository: &github.Repository{
+					Name:     github.Ptr("repo"),
+					FullName: github.Ptr("owner/repo"),
+				},
+				TextMatches: []*github.TextMatch{
+					{
+						Fragment: github.Ptr("func main() { fmt.Println(\"hello\") }"),
+					},
+				},
 			},
 			{
-				Name:       github.Ptr("file2.go"),
-				Path:       github.Ptr("path/to/file2.go"),
-				SHA:        github.Ptr("def456abc123"),
-				HTMLURL:    github.Ptr("https://github.com/owner/repo/blob/main/path/to/file2.go"),
-				Repository: &github.Repository{Name: github.Ptr("repo"), FullName: github.Ptr("owner/repo")},
+				Name: github.Ptr("file2.go"),
+				Path: github.Ptr("path/to/file2.go"),
+				SHA:  github.Ptr("def456abc123"),
+				Repository: &github.Repository{
+					Name:     github.Ptr("repo"),
+					FullName: github.Ptr("owner/repo"),
+				},
 			},
 		},
+	}
+
+	textMatchAcceptHeader := map[string]string{
+		"Accept": "text-match",
 	}
 
 	tests := []struct {
@@ -463,7 +408,7 @@ func Test_SearchCode(t *testing.T) {
 					"order":    "desc",
 					"page":     "1",
 					"per_page": "30",
-				}).andThen(
+				}).withHeaders(textMatchAcceptHeader).andThen(
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
@@ -484,7 +429,7 @@ func Test_SearchCode(t *testing.T) {
 					"q":        "fmt.Println language:go",
 					"page":     "1",
 					"per_page": "30",
-				}).andThen(
+				}).withHeaders(textMatchAcceptHeader).andThen(
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
@@ -537,22 +482,28 @@ func Test_SearchCode(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedResult github.CodeSearchResult
+			var returnedResult MinimalCodeSearchResult
 			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedResult.Total, *returnedResult.Total)
-			assert.Equal(t, *tc.expectedResult.IncompleteResults, *returnedResult.IncompleteResults)
-			assert.Len(t, returnedResult.CodeResults, len(tc.expectedResult.CodeResults))
-			for i, code := range returnedResult.CodeResults {
-				assert.Equal(t, *tc.expectedResult.CodeResults[i].Name, *code.Name)
-				assert.Equal(t, *tc.expectedResult.CodeResults[i].Path, *code.Path)
-				assert.Equal(t, *tc.expectedResult.CodeResults[i].SHA, *code.SHA)
-				assert.Equal(t, *tc.expectedResult.CodeResults[i].HTMLURL, *code.HTMLURL)
-				assert.Equal(t, *tc.expectedResult.CodeResults[i].Repository.FullName, *code.Repository.FullName)
+			assert.Equal(t, *tc.expectedResult.Total, returnedResult.TotalCount)
+			assert.Equal(t, *tc.expectedResult.IncompleteResults, returnedResult.IncompleteResults)
+			assert.Len(t, returnedResult.Items, len(tc.expectedResult.CodeResults))
+			for i, code := range returnedResult.Items {
+				assert.Equal(t, tc.expectedResult.CodeResults[i].GetName(), code.Name)
+				assert.Equal(t, tc.expectedResult.CodeResults[i].GetPath(), code.Path)
+				assert.Equal(t, tc.expectedResult.CodeResults[i].GetSHA(), code.SHA)
+				assert.Equal(t, tc.expectedResult.CodeResults[i].Repository.GetFullName(), code.Repository)
+			}
+
+			// Verify text matches are included when present
+			if len(tc.expectedResult.CodeResults[0].TextMatches) > 0 {
+				require.NotEmpty(t, returnedResult.Items[0].TextMatches)
+				assert.Equal(t,
+					tc.expectedResult.CodeResults[0].TextMatches[0].GetFragment(),
+					returnedResult.Items[0].TextMatches[0].GetFragment(),
+				)
 			}
 		})
 	}
