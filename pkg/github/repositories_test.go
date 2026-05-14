@@ -4459,6 +4459,19 @@ func Test_ListRepositoryCollaborators(t *testing.T) {
 			mockResponses: []MockBackendOption{},
 			errContains:   "missing required parameter: repo",
 		},
+		{
+			name: "empty collaborators returns empty array",
+			args: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			mockResponses: []MockBackendOption{
+				WithRequestMatch(
+					GetReposCollaboratorsByOwnerByRepo,
+					[]*github.User{},
+				),
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -4486,6 +4499,13 @@ func Test_ListRepositoryCollaborators(t *testing.T) {
 			var collaborators []MinimalCollaborator
 			err = json.Unmarshal([]byte(textContent.Text), &collaborators)
 			require.NoError(t, err)
+
+			if tt.name == "empty collaborators returns empty array" {
+				assert.Empty(t, collaborators)
+				assert.Equal(t, "[]", textContent.Text)
+				return
+			}
+
 			assert.Len(t, collaborators, 2)
 			assert.Equal(t, "user1", collaborators[0].Login)
 			assert.Equal(t, int64(101), collaborators[0].ID)

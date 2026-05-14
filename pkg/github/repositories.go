@@ -2247,7 +2247,7 @@ func ListRepositoryCollaborators(t translations.TranslationHelperFunc) inventory
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "list_repository_collaborators",
-			Description: t("TOOL_LIST_REPOSITORY_COLLABORATORS_DESCRIPTION", "List collaborators of a GitHub repository. Lists users who have access to the repository. Includes their username, ID, and role name."),
+			Description: t("TOOL_LIST_REPOSITORY_COLLABORATORS_DESCRIPTION", "List collaborators of a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_REPOSITORY_COLLABORATORS_USER_TITLE", "List repository collaborators"),
 				ReadOnlyHint: true,
@@ -2322,7 +2322,7 @@ func ListRepositoryCollaborators(t translations.TranslationHelperFunc) inventory
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list collaborators", resp, body), nil, nil
 			}
 
-			var result []MinimalCollaborator
+			result := make([]MinimalCollaborator, 0, len(collaborators))
 			for _, c := range collaborators {
 				result = append(result, MinimalCollaborator{
 					Login:    c.GetLogin(),
