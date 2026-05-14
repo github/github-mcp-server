@@ -1,0 +1,45 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List repository collaborators"
+  },
+  "description": "List collaborators of a GitHub repository. Lists users who have access to the repository. Includes their username, ID, and role name.",
+  "inputSchema": {
+    "properties": {
+      "affiliation": {
+        "description": "Filter by affiliation. Can be one of: 'outside' (outside collaborators), 'direct' (all with permissions regardless of org membership), 'all' (all collaborators). Default: 'all'",
+        "enum": [
+          "outside",
+          "direct",
+          "all"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page": {
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "list_repository_collaborators"
+}

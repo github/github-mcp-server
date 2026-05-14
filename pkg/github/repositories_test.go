@@ -4376,3 +4376,123 @@ func Test_UnstarRepository(t *testing.T) {
 		})
 	}
 }
+
+func Test_ListRepositoryCollaborators(t *testing.T) {
+	// Verify tool definition once
+	serverTool := ListRepositoryCollaborators(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+
+	assert.Equal(t, "list_repository_collaborators", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.True(t, tool.Annotations.ReadOnlyHint)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "affiliation")
+	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
+
+	mockCollaborators := []*github.User{
+		{
+			Login:    github.Ptr("user1"),
+			ID:       github.Ptr(int64(101)),
+			RoleName: github.Ptr("admin"),
+		},
+		{
+			Login:    github.Ptr("user2"),
+			ID:       github.Ptr(int64(102)),
+			RoleName: github.Ptr("write"),
+		},
+	}
+
+	tests := []struct {
+		name          string
+		args          map[string]any
+		mockResponses []MockBackendOption
+		wantErr       bool
+		errContains   string
+	}{
+		{
+			name: "success",
+			args: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			mockResponses: []MockBackendOption{
+				WithRequestMatch(
+					GetReposCollaboratorsByOwnerByRepo,
+					mockCollaborators,
+				),
+			},
+		},
+		{
+			name: "success with affiliation filter",
+			args: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"affiliation": "direct",
+			},
+			mockResponses: []MockBackendOption{
+				WithRequestMatch(
+					GetReposCollaboratorsByOwnerByRepo,
+					mockCollaborators,
+				),
+			},
+		},
+		{
+			name: "missing owner",
+			args: map[string]any{
+				"repo": "repo",
+			},
+			mockResponses: []MockBackendOption{},
+			errContains:   "missing required parameter: owner",
+		},
+		{
+			name: "missing repo",
+			args: map[string]any{
+				"owner": "owner",
+			},
+			mockResponses: []MockBackendOption{},
+			errContains:   "missing required parameter: repo",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := github.NewClient(NewMockedHTTPClient(tt.mockResponses...))
+			deps := BaseDeps{
+				Client: mockClient,
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tt.args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			if tt.errContains != "" {
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, tt.errContains)
+				return
+			}
+
+			textContent := getTextResult(t, result)
+			require.NotEmpty(t, textContent.Text)
+
+			var collaborators []MinimalCollaborator
+			err = json.Unmarshal([]byte(textContent.Text), &collaborators)
+			require.NoError(t, err)
+			assert.Len(t, collaborators, 2)
+			assert.Equal(t, "user1", collaborators[0].Login)
+			assert.Equal(t, int64(101), collaborators[0].ID)
+			assert.Equal(t, "admin", collaborators[0].RoleName)
+			assert.Equal(t, "user2", collaborators[1].Login)
+			assert.Equal(t, int64(102), collaborators[1].ID)
+			assert.Equal(t, "write", collaborators[1].RoleName)
+		})
+	}
+}
