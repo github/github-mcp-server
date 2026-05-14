@@ -1207,9 +1207,9 @@ The following sets of tools are available:
 
 - **get_file_blame** - Get file blame information
   - **Required OAuth Scopes**: `repo`
+  - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
   - `end_line`: Optional 1-based ending line of the window of interest. Must be >= start_line when both are provided. (number, optional)
   - `owner`: Repository owner (username or organization) (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
   - `path`: Path to the file in the repository, relative to the repository root (string, required)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `ref`: Git reference (branch, tag, or commit SHA). Defaults to the repository's default branch (HEAD). (string, optional)

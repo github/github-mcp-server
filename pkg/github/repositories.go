@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -2208,6 +2209,35 @@ func UnstarRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 // maxBlameRanges caps the number of matching blame ranges considered for one response.
 const maxBlameRanges = 1000
 
+const blameCursorPrefix = "blame-range:"
+
+func encodeBlameCursor(offset int) string {
+	return base64.RawURLEncoding.EncodeToString(fmt.Appendf(nil, "%s%d", blameCursorPrefix, offset))
+}
+
+func decodeBlameCursor(cursor string) (int, error) {
+	if cursor == "" {
+		return 0, nil
+	}
+
+	decoded, err := base64.RawURLEncoding.DecodeString(cursor)
+	if err != nil {
+		return 0, fmt.Errorf("after cursor is invalid")
+	}
+
+	value := string(decoded)
+	if !strings.HasPrefix(value, blameCursorPrefix) {
+		return 0, fmt.Errorf("after cursor is invalid")
+	}
+
+	offset, err := strconv.Atoi(strings.TrimPrefix(value, blameCursorPrefix))
+	if err != nil || offset < 0 {
+		return 0, fmt.Errorf("after cursor is invalid")
+	}
+
+	return offset, nil
+}
+
 // BlameAuthor describes the author of a commit referenced by a BlameRange.
 type BlameAuthor struct {
 	Name  string  `json:"name"`
@@ -2238,7 +2268,7 @@ type BlameRange struct {
 
 // BlameResult is the response payload returned by the get_file_blame tool.
 //
-// Commits is keyed by SHA. TotalRanges counts matching ranges before
+// Commits is keyed by SHA. TotalRanges counts matching ranges before cursor
 // pagination or truncation. Truncated reports whether maxBlameRanges was hit.
 type BlameResult struct {
 	Repository  string                 `json:"repository"`
@@ -2246,6 +2276,7 @@ type BlameResult struct {
 	Ref         string                 `json:"ref"`
 	Ranges      []BlameRange           `json:"ranges"`
 	Commits     map[string]BlameCommit `json:"commits"`
+	PageInfo    MinimalPageInfo        `json:"pageInfo"`
 	TotalRanges int                    `json:"total_ranges"`
 	Truncated   bool                   `json:"truncated,omitempty"`
 }
@@ -2279,14 +2310,14 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 				"Get git blame information for a file, showing the commit that last modified each line. "+
 					"Ranges share commit metadata via the top-level 'commits' map keyed by SHA. "+
 					"Use 'start_line'/'end_line' to restrict the result to a window of the file, and "+
-					"'page'/'perPage' to page through returned ranges. Matching ranges are capped at "+
+					"'perPage'/'after' to cursor-page through returned ranges. Matching ranges are capped at "+
 					"1000; when the cap is hit 'truncated' is set to true and 'total_ranges' reports the pre-cap match count.",
 			),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_FILE_BLAME_USER_TITLE", "Get file blame information"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: WithPagination(&jsonschema.Schema{
+			InputSchema: WithCursorPagination(&jsonschema.Schema{
 				Type: "object",
 				Properties: map[string]*jsonschema.Schema{
 					"owner": {
@@ -2359,25 +2390,26 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if hasStartLine && hasEndLine && endLine < startLine {
 				return utils.NewToolResultError("end_line must be >= start_line when both are provided"), nil, nil
 			}
-			page := 1
 			if _, hasPage := args["page"]; hasPage {
-				page, err = OptionalIntParam(args, "page")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				if page < 1 {
-					return utils.NewToolResultError("page must be >= 1 when provided"), nil, nil
-				}
+				return utils.NewToolResultError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), nil, nil
 			}
-			perPage := 30
+			pagination, err := OptionalCursorPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			if _, hasPerPage := args["perPage"]; hasPerPage {
-				perPage, err = OptionalIntParam(args, "perPage")
+				perPage, err := OptionalIntParam(args, "perPage")
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
 				if perPage < 1 || perPage > 100 {
 					return utils.NewToolResultError("perPage must be between 1 and 100 when provided"), nil, nil
 				}
+				pagination.PerPage = perPage
+			}
+			afterOffset, err := decodeBlameCursor(pagination.After)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetGQLClient(ctx)
@@ -2465,9 +2497,11 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			rawRanges := blameQuery.Repository.Object.Commit.Blame.Ranges
+			pageRanges := make([]BlameRange, 0, pagination.PerPage)
+			commits := make(map[string]BlameCommit)
+			totalRanges := 0
+			truncated := false
 
-			// Filter / clamp to the requested line window.
-			windowed := make([]BlameRange, 0, len(rawRanges))
 			for _, r := range rawRanges {
 				start := int(r.StartingLine)
 				end := int(r.EndingLine)
@@ -2483,40 +2517,26 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 				if endLine > 0 && end > endLine {
 					end = endLine
 				}
-				windowed = append(windowed, BlameRange{
+
+				matchIndex := totalRanges
+				totalRanges++
+				if matchIndex >= maxBlameRanges {
+					truncated = true
+					continue
+				}
+				if matchIndex < afterOffset || len(pageRanges) >= pagination.PerPage {
+					continue
+				}
+
+				blameRange := BlameRange{
 					StartingLine: start,
 					EndingLine:   end,
 					Age:          int(r.Age),
 					CommitSHA:    string(r.Commit.OID),
-				})
-			}
-
-			totalRanges := len(windowed)
-
-			// Cap before pagination so truncation is reported consistently.
-			truncated := false
-			if len(windowed) > maxBlameRanges {
-				truncated = true
-				windowed = windowed[:maxBlameRanges]
-			}
-
-			// Apply page/perPage pagination over the (filtered, capped) set.
-			cappedRanges := len(windowed)
-			offset := min((page-1)*perPage, cappedRanges)
-			end := min(offset+perPage, cappedRanges)
-			pageRanges := windowed[offset:end]
-
-			// Collect commit metadata only for SHAs referenced by this page.
-			needed := make(map[string]struct{}, len(pageRanges))
-			for _, br := range pageRanges {
-				needed[br.CommitSHA] = struct{}{}
-			}
-			commits := make(map[string]BlameCommit, len(needed))
-			for _, r := range rawRanges {
-				sha := string(r.Commit.OID)
-				if _, want := needed[sha]; !want {
-					continue
 				}
+				pageRanges = append(pageRanges, blameRange)
+
+				sha := string(r.Commit.OID)
 				if _, seen := commits[sha]; seen {
 					continue
 				}
@@ -2543,12 +2563,24 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 				commits[sha] = bc
 			}
 
+			cappedRanges := min(totalRanges, maxBlameRanges)
+			consumedRanges := min(afterOffset+len(pageRanges), cappedRanges)
+			pageInfo := MinimalPageInfo{
+				HasNextPage:     consumedRanges < cappedRanges,
+				HasPreviousPage: afterOffset > 0,
+			}
+			if len(pageRanges) > 0 {
+				pageInfo.StartCursor = encodeBlameCursor(afterOffset)
+				pageInfo.EndCursor = encodeBlameCursor(consumedRanges)
+			}
+
 			result := BlameResult{
 				Repository:  fmt.Sprintf("%s/%s", owner, repo),
 				Path:        path,
 				Ref:         responseRef,
 				Ranges:      pageRanges,
 				Commits:     commits,
+				PageInfo:    pageInfo,
 				TotalRanges: totalRanges,
 				Truncated:   truncated,
 			}

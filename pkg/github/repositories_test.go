@@ -4381,9 +4381,10 @@ func Test_GetFileBlame(t *testing.T) {
 
 	assert.Equal(t, "get_file_blame", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	for _, key := range []string{"owner", "repo", "path", "ref", "start_line", "end_line", "page", "perPage"} {
+	for _, key := range []string{"owner", "repo", "path", "ref", "start_line", "end_line", "perPage", "after"} {
 		assert.Contains(t, schema.Properties, key, "schema missing property %q", key)
 	}
+	assert.NotContains(t, schema.Properties, "page")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "path"})
 	require.NotNil(t, tool.Annotations)
 	assert.True(t, tool.Annotations.ReadOnlyHint, "blame is read-only")
@@ -4511,6 +4512,10 @@ func Test_GetFileBlame(t *testing.T) {
 				assert.Equal(t, "main", br.Ref, "ref should resolve to default branch name")
 				assert.False(t, br.Truncated)
 				assert.Equal(t, 3, br.TotalRanges)
+				assert.False(t, br.PageInfo.HasNextPage)
+				assert.False(t, br.PageInfo.HasPreviousPage)
+				assert.NotEmpty(t, br.PageInfo.StartCursor)
+				assert.NotEmpty(t, br.PageInfo.EndCursor)
 				require.Len(t, br.Ranges, 3)
 				// Commits map is deduplicated.
 				require.Len(t, br.Commits, 2)
@@ -4599,6 +4604,8 @@ func Test_GetFileBlame(t *testing.T) {
 				assert.Equal(t, 0, br.TotalRanges)
 				assert.Empty(t, br.Ranges)
 				assert.Empty(t, br.Commits)
+				assert.False(t, br.PageInfo.HasNextPage)
+				assert.False(t, br.PageInfo.HasPreviousPage)
 				assert.False(t, br.Truncated)
 				// Ranges should marshal as an empty array, not null.
 				assert.Contains(t, result, `"ranges":[]`)
@@ -4717,6 +4724,68 @@ func Test_GetFileBlame(t *testing.T) {
 			},
 		},
 		{
+			name: "cursor pagination returns requested page",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					blameQueryShape{},
+					makeBlameVars("testowner", "testrepo", "HEAD", "src/paged.go"),
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"defaultBranchRef": map[string]any{"name": "main"},
+							"object": map[string]any{
+								"__typename": "Commit",
+								"blame": map[string]any{
+									"ranges": []map[string]any{
+										{
+											"startingLine": 1, "endingLine": 1, "age": 1,
+											"commit": map[string]any{
+												"oid": "sha-A", "message": "A", "committedDate": "2024-01-01T00:00:00Z",
+												"author": map[string]any{"name": "a", "email": "a@x", "user": nil},
+											},
+										},
+										{
+											"startingLine": 2, "endingLine": 2, "age": 1,
+											"commit": map[string]any{
+												"oid": "sha-B", "message": "B", "committedDate": "2024-01-01T00:00:00Z",
+												"author": map[string]any{"name": "b", "email": "b@x", "user": nil},
+											},
+										},
+										{
+											"startingLine": 3, "endingLine": 3, "age": 1,
+											"commit": map[string]any{
+												"oid": "sha-C", "message": "C", "committedDate": "2024-01-01T00:00:00Z",
+												"author": map[string]any{"name": "c", "email": "c@x", "user": nil},
+											},
+										},
+									},
+								},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":   "testowner",
+				"repo":    "testrepo",
+				"path":    "src/paged.go",
+				"perPage": float64(1),
+				"after":   encodeBlameCursor(1),
+			},
+			validateResponse: func(t *testing.T, result string) {
+				var br BlameResult
+				require.NoError(t, json.Unmarshal([]byte(result), &br))
+				assert.Equal(t, 3, br.TotalRanges)
+				require.Len(t, br.Ranges, 1)
+				assert.Equal(t, "sha-B", br.Ranges[0].CommitSHA)
+				require.Len(t, br.Commits, 1)
+				require.Contains(t, br.Commits, "sha-B")
+				assert.True(t, br.PageInfo.HasNextPage)
+				assert.True(t, br.PageInfo.HasPreviousPage)
+				assert.Equal(t, encodeBlameCursor(1), br.PageInfo.StartCursor)
+				assert.Equal(t, encodeBlameCursor(2), br.PageInfo.EndCursor)
+			},
+		},
+		{
 			name: "GraphQL error is surfaced",
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
@@ -4792,7 +4861,7 @@ func Test_GetFileBlame(t *testing.T) {
 		}
 	})
 
-	// Line-window and pagination validation also short-circuits.
+	// Line-window and cursor pagination validation also short-circuits.
 	t.Run("line-range argument validation", func(t *testing.T) {
 		client := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
 		deps := BaseDeps{GQLClient: client}
@@ -4819,14 +4888,14 @@ func Test_GetFileBlame(t *testing.T) {
 				"end_line must be omitted or >= 1",
 			},
 			{
-				"invalid page",
-				map[string]any{"owner": "o", "repo": "r", "path": "f.go", "page": float64(-1)},
-				"page must be >= 1 when provided",
+				"page not supported",
+				map[string]any{"owner": "o", "repo": "r", "path": "f.go", "page": float64(1)},
+				"cursor-based pagination",
 			},
 			{
-				"page zero",
-				map[string]any{"owner": "o", "repo": "r", "path": "f.go", "page": float64(0)},
-				"page must be >= 1 when provided",
+				"invalid after cursor",
+				map[string]any{"owner": "o", "repo": "r", "path": "f.go", "after": "not-a-cursor"},
+				"after cursor is invalid",
 			},
 			{
 				"perPage too large",
@@ -4897,5 +4966,7 @@ func Test_GetFileBlame(t *testing.T) {
 		assert.True(t, br.Truncated, "truncation flag must be set")
 		assert.Equal(t, maxBlameRanges+5, br.TotalRanges)
 		assert.Len(t, br.Ranges, 100, "perPage limits the page size")
+		assert.True(t, br.PageInfo.HasNextPage)
+		assert.NotEmpty(t, br.PageInfo.EndCursor)
 	})
 }
