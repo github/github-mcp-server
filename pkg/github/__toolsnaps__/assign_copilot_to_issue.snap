@@ -23,8 +23,8 @@
         "type": "string"
       },
       "custom_instructions": {
-        "type": "string",
-        "description": "Optional custom instructions to guide the agent beyond the issue body. Use this to provide additional context, constraints, or guidance that is not captured in the issue description"
+        "description": "Optional custom instructions to guide the agent beyond the issue body. Use this to provide additional context, constraints, or guidance that is not captured in the issue description",
+        "type": "string"
       },
       "issue_number": {
         "description": "Issue number",

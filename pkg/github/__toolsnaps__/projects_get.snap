@@ -26,16 +26,17 @@
         "enum": [
           "get_project",
           "get_project_field",
-          "get_project_item"
+          "get_project_item",
+          "get_project_status_update"
         ],
         "type": "string"
       },
       "owner": {
-        "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
+        "description": "The owner (user or organization login). The name is not case sensitive.",
         "type": "string"
       },
       "owner_type": {
-        "description": "Owner type",
+        "description": "Owner type (user or org). If not provided, will be automatically detected.",
         "enum": [
           "user",
           "org"
@@ -45,13 +46,14 @@
       "project_number": {
         "description": "The project's number.",
         "type": "number"
+      },
+      "status_update_id": {
+        "description": "The node ID of the project status update. Required for 'get_project_status_update' method.",
+        "type": "string"
       }
     },
     "required": [
-      "method",
-      "owner_type",
-      "owner",
-      "project_number"
+      "method"
     ],
     "type": "object"
   },

@@ -80,9 +80,11 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 </table>
 
 ### Install in other MCP hosts
+
+- **[Copilot CLI](/docs/installation-guides/install-copilot-cli.md)** - Installation guide for GitHub Copilot CLI
 - **[GitHub Copilot in other IDEs](/docs/installation-guides/install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
 - **[Claude Applications](/docs/installation-guides/install-claude.md)** - Installation guide for Claude Desktop and Claude Code CLI
-- **[Codex](/docs/installation-guides/install-codex.md)** - Installation guide for Open AI Codex
+- **[Codex](/docs/installation-guides/install-codex.md)** - Installation guide for OpenAI Codex
 - **[Cursor](/docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
 - **[Windsurf](/docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
 - **[Rovo Dev CLI](/docs/installation-guides/install-rovo-dev-cli.md)** - Installation guide for Rovo Dev CLI
@@ -97,6 +99,49 @@ See [Remote Server Documentation](docs/remote-server.md) for full details on rem
 
 When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
+#### Insiders Mode
+
+> **Try new features early!** The remote server offers an insiders version with early access to new features and experimental tools.
+
+<table>
+<tr><th>Using URL Path</th><th>Using Header</th></tr>
+<tr valign=top>
+<td>
+
+```json
+{
+  "servers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/insiders"
+    }
+  }
+}
+```
+
+</td>
+<td>
+
+```json
+{
+  "servers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "X-MCP-Insiders": "true"
+      }
+    }
+  }
+}
+```
+
+</td>
+</tr>
+</table>
+
+See [Remote Server Documentation](docs/remote-server.md#insiders-mode) for more details and examples, and [Insiders Features](docs/insiders-features.md) for a full list of what's available.
+
 #### GitHub Enterprise
 
 ##### GitHub Enterprise Cloud with data residency (ghe.com)
@@ -104,10 +149,11 @@ When no toolsets are specified, [default toolsets](#default-toolset) are used.
 GitHub Enterprise Cloud can also make use of the remote server.
 
 Example for `https://octocorp.ghe.com` with GitHub PAT token:
+
 ```
 {
     ...
-    "proxima-github": {
+    "github-octocorp": {
       "type": "http",
       "url": "https://copilot-api.octocorp.ghe.com/mcp",
       "headers": {
@@ -140,24 +186,30 @@ The MCP server can use many of the GitHub APIs, so enable the permissions that y
 <details><summary><b>Handling PATs Securely</b></summary>
 
 ### Environment Variables (Recommended)
+
 To keep your GitHub PAT secure and reusable across different MCP hosts:
 
 1. **Store your PAT in environment variables**
+
    ```bash
    export GITHUB_PAT=your_token_here
    ```
+
    Or create a `.env` file:
+
    ```env
    GITHUB_PAT=your_token_here
    ```
 
 2. **Protect your `.env` file**
+
    ```bash
    # Add to .gitignore to prevent accidental commits
    echo ".env" >> .gitignore
    ```
 
 3. **Reference the token in configurations**
+
    ```bash
    # CLI usage
    claude mcp update github -e GITHUB_PERSONAL_ACCESS_TOKEN=$GITHUB_PAT
@@ -180,6 +232,7 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
 - **Regular rotation**: Update tokens periodically
 - **Never commit**: Keep tokens out of version control
 - **File permissions**: Restrict access to config files containing tokens
+
   ```bash
   chmod 600 ~/.your-app/config.json
   ```
@@ -193,6 +246,7 @@ the hostname for GitHub Enterprise Server or GitHub Enterprise Cloud with data r
 
 - For GitHub Enterprise Server, prefix the hostname with the `https://` URI scheme, as it otherwise defaults to `http://`, which GitHub Enterprise Server does not support.
 - For GitHub Enterprise Cloud with data residency, use `https://YOURSUBDOMAIN.ghe.com` as the hostname.
+
 ``` json
 "github": {
     "command": "docker",
@@ -297,6 +351,7 @@ Optionally, you can add a similar example (i.e. without the mcp key) to a file c
 
 For other MCP host applications, please refer to our installation guides:
 
+- **[Copilot CLI](docs/installation-guides/install-copilot-cli.md)** - Installation guide for GitHub Copilot CLI
 - **[GitHub Copilot in other IDEs](/docs/installation-guides/install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
 - **[Claude Code & Claude Desktop](docs/installation-guides/install-claude.md)** - Installation guide for Claude Code and Claude Desktop
 - **[Cursor](docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
@@ -328,6 +383,17 @@ If you don't have Docker, you can use `go build` to build the binary in the
 }
 ```
 
+### CLI utilities
+
+The `github-mcp-server` binary includes a few CLI subcommands that are helpful for debugging and exploring the server.
+
+- `github-mcp-server tool-search "<query>"` searches tools by name, description, and input parameter names. Use `--max-results` to return more matches.
+Example (color output requires a TTY; use `docker run -t` (or `-it`) when running in Docker):
+```bash
+docker run -it --rm ghcr.io/github/github-mcp-server tool-search "issue" --max-results 5
+github-mcp-server tool-search "issue" --max-results 5
+```
+
 ## Tool Configuration
 
 The GitHub MCP Server supports enabling or disabling specific groups of functionalities via the `--toolsets` flag. This allows you to control which GitHub API capabilities are available to your AI tools. Enabling only the toolsets that you need can help the LLM with tool choice and reduce the context size.
@@ -349,6 +415,7 @@ To specify toolsets you want available to the LLM, you can pass an allow-list in
    ```
 
 2. **Using Environment Variable**:
+
    ```bash
    GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security" ./github-mcp-server
    ```
@@ -366,27 +433,33 @@ You can also configure specific tools using the `--tools` flag. Tools can be use
    ```
 
 2. **Using Environment Variable**:
+
    ```bash
    GITHUB_TOOLS="get_file_contents,issue_read,create_pull_request" ./github-mcp-server
    ```
 
 3. **Combining with Toolsets** (additive):
+
    ```bash
    github-mcp-server --toolsets repos,issues --tools get_gist
    ```
+
    This registers all tools from `repos` and `issues` toolsets, plus `get_gist`.
 
 4. **Combining with Dynamic Toolsets** (additive):
+
    ```bash
    github-mcp-server --tools get_file_contents --dynamic-toolsets
    ```
+
    This registers `get_file_contents` plus the dynamic toolset tools (`enable_toolset`, `list_available_toolsets`, `get_toolset_tools`).
 
 **Important Notes:**
+
 - Tools, toolsets, and dynamic toolsets can all be used together
 - Read-only mode takes priority: write tools are skipped if `--read-only` is set, even if explicitly requested via `--tools`
 - Tool names must match exactly (e.g., `get_file_contents`, not `getFileContents`). Invalid tool names will cause the server to fail at startup with an error message
-- When tools are renamed, old names are preserved as aliases for backward compatibility. See [Deprecated Tool Aliases](docs/deprecated-tool-aliases.md) for details.
+- When tools are renamed, old names are preserved as aliases for backward compatibility. See [Tool Renaming](docs/tool-renaming.md) for details.
 
 ### Using Toolsets With Docker
 
@@ -435,9 +508,11 @@ GITHUB_TOOLSETS="all" ./github-mcp-server
 ```
 
 #### "default" toolset
+
 The default toolset `default` is the configuration that gets passed to the server if no toolsets are specified.
 
 The default configuration is:
+
 - context
 - repos
 - issues
@@ -450,6 +525,31 @@ To keep the default configuration and add additional toolsets:
 GITHUB_TOOLSETS="default,stargazers" ./github-mcp-server
 ```
 
+### Insiders Mode
+
+The local GitHub MCP Server offers an insiders version with early access to new features and experimental tools.
+
+1. **Using Command Line Argument**:
+
+   ```bash
+   ./github-mcp-server --insiders
+   ```
+
+2. **Using Environment Variable**:
+
+   ```bash
+   GITHUB_INSIDERS=true ./github-mcp-server
+   ```
+
+When using Docker:
+
+```bash
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_INSIDERS=true \
+  ghcr.io/github/github-mcp-server
+```
+
 ### Available Toolsets
 
 The following sets of tools are available:
@@ -460,6 +560,7 @@ The following sets of tools are available:
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/person-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/person-light.png"><img src="pkg/octicons/icons/person-light.png" width="20" height="20" alt="person"></picture> | `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/workflow-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/workflow-light.png"><img src="pkg/octicons/icons/workflow-light.png" width="20" height="20" alt="workflow"></picture> | `actions` | GitHub Actions workflows and CI/CD operations |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/codescan-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/codescan-light.png"><img src="pkg/octicons/icons/codescan-light.png" width="20" height="20" alt="codescan"></picture> | `code_security` | Code security related tools, such as GitHub Code Scanning |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/copilot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/copilot-light.png"><img src="pkg/octicons/icons/copilot-light.png" width="20" height="20" alt="copilot"></picture> | `copilot` | Copilot related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/dependabot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/dependabot-light.png"><img src="pkg/octicons/icons/dependabot-light.png" width="20" height="20" alt="dependabot"></picture> | `dependabot` | Dependabot tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/comment-discussion-light.png"><img src="pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture> | `discussions` | GitHub Discussions related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/logo-gist-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/logo-gist-light.png"><img src="pkg/octicons/icons/logo-gist-light.png" width="20" height="20" alt="logo-gist"></picture> | `gists` | GitHub Gist related tools |
@@ -492,107 +593,52 @@ The following sets of tools are available:
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/workflow-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/workflow-light.png"><img src="pkg/octicons/icons/workflow-light.png" width="20" height="20" alt="workflow"></picture> Actions</summary>
 
-- **cancel_workflow_run** - Cancel workflow run
+- **actions_get** - Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)
   - **Required OAuth Scopes**: `repo`
+  - `method`: The method to execute (string, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
+  - `resource_id`: The unique identifier of the resource. This will vary based on the "method" provided, so ensure you provide the correct ID:
+    - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'get_workflow' method.
+    - Provide a workflow run ID for 'get_workflow_run', 'get_workflow_run_usage', and 'get_workflow_run_logs_url' methods.
+    - Provide an artifact ID for 'download_workflow_run_artifact' method.
+    - Provide a job ID for 'get_workflow_job' method.
+     (string, required)
 
-- **delete_workflow_run_logs** - Delete workflow logs
+- **actions_list** - List GitHub Actions workflows in a repository
   - **Required OAuth Scopes**: `repo`
+  - `method`: The action to perform (string, required)
   - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (default: 1) (number, optional)
+  - `per_page`: Results per page for pagination (default: 30, max: 100) (number, optional)
   - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
+  - `resource_id`: The unique identifier of the resource. This will vary based on the "method" provided, so ensure you provide the correct ID:
+    - Do not provide any resource ID for 'list_workflows' method.
+    - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method, or omit to list all workflow runs in the repository.
+    - Provide a workflow run ID for 'list_workflow_jobs' and 'list_workflow_run_artifacts' methods.
+     (string, optional)
+  - `workflow_jobs_filter`: Filters for workflow jobs. **ONLY** used when method is 'list_workflow_jobs' (object, optional)
+  - `workflow_runs_filter`: Filters for workflow runs. **ONLY** used when method is 'list_workflow_runs' (object, optional)
 
-- **download_workflow_run_artifact** - Download workflow artifact
+- **actions_run_trigger** - Trigger GitHub Actions workflow actions
   - **Required OAuth Scopes**: `repo`
-  - `artifact_id`: The unique identifier of the artifact (number, required)
+  - `inputs`: Inputs the workflow accepts. Only used for 'run_workflow' method. (object, optional)
+  - `method`: The method to execute (string, required)
   - `owner`: Repository owner (string, required)
+  - `ref`: The git reference for the workflow. The reference can be a branch or tag name. Required for 'run_workflow' method. (string, optional)
   - `repo`: Repository name (string, required)
+  - `run_id`: The ID of the workflow run. Required for all methods except 'run_workflow'. (number, optional)
+  - `workflow_id`: The workflow ID (numeric) or workflow file name (e.g., main.yml, ci.yaml). Required for 'run_workflow' method. (string, optional)
 
-- **get_job_logs** - Get job logs
+- **get_job_logs** - Get GitHub Actions workflow job logs
   - **Required OAuth Scopes**: `repo`
-  - `failed_only`: When true, gets logs for all failed jobs in run_id (boolean, optional)
-  - `job_id`: The unique identifier of the workflow job (required for single job logs) (number, optional)
+  - `failed_only`: When true, gets logs for all failed jobs in the workflow run specified by run_id. Requires run_id to be provided. (boolean, optional)
+  - `job_id`: The unique identifier of the workflow job. Required when getting logs for a single job. (number, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `return_content`: Returns actual log content instead of URLs (boolean, optional)
-  - `run_id`: Workflow run ID (required when using failed_only) (number, optional)
+  - `run_id`: The unique identifier of the workflow run. Required when failed_only is true to get logs for all failed jobs in the run. (number, optional)
   - `tail_lines`: Number of lines to return from the end of the log (number, optional)
-
-- **get_workflow_run** - Get workflow run
-  - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
-
-- **get_workflow_run_logs** - Get workflow run logs
-  - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
-
-- **get_workflow_run_usage** - Get workflow usage
-  - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
-
-- **list_workflow_jobs** - List workflow jobs
-  - **Required OAuth Scopes**: `repo`
-  - `filter`: Filters jobs by their completed_at timestamp (string, optional)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
-
-- **list_workflow_run_artifacts** - List workflow artifacts
-  - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
-
-- **list_workflow_runs** - List workflow runs
-  - **Required OAuth Scopes**: `repo`
-  - `actor`: Returns someone's workflow runs. Use the login for the user who created the workflow run. (string, optional)
-  - `branch`: Returns workflow runs associated with a branch. Use the name of the branch. (string, optional)
-  - `event`: Returns workflow runs for a specific event type (string, optional)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `status`: Returns workflow runs with the check run status (string, optional)
-  - `workflow_id`: The workflow ID or workflow file name (string, required)
-
-- **list_workflows** - List workflows
-  - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-
-- **rerun_failed_jobs** - Rerun failed jobs
-  - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
-
-- **rerun_workflow_run** - Rerun workflow run
-  - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
-
-- **run_workflow** - Run workflow
-  - **Required OAuth Scopes**: `repo`
-  - `inputs`: Inputs the workflow accepts (object, optional)
-  - `owner`: Repository owner (string, required)
-  - `ref`: The git reference for the workflow. The reference can be a branch or tag name. (string, required)
-  - `repo`: Repository name (string, required)
-  - `workflow_id`: The workflow ID (numeric) or workflow file name (e.g., main.yml, ci.yaml) (string, required)
 
 </details>
 
@@ -636,6 +682,26 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `read:org`
   - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
   - `user`: Username to get teams for. If not provided, uses the authenticated user. (string, optional)
+
+</details>
+
+<details>
+
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/copilot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/copilot-light.png"><img src="pkg/octicons/icons/copilot-light.png" width="20" height="20" alt="copilot"></picture> Copilot</summary>
+
+- **assign_copilot_to_issue** - Assign Copilot to issue
+  - **Required OAuth Scopes**: `repo`
+  - `base_ref`: Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch (string, optional)
+  - `custom_instructions`: Optional custom instructions to guide the agent beyond the issue body. Use this to provide additional context, constraints, or guidance that is not captured in the issue description (string, optional)
+  - `issue_number`: Issue number (number, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **request_copilot_review** - Request Copilot review
+  - **Required OAuth Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
 
 </details>
 
@@ -746,14 +812,6 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `repo`
   - `body`: Comment content (string, required)
   - `issue_number`: Issue number to comment on (number, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-
-- **assign_copilot_to_issue** - Assign Copilot to issue
-  - **Required OAuth Scopes**: `repo`
-  - `base_ref`: Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch (string, optional)
-  - `custom_instructions`: Optional custom instructions to guide the agent beyond the issue body. Use this to provide additional context, constraints, or guidance that is not captured in the issue description (string, optional)
-  - `issue_number`: Issue number (number, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
@@ -931,84 +989,48 @@ The following sets of tools are available:
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/project-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/project-light.png"><img src="pkg/octicons/icons/project-light.png" width="20" height="20" alt="project"></picture> Projects</summary>
 
-- **add_project_item** - Add project item
-  - **Required OAuth Scopes**: `project`
-  - `item_id`: The numeric ID of the issue or pull request to add to the project. (number, required)
-  - `item_type`: The item's type, either issue or pull_request. (string, required)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
-  - `project_number`: The project's number. (number, required)
-
-- **delete_project_item** - Delete project item
-  - **Required OAuth Scopes**: `project`
-  - `item_id`: The internal project item ID to delete from the project (not the issue or pull request ID). (number, required)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
-  - `project_number`: The project's number. (number, required)
-
-- **get_project** - Get project
+- **projects_get** - Get details of GitHub Projects resources
   - **Required OAuth Scopes**: `read:project`
   - **Accepted OAuth Scopes**: `project`, `read:project`
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
-  - `project_number`: The project's number (number, required)
+  - `field_id`: The field's ID. Required for 'get_project_field' method. (number, optional)
+  - `fields`: Specific list of field IDs to include in the response when getting a project item (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. Only used for 'get_project_item' method. (string[], optional)
+  - `item_id`: The item's ID. Required for 'get_project_item' method. (number, optional)
+  - `method`: The method to execute (string, required)
+  - `owner`: The owner (user or organization login). The name is not case sensitive. (string, optional)
+  - `owner_type`: Owner type (user or org). If not provided, will be automatically detected. (string, optional)
+  - `project_number`: The project's number. (number, optional)
+  - `status_update_id`: The node ID of the project status update. Required for 'get_project_status_update' method. (string, optional)
 
-- **get_project_field** - Get project field
-  - **Required OAuth Scopes**: `read:project`
-  - **Accepted OAuth Scopes**: `project`, `read:project`
-  - `field_id`: The field's id. (number, required)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
-  - `project_number`: The project's number. (number, required)
-
-- **get_project_item** - Get project item
-  - **Required OAuth Scopes**: `read:project`
-  - **Accepted OAuth Scopes**: `project`, `read:project`
-  - `fields`: Specific list of field IDs to include in the response (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. (string[], optional)
-  - `item_id`: The item's ID. (number, required)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
-  - `project_number`: The project's number. (number, required)
-
-- **list_project_fields** - List project fields
+- **projects_list** - List GitHub Projects resources
   - **Required OAuth Scopes**: `read:project`
   - **Accepted OAuth Scopes**: `project`, `read:project`
   - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
   - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
+  - `fields`: Field IDs to include when listing project items (e.g. ["102589", "985201"]). CRITICAL: Always provide to get field values. Without this, only titles returned. Only used for 'list_project_items' method. (string[], optional)
+  - `method`: The action to perform (string, required)
+  - `owner`: The owner (user or organization login). The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (user or org). If not provided, will automatically try both. (string, optional)
   - `per_page`: Results per page (max 50) (number, optional)
-  - `project_number`: The project's number. (number, required)
+  - `project_number`: The project's number. Required for 'list_project_fields', 'list_project_items', and 'list_project_status_updates' methods. (number, optional)
+  - `query`: Filter/query string. For list_projects: filter by title text and state (e.g. "roadmap is:open"). For list_project_items: advanced filtering using GitHub's project filtering syntax. (string, optional)
 
-- **list_project_items** - List project items
-  - **Required OAuth Scopes**: `read:project`
-  - **Accepted OAuth Scopes**: `project`, `read:project`
-  - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
-  - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
-  - `fields`: Field IDs to include (e.g. ["102589", "985201"]). CRITICAL: Always provide to get field values. Without this, only titles returned. (string[], optional)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
-  - `per_page`: Results per page (max 50) (number, optional)
-  - `project_number`: The project's number. (number, required)
-  - `query`: Query string for advanced filtering of project items using GitHub's project filtering syntax. (string, optional)
-
-- **list_projects** - List projects
-  - **Required OAuth Scopes**: `read:project`
-  - **Accepted OAuth Scopes**: `project`, `read:project`
-  - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
-  - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
-  - `per_page`: Results per page (max 50) (number, optional)
-  - `query`: Filter projects by title text and open/closed state; permitted qualifiers: is:open, is:closed; examples: "roadmap is:open", "is:open feature planning". (string, optional)
-
-- **update_project_item** - Update project item
+- **projects_write** - Modify GitHub Project items
   - **Required OAuth Scopes**: `project`
-  - `item_id`: The unique identifier of the project item. This is not the issue or pull request ID. (number, required)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
+  - `body`: The body of the status update (markdown). Used for 'create_project_status_update' method. (string, optional)
+  - `issue_number`: The issue number (use when item_type is 'issue' for 'add_project_item' method). Provide either issue_number or pull_request_number. (number, optional)
+  - `item_id`: The project item ID. Required for 'update_project_item' and 'delete_project_item' methods. (number, optional)
+  - `item_owner`: The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method. (string, optional)
+  - `item_repo`: The name of the repository containing the issue or pull request. Required for 'add_project_item' method. (string, optional)
+  - `item_type`: The item's type, either issue or pull_request. Required for 'add_project_item' method. (string, optional)
+  - `method`: The method to execute (string, required)
+  - `owner`: The project owner (user or organization login). The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (user or org). If not provided, will be automatically detected. (string, optional)
   - `project_number`: The project's number. (number, required)
-  - `updated_field`: Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {"id": 123456, "value": "New Value"} (object, required)
+  - `pull_request_number`: The pull request number (use when item_type is 'pull_request' for 'add_project_item' method). Provide either issue_number or pull_request_number. (number, optional)
+  - `start_date`: The start date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method. (string, optional)
+  - `status`: The status of the project. Used for 'create_project_status_update' method. (string, optional)
+  - `target_date`: The target date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method. (string, optional)
+  - `updated_field`: Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {"id": 123456, "value": "New Value"}. Required for 'update_project_item' method. (object, optional)
 
 </details>
 
@@ -1028,6 +1050,14 @@ The following sets of tools are available:
   - `startLine`: For multi-line comments, the first line of the range that the comment applies to (number, optional)
   - `startSide`: For multi-line comments, the starting side of the diff that the comment applies to. LEFT indicates the previous state, RIGHT indicates the new state (string, optional)
   - `subjectType`: The level at which the comment is targeted (string, required)
+
+- **add_reply_to_pull_request_comment** - Add reply to pull request comment
+  - **Required OAuth Scopes**: `repo`
+  - `body`: The text of the reply (string, required)
+  - `commentId`: The ID of the comment to reply to (number, required)
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
 
 - **create_pull_request** - Open new pull request
   - **Required OAuth Scopes**: `repo`
@@ -1067,11 +1097,12 @@ The following sets of tools are available:
     Possible options: 
      1. get - Get details of a specific pull request.
      2. get_diff - Get the diff of a pull request.
-     3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
+     3. get_status - Get combined commit status of a head commit in a pull request.
      4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
      5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
-     6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
+     6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
      7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
+     8. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
      (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1088,12 +1119,7 @@ The following sets of tools are available:
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
-
-- **request_copilot_review** - Request Copilot review
-  - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
+  - `threadId`: The node ID of the review thread (e.g., PRRT_kwDOxxx). Required for resolve_thread and unresolve_thread methods. Get thread IDs from pull_request_read with method get_review_comments. (string, optional)
 
 - **search_pull_requests** - Search pull requests
   - **Required OAuth Scopes**: `repo`
@@ -1146,7 +1172,7 @@ The following sets of tools are available:
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: Path where to create/update the file (string, required)
   - `repo`: Repository name (string, required)
-  - `sha`: The blob SHA of the file being replaced. (string, optional)
+  - `sha`: The blob SHA of the file being replaced. Required if the file already exists. (string, optional)
 
 - **create_repository** - Create repository
   - **Required OAuth Scopes**: `repo`
@@ -1216,9 +1242,12 @@ The following sets of tools are available:
   - `author`: Author username or email address to filter commits by (string, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
+  - `path`: Only commits containing this file path will be returned (string, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
   - `sha`: Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA. (string, optional)
+  - `since`: Only commits after this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD) (string, optional)
+  - `until`: Only commits before this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD) (string, optional)
 
 - **list_releases** - List releases
   - **Required OAuth Scopes**: `repo`
@@ -1371,12 +1400,12 @@ The following sets of tools are available:
 
 <summary>Copilot</summary>
 
--   **create_pull_request_with_copilot** - Perform task with GitHub Copilot coding agent
-    -   `owner`: Repository owner. You can guess the owner, but confirm it with the user before proceeding. (string, required)
-    -   `repo`: Repository name. You can guess the repository name, but confirm it with the user before proceeding. (string, required)
-    -   `problem_statement`: Detailed description of the task to be performed (e.g., 'Implement a feature that does X', 'Fix bug Y', etc.) (string, required)
-    -   `title`: Title for the pull request that will be created (string, required)
-    -   `base_ref`: Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch (string, optional)
+- **create_pull_request_with_copilot** - Perform task with GitHub Copilot coding agent
+  - `owner`: Repository owner. You can guess the owner, but confirm it with the user before proceeding. (string, required)
+  - `repo`: Repository name. You can guess the repository name, but confirm it with the user before proceeding. (string, required)
+  - `problem_statement`: Detailed description of the task to be performed (e.g., 'Implement a feature that does X', 'Fix bug Y', etc.) (string, required)
+  - `title`: Title for the pull request that will be created (string, required)
+  - `base_ref`: Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch (string, optional)
 
 </details>
 
@@ -1384,19 +1413,21 @@ The following sets of tools are available:
 
 <summary>Copilot Spaces</summary>
 
--   **get_copilot_space** - Get Copilot Space
-    -   `owner`: The owner of the space. (string, required)
-    -   `name`: The name of the space. (string, required)
+- **get_copilot_space** - Get Copilot Space
+  - `owner`: The owner of the space. (string, required)
+  - `name`: The name of the space. (string, required)
 
--   **list_copilot_spaces** - List Copilot Spaces
+- **list_copilot_spaces** - List Copilot Spaces
+
 </details>
 
 <details>
 
 <summary>GitHub Support Docs Search</summary>
 
--   **github_support_docs_search** - Retrieve documentation relevant to answer GitHub product and support questions. Support topics include: GitHub Actions Workflows, Authentication, GitHub Support Inquiries, Pull Request Practices, Repository Maintenance, GitHub Pages, GitHub Packages, GitHub Discussions, Copilot Spaces
-    -   `query`: Input from the user about the question they need answered. This is the latest raw unedited user message. You should ALWAYS leave the user message as it is, you should never modify it. (string, required)
+- **github_support_docs_search** - Retrieve documentation relevant to answer GitHub product and support questions. Support topics include: GitHub Actions Workflows, Authentication, GitHub Support Inquiries, Pull Request Practices, Repository Maintenance, GitHub Pages, GitHub Packages, GitHub Discussions, Copilot Spaces
+  - `query`: Input from the user about the question they need answered. This is the latest raw unedited user message. You should ALWAYS leave the user message as it is, you should never modify it. (string, required)
+
 </details>
 
 ## Dynamic Tool Discovery
@@ -1507,6 +1538,34 @@ set the following environment variable:
 
 ```sh
 export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description"
+```
+
+### Overriding Server Name and Title
+
+The same override mechanism can be used to customize the MCP server's `name` and
+`title` fields in the initialization response. This is useful when running
+multiple GitHub MCP Server instances (e.g., one for github.com and one for
+GitHub Enterprise Server) so that agents can distinguish between them.
+
+| Key | Environment Variable | Default |
+|-----|---------------------|---------|
+| `SERVER_NAME` | `GITHUB_MCP_SERVER_NAME` | `github-mcp-server` |
+| `SERVER_TITLE` | `GITHUB_MCP_SERVER_TITLE` | `GitHub MCP Server` |
+
+For example, to configure a server instance for GitHub Enterprise Server:
+
+```json
+{
+  "SERVER_NAME": "ghes-mcp-server",
+  "SERVER_TITLE": "GHES MCP Server"
+}
+```
+
+Or using environment variables:
+
+```sh
+export GITHUB_MCP_SERVER_NAME="ghes-mcp-server"
+export GITHUB_MCP_SERVER_TITLE="GHES MCP Server"
 ```
 
 ## Library Usage

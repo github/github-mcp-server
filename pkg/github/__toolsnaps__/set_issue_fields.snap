@@ -1,0 +1,70 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Set Issue Fields"
+  },
+  "description": "Set issue field values for an issue. Fields are organization-level custom fields (text, number, date, or single select). Use this to create or update field values on an issue.",
+  "inputSchema": {
+    "properties": {
+      "fields": {
+        "description": "Array of issue field values to set. Each element must have a 'field_id' (string, the GraphQL node ID of the field) and exactly one value field: 'text_value' for text fields, 'number_value' for number fields, 'date_value' (ISO 8601 date string) for date fields, or 'single_select_option_id' (the GraphQL node ID of the option) for single select fields. Set 'delete' to true to remove a field value.",
+        "items": {
+          "properties": {
+            "date_value": {
+              "description": "The value to set for a date field (ISO 8601 date string)",
+              "type": "string"
+            },
+            "delete": {
+              "description": "Set to true to delete this field value",
+              "type": "boolean"
+            },
+            "field_id": {
+              "description": "The GraphQL node ID of the issue field",
+              "type": "string"
+            },
+            "number_value": {
+              "description": "The value to set for a number field",
+              "type": "number"
+            },
+            "single_select_option_id": {
+              "description": "The GraphQL node ID of the option to set for a single select field",
+              "type": "string"
+            },
+            "text_value": {
+              "description": "The value to set for a text field",
+              "type": "string"
+            }
+          },
+          "required": [
+            "field_id"
+          ],
+          "type": "object"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "issue_number": {
+        "description": "The issue number to update",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "issue_number",
+      "fields"
+    ],
+    "type": "object"
+  },
+  "name": "set_issue_fields"
+}

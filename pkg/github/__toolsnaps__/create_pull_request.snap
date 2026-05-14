@@ -1,4 +1,13 @@
 {
+  "_meta": {
+    "ui": {
+      "resourceUri": "ui://github-mcp-server/pr-write",
+      "visibility": [
+        "model",
+        "app"
+      ]
+    }
+  },
   "annotations": {
     "title": "Open new pull request"
   },

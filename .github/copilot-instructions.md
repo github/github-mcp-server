@@ -94,7 +94,7 @@ go test ./pkg/github -run TestGetMe
 
 - **go.mod / go.sum:** Go module dependencies (Go 1.24.0+)
 - **.golangci.yml:** Linter configuration (v2 format, ~15 linters enabled)
-- **Dockerfile:** Multi-stage build (golang:1.25.3-alpine → distroless)
+- **Dockerfile:** Multi-stage build (golang:1.25.8-alpine → distroless)
 - **server.json:** MCP server metadata for registry
 - **.goreleaser.yaml:** Release automation config
 - **.gitignore:** Excludes bin/, dist/, vendor/, *.DS_Store, github-mcp-server binary

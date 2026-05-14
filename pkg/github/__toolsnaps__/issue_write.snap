@@ -1,4 +1,13 @@
 {
+  "_meta": {
+    "ui": {
+      "resourceUri": "ui://github-mcp-server/issue-write",
+      "visibility": [
+        "model",
+        "app"
+      ]
+    }
+  },
   "annotations": {
     "title": "Create or update issue."
   },

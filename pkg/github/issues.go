@@ -10,15 +10,13 @@ import (
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/lockdown"
-	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -48,7 +46,7 @@ const (
 // When duplicateOf is non-zero, it fetches both the main issue and duplicate issue IDs in a single query.
 func fetchIssueIDs(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueNumber int, duplicateOf int) (githubv4.ID, githubv4.ID, error) {
 	// Build query variables common to both cases
-	vars := map[string]interface{}{
+	vars := map[string]any{
 		"owner":       githubv4.String(owner),
 		"repo":        githubv4.String(repo),
 		"issueNumber": githubv4.Int(issueNumber), // #nosec G115 - issue numbers are always small positive integers
@@ -65,7 +63,7 @@ func fetchIssueIDs(ctx context.Context, gqlClient *githubv4.Client, owner, repo 
 		}
 
 		if err := gqlClient.Query(ctx, &query, vars); err != nil {
-			return "", "", fmt.Errorf("failed to get issue ID")
+			return "", "", fmt.Errorf("failed to get issue ID: %w", err)
 		}
 
 		return query.Repository.Issue.ID, "", nil
@@ -87,7 +85,7 @@ func fetchIssueIDs(ctx context.Context, gqlClient *githubv4.Client, owner, repo 
 	vars["duplicateOf"] = githubv4.Int(duplicateOf) // #nosec G115 - issue numbers are always small positive integers
 
 	if err := gqlClient.Query(ctx, &query, vars); err != nil {
-		return "", "", fmt.Errorf("failed to get issue ID")
+		return "", "", fmt.Errorf("failed to get issue ID: %w", err)
 	}
 
 	return query.Repository.Issue.ID, query.Repository.DuplicateIssue.ID, nil
@@ -133,6 +131,7 @@ type IssueFragment struct {
 // Common interface for all issue query types
 type IssueQueryResult interface {
 	GetIssueFragment() IssueQueryFragment
+	GetIsPrivate() bool
 }
 
 type IssueQueryFragment struct {
@@ -149,28 +148,32 @@ type IssueQueryFragment struct {
 // ListIssuesQuery is the root query structure for fetching issues with optional label filtering.
 type ListIssuesQuery struct {
 	Repository struct {
-		Issues IssueQueryFragment `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction})"`
+		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction})"`
+		IsPrivate githubv4.Boolean
 	} `graphql:"repository(owner: $owner, name: $repo)"`
 }
 
 // ListIssuesQueryTypeWithLabels is the query structure for fetching issues with optional label filtering.
 type ListIssuesQueryTypeWithLabels struct {
 	Repository struct {
-		Issues IssueQueryFragment `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction})"`
+		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction})"`
+		IsPrivate githubv4.Boolean
 	} `graphql:"repository(owner: $owner, name: $repo)"`
 }
 
 // ListIssuesQueryWithSince is the query structure for fetching issues without label filtering but with since filtering.
 type ListIssuesQueryWithSince struct {
 	Repository struct {
-		Issues IssueQueryFragment `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since})"`
+		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since})"`
+		IsPrivate githubv4.Boolean
 	} `graphql:"repository(owner: $owner, name: $repo)"`
 }
 
 // ListIssuesQueryTypeWithLabelsWithSince is the query structure for fetching issues with both label and since filtering.
 type ListIssuesQueryTypeWithLabelsWithSince struct {
 	Repository struct {
-		Issues IssueQueryFragment `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since})"`
+		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since})"`
+		IsPrivate githubv4.Boolean
 	} `graphql:"repository(owner: $owner, name: $repo)"`
 }
 
@@ -179,16 +182,26 @@ func (q *ListIssuesQueryTypeWithLabels) GetIssueFragment() IssueQueryFragment {
 	return q.Repository.Issues
 }
 
+func (q *ListIssuesQueryTypeWithLabels) GetIsPrivate() bool { return bool(q.Repository.IsPrivate) }
+
 func (q *ListIssuesQuery) GetIssueFragment() IssueQueryFragment {
 	return q.Repository.Issues
 }
+
+func (q *ListIssuesQuery) GetIsPrivate() bool { return bool(q.Repository.IsPrivate) }
 
 func (q *ListIssuesQueryWithSince) GetIssueFragment() IssueQueryFragment {
 	return q.Repository.Issues
 }
 
+func (q *ListIssuesQueryWithSince) GetIsPrivate() bool { return bool(q.Repository.IsPrivate) }
+
 func (q *ListIssuesQueryTypeWithLabelsWithSince) GetIssueFragment() IssueQueryFragment {
 	return q.Repository.Issues
+}
+
+func (q *ListIssuesQueryTypeWithLabelsWithSince) GetIsPrivate() bool {
+	return bool(q.Repository.IsPrivate)
 }
 
 func getIssueQueryType(hasLabels bool, hasSince bool) any {
@@ -201,33 +214,6 @@ func getIssueQueryType(hasLabels bool, hasSince bool) any {
 		return &ListIssuesQueryWithSince{}
 	default:
 		return &ListIssuesQuery{}
-	}
-}
-
-func fragmentToIssue(fragment IssueFragment) *github.Issue {
-	// Convert GraphQL labels to GitHub API labels format
-	var foundLabels []*github.Label
-	for _, labelNode := range fragment.Labels.Nodes {
-		foundLabels = append(foundLabels, &github.Label{
-			Name:        github.Ptr(string(labelNode.Name)),
-			NodeID:      github.Ptr(string(labelNode.ID)),
-			Description: github.Ptr(string(labelNode.Description)),
-		})
-	}
-
-	return &github.Issue{
-		Number:    github.Ptr(int(fragment.Number)),
-		Title:     github.Ptr(sanitize.Sanitize(string(fragment.Title))),
-		CreatedAt: &github.Timestamp{Time: fragment.CreatedAt.Time},
-		UpdatedAt: &github.Timestamp{Time: fragment.UpdatedAt.Time},
-		User: &github.User{
-			Login: github.Ptr(string(fragment.Author.Login)),
-		},
-		State:    github.Ptr(string(fragment.State)),
-		ID:       github.Ptr(fragment.DatabaseID),
-		Body:     github.Ptr(sanitize.Sanitize(string(fragment.Body))),
-		Labels:   foundLabels,
-		Comments: github.Ptr(int(fragment.Comments.TotalCount)),
 	}
 }
 
@@ -310,26 +296,50 @@ Options are:
 				return utils.NewToolResultErrorFromErr("failed to get GitHub graphql client", err), nil, nil
 			}
 
+			// attachIFC adds the IFC label to a successful tool result when
+			// InsidersMode is enabled. If the visibility lookup fails the
+			// label is omitted rather than misclassifying the result.
+			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
+				if r == nil || r.IsError || !deps.GetFlags(ctx).InsidersMode {
+					return r
+				}
+				isPrivate, err := FetchRepoIsPrivate(ctx, client, owner, repo)
+				if err != nil {
+					return r
+				}
+				if r.Meta == nil {
+					r.Meta = mcp.Meta{}
+				}
+				r.Meta["ifc"] = ifc.LabelListIssues(isPrivate)
+				return r
+			}
+
 			switch method {
 			case "get":
-				result, err := GetIssue(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, deps.GetFlags())
-				return result, nil, err
+				result, err := GetIssue(ctx, client, deps, owner, repo, issueNumber)
+				return attachIFC(result), nil, err
 			case "get_comments":
-				result, err := GetIssueComments(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, pagination, deps.GetFlags())
-				return result, nil, err
+				result, err := GetIssueComments(ctx, client, deps, owner, repo, issueNumber, pagination)
+				return attachIFC(result), nil, err
 			case "get_sub_issues":
-				result, err := GetSubIssues(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, pagination, deps.GetFlags())
-				return result, nil, err
+				result, err := GetSubIssues(ctx, client, deps, owner, repo, issueNumber, pagination)
+				return attachIFC(result), nil, err
 			case "get_labels":
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		})
 }
 
-func GetIssue(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner string, repo string, issueNumber int, flags FeatureFlags) (*mcp.CallToolResult, error) {
+func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+	cache, err := deps.GetRepoAccessCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+	}
+	flags := deps.GetFlags(ctx)
+
 	issue, resp, err := client.Issues.Get(ctx, owner, repo, issueNumber)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get issue: %w", err)
@@ -370,15 +380,18 @@ func GetIssue(ctx context.Context, client *github.Client, cache *lockdown.RepoAc
 		}
 	}
 
-	r, err := json.Marshal(issue)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal issue: %w", err)
-	}
+	minimalIssue := convertToMinimalIssue(issue)
 
-	return utils.NewToolResultText(string(r)), nil
+	return MarshalledTextResult(minimalIssue), nil
 }
 
-func GetIssueComments(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner string, repo string, issueNumber int, pagination PaginationParams, flags FeatureFlags) (*mcp.CallToolResult, error) {
+func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	cache, err := deps.GetRepoAccessCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+	}
+	flags := deps.GetFlags(ctx)
+
 	opts := &github.IssueListCommentsOptions{
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
@@ -424,15 +437,21 @@ func GetIssueComments(ctx context.Context, client *github.Client, cache *lockdow
 		comments = filteredComments
 	}
 
-	r, err := json.Marshal(comments)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	minimalComments := make([]MinimalIssueComment, 0, len(comments))
+	for _, comment := range comments {
+		minimalComments = append(minimalComments, convertToMinimalIssueComment(comment))
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return MarshalledTextResult(minimalComments), nil
 }
 
-func GetSubIssues(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner string, repo string, issueNumber int, pagination PaginationParams, featureFlags FeatureFlags) (*mcp.CallToolResult, error) {
+func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	cache, err := deps.GetRepoAccessCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+	}
+	featureFlags := deps.GetFlags(ctx)
+
 	opts := &github.IssueListOptions{
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
@@ -542,7 +561,6 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 	}
 
 	return utils.NewToolResultText(string(out)), nil
-
 }
 
 // ListIssueTypes creates a tool to list defined issue types for an organization. This can be used to understand supported issue type values for creating or updating issues.
@@ -676,7 +694,12 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create comment", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(createdComment)
+			minimalResponse := MinimalResponse{
+				ID:  fmt.Sprintf("%d", createdComment.GetID()),
+				URL: createdComment.GetHTMLURL(),
+			}
+
+			r, err := json.Marshal(minimalResponse)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
@@ -687,7 +710,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 // SubIssueWrite creates a tool to add a sub-issue to a parent issue.
 func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "sub_issue_write",
@@ -797,6 +820,8 @@ Options are:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		})
+	st.FeatureFlagDisable = FeatureFlagIssuesGranular
+	return st
 }
 
 func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int, replaceParent bool) (*mcp.CallToolResult, error) {
@@ -830,7 +855,6 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 	}
 
 	return utils.NewToolResultText(string(r)), nil
-
 }
 
 func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int) (*mcp.CallToolResult, error) {
@@ -970,14 +994,103 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			result, err := searchHandler(ctx, deps.GetClient, args, "issue", "failed to search issues")
+			var options []searchOption
+			if deps.GetFlags(ctx).InsidersMode {
+				options = append(options, withSearchPostProcess(searchIssuesIFCPostProcess(deps)))
+			}
+			result, err := searchHandler(ctx, deps.GetClient, args, "issue", "failed to search issues", options...)
 			return result, nil, err
 		})
 }
 
+// searchIssuesIFCPostProcess returns a searchPostProcessFn that attaches the
+// IFC label for a search_issues result. It looks up the visibility (and, for
+// private repos, collaborators) of every repository represented in the search
+// payload and joins the labels via ifc.LabelSearchIssues. If any per-repo
+// lookup fails the label is omitted to avoid misclassifying the result.
+func searchIssuesIFCPostProcess(deps ToolDependencies) searchPostProcessFn {
+	return func(ctx context.Context, result *github.IssuesSearchResult, callResult *mcp.CallToolResult) {
+		if callResult == nil || callResult.IsError || result == nil {
+			return
+		}
+
+		client, err := deps.GetClient(ctx)
+		if err != nil {
+			return
+		}
+
+		uniqueRepos := uniqueSearchIssuesRepos(result)
+		visibilities := make([]bool, 0, len(uniqueRepos))
+		for _, r := range uniqueRepos {
+			isPrivate, err := FetchRepoIsPrivate(ctx, client, r.owner, r.repo)
+			if err != nil {
+				return
+			}
+			visibilities = append(visibilities, isPrivate)
+		}
+
+		if callResult.Meta == nil {
+			callResult.Meta = mcp.Meta{}
+		}
+		callResult.Meta["ifc"] = ifc.LabelSearchIssues(visibilities)
+	}
+}
+
+type searchIssuesRepoRef struct {
+	owner string
+	repo  string
+}
+
+// uniqueSearchIssuesRepos extracts the owner/repo pairs of every issue in the
+// search result, preserving order of first appearance and deduplicating.
+func uniqueSearchIssuesRepos(result *github.IssuesSearchResult) []searchIssuesRepoRef {
+	if result == nil {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	var out []searchIssuesRepoRef
+	for _, issue := range result.Issues {
+		if issue == nil {
+			continue
+		}
+		owner, repo, ok := parseRepositoryURL(issue.GetRepositoryURL())
+		if !ok {
+			continue
+		}
+		key := owner + "/" + repo
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, searchIssuesRepoRef{owner: owner, repo: repo})
+	}
+	return out
+}
+
+// parseRepositoryURL extracts the owner and repo from a GitHub API repository
+// URL of the form https://api.github.com/repos/{owner}/{repo}.
+func parseRepositoryURL(repoURL string) (string, string, bool) {
+	if repoURL == "" {
+		return "", "", false
+	}
+	const marker = "/repos/"
+	idx := strings.LastIndex(repoURL, marker)
+	if idx < 0 {
+		return "", "", false
+	}
+	parts := strings.Split(strings.Trim(repoURL[idx+len(marker):], "/"), "/")
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	return parts[0], parts[1], true
+}
+
 // IssueWrite creates a tool to create a new or update an existing issue in a GitHub repository.
+// IssueWriteUIResourceURI is the URI for the issue_write tool's MCP App UI resource.
+const IssueWriteUIResourceURI = "ui://github-mcp-server/issue-write"
+
 func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "issue_write",
@@ -985,6 +1098,12 @@ func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ISSUE_WRITE_USER_TITLE", "Create or update issue."),
 				ReadOnlyHint: false,
+			},
+			Meta: mcp.Meta{
+				"ui": map[string]any{
+					"resourceUri": IssueWriteUIResourceURI,
+					"visibility":  []string{"model", "app"},
+				},
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -1059,7 +1178,7 @@ Options are:
 			},
 		},
 		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -1073,6 +1192,29 @@ Options are:
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+
+			// When insiders mode is enabled and the client supports MCP Apps UI,
+			// check if this is a UI form submission. The UI sends _ui_submitted=true
+			// to distinguish form submissions from LLM calls.
+			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
+
+			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(ctx, req) && !uiSubmitted {
+				if method == "update" {
+					// Skip the UI form when a state change is requested because
+					// the form only handles title/body editing and would lose the
+					// state transition (e.g. closing or reopening the issue).
+					if _, hasState := args["state"]; !hasState {
+						issueNumber, numErr := RequiredInt(args, "issue_number")
+						if numErr != nil {
+							return utils.NewToolResultError("issue_number is required for update method"), nil, nil
+						}
+						return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. IMPORTANT: The issue has NOT been updated yet. Do NOT tell the user the issue was updated. The user MUST click Submit in the form to update it.", issueNumber, owner, repo)), nil, nil
+					}
+				} else {
+					return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. IMPORTANT: The issue has NOT been created yet. Do NOT tell the user the issue was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
+				}
+			}
+
 			title, err := OptionalParam[string](args, "title")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -1157,6 +1299,8 @@ Options are:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
 			}
 		})
+	st.FeatureFlagDisable = FeatureFlagIssuesGranular
+	return st
 }
 
 func CreateIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string) (*mcp.CallToolResult, error) {
@@ -1502,7 +1646,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
 
-			vars := map[string]interface{}{
+			vars := map[string]any{
 				"owner":     githubv4.String(owner),
 				"repo":      githubv4.String(repo),
 				"states":    states,
@@ -1541,302 +1685,22 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				), nil, nil
 			}
 
-			// Extract and convert all issue nodes using the common interface
-			var issues []*github.Issue
-			var pageInfo struct {
-				HasNextPage     githubv4.Boolean
-				HasPreviousPage githubv4.Boolean
-				StartCursor     githubv4.String
-				EndCursor       githubv4.String
-			}
-			var totalCount int
-
+			var resp MinimalIssuesResponse
+			var isPrivate bool
 			if queryResult, ok := issueQuery.(IssueQueryResult); ok {
-				fragment := queryResult.GetIssueFragment()
-				for _, issue := range fragment.Nodes {
-					issues = append(issues, fragmentToIssue(issue))
-				}
-				pageInfo = fragment.PageInfo
-				totalCount = fragment.TotalCount
+				resp = convertToMinimalIssuesResponse(queryResult.GetIssueFragment())
+				isPrivate = queryResult.GetIsPrivate()
 			}
 
-			// Create response with issues
-			response := map[string]interface{}{
-				"issues": issues,
-				"pageInfo": map[string]interface{}{
-					"hasNextPage":     pageInfo.HasNextPage,
-					"hasPreviousPage": pageInfo.HasPreviousPage,
-					"startCursor":     string(pageInfo.StartCursor),
-					"endCursor":       string(pageInfo.EndCursor),
-				},
-				"totalCount": totalCount,
+			result := MarshalledTextResult(resp)
+			if deps.GetFlags(ctx).InsidersMode {
+				if result.Meta == nil {
+					result.Meta = mcp.Meta{}
+				}
+				result.Meta["ifc"] = ifc.LabelListIssues(isPrivate)
 			}
-			out, err := json.Marshal(response)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal issues: %w", err)
-			}
-			return utils.NewToolResultText(string(out)), nil, nil
+			return result, nil, nil
 		})
-}
-
-// mvpDescription is an MVP idea for generating tool descriptions from structured data in a shared format.
-// It is not intended for widespread usage and is not a complete implementation.
-type mvpDescription struct {
-	summary        string
-	outcomes       []string
-	referenceLinks []string
-}
-
-func (d *mvpDescription) String() string {
-	var sb strings.Builder
-	sb.WriteString(d.summary)
-	if len(d.outcomes) > 0 {
-		sb.WriteString("\n\n")
-		sb.WriteString("This tool can help with the following outcomes:\n")
-		for _, outcome := range d.outcomes {
-			sb.WriteString(fmt.Sprintf("- %s\n", outcome))
-		}
-	}
-
-	if len(d.referenceLinks) > 0 {
-		sb.WriteString("\n\n")
-		sb.WriteString("More information can be found at:\n")
-		for _, link := range d.referenceLinks {
-			sb.WriteString(fmt.Sprintf("- %s\n", link))
-		}
-	}
-
-	return sb.String()
-}
-
-func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.ServerTool {
-	description := mvpDescription{
-		summary: "Assign Copilot to a specific issue in a GitHub repository.",
-		outcomes: []string{
-			"a Pull Request created with source code changes to resolve the issue",
-		},
-		referenceLinks: []string{
-			"https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot",
-		},
-	}
-
-	return NewTool(
-		ToolsetMetadataIssues,
-		mcp.Tool{
-			Name:        "assign_copilot_to_issue",
-			Description: t("TOOL_ASSIGN_COPILOT_TO_ISSUE_DESCRIPTION", description.String()),
-			Icons:       octicons.Icons("copilot"),
-			Annotations: &mcp.ToolAnnotations{
-				Title:          t("TOOL_ASSIGN_COPILOT_TO_ISSUE_USER_TITLE", "Assign Copilot to issue"),
-				ReadOnlyHint:   false,
-				IdempotentHint: true,
-			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner": {
-						Type:        "string",
-						Description: "Repository owner",
-					},
-					"repo": {
-						Type:        "string",
-						Description: "Repository name",
-					},
-					"issue_number": {
-						Type:        "number",
-						Description: "Issue number",
-					},
-					"base_ref": {
-						Type:        "string",
-						Description: "Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch",
-					},
-					"custom_instructions": {
-						Type:        "string",
-						Description: "Optional custom instructions to guide the agent beyond the issue body. Use this to provide additional context, constraints, or guidance that is not captured in the issue description",
-					},
-				},
-				Required: []string{"owner", "repo", "issue_number"},
-			},
-		},
-		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			var params struct {
-				Owner              string `mapstructure:"owner"`
-				Repo               string `mapstructure:"repo"`
-				IssueNumber        int32  `mapstructure:"issue_number"`
-				BaseRef            string `mapstructure:"base_ref"`
-				CustomInstructions string `mapstructure:"custom_instructions"`
-			}
-			if err := mapstructure.Decode(args, &params); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			client, err := deps.GetGQLClient(ctx)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			// Firstly, we try to find the copilot bot in the suggested actors for the repository.
-			// Although as I write this, we would expect copilot to be at the top of the list, in future, maybe
-			// it will not be on the first page of responses, thus we will keep paginating until we find it.
-			type botAssignee struct {
-				ID       githubv4.ID
-				Login    string
-				TypeName string `graphql:"__typename"`
-			}
-
-			type suggestedActorsQuery struct {
-				Repository struct {
-					SuggestedActors struct {
-						Nodes []struct {
-							Bot botAssignee `graphql:"... on Bot"`
-						}
-						PageInfo struct {
-							HasNextPage bool
-							EndCursor   string
-						}
-					} `graphql:"suggestedActors(first: 100, after: $endCursor, capabilities: CAN_BE_ASSIGNED)"`
-				} `graphql:"repository(owner: $owner, name: $name)"`
-			}
-
-			variables := map[string]any{
-				"owner":     githubv4.String(params.Owner),
-				"name":      githubv4.String(params.Repo),
-				"endCursor": (*githubv4.String)(nil),
-			}
-
-			var copilotAssignee *botAssignee
-			for {
-				var query suggestedActorsQuery
-				err := client.Query(ctx, &query, variables)
-				if err != nil {
-					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get suggested actors", err), nil, nil
-				}
-
-				// Iterate all the returned nodes looking for the copilot bot, which is supposed to have the
-				// same name on each host. We need this in order to get the ID for later assignment.
-				for _, node := range query.Repository.SuggestedActors.Nodes {
-					if node.Bot.Login == "copilot-swe-agent" {
-						copilotAssignee = &node.Bot
-						break
-					}
-				}
-
-				if !query.Repository.SuggestedActors.PageInfo.HasNextPage {
-					break
-				}
-				variables["endCursor"] = githubv4.String(query.Repository.SuggestedActors.PageInfo.EndCursor)
-			}
-
-			// If we didn't find the copilot bot, we can't proceed any further.
-			if copilotAssignee == nil {
-				// The e2e tests depend upon this specific message to skip the test.
-				return utils.NewToolResultError("copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information."), nil, nil
-			}
-
-			// Next, get the issue ID and repository ID
-			var getIssueQuery struct {
-				Repository struct {
-					ID    githubv4.ID
-					Issue struct {
-						ID        githubv4.ID
-						Assignees struct {
-							Nodes []struct {
-								ID githubv4.ID
-							}
-						} `graphql:"assignees(first: 100)"`
-					} `graphql:"issue(number: $number)"`
-				} `graphql:"repository(owner: $owner, name: $name)"`
-			}
-
-			variables = map[string]any{
-				"owner":  githubv4.String(params.Owner),
-				"name":   githubv4.String(params.Repo),
-				"number": githubv4.Int(params.IssueNumber),
-			}
-
-			if err := client.Query(ctx, &getIssueQuery, variables); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue ID", err), nil, nil
-			}
-
-			// Build the assignee IDs list including copilot
-			actorIDs := make([]githubv4.ID, len(getIssueQuery.Repository.Issue.Assignees.Nodes)+1)
-			for i, node := range getIssueQuery.Repository.Issue.Assignees.Nodes {
-				actorIDs[i] = node.ID
-			}
-			actorIDs[len(getIssueQuery.Repository.Issue.Assignees.Nodes)] = copilotAssignee.ID
-
-			// Prepare agent assignment input
-			emptyString := githubv4.String("")
-			agentAssignment := &AgentAssignmentInput{
-				CustomAgent:        &emptyString,
-				CustomInstructions: &emptyString,
-				TargetRepositoryID: getIssueQuery.Repository.ID,
-			}
-
-			// Add base ref if provided
-			if params.BaseRef != "" {
-				baseRef := githubv4.String(params.BaseRef)
-				agentAssignment.BaseRef = &baseRef
-			}
-
-			// Add custom instructions if provided
-			if params.CustomInstructions != "" {
-				customInstructions := githubv4.String(params.CustomInstructions)
-				agentAssignment.CustomInstructions = &customInstructions
-			}
-
-			// Execute the updateIssue mutation with the GraphQL-Features header
-			// This header is required for the agent assignment API which is not GA yet
-			var updateIssueMutation struct {
-				UpdateIssue struct {
-					Issue struct {
-						ID     githubv4.ID
-						Number githubv4.Int
-						URL    githubv4.String
-					}
-				} `graphql:"updateIssue(input: $input)"`
-			}
-
-			// Add the GraphQL-Features header for the agent assignment API
-			// The header will be read by the HTTP transport if it's configured to do so
-			ctxWithFeatures := withGraphQLFeatures(ctx, "issues_copilot_assignment_api_support")
-
-			if err := client.Mutate(
-				ctxWithFeatures,
-				&updateIssueMutation,
-				UpdateIssueInput{
-					ID:              getIssueQuery.Repository.Issue.ID,
-					AssigneeIDs:     actorIDs,
-					AgentAssignment: agentAssignment,
-				},
-				nil,
-			); err != nil {
-				return nil, nil, fmt.Errorf("failed to update issue with agent assignment: %w", err)
-			}
-
-			return utils.NewToolResultText("successfully assigned copilot to issue"), nil, nil
-		})
-}
-
-type ReplaceActorsForAssignableInput struct {
-	AssignableID githubv4.ID   `json:"assignableId"`
-	ActorIDs     []githubv4.ID `json:"actorIds"`
-}
-
-// AgentAssignmentInput represents the input for assigning an agent to an issue.
-type AgentAssignmentInput struct {
-	BaseRef            *githubv4.String `json:"baseRef,omitempty"`
-	CustomAgent        *githubv4.String `json:"customAgent,omitempty"`
-	CustomInstructions *githubv4.String `json:"customInstructions,omitempty"`
-	TargetRepositoryID githubv4.ID      `json:"targetRepositoryId"`
-}
-
-// UpdateIssueInput represents the input for updating an issue with agent assignment.
-type UpdateIssueInput struct {
-	ID              githubv4.ID           `json:"id"`
-	AssigneeIDs     []githubv4.ID         `json:"assigneeIds"`
-	AgentAssignment *AgentAssignmentInput `json:"agentAssignment,omitempty"`
 }
 
 // parseISOTimestamp parses an ISO 8601 timestamp string into a time.Time object.
@@ -1861,82 +1725,4 @@ func parseISOTimestamp(timestamp string) (time.Time, error) {
 
 	// Return error with supported formats
 	return time.Time{}, fmt.Errorf("invalid ISO 8601 timestamp: %s (supported formats: YYYY-MM-DDThh:mm:ssZ or YYYY-MM-DD)", timestamp)
-}
-
-func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) inventory.ServerPrompt {
-	return inventory.NewServerPrompt(
-		ToolsetMetadataIssues,
-		mcp.Prompt{
-			Name:        "AssignCodingAgent",
-			Description: t("PROMPT_ASSIGN_CODING_AGENT_DESCRIPTION", "Assign GitHub Coding Agent to multiple tasks in a GitHub repository."),
-			Arguments: []*mcp.PromptArgument{
-				{
-					Name:        "repo",
-					Description: "The repository to assign tasks in (owner/repo).",
-					Required:    true,
-				},
-			},
-		},
-		func(_ context.Context, request *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-			repo := request.Params.Arguments["repo"]
-
-			messages := []*mcp.PromptMessage{
-				{
-					Role: "user",
-					Content: &mcp.TextContent{
-						Text: "You are a personal assistant for GitHub the Copilot GitHub Coding Agent. Your task is to help the user assign tasks to the Coding Agent based on their open GitHub issues. You can use `assign_copilot_to_issue` tool to assign the Coding Agent to issues that are suitable for autonomous work, and `search_issues` tool to find issues that match the user's criteria. You can also use `list_issues` to get a list of issues in the repository.",
-					},
-				},
-				{
-					Role: "user",
-					Content: &mcp.TextContent{
-						Text: fmt.Sprintf("Please go and get a list of the most recent 10 issues from the %s GitHub repository", repo),
-					},
-				},
-				{
-					Role: "assistant",
-					Content: &mcp.TextContent{
-						Text: fmt.Sprintf("Sure! I will get a list of the 10 most recent issues for the repo %s.", repo),
-					},
-				},
-				{
-					Role: "user",
-					Content: &mcp.TextContent{
-						Text: "For each issue, please check if it is a clearly defined coding task with acceptance criteria and a low to medium complexity to identify issues that are suitable for an AI Coding Agent to work on. Then assign each of the identified issues to Copilot.",
-					},
-				},
-				{
-					Role: "assistant",
-					Content: &mcp.TextContent{
-						Text: "Certainly! Let me carefully check which ones are clearly scoped issues that are good to assign to the coding agent, and I will summarize and assign them now.",
-					},
-				},
-				{
-					Role: "user",
-					Content: &mcp.TextContent{
-						Text: "Great, if you are unsure if an issue is good to assign, ask me first, rather than assigning copilot. If you are certain the issue is clear and suitable you can assign it to Copilot without asking.",
-					},
-				},
-			}
-			return &mcp.GetPromptResult{
-				Messages: messages,
-			}, nil
-		},
-	)
-}
-
-// graphQLFeaturesKey is a context key for GraphQL feature flags
-type graphQLFeaturesKey struct{}
-
-// withGraphQLFeatures adds GraphQL feature flags to the context
-func withGraphQLFeatures(ctx context.Context, features ...string) context.Context {
-	return context.WithValue(ctx, graphQLFeaturesKey{}, features)
-}
-
-// GetGraphQLFeatures retrieves GraphQL feature flags from the context
-func GetGraphQLFeatures(ctx context.Context) []string {
-	if features, ok := ctx.Value(graphQLFeaturesKey{}).([]string); ok {
-		return features
-	}
-	return nil
 }

@@ -195,23 +195,23 @@ func TestToolSnapKeysSorted(t *testing.T) {
 
 	// Given a tool with fields that could be in any order
 	type complexTool struct {
-		Name        string                 `json:"name"`
-		Description string                 `json:"description"`
-		Properties  map[string]interface{} `json:"properties"`
-		Annotations map[string]interface{} `json:"annotations"`
+		Name        string         `json:"name"`
+		Description string         `json:"description"`
+		Properties  map[string]any `json:"properties"`
+		Annotations map[string]any `json:"annotations"`
 	}
 
 	tool := complexTool{
 		Name:        "test_tool",
 		Description: "A test tool",
-		Properties: map[string]interface{}{
+		Properties: map[string]any{
 			"zzz":   "last",
 			"aaa":   "first",
 			"mmm":   "middle",
-			"owner": map[string]interface{}{"type": "string", "description": "Owner"},
-			"repo":  map[string]interface{}{"type": "string", "description": "Repo"},
+			"owner": map[string]any{"type": "string", "description": "Owner"},
+			"repo":  map[string]any{"type": "string", "description": "Repo"},
 		},
-		Annotations: map[string]interface{}{
+		Annotations: map[string]any{
 			"readOnly": true,
 			"title":    "Test",
 		},
@@ -227,7 +227,7 @@ func TestToolSnapKeysSorted(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify that the JSON is properly sorted by checking key order
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	err = json.Unmarshal(snapJSON, &parsed)
 	require.NoError(t, err)
 
@@ -285,7 +285,7 @@ func TestStructFieldOrderingSortedAlphabetically(t *testing.T) {
 	aFieldIndex := -1
 	mFieldIndex := -1
 	zFieldIndex := -1
-	for i := 0; i < len(snapStr)-7; i++ {
+	for i := range len(snapStr) - 7 {
 		switch snapStr[i : i+6] {
 		case "aField":
 			aFieldIndex = i

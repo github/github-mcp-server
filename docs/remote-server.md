@@ -22,6 +22,7 @@ Below is a table of available toolsets for the remote GitHub MCP Server. Each to
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../pkg/octicons/icons/apps-dark.png"><source media="(prefers-color-scheme: light)" srcset="../pkg/octicons/icons/apps-light.png"><img src="../pkg/octicons/icons/apps-light.png" width="20" height="20" alt="apps"></picture><br>`all` | All available GitHub MCP tools | https://api.githubcopilot.com/mcp/ | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D) | [read-only](https://api.githubcopilot.com/mcp/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Freadonly%22%7D) |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../pkg/octicons/icons/workflow-dark.png"><source media="(prefers-color-scheme: light)" srcset="../pkg/octicons/icons/workflow-light.png"><img src="../pkg/octicons/icons/workflow-light.png" width="20" height="20" alt="workflow"></picture><br>`actions` | GitHub Actions workflows and CI/CD operations | https://api.githubcopilot.com/mcp/x/actions | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-actions&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Factions%22%7D) | [read-only](https://api.githubcopilot.com/mcp/x/actions/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-actions&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Factions%2Freadonly%22%7D) |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../pkg/octicons/icons/codescan-dark.png"><source media="(prefers-color-scheme: light)" srcset="../pkg/octicons/icons/codescan-light.png"><img src="../pkg/octicons/icons/codescan-light.png" width="20" height="20" alt="codescan"></picture><br>`code_security` | Code security related tools, such as GitHub Code Scanning | https://api.githubcopilot.com/mcp/x/code_security | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-code_security&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcode_security%22%7D) | [read-only](https://api.githubcopilot.com/mcp/x/code_security/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-code_security&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcode_security%2Freadonly%22%7D) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="../pkg/octicons/icons/copilot-dark.png"><source media="(prefers-color-scheme: light)" srcset="../pkg/octicons/icons/copilot-light.png"><img src="../pkg/octicons/icons/copilot-light.png" width="20" height="20" alt="copilot"></picture><br>`copilot` | Copilot related tools | https://api.githubcopilot.com/mcp/x/copilot | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-copilot&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcopilot%22%7D) | [read-only](https://api.githubcopilot.com/mcp/x/copilot/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-copilot&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcopilot%2Freadonly%22%7D) |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../pkg/octicons/icons/dependabot-dark.png"><source media="(prefers-color-scheme: light)" srcset="../pkg/octicons/icons/dependabot-light.png"><img src="../pkg/octicons/icons/dependabot-light.png" width="20" height="20" alt="dependabot"></picture><br>`dependabot` | Dependabot tools | https://api.githubcopilot.com/mcp/x/dependabot | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-dependabot&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fdependabot%22%7D) | [read-only](https://api.githubcopilot.com/mcp/x/dependabot/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-dependabot&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fdependabot%2Freadonly%22%7D) |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="../pkg/octicons/icons/comment-discussion-light.png"><img src="../pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture><br>`discussions` | GitHub Discussions related tools | https://api.githubcopilot.com/mcp/x/discussions | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-discussions&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fdiscussions%22%7D) | [read-only](https://api.githubcopilot.com/mcp/x/discussions/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-discussions&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fdiscussions%2Freadonly%22%7D) |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../pkg/octicons/icons/logo-gist-dark.png"><source media="(prefers-color-scheme: light)" srcset="../pkg/octicons/icons/logo-gist-light.png"><img src="../pkg/octicons/icons/logo-gist-light.png" width="20" height="20" alt="logo-gist"></picture><br>`gists` | GitHub Gist related tools | https://api.githubcopilot.com/mcp/x/gists | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-gists&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fgists%22%7D) | [read-only](https://api.githubcopilot.com/mcp/x/gists/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-gists&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fgists%2Freadonly%22%7D) |
@@ -46,7 +47,6 @@ These toolsets are only available in the remote GitHub MCP Server and are not in
 <!-- START AUTOMATED REMOTE TOOLSETS -->
 | Name | Description | API URL | 1-Click Install (VS Code) | Read-only Link | 1-Click Read-only Install (VS Code) |
 | ---- | ----------- | ------- | ------------------------- | -------------- | ----------------------------------- |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="../pkg/octicons/icons/copilot-dark.png"><source media="(prefers-color-scheme: light)" srcset="../pkg/octicons/icons/copilot-light.png"><img src="../pkg/octicons/icons/copilot-light.png" width="20" height="20" alt="copilot"></picture><br>`copilot` | Copilot related tools | https://api.githubcopilot.com/mcp/x/copilot | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-copilot&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcopilot%22%7D) | [read-only](https://api.githubcopilot.com/mcp/x/copilot/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-copilot&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcopilot%2Freadonly%22%7D) |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../pkg/octicons/icons/copilot-dark.png"><source media="(prefers-color-scheme: light)" srcset="../pkg/octicons/icons/copilot-light.png"><img src="../pkg/octicons/icons/copilot-light.png" width="20" height="20" alt="copilot"></picture><br>`copilot_spaces` | Copilot Spaces tools | https://api.githubcopilot.com/mcp/x/copilot_spaces | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-copilot_spaces&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcopilot_spaces%22%7D) | [read-only](https://api.githubcopilot.com/mcp/x/copilot_spaces/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-copilot_spaces&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcopilot_spaces%2Freadonly%22%7D) |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="../pkg/octicons/icons/book-dark.png"><source media="(prefers-color-scheme: light)" srcset="../pkg/octicons/icons/book-light.png"><img src="../pkg/octicons/icons/book-light.png" width="20" height="20" alt="book"></picture><br>`github_support_docs_search` | Retrieve documentation to answer GitHub product and support questions. Topics include: GitHub Actions Workflows, Authentication, ... | https://api.githubcopilot.com/mcp/x/github_support_docs_search | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-github_support_docs_search&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fgithub_support_docs_search%22%7D) | [read-only](https://api.githubcopilot.com/mcp/x/github_support_docs_search/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-github_support_docs_search&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fgithub_support_docs_search%2Freadonly%22%7D) |
 <!-- END AUTOMATED REMOTE TOOLSETS -->
@@ -67,6 +67,9 @@ The Remote GitHub MCP server has optional headers equivalent to the Local server
 - `X-MCP-Lockdown`: Enables lockdown mode, hiding public issue details created by users without push access.
     - Equivalent to `GITHUB_LOCKDOWN_MODE` env var for Local server.
     - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true.
+- `X-MCP-Insiders`: Enables insiders mode for early access to new features.
+    - Equivalent to `GITHUB_INSIDERS` env var or `--insiders` flag for Local server.
+    - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true.
 
 > **Looking for examples?** See the [Server Configuration Guide](./server-configuration.md) for common recipes like minimal setups, read-only mode, and combining tools with toolsets.
 
@@ -84,18 +87,51 @@ Example:
 }
 ```
 
+### Insiders Mode
+
+The remote GitHub MCP Server offers an insiders version with early access to new features and experimental tools. You can enable insiders mode in two ways:
+
+1. **Via URL path** - Append `/insiders` to the URL:
+
+   ```json
+   {
+       "type": "http",
+       "url": "https://api.githubcopilot.com/mcp/insiders"
+   }
+   ```
+
+2. **Via header** - Set the `X-MCP-Insiders` header to `true`:
+
+   ```json
+   {
+       "type": "http",
+       "url": "https://api.githubcopilot.com/mcp/",
+       "headers": {
+           "X-MCP-Insiders": "true"
+       }
+   }
+   ```
+
+Both methods can be combined with other path modifiers (like `/readonly`) and headers.
+
 ### URL Path Parameters
 
 The Remote GitHub MCP server supports the following URL path patterns:
 
 - `/` - Default toolset (see ["default" toolset](../README.md#default-toolset))
 - `/readonly` - Default toolset in read-only mode
+- `/insiders` - Default toolset with insiders mode enabled
+- `/readonly/insiders` - Default toolset in read-only mode with insiders mode enabled
 - `/x/all` - All available toolsets
 - `/x/all/readonly` - All available toolsets in read-only mode
+- `/x/all/insiders` - All available toolsets with insiders mode enabled
+- `/x/all/readonly/insiders` - All available toolsets in read-only mode with insiders mode enabled
 - `/x/{toolset}` - Single specific toolset
 - `/x/{toolset}/readonly` - Single specific toolset in read-only mode
+- `/x/{toolset}/insiders` - Single specific toolset with insiders mode enabled
+- `/x/{toolset}/readonly/insiders` - Single specific toolset in read-only mode with insiders mode enabled
 
-Note: `{toolset}` can only be a single toolset, not a comma-separated list. To combine multiple toolsets, use the `X-MCP-Toolsets` header instead.
+Note: `{toolset}` can only be a single toolset, not a comma-separated list. To combine multiple toolsets, use the `X-MCP-Toolsets` header instead. Path modifiers like `/readonly` and `/insiders` can be combined with the `X-MCP-Insiders` or `X-MCP-Readonly` headers.
 
 Example:
 

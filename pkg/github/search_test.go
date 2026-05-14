@@ -8,7 +8,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,7 +59,7 @@ func Test_SearchRepositories(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedResult *github.RepositoriesSearchResult
 		expectedErrMsg string
@@ -77,7 +77,7 @@ func Test_SearchRepositories(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query":   "golang test",
 				"sort":    "stars",
 				"order":   "desc",
@@ -98,7 +98,7 @@ func Test_SearchRepositories(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "golang test",
 			},
 			expectError:    false,
@@ -112,7 +112,7 @@ func Test_SearchRepositories(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Invalid query"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "invalid:query",
 			},
 			expectError:    true,
@@ -163,9 +163,119 @@ func Test_SearchRepositories(t *testing.T) {
 				assert.Equal(t, *tc.expectedResult.Repositories[i].FullName, repo.FullName)
 				assert.Equal(t, *tc.expectedResult.Repositories[i].HTMLURL, repo.HTMLURL)
 			}
-
 		})
 	}
+}
+
+func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
+	t.Parallel()
+
+	serverTool := SearchRepositories(translations.NullTranslationHelper)
+
+	type repoFixture struct {
+		owner     string
+		name      string
+		isPrivate bool
+	}
+
+	makeRepo := func(r repoFixture) *github.Repository {
+		return &github.Repository{
+			ID:       github.Ptr(int64(1)),
+			Name:     github.Ptr(r.name),
+			FullName: github.Ptr(r.owner + "/" + r.name),
+			Private:  github.Ptr(r.isPrivate),
+			Owner:    &github.User{Login: github.Ptr(r.owner)},
+		}
+	}
+
+	makeMockClient := func(repos []repoFixture) *http.Client {
+		searchResult := &github.RepositoriesSearchResult{
+			Total:             github.Ptr(len(repos)),
+			IncompleteResults: github.Ptr(false),
+		}
+		for _, r := range repos {
+			searchResult.Repositories = append(searchResult.Repositories, makeRepo(r))
+		}
+		return MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetSearchRepositories: mockResponse(t, http.StatusOK, searchResult),
+		})
+	}
+
+	reqParams := map[string]any{"query": "octocat"}
+
+	t.Run("insiders mode disabled omits ifc label", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient([]repoFixture{{owner: "octocat", name: "public-repo"}})),
+			Flags:  FeatureFlags{InsidersMode: false},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		assert.Nil(t, result.Meta)
+	})
+
+	t.Run("insiders mode all public emits public untrusted", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient([]repoFixture{
+				{owner: "octocat", name: "public-a"},
+				{owner: "octocat", name: "public-b"},
+			})),
+			Flags: FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
+	})
+
+	t.Run("insiders mode any private match emits private untrusted", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient([]repoFixture{
+				{owner: "octocat", name: "private-repo", isPrivate: true},
+				{owner: "octocat", name: "public-repo"},
+			})),
+			Flags: FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "private", ifcMap["confidentiality"])
+	})
+
+	t.Run("insiders mode empty results emits public untrusted", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: github.NewClient(makeMockClient(nil)),
+			Flags:  FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
+	})
 }
 
 func Test_SearchRepositories_FullOutput(t *testing.T) {
@@ -201,7 +311,7 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 	}
 	handler := serverTool.Handler(deps)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"query":          "golang test",
 		"minimal_output": false,
 	}
@@ -252,26 +362,39 @@ func Test_SearchCode(t *testing.T) {
 		IncompleteResults: github.Ptr(false),
 		CodeResults: []*github.CodeResult{
 			{
-				Name:       github.Ptr("file1.go"),
-				Path:       github.Ptr("path/to/file1.go"),
-				SHA:        github.Ptr("abc123def456"),
-				HTMLURL:    github.Ptr("https://github.com/owner/repo/blob/main/path/to/file1.go"),
-				Repository: &github.Repository{Name: github.Ptr("repo"), FullName: github.Ptr("owner/repo")},
+				Name: github.Ptr("file1.go"),
+				Path: github.Ptr("path/to/file1.go"),
+				SHA:  github.Ptr("abc123def456"),
+				Repository: &github.Repository{
+					Name:     github.Ptr("repo"),
+					FullName: github.Ptr("owner/repo"),
+				},
+				TextMatches: []*github.TextMatch{
+					{
+						Fragment: github.Ptr("func main() { fmt.Println(\"hello\") }"),
+					},
+				},
 			},
 			{
-				Name:       github.Ptr("file2.go"),
-				Path:       github.Ptr("path/to/file2.go"),
-				SHA:        github.Ptr("def456abc123"),
-				HTMLURL:    github.Ptr("https://github.com/owner/repo/blob/main/path/to/file2.go"),
-				Repository: &github.Repository{Name: github.Ptr("repo"), FullName: github.Ptr("owner/repo")},
+				Name: github.Ptr("file2.go"),
+				Path: github.Ptr("path/to/file2.go"),
+				SHA:  github.Ptr("def456abc123"),
+				Repository: &github.Repository{
+					Name:     github.Ptr("repo"),
+					FullName: github.Ptr("owner/repo"),
+				},
 			},
 		},
+	}
+
+	textMatchAcceptHeader := map[string]string{
+		"Accept": "text-match",
 	}
 
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedResult *github.CodeSearchResult
 		expectedErrMsg string
@@ -285,11 +408,11 @@ func Test_SearchCode(t *testing.T) {
 					"order":    "desc",
 					"page":     "1",
 					"per_page": "30",
-				}).andThen(
+				}).withHeaders(textMatchAcceptHeader).andThen(
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query":   "fmt.Println language:go",
 				"sort":    "indexed",
 				"order":   "desc",
@@ -306,11 +429,11 @@ func Test_SearchCode(t *testing.T) {
 					"q":        "fmt.Println language:go",
 					"page":     "1",
 					"per_page": "30",
-				}).andThen(
+				}).withHeaders(textMatchAcceptHeader).andThen(
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "fmt.Println language:go",
 			},
 			expectError:    false,
@@ -324,7 +447,7 @@ func Test_SearchCode(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "invalid:query",
 			},
 			expectError:    true,
@@ -359,22 +482,28 @@ func Test_SearchCode(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedResult github.CodeSearchResult
+			var returnedResult MinimalCodeSearchResult
 			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedResult.Total, *returnedResult.Total)
-			assert.Equal(t, *tc.expectedResult.IncompleteResults, *returnedResult.IncompleteResults)
-			assert.Len(t, returnedResult.CodeResults, len(tc.expectedResult.CodeResults))
-			for i, code := range returnedResult.CodeResults {
-				assert.Equal(t, *tc.expectedResult.CodeResults[i].Name, *code.Name)
-				assert.Equal(t, *tc.expectedResult.CodeResults[i].Path, *code.Path)
-				assert.Equal(t, *tc.expectedResult.CodeResults[i].SHA, *code.SHA)
-				assert.Equal(t, *tc.expectedResult.CodeResults[i].HTMLURL, *code.HTMLURL)
-				assert.Equal(t, *tc.expectedResult.CodeResults[i].Repository.FullName, *code.Repository.FullName)
+			assert.Equal(t, *tc.expectedResult.Total, returnedResult.TotalCount)
+			assert.Equal(t, *tc.expectedResult.IncompleteResults, returnedResult.IncompleteResults)
+			assert.Len(t, returnedResult.Items, len(tc.expectedResult.CodeResults))
+			for i, code := range returnedResult.Items {
+				assert.Equal(t, tc.expectedResult.CodeResults[i].GetName(), code.Name)
+				assert.Equal(t, tc.expectedResult.CodeResults[i].GetPath(), code.Path)
+				assert.Equal(t, tc.expectedResult.CodeResults[i].GetSHA(), code.SHA)
+				assert.Equal(t, tc.expectedResult.CodeResults[i].Repository.GetFullName(), code.Repository)
+			}
+
+			// Verify text matches are included when present
+			if len(tc.expectedResult.CodeResults[0].TextMatches) > 0 {
+				require.NotEmpty(t, returnedResult.Items[0].TextMatches)
+				assert.Equal(t,
+					tc.expectedResult.CodeResults[0].TextMatches[0].GetFragment(),
+					returnedResult.Items[0].TextMatches[0].GetFragment(),
+				)
 			}
 		})
 	}
@@ -422,7 +551,7 @@ func Test_SearchUsers(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedResult *github.UsersSearchResult
 		expectedErrMsg string
@@ -440,7 +569,7 @@ func Test_SearchUsers(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query":   "location:finland language:go",
 				"sort":    "followers",
 				"order":   "desc",
@@ -461,7 +590,7 @@ func Test_SearchUsers(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "location:finland language:go",
 			},
 			expectError:    false,
@@ -478,7 +607,7 @@ func Test_SearchUsers(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "type:user location:seattle followers:>100",
 			},
 			expectError:    false,
@@ -495,7 +624,7 @@ func Test_SearchUsers(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "type:user (location:seattle OR location:california) followers:>50",
 			},
 			expectError:    false,
@@ -509,7 +638,7 @@ func Test_SearchUsers(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "invalid:query",
 			},
 			expectError:    true,
@@ -608,7 +737,7 @@ func Test_SearchOrgs(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedResult *github.UsersSearchResult
 		expectedErrMsg string
@@ -624,7 +753,7 @@ func Test_SearchOrgs(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "github",
 			},
 			expectError:    false,
@@ -641,7 +770,7 @@ func Test_SearchOrgs(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "type:org location:california followers:>1000",
 			},
 			expectError:    false,
@@ -658,7 +787,7 @@ func Test_SearchOrgs(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "type:org (location:seattle OR location:california OR location:newyork) repos:>10",
 			},
 			expectError:    false,
@@ -672,7 +801,7 @@ func Test_SearchOrgs(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "invalid:query",
 			},
 			expectError:    true,
