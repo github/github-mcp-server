@@ -1082,7 +1082,6 @@ func Test_SearchPullRequests(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func Test_GetPullRequestFiles(t *testing.T) {
