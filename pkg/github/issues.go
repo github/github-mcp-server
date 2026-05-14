@@ -1049,8 +1049,11 @@ func fetchIssueFieldValuesByNodeID(ctx context.Context, gqlClient *githubv4.Clie
 
 	result := make(map[string][]MinimalIssueFieldValue, len(q.Nodes))
 	for _, n := range q.Nodes {
-		idStr, ok := n.Issue.ID.(string)
-		if !ok || idStr == "" {
+		if n.Issue.ID == nil {
+			continue
+		}
+		idStr := fmt.Sprintf("%v", n.Issue.ID)
+		if idStr == "" {
 			continue
 		}
 		vals := make([]MinimalIssueFieldValue, 0, len(n.Issue.IssueFieldValues.Nodes))
