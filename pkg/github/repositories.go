@@ -654,34 +654,6 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 	)
 }
 
-// FetchRepoCollaborators returns the login names of all collaborators on a
-// repository. It is provided as a shared helper for IFC label computation so
-// tools can populate the reader set for private repositories. The full list
-// is fetched eagerly via pagination; callers are expected to invoke this only
-// when needed (e.g. private repos under InsidersMode).
-func FetchRepoCollaborators(ctx context.Context, client *github.Client, owner, repo string) ([]string, error) {
-	opts := &github.ListCollaboratorsOptions{
-		ListOptions: github.ListOptions{PerPage: 100},
-	}
-	var logins []string
-	for {
-		page, resp, err := client.Repositories.ListCollaborators(ctx, owner, repo, opts)
-		if err != nil {
-			return nil, err
-		}
-		for _, c := range page {
-			if login := c.GetLogin(); login != "" {
-				logins = append(logins, login)
-			}
-		}
-		if resp == nil || resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
-	}
-	return logins, nil
-}
-
 // FetchRepoIsPrivate returns whether a repository is private. It is a thin
 // wrapper around the GitHub Repositories.Get endpoint provided as a shared
 // helper for IFC label computation across tools.
@@ -769,17 +741,15 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 
 			// attachIFC adds the IFC label to a successful tool result when
-			// InsidersMode is enabled. The visibility and (for private
-			// repositories) collaborators lookups are performed lazily on
-			// first use. If the visibility lookup fails we skip the label
-			// rather than misclassify the result; the failure is not cached
-			// so a later return path can retry. If only the collaborators
-			// lookup fails for a private repo we fall back to the owner so
-			// the reader set is never empty.
+			// InsidersMode is enabled. The visibility lookup is performed
+			// lazily on first use and cached because GetFileContents has
+			// many possible return paths and would otherwise re-fetch on
+			// each. If the visibility lookup fails we skip the label rather
+			// than misclassify the result; the failure is not cached so a
+			// later return path can retry.
 			var (
 				ifcLabelKnown bool
 				ifcIsPrivate  bool
-				ifcReaders    []string
 			)
 			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
 				if r == nil || r.IsError || !deps.GetFlags(ctx).InsidersMode {
@@ -791,20 +761,12 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						return r
 					}
 					ifcIsPrivate = isPrivate
-					if ifcIsPrivate {
-						if collaborators, err := FetchRepoCollaborators(ctx, client, owner, repo); err == nil {
-							ifcReaders = collaborators
-						}
-						if len(ifcReaders) == 0 {
-							ifcReaders = []string{owner}
-						}
-					}
 					ifcLabelKnown = true
 				}
 				if r.Meta == nil {
 					r.Meta = mcp.Meta{}
 				}
-				r.Meta["ifc"] = ifc.LabelGetFileContents(ifcIsPrivate, ifcReaders)
+				r.Meta["ifc"] = ifc.LabelGetFileContents(ifcIsPrivate)
 				return r
 			}
 
