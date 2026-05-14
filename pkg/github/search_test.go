@@ -430,20 +430,33 @@ func Test_SearchCode(t *testing.T) {
 		IncompleteResults: github.Ptr(false),
 		CodeResults: []*github.CodeResult{
 			{
-				Name:       github.Ptr("file1.go"),
-				Path:       github.Ptr("path/to/file1.go"),
-				SHA:        github.Ptr("abc123def456"),
-				HTMLURL:    github.Ptr("https://github.com/owner/repo/blob/main/path/to/file1.go"),
-				Repository: &github.Repository{Name: github.Ptr("repo"), FullName: github.Ptr("owner/repo")},
+				Name: github.Ptr("file1.go"),
+				Path: github.Ptr("path/to/file1.go"),
+				SHA:  github.Ptr("abc123def456"),
+				Repository: &github.Repository{
+					Name:     github.Ptr("repo"),
+					FullName: github.Ptr("owner/repo"),
+				},
+				TextMatches: []*github.TextMatch{
+					{
+						Fragment: github.Ptr("func main() { fmt.Println(\"hello\") }"),
+					},
+				},
 			},
 			{
-				Name:       github.Ptr("file2.go"),
-				Path:       github.Ptr("path/to/file2.go"),
-				SHA:        github.Ptr("def456abc123"),
-				HTMLURL:    github.Ptr("https://github.com/owner/repo/blob/main/path/to/file2.go"),
-				Repository: &github.Repository{Name: github.Ptr("repo"), FullName: github.Ptr("owner/repo")},
+				Name: github.Ptr("file2.go"),
+				Path: github.Ptr("path/to/file2.go"),
+				SHA:  github.Ptr("def456abc123"),
+				Repository: &github.Repository{
+					Name:     github.Ptr("repo"),
+					FullName: github.Ptr("owner/repo"),
+				},
 			},
 		},
+	}
+
+	textMatchAcceptHeader := map[string]string{
+		"Accept": "text-match",
 	}
 
 	tests := []struct {
@@ -463,7 +476,7 @@ func Test_SearchCode(t *testing.T) {
 					"order":    "desc",
 					"page":     "1",
 					"per_page": "30",
-				}).andThen(
+				}).withHeaders(textMatchAcceptHeader).andThen(
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
@@ -484,7 +497,7 @@ func Test_SearchCode(t *testing.T) {
 					"q":        "fmt.Println language:go",
 					"page":     "1",
 					"per_page": "30",
-				}).andThen(
+				}).withHeaders(textMatchAcceptHeader).andThen(
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
@@ -537,22 +550,28 @@ func Test_SearchCode(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedResult github.CodeSearchResult
+			var returnedResult MinimalCodeSearchResult
 			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedResult.Total, *returnedResult.Total)
-			assert.Equal(t, *tc.expectedResult.IncompleteResults, *returnedResult.IncompleteResults)
-			assert.Len(t, returnedResult.CodeResults, len(tc.expectedResult.CodeResults))
-			for i, code := range returnedResult.CodeResults {
-				assert.Equal(t, *tc.expectedResult.CodeResults[i].Name, *code.Name)
-				assert.Equal(t, *tc.expectedResult.CodeResults[i].Path, *code.Path)
-				assert.Equal(t, *tc.expectedResult.CodeResults[i].SHA, *code.SHA)
-				assert.Equal(t, *tc.expectedResult.CodeResults[i].HTMLURL, *code.HTMLURL)
-				assert.Equal(t, *tc.expectedResult.CodeResults[i].Repository.FullName, *code.Repository.FullName)
+			assert.Equal(t, *tc.expectedResult.Total, returnedResult.TotalCount)
+			assert.Equal(t, *tc.expectedResult.IncompleteResults, returnedResult.IncompleteResults)
+			assert.Len(t, returnedResult.Items, len(tc.expectedResult.CodeResults))
+			for i, code := range returnedResult.Items {
+				assert.Equal(t, tc.expectedResult.CodeResults[i].GetName(), code.Name)
+				assert.Equal(t, tc.expectedResult.CodeResults[i].GetPath(), code.Path)
+				assert.Equal(t, tc.expectedResult.CodeResults[i].GetSHA(), code.SHA)
+				assert.Equal(t, tc.expectedResult.CodeResults[i].Repository.GetFullName(), code.Repository)
+			}
+
+			// Verify text matches are included when present
+			if len(tc.expectedResult.CodeResults[0].TextMatches) > 0 {
+				require.NotEmpty(t, returnedResult.Items[0].TextMatches)
+				assert.Equal(t,
+					tc.expectedResult.CodeResults[0].TextMatches[0].GetFragment(),
+					returnedResult.Items[0].TextMatches[0].GetFragment(),
+				)
 			}
 		})
 	}
