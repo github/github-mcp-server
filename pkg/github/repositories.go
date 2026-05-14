@@ -655,10 +655,14 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 }
 
 // FetchRepoCollaborators returns the login names of all collaborators on a
-// repository. It is provided as a shared helper for IFC label computation so
-// tools can populate the reader set for private repositories. The full list
-// is fetched eagerly via pagination; callers are expected to invoke this only
-// when needed (e.g. private repos under InsidersMode).
+// repository, paginated.
+//
+// The github-mcp-server itself no longer calls this from its IFC label paths:
+// ingress tools emit a single "private" marker and the client engine resolves
+// concrete readers from the GitHub API on demand at egress decision time
+// (where it can paginate + cache). The helper is retained as an exported
+// utility for external library consumers that may want the same one-shot
+// pagination behaviour.
 func FetchRepoCollaborators(ctx context.Context, client *github.Client, owner, repo string) ([]string, error) {
 	opts := &github.ListCollaboratorsOptions{
 		ListOptions: github.ListOptions{PerPage: 100},
