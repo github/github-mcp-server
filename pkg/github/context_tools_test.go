@@ -192,10 +192,7 @@ func Test_GetMe_IFC_InsidersMode(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, "trusted", ifcMap["integrity"])
-		confList, ok := ifcMap["confidentiality"].([]any)
-		require.True(t, ok, "confidentiality should be a list")
-		require.Len(t, confList, 1)
-		assert.Equal(t, "public", confList[0])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 }
 

@@ -654,38 +654,6 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 	)
 }
 
-// FetchRepoCollaborators returns the login names of all collaborators on a
-// repository, paginated.
-//
-// The github-mcp-server itself no longer calls this from its IFC label paths:
-// ingress tools emit a single "private" marker and the client engine resolves
-// concrete readers from the GitHub API on demand at egress decision time
-// (where it can paginate + cache). The helper is retained as an exported
-// utility for external library consumers that may want the same one-shot
-// pagination behaviour.
-func FetchRepoCollaborators(ctx context.Context, client *github.Client, owner, repo string) ([]string, error) {
-	opts := &github.ListCollaboratorsOptions{
-		ListOptions: github.ListOptions{PerPage: 100},
-	}
-	var logins []string
-	for {
-		page, resp, err := client.Repositories.ListCollaborators(ctx, owner, repo, opts)
-		if err != nil {
-			return nil, err
-		}
-		for _, c := range page {
-			if login := c.GetLogin(); login != "" {
-				logins = append(logins, login)
-			}
-		}
-		if resp == nil || resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
-	}
-	return logins, nil
-}
-
 // FetchRepoIsPrivate returns whether a repository is private. It is a thin
 // wrapper around the GitHub Repositories.Get endpoint provided as a shared
 // helper for IFC label computation across tools.

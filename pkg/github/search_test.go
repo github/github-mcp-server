@@ -235,7 +235,7 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		assert.Equal(t, []any{"public"}, ifcMap["confidentiality"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 
 	t.Run("insiders mode any private match emits private untrusted", func(t *testing.T) {
@@ -256,7 +256,7 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		assert.Equal(t, []any{"private"}, ifcMap["confidentiality"])
+		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
 
 	t.Run("insiders mode empty results emits public untrusted", func(t *testing.T) {
@@ -274,7 +274,7 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		assert.Equal(t, []any{"public"}, ifcMap["confidentiality"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 }
 

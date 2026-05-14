@@ -45,7 +45,7 @@ func TestLabelSearchIssues(t *testing.T) {
 			t.Parallel()
 			label := LabelSearchIssues(tc.visibilities)
 			assert.Equal(t, IntegrityUntrusted, label.Integrity)
-			assert.Equal(t, []Confidentiality{tc.wantConfidential}, label.Confidentiality)
+			assert.Equal(t, tc.wantConfidential, label.Confidentiality)
 		})
 	}
 }

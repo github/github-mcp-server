@@ -18,15 +18,15 @@ const (
 )
 
 type SecurityLabel struct {
-	Integrity       Integrity         `json:"integrity"`
-	Confidentiality []Confidentiality `json:"confidentiality"`
+	Integrity       Integrity       `json:"integrity"`
+	Confidentiality Confidentiality `json:"confidentiality"`
 }
 
 // PublicTrusted returns a label for trusted, publicly readable data.
 func PublicTrusted() SecurityLabel {
 	return SecurityLabel{
 		Integrity:       IntegrityTrusted,
-		Confidentiality: []Confidentiality{ConfidentialityPublic},
+		Confidentiality: ConfidentialityPublic,
 	}
 }
 
@@ -34,7 +34,7 @@ func PublicTrusted() SecurityLabel {
 func PublicUntrusted() SecurityLabel {
 	return SecurityLabel{
 		Integrity:       IntegrityUntrusted,
-		Confidentiality: []Confidentiality{ConfidentialityPublic},
+		Confidentiality: ConfidentialityPublic,
 	}
 }
 
@@ -45,7 +45,7 @@ func PublicUntrusted() SecurityLabel {
 func PrivateTrusted() SecurityLabel {
 	return SecurityLabel{
 		Integrity:       IntegrityTrusted,
-		Confidentiality: []Confidentiality{ConfidentialityPrivate},
+		Confidentiality: ConfidentialityPrivate,
 	}
 }
 
@@ -55,7 +55,7 @@ func PrivateTrusted() SecurityLabel {
 func PrivateUntrusted() SecurityLabel {
 	return SecurityLabel{
 		Integrity:       IntegrityUntrusted,
-		Confidentiality: []Confidentiality{ConfidentialityPrivate},
+		Confidentiality: ConfidentialityPrivate,
 	}
 }
 

@@ -352,7 +352,7 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		assert.Equal(t, []any{"public"}, ifcMap["confidentiality"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 
 	t.Run("insiders mode enabled on private repo with get_comments emits private untrusted", func(t *testing.T) {
@@ -370,7 +370,7 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		assert.Equal(t, []any{"private"}, ifcMap["confidentiality"])
+		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
 
 	t.Run("insiders mode skips ifc label when visibility lookup fails", func(t *testing.T) {
@@ -896,7 +896,7 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		assert.Equal(t, []any{"public"}, ifcMap["confidentiality"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 
 	t.Run("insiders mode mixed public and private emits private untrusted", func(t *testing.T) {
@@ -921,7 +921,7 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		assert.Equal(t, []any{"private"}, ifcMap["confidentiality"])
+		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
 
 	t.Run("insiders mode skips ifc label when visibility lookup fails", func(t *testing.T) {
@@ -961,7 +961,7 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		assert.Equal(t, []any{"public"}, ifcMap["confidentiality"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 }
 
@@ -1729,10 +1729,7 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
 
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		confList, ok := ifcMap["confidentiality"].([]any)
-		require.True(t, ok, "confidentiality should be a list")
-		require.Len(t, confList, 1)
-		assert.Equal(t, "public", confList[0])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 
 	t.Run("insiders mode enabled on private repo emits private untrusted label", func(t *testing.T) {
@@ -1759,9 +1756,7 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
 
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		confList, ok := ifcMap["confidentiality"].([]any)
-		require.True(t, ok, "confidentiality should be a list")
-		assert.Equal(t, []any{"private"}, confList)
+		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
 }
 
