@@ -3347,6 +3347,7 @@ func Test_ListReleases(t *testing.T) {
 		})
 	}
 }
+
 func Test_GetLatestRelease(t *testing.T) {
 	serverTool := GetLatestRelease(translations.NullTranslationHelper)
 	tool := serverTool.Tool
