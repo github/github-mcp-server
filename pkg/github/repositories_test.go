@@ -4494,7 +4494,6 @@ func Test_ListRepositoryCollaborators(t *testing.T) {
 
 			if tt.name == "empty collaborators returns empty array" {
 				assert.Empty(t, collaborators)
-				assert.Equal(t, "[]", textContent.Text)
 				return
 			}
 

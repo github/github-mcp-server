@@ -2293,12 +2293,7 @@ func ListRepositoryCollaborators(t translations.TranslationHelperFunc) inventory
 				})
 			}
 
-			r, err := json.Marshal(result)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return utils.NewToolResultText(string(r)), nil, nil
+			return MarshalledTextResult(result), nil, nil
 		},
 	)
 }
