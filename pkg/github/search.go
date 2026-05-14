@@ -270,8 +270,9 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			opts := &github.SearchOptions{
-				Sort:  sort,
-				Order: order,
+				Sort:      sort,
+				Order:     order,
+				TextMatch: true,
 				ListOptions: github.ListOptions{
 					PerPage: pagination.PerPage,
 					Page:    pagination.Page,
@@ -301,7 +302,27 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search code", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(result)
+			minimalItems := make([]MinimalCodeResult, 0, len(result.CodeResults))
+			for _, code := range result.CodeResults {
+				item := MinimalCodeResult{
+					Name:        code.GetName(),
+					Path:        code.GetPath(),
+					SHA:         code.GetSHA(),
+					TextMatches: code.TextMatches,
+				}
+				if code.Repository != nil {
+					item.Repository = code.Repository.GetFullName()
+				}
+				minimalItems = append(minimalItems, item)
+			}
+
+			minimalResult := &MinimalCodeSearchResult{
+				TotalCount:        result.GetTotal(),
+				IncompleteResults: result.GetIncompleteResults(),
+				Items:             minimalItems,
+			}
+
+			r, err := json.Marshal(minimalResult)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
