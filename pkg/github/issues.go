@@ -104,8 +104,6 @@ func getCloseStateReason(stateReason string) IssueClosedStateReason {
 }
 
 // IssueFieldRef resolves the name of an issue field across its concrete types.
-// IssueFields is a union of IssueFieldDate, IssueFieldNumber, IssueFieldSingleSelect, IssueFieldText,
-// so we have to ask for `name` on each member.
 type IssueFieldRef struct {
 	Date         struct{ Name githubv4.String } `graphql:"... on IssueFieldDate"`
 	Number       struct{ Name githubv4.String } `graphql:"... on IssueFieldNumber"`
@@ -128,8 +126,7 @@ func (r IssueFieldRef) Name() string {
 	return ""
 }
 
-// IssueFieldValueFragment captures the value of a custom issue field. IssueFieldValue is a union
-// of 4 concrete value types; each carries its own value scalar and a reference to its parent field.
+// IssueFieldValueFragment captures the value of a custom issue field.
 // The Number variant's `value` is aliased to `valueNumber` to avoid a Float vs String type clash on decode.
 type IssueFieldValueFragment struct {
 	TypeName  string `graphql:"__typename"`
@@ -176,7 +173,7 @@ type IssueFragment struct {
 	} `graphql:"comments"`
 	IssueFieldValues struct {
 		Nodes []IssueFieldValueFragment
-	} `graphql:"issueFieldValues(first: 25)"` // 25 exceeds the practical max of custom fields per issue in GitHub Projects
+	} `graphql:"issueFieldValues(first: 25)"` // 25 is the limit set in the monolith
 }
 
 // Common interface for all issue query types
