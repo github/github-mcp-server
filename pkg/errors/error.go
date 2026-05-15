@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v82/github"
@@ -11,17 +13,21 @@ import (
 )
 
 type GitHubAPIError struct {
-	Message  string           `json:"message"`
-	Response *github.Response `json:"-"`
-	Err      error            `json:"-"`
+	Message           string           `json:"message"`
+	Code              string           `json:"code,omitempty"`
+	RetryAfterSeconds *int             `json:"retry_after_seconds,omitempty"`
+	Response          *github.Response `json:"-"`
+	Err               error            `json:"-"`
 }
 
 // NewGitHubAPIError creates a new GitHubAPIError with the provided message, response, and error.
 func newGitHubAPIError(message string, resp *github.Response, err error) *GitHubAPIError {
 	return &GitHubAPIError{
-		Message:  message,
-		Response: resp,
-		Err:      err,
+		Message:           message,
+		Code:              classifyHTTPErrorCode(resp.Response, message, err),
+		RetryAfterSeconds: parseRetryAfterSeconds(resp.Response),
+		Response:          resp,
+		Err:               err,
 	}
 }
 
@@ -46,21 +52,101 @@ func (e *GitHubGraphQLError) Error() string {
 }
 
 type GitHubRawAPIError struct {
-	Message  string         `json:"message"`
-	Response *http.Response `json:"-"`
-	Err      error          `json:"-"`
+	Message           string         `json:"message"`
+	Code              string         `json:"code,omitempty"`
+	RetryAfterSeconds *int           `json:"retry_after_seconds,omitempty"`
+	Response          *http.Response `json:"-"`
+	Err               error          `json:"-"`
 }
 
 func newGitHubRawAPIError(message string, resp *http.Response, err error) *GitHubRawAPIError {
 	return &GitHubRawAPIError{
-		Message:  message,
-		Response: resp,
-		Err:      err,
+		Message:           message,
+		Code:              classifyHTTPErrorCode(resp, message, err),
+		RetryAfterSeconds: parseRetryAfterSeconds(resp),
+		Response:          resp,
+		Err:               err,
 	}
 }
 
 func (e *GitHubRawAPIError) Error() string {
 	return fmt.Errorf("%s: %w", e.Message, e.Err).Error()
+}
+
+func classifyHTTPErrorCode(resp *http.Response, message string, err error) string {
+	if resp == nil {
+		return ""
+	}
+
+	combined := strings.ToLower(strings.TrimSpace(strings.Join([]string{
+		message,
+		errorString(err),
+		resp.Status,
+	}, " ")))
+
+	if code := classifyRateLimitCode(resp, combined); code != "" {
+		return code
+	}
+
+	switch resp.StatusCode {
+	case http.StatusUnauthorized:
+		return "invalid_token"
+	case http.StatusForbidden:
+		if strings.Contains(combined, "scope") || strings.Contains(combined, "permission") {
+			return "insufficient_scope"
+		}
+	}
+
+	return ""
+}
+
+func classifyRateLimitCode(resp *http.Response, combined string) string {
+	if resp == nil {
+		return ""
+	}
+
+	if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusTooManyRequests {
+		return ""
+	}
+
+	switch {
+	case strings.Contains(combined, "secondary rate limit"):
+		return "secondary_rate_limited"
+	case strings.Contains(combined, "abuse") || strings.Contains(combined, "abuse detection"):
+		return "abuse_rate_limited"
+	case resp.Header.Get("X-RateLimit-Remaining") == "0":
+		return "rate_limited"
+	case strings.Contains(combined, "rate limit exceeded"):
+		return "rate_limited"
+	default:
+		return ""
+	}
+}
+
+func parseRetryAfterSeconds(resp *http.Response) *int {
+	if resp == nil {
+		return nil
+	}
+
+	retryAfter := strings.TrimSpace(resp.Header.Get("Retry-After"))
+	if retryAfter == "" {
+		return nil
+	}
+
+	seconds, err := strconv.Atoi(retryAfter)
+	if err != nil {
+		return nil
+	}
+
+	return &seconds
+}
+
+func errorString(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	return err.Error()
 }
 
 type GitHubErrorKey struct{}
