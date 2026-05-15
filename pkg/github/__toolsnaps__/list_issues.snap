@@ -18,6 +18,38 @@
         ],
         "type": "string"
       },
+      "field_filters": {
+        "description": "Filter by custom issue field values. Each entry must specify field_name and exactly one typed value field.",
+        "items": {
+          "properties": {
+            "date_value": {
+              "description": "For date fields, the date to match (YYYY-MM-DD).",
+              "type": "string"
+            },
+            "field_name": {
+              "description": "Name of the custom field (e.g. \"Priority\").",
+              "type": "string"
+            },
+            "number_value": {
+              "description": "For number fields, the numeric value to match.",
+              "type": "number"
+            },
+            "single_select_value": {
+              "description": "For single-select fields, the option name to match (e.g. \"P1\").",
+              "type": "string"
+            },
+            "text_value": {
+              "description": "For text fields, the text value to match.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "field_name"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
       "labels": {
         "description": "Filter by labels",
         "items": {
