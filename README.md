@@ -839,7 +839,7 @@ The following sets of tools are available:
 - **issue_write** - Create or update issue.
   - **Required OAuth Scopes**: `repo`
   - `assignees`: Usernames to assign to this issue (string[], optional)
-  - `body`: Issue body content (string, optional)
+  - `body`: Issue body content (Markdown). On method='update', this REPLACES the entire issue body, it does NOT append. To add a comment to an issue without modifying its body, use the add_issue_comment tool instead. (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
