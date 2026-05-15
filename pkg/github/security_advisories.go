@@ -463,3 +463,255 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 		},
 	)
 }
+
+func ReportSecurityVulnerability(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataSecurityAdvisories,
+		mcp.Tool{
+			Name:        "report_security_vulnerability",
+			Description: t("TOOL_REPORT_SECURITY_VULNERABILITY_DESCRIPTION", "Report a security vulnerability to the maintainers of a repository. Creates a private security advisory in 'triage' state."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_REPORT_SECURITY_VULNERABILITY_USER_TITLE", "Report security vulnerability"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "The owner of the repository.",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "The name of the repository.",
+					},
+					"summary": {
+						Type:        "string",
+						Description: "A short summary of the security vulnerability.",
+					},
+					"description": {
+						Type:        "string",
+						Description: "A detailed description of what the vulnerability entails.",
+					},
+					"severity": {
+						Type:        "string",
+						Description: "The severity of the advisory. You must choose between setting this field or cvss_vector_string.",
+						Enum:        []any{"critical", "high", "medium", "low"},
+					},
+					"cvss_vector_string": {
+						Type:        "string",
+						Description: "The CVSS vector that calculates the severity of the advisory. You must choose between setting this field or severity.",
+					},
+					"cwe_ids": {
+						Type:        "array",
+						Description: "A list of Common Weakness Enumeration (CWE) IDs (e.g. [\"CWE-79\", \"CWE-89\"]).",
+						Items: &jsonschema.Schema{
+							Type: "string",
+						},
+					},
+					"vulnerabilities": {
+						Type:        "array",
+						Description: "An array of products affected by the vulnerability.",
+						Items: &jsonschema.Schema{
+							Type: "object",
+							Properties: map[string]*jsonschema.Schema{
+								"package": {
+									Type:        "object",
+									Description: "The package affected by the vulnerability.",
+									Properties: map[string]*jsonschema.Schema{
+										"ecosystem": {
+											Type:        "string",
+											Description: "The package ecosystem (e.g., npm, pip, maven, rubygems).",
+										},
+										"name": {
+											Type:        "string",
+											Description: "The package name.",
+										},
+									},
+									Required: []string{"ecosystem", "name"},
+								},
+								"vulnerable_version_range": {
+									Type:        "string",
+									Description: "The range of versions that are vulnerable (e.g., '>= 1.0.0, < 1.0.1').",
+								},
+								"patched_versions": {
+									Type:        "string",
+									Description: "The versions that patch the vulnerability (e.g., '1.0.1').",
+								},
+								"vulnerable_functions": {
+									Type:        "array",
+									Description: "The names of vulnerable functions in the package.",
+									Items: &jsonschema.Schema{
+										Type: "string",
+									},
+								},
+							},
+							Required: []string{"package"},
+						},
+					},
+					"start_private_fork": {
+						Type:        "boolean",
+						Description: "Whether to create a temporary private fork of the repository to collaborate on a fix. Default: false",
+						Default:     json.RawMessage(`false`),
+					},
+				},
+				Required: []string{"owner", "repo", "summary", "description"},
+			},
+		},
+		[]scopes.Scope{scopes.SecurityEvents},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			summary, err := RequiredParam[string](args, "summary")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			description, err := RequiredParam[string](args, "description")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			severity, err := OptionalParam[string](args, "severity")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			cvssVectorString, err := OptionalParam[string](args, "cvss_vector_string")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Validate that only one of severity or cvss_vector_string is set
+			if severity != "" && cvssVectorString != "" {
+				return utils.NewToolResultError("cannot specify both severity and cvss_vector_string"), nil, nil
+			}
+
+			cweIDs, err := OptionalStringArrayParam(args, "cwe_ids")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			startPrivateFork, err := OptionalParam[bool](args, "start_private_fork")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			// Build the request body
+			type vulnerabilityReport struct {
+				Summary          string                           `json:"summary"`
+				Description      string                           `json:"description"`
+				Severity         *string                          `json:"severity,omitempty"`
+				CVSSVectorString *string                          `json:"cvss_vector_string,omitempty"`
+				CWEIDs           *[]string                        `json:"cwe_ids,omitempty"`
+				Vulnerabilities  *[]*github.AdvisoryVulnerability `json:"vulnerabilities,omitempty"`
+				StartPrivateFork *bool                            `json:"start_private_fork,omitempty"`
+			}
+
+			report := &vulnerabilityReport{
+				Summary:     summary,
+				Description: description,
+			}
+
+			if severity != "" {
+				report.Severity = &severity
+			}
+			if cvssVectorString != "" {
+				report.CVSSVectorString = &cvssVectorString
+			}
+
+			if len(cweIDs) > 0 {
+				report.CWEIDs = &cweIDs
+			}
+
+			// Handle vulnerabilities array
+			if vulnsData, ok := args["vulnerabilities"]; ok {
+				if vulnsArray, ok := vulnsData.([]any); ok {
+					var vulnerabilities []*github.AdvisoryVulnerability
+					for _, v := range vulnsArray {
+						if vulnMap, ok := v.(map[string]any); ok {
+							vuln := &github.AdvisoryVulnerability{}
+
+							// Parse package
+							if pkgData, ok := vulnMap["package"].(map[string]any); ok {
+								pkg := &github.VulnerabilityPackage{}
+								if ecosystem, ok := pkgData["ecosystem"].(string); ok {
+									pkg.Ecosystem = &ecosystem
+								}
+								if name, ok := pkgData["name"].(string); ok {
+									pkg.Name = &name
+								}
+								vuln.Package = pkg
+							}
+
+							// Parse other fields
+							if versionRange, ok := vulnMap["vulnerable_version_range"].(string); ok {
+								vuln.VulnerableVersionRange = &versionRange
+							}
+							if patchedVersions, ok := vulnMap["patched_versions"].(string); ok {
+								vuln.PatchedVersions = &patchedVersions
+							}
+							if vulnFuncs, ok := vulnMap["vulnerable_functions"].([]any); ok {
+								var functions []string
+								for _, f := range vulnFuncs {
+									if funcStr, ok := f.(string); ok {
+										functions = append(functions, funcStr)
+									}
+								}
+								if len(functions) > 0 {
+									vuln.VulnerableFunctions = functions
+								}
+							}
+
+							vulnerabilities = append(vulnerabilities, vuln)
+						}
+					}
+					report.Vulnerabilities = &vulnerabilities
+				}
+			}
+
+			if startPrivateFork {
+				report.StartPrivateFork = &startPrivateFork
+			}
+
+			// Make HTTP POST request to the security-advisories/reports endpoint
+			// The go-github library doesn't have this method yet, so we use NewRequest directly
+			url := fmt.Sprintf("repos/%s/%s/security-advisories/reports", owner, repo)
+			req, err := client.NewRequest("POST", url, report)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to create request: %w", err)
+			}
+
+			var advisory github.SecurityAdvisory
+			resp, err := client.Do(ctx, req, &advisory)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to report security vulnerability: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusCreated {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to report security vulnerability", resp, body), nil, nil
+			}
+
+			r, err := json.Marshal(advisory)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal advisory response: %w", err)
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
+		},
+	)
+}
