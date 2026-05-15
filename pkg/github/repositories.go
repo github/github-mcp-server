@@ -2293,7 +2293,15 @@ func ListRepositoryCollaborators(t translations.TranslationHelperFunc) inventory
 				})
 			}
 
-			return MarshalledTextResult(result), nil, nil
+			response := map[string]any{
+				"items":     result,
+				"nextPage":  resp.NextPage,
+				"prevPage":  resp.PrevPage,
+				"firstPage": resp.FirstPage,
+				"lastPage":  resp.LastPage,
+			}
+
+			return MarshalledTextResult(response), nil, nil
 		},
 	)
 }

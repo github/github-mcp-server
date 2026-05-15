@@ -4488,15 +4488,22 @@ func Test_ListRepositoryCollaborators(t *testing.T) {
 			textContent := getTextResult(t, result)
 			require.NotEmpty(t, textContent.Text)
 
-			var collaborators []MinimalCollaborator
-			err = json.Unmarshal([]byte(textContent.Text), &collaborators)
+			var response struct {
+				Items     []MinimalCollaborator `json:"items"`
+				NextPage  int                   `json:"nextPage"`
+				PrevPage  int                   `json:"prevPage"`
+				FirstPage int                   `json:"firstPage"`
+				LastPage  int                   `json:"lastPage"`
+			}
+			err = json.Unmarshal([]byte(textContent.Text), &response)
 			require.NoError(t, err)
 
 			if tt.name == "empty collaborators returns empty array" {
-				assert.Empty(t, collaborators)
+				assert.Empty(t, response.Items)
 				return
 			}
 
+			collaborators := response.Items
 			assert.Len(t, collaborators, 2)
 			assert.Equal(t, "user1", collaborators[0].Login)
 			assert.Equal(t, int64(101), collaborators[0].ID)
