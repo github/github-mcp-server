@@ -37,13 +37,35 @@ func hasTypeFilter(query string) bool {
 	return hasFilter(query, "type")
 }
 
+// searchPostProcessFn is invoked after a successful search response, before
+// the call result is returned. It may attach additional metadata (such as IFC
+// labels) to the call result based on the search payload.
+type searchPostProcessFn func(ctx context.Context, result *github.IssuesSearchResult, callResult *mcp.CallToolResult)
+
+type searchConfig struct {
+	postProcess searchPostProcessFn
+}
+
+type searchOption func(*searchConfig)
+
+// withSearchPostProcess registers a callback invoked after a successful search
+// response. The callback may mutate the call result (e.g. to attach _meta.ifc).
+func withSearchPostProcess(fn searchPostProcessFn) searchOption {
+	return func(c *searchConfig) { c.postProcess = fn }
+}
+
 func searchHandler(
 	ctx context.Context,
 	getClient GetClientFn,
 	args map[string]any,
 	searchType string,
 	errorPrefix string,
+	options ...searchOption,
 ) (*mcp.CallToolResult, error) {
+	cfg := searchConfig{}
+	for _, opt := range options {
+		opt(&cfg)
+	}
 	query, err := RequiredParam[string](args, "query")
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil
@@ -113,5 +135,9 @@ func searchHandler(
 		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), nil
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	callResult := utils.NewToolResultText(string(r))
+	if cfg.postProcess != nil {
+		cfg.postProcess(ctx, result, callResult)
+	}
+	return callResult, nil
 }

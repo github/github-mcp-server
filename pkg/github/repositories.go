@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/scopes"
@@ -653,6 +654,20 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 	)
 }
 
+// FetchRepoIsPrivate returns whether a repository is private. It is a thin
+// wrapper around the GitHub Repositories.Get endpoint provided as a shared
+// helper for IFC label computation across tools.
+func FetchRepoIsPrivate(ctx context.Context, client *github.Client, owner, repo string) (bool, error) {
+	r, resp, err := client.Repositories.Get(ctx, owner, repo)
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+	if err != nil {
+		return false, err
+	}
+	return r.GetPrivate(), nil
+}
+
 // GetFileContents creates a tool to get the contents of a file or directory from a GitHub repository.
 func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
@@ -725,6 +740,36 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return utils.NewToolResultError("failed to get GitHub client"), nil, nil
 			}
 
+			// attachIFC adds the IFC label to a successful tool result when
+			// InsidersMode is enabled. The visibility lookup is performed
+			// lazily on first use and cached because GetFileContents has
+			// many possible return paths and would otherwise re-fetch on
+			// each. If the visibility lookup fails we skip the label rather
+			// than misclassify the result; the failure is not cached so a
+			// later return path can retry.
+			var (
+				ifcLabelKnown bool
+				ifcIsPrivate  bool
+			)
+			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
+				if r == nil || r.IsError || !deps.GetFlags(ctx).InsidersMode {
+					return r
+				}
+				if !ifcLabelKnown {
+					isPrivate, err := FetchRepoIsPrivate(ctx, client, owner, repo)
+					if err != nil {
+						return r
+					}
+					ifcIsPrivate = isPrivate
+					ifcLabelKnown = true
+				}
+				if r.Meta == nil {
+					r.Meta = mcp.Meta{}
+				}
+				r.Meta["ifc"] = ifc.LabelGetFileContents(ifcIsPrivate)
+				return r
+			}
+
 			rawOpts, fallbackUsed, err := resolveGitReference(ctx, client, owner, repo, ref, sha)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to resolve git reference: %s", err)), nil, nil
@@ -746,7 +791,8 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			// The path does not point to a file or directory.
 			// Instead let's try to find it in the Git Tree by matching the end of the path.
 			if err != nil || (fileContent == nil && dirContent == nil) {
-				return matchFiles(ctx, client, owner, repo, ref, path, rawOpts, 0)
+				res, data, err := matchFiles(ctx, client, owner, repo, ref, path, rawOpts, 0)
+				return attachIFC(res), data, err
 			}
 
 			if fileContent != nil && fileContent.SHA != nil {
@@ -776,7 +822,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						Text:     "",
 						MIMEType: "text/plain",
 					}
-					return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded empty file (SHA: %s)%s", fileSHA, successNote), result), nil, nil
+					return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded empty file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
 				}
 
 				// For files >= 1MB, return a ResourceLink instead of content
@@ -789,10 +835,10 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						Title: fmt.Sprintf("File: %s", path),
 						Size:  &size,
 					}
-					return utils.NewToolResultResourceLink(
+					return attachIFC(utils.NewToolResultResourceLink(
 						fmt.Sprintf("File %s is too large to display (%d bytes). Use the download URL to fetch the content: %s (SHA: %s)%s",
 							path, fileSize, fileContent.GetDownloadURL(), fileSHA, successNote),
-						resourceLink), nil, nil
+						resourceLink)), nil, nil
 				}
 
 				// For files < 1MB, get content directly from Contents API
@@ -820,7 +866,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						Text:     content,
 						MIMEType: contentType,
 					}
-					return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)%s", fileSHA, successNote), result), nil, nil
+					return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
 				}
 
 				// Binary content - encode as base64 blob
@@ -830,14 +876,14 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					Blob:     []byte(blobContent),
 					MIMEType: contentType,
 				}
-				return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote), result), nil, nil
+				return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
 			} else if dirContent != nil {
 				// file content or file SHA is nil which means it's a directory
 				r, err := json.Marshal(dirContent)
 				if err != nil {
 					return utils.NewToolResultError("failed to marshal response"), nil, nil
 				}
-				return utils.NewToolResultText(string(r)), nil, nil
+				return attachIFC(utils.NewToolResultText(string(r))), nil, nil
 			}
 
 			return utils.NewToolResultError("failed to get file contents"), nil, nil
@@ -1632,7 +1678,15 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get tag reference", resp, body), nil, nil
 			}
 
-			// Then get the tag object
+			// Differentiate between lightweight and annotated tags since lightweight ones don't have a fetchable object
+			if ref.Object.GetType() == "commit" {
+				r, err := json.Marshal(ref)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+				}
+				return utils.NewToolResultText(string(r)), nil, nil
+			}
+
 			tagObj, resp, err := client.Git.GetTag(ctx, owner, repo, *ref.Object.SHA)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -2145,6 +2199,114 @@ func UnstarRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 			}
 
 			return utils.NewToolResultText(fmt.Sprintf("Successfully unstarred repository %s/%s", owner, repo)), nil, nil
+		},
+	)
+}
+
+// ListRepositoryCollaborators creates a tool to list collaborators of a GitHub repository.
+func ListRepositoryCollaborators(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        "list_repository_collaborators",
+			Description: t("TOOL_LIST_REPOSITORY_COLLABORATORS_DESCRIPTION", "List collaborators of a GitHub repository. Results are paginated; the response includes `nextPage`, `prevPage`, `firstPage`, and `lastPage` fields. To get the next page, use the `nextPage` value as the `page` parameter."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_LIST_REPOSITORY_COLLABORATORS_USER_TITLE", "List repository collaborators"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: func() *jsonschema.Schema {
+				schema := WithPagination(&jsonschema.Schema{
+					Type: "object",
+					Properties: map[string]*jsonschema.Schema{
+						"owner": {
+							Type:        "string",
+							Description: "Repository owner",
+						},
+						"repo": {
+							Type:        "string",
+							Description: "Repository name",
+						},
+						"affiliation": {
+							Type:        "string",
+							Description: "Filter by affiliation. Can be one of: 'outside' (outside collaborators), 'direct' (all with permissions regardless of org membership), 'all' (all collaborators). Default: 'all'",
+							Enum:        []any{"outside", "direct", "all"},
+						},
+					},
+					Required: []string{"owner", "repo"},
+				})
+				schema.Properties["page"].Description = "Page number for pagination (default 1, min 1)"
+				schema.Properties["perPage"].Description = "Results per page for pagination (default 30, min 1, max 100)"
+				return schema
+			}(),
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			affiliation, err := OptionalParam[string](args, "affiliation")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			pagination, err := OptionalPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			opts := &github.ListCollaboratorsOptions{
+				Affiliation: affiliation,
+				ListOptions: github.ListOptions{
+					Page:    pagination.Page,
+					PerPage: pagination.PerPage,
+				},
+			}
+
+			collaborators, resp, err := client.Repositories.ListCollaborators(ctx, owner, repo, opts)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to list collaborators",
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list collaborators", resp, body), nil, nil
+			}
+
+			result := make([]MinimalCollaborator, 0, len(collaborators))
+			for _, c := range collaborators {
+				result = append(result, MinimalCollaborator{
+					Login:    c.GetLogin(),
+					ID:       c.GetID(),
+					RoleName: c.GetRoleName(),
+				})
+			}
+
+			response := map[string]any{
+				"items":     result,
+				"nextPage":  resp.NextPage,
+				"prevPage":  resp.PrevPage,
+				"firstPage": resp.FirstPage,
+				"lastPage":  resp.LastPage,
+			}
+
+			return MarshalledTextResult(response), nil, nil
 		},
 	)
 }

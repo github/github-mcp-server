@@ -544,6 +544,7 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 					"inputs": {
 						Type:        "object",
 						Description: "Inputs the workflow accepts. Only used for 'run_workflow' method.",
+						Properties:  map[string]*jsonschema.Schema{},
 					},
 					"run_id": {
 						Type:        "number",
@@ -574,11 +575,9 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 			runID, _ := OptionalIntParam(args, "run_id")
 
 			// Get optional inputs parameter
-			var inputs map[string]any
-			if requestInputs, ok := args["inputs"]; ok {
-				if inputsMap, ok := requestInputs.(map[string]any); ok {
-					inputs = inputsMap
-				}
+			inputs, err := OptionalParam[map[string]any](args, "inputs")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			// Validate required parameters based on action type

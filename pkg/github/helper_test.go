@@ -39,6 +39,7 @@ const (
 	GetReposSubscriptionByOwnerByRepo    = "GET /repos/{owner}/{repo}/subscription"
 	PutReposSubscriptionByOwnerByRepo    = "PUT /repos/{owner}/{repo}/subscription"
 	DeleteReposSubscriptionByOwnerByRepo = "DELETE /repos/{owner}/{repo}/subscription"
+	ListCollaborators                    = "GET /repos/{owner}/{repo}/collaborators"
 
 	// Git endpoints
 	GetReposGitTreesByOwnerByRepoByTree        = "GET /repos/{owner}/{repo}/git/trees/{tree}"
@@ -219,9 +220,15 @@ func expectRequestBody(t *testing.T, expectedRequestBody any) *partialMock {
 type partialMock struct {
 	t *testing.T
 
-	expectedPath        string
-	expectedQueryParams map[string]string
-	expectedRequestBody any
+	expectedPath           string
+	expectedQueryParams    map[string]string
+	expectedRequestBody    any
+	expectedHeaderContains map[string]string
+}
+
+func (p *partialMock) withHeaders(headers map[string]string) *partialMock {
+	p.expectedHeaderContains = headers
+	return p
 }
 
 func (p *partialMock) andThen(responseHandler http.HandlerFunc) http.HandlerFunc {
@@ -244,6 +251,12 @@ func (p *partialMock) andThen(responseHandler http.HandlerFunc) http.HandlerFunc
 			require.NoError(p.t, err)
 
 			require.Equal(p.t, p.expectedRequestBody, unmarshaledRequestBody)
+		}
+
+		if p.expectedHeaderContains != nil {
+			for k, v := range p.expectedHeaderContains {
+				require.Contains(p.t, r.Header.Get(k), v, "expected header %q to contain %q", k, v)
+			}
 		}
 
 		responseHandler(w, r)
