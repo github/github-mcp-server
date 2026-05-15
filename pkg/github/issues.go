@@ -625,7 +625,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "add_issue_comment",
-			Description: t("TOOL_ADD_ISSUE_COMMENT_DESCRIPTION", "Add a comment to a specific issue in a GitHub repository. Use this tool to add comments to pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add review comments."),
+			Description: t("TOOL_ADD_ISSUE_COMMENT_DESCRIPTION", "Add a comment to a specific issue in a GitHub repository. Use this tool to add comments to pull requests as well (in this case pass pull request number as issue_number), but only if the user is not asking specifically to add review comments."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ADD_ISSUE_COMMENT_USER_TITLE", "Add comment to issue"),
 				ReadOnlyHint: false,
