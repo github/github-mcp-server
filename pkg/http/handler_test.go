@@ -847,7 +847,7 @@ func TestInsidersRoutePreservesUIMeta(t *testing.T) {
 	uiTool := mockTool("with_ui", "repos", true)
 	uiTool.Tool.Meta = mcp.Meta{"ui": map[string]any{"resourceUri": uiURI}}
 
-	checker := createHTTPFeatureChecker()
+	checker := createHTTPFeatureChecker(nil, false)
 	build := func() *inventory.Inventory {
 		inv, err := inventory.NewBuilder().
 			SetTools([]inventory.ServerTool{uiTool}).

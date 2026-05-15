@@ -3,12 +3,16 @@ package github
 // MCPAppsFeatureFlag is the feature flag name for MCP Apps (interactive UI forms).
 const MCPAppsFeatureFlag = "remote_mcp_ui_apps"
 
+// FeatureFlagCSVOutput is the feature flag name for CSV output on list tools.
+const FeatureFlagCSVOutput = "csv_output"
+
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag or X-MCP-Features HTTP header.
 // Only flags in this list are accepted; unknown flags are silently ignored.
 // This is the single source of truth for which flags are user-controllable.
 var AllowedFeatureFlags = []string{
 	MCPAppsFeatureFlag,
+	FeatureFlagCSVOutput,
 	FeatureFlagIssuesGranular,
 	FeatureFlagPullRequestsGranular,
 }
@@ -19,6 +23,7 @@ var AllowedFeatureFlags = []string{
 // feature flag expansion.
 var InsidersFeatureFlags = []string{
 	MCPAppsFeatureFlag,
+	FeatureFlagCSVOutput,
 }
 
 // FeatureFlags defines runtime feature toggles that adjust tool behavior.
