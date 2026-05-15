@@ -90,6 +90,7 @@ var (
 				ExportTranslations:   viper.GetBool("export-translations"),
 				EnableCommandLogging: viper.GetBool("enable-command-logging"),
 				LogFilePath:          viper.GetString("log-file"),
+				LogLevel:             viper.GetString("log-level"),
 				ContentWindowSize:    viper.GetInt("content-window-size"),
 				LockdownMode:         viper.GetBool("lockdown-mode"),
 				InsidersMode:         viper.GetBool("insiders"),
@@ -137,6 +138,7 @@ var (
 				ExportTranslations:   viper.GetBool("export-translations"),
 				EnableCommandLogging: viper.GetBool("enable-command-logging"),
 				LogFilePath:          viper.GetString("log-file"),
+				LogLevel:             viper.GetString("log-level"),
 				ContentWindowSize:    viper.GetInt("content-window-size"),
 				LockdownMode:         viper.GetBool("lockdown-mode"),
 				RepoAccessCacheTTL:   &ttl,
@@ -168,6 +170,7 @@ func init() {
 	rootCmd.PersistentFlags().Bool("dynamic-toolsets", false, "Enable dynamic toolsets")
 	rootCmd.PersistentFlags().Bool("read-only", false, "Restrict the server to read-only operations")
 	rootCmd.PersistentFlags().String("log-file", "", "Path to log file")
+	rootCmd.PersistentFlags().String("log-level", "", "Log level (debug, info, warn, error). Defaults to debug when --log-file is set, info otherwise.")
 	rootCmd.PersistentFlags().Bool("enable-command-logging", false, "When enabled, the server will log all command requests and responses to the log file")
 	rootCmd.PersistentFlags().Bool("export-translations", false, "Save translations to a JSON file")
 	rootCmd.PersistentFlags().String("gh-host", "", "Specify the GitHub hostname (for GitHub Enterprise etc.)")
@@ -190,6 +193,7 @@ func init() {
 	_ = viper.BindPFlag("dynamic_toolsets", rootCmd.PersistentFlags().Lookup("dynamic-toolsets"))
 	_ = viper.BindPFlag("read-only", rootCmd.PersistentFlags().Lookup("read-only"))
 	_ = viper.BindPFlag("log-file", rootCmd.PersistentFlags().Lookup("log-file"))
+	_ = viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
 	_ = viper.BindPFlag("enable-command-logging", rootCmd.PersistentFlags().Lookup("enable-command-logging"))
 	_ = viper.BindPFlag("export-translations", rootCmd.PersistentFlags().Lookup("export-translations"))
 	_ = viper.BindPFlag("host", rootCmd.PersistentFlags().Lookup("gh-host"))

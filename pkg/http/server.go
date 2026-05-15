@@ -53,6 +53,11 @@ type ServerConfig struct {
 	// Path to the log file if not stderr
 	LogFilePath string
 
+	// LogLevel overrides the default log level ("debug", "info", "warn", "error").
+	// When empty, defaults depend on LogFilePath: Debug when writing to a file,
+	// Info when writing to stderr.
+	LogLevel string
+
 	// Content window size
 	ContentWindowSize int
 
@@ -104,11 +109,14 @@ func RunHTTPServer(cfg ServerConfig) error {
 			return fmt.Errorf("failed to open log file: %w", err)
 		}
 		logOutput = file
-		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelDebug})
 	} else {
 		logOutput = os.Stderr
-		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo})
 	}
+	level, err := observability.ParseLogLevel(cfg.LogLevel, defaultHTTPLogLevel(cfg.LogFilePath))
+	if err != nil {
+		return err
+	}
+	slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: level})
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "lockdownEnabled", cfg.LockdownMode, "readOnly", cfg.ReadOnly, "insidersMode", cfg.InsidersMode)
 
@@ -213,6 +221,15 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	logger.Info("server stopped gracefully")
 	return nil
+}
+
+// defaultHTTPLogLevel mirrors the ghmcp stdio default: Debug when a log
+// file is configured, Info when writing to stderr.
+func defaultHTTPLogLevel(logFilePath string) slog.Level {
+	if logFilePath != "" {
+		return slog.LevelDebug
+	}
+	return slog.LevelInfo
 }
 
 func initGlobalToolScopeMap(t translations.TranslationHelperFunc) error {
