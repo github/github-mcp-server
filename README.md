@@ -873,6 +873,11 @@ The following sets of tools are available:
   - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
   - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
 
+- **list_org_issue_fields** - List organization issue fields
+  - **Required OAuth Scopes**: `read:org`
+  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
+  - `org`: The organization name. The name is not case sensitive. (string, required)
+
 - **search_issues** - Search issues
   - **Required OAuth Scopes**: `repo`
   - `order`: Sort order (string, optional)
