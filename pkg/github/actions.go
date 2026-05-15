@@ -45,8 +45,7 @@ const (
 	actionsMethodDeleteWorkflowRunLogs    = "delete_workflow_run_logs"
 )
 
-// handleFailedJobLogs gets logs for all failed jobs in a workflow run
-func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, any, error) {
+func handleRunJobLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64, failedOnly bool, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, any, error) {
 	// First, get all jobs for the workflow run
 	jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, &github.ListWorkflowJobsOptions{
 		Filter: "latest",
@@ -56,28 +55,34 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Filter for failed jobs
-	var failedJobs []*github.WorkflowJob
+	// Filter jobs when requested. Otherwise return logs for every job in the run.
+	var selectedJobs []*github.WorkflowJob
 	for _, job := range jobs.Jobs {
-		if job.GetConclusion() == "failure" {
-			failedJobs = append(failedJobs, job)
+		if !failedOnly || job.GetConclusion() == "failure" {
+			selectedJobs = append(selectedJobs, job)
 		}
 	}
 
-	if len(failedJobs) == 0 {
+	if len(selectedJobs) == 0 {
+		message := "No jobs found in this workflow run"
+		if failedOnly {
+			message = "No failed jobs found in this workflow run"
+		}
 		result := map[string]any{
-			"message":     "No failed jobs found in this workflow run",
-			"run_id":      runID,
-			"total_jobs":  len(jobs.Jobs),
-			"failed_jobs": 0,
+			"message":    message,
+			"run_id":     runID,
+			"total_jobs": len(jobs.Jobs),
+		}
+		if failedOnly {
+			result["failed_jobs"] = 0
 		}
 		r, _ := json.Marshal(result)
 		return utils.NewToolResultText(string(r)), nil, nil
 	}
 
-	// Collect logs for all failed jobs
+	// Collect logs for all selected jobs
 	var logResults []map[string]any
-	for _, job := range failedJobs {
+	for _, job := range selectedJobs {
 		jobResult, resp, err := getJobLogData(ctx, client, owner, repo, job.GetID(), job.GetName(), returnContent, tailLines, contentWindowSize)
 		if err != nil {
 			// Continue with other jobs even if one fails
@@ -93,13 +98,19 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 		logResults = append(logResults, jobResult)
 	}
 
+	message := fmt.Sprintf("Retrieved logs for %d jobs", len(selectedJobs))
+	if failedOnly {
+		message = fmt.Sprintf("Retrieved logs for %d failed jobs", len(selectedJobs))
+	}
 	result := map[string]any{
-		"message":       fmt.Sprintf("Retrieved logs for %d failed jobs", len(failedJobs)),
+		"message":       message,
 		"run_id":        runID,
 		"total_jobs":    len(jobs.Jobs),
-		"failed_jobs":   len(failedJobs),
 		"logs":          logResults,
 		"return_format": map[string]bool{"content": returnContent, "urls": !returnContent},
+	}
+	if failedOnly {
+		result["failed_jobs"] = len(selectedJobs)
 	}
 
 	r, err := json.Marshal(result)
@@ -111,7 +122,19 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 }
 
 // handleSingleJobLogs gets logs for a single job
-func handleSingleJobLogs(ctx context.Context, client *github.Client, owner, repo string, jobID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, any, error) {
+func handleSingleJobLogs(ctx context.Context, client *github.Client, owner, repo string, jobID int64, failedOnly bool, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, any, error) {
+	if failedOnly {
+		workflowJob, resp, err := client.Actions.GetWorkflowJobByID(ctx, owner, repo, jobID)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get workflow job", resp, err), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if workflowJob.GetConclusion() != "failure" {
+			return utils.NewToolResultError(fmt.Sprintf("job_id %d has conclusion %q, not failure", jobID, workflowJob.GetConclusion())), nil, nil
+		}
+	}
+
 	jobResult, resp, err := getJobLogData(ctx, client, owner, repo, jobID, "", returnContent, tailLines, contentWindowSize)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get job logs", resp, err), nil, nil
@@ -623,8 +646,8 @@ func ActionsGetJobLogs(t translations.TranslationHelperFunc) inventory.ServerToo
 		mcp.Tool{
 			Name: "get_job_logs",
 			Description: t("TOOL_GET_JOB_LOGS_CONSOLIDATED_DESCRIPTION", `Get logs for GitHub Actions workflow jobs.
-Use this tool to retrieve logs for a specific job or all failed jobs in a workflow run.
-For single job logs, provide job_id. For all failed jobs in a run, provide run_id with failed_only=true.
+Use this tool to retrieve logs for a specific job or all jobs in a workflow run.
+Provide job_id for one job, or run_id for all jobs in a run. Set failed_only=true to restrict either mode to failed jobs only.
 `),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_JOB_LOGS_CONSOLIDATED_USER_TITLE", "Get GitHub Actions workflow job logs"),
@@ -643,15 +666,15 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 					},
 					"job_id": {
 						Type:        "number",
-						Description: "The unique identifier of the workflow job. Required when getting logs for a single job.",
+						Description: "The unique identifier of the workflow job. Provide either job_id or run_id, not both.",
 					},
 					"run_id": {
 						Type:        "number",
-						Description: "The unique identifier of the workflow run. Required when failed_only is true to get logs for all failed jobs in the run.",
+						Description: "The unique identifier of the workflow run. Provide either run_id or job_id, not both.",
 					},
 					"failed_only": {
 						Type:        "boolean",
-						Description: "When true, gets logs for all failed jobs in the workflow run specified by run_id. Requires run_id to be provided.",
+						Description: "When true, only returns logs for failed jobs. With job_id, the job must have failed. With run_id, only failed jobs in the run are included.",
 					},
 					"return_content": {
 						Type:        "boolean",
@@ -711,23 +734,18 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			// Validate parameters
-			if failedOnly && runID == 0 {
-				return utils.NewToolResultError("run_id is required when failed_only is true"), nil, nil
+			if jobID > 0 && runID > 0 {
+				return utils.NewToolResultError("provide either job_id or run_id, not both"), nil, nil
 			}
-			if !failedOnly && jobID == 0 {
-				return utils.NewToolResultError("job_id is required when failed_only is false"), nil, nil
-			}
-
-			if failedOnly && runID > 0 {
-				// Handle failed-only mode: get logs for all failed jobs in the workflow run
-				return handleFailedJobLogs(ctx, client, owner, repo, int64(runID), returnContent, tailLines, deps.GetContentWindowSize())
-			} else if jobID > 0 {
-				// Handle single job mode
-				return handleSingleJobLogs(ctx, client, owner, repo, int64(jobID), returnContent, tailLines, deps.GetContentWindowSize())
+			if jobID == 0 && runID == 0 {
+				return utils.NewToolResultError("one of job_id or run_id must be provided"), nil, nil
 			}
 
-			return utils.NewToolResultError("Either job_id must be provided for single job logs, or run_id with failed_only=true for failed job logs"), nil, nil
+			if runID > 0 {
+				return handleRunJobLogs(ctx, client, owner, repo, int64(runID), failedOnly, returnContent, tailLines, deps.GetContentWindowSize())
+			}
+
+			return handleSingleJobLogs(ctx, client, owner, repo, int64(jobID), failedOnly, returnContent, tailLines, deps.GetContentWindowSize())
 		},
 	)
 	return tool
