@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -851,6 +852,131 @@ func Test_SearchOrgs(t *testing.T) {
 				assert.Equal(t, *tc.expectedResult.Users[i].HTMLURL, org.ProfileURL)
 				assert.Equal(t, *tc.expectedResult.Users[i].AvatarURL, org.AvatarURL)
 			}
+		})
+	}
+}
+
+func Test_SearchCommits(t *testing.T) {
+	serverTool := SearchCommits(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "search_commits", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "query")
+	assert.Contains(t, schema.Properties, "sort")
+	assert.Contains(t, schema.Properties, "order")
+	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.ElementsMatch(t, schema.Required, []string{"query"})
+
+	now := time.Now().Truncate(time.Second)
+	mockSearchResult := &github.CommitsSearchResult{
+		Total:             github.Ptr(1),
+		IncompleteResults: github.Ptr(false),
+		Commits: []*github.CommitResult{
+			{
+				SHA:     github.Ptr("abc123commit"),
+				HTMLURL: github.Ptr("https://github.com/owner/repo/commit/abc123commit"),
+				Commit: &github.Commit{
+					Message: github.Ptr("Initial commit"),
+					Author: &github.CommitAuthor{
+						Name:  github.Ptr("Author Name"),
+						Email: github.Ptr("author@example.com"),
+						Date:  &github.Timestamp{Time: now},
+					},
+				},
+				Author: &github.User{
+					Login:   github.Ptr("author"),
+					ID:      github.Ptr(int64(1)),
+					HTMLURL: github.Ptr("https://github.com/author"),
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]any
+		expectError    bool
+		expectedResult *github.CommitsSearchResult
+		expectedErrMsg string
+	}{
+		{
+			name: "successful commit search",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchCommits: expectQueryParams(t, map[string]string{
+					"q":        "fix bug in:message repo:owner/repo",
+					"sort":     "author-date",
+					"order":    "desc",
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
+				),
+			}),
+			requestArgs: map[string]any{
+				"query": "fix bug in:message repo:owner/repo",
+				"sort":  "author-date",
+				"order": "desc",
+			},
+			expectError:    false,
+			expectedResult: mockSearchResult,
+		},
+		{
+			name: "search fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchCommits: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
+				"query": "invalid:syntax",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to search commits",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(tc.requestArgs)
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			if tc.expectError {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			textContent := getTextResult(t, result)
+			var returnedResult MinimalSearchCommitsResult
+			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expectedResult.GetTotal(), returnedResult.TotalCount)
+			assert.Len(t, returnedResult.Items, len(tc.expectedResult.Commits))
+			assert.Equal(t, *tc.expectedResult.Commits[0].SHA, returnedResult.Items[0].SHA)
+			assert.Equal(t, *tc.expectedResult.Commits[0].Commit.Message, returnedResult.Items[0].Commit.Message)
+			assert.Equal(t, *tc.expectedResult.Commits[0].Commit.Author.Name, returnedResult.Items[0].Commit.Author.Name)
+			assert.Equal(t, now.Format(time.RFC3339), returnedResult.Items[0].Commit.Author.Date)
+			assert.Equal(t, *tc.expectedResult.Commits[0].Author.Login, returnedResult.Items[0].Author.Login)
 		})
 	}
 }
