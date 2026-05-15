@@ -730,6 +730,23 @@ The following sets of tools are available:
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/comment-discussion-light.png"><img src="pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture> Discussions</summary>
 
+- **discussion_comment_write** - Manage discussion comments
+  - **Required OAuth Scopes**: `repo`
+  - `body`: Comment content (required for 'add', 'reply', and 'update' methods) (string, optional)
+  - `commentNodeID`: The Node ID of the discussion comment (required for 'reply', 'update', 'delete', 'mark_answer', and 'unmark_answer' methods). For 'reply', this is the top-level comment to reply to; GitHub Discussions only support one level of nesting. (string, optional)
+  - `discussionNumber`: Discussion number (required for 'add' and 'reply' methods) (number, optional)
+  - `method`: Write operation to perform on a discussion comment.
+    Options are:
+    - 'add' - adds a new top-level comment to a discussion.
+    - 'reply' - replies to a top-level discussion comment (GitHub Discussions only support one level of nesting).
+    - 'update' - updates an existing discussion comment.
+    - 'delete' - deletes a discussion comment.
+    - 'mark_answer' - marks a discussion comment as the answer (Q&A only).
+    - 'unmark_answer' - unmarks a discussion comment as the answer (Q&A only).
+     (string, required)
+  - `owner`: Repository owner (required for 'add' and 'reply' methods) (string, optional)
+  - `repo`: Repository name (required for 'add' and 'reply' methods) (string, optional)
+
 - **get_discussion** - Get discussion
   - **Required OAuth Scopes**: `repo`
   - `discussionNumber`: Discussion Number (number, required)
@@ -740,6 +757,7 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `repo`
   - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
   - `discussionNumber`: Discussion Number (number, required)
+  - `includeReplies`: When true, each top-level comment will include its replies nested within it (up to 100 replies per comment, which is the GitHub API maximum). Defaults to false. (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)

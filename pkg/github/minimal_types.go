@@ -51,6 +51,15 @@ type MinimalSearchRepositoriesResult struct {
 	Items             []MinimalRepository `json:"items"`
 }
 
+// MinimalDiscussionComment is the trimmed output type for discussion comment objects.
+type MinimalDiscussionComment struct {
+	ID              string                     `json:"id"`
+	Body            string                     `json:"body"`
+	IsAnswer        bool                       `json:"isAnswer,omitempty"`
+	Replies         []MinimalDiscussionComment `json:"replies,omitempty"`
+	ReplyTotalCount int                        `json:"replyTotalCount,omitempty"`
+}
+
 // MinimalCodeSearchResult is the trimmed output type for code search results.
 type MinimalCodeSearchResult struct {
 	TotalCount        int                 `json:"total_count"`

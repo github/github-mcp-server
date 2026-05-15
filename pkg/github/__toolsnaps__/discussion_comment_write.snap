@@ -1,0 +1,48 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "title": "Manage discussion comments"
+  },
+  "description": "Write operations for discussion comments.\nSupports adding top-level comments, replying to existing comments, updating comment content, deleting comments, and marking or unmarking comments as the answer.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "Comment content (required for 'add', 'reply', and 'update' methods)",
+        "type": "string"
+      },
+      "commentNodeID": {
+        "description": "The Node ID of the discussion comment (required for 'reply', 'update', 'delete', 'mark_answer', and 'unmark_answer' methods). For 'reply', this is the top-level comment to reply to; GitHub Discussions only support one level of nesting.",
+        "type": "string"
+      },
+      "discussionNumber": {
+        "description": "Discussion number (required for 'add' and 'reply' methods)",
+        "type": "number"
+      },
+      "method": {
+        "description": "Write operation to perform on a discussion comment.\nOptions are:\n- 'add' - adds a new top-level comment to a discussion.\n- 'reply' - replies to a top-level discussion comment (GitHub Discussions only support one level of nesting).\n- 'update' - updates an existing discussion comment.\n- 'delete' - deletes a discussion comment.\n- 'mark_answer' - marks a discussion comment as the answer (Q\u0026A only).\n- 'unmark_answer' - unmarks a discussion comment as the answer (Q\u0026A only).\n",
+        "enum": [
+          "add",
+          "reply",
+          "update",
+          "delete",
+          "mark_answer",
+          "unmark_answer"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner (required for 'add' and 'reply' methods)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name (required for 'add' and 'reply' methods)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method"
+    ],
+    "type": "object"
+  },
+  "name": "discussion_comment_write"
+}

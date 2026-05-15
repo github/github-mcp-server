@@ -14,6 +14,10 @@
         "description": "Discussion Number",
         "type": "number"
       },
+      "includeReplies": {
+        "description": "When true, each top-level comment will include its replies nested within it (up to 100 replies per comment, which is the GitHub API maximum). Defaults to false.",
+        "type": "boolean"
+      },
       "owner": {
         "description": "Repository owner",
         "type": "string"
