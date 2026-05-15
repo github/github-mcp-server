@@ -112,7 +112,8 @@ type IssueFragment struct {
 	DatabaseID int64
 
 	Author struct {
-		Login githubv4.String
+		Login               githubv4.String
+		Association         githubv4.String
 	}
 	CreatedAt githubv4.DateTime
 	UpdatedAt githubv4.DateTime
