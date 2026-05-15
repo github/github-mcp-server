@@ -1421,6 +1421,11 @@ The following sets of tools are available:
 
 <summary>Copilot Spaces</summary>
 
+- **Authentication note**
+  - Fine-grained PATs are not hidden by classic PAT scope filtering, so these tools may still appear even when the token cannot use them.
+  - For org-owned spaces, fine-grained PATs must be installed on the owning organization and include `organization_copilot_spaces: read`.
+  - If an org-owned space contains repository-backed resources, the token must also have access to every referenced repository or the space may be treated as not found.
+
 - **get_copilot_space** - Get Copilot Space
   - `owner`: The owner of the space. (string, required)
   - `name`: The name of the space. (string, required)
