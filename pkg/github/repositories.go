@@ -2209,30 +2209,35 @@ func ListRepositoryCollaborators(t translations.TranslationHelperFunc) inventory
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "list_repository_collaborators",
-			Description: t("TOOL_LIST_REPOSITORY_COLLABORATORS_DESCRIPTION", "List collaborators of a GitHub repository."),
+			Description: t("TOOL_LIST_REPOSITORY_COLLABORATORS_DESCRIPTION", "List collaborators of a GitHub repository. Results are paginated; the response includes `nextPage`, `prevPage`, `firstPage`, and `lastPage` fields. To get the next page, use the `nextPage` value as the `page` parameter."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_REPOSITORY_COLLABORATORS_USER_TITLE", "List repository collaborators"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: WithPagination(&jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner": {
-						Type:        "string",
-						Description: "Repository owner",
+			InputSchema: func() *jsonschema.Schema {
+				schema := WithPagination(&jsonschema.Schema{
+					Type: "object",
+					Properties: map[string]*jsonschema.Schema{
+						"owner": {
+							Type:        "string",
+							Description: "Repository owner",
+						},
+						"repo": {
+							Type:        "string",
+							Description: "Repository name",
+						},
+						"affiliation": {
+							Type:        "string",
+							Description: "Filter by affiliation. Can be one of: 'outside' (outside collaborators), 'direct' (all with permissions regardless of org membership), 'all' (all collaborators). Default: 'all'",
+							Enum:        []any{"outside", "direct", "all"},
+						},
 					},
-					"repo": {
-						Type:        "string",
-						Description: "Repository name",
-					},
-					"affiliation": {
-						Type:        "string",
-						Description: "Filter by affiliation. Can be one of: 'outside' (outside collaborators), 'direct' (all with permissions regardless of org membership), 'all' (all collaborators). Default: 'all'",
-						Enum:        []any{"outside", "direct", "all"},
-					},
-				},
-				Required: []string{"owner", "repo"},
-			}),
+					Required: []string{"owner", "repo"},
+				})
+				schema.Properties["page"].Description = "Page number for pagination (default 1, min 1)"
+				schema.Properties["perPage"].Description = "Results per page for pagination (default 30, min 1, max 100)"
+				return schema
+			}(),
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
