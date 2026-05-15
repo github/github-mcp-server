@@ -1345,6 +1345,15 @@ func Test_ListIssues(t *testing.T) {
 			"comments": map[string]any{
 				"totalCount": 5,
 			},
+			"issueFieldValues": map[string]any{
+				"nodes": []map[string]any{
+					{
+						"__typename": "IssueFieldSingleSelectValue",
+						"field":      map[string]any{"name": "priority"},
+						"value":      "P1",
+					},
+				},
+			},
 		},
 		{
 			"number":     456,
@@ -1362,6 +1371,25 @@ func Test_ListIssues(t *testing.T) {
 			},
 			"comments": map[string]any{
 				"totalCount": 3,
+			},
+			"issueFieldValues": map[string]any{
+				"nodes": []map[string]any{
+					{
+						"__typename": "IssueFieldDateValue",
+						"field":      map[string]any{"name": "due"},
+						"value":      "2026-06-01",
+					},
+					{
+						"__typename":  "IssueFieldNumberValue",
+						"field":       map[string]any{"name": "estimate"},
+						"valueNumber": 2.5,
+					},
+					{
+						"__typename": "IssueFieldTextValue",
+						"field":      map[string]any{"name": "notes"},
+						"value":      "needs triage",
+					},
+				},
 			},
 		},
 	}
@@ -1382,6 +1410,9 @@ func Test_ListIssues(t *testing.T) {
 			},
 			"comments": map[string]any{
 				"totalCount": 1,
+			},
+			"issueFieldValues": map[string]any{
+				"nodes": []map[string]any{},
 			},
 		},
 	}
@@ -1557,8 +1588,9 @@ func Test_ListIssues(t *testing.T) {
 	}
 
 	// Define the actual query strings that match the implementation
-	qBasicNoLabels := "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
-	qWithLabels := "query($after:String$direction:OrderDirection!$first:Int!$labels:[String!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
+	issueFieldValuesSelection := "issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value}}}"
+	qBasicNoLabels := "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}," + issueFieldValuesSelection + "},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
+	qWithLabels := "query($after:String$direction:OrderDirection!$first:Int!$labels:[String!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}," + issueFieldValuesSelection + "},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1629,6 +1661,22 @@ func Test_ListIssues(t *testing.T) {
 				for _, label := range issue.Labels {
 					assert.NotEmpty(t, label, "Label should be a non-empty string")
 				}
+
+				// Field values should be flattened to {field, value} pairs. Issue #123 has a
+				// SingleSelectValue; issue #456 exercises the Date/Number/Text branches
+				// (including float formatting); #789 has no field values.
+				switch issue.Number {
+				case 123:
+					assert.Equal(t, []MinimalIssueFieldValue{{Field: "priority", Value: "P1"}}, issue.FieldValues)
+				case 456:
+					assert.Equal(t, []MinimalIssueFieldValue{
+						{Field: "due", Value: "2026-06-01"},
+						{Field: "estimate", Value: "2.5"},
+						{Field: "notes", Value: "needs triage"},
+					}, issue.FieldValues)
+				default:
+					assert.Empty(t, issue.FieldValues)
+				}
 			}
 		})
 	}
@@ -1674,7 +1722,7 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		})
 	}
 
-	query := "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
+	query := "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount},issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value}}}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
 
 	vars := map[string]any{
 		"owner":     "octocat",
