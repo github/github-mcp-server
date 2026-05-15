@@ -57,7 +57,7 @@ func Test_GetMe(t *testing.T) {
 		{
 			name: "successful get user",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetUser: mockResponse(t, http.StatusOK, mockUser),
+				GetAuthenticatedUser: mockResponse(t, http.StatusOK, mockUser),
 			}),
 			requestArgs:     map[string]any{},
 			expectToolError: false,
@@ -66,7 +66,7 @@ func Test_GetMe(t *testing.T) {
 		{
 			name: "successful get user with reason",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetUser: mockResponse(t, http.StatusOK, mockUser),
+				GetAuthenticatedUser: mockResponse(t, http.StatusOK, mockUser),
 			}),
 			requestArgs: map[string]any{
 				"reason": "Testing API",
@@ -84,7 +84,7 @@ func Test_GetMe(t *testing.T) {
 		{
 			name: "get user fails",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetUser: badRequestHandler("expected test failure"),
+				GetAuthenticatedUser: badRequestHandler("expected test failure"),
 			}),
 			requestArgs:        map[string]any{},
 			expectToolError:    true,
@@ -304,13 +304,13 @@ func Test_GetTeams(t *testing.T) {
 	// Factory function for mock HTTP clients with user response
 	httpClientWithUser := func() *http.Client {
 		return MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			GetUser: mockResponse(t, http.StatusOK, mockUser),
+			GetAuthenticatedUser: mockResponse(t, http.StatusOK, mockUser),
 		})
 	}
 
 	httpClientUserFails := func() *http.Client {
 		return MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			GetUser: badRequestHandler("expected test failure"),
+			GetAuthenticatedUser: badRequestHandler("expected test failure"),
 		})
 	}
 
