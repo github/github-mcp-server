@@ -58,8 +58,6 @@ type Inventory struct {
 	filters []ToolFilter
 	// unrecognizedToolsets holds toolset IDs that were requested but don't match any registered toolsets
 	unrecognizedToolsets []string
-	// server instructions hold high-level instructions for agents to use the server effectively
-	instructions string
 }
 
 // UnrecognizedToolsets returns toolset IDs that were passed to WithToolsets but don't
@@ -326,8 +324,4 @@ func (r *Inventory) EnabledToolsets() []ToolsetMetadata {
 		}
 	}
 	return result
-}
-
-func (r *Inventory) Instructions() string {
-	return r.instructions
 }
