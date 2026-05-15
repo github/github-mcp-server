@@ -291,6 +291,9 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListLabels(t),
 		LabelWrite(t),
 
+		// UI tools (insiders only)
+		UIGet(t),
+
 		// Granular issue tools (feature-flagged, replace consolidated issue_write/sub_issue_write)
 		GranularCreateIssue(t),
 		GranularUpdateIssueTitle(t),
