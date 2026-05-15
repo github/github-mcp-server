@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v82/github"
@@ -12,6 +13,7 @@ import (
 
 type GitHubAPIError struct {
 	Message  string           `json:"message"`
+	Code     string           `json:"code,omitempty"`
 	Response *github.Response `json:"-"`
 	Err      error            `json:"-"`
 }
@@ -20,6 +22,7 @@ type GitHubAPIError struct {
 func newGitHubAPIError(message string, resp *github.Response, err error) *GitHubAPIError {
 	return &GitHubAPIError{
 		Message:  message,
+		Code:     classifyHTTPErrorCode(resp.Response, message),
 		Response: resp,
 		Err:      err,
 	}
@@ -47,6 +50,7 @@ func (e *GitHubGraphQLError) Error() string {
 
 type GitHubRawAPIError struct {
 	Message  string         `json:"message"`
+	Code     string         `json:"code,omitempty"`
 	Response *http.Response `json:"-"`
 	Err      error          `json:"-"`
 }
@@ -54,9 +58,27 @@ type GitHubRawAPIError struct {
 func newGitHubRawAPIError(message string, resp *http.Response, err error) *GitHubRawAPIError {
 	return &GitHubRawAPIError{
 		Message:  message,
+		Code:     classifyHTTPErrorCode(resp, message),
 		Response: resp,
 		Err:      err,
 	}
+}
+
+func classifyHTTPErrorCode(resp *http.Response, message string) string {
+	if resp == nil {
+		return ""
+	}
+
+	switch resp.StatusCode {
+	case http.StatusUnauthorized:
+		return "invalid_token"
+	case http.StatusForbidden:
+		if strings.Contains(strings.ToLower(message), "scope") || strings.Contains(strings.ToLower(message), "permission") {
+			return "insufficient_scope"
+		}
+	}
+
+	return ""
 }
 
 func (e *GitHubRawAPIError) Error() string {
