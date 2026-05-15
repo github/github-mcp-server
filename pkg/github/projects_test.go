@@ -425,7 +425,7 @@ func Test_ProjectsWrite(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "issue_number")
 	assert.Contains(t, inputSchema.Properties, "pull_request_number")
 	assert.Contains(t, inputSchema.Properties, "updated_field")
-	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner", "project_number"})
+	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner"})
 
 	// Verify DestructiveHint is set
 	assert.NotNil(t, toolDef.Tool.Annotations)
