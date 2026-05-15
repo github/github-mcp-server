@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v86/github"
 	"github.com/muesli/cache2go"
 	"github.com/shurcooL/githubv4"
 )

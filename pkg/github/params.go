@@ -6,7 +6,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v86/github"
 	"github.com/google/jsonschema-go/jsonschema"
 )
 

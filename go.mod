@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/go-viper/mapstructure/v2 v2.5.0
-	github.com/google/go-github/v82 v82.0.0
+	github.com/google/go-github/v86 v86.0.0
 	github.com/google/jsonschema-go v0.4.2
 	github.com/josephburnett/jd/v2 v2.5.0
 	github.com/lithammer/fuzzysearch v1.1.8
