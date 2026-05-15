@@ -15,5 +15,9 @@ func AllResources(t translations.TranslationHelperFunc) []inventory.ServerResour
 		GetRepositoryResourceCommitContent(t),
 		GetRepositoryResourceTagContent(t),
 		GetRepositoryResourcePrContent(t),
+
+		// Skill resources (SEP-2640): per-file template for any skill in any GitHub repo.
+		// Gated on the `skills` toolset.
+		GetSkillResourceFile(t),
 	}
 }

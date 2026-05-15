@@ -81,7 +81,6 @@ type MCPServerOption func(*mcp.ServerOptions)
 func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependencies, inv *inventory.Inventory, middleware ...mcp.Middleware) (*mcp.Server, error) {
 	// Create the MCP server
 	serverOpts := &mcp.ServerOptions{
-		Instructions:      inv.Instructions(),
 		Logger:            cfg.Logger,
 		CompletionHandler: CompletionsHandler(deps.GetClient),
 	}
@@ -101,6 +100,11 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 		}
 	}
 
+	// Declare the skills-over-MCP extension (SEP-2133) when bundled skills
+	// will be registered. Must happen before NewServer() since capabilities
+	// are captured at construction.
+	DeclareSkillsExtensionIfEnabled(serverOpts, inv)
+
 	ghServer := NewServer(cfg.Version, cfg.Translator("SERVER_NAME", "github-mcp-server"), cfg.Translator("SERVER_TITLE", "GitHub MCP Server"), serverOpts)
 
 	// Add middlewares. Order matters - for example, the error context middleware should be applied last so that it runs FIRST (closest to the handler) to ensure all errors are captured,
@@ -118,6 +122,12 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	// is empty - users enable toolsets at runtime via the dynamic tools below (but can
 	// enable toolsets or tools explicitly that do need registration).
 	inv.RegisterAll(ctx, ghServer, deps)
+
+	// Register server-bundled Agent Skills (skills-over-MCP SEP prototype).
+	// Each entry is toolset-gated internally. Lives here (not in the ghmcp
+	// bootstrap) so it applies to both stdio and HTTP transports — the HTTP
+	// handler builds an mcp.Server per request via this same constructor.
+	RegisterBundledSkills(ghServer, inv)
 
 	// Register dynamic toolset management tools (enable/disable) - these are separate
 	// meta-tools that control the inventory, not part of the inventory itself
@@ -208,6 +218,9 @@ func CompletionsHandler(getClient GetClientFn) func(ctx context.Context, req *mc
 		case "ref/resource":
 			if strings.HasPrefix(req.Params.Ref.URI, "repo://") {
 				return RepositoryResourceCompletionHandler(getClient)(ctx, req)
+			}
+			if strings.HasPrefix(req.Params.Ref.URI, "skill://") {
+				return SkillResourceCompletionHandler(getClient)(ctx, req)
 			}
 			return nil, fmt.Errorf("unsupported resource URI: %s", req.Params.Ref.URI)
 		case "ref/prompt":
