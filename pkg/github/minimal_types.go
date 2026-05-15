@@ -154,6 +154,13 @@ type MinimalResponse struct {
 	URL string `json:"url"`
 }
 
+// MinimalCollaborator is the trimmed output type for repository collaborators.
+type MinimalCollaborator struct {
+	Login    string `json:"login"`
+	ID       int64  `json:"id"`
+	RoleName string `json:"role_name"`
+}
+
 type MinimalProject struct {
 	ID               *int64            `json:"id,omitempty"`
 	NodeID           *string           `json:"node_id,omitempty"`

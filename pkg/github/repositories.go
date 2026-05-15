@@ -2202,3 +2202,111 @@ func UnstarRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 		},
 	)
 }
+
+// ListRepositoryCollaborators creates a tool to list collaborators of a GitHub repository.
+func ListRepositoryCollaborators(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        "list_repository_collaborators",
+			Description: t("TOOL_LIST_REPOSITORY_COLLABORATORS_DESCRIPTION", "List collaborators of a GitHub repository. Results are paginated; the response includes `nextPage`, `prevPage`, `firstPage`, and `lastPage` fields. To get the next page, use the `nextPage` value as the `page` parameter."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_LIST_REPOSITORY_COLLABORATORS_USER_TITLE", "List repository collaborators"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: func() *jsonschema.Schema {
+				schema := WithPagination(&jsonschema.Schema{
+					Type: "object",
+					Properties: map[string]*jsonschema.Schema{
+						"owner": {
+							Type:        "string",
+							Description: "Repository owner",
+						},
+						"repo": {
+							Type:        "string",
+							Description: "Repository name",
+						},
+						"affiliation": {
+							Type:        "string",
+							Description: "Filter by affiliation. Can be one of: 'outside' (outside collaborators), 'direct' (all with permissions regardless of org membership), 'all' (all collaborators). Default: 'all'",
+							Enum:        []any{"outside", "direct", "all"},
+						},
+					},
+					Required: []string{"owner", "repo"},
+				})
+				schema.Properties["page"].Description = "Page number for pagination (default 1, min 1)"
+				schema.Properties["perPage"].Description = "Results per page for pagination (default 30, min 1, max 100)"
+				return schema
+			}(),
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			affiliation, err := OptionalParam[string](args, "affiliation")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			pagination, err := OptionalPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			opts := &github.ListCollaboratorsOptions{
+				Affiliation: affiliation,
+				ListOptions: github.ListOptions{
+					Page:    pagination.Page,
+					PerPage: pagination.PerPage,
+				},
+			}
+
+			collaborators, resp, err := client.Repositories.ListCollaborators(ctx, owner, repo, opts)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to list collaborators",
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list collaborators", resp, body), nil, nil
+			}
+
+			result := make([]MinimalCollaborator, 0, len(collaborators))
+			for _, c := range collaborators {
+				result = append(result, MinimalCollaborator{
+					Login:    c.GetLogin(),
+					ID:       c.GetID(),
+					RoleName: c.GetRoleName(),
+				})
+			}
+
+			response := map[string]any{
+				"items":     result,
+				"nextPage":  resp.NextPage,
+				"prevPage":  resp.PrevPage,
+				"firstPage": resp.FirstPage,
+				"lastPage":  resp.LastPage,
+			}
+
+			return MarshalledTextResult(response), nil, nil
+		},
+	)
+}
