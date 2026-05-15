@@ -719,10 +719,33 @@ The following sets of tools are available:
 - **list_dependabot_alerts** - List dependabot alerts
   - **Required OAuth Scopes**: `security_events`
   - **Accepted OAuth Scopes**: `repo`, `security_events`
+  - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
   - `owner`: The owner of the repository. (string, required)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: The name of the repository. (string, required)
   - `severity`: Filter dependabot alerts by severity (string, optional)
   - `state`: Filter dependabot alerts by state. Defaults to open (string, optional)
+
+- **list_org_dependabot_alerts** - List org Dependabot alerts
+  - **Required OAuth Scopes**: `security_events`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
+  - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
+  - `ecosystem`: Filter Dependabot alerts by package ecosystem (e.g. npm, pip, maven) (string, optional)
+  - `org`: The organization name. (string, required)
+  - `package`: Filter Dependabot alerts by package name (string, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `severity`: Filter Dependabot alerts by severity (string, optional)
+  - `state`: Filter Dependabot alerts by state. Defaults to open (string, optional)
+
+- **update_dependabot_alert** - Update Dependabot alert
+  - **Required OAuth Scopes**: `security_events`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
+  - `alertNumber`: The number of the alert. (number, required)
+  - `dismissedComment`: An optional comment associated with dismissing the alert. Maximum 280 characters. (string, optional)
+  - `dismissedReason`: Required when state is dismissed. The reason for dismissing the alert. (string, optional)
+  - `owner`: The owner of the repository. (string, required)
+  - `repo`: The name of the repository. (string, required)
+  - `state`: The state to set for the alert. (string, required)
 
 </details>
 

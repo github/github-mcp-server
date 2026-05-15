@@ -915,3 +915,111 @@ func convertToMinimalReviewComment(c reviewCommentNode) MinimalReviewComment {
 
 	return m
 }
+
+// MinimalDependabotAdvisory is the trimmed output type for the security advisory embedded in a Dependabot alert.
+// It omits the full description, references, and inner vulnerabilities list to reduce verbosity.
+type MinimalDependabotAdvisory struct {
+	GHSAID    string  `json:"ghsa_id,omitempty"`
+	CVEID     string  `json:"cve_id,omitempty"`
+	Summary   string  `json:"summary,omitempty"`
+	Severity  string  `json:"severity,omitempty"`
+	CVSSScore float64 `json:"cvss_score,omitempty"`
+}
+
+// MinimalDependabotAlert is the trimmed output type for Dependabot alerts.
+// It replaces the full Repository and User objects with minimal equivalents and
+// drops verbose advisory fields (description, references) not needed for triage.
+type MinimalDependabotAlert struct {
+	Number                int                            `json:"number"`
+	State                 string                         `json:"state,omitempty"`
+	HTMLURL               string                         `json:"html_url,omitempty"`
+	CreatedAt             string                         `json:"created_at,omitempty"`
+	UpdatedAt             string                         `json:"updated_at,omitempty"`
+	DismissedAt           string                         `json:"dismissed_at,omitempty"`
+	DismissedBy           *MinimalUser                   `json:"dismissed_by,omitempty"`
+	DismissedReason       string                         `json:"dismissed_reason,omitempty"`
+	DismissedComment      string                         `json:"dismissed_comment,omitempty"`
+	FixedAt               string                         `json:"fixed_at,omitempty"`
+	AutoDismissedAt       string                         `json:"auto_dismissed_at,omitempty"`
+	Dependency            *github.Dependency             `json:"dependency,omitempty"`
+	SecurityAdvisory      *MinimalDependabotAdvisory     `json:"security_advisory,omitempty"`
+	SecurityVulnerability *github.AdvisoryVulnerability  `json:"security_vulnerability,omitempty"`
+	Repository            *MinimalRepository             `json:"repository,omitempty"`
+}
+
+// convertToMinimalDependabotAlert converts a full DependabotAlert to a MinimalDependabotAlert.
+func convertToMinimalDependabotAlert(alert *github.DependabotAlert) MinimalDependabotAlert {
+	m := MinimalDependabotAlert{
+		Number:                alert.GetNumber(),
+		State:                 alert.GetState(),
+		HTMLURL:               alert.GetHTMLURL(),
+		DismissedBy:           convertToMinimalUser(alert.GetDismissedBy()),
+		DismissedReason:       alert.GetDismissedReason(),
+		DismissedComment:      alert.GetDismissedComment(),
+		Dependency:            alert.GetDependency(),
+		SecurityVulnerability: alert.GetSecurityVulnerability(),
+		Repository:            convertToMinimalRepository(alert.GetRepository()),
+	}
+
+	if alert.SecurityAdvisory != nil {
+		a := alert.SecurityAdvisory
+		minimal := &MinimalDependabotAdvisory{
+			GHSAID:   a.GetGHSAID(),
+			CVEID:    a.GetCVEID(),
+			Summary:  a.GetSummary(),
+			Severity: a.GetSeverity(),
+		}
+		if a.CVSS != nil && a.CVSS.Score != nil {
+			minimal.CVSSScore = *a.CVSS.Score
+		}
+		m.SecurityAdvisory = minimal
+	}
+
+	if alert.CreatedAt != nil {
+		m.CreatedAt = alert.CreatedAt.Format(time.RFC3339)
+	}
+	if alert.UpdatedAt != nil {
+		m.UpdatedAt = alert.UpdatedAt.Format(time.RFC3339)
+	}
+	if alert.DismissedAt != nil {
+		m.DismissedAt = alert.DismissedAt.Format(time.RFC3339)
+	}
+	if alert.FixedAt != nil {
+		m.FixedAt = alert.FixedAt.Format(time.RFC3339)
+	}
+	if alert.AutoDismissedAt != nil {
+		m.AutoDismissedAt = alert.AutoDismissedAt.Format(time.RFC3339)
+	}
+
+	return m
+}
+
+// convertToMinimalRepository converts a full github.Repository to a MinimalRepository.
+func convertToMinimalRepository(repo *github.Repository) *MinimalRepository {
+	if repo == nil {
+		return nil
+	}
+	m := &MinimalRepository{
+		ID:            repo.GetID(),
+		Name:          repo.GetName(),
+		FullName:      repo.GetFullName(),
+		Description:   repo.GetDescription(),
+		HTMLURL:       repo.GetHTMLURL(),
+		Language:      repo.GetLanguage(),
+		Stars:         repo.GetStargazersCount(),
+		Forks:         repo.GetForksCount(),
+		OpenIssues:    repo.GetOpenIssuesCount(),
+		Topics:        repo.Topics,
+		Private:       repo.GetPrivate(),
+		Fork:          repo.GetFork(),
+		Archived:      repo.GetArchived(),
+		DefaultBranch: repo.GetDefaultBranch(),
+	}
+	if repo.CreatedAt != nil {
+		m.CreatedAt = repo.CreatedAt.Format(time.RFC3339)
+	}
+	if repo.UpdatedAt != nil {
+		m.UpdatedAt = repo.UpdatedAt.Format(time.RFC3339)
+	}
+	return m
+}
