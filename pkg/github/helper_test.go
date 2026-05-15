@@ -131,6 +131,7 @@ const (
 	PostReposActionsRunsRerunByOwnerByRepoByRunID                = "POST /repos/{owner}/{repo}/actions/runs/{run_id}/rerun"
 	PostReposActionsRunsRerunFailedJobsByOwnerByRepoByRunID      = "POST /repos/{owner}/{repo}/actions/runs/{run_id}/rerun-failed-jobs"
 	PostReposActionsRunsCancelByOwnerByRepoByRunID               = "POST /repos/{owner}/{repo}/actions/runs/{run_id}/cancel"
+	GetReposActionsJobsByOwnerByRepoByJobID                      = "GET /repos/{owner}/{repo}/actions/jobs/{job_id}"
 	GetReposActionsJobsLogsByOwnerByRepoByJobID                  = "GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs"
 	DeleteReposActionsRunsLogsByOwnerByRepoByRunID               = "DELETE /repos/{owner}/{repo}/actions/runs/{run_id}/logs"
 
