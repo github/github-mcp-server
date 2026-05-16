@@ -209,6 +209,9 @@ func CompletionsHandler(getClient GetClientFn) func(ctx context.Context, req *mc
 			if strings.HasPrefix(req.Params.Ref.URI, "repo://") {
 				return RepositoryResourceCompletionHandler(getClient)(ctx, req)
 			}
+			if strings.HasPrefix(req.Params.Ref.URI, "skill://") {
+				return SkillResourceCompletionHandler(getClient)(ctx, req)
+			}
 			return nil, fmt.Errorf("unsupported resource URI: %s", req.Params.Ref.URI)
 		case "ref/prompt":
 			return nil, nil

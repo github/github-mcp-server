@@ -133,6 +133,11 @@ var (
 		Description: "GitHub Labels related tools",
 		Icon:        "tag",
 	}
+	ToolsetMetadataSkills = inventory.ToolsetMetadata{
+		ID:          "skills",
+		Description: "Agent Skills discovery via skill:// resources (experimental, see agentskills.io)",
+		Icon:        "light-bulb",
+	}
 
 	ToolsetMetadataCopilot = inventory.ToolsetMetadata{
 		ID:          "copilot",
