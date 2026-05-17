@@ -191,7 +191,12 @@ func protectCodeAngleBrackets(input string) string {
 				b.WriteRune(runes[i]) // newline
 				i++
 			}
-			// Inside fence: protect angle brackets until closing fence
+			// Inside fence: protect angle brackets until closing fence.
+			// NOTE: CommonMark requires the closing fence to be on its own line
+			// with no info string. This implementation is more permissive: any
+			// run of >= fenceLen backticks ends the block, even mid-line. This
+			// is a soft-fail (some angle brackets may be unprotected) rather
+			// than a security issue.
 			for i < n {
 				// Check for closing fence
 				if runes[i] == '`' {
@@ -333,7 +338,8 @@ func getPolicy() *bluemonday.Policy {
 
 func shouldRemoveRune(r rune) bool {
 	switch r {
-	case 0x200B, // ZERO WIDTH SPACE
+	case 0x0000, // NUL — stripped to prevent sentinel collision in protectCodeAngleBrackets
+		0x200B, // ZERO WIDTH SPACE
 		0x200C, // ZERO WIDTH NON-JOINER
 		0x200E, // LEFT-TO-RIGHT MARK
 		0x200F, // RIGHT-TO-LEFT MARK

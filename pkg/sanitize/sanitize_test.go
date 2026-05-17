@@ -129,6 +129,7 @@ func TestShouldRemoveRune(t *testing.T) {
 		expected bool
 	}{
 		// Individual characters that should be removed
+		{name: "NUL byte", rune: 0x0000, expected: true},
 		{name: "zero width space", rune: 0x200B, expected: true},
 		{name: "zero width non-joiner", rune: 0x200C, expected: true},
 		{name: "left-to-right mark", rune: 0x200E, expected: true},
@@ -336,6 +337,16 @@ func TestSanitizePreservesAngleBracketsInCodeBlocks(t *testing.T) {
 			name:     "no code blocks passes through",
 			input:    "No code here, just text.",
 			expected: "No code here, just text.",
+		},
+		{
+			name:     "sentinel collision does not bypass sanitizer",
+			input:    "\x00LT\x00script\x00GT\x00alert(1)\x00LT\x00/script\x00GT\x00",
+			expected: "LTscriptGTalert(1)LT/scriptGT", // NUL bytes stripped; sentinels don't match; no <script> injected
+		},
+		{
+			name:     "NUL bytes stripped from input with code blocks",
+			input:    "```\nfunc Foo\x00[T any]()\n```",
+			expected: "```\nfunc Foo[T any]()\n```",
 		},
 	}
 
