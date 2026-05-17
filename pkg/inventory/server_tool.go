@@ -3,6 +3,7 @@ package inventory
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -133,7 +134,12 @@ func NewServerTool[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, hand
 			return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 				var arguments In
 				if err := json.Unmarshal(req.Params.Arguments, &arguments); err != nil {
-					return nil, err
+					return &mcp.CallToolResult{
+						Content: []mcp.Content{
+							&mcp.TextContent{Text: fmt.Sprintf("invalid arguments: %s", err)},
+						},
+						IsError: true,
+					}, nil
 				}
 				resp, _, err := typedHandler(ctx, req, arguments)
 				return resp, err
@@ -157,7 +163,12 @@ func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset Too
 			return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 				var arguments In
 				if err := json.Unmarshal(req.Params.Arguments, &arguments); err != nil {
-					return nil, err
+					return &mcp.CallToolResult{
+						Content: []mcp.Content{
+							&mcp.TextContent{Text: fmt.Sprintf("invalid arguments: %s", err)},
+						},
+						IsError: true,
+					}, nil
 				}
 				resp, _, err := handler(ctx, req, arguments)
 				return resp, err
