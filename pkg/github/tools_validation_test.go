@@ -1,6 +1,16 @@
 package github
 
 import (
+	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	stdfs "io/fs"
+	"path/filepath"
+	"runtime"
+	"sort"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -183,4 +193,127 @@ func TestToolsetMetadataConsistency(t *testing.T) {
 			toolsetDescriptions[id] = desc
 		}
 	}
+}
+
+// TestToolDefinitionsRequireExplicitReadOnlyHint ensures every registered tool is
+// defined with an explicit Annotations.ReadOnlyHint value in source.
+func TestToolDefinitionsRequireExplicitReadOnlyHint(t *testing.T) {
+	tools := AllTools(stubTranslation)
+	require.NotEmpty(t, tools, "AllTools should return at least one tool")
+
+	_, currentFile, _, ok := runtime.Caller(0)
+	require.True(t, ok, "failed to determine current test file path")
+	pkgDir := filepath.Dir(currentFile)
+
+	fset := token.NewFileSet()
+	checkedCount := 0
+	var failures []string
+
+	walkErr := filepath.Walk(pkgDir, func(path string, info stdfs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			return err
+		}
+
+		ast.Inspect(file, func(n ast.Node) bool {
+			lit, ok := n.(*ast.CompositeLit)
+			if !ok {
+				return true
+			}
+			sel, ok := lit.Type.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			pkgIdent, ok := sel.X.(*ast.Ident)
+			if !ok || pkgIdent.Name != "mcp" || sel.Sel.Name != "Tool" {
+				return true
+			}
+
+			toolName, _ := toolNameFromToolLiteral(lit)
+			checkedCount++
+			if err := validateReadOnlyHintInToolLiteral(lit); err != nil {
+				pos := fset.Position(lit.Pos())
+				if toolName == "" {
+					toolName = "<non-literal>"
+				}
+				failures = append(failures, pos.String()+" tool="+toolName+": "+err.Error())
+			}
+			return true
+		})
+
+		return nil
+	})
+	require.NoError(t, walkErr)
+	require.Greater(t, checkedCount, 0, "expected to find at least one mcp.Tool literal")
+
+	if len(failures) > 0 {
+		sort.Strings(failures)
+		t.Fatalf("tools with missing explicit ReadOnlyHint:\n%s", strings.Join(failures, "\n"))
+	}
+}
+
+func toolNameFromToolLiteral(lit *ast.CompositeLit) (string, bool) {
+	for _, elt := range lit.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+		key, ok := kv.Key.(*ast.Ident)
+		if !ok || key.Name != "Name" {
+			continue
+		}
+		value, ok := kv.Value.(*ast.BasicLit)
+		if !ok || value.Kind != token.STRING {
+			return "", false
+		}
+		name, err := strconv.Unquote(value.Value)
+		if err != nil {
+			return "", false
+		}
+		return name, true
+	}
+	return "", false
+}
+
+func validateReadOnlyHintInToolLiteral(lit *ast.CompositeLit) error {
+	for _, elt := range lit.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+		key, ok := kv.Key.(*ast.Ident)
+		if !ok || key.Name != "Annotations" {
+			continue
+		}
+
+		annValue := kv.Value
+		if unary, ok := annValue.(*ast.UnaryExpr); ok && unary.Op == token.AND {
+			annValue = unary.X
+		}
+
+		annLit, ok := annValue.(*ast.CompositeLit)
+		if !ok {
+			return errors.New("annotations field is not a literal")
+		}
+
+		for _, annElt := range annLit.Elts {
+			annKV, ok := annElt.(*ast.KeyValueExpr)
+			if !ok {
+				continue
+			}
+			annKey, ok := annKV.Key.(*ast.Ident)
+			if ok && annKey.Name == "ReadOnlyHint" {
+				return nil
+			}
+		}
+		return errors.New("missing Annotations.ReadOnlyHint")
+	}
+	return errors.New("missing Annotations field")
 }
