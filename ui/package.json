@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "MCP App UIs for github-mcp-server using Primer React",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "npm run build:get-me && npm run build:issue-write && npm run build:pr-write",
     "build:get-me": "cross-env APP=get-me vite build",
