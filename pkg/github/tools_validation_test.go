@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -164,6 +165,57 @@ func TestAllToolsHaveHandlerFunc(t *testing.T) {
 			assert.True(t, tool.HasHandler(),
 				"Tool %q HasHandler() should return true", tool.Tool.Name)
 		})
+	}
+}
+
+func TestExpectedToolsHaveOutputSchemas(t *testing.T) {
+	expected := map[string]bool{
+		"get_commit":           true,
+		"get_label":            true,
+		"get_latest_release":   true,
+		"get_me":               true,
+		"get_release_by_tag":   true,
+		"get_team_members":     true,
+		"get_teams":            true,
+		"list_branches":        true,
+		"list_commits":         true,
+		"list_issue_types":     true,
+		"list_issues":          true,
+		"list_pull_requests":   true,
+		"list_releases":        true,
+		"list_tags":            true,
+		"search_code":          true,
+		"search_issues":        true,
+		"search_orgs":          true,
+		"search_pull_requests": true,
+		"search_repositories":  true,
+		"search_users":         true,
+	}
+	seen := make(map[string]bool, len(expected))
+
+	for _, tool := range AllTools(stubTranslation) {
+		t.Run(tool.Tool.Name, func(t *testing.T) {
+			assert.Nil(t, tool.Tool.OutputSchema,
+				"Tool %q should attach output schema only at registration time", tool.Tool.Name)
+
+			if tool.OutputSchema == nil {
+				assert.False(t, expected[tool.Tool.Name],
+					"Tool %q should have a feature-gated output schema", tool.Tool.Name)
+				return
+			}
+
+			assert.True(t, expected[tool.Tool.Name],
+				"Tool %q has an unexpected output schema", tool.Tool.Name)
+			schema, ok := tool.OutputSchema.(*jsonschema.Schema)
+			require.True(t, ok, "Tool %q output schema should be *jsonschema.Schema", tool.Tool.Name)
+			assert.Equal(t, "object", schema.Type,
+				"Tool %q output schema should be an object schema", tool.Tool.Name)
+			seen[tool.Tool.Name] = true
+		})
+	}
+
+	for name := range expected {
+		assert.True(t, seen[name], "Expected output schema for tool %q", name)
 	}
 }
 

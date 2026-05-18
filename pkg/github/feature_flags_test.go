@@ -160,6 +160,12 @@ func TestResolveFeatureFlags(t *testing.T) {
 			expectedFlags:   []string{MCPAppsFeatureFlag},
 		},
 		{
+			name:            "explicit output schemas feature enabled",
+			enabledFeatures: []string{FeatureFlagOutputSchemas},
+			insidersMode:    false,
+			expectedFlags:   []string{FeatureFlagOutputSchemas},
+		},
+		{
 			name:            "insiders mode enables insiders flags",
 			enabledFeatures: nil,
 			insidersMode:    true,

@@ -163,6 +163,11 @@ func TestSortJSONKeys(t *testing.T) {
 			input:    `{"name": "test", "properties": {"repo": {"type": "string"}, "owner": {"type": "string"}, "page": {"type": "number"}}}`,
 			expected: "{\n  \"name\": \"test\",\n  \"properties\": {\n    \"owner\": {\n      \"type\": \"string\"\n    },\n    \"page\": {\n      \"type\": \"number\"\n    },\n    \"repo\": {\n      \"type\": \"string\"\n    }\n  }\n}",
 		},
+		{
+			name:     "strips top-level output schema",
+			input:    `{"name": "test", "outputSchema": {"type": "object", "properties": {"id": {"type": "string"}}}, "inputSchema": {"type": "object"}}`,
+			expected: "{\n  \"inputSchema\": {\n    \"type\": \"object\"\n  },\n  \"name\": \"test\"\n}",
+		},
 	}
 
 	for _, tt := range tests {

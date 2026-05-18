@@ -1200,6 +1200,97 @@ func TestFeatureFlagError(t *testing.T) {
 	}
 }
 
+func TestRegisterToolsOutputSchemaFeatureFlag(t *testing.T) {
+	outputSchema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"id": map[string]any{"type": "string"},
+		},
+	}
+	tools := []ServerTool{
+		mockTool("tool_with_schema", "toolset1", true).WithOutputSchema(outputSchema),
+	}
+
+	tests := []struct {
+		name             string
+		featureChecker   FeatureFlagChecker
+		wantOutputSchema bool
+	}{
+		{
+			name:             "omits output schema by default",
+			wantOutputSchema: false,
+		},
+		{
+			name: "includes output schema when feature is enabled",
+			featureChecker: func(_ context.Context, flag string) (bool, error) {
+				return flag == outputSchemasFeatureFlag, nil
+			},
+			wantOutputSchema: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(tt.featureChecker))
+
+			registeredTools := listRegisteredTools(context.Background(), t, reg)
+			require.Len(t, registeredTools, 1)
+
+			if tt.wantOutputSchema {
+				require.NotNil(t, registeredTools[0].OutputSchema)
+				requireJSONEqual(t, outputSchema, registeredTools[0].OutputSchema)
+			} else {
+				require.Nil(t, registeredTools[0].OutputSchema)
+			}
+
+			require.Nil(t, reg.AllTools()[0].Tool.OutputSchema)
+		})
+	}
+}
+
+func listRegisteredTools(ctx context.Context, t *testing.T, reg *Inventory) []*mcp.Tool {
+	t.Helper()
+
+	srv := mcp.NewServer(&mcp.Implementation{Name: "test-server"}, nil)
+	reg.RegisterTools(ctx, srv, nil)
+
+	st, ct := mcp.NewInMemoryTransports()
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
+
+	type connectResult struct {
+		session *mcp.ClientSession
+		err     error
+	}
+	connectCh := make(chan connectResult, 1)
+	go func() {
+		clientSession, err := client.Connect(ctx, ct, nil)
+		connectCh <- connectResult{session: clientSession, err: err}
+	}()
+
+	serverSession, err := srv.Connect(ctx, st, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, serverSession.Close()) })
+
+	clientResult := <-connectCh
+	require.NoError(t, clientResult.err)
+	require.NotNil(t, clientResult.session)
+	t.Cleanup(func() { require.NoError(t, clientResult.session.Close()) })
+
+	result, err := clientResult.session.ListTools(ctx, nil)
+	require.NoError(t, err)
+	return result.Tools
+}
+
+func requireJSONEqual(t *testing.T, expected, actual any) {
+	t.Helper()
+
+	expectedJSON, err := json.Marshal(expected)
+	require.NoError(t, err)
+	actualJSON, err := json.Marshal(actual)
+	require.NoError(t, err)
+	require.JSONEq(t, string(expectedJSON), string(actualJSON))
+}
+
 func TestFeatureFlagResources(t *testing.T) {
 	resources := []ServerResourceTemplate{
 		mockResource("always_available", "toolset1", "uri1"),
