@@ -164,7 +164,75 @@ Add this codeblock to your `claude_desktop_config.json`:
 
 ---
 
-## Troubleshooting
+## Xcode (Claude Agent)
+
+Xcode's Claude Agent uses the same `.claude.json` configuration format as the Claude Code CLI, but reads it from an Xcode-specific directory rather than the global config location.
+
+### Configuration File Location
+
+```
+~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/.claude.json
+```
+
+> Configurations placed here only affect Claude Agent when launched from Xcode. See [Apple's documentation](https://developer.apple.com/documentation/xcode/setting-up-coding-intelligence#Customize-the-Claude-Agent-and-Codex-environments) for more details.
+
+### Remote Server Setup (Recommended)
+
+Run the following command in Terminal to add the remote GitHub MCP server:
+
+```bash
+claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp/","headers":{"Authorization":"Bearer YOUR_GITHUB_PAT"}}' --config ~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/.claude.json
+```
+
+Or open the file in a text editor and add the `mcpServers` block manually:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer YOUR_GITHUB_PAT"
+      }
+    }
+  }
+}
+```
+
+### Local Server Setup (Docker)
+
+> **macOS note**: Xcode runs with a minimal `PATH` that typically excludes `/usr/local/bin` (Intel) and `/opt/homebrew/bin` (Apple Silicon). Use the full path to `docker` to ensure it can be found. Run `which docker` in Terminal to find the correct path on your system.
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "/usr/local/bin/docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT"
+      }
+    }
+  }
+}
+```
+
+### Setup Steps
+1. Create or open `~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/.claude.json`
+2. Add the configuration block above
+3. Replace `YOUR_GITHUB_PAT` with your actual token
+4. Restart Xcode
+
+---
+
 
 **Authentication Failed:**
 - Verify PAT has `repo` scope

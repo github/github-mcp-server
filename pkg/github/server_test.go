@@ -16,7 +16,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gogithub "github.com/google/go-github/v82/github"
+	gogithub "github.com/google/go-github/v87/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -80,9 +80,10 @@ func stubExporters() observability.Exporters {
 	return obs
 }
 
-func stubClientFnFromHTTP(httpClient *http.Client) func(context.Context) (*gogithub.Client, error) {
+func stubClientFnFromHTTP(t *testing.T, httpClient *http.Client) func(context.Context) (*gogithub.Client, error) {
+	t.Helper()
 	return func(_ context.Context) (*gogithub.Client, error) {
-		return gogithub.NewClient(httpClient), nil
+		return mustNewGHClient(t, httpClient), nil
 	}
 }
 
@@ -110,7 +111,7 @@ func stubRepoAccessCache(restClient *gogithub.Client, ttl time.Duration) *lockdo
 
 func mockRESTPermissionServer(t *testing.T, defaultPerm string, overrides map[string]string) *gogithub.Client {
 	t.Helper()
-	return gogithub.NewClient(MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+	return mustNewGHClient(t, MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
 		perm := defaultPerm
 		for user, p := range overrides {
 			if strings.Contains(r.URL.Path, "/collaborators/"+user+"/") {
