@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@github/markdown-toolbar-element": "^2.2.3",
-    "@modelcontextprotocol/ext-apps": "^1.0.0",
+    "@modelcontextprotocol/ext-apps": "^1.7.2",
     "@primer/octicons-react": "^19.0.0",
     "@primer/react": "^36.0.0",
     "react": "^18.0.0",
