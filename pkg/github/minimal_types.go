@@ -51,6 +51,31 @@ type MinimalSearchRepositoriesResult struct {
 	Items             []MinimalRepository `json:"items"`
 }
 
+// MinimalDiscussionComment is the trimmed output type for discussion comment objects.
+type MinimalDiscussionComment struct {
+	ID              string                     `json:"id"`
+	Body            string                     `json:"body"`
+	IsAnswer        bool                       `json:"isAnswer,omitempty"`
+	Replies         []MinimalDiscussionComment `json:"replies,omitempty"`
+	ReplyTotalCount int                        `json:"replyTotalCount,omitempty"`
+}
+
+// MinimalCodeSearchResult is the trimmed output type for code search results.
+type MinimalCodeSearchResult struct {
+	TotalCount        int                 `json:"total_count"`
+	IncompleteResults bool                `json:"incomplete_results"`
+	Items             []MinimalCodeResult `json:"items"`
+}
+
+// MinimalCodeResult is the trimmed output type for a single code search hit.
+type MinimalCodeResult struct {
+	Name        string              `json:"name"`
+	Path        string              `json:"path"`
+	SHA         string              `json:"sha"`
+	Repository  string              `json:"repository"`
+	TextMatches []*github.TextMatch `json:"text_matches,omitempty"`
+}
+
 // MinimalCommitAuthor represents commit author information.
 type MinimalCommitAuthor struct {
 	Name  string `json:"name,omitempty"`
@@ -136,6 +161,13 @@ type MinimalTag struct {
 type MinimalResponse struct {
 	ID  string `json:"id"`
 	URL string `json:"url"`
+}
+
+// MinimalCollaborator is the trimmed output type for repository collaborators.
+type MinimalCollaborator struct {
+	Login    string `json:"login"`
+	ID       int64  `json:"id"`
+	RoleName string `json:"role_name"`
 }
 
 type MinimalProject struct {

@@ -654,34 +654,6 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 	)
 }
 
-// FetchRepoCollaborators returns the login names of all collaborators on a
-// repository. It is provided as a shared helper for IFC label computation so
-// tools can populate the reader set for private repositories. The full list
-// is fetched eagerly via pagination; callers are expected to invoke this only
-// when needed (e.g. private repos under InsidersMode).
-func FetchRepoCollaborators(ctx context.Context, client *github.Client, owner, repo string) ([]string, error) {
-	opts := &github.ListCollaboratorsOptions{
-		ListOptions: github.ListOptions{PerPage: 100},
-	}
-	var logins []string
-	for {
-		page, resp, err := client.Repositories.ListCollaborators(ctx, owner, repo, opts)
-		if err != nil {
-			return nil, err
-		}
-		for _, c := range page {
-			if login := c.GetLogin(); login != "" {
-				logins = append(logins, login)
-			}
-		}
-		if resp == nil || resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
-	}
-	return logins, nil
-}
-
 // FetchRepoIsPrivate returns whether a repository is private. It is a thin
 // wrapper around the GitHub Repositories.Get endpoint provided as a shared
 // helper for IFC label computation across tools.
@@ -769,17 +741,15 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 
 			// attachIFC adds the IFC label to a successful tool result when
-			// InsidersMode is enabled. The visibility and (for private
-			// repositories) collaborators lookups are performed lazily on
-			// first use. If the visibility lookup fails we skip the label
-			// rather than misclassify the result; the failure is not cached
-			// so a later return path can retry. If only the collaborators
-			// lookup fails for a private repo we fall back to the owner so
-			// the reader set is never empty.
+			// InsidersMode is enabled. The visibility lookup is performed
+			// lazily on first use and cached because GetFileContents has
+			// many possible return paths and would otherwise re-fetch on
+			// each. If the visibility lookup fails we skip the label rather
+			// than misclassify the result; the failure is not cached so a
+			// later return path can retry.
 			var (
 				ifcLabelKnown bool
 				ifcIsPrivate  bool
-				ifcReaders    []string
 			)
 			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
 				if r == nil || r.IsError || !deps.GetFlags(ctx).InsidersMode {
@@ -791,20 +761,12 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						return r
 					}
 					ifcIsPrivate = isPrivate
-					if ifcIsPrivate {
-						if collaborators, err := FetchRepoCollaborators(ctx, client, owner, repo); err == nil {
-							ifcReaders = collaborators
-						}
-						if len(ifcReaders) == 0 {
-							ifcReaders = []string{owner}
-						}
-					}
 					ifcLabelKnown = true
 				}
 				if r.Meta == nil {
 					r.Meta = mcp.Meta{}
 				}
-				r.Meta["ifc"] = ifc.LabelGetFileContents(ifcIsPrivate, ifcReaders)
+				r.Meta["ifc"] = ifc.LabelGetFileContents(ifcIsPrivate)
 				return r
 			}
 
@@ -2237,6 +2199,114 @@ func UnstarRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 			}
 
 			return utils.NewToolResultText(fmt.Sprintf("Successfully unstarred repository %s/%s", owner, repo)), nil, nil
+		},
+	)
+}
+
+// ListRepositoryCollaborators creates a tool to list collaborators of a GitHub repository.
+func ListRepositoryCollaborators(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        "list_repository_collaborators",
+			Description: t("TOOL_LIST_REPOSITORY_COLLABORATORS_DESCRIPTION", "List collaborators of a GitHub repository. Results are paginated; the response includes `nextPage`, `prevPage`, `firstPage`, and `lastPage` fields. To get the next page, use the `nextPage` value as the `page` parameter."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_LIST_REPOSITORY_COLLABORATORS_USER_TITLE", "List repository collaborators"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: func() *jsonschema.Schema {
+				schema := WithPagination(&jsonschema.Schema{
+					Type: "object",
+					Properties: map[string]*jsonschema.Schema{
+						"owner": {
+							Type:        "string",
+							Description: "Repository owner",
+						},
+						"repo": {
+							Type:        "string",
+							Description: "Repository name",
+						},
+						"affiliation": {
+							Type:        "string",
+							Description: "Filter by affiliation. Can be one of: 'outside' (outside collaborators), 'direct' (all with permissions regardless of org membership), 'all' (all collaborators). Default: 'all'",
+							Enum:        []any{"outside", "direct", "all"},
+						},
+					},
+					Required: []string{"owner", "repo"},
+				})
+				schema.Properties["page"].Description = "Page number for pagination (default 1, min 1)"
+				schema.Properties["perPage"].Description = "Results per page for pagination (default 30, min 1, max 100)"
+				return schema
+			}(),
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			affiliation, err := OptionalParam[string](args, "affiliation")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			pagination, err := OptionalPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			opts := &github.ListCollaboratorsOptions{
+				Affiliation: affiliation,
+				ListOptions: github.ListOptions{
+					Page:    pagination.Page,
+					PerPage: pagination.PerPage,
+				},
+			}
+
+			collaborators, resp, err := client.Repositories.ListCollaborators(ctx, owner, repo, opts)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to list collaborators",
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list collaborators", resp, body), nil, nil
+			}
+
+			result := make([]MinimalCollaborator, 0, len(collaborators))
+			for _, c := range collaborators {
+				result = append(result, MinimalCollaborator{
+					Login:    c.GetLogin(),
+					ID:       c.GetID(),
+					RoleName: c.GetRoleName(),
+				})
+			}
+
+			response := map[string]any{
+				"items":     result,
+				"nextPage":  resp.NextPage,
+				"prevPage":  resp.PrevPage,
+				"firstPage": resp.FirstPage,
+				"lastPage":  resp.LastPage,
+			}
+
+			return MarshalledTextResult(response), nil, nil
 		},
 	)
 }
