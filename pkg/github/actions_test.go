@@ -529,10 +529,7 @@ func Test_ActionsGetJobLogs(t *testing.T) {
 	// Verify tool definition once
 	toolDef := ActionsGetJobLogs(translations.NullTranslationHelper)
 
-	// Note: consolidated ActionsGetJobLogs has same tool name "get_job_logs" as the individual tool
-	// but with different descriptions. We skip toolsnap validation here since the individual
-	// tool's toolsnap already exists and is tested in Test_GetJobLogs.
-	// The consolidated tool has FeatureFlagEnable set, so only one will be active at a time.
+	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 	assert.Equal(t, "get_job_logs", toolDef.Tool.Name)
 	assert.NotEmpty(t, toolDef.Tool.Description)
 	inputSchema := toolDef.Tool.InputSchema.(*jsonschema.Schema)
@@ -599,7 +596,7 @@ func Test_ActionsGetJobLogs_SingleJob(t *testing.T) {
 			}),
 		})
 
-		client := github.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client:            client,
 			ContentWindowSize: 5000,
@@ -638,7 +635,7 @@ func Test_ActionsGetJobLogs_SingleJob(t *testing.T) {
 			}),
 		})
 
-		client := github.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client:            client,
 			ContentWindowSize: 5000,
@@ -689,7 +686,7 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 			}),
 		})
 
-		client := github.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client:            client,
 			ContentWindowSize: 5000,
@@ -712,6 +709,7 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, float64(456), response["run_id"])
 		assert.Equal(t, float64(2), response["total_jobs"])
+		assert.Equal(t, float64(1), response["failed_jobs"])
 		assert.Len(t, response["logs"], 2)
 		assert.Contains(t, response["message"], "Retrieved logs for 2 jobs")
 	})
@@ -771,8 +769,62 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
 		assert.Equal(t, float64(456), response["run_id"])
+		assert.Equal(t, float64(2), response["failed_jobs"])
 		assert.Contains(t, response, "logs")
 		assert.Contains(t, response["message"], "Retrieved logs for")
+	})
+
+	t.Run("successful failed-only logs when all jobs failed", func(t *testing.T) {
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposActionsRunsJobsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				jobs := &github.Jobs{
+					TotalCount: github.Ptr(2),
+					Jobs: []*github.WorkflowJob{
+						{
+							ID:         github.Ptr(int64(1)),
+							Name:       github.Ptr("test-job-1"),
+							Conclusion: github.Ptr("failure"),
+						},
+						{
+							ID:         github.Ptr(int64(2)),
+							Name:       github.Ptr("test-job-2"),
+							Conclusion: github.Ptr("failure"),
+						},
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(jobs)
+			}),
+			GetReposActionsJobsLogsByOwnerByRepoByJobID: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Location", "https://github.com/logs/job/"+r.URL.Path[len(r.URL.Path)-1:])
+				w.WriteHeader(http.StatusFound)
+			}),
+		})
+
+		client := mustNewGHClient(t, mockedClient)
+		deps := BaseDeps{
+			Client:            client,
+			ContentWindowSize: 5000,
+		}
+		handler := toolDef.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":       "owner",
+			"repo":        "repo",
+			"run_id":      float64(456),
+			"failed_only": true,
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		assert.Equal(t, float64(2), response["failed_jobs"])
+		assert.Len(t, response["logs"], 2)
 	})
 
 	t.Run("no failed jobs found", func(t *testing.T) {
@@ -826,7 +878,7 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 
 func Test_ActionsGetJobLogs_Validation(t *testing.T) {
 	toolDef := ActionsGetJobLogs(translations.NullTranslationHelper)
-	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
 	deps := BaseDeps{
 		Client:            client,
 		ContentWindowSize: 5000,

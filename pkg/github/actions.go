@@ -58,8 +58,13 @@ func handleRunJobLogs(ctx context.Context, client *github.Client, owner, repo st
 
 	// Filter jobs when requested. Otherwise return logs for every job in the run.
 	var selectedJobs []*github.WorkflowJob
+	failedJobsCount := 0
 	for _, job := range jobs.Jobs {
-		if !failedOnly || job.GetConclusion() == "failure" {
+		failed := job.GetConclusion() == "failure"
+		if failed {
+			failedJobsCount++
+		}
+		if !failedOnly || failed {
 			selectedJobs = append(selectedJobs, job)
 		}
 	}
@@ -70,12 +75,10 @@ func handleRunJobLogs(ctx context.Context, client *github.Client, owner, repo st
 			message = "No failed jobs found in this workflow run"
 		}
 		result := map[string]any{
-			"message":    message,
-			"run_id":     runID,
-			"total_jobs": len(jobs.Jobs),
-		}
-		if failedOnly {
-			result["failed_jobs"] = 0
+			"message":     message,
+			"run_id":      runID,
+			"total_jobs":  len(jobs.Jobs),
+			"failed_jobs": failedJobsCount,
 		}
 		r, _ := json.Marshal(result)
 		return utils.NewToolResultText(string(r)), nil, nil
@@ -107,11 +110,9 @@ func handleRunJobLogs(ctx context.Context, client *github.Client, owner, repo st
 		"message":       message,
 		"run_id":        runID,
 		"total_jobs":    len(jobs.Jobs),
+		"failed_jobs":   failedJobsCount,
 		"logs":          logResults,
 		"return_format": map[string]bool{"content": returnContent, "urls": !returnContent},
-	}
-	if failedOnly {
-		result["failed_jobs"] = len(selectedJobs)
 	}
 
 	r, err := json.Marshal(result)
