@@ -8,7 +8,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -123,7 +123,7 @@ func Test_SearchRepositories(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -205,7 +205,7 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode disabled omits ifc label", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient([]repoFixture{{owner: "octocat", name: "public-repo"}})),
+			Client: mustNewGHClient(t, makeMockClient([]repoFixture{{owner: "octocat", name: "public-repo"}})),
 			Flags:  FeatureFlags{InsidersMode: false},
 		}
 		handler := serverTool.Handler(deps)
@@ -219,7 +219,7 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode all public emits public untrusted", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient([]repoFixture{
+			Client: mustNewGHClient(t, makeMockClient([]repoFixture{
 				{owner: "octocat", name: "public-a"},
 				{owner: "octocat", name: "public-b"},
 			})),
@@ -240,7 +240,7 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode any private match emits private untrusted", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient([]repoFixture{
+			Client: mustNewGHClient(t, makeMockClient([]repoFixture{
 				{owner: "octocat", name: "private-repo", isPrivate: true},
 				{owner: "octocat", name: "public-repo"},
 			})),
@@ -261,7 +261,7 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode empty results emits public untrusted", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient(nil)),
+			Client: mustNewGHClient(t, makeMockClient(nil)),
 			Flags:  FeatureFlags{InsidersMode: true},
 		}
 		handler := serverTool.Handler(deps)
@@ -304,7 +304,7 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 		),
 	})
 
-	client := github.NewClient(mockedClient)
+	client := mustNewGHClient(t, mockedClient)
 	serverTool := SearchRepositories(translations.NullTranslationHelper)
 	deps := BaseDeps{
 		Client: client,
@@ -458,7 +458,7 @@ func Test_SearchCode(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -649,7 +649,7 @@ func Test_SearchUsers(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -812,7 +812,7 @@ func Test_SearchOrgs(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}

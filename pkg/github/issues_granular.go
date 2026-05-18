@@ -12,7 +12,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -410,13 +410,13 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			}
 
 			apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
-			req, err := client.NewRequest("PATCH", apiURL, body)
+			req, err := client.NewRequest(ctx, "PATCH", apiURL, body)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to create request", err), nil, nil
 			}
 
 			issue := &github.Issue{}
-			resp, err := client.Do(ctx, req, issue)
+			resp, err := client.Do(req, issue)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue", resp, err), nil, nil
 			}

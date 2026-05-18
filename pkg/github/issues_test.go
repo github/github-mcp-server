@@ -14,7 +14,7 @@ import (
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -225,7 +225,7 @@ func Test_GetIssue(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 
 			var restClient *github.Client
 			if tc.restPermission != "" {
@@ -324,7 +324,7 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode disabled omits ifc label", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient(false, 0)),
+			Client: mustNewGHClient(t, makeMockClient(false, 0)),
 			Flags:  FeatureFlags{InsidersMode: false},
 		}
 		handler := serverTool.Handler(deps)
@@ -339,7 +339,7 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode enabled on public repo emits public untrusted", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient(false, 0)),
+			Client: mustNewGHClient(t, makeMockClient(false, 0)),
 			Flags:  FeatureFlags{InsidersMode: true},
 		}
 		handler := serverTool.Handler(deps)
@@ -357,7 +357,7 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode enabled on private repo with get_comments emits private untrusted", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient(true, 0)),
+			Client: mustNewGHClient(t, makeMockClient(true, 0)),
 			Flags:  FeatureFlags{InsidersMode: true},
 		}
 		handler := serverTool.Handler(deps)
@@ -375,7 +375,7 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode skips ifc label when visibility lookup fails", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient(false, http.StatusInternalServerError)),
+			Client: mustNewGHClient(t, makeMockClient(false, http.StatusInternalServerError)),
 			Flags:  FeatureFlags{InsidersMode: true},
 		}
 		handler := serverTool.Handler(deps)
@@ -461,7 +461,7 @@ func Test_AddIssueComment(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -763,7 +763,7 @@ func Test_SearchIssues(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -868,7 +868,7 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 	t.Run("insiders mode disabled omits ifc label", func(t *testing.T) {
 		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{makeIssue("octocat", "public-repo", 1)}}
 		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient(searchResult, []repoFixture{{owner: "octocat", repo: "public-repo"}})),
+			Client: mustNewGHClient(t, makeMockClient(searchResult, []repoFixture{{owner: "octocat", repo: "public-repo"}})),
 			Flags:  FeatureFlags{InsidersMode: false},
 		}
 		handler := serverTool.Handler(deps)
@@ -883,7 +883,7 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 	t.Run("insiders mode all public emits public untrusted", func(t *testing.T) {
 		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{makeIssue("octocat", "public-repo", 1)}}
 		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient(searchResult, []repoFixture{{owner: "octocat", repo: "public-repo"}})),
+			Client: mustNewGHClient(t, makeMockClient(searchResult, []repoFixture{{owner: "octocat", repo: "public-repo"}})),
 			Flags:  FeatureFlags{InsidersMode: true},
 		}
 		handler := serverTool.Handler(deps)
@@ -905,7 +905,7 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 			makeIssue("octocat", "public-repo", 2),
 		}}
 		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient(searchResult, []repoFixture{
+			Client: mustNewGHClient(t, makeMockClient(searchResult, []repoFixture{
 				{owner: "octocat", repo: "private-repo", isPrivate: true},
 				{owner: "octocat", repo: "public-repo"},
 			})),
@@ -927,7 +927,7 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 	t.Run("insiders mode skips ifc label when visibility lookup fails", func(t *testing.T) {
 		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{makeIssue("octocat", "broken", 1)}}
 		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient(searchResult, []repoFixture{
+			Client: mustNewGHClient(t, makeMockClient(searchResult, []repoFixture{
 				{owner: "octocat", repo: "broken", repoStatus: http.StatusInternalServerError},
 			})),
 			Flags: FeatureFlags{InsidersMode: true},
@@ -948,7 +948,7 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 	t.Run("insiders mode empty results emits public untrusted", func(t *testing.T) {
 		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{}}
 		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient(searchResult, nil)),
+			Client: mustNewGHClient(t, makeMockClient(searchResult, nil)),
 			Flags:  FeatureFlags{InsidersMode: true},
 		}
 		handler := serverTool.Handler(deps)
@@ -1090,7 +1090,7 @@ func Test_CreateIssue(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			gqlClient := githubv4.NewClient(nil)
 			deps := BaseDeps{
 				Client:    client,
@@ -1144,7 +1144,7 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 
-	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		PostReposIssuesByOwnerByRepo: mockResponse(t, http.StatusCreated, mockIssue),
 	}))
 
@@ -1226,7 +1226,7 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 		})
 		completedReason := IssueClosedStateReasonCompleted
 
-		closeClient := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		closeClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockBaseIssue),
 		}))
 		closeGQLClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
@@ -2191,7 +2191,7 @@ func Test_UpdateIssue(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup clients with mocks
-			restClient := github.NewClient(tc.mockedRESTClient)
+			restClient := mustNewGHClient(t, tc.mockedRESTClient)
 			gqlClient := githubv4.NewClient(tc.mockedGQLClient)
 			deps := BaseDeps{
 				Client:    restClient,
@@ -2417,7 +2417,7 @@ func Test_GetIssueComments(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			var restClient *github.Client
 			if tc.lockdownEnabled {
 				restClient = mockRESTPermissionServer(t, "read", map[string]string{
@@ -2546,7 +2546,7 @@ func Test_GetIssueLabels(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			gqlClient := githubv4.NewClient(tc.mockedClient)
-			client := github.NewClient(nil)
+			client := mustNewGHClient(t, nil)
 			deps := BaseDeps{
 				Client:          client,
 				GQLClient:       gqlClient,
@@ -2753,7 +2753,7 @@ func Test_AddSubIssue(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -2974,7 +2974,7 @@ func Test_GetSubIssues(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			gqlClient := githubv4.NewClient(nil)
 			deps := BaseDeps{
 				Client:          client,
@@ -3193,7 +3193,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -3453,7 +3453,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -3569,7 +3569,7 @@ func Test_ListIssueTypes(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
