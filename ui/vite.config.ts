@@ -1,39 +1,39 @@
 import { defineConfig, Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { viteSingleFile } from "vite-plugin-singlefile";
+import { renameSync, rmSync } from "fs";
 import { resolve } from "path";
 
-// Get the app to build from environment variable
 const app = process.env.APP;
 
 if (!app) {
   throw new Error("APP environment variable must be set");
 }
 
-// Plugin to rename the output file and remove the nested directory structure
-function renameOutput(): Plugin {
+const outDir = resolve(__dirname, "../pkg/github/ui_dist");
+
+// vite-plugin-singlefile inlines all JS/CSS into the HTML, but Vite preserves
+// the input file's relative path in the output (src/apps/<app>/index.html).
+// After the bundle is written, hoist that file to <outDir>/<app>.html and
+// remove the now-empty nested directories. Done in closeBundle (post-write)
+// because Rolldown disallows mutating the in-memory bundle in generateBundle.
+function flattenOutput(): Plugin {
   return {
-    name: "rename-output",
+    name: "flatten-output",
     enforce: "post",
-    generateBundle(_, bundle) {
-      // Find the HTML file and rename it
-      for (const fileName of Object.keys(bundle)) {
-        if (fileName.endsWith("index.html")) {
-          const chunk = bundle[fileName];
-          chunk.fileName = `${app}.html`;
-          delete bundle[fileName];
-          bundle[`${app}.html`] = chunk;
-          break;
-        }
-      }
+    closeBundle() {
+      const nested = resolve(outDir, `src/apps/${app}/index.html`);
+      const flat = resolve(outDir, `${app}.html`);
+      renameSync(nested, flat);
+      rmSync(resolve(outDir, "src"), { recursive: true, force: true });
     },
   };
 }
 
 export default defineConfig({
-  plugins: [react(), viteSingleFile(), renameOutput()],
+  plugins: [react(), viteSingleFile(), flattenOutput()],
   build: {
-    outDir: resolve(__dirname, "../pkg/github/ui_dist"),
+    outDir,
     emptyOutDir: false,
     rollupOptions: {
       input: resolve(__dirname, `src/apps/${app}/index.html`),
