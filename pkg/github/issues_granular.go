@@ -278,7 +278,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_labels",
-			Description: t("TOOL_UPDATE_ISSUE_LABELS_DESCRIPTION", "Update the labels of an existing issue. This replaces the current labels with the provided list. Each label may be a plain string or an object with a 'name' and optional 'rationale' explaining why the label was chosen."),
+			Description: t("TOOL_UPDATE_ISSUE_LABELS_DESCRIPTION", "Update the labels of an existing issue. This replaces the current labels with the provided list."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_LABELS_USER_TITLE", "Update Issue Labels"),
 				ReadOnlyHint:    false,
@@ -303,7 +303,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 					},
 					"labels": {
 						Type:        "array",
-						Description: "Labels to apply to this issue. Each item is either a label name string, or an object with 'name' and an optional 'rationale' (max 280 characters) explaining what specifically about the issue led you to choose this label.",
+						Description: "Labels to apply to this issue.",
 						Items: &jsonschema.Schema{
 							OneOf: []*jsonschema.Schema{
 								{Type: "string", Description: "Label name"},
