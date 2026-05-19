@@ -14,7 +14,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -412,8 +412,9 @@ func Test_GetFileContents(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
-			mockRawClient := raw.NewClient(client, &url.URL{Scheme: "https", Host: "raw.example.com", Path: "/"})
+			client := mustNewGHClient(t, tc.mockedClient)
+			mockRawClient, err := raw.NewClient(client, &url.URL{Scheme: "https", Host: "raw.example.com", Path: "/"})
+			require.NoError(t, err)
 			deps := BaseDeps{
 				Client:    client,
 				RawClient: mockRawClient,
@@ -492,10 +493,6 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 				"default_branch": "main",
 				"private":        isPrivate,
 			}),
-			GetReposCollaboratorsByOwnerByRepo: mockResponse(t, http.StatusOK, []*github.User{
-				{Login: github.Ptr("octocat")},
-				{Login: github.Ptr("alice")},
-			}),
 			GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 				encodedContent := base64.StdEncoding.EncodeToString(mockRawContent)
@@ -523,7 +520,7 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode disabled omits ifc label from result meta", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient(false)),
+			Client: mustNewGHClient(t, makeMockClient(false)),
 			Flags:  FeatureFlags{InsidersMode: false},
 		}
 		handler := serverTool.Handler(deps)
@@ -538,7 +535,7 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode enabled on public repo emits public untrusted label", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient(false)),
+			Client: mustNewGHClient(t, makeMockClient(false)),
 			Flags:  FeatureFlags{InsidersMode: true},
 		}
 		handler := serverTool.Handler(deps)
@@ -558,15 +555,12 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
 
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		confList, ok := ifcMap["confidentiality"].([]any)
-		require.True(t, ok, "confidentiality should be a list")
-		require.Len(t, confList, 1)
-		assert.Equal(t, "public", confList[0])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 
 	t.Run("insiders mode enabled on private repo emits private trusted label", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: github.NewClient(makeMockClient(true)),
+			Client: mustNewGHClient(t, makeMockClient(true)),
 			Flags:  FeatureFlags{InsidersMode: true},
 		}
 		handler := serverTool.Handler(deps)
@@ -586,9 +580,7 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
 
 		assert.Equal(t, "trusted", ifcMap["integrity"])
-		confList, ok := ifcMap["confidentiality"].([]any)
-		require.True(t, ok, "confidentiality should be a list")
-		assert.Equal(t, []any{"octocat", "alice"}, confList)
+		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
 
 	t.Run("insiders mode skips ifc label when visibility lookup fails", func(t *testing.T) {
@@ -612,7 +604,7 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 			},
 		})
 		deps := BaseDeps{
-			Client: github.NewClient(mockedClient),
+			Client: mustNewGHClient(t, mockedClient),
 			Flags:  FeatureFlags{InsidersMode: true},
 		}
 		handler := serverTool.Handler(deps)
@@ -699,7 +691,7 @@ func Test_ForkRepository(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -871,7 +863,7 @@ func Test_CreateBranch(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -997,7 +989,7 @@ func Test_GetCommit(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -1288,7 +1280,7 @@ func Test_ListCommits(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -1645,7 +1637,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -1834,7 +1826,7 @@ func Test_CreateRepository(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -2572,7 +2564,7 @@ func Test_PushFiles(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -2693,7 +2685,7 @@ func Test_ListBranches(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock client
-			mockClient := github.NewClient(NewMockedHTTPClient(tt.mockResponses...))
+			mockClient := mustNewGHClient(t, NewMockedHTTPClient(tt.mockResponses...))
 			deps := BaseDeps{
 				Client: mockClient,
 			}
@@ -2881,7 +2873,7 @@ func Test_DeleteFile(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -3008,7 +3000,7 @@ func Test_ListTags(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -3199,7 +3191,7 @@ func Test_GetTag(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -3325,7 +3317,7 @@ func Test_ListReleases(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -3351,6 +3343,7 @@ func Test_ListReleases(t *testing.T) {
 		})
 	}
 }
+
 func Test_GetLatestRelease(t *testing.T) {
 	serverTool := GetLatestRelease(translations.NullTranslationHelper)
 	tool := serverTool.Tool
@@ -3416,7 +3409,7 @@ func Test_GetLatestRelease(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -3564,7 +3557,7 @@ func Test_GetReleaseByTag(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -4009,7 +4002,7 @@ func Test_resolveGitReference(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockSetup())
+			client := mustNewGHClient(t, tc.mockSetup())
 			opts, _, err := resolveGitReference(ctx, client, owner, repo, tc.ref, tc.sha)
 
 			if tc.expectError {
@@ -4155,7 +4148,7 @@ func Test_ListStarredRepositories(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -4256,7 +4249,7 @@ func Test_StarRepository(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -4347,7 +4340,7 @@ func Test_UnstarRepository(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -4373,6 +4366,152 @@ func Test_UnstarRepository(t *testing.T) {
 				textContent := getTextResult(t, result)
 				assert.Contains(t, textContent.Text, "Successfully unstarred repository")
 			}
+		})
+	}
+}
+
+func Test_ListRepositoryCollaborators(t *testing.T) {
+	// Verify tool definition once
+	serverTool := ListRepositoryCollaborators(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+
+	assert.Equal(t, "list_repository_collaborators", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.True(t, tool.Annotations.ReadOnlyHint)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "affiliation")
+	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
+
+	mockCollaborators := []*github.User{
+		{
+			Login:    github.Ptr("user1"),
+			ID:       github.Ptr(int64(101)),
+			RoleName: github.Ptr("admin"),
+		},
+		{
+			Login:    github.Ptr("user2"),
+			ID:       github.Ptr(int64(102)),
+			RoleName: github.Ptr("write"),
+		},
+	}
+
+	tests := []struct {
+		name          string
+		args          map[string]any
+		mockResponses []MockBackendOption
+		wantErr       bool
+		errContains   string
+	}{
+		{
+			name: "success",
+			args: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			mockResponses: []MockBackendOption{
+				WithRequestMatch(
+					ListCollaborators,
+					mockCollaborators,
+				),
+			},
+		},
+		{
+			name: "success with affiliation filter",
+			args: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"affiliation": "direct",
+			},
+			mockResponses: []MockBackendOption{
+				WithRequestMatch(
+					ListCollaborators,
+					mockCollaborators,
+				),
+			},
+		},
+		{
+			name: "missing owner",
+			args: map[string]any{
+				"repo": "repo",
+			},
+			mockResponses: []MockBackendOption{},
+			errContains:   "missing required parameter: owner",
+		},
+		{
+			name: "missing repo",
+			args: map[string]any{
+				"owner": "owner",
+			},
+			mockResponses: []MockBackendOption{},
+			errContains:   "missing required parameter: repo",
+		},
+		{
+			name: "empty collaborators returns empty array",
+			args: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			mockResponses: []MockBackendOption{
+				WithRequestMatch(
+					ListCollaborators,
+					[]*github.User{},
+				),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := mustNewGHClient(t, NewMockedHTTPClient(tt.mockResponses...))
+			deps := BaseDeps{
+				Client: mockClient,
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tt.args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			if tt.errContains != "" {
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, tt.errContains)
+				return
+			}
+
+			textContent := getTextResult(t, result)
+			require.NotEmpty(t, textContent.Text)
+
+			var response struct {
+				Items     []MinimalCollaborator `json:"items"`
+				NextPage  int                   `json:"nextPage"`
+				PrevPage  int                   `json:"prevPage"`
+				FirstPage int                   `json:"firstPage"`
+				LastPage  int                   `json:"lastPage"`
+			}
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err)
+
+			if tt.name == "empty collaborators returns empty array" {
+				assert.Empty(t, response.Items)
+				return
+			}
+
+			collaborators := response.Items
+			assert.Len(t, collaborators, 2)
+			assert.Equal(t, "user1", collaborators[0].Login)
+			assert.Equal(t, int64(101), collaborators[0].ID)
+			assert.Equal(t, "admin", collaborators[0].RoleName)
+			assert.Equal(t, "user2", collaborators[1].Login)
+			assert.Equal(t, int64(102), collaborators[1].ID)
+			assert.Equal(t, "write", collaborators[1].RoleName)
 		})
 	}
 }

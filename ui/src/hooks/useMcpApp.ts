@@ -30,6 +30,8 @@ export function useMcpApp({
   const { app, error } = useExtApp({
     appInfo: { name: appName, version: appVersion },
     capabilities: {},
+    autoResize: true,
+    strict: import.meta.env.DEV,
     onAppCreated: (app) => {
       app.ontoolresult = async (result) => {
         setToolResult(result);

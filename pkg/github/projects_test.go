@@ -9,7 +9,6 @@ import (
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gh "github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -100,7 +99,7 @@ func Test_ProjectsList_ListProjects(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := gh.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -140,7 +139,7 @@ func Test_ProjectsList_ListProjectFields(t *testing.T) {
 			GetOrgsProjectsV2FieldsByProject: mockResponse(t, http.StatusOK, fields),
 		})
 
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -167,7 +166,7 @@ func Test_ProjectsList_ListProjectFields(t *testing.T) {
 
 	t.Run("missing project_number", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -196,7 +195,7 @@ func Test_ProjectsList_ListProjectItems(t *testing.T) {
 			GetOrgsProjectsV2ItemsByProject: mockResponse(t, http.StatusOK, items),
 		})
 
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -249,7 +248,7 @@ func Test_ProjectsGet_GetProject(t *testing.T) {
 			GetOrgsProjectsV2ByProject: mockResponse(t, http.StatusOK, project),
 		})
 
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -274,7 +273,7 @@ func Test_ProjectsGet_GetProject(t *testing.T) {
 
 	t.Run("unknown method", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -304,7 +303,7 @@ func Test_ProjectsGet_GetProjectField(t *testing.T) {
 			GetOrgsProjectsV2FieldsByProjectByFieldID: mockResponse(t, http.StatusOK, field),
 		})
 
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -330,7 +329,7 @@ func Test_ProjectsGet_GetProjectField(t *testing.T) {
 
 	t.Run("missing field_id", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -360,7 +359,7 @@ func Test_ProjectsGet_GetProjectItem(t *testing.T) {
 			GetOrgsProjectsV2ItemsByProjectByItemID: mockResponse(t, http.StatusOK, item),
 		})
 
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -386,7 +385,7 @@ func Test_ProjectsGet_GetProjectItem(t *testing.T) {
 
 	t.Run("missing item_id", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -711,7 +710,7 @@ func Test_ProjectsWrite_UpdateProjectItem(t *testing.T) {
 			PatchOrgsProjectsV2ItemsByProjectByItemID: mockResponse(t, http.StatusOK, updatedItem),
 		})
 
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -741,7 +740,7 @@ func Test_ProjectsWrite_UpdateProjectItem(t *testing.T) {
 
 	t.Run("missing updated_field", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -772,7 +771,7 @@ func Test_ProjectsWrite_DeleteProjectItem(t *testing.T) {
 			}),
 		})
 
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -795,7 +794,7 @@ func Test_ProjectsWrite_DeleteProjectItem(t *testing.T) {
 
 	t.Run("missing item_id", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -864,7 +863,7 @@ func Test_ProjectsList_ListProjectStatusUpdates(t *testing.T) {
 
 		gqlClient := githubv4.NewClient(gqlMockedClient)
 		deps := BaseDeps{
-			Client:    gh.NewClient(restClient),
+			Client:    mustNewGHClient(t, restClient),
 			GQLClient: gqlClient,
 		}
 		handler := toolDef.Handler(deps)

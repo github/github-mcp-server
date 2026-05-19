@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	gogithub "github.com/google/go-github/v87/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	testifymock "github.com/stretchr/testify/mock"
@@ -31,7 +32,6 @@ const (
 	GetReposByOwnerByRepo                = "GET /repos/{owner}/{repo}"
 	GetReposBranchesByOwnerByRepo        = "GET /repos/{owner}/{repo}/branches"
 	GetReposTagsByOwnerByRepo            = "GET /repos/{owner}/{repo}/tags"
-	GetReposCollaboratorsByOwnerByRepo   = "GET /repos/{owner}/{repo}/collaborators"
 	GetReposCommitsByOwnerByRepo         = "GET /repos/{owner}/{repo}/commits"
 	GetReposCommitsByOwnerByRepoByRef    = "GET /repos/{owner}/{repo}/commits/{ref}"
 	GetReposContentsByOwnerByRepoByPath  = "GET /repos/{owner}/{repo}/contents/{path}"
@@ -40,6 +40,7 @@ const (
 	GetReposSubscriptionByOwnerByRepo    = "GET /repos/{owner}/{repo}/subscription"
 	PutReposSubscriptionByOwnerByRepo    = "PUT /repos/{owner}/{repo}/subscription"
 	DeleteReposSubscriptionByOwnerByRepo = "DELETE /repos/{owner}/{repo}/subscription"
+	ListCollaborators                    = "GET /repos/{owner}/{repo}/collaborators"
 
 	// Git endpoints
 	GetReposGitTreesByOwnerByRepoByTree        = "GET /repos/{owner}/{repo}/git/trees/{tree}"
@@ -179,6 +180,22 @@ type expectations struct {
 	requestBody any
 }
 
+// mustNewGHClient creates a new GitHub client for testing.
+// If httpClient is nil, a client with no options is created.
+// The test fails immediately if client creation fails.
+func mustNewGHClient(t *testing.T, httpClient *http.Client) *gogithub.Client {
+	t.Helper()
+	var client *gogithub.Client
+	var err error
+	if httpClient == nil {
+		client, err = gogithub.NewClient()
+	} else {
+		client, err = gogithub.NewClient(gogithub.WithHTTPClient(httpClient))
+	}
+	require.NoError(t, err)
+	return client
+}
+
 // expect is a helper function to create a partial mock that expects various
 // request behaviors, such as path, query parameters, and request body.
 func expect(t *testing.T, e expectations) *partialMock {
@@ -220,9 +237,15 @@ func expectRequestBody(t *testing.T, expectedRequestBody any) *partialMock {
 type partialMock struct {
 	t *testing.T
 
-	expectedPath        string
-	expectedQueryParams map[string]string
-	expectedRequestBody any
+	expectedPath           string
+	expectedQueryParams    map[string]string
+	expectedRequestBody    any
+	expectedHeaderContains map[string]string
+}
+
+func (p *partialMock) withHeaders(headers map[string]string) *partialMock {
+	p.expectedHeaderContains = headers
+	return p
 }
 
 func (p *partialMock) andThen(responseHandler http.HandlerFunc) http.HandlerFunc {
@@ -245,6 +268,12 @@ func (p *partialMock) andThen(responseHandler http.HandlerFunc) http.HandlerFunc
 			require.NoError(p.t, err)
 
 			require.Equal(p.t, p.expectedRequestBody, unmarshaledRequestBody)
+		}
+
+		if p.expectedHeaderContains != nil {
+			for k, v := range p.expectedHeaderContains {
+				require.Contains(p.t, r.Header.Get(k), v, "expected header %q to contain %q", k, v)
+			}
 		}
 
 		responseHandler(w, r)
