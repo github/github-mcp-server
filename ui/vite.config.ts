@@ -1,7 +1,7 @@
 import { defineConfig, Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { viteSingleFile } from "vite-plugin-singlefile";
-import { renameSync, rmSync } from "fs";
+import { existsSync, renameSync, rmSync } from "fs";
 import { resolve } from "path";
 
 const app = process.env.APP;
@@ -24,6 +24,11 @@ function flattenOutput(): Plugin {
     closeBundle() {
       const nested = resolve(outDir, `src/apps/${app}/index.html`);
       const flat = resolve(outDir, `${app}.html`);
+      if (!existsSync(nested)) {
+        throw new Error(
+          `flatten-output: expected built HTML at ${nested} for app "${app}" but it was not emitted`,
+        );
+      }
       renameSync(nested, flat);
       rmSync(resolve(outDir, "src"), { recursive: true, force: true });
     },
