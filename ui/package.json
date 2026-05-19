@@ -8,10 +8,7 @@
     "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
-    "build": "npm run build:get-me && npm run build:issue-write && npm run build:pr-write",
-    "build:get-me": "cross-env APP=get-me vite build",
-    "build:issue-write": "cross-env APP=issue-write vite build",
-    "build:pr-write": "cross-env APP=pr-write vite build",
+    "build": "node scripts/build.mjs",
     "dev": "npm run build",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
@@ -31,7 +28,6 @@
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
     "@vitejs/plugin-react": "^6.0.2",
-    "cross-env": "^7.0.3",
     "typescript": "^5.7.0",
     "vite": "^8.0.13",
     "vite-plugin-singlefile": "^2.3.3"
