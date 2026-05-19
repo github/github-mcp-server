@@ -4,7 +4,7 @@
     "openWorldHint": true,
     "title": "Update Issue Labels"
   },
-  "description": "Update the labels of an existing issue. This replaces the current labels with the provided list. Each label may be a plain string or an object with a 'name' and optional 'rationale' explaining why the label was chosen.",
+  "description": "Update the labels of an existing issue. This replaces the current labels with the provided list.",
   "inputSchema": {
     "properties": {
       "issue_number": {
@@ -13,7 +13,7 @@
         "type": "number"
       },
       "labels": {
-        "description": "Labels to apply to this issue. Each item is either a label name string, or an object with 'name' and an optional 'rationale' (max 280 characters) explaining what specifically about the issue led you to choose this label.",
+        "description": "Labels to apply to this issue.",
         "items": {
           "oneOf": [
             {
