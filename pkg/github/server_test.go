@@ -349,3 +349,27 @@ func TestResolveEnabledToolsets(t *testing.T) {
 		})
 	}
 }
+
+func TestCompletionsHandler_RejectsMissingRef(t *testing.T) {
+	getClient := func(_ context.Context) (*gogithub.Client, error) {
+		return &gogithub.Client{}, nil
+	}
+	handler := CompletionsHandler(getClient)
+
+	tests := []struct {
+		name string
+		req  *mcp.CompleteRequest
+	}{
+		{name: "nil request", req: nil},
+		{name: "nil params", req: &mcp.CompleteRequest{}},
+		{name: "nil ref", req: &mcp.CompleteRequest{Params: &mcp.CompleteParams{}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := handler(context.Background(), tc.req)
+			require.Error(t, err)
+			assert.Nil(t, result)
+			assert.Contains(t, err.Error(), "missing required parameter: ref")
+		})
+	}
+}
