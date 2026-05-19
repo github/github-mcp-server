@@ -14,7 +14,7 @@ import (
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -225,7 +225,7 @@ func Test_GetIssue(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 
 			var restClient *github.Client
 			if tc.restPermission != "" {
@@ -273,6 +273,123 @@ func Test_GetIssue(t *testing.T) {
 			assert.Equal(t, tc.expectedIssue.GetUser().GetLogin(), returnedIssue.User.Login)
 		})
 	}
+}
+
+func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
+	t.Parallel()
+
+	serverTool := IssueRead(translations.NullTranslationHelper)
+
+	mockIssue := &github.Issue{
+		Number:  github.Ptr(1),
+		Title:   github.Ptr("Test"),
+		Body:    github.Ptr("body"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/octocat/repo/issues/1"),
+		User:    &github.User{Login: github.Ptr("u")},
+	}
+
+	mockComments := []*github.IssueComment{
+		{Body: github.Ptr("hello"), User: &github.User{Login: github.Ptr("u")}},
+	}
+
+	makeMockClient := func(isPrivate bool, repoStatus int) *http.Client {
+		handlers := map[string]http.HandlerFunc{
+			GetReposIssuesByOwnerByRepoByIssueNumber:         mockResponse(t, http.StatusOK, mockIssue),
+			GetReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockComments),
+		}
+		if repoStatus != 0 && repoStatus != http.StatusOK {
+			handlers[GetReposByOwnerByRepo] = mockResponse(t, repoStatus, "boom")
+		} else {
+			handlers[GetReposByOwnerByRepo] = mockResponse(t, http.StatusOK, map[string]any{
+				"name":    "repo",
+				"private": isPrivate,
+			})
+		}
+		return MockHTTPClientWithHandlers(handlers)
+	}
+
+	getReq := map[string]any{
+		"method":       "get",
+		"owner":        "octocat",
+		"repo":         "repo",
+		"issue_number": float64(1),
+	}
+	commentsReq := map[string]any{
+		"method":       "get_comments",
+		"owner":        "octocat",
+		"repo":         "repo",
+		"issue_number": float64(1),
+	}
+
+	t.Run("insiders mode disabled omits ifc label", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: mustNewGHClient(t, makeMockClient(false, 0)),
+			Flags:  FeatureFlags{InsidersMode: false},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(getReq)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		assert.Nil(t, result.Meta)
+	})
+
+	t.Run("insiders mode enabled on public repo emits public untrusted", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: mustNewGHClient(t, makeMockClient(false, 0)),
+			Flags:  FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(getReq)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
+	})
+
+	t.Run("insiders mode enabled on private repo with get_comments emits private untrusted", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: mustNewGHClient(t, makeMockClient(true, 0)),
+			Flags:  FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(commentsReq)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "private", ifcMap["confidentiality"])
+	})
+
+	t.Run("insiders mode skips ifc label when visibility lookup fails", func(t *testing.T) {
+		deps := BaseDeps{
+			Client: mustNewGHClient(t, makeMockClient(false, http.StatusInternalServerError)),
+			Flags:  FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(getReq)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError, "tool call should still succeed when visibility lookup fails")
+
+		if result.Meta != nil {
+			_, hasIFC := result.Meta["ifc"]
+			assert.False(t, hasIFC, "ifc label should be omitted when visibility lookup fails")
+		}
+	})
 }
 
 func Test_AddIssueComment(t *testing.T) {
@@ -344,7 +461,7 @@ func Test_AddIssueComment(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -381,7 +498,6 @@ func Test_AddIssueComment(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, fmt.Sprintf("%d", tc.expectedComment.GetID()), minimalResponse.ID)
 			assert.Equal(t, tc.expectedComment.GetHTMLURL(), minimalResponse.URL)
-
 		})
 	}
 }
@@ -647,7 +763,7 @@ func Test_SearchIssues(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -691,6 +807,172 @@ func Test_SearchIssues(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
+	t.Parallel()
+
+	serverTool := SearchIssues(translations.NullTranslationHelper)
+
+	makeIssue := func(owner, repo string, number int) *github.Issue {
+		return &github.Issue{
+			Number:        github.Ptr(number),
+			Title:         github.Ptr("issue"),
+			State:         github.Ptr("open"),
+			RepositoryURL: github.Ptr("https://api.github.com/repos/" + owner + "/" + repo),
+			User:          &github.User{Login: github.Ptr("u")},
+		}
+	}
+
+	type repoFixture struct {
+		owner      string
+		repo       string
+		isPrivate  bool
+		repoStatus int
+	}
+
+	repoHandlers := func(repos []repoFixture) map[string]http.HandlerFunc {
+		repoByPath := map[string]repoFixture{}
+		for _, r := range repos {
+			repoByPath["/repos/"+r.owner+"/"+r.repo] = r
+		}
+		return map[string]http.HandlerFunc{
+			GetReposByOwnerByRepo: func(w http.ResponseWriter, req *http.Request) {
+				r, ok := repoByPath[req.URL.Path]
+				if !ok {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				if r.repoStatus != 0 && r.repoStatus != http.StatusOK {
+					w.WriteHeader(r.repoStatus)
+					return
+				}
+				body, _ := json.Marshal(map[string]any{
+					"name":    r.repo,
+					"private": r.isPrivate,
+				})
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(body)
+			},
+		}
+	}
+
+	makeMockClient := func(searchResult *github.IssuesSearchResult, repos []repoFixture) *http.Client {
+		handlers := repoHandlers(repos)
+		handlers[GetSearchIssues] = mockResponse(t, http.StatusOK, searchResult)
+		return MockHTTPClientWithHandlers(handlers)
+	}
+
+	reqParams := map[string]any{"query": "bug"}
+
+	t.Run("insiders mode disabled omits ifc label", func(t *testing.T) {
+		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{makeIssue("octocat", "public-repo", 1)}}
+		deps := BaseDeps{
+			Client: mustNewGHClient(t, makeMockClient(searchResult, []repoFixture{{owner: "octocat", repo: "public-repo"}})),
+			Flags:  FeatureFlags{InsidersMode: false},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		assert.Nil(t, result.Meta)
+	})
+
+	t.Run("insiders mode all public emits public untrusted", func(t *testing.T) {
+		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{makeIssue("octocat", "public-repo", 1)}}
+		deps := BaseDeps{
+			Client: mustNewGHClient(t, makeMockClient(searchResult, []repoFixture{{owner: "octocat", repo: "public-repo"}})),
+			Flags:  FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
+	})
+
+	t.Run("insiders mode mixed public and private emits private untrusted", func(t *testing.T) {
+		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{
+			makeIssue("octocat", "private-repo", 1),
+			makeIssue("octocat", "public-repo", 2),
+		}}
+		deps := BaseDeps{
+			Client: mustNewGHClient(t, makeMockClient(searchResult, []repoFixture{
+				{owner: "octocat", repo: "private-repo", isPrivate: true},
+				{owner: "octocat", repo: "public-repo"},
+			})),
+			Flags: FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "private", ifcMap["confidentiality"])
+	})
+
+	t.Run("insiders mode skips ifc label when visibility lookup fails", func(t *testing.T) {
+		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{makeIssue("octocat", "broken", 1)}}
+		deps := BaseDeps{
+			Client: mustNewGHClient(t, makeMockClient(searchResult, []repoFixture{
+				{owner: "octocat", repo: "broken", repoStatus: http.StatusInternalServerError},
+			})),
+			Flags: FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError, "tool call should still succeed when visibility lookup fails")
+
+		if result.Meta != nil {
+			_, hasIFC := result.Meta["ifc"]
+			assert.False(t, hasIFC, "ifc label should be omitted when visibility lookup fails")
+		}
+	})
+
+	t.Run("insiders mode empty results emits public untrusted", func(t *testing.T) {
+		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{}}
+		deps := BaseDeps{
+			Client: mustNewGHClient(t, makeMockClient(searchResult, nil)),
+			Flags:  FeatureFlags{InsidersMode: true},
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(reqParams)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
+	})
+}
+
+func unmarshalIFC(t *testing.T, ifcLabel any) map[string]any {
+	t.Helper()
+	require.NotNil(t, ifcLabel, "ifc label should be present")
+	ifcJSON, err := json.Marshal(ifcLabel)
+	require.NoError(t, err)
+	var ifcMap map[string]any
+	require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
+	return ifcMap
 }
 
 func Test_CreateIssue(t *testing.T) {
@@ -808,7 +1090,7 @@ func Test_CreateIssue(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			gqlClient := githubv4.NewClient(nil)
 			deps := BaseDeps{
 				Client:    client,
@@ -862,7 +1144,7 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 
-	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		PostReposIssuesByOwnerByRepo: mockResponse(t, http.StatusCreated, mockIssue),
 	}))
 
@@ -944,7 +1226,7 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 		})
 		completedReason := IssueClosedStateReasonCompleted
 
-		closeClient := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		closeClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockBaseIssue),
 		}))
 		closeGQLClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
@@ -1447,24 +1729,13 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
 
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		confList, ok := ifcMap["confidentiality"].([]any)
-		require.True(t, ok, "confidentiality should be a list")
-		require.Len(t, confList, 1)
-		assert.Equal(t, "public", confList[0])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 
-	t.Run("insiders mode enabled on private repo emits private untrusted label with collaborators", func(t *testing.T) {
+	t.Run("insiders mode enabled on private repo emits private untrusted label", func(t *testing.T) {
 		matcher := githubv4mock.NewQueryMatcher(query, vars, makeResponse(true))
 		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
-		restClient := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			GetReposCollaboratorsByOwnerByRepo: mockResponse(t, http.StatusOK, []*github.User{
-				{Login: github.Ptr("octocat")},
-				{Login: github.Ptr("alice")},
-				{Login: github.Ptr("bob")},
-			}),
-		}))
 		deps := BaseDeps{
-			Client:    restClient,
 			GQLClient: gqlClient,
 			Flags:     FeatureFlags{InsidersMode: true},
 		}
@@ -1485,36 +1756,7 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
 
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
-		confList, ok := ifcMap["confidentiality"].([]any)
-		require.True(t, ok, "confidentiality should be a list")
-		assert.Equal(t, []any{"octocat", "alice", "bob"}, confList)
-	})
-
-	t.Run("insiders mode enabled on private repo falls back to owner when collaborators lookup fails", func(t *testing.T) {
-		matcher := githubv4mock.NewQueryMatcher(query, vars, makeResponse(true))
-		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
-		restClient := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			GetReposCollaboratorsByOwnerByRepo: mockResponse(t, http.StatusInternalServerError, "boom"),
-		}))
-		deps := BaseDeps{
-			Client:    restClient,
-			GQLClient: gqlClient,
-			Flags:     FeatureFlags{InsidersMode: true},
-		}
-		handler := serverTool.Handler(deps)
-
-		request := createMCPRequest(reqParams)
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-		require.False(t, result.IsError)
-
-		require.NotNil(t, result.Meta)
-		ifcJSON, err := json.Marshal(result.Meta["ifc"])
-		require.NoError(t, err)
-		var ifcMap map[string]any
-		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
-
-		assert.Equal(t, []any{"octocat"}, ifcMap["confidentiality"])
+		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
 }
 
@@ -1949,7 +2191,7 @@ func Test_UpdateIssue(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup clients with mocks
-			restClient := github.NewClient(tc.mockedRESTClient)
+			restClient := mustNewGHClient(t, tc.mockedRESTClient)
 			gqlClient := githubv4.NewClient(tc.mockedGQLClient)
 			deps := BaseDeps{
 				Client:    restClient,
@@ -2175,7 +2417,7 @@ func Test_GetIssueComments(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			var restClient *github.Client
 			if tc.lockdownEnabled {
 				restClient = mockRESTPermissionServer(t, "read", map[string]string{
@@ -2304,7 +2546,7 @@ func Test_GetIssueLabels(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			gqlClient := githubv4.NewClient(tc.mockedClient)
-			client := github.NewClient(nil)
+			client := mustNewGHClient(t, nil)
 			deps := BaseDeps{
 				Client:          client,
 				GQLClient:       gqlClient,
@@ -2511,7 +2753,7 @@ func Test_AddSubIssue(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -2732,7 +2974,7 @@ func Test_GetSubIssues(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			gqlClient := githubv4.NewClient(nil)
 			deps := BaseDeps{
 				Client:          client,
@@ -2951,7 +3193,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -3211,7 +3453,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -3327,7 +3569,7 @@ func Test_ListIssueTypes(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}

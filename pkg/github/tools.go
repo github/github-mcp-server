@@ -7,7 +7,7 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -199,6 +199,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListStarredRepositories(t),
 		StarRepository(t),
 		UnstarRepository(t),
+		ListRepositoryCollaborators(t),
 
 		// Git tools
 		GetRepositoryTree(t),
@@ -260,6 +261,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListDiscussions(t),
 		GetDiscussion(t),
 		GetDiscussionComments(t),
+		DiscussionCommentWrite(t),
 		ListDiscussionCategories(t),
 
 		// Actions tools
