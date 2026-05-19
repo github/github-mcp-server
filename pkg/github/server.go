@@ -214,6 +214,9 @@ func NewServer(version, name, title string, opts *mcp.ServerOptions) *mcp.Server
 
 func CompletionsHandler(getClient GetClientFn) func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
 	return func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
+		if req == nil || req.Params == nil || req.Params.Ref == nil {
+			return nil, fmt.Errorf("missing required parameter: ref")
+		}
 		switch req.Params.Ref.Type {
 		case "ref/resource":
 			if strings.HasPrefix(req.Params.Ref.URI, "repo://") {
