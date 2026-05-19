@@ -13,6 +13,7 @@ runs:
           pkg/github/ui_dist/issue-write.html
           pkg/github/ui_dist/pr-write.html
         key: ui-dist-v1-${{ hashFiles('ui/package-lock.json', 'ui/package.json', 'ui/index.html', 'ui/tsconfig*.json', 'ui/vite.config.ts', 'ui/src/**', 'ui/scripts/**') }}
+        enableCrossOsArchive: true
 
     - name: Set up Node.js
       if: steps.cache-ui.outputs.cache-hit != 'true'
