@@ -19,13 +19,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '20'
-
       - name: Build UI
-        run: script/build-ui
+        uses: ./.github/actions/build-ui
 
       - name: Run MCP Server Diff
         uses: SamMorrowDrums/mcp-server-diff@v2.3.5
