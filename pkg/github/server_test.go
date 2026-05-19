@@ -369,7 +369,7 @@ func TestCompletionsHandler_RejectsMissingRef(t *testing.T) {
 			result, err := handler(context.Background(), tc.req)
 			require.Error(t, err)
 			assert.Nil(t, result)
-			assert.Contains(t, err.Error(), "missing ref parameter")
+			assert.Contains(t, err.Error(), "missing required parameter: ref")
 		})
 	}
 }
