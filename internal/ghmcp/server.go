@@ -24,18 +24,19 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	gogithub "github.com/google/go-github/v82/github"
+	gogithub "github.com/google/go-github/v87/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
 
 // githubClients holds all the GitHub API clients created for a server instance.
 type githubClients struct {
-	rest       *gogithub.Client
-	gql        *githubv4.Client
-	gqlHTTP    *http.Client // retained for middleware to modify transport
-	raw        *raw.Client
-	repoAccess *lockdown.RepoAccessCache
+	rest         *gogithub.Client
+	restUATransp *transport.UserAgentTransport
+	gql          *githubv4.Client
+	gqlHTTP      *http.Client // retained for middleware to modify transport
+	raw          *raw.Client
+	repoAccess   *lockdown.RepoAccessCache
 }
 
 // createGitHubClients creates all the GitHub API clients needed by the server.
@@ -61,10 +62,18 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	}
 
 	// Construct REST client
-	restClient := gogithub.NewClient(nil).WithAuthToken(cfg.Token)
-	restClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", cfg.Version)
-	restClient.BaseURL = restURL
-	restClient.UploadURL = uploadURL
+	restUATransport := &transport.UserAgentTransport{
+		Transport: http.DefaultTransport,
+		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
+	}
+	restClient, err := gogithub.NewClient(
+		gogithub.WithHTTPClient(&http.Client{Transport: restUATransport}),
+		gogithub.WithAuthToken(cfg.Token),
+		gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create REST client: %w", err)
+	}
 
 	// Construct GraphQL client
 	// We use NewEnterpriseClient unconditionally since we already parsed the API host
@@ -80,7 +89,10 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	gqlClient := githubv4.NewEnterpriseClient(graphQLURL.String(), gqlHTTPClient)
 
 	// Create raw content client (shares REST client's HTTP transport)
-	rawClient := raw.NewClient(restClient, rawURL)
+	rawClient, err := raw.NewClient(restClient, rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create raw client: %w", err)
+	}
 
 	// Set up repo access cache for lockdown mode
 	var repoAccessCache *lockdown.RepoAccessCache
@@ -95,11 +107,12 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	}
 
 	return &githubClients{
-		rest:       restClient,
-		gql:        gqlClient,
-		gqlHTTP:    gqlHTTPClient,
-		raw:        rawClient,
-		repoAccess: repoAccessCache,
+		rest:         restClient,
+		restUATransp: restUATransport,
+		gql:          gqlClient,
+		gqlHTTP:      gqlHTTPClient,
+		raw:          rawClient,
+		repoAccess:   repoAccessCache,
 	}, nil
 }
 
@@ -170,7 +183,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		github.RegisterUIResources(ghServer)
 	}
 
-	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.rest, clients.gqlHTTP))
+	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.restUATransp, clients.gqlHTTP))
 
 	return ghServer, nil
 }
@@ -345,7 +358,7 @@ func createFeatureChecker(enabledFeatures []string, insidersMode bool) inventory
 	}
 }
 
-func addUserAgentsMiddleware(cfg github.MCPServerConfig, restClient *gogithub.Client, gqlHTTPClient *http.Client) func(next mcp.MethodHandler) mcp.MethodHandler {
+func addUserAgentsMiddleware(cfg github.MCPServerConfig, restUATransp *transport.UserAgentTransport, gqlHTTPClient *http.Client) func(next mcp.MethodHandler) mcp.MethodHandler {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, request mcp.Request) (result mcp.Result, err error) {
 			if method != "initialize" {
@@ -368,7 +381,7 @@ func addUserAgentsMiddleware(cfg github.MCPServerConfig, restClient *gogithub.Cl
 				userAgent += " (insiders)"
 			}
 
-			restClient.UserAgent = userAgent
+			restUATransp.Agent = userAgent
 
 			gqlHTTPClient.Transport = &transport.UserAgentTransport{
 				Transport: gqlHTTPClient.Transport,

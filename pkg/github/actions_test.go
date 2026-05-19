@@ -8,7 +8,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,7 +86,7 @@ func Test_ActionsList_ListWorkflows(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -136,7 +136,7 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 			}),
 		})
 
-		client := github.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -185,7 +185,7 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 			}),
 		})
 
-		client := github.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -241,7 +241,7 @@ func Test_ActionsGet_GetWorkflow(t *testing.T) {
 			}),
 		})
 
-		client := github.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -284,7 +284,7 @@ func Test_ActionsGet_GetWorkflowRun(t *testing.T) {
 			}),
 		})
 
-		client := github.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -377,11 +377,42 @@ func Test_ActionsRunTrigger_RunWorkflow(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "ref is required for run_workflow action",
 		},
+		{
+			name: "successful workflow run with inputs",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNoContent)
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":      "run_workflow",
+				"owner":       "owner",
+				"repo":        "repo",
+				"workflow_id": "12345",
+				"ref":         "main",
+				"inputs":      map[string]any{"FIELD1": "value1", "FIELD2": "value2"},
+			},
+			expectError: false,
+		},
+		{
+			name:         "invalid inputs type returns error",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"method":      "run_workflow",
+				"owner":       "owner",
+				"repo":        "repo",
+				"workflow_id": "12345",
+				"ref":         "main",
+				"inputs":      "not a map",
+			},
+			expectError:    true,
+			expectedErrMsg: "parameter inputs is not of type map[string]interface {}, is string",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -418,7 +449,7 @@ func Test_ActionsRunTrigger_CancelWorkflowRun(t *testing.T) {
 			}),
 		})
 
-		client := github.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -449,7 +480,7 @@ func Test_ActionsRunTrigger_CancelWorkflowRun(t *testing.T) {
 			}),
 		})
 
-		client := github.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -473,7 +504,7 @@ func Test_ActionsRunTrigger_CancelWorkflowRun(t *testing.T) {
 	t.Run("missing run_id for non-run_workflow methods", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
 
-		client := github.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -525,7 +556,7 @@ func Test_ActionsGetJobLogs_SingleJob(t *testing.T) {
 			}),
 		})
 
-		client := github.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client:            client,
 			ContentWindowSize: 5000,
@@ -587,7 +618,7 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 			}),
 		})
 
-		client := github.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client:            client,
 			ContentWindowSize: 5000,
@@ -637,7 +668,7 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 			}),
 		})
 
-		client := github.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client:            client,
 			ContentWindowSize: 5000,
