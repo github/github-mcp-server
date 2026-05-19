@@ -4,7 +4,7 @@
     "openWorldHint": true,
     "title": "Update Issue Labels"
   },
-  "description": "Update the labels of an existing issue. This replaces the current labels with the provided list.",
+  "description": "Update the labels of an existing issue. This replaces the current labels with the provided list. Each label may be a plain string or an object with a 'name' and optional 'rationale' explaining why the label was chosen.",
   "inputSchema": {
     "properties": {
       "issue_number": {
@@ -13,9 +13,31 @@
         "type": "number"
       },
       "labels": {
-        "description": "Labels to apply to this issue",
+        "description": "Labels to apply to this issue. Each item is either a label name string, or an object with 'name' and an optional 'rationale' (max 280 characters) explaining what specifically about the issue led you to choose this label.",
         "items": {
-          "type": "string"
+          "oneOf": [
+            {
+              "description": "Label name",
+              "type": "string"
+            },
+            {
+              "properties": {
+                "name": {
+                  "description": "Label name",
+                  "type": "string"
+                },
+                "rationale": {
+                  "description": "One concise sentence explaining what specifically about the issue led you to choose this label. State the concrete signal (e.g. 'Reports a crash when saving' → bug).",
+                  "maxLength": 280,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            }
+          ]
         },
         "type": "array"
       },
