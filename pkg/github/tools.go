@@ -222,6 +222,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		// Pull request tools
 		PullRequestRead(t),
 		ListPullRequests(t),
+		GetPRsReviewedBy(t),
 		SearchPullRequests(t),
 		MergePullRequest(t),
 		UpdatePullRequestBranch(t),
