@@ -19,8 +19,8 @@ func TestNewServerTool_InvalidArguments_ReturnsIsError(t *testing.T) {
 	tool := NewServerTool(
 		mcp.Tool{Name: "test_tool"},
 		testToolsetMetadata("test"),
-		func(deps any) mcp.ToolHandlerFor[expectedArgs, *mcp.CallToolResult] {
-			return func(ctx context.Context, req *mcp.CallToolRequest, args expectedArgs) (*mcp.CallToolResult, *mcp.CallToolResult, error) {
+		func(_ any) mcp.ToolHandlerFor[expectedArgs, *mcp.CallToolResult] {
+			return func(_ context.Context, _ *mcp.CallToolRequest, args expectedArgs) (*mcp.CallToolResult, *mcp.CallToolResult, error) {
 				t.Fatal("handler should not be called with invalid arguments")
 				return nil, nil, nil
 			}
@@ -55,7 +55,7 @@ func TestNewServerToolWithContextHandler_InvalidArguments_ReturnsIsError(t *test
 	tool := NewServerToolWithContextHandler(
 		mcp.Tool{Name: "test_context_tool"},
 		testToolsetMetadata("test"),
-		func(ctx context.Context, req *mcp.CallToolRequest, args expectedArgs) (*mcp.CallToolResult, any, error) {
+		func(_ context.Context, _ *mcp.CallToolRequest, args expectedArgs) (*mcp.CallToolResult, any, error) {
 			t.Fatal("handler should not be called with invalid arguments")
 			return nil, nil, nil
 		},
@@ -88,8 +88,8 @@ func TestNewServerTool_ValidArguments_Succeeds(t *testing.T) {
 	tool := NewServerTool(
 		mcp.Tool{Name: "test_tool"},
 		testToolsetMetadata("test"),
-		func(deps any) mcp.ToolHandlerFor[expectedArgs, *mcp.CallToolResult] {
-			return func(ctx context.Context, req *mcp.CallToolRequest, args expectedArgs) (*mcp.CallToolResult, *mcp.CallToolResult, error) {
+		func(_ any) mcp.ToolHandlerFor[expectedArgs, *mcp.CallToolResult] {
+			return func(_ context.Context, _ *mcp.CallToolRequest, args expectedArgs) (*mcp.CallToolResult, *mcp.CallToolResult, error) {
 				return &mcp.CallToolResult{
 					Content: []mcp.Content{
 						&mcp.TextContent{Text: "success: " + args.Owner + "/" + args.Repo},
