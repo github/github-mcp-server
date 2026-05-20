@@ -25,21 +25,29 @@ func Test_ListIssueFields(t *testing.T) {
 	assert.True(t, tool.Annotations.ReadOnlyHint)
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
-	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo"})
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner"})
+	assert.ElementsMatch(t, serverTool.RequiredScopes, []string{"repo", "read:org"})
+	assert.ElementsMatch(t, serverTool.AcceptedScopes, []string{"repo", "read:org", "write:org", "admin:org"})
 
-	queryStruct := issueFieldsQuery{}
+	queryStruct := issueFieldsRepoQuery{}
 	defaultVars := map[string]any{
 		"owner": githubv4.String("testowner"),
 		"name":  githubv4.String("testrepo"),
 	}
+	orgQueryStruct := issueFieldsOrgQuery{}
+	defaultOrgVars := map[string]any{
+		"login": githubv4.String("testowner"),
+	}
 
 	tests := []struct {
-		name           string
-		requestArgs    map[string]any
-		gqlResponse    githubv4mock.GQLResponse
-		expectError    bool
-		expectedFields []IssueField
-		expectedErrMsg string
+		name            string
+		requestArgs     map[string]any
+		mockQueryStruct any
+		mockVars        map[string]any
+		gqlResponse     githubv4mock.GQLResponse
+		expectError     bool
+		expectedFields  []IssueField
+		expectedErrMsg  string
 	}{
 		{
 			name: "no fields returns empty list",
@@ -146,20 +154,45 @@ func Test_ListIssueFields(t *testing.T) {
 			expectedErrMsg: "missing required parameter: owner",
 		},
 		{
-			name: "missing repo parameter",
+			name: "no repo returns org-level fields",
 			requestArgs: map[string]any{
 				"owner": "testowner",
 			},
-			gqlResponse:    githubv4mock.DataResponse(map[string]any{}),
-			expectError:    true,
-			expectedErrMsg: "missing required parameter: repo",
+			mockQueryStruct: orgQueryStruct,
+			mockVars:        defaultOrgVars,
+			gqlResponse: githubv4mock.DataResponse(map[string]any{
+				"organization": map[string]any{
+					"issueFields": map[string]any{
+						"nodes": []any{
+							map[string]any{
+								"__typename": "IssueFieldText",
+								"id":         "IFT_1",
+								"name":       "DRI",
+								"dataType":   "TEXT",
+								"visibility": "ORG_ONLY",
+							},
+						},
+					},
+				},
+			}),
+			expectedFields: []IssueField{
+				{ID: "IFT_1", Name: "DRI", DataType: "TEXT", Visibility: "ORG_ONLY"},
+			},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			qs := tc.mockQueryStruct
+			if qs == nil {
+				qs = queryStruct
+			}
+			vars := tc.mockVars
+			if vars == nil {
+				vars = defaultVars
+			}
 			mockedHTTPClient := githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(queryStruct, defaultVars, tc.gqlResponse),
+				githubv4mock.NewQueryMatcher(qs, vars, tc.gqlResponse),
 			)
 			gqlClient := githubv4.NewClient(mockedHTTPClient)
 			deps := BaseDeps{GQLClient: gqlClient}
