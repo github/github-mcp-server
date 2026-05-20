@@ -103,6 +103,54 @@ func getCloseStateReason(stateReason string) IssueClosedStateReason {
 	}
 }
 
+// IssueFieldRef resolves the name of an issue field across its concrete types.
+// IssueFields is a union of IssueFieldDate, IssueFieldNumber, IssueFieldSingleSelect, IssueFieldText,
+// so we have to ask for `name` on each member.
+type IssueFieldRef struct {
+	Date         struct{ Name githubv4.String } `graphql:"... on IssueFieldDate"`
+	Number       struct{ Name githubv4.String } `graphql:"... on IssueFieldNumber"`
+	SingleSelect struct{ Name githubv4.String } `graphql:"... on IssueFieldSingleSelect"`
+	Text         struct{ Name githubv4.String } `graphql:"... on IssueFieldText"`
+}
+
+// Name returns the populated name from whichever IssueFields union variant the field resolved to.
+func (r IssueFieldRef) Name() string {
+	switch {
+	case r.Date.Name != "":
+		return string(r.Date.Name)
+	case r.Number.Name != "":
+		return string(r.Number.Name)
+	case r.SingleSelect.Name != "":
+		return string(r.SingleSelect.Name)
+	case r.Text.Name != "":
+		return string(r.Text.Name)
+	}
+	return ""
+}
+
+// IssueFieldValueFragment captures the value of a custom issue field. IssueFieldValue is a union
+// of 4 concrete value types; each carries its own value scalar and a reference to its parent field.
+// The Number variant's `value` is aliased to `valueNumber` to avoid a Float vs String type clash on decode.
+type IssueFieldValueFragment struct {
+	TypeName  string `graphql:"__typename"`
+	DateValue struct {
+		Field IssueFieldRef
+		Value githubv4.String
+	} `graphql:"... on IssueFieldDateValue"`
+	NumberValue struct {
+		Field IssueFieldRef
+		Value githubv4.Float `graphql:"valueNumber: value"`
+	} `graphql:"... on IssueFieldNumberValue"`
+	SingleSelectValue struct {
+		Field IssueFieldRef
+		Value githubv4.String
+	} `graphql:"... on IssueFieldSingleSelectValue"`
+	TextValue struct {
+		Field IssueFieldRef
+		Value githubv4.String
+	} `graphql:"... on IssueFieldTextValue"`
+}
+
 // IssueFragment represents a fragment of an issue node in the GraphQL API.
 type IssueFragment struct {
 	Number     githubv4.Int
@@ -126,6 +174,9 @@ type IssueFragment struct {
 	Comments struct {
 		TotalCount githubv4.Int
 	} `graphql:"comments"`
+	IssueFieldValues struct {
+		Nodes []IssueFieldValueFragment
+	} `graphql:"issueFieldValues(first: 25)"`
 }
 
 // Common interface for all issue query types
