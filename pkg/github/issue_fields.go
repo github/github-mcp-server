@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -35,9 +36,9 @@ type IssueSingleSelectFieldOption struct {
 }
 
 // issueFieldNode is the GraphQL fragment for a single issue field in the IssueFields union.
+// Only the fragment matching __typename is populated; read from the matching fragment.
 type issueFieldNode struct {
-	TypeName githubv4.String `graphql:"__typename"`
-	// All field types share these fields; any populated fragment gives the same values.
+	TypeName       githubv4.String `graphql:"__typename"`
 	IssueFieldText struct {
 		ID          githubv4.ID
 		Name        githubv4.String
@@ -144,7 +145,7 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 					"name":  githubv4.String(repo),
 				}
 				if err := gqlClient.Query(ctxWithFeatures, &query, vars); err != nil {
-					return utils.NewToolResultErrorFromErr("failed to list issue fields", err), nil, nil
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to list issue fields", err), nil, nil
 				}
 				nodes = query.Repository.IssueFields.Nodes
 			} else {
@@ -153,7 +154,7 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 					"login": githubv4.String(owner),
 				}
 				if err := gqlClient.Query(ctxWithFeatures, &query, vars); err != nil {
-					return utils.NewToolResultErrorFromErr("failed to list issue fields", err), nil, nil
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to list issue fields", err), nil, nil
 				}
 				nodes = query.Organization.IssueFields.Nodes
 			}
@@ -161,8 +162,7 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 			fields := make([]IssueField, 0, len(nodes))
 			for _, node := range nodes {
 				var f IssueField
-				// Use TypeName to discriminate; shurcooL populates all matching fragment structs,
-				// so any non-SingleSelect struct gives the correct shared field values.
+				// Read from the fragment matching __typename; the other fragments are zero-valued.
 				switch string(node.TypeName) {
 				case "IssueFieldSingleSelect":
 					opts := make([]IssueSingleSelectFieldOption, 0, len(node.IssueFieldSingleSelect.Options))
@@ -183,13 +183,29 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 						Visibility:  string(node.IssueFieldSingleSelect.Visibility),
 						Options:     opts,
 					}
-				case "IssueFieldText", "IssueFieldNumber", "IssueFieldDate":
+				case "IssueFieldText":
 					f = IssueField{
 						ID:          fmt.Sprintf("%v", node.IssueFieldText.ID),
 						Name:        string(node.IssueFieldText.Name),
 						Description: string(node.IssueFieldText.Description),
 						DataType:    string(node.IssueFieldText.DataType),
 						Visibility:  string(node.IssueFieldText.Visibility),
+					}
+				case "IssueFieldNumber":
+					f = IssueField{
+						ID:          fmt.Sprintf("%v", node.IssueFieldNumber.ID),
+						Name:        string(node.IssueFieldNumber.Name),
+						Description: string(node.IssueFieldNumber.Description),
+						DataType:    string(node.IssueFieldNumber.DataType),
+						Visibility:  string(node.IssueFieldNumber.Visibility),
+					}
+				case "IssueFieldDate":
+					f = IssueField{
+						ID:          fmt.Sprintf("%v", node.IssueFieldDate.ID),
+						Name:        string(node.IssueFieldDate.Name),
+						Description: string(node.IssueFieldDate.Description),
+						DataType:    string(node.IssueFieldDate.DataType),
+						Visibility:  string(node.IssueFieldDate.Visibility),
 					}
 				default:
 					continue

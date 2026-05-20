@@ -179,6 +179,66 @@ func Test_ListIssueFields(t *testing.T) {
 				{ID: "IFT_1", Name: "DRI", DataType: "TEXT", Visibility: "ORG_ONLY"},
 			},
 		},
+		{
+			name: "number field returned",
+			requestArgs: map[string]any{
+				"owner": "testowner",
+				"repo":  "testrepo",
+			},
+			gqlResponse: githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"issueFields": map[string]any{
+						"nodes": []any{
+							map[string]any{
+								"__typename": "IssueFieldNumber",
+								"id":         "IFN_1",
+								"name":       "Engineering Staffing",
+								"dataType":   "NUMBER",
+								"visibility": "ORG_ONLY",
+							},
+						},
+					},
+				},
+			}),
+			expectedFields: []IssueField{
+				{ID: "IFN_1", Name: "Engineering Staffing", DataType: "NUMBER", Visibility: "ORG_ONLY"},
+			},
+		},
+		{
+			name: "date field returned",
+			requestArgs: map[string]any{
+				"owner": "testowner",
+				"repo":  "testrepo",
+			},
+			gqlResponse: githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"issueFields": map[string]any{
+						"nodes": []any{
+							map[string]any{
+								"__typename": "IssueFieldDate",
+								"id":         "IFD_1",
+								"name":       "Target Date",
+								"dataType":   "DATE",
+								"visibility": "ORG_ONLY",
+							},
+						},
+					},
+				},
+			}),
+			expectedFields: []IssueField{
+				{ID: "IFD_1", Name: "Target Date", DataType: "DATE", Visibility: "ORG_ONLY"},
+			},
+		},
+		{
+			name: "graphql error returns failure",
+			requestArgs: map[string]any{
+				"owner": "testowner",
+				"repo":  "testrepo",
+			},
+			gqlResponse:    githubv4mock.ErrorResponse("boom"),
+			expectError:    true,
+			expectedErrMsg: "failed to list issue fields",
+		},
 	}
 
 	for _, tc := range tests {
