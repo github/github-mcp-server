@@ -106,8 +106,7 @@ func (b *Builder) WithServerInstructions() *Builder {
 //   - "default": expands to toolsets marked with Default: true in their metadata
 //
 // Input strings are trimmed of whitespace and duplicates are removed.
-// Pass nil to use default toolsets. Pass an empty slice to disable all toolsets
-// (useful for dynamic toolsets mode where tools are enabled on demand).
+// Pass nil to use default toolsets. Pass an empty slice to disable all toolsets.
 // Returns self for chaining.
 func (b *Builder) WithToolsets(toolsetIDs []string) *Builder {
 	b.toolsetIDs = toolsetIDs

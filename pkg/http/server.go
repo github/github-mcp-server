@@ -78,9 +78,6 @@ type ServerConfig struct {
 	// EnabledTools is a list of specific tools to enable (additive to toolsets).
 	EnabledTools []string
 
-	// DynamicToolsets enables dynamic toolset discovery mode.
-	DynamicToolsets bool
-
 	// ExcludeTools is a list of tool names to disable regardless of other settings.
 	// When set via CLI flag, per-request headers cannot re-include these tools.
 	ExcludeTools []string

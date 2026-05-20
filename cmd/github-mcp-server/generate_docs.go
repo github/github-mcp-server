@@ -145,8 +145,8 @@ func generateToolsetsDoc(i *inventory.Inventory) string {
 	fmt.Fprintf(&buf, "| %s | `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |\n", contextIcon)
 
 	// AvailableToolsets() returns toolsets that have tools, sorted by ID
-	// Exclude context (custom description above) and dynamic (internal only)
-	for _, ts := range i.AvailableToolsets("context", "dynamic") {
+	// Exclude context (custom description above)
+	for _, ts := range i.AvailableToolsets("context") {
 		icon := octiconImg(ts.Icon)
 		fmt.Fprintf(&buf, "| %s | `%s` | %s |\n", icon, ts.ID, ts.Description)
 	}
@@ -346,8 +346,8 @@ func generateRemoteToolsetsDoc() string {
 	fmt.Fprintf(&buf, "| %s<br>`all` | All available GitHub MCP tools | https://api.githubcopilot.com/mcp/ | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2F%%22%%7D) | [read-only](https://api.githubcopilot.com/mcp/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Freadonly%%22%%7D) |\n", allIcon)
 
 	// AvailableToolsets() returns toolsets that have tools, sorted by ID
-	// Exclude context (handled separately) and dynamic (internal only)
-	for _, ts := range r.AvailableToolsets("context", "dynamic") {
+	// Exclude context (handled separately)
+	for _, ts := range r.AvailableToolsets("context") {
 		idStr := string(ts.ID)
 
 		apiURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s", idStr)
