@@ -462,21 +462,6 @@ func TestToolsetDescriptions(t *testing.T) {
 	}
 }
 
-func TestToolsForToolset(t *testing.T) {
-	tools := []ServerTool{
-		mockTool("tool1", "toolset1", true),
-		mockTool("tool2", "toolset1", true),
-		mockTool("tool3", "toolset2", true),
-	}
-
-	reg := mustBuild(t, NewBuilder().SetTools(tools))
-	toolset1Tools := reg.ToolsForToolset("toolset1")
-
-	if len(toolset1Tools) != 2 {
-		t.Fatalf("Expected 2 tools for toolset1, got %d", len(toolset1Tools))
-	}
-}
-
 func TestWithDeprecatedAliases(t *testing.T) {
 	tools := []ServerTool{
 		mockTool("new_name", "toolset1", true),
@@ -635,30 +620,6 @@ func TestHasToolset(t *testing.T) {
 	}
 	if reg.HasToolset("nonexistent") {
 		t.Error("expected HasToolset to return false for non-existent toolset")
-	}
-}
-
-func TestEnabledToolsetIDs(t *testing.T) {
-	tools := []ServerTool{
-		mockTool("tool1", "toolset1", true),
-		mockTool("tool2", "toolset2", true),
-	}
-
-	// Without filter, all toolsets are enabled
-	reg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}))
-	ids := reg.EnabledToolsetIDs()
-	if len(ids) != 2 {
-		t.Fatalf("Expected 2 enabled toolset IDs, got %d", len(ids))
-	}
-
-	// With filter
-	filtered := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"toolset1"}))
-	filteredIDs := filtered.EnabledToolsetIDs()
-	if len(filteredIDs) != 1 {
-		t.Fatalf("Expected 1 enabled toolset ID, got %d", len(filteredIDs))
-	}
-	if filteredIDs[0] != "toolset1" {
-		t.Errorf("Expected toolset1, got %s", filteredIDs[0])
 	}
 }
 

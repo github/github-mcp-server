@@ -290,28 +290,17 @@ func TestResolveEnabledToolsets(t *testing.T) {
 		expectedResult []string
 	}{
 		{
-			name: "nil toolsets without dynamic mode and no tools - use defaults",
+			name: "nil toolsets and no tools - use defaults",
 			cfg: MCPServerConfig{
 				EnabledToolsets: nil,
-				DynamicToolsets: false,
 				EnabledTools:    nil,
 			},
 			expectedResult: nil, // nil means "use defaults"
 		},
 		{
-			name: "nil toolsets with dynamic mode - start empty",
-			cfg: MCPServerConfig{
-				EnabledToolsets: nil,
-				DynamicToolsets: true,
-				EnabledTools:    nil,
-			},
-			expectedResult: []string{}, // empty slice means no toolsets
-		},
-		{
 			name: "explicit toolsets",
 			cfg: MCPServerConfig{
 				EnabledToolsets: []string{"repos", "issues"},
-				DynamicToolsets: false,
 			},
 			expectedResult: []string{"repos", "issues"},
 		},
@@ -319,32 +308,22 @@ func TestResolveEnabledToolsets(t *testing.T) {
 			name: "empty toolsets - disable all",
 			cfg: MCPServerConfig{
 				EnabledToolsets: []string{},
-				DynamicToolsets: false,
 			},
-			expectedResult: []string{}, // empty slice means no toolsets
+			expectedResult: []string{},
 		},
 		{
 			name: "specific tools without toolsets - no default toolsets",
 			cfg: MCPServerConfig{
 				EnabledToolsets: nil,
-				DynamicToolsets: false,
 				EnabledTools:    []string{"get_me"},
 			},
 			expectedResult: []string{}, // empty slice when tools specified but no toolsets
-		},
-		{
-			name: "dynamic mode with explicit toolsets removes all and default",
-			cfg: MCPServerConfig{
-				EnabledToolsets: []string{"all", "repos"},
-				DynamicToolsets: true,
-			},
-			expectedResult: []string{"repos"}, // "all" is removed in dynamic mode
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := ResolvedEnabledToolsets(tc.cfg.DynamicToolsets, tc.cfg.EnabledToolsets, tc.cfg.EnabledTools)
+			result := ResolvedEnabledToolsets(tc.cfg.EnabledToolsets, tc.cfg.EnabledTools)
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}

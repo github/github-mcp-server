@@ -38,10 +38,6 @@ type MCPServerConfig struct {
 	// Items with FeatureFlagEnable matching an entry in this list will be available
 	EnabledFeatures []string
 
-	// Whether to enable dynamic toolsets
-	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#dynamic-tool-discovery
-	DynamicToolsets bool
-
 	// ReadOnly indicates if we should only offer read-only tools
 	ReadOnly bool
 
@@ -91,16 +87,6 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 		o(serverOpts)
 	}
 
-	// In dynamic mode, explicitly advertise capabilities since tools/resources/prompts
-	// may be enabled at runtime even if none are registered initially.
-	if cfg.DynamicToolsets {
-		serverOpts.Capabilities = &mcp.ServerCapabilities{
-			Tools:     &mcp.ToolCapabilities{},
-			Resources: &mcp.ResourceCapabilities{},
-			Prompts:   &mcp.PromptCapabilities{},
-		}
-	}
-
 	ghServer := NewServer(cfg.Version, cfg.Translator("SERVER_NAME", "github-mcp-server"), cfg.Translator("SERVER_TITLE", "GitHub MCP Server"), serverOpts)
 
 	// Add middlewares. Order matters - for example, the error context middleware should be applied last so that it runs FIRST (closest to the handler) to ensure all errors are captured,
@@ -114,48 +100,16 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	}
 
 	// Register GitHub tools/resources/prompts from the inventory.
-	// In dynamic mode with no explicit toolsets, this is a no-op since enabledToolsets
-	// is empty - users enable toolsets at runtime via the dynamic tools below (but can
-	// enable toolsets or tools explicitly that do need registration).
 	inv.RegisterAll(ctx, ghServer, deps)
-
-	// Register dynamic toolset management tools (enable/disable) - these are separate
-	// meta-tools that control the inventory, not part of the inventory itself
-	if cfg.DynamicToolsets {
-		registerDynamicTools(ghServer, inv, deps, cfg.Translator)
-	}
 
 	return ghServer, nil
 }
 
-// registerDynamicTools adds the dynamic toolset enable/disable tools to the server.
-func registerDynamicTools(server *mcp.Server, inventory *inventory.Inventory, deps ToolDependencies, t translations.TranslationHelperFunc) {
-	dynamicDeps := DynamicToolDependencies{
-		Server:    server,
-		Inventory: inventory,
-		ToolDeps:  deps,
-		T:         t,
-	}
-	for _, tool := range DynamicTools(inventory) {
-		tool.RegisterFunc(server, dynamicDeps)
-	}
-}
-
 // ResolvedEnabledToolsets determines which toolsets should be enabled based on config.
 // Returns nil for "use defaults", empty slice for "none", or explicit list.
-func ResolvedEnabledToolsets(dynamicToolsets bool, enabledToolsets []string, enabledTools []string) []string {
-	// In dynamic mode, remove "all" and "default" since users enable toolsets on demand
-	if dynamicToolsets && enabledToolsets != nil {
-		enabledToolsets = RemoveToolset(enabledToolsets, string(ToolsetMetadataAll.ID))
-		enabledToolsets = RemoveToolset(enabledToolsets, string(ToolsetMetadataDefault.ID))
-	}
-
+func ResolvedEnabledToolsets(enabledToolsets []string, enabledTools []string) []string {
 	if enabledToolsets != nil {
 		return enabledToolsets
-	}
-	if dynamicToolsets {
-		// Dynamic mode with no toolsets specified: start empty so users enable on demand
-		return []string{}
 	}
 	if len(enabledTools) > 0 {
 		// When specific tools are requested but no toolsets, don't use default toolsets

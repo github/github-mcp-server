@@ -10,42 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewServerToolWithDeps_InvalidArguments_ReturnsIsError(t *testing.T) {
-	type expectedArgs struct {
-		Owner string `json:"owner"`
-		Repo  string `json:"repo"`
-	}
-
-	tool := NewServerToolWithDeps(
-		mcp.Tool{Name: "test_tool"},
-		testToolsetMetadata("test"),
-		func(_ any) mcp.ToolHandlerFor[expectedArgs, *mcp.CallToolResult] {
-			return func(_ context.Context, _ *mcp.CallToolRequest, _ expectedArgs) (*mcp.CallToolResult, *mcp.CallToolResult, error) {
-				t.Fatal("handler should not be called with invalid arguments")
-				return nil, nil, nil
-			}
-		},
-	)
-
-	handler := tool.HandlerFunc(nil)
-
-	badArgs, _ := json.Marshal(map[string]any{"owner": 12345, "repo": true})
-	result, err := handler(context.Background(), &mcp.CallToolRequest{
-		Params: &mcp.CallToolParamsRaw{
-			Name:      "test_tool",
-			Arguments: badArgs,
-		},
-	})
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.True(t, result.IsError)
-	assert.Len(t, result.Content, 1)
-	textContent, ok := result.Content[0].(*mcp.TextContent)
-	require.True(t, ok)
-	assert.Contains(t, textContent.Text, "invalid arguments")
-}
-
 func TestNewServerToolWithContextHandler_InvalidArguments_ReturnsIsError(t *testing.T) {
 	type expectedArgs struct {
 		Query string `json:"query"`
@@ -79,23 +43,21 @@ func TestNewServerToolWithContextHandler_InvalidArguments_ReturnsIsError(t *test
 	assert.Contains(t, textContent.Text, "invalid arguments")
 }
 
-func TestNewServerToolWithDeps_ValidArguments_Succeeds(t *testing.T) {
+func TestNewServerToolWithContextHandler_ValidArguments_Succeeds(t *testing.T) {
 	type expectedArgs struct {
 		Owner string `json:"owner"`
 		Repo  string `json:"repo"`
 	}
 
-	tool := NewServerToolWithDeps(
+	tool := NewServerToolWithContextHandler(
 		mcp.Tool{Name: "test_tool"},
 		testToolsetMetadata("test"),
-		func(_ any) mcp.ToolHandlerFor[expectedArgs, *mcp.CallToolResult] {
-			return func(_ context.Context, _ *mcp.CallToolRequest, args expectedArgs) (*mcp.CallToolResult, *mcp.CallToolResult, error) {
-				return &mcp.CallToolResult{
-					Content: []mcp.Content{
-						&mcp.TextContent{Text: "success: " + args.Owner + "/" + args.Repo},
-					},
-				}, nil, nil
-			}
+		func(_ context.Context, _ *mcp.CallToolRequest, args expectedArgs) (*mcp.CallToolResult, any, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: "success: " + args.Owner + "/" + args.Repo},
+				},
+			}, nil, nil
 		},
 	)
 
