@@ -875,7 +875,7 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `repo`
   - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
   - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
-  - `field_filters`: Filter by custom issue field values. Each entry must specify field_name and exactly one typed value field. (object[], optional)
+  - `field_filters`: Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date). (object[], optional)
   - `labels`: Filter by labels (string[], optional)
   - `orderBy`: Order issues by field. If provided, the 'direction' also needs to be provided. (string, optional)
   - `owner`: Repository owner (string, required)

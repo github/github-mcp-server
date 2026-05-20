@@ -19,32 +19,21 @@
         "type": "string"
       },
       "field_filters": {
-        "description": "Filter by custom issue field values. Each entry must specify field_name and exactly one typed value field.",
+        "description": "Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date).",
         "items": {
           "properties": {
-            "date_value": {
-              "description": "For date fields, the date to match (YYYY-MM-DD).",
-              "type": "string"
-            },
             "field_name": {
-              "description": "Name of the custom field (e.g. \"Priority\").",
+              "description": "Name of the custom field (e.g. \"Priority\"). Case-insensitive.",
               "type": "string"
             },
-            "number_value": {
-              "description": "For number fields, the numeric value to match.",
-              "type": "number"
-            },
-            "single_select_value": {
-              "description": "For single-select fields, the option name to match (e.g. \"P1\").",
-              "type": "string"
-            },
-            "text_value": {
-              "description": "For text fields, the text value to match.",
+            "value": {
+              "description": "Value to filter on. For single-select fields, the option name (e.g. \"P1\"). For dates, YYYY-MM-DD. For numbers, the numeric value as a string. For text, the text value.",
               "type": "string"
             }
           },
           "required": [
-            "field_name"
+            "field_name",
+            "value"
           ],
           "type": "object"
         },

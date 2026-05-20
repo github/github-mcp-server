@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1582,32 +1583,20 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			"field_filters": {
 				Type:        "array",
-				Description: "Filter by custom issue field values. Each entry must specify field_name and exactly one typed value field.",
+				Description: "Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date).",
 				Items: &jsonschema.Schema{
 					Type: "object",
 					Properties: map[string]*jsonschema.Schema{
 						"field_name": {
 							Type:        "string",
-							Description: "Name of the custom field (e.g. \"Priority\").",
+							Description: "Name of the custom field (e.g. \"Priority\"). Case-insensitive.",
 						},
-						"single_select_value": {
+						"value": {
 							Type:        "string",
-							Description: "For single-select fields, the option name to match (e.g. \"P1\").",
-						},
-						"text_value": {
-							Type:        "string",
-							Description: "For text fields, the text value to match.",
-						},
-						"number_value": {
-							Type:        "number",
-							Description: "For number fields, the numeric value to match.",
-						},
-						"date_value": {
-							Type:        "string",
-							Description: "For date fields, the date to match (YYYY-MM-DD).",
+							Description: "Value to filter on. For single-select fields, the option name (e.g. \"P1\"). For dates, YYYY-MM-DD. For numbers, the numeric value as a string. For text, the text value.",
 						},
 					},
-					Required: []string{"field_name"},
+					Required: []string{"field_name", "value"},
 				},
 			},
 		},
@@ -1705,7 +1694,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 			hasLabels := len(labels) > 0
 
-			fieldFilters, err := parseFieldFilters(args)
+			rawFilters, err := parseRawFieldFilters(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -1739,6 +1728,20 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+			}
+
+			// Resolve field filters by looking up the repo's issue fields so we can
+			// coerce each value into the right typed slot on IssueFieldValueFilter.
+			fieldFilters := []IssueFieldValueFilter{}
+			if len(rawFilters) > 0 {
+				fields, err := fetchIssueFields(ctx, client, owner, repo)
+				if err != nil {
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to look up issue fields for field_filters", err), nil, nil
+				}
+				fieldFilters, err = resolveFieldFilters(rawFilters, fields)
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
 			}
 
 			vars := map[string]any{
@@ -1803,12 +1806,19 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 		})
 }
 
-// parseFieldFilters extracts the optional field_filters parameter and converts it to
-// a slice of IssueFieldValueFilter for the GraphQL issueFieldValues variable. Validates that exactly one typed value is set per filter.
-func parseFieldFilters(args map[string]any) ([]IssueFieldValueFilter, error) {
+// rawFieldFilter is the user-supplied {field_name, value} pair before type resolution.
+type rawFieldFilter struct {
+	Name  string
+	Value string
+}
+
+// parseRawFieldFilters extracts the optional field_filters parameter into a list of
+// {name, value} pairs. The value is always a string here; type-aware coercion happens
+// later in resolveFieldFilters once we know each field's data_type.
+func parseRawFieldFilters(args map[string]any) ([]rawFieldFilter, error) {
 	raw, ok := args["field_filters"]
 	if !ok {
-		return []IssueFieldValueFilter{}, nil
+		return nil, nil
 	}
 
 	var entries []map[string]any
@@ -1827,55 +1837,83 @@ func parseFieldFilters(args map[string]any) ([]IssueFieldValueFilter, error) {
 		return nil, fmt.Errorf("field_filters must be an array")
 	}
 
-	filters := make([]IssueFieldValueFilter, 0, len(entries))
+	filters := make([]rawFieldFilter, 0, len(entries))
 	for _, entry := range entries {
 		fieldName, err := RequiredParam[string](entry, "field_name")
 		if err != nil {
 			return nil, fmt.Errorf("field_filters entry: %s", err.Error())
 		}
-
-		filter := IssueFieldValueFilter{FieldName: githubv4.String(fieldName)}
-		valueCount := 0
-
-		// Use OptionalParamOK uniformly so type errors propagate and so that
-		// number_value: 0 is treated as a set value (not as absent).
-		if v, ok, err := OptionalParamOK[string](entry, "single_select_value"); err != nil {
+		value, err := RequiredParam[string](entry, "value")
+		if err != nil {
 			return nil, fmt.Errorf("field_filters entry %q: %s", fieldName, err.Error())
-		} else if ok && v != "" {
-			filter.SingleSelectOptionValue = githubv4.NewString(githubv4.String(v))
-			valueCount++
 		}
-		if v, ok, err := OptionalParamOK[string](entry, "text_value"); err != nil {
-			return nil, fmt.Errorf("field_filters entry %q: %s", fieldName, err.Error())
-		} else if ok && v != "" {
-			filter.TextValue = githubv4.NewString(githubv4.String(v))
-			valueCount++
-		}
-		if v, ok, err := OptionalParamOK[string](entry, "date_value"); err != nil {
-			return nil, fmt.Errorf("field_filters entry %q: %s", fieldName, err.Error())
-		} else if ok && v != "" {
-			filter.DateValue = githubv4.NewString(githubv4.String(v))
-			valueCount++
-		}
-		if v, ok, err := OptionalParamOK[float64](entry, "number_value"); err != nil {
-			return nil, fmt.Errorf("field_filters entry %q: %s", fieldName, err.Error())
-		} else if ok {
-			n := githubv4.Float(v)
-			filter.NumberValue = &n
-			valueCount++
-		}
+		filters = append(filters, rawFieldFilter{Name: fieldName, Value: value})
+	}
+	return filters, nil
+}
 
-		if valueCount == 0 {
-			return nil, fmt.Errorf("field_filters entry %q: exactly one of single_select_value, text_value, date_value, or number_value is required", fieldName)
-		}
-		if valueCount > 1 {
-			return nil, fmt.Errorf("field_filters entry %q: only one of single_select_value, text_value, date_value, or number_value can be set", fieldName)
-		}
-
-		filters = append(filters, filter)
+// resolveFieldFilters matches each raw filter against a known field definition and
+// coerces the value into the right typed slot on IssueFieldValueFilter. Matching is
+// case-insensitive on field name; option names are also matched case-insensitively for
+// single-select fields.
+func resolveFieldFilters(rawFilters []rawFieldFilter, fields []IssueField) ([]IssueFieldValueFilter, error) {
+	byName := make(map[string]IssueField, len(fields))
+	knownNames := make([]string, 0, len(fields))
+	for _, f := range fields {
+		byName[strings.ToLower(f.Name)] = f
+		knownNames = append(knownNames, f.Name)
 	}
 
-	return filters, nil
+	out := make([]IssueFieldValueFilter, 0, len(rawFilters))
+	for _, rf := range rawFilters {
+		field, ok := byName[strings.ToLower(rf.Name)]
+		if !ok {
+			return nil, fmt.Errorf("field_filters: unknown field %q. Known fields: %s", rf.Name, strings.Join(knownNames, ", "))
+		}
+
+		filter := IssueFieldValueFilter{FieldName: githubv4.String(field.Name)}
+		switch field.DataType {
+		case "SINGLE_SELECT":
+			// Validate the option name against the field's options so we fail fast
+			// with a useful error instead of an opaque GraphQL one.
+			var matched string
+			for _, o := range field.Options {
+				if strings.EqualFold(o.Name, rf.Value) {
+					matched = o.Name
+					break
+				}
+			}
+			if matched == "" {
+				optionNames := make([]string, 0, len(field.Options))
+				for _, o := range field.Options {
+					optionNames = append(optionNames, o.Name)
+				}
+				return nil, fmt.Errorf("field_filters: %q is not a valid option for %q. Valid options: %s", rf.Value, field.Name, strings.Join(optionNames, ", "))
+			}
+			v := githubv4.String(matched)
+			filter.SingleSelectOptionValue = &v
+		case "TEXT":
+			v := githubv4.String(rf.Value)
+			filter.TextValue = &v
+		case "DATE":
+			if _, err := time.Parse("2006-01-02", rf.Value); err != nil {
+				return nil, fmt.Errorf("field_filters: %q is not a valid date for %q (expected YYYY-MM-DD): %s", rf.Value, field.Name, err.Error())
+			}
+			v := githubv4.String(rf.Value)
+			filter.DateValue = &v
+		case "NUMBER":
+			n, err := strconv.ParseFloat(rf.Value, 64)
+			if err != nil {
+				return nil, fmt.Errorf("field_filters: %q is not a valid number for %q: %s", rf.Value, field.Name, err.Error())
+			}
+			v := githubv4.Float(n)
+			filter.NumberValue = &v
+		default:
+			return nil, fmt.Errorf("field_filters: field %q has unsupported data_type %q", field.Name, field.DataType)
+		}
+		out = append(out, filter)
+	}
+	return out, nil
 }
 
 // parseISOTimestamp parses an ISO 8601 timestamp string into a time.Time object.
