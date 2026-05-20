@@ -430,3 +430,109 @@ func SearchOrgs(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 	)
 }
+
+// SearchCommits creates a tool to search for commits across GitHub repositories.
+func SearchCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"query": {
+				Type:        "string",
+				Description: "Commit search query (GitHub commit search REST). Searches commit messages on the default branch only. Scope the search with `repo:owner/repo`, `org:`, or `user:` (queries without a scope qualifier match across all of GitHub and are usually not what you want). Other qualifiers: `author:`, `committer:`, `author-name:`, `committer-name:`, `author-email:`, `committer-email:`, `author-date:`, `committer-date:` (supports `>`, `<`, `>=`, `<=`, and `YYYY-MM-DD..YYYY-MM-DD` ranges), `merge:true|false`, `hash:`, `tree:`, `parent:`, `is:public`. Examples: `repo:owner/repo fix panic`; `org:github author:defunkt committer-date:>=2024-01-01`; `\"refactor cache\" repo:o/r`; `hash:abc1234 repo:o/r`.",
+			},
+			"sort": {
+				Type:        "string",
+				Description: "Sort by author or committer date (defaults to best match)",
+				Enum:        []any{"author-date", "committer-date"},
+			},
+			"order": {
+				Type:        "string",
+				Description: "Sort order",
+				Enum:        []any{"asc", "desc"},
+			},
+		},
+		Required: []string{"query"},
+	}
+	WithPagination(schema)
+
+	return NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        "search_commits",
+			Description: t("TOOL_SEARCH_COMMITS_DESCRIPTION", "Search for commits across GitHub repositories using GitHub's commit search syntax. Useful for finding specific changes, authors, or messages across one or many repositories. Searches the default branch only."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_SEARCH_COMMITS_USER_TITLE", "Search commits"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: schema,
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			query, err := RequiredParam[string](args, "query")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			sort, err := OptionalParam[string](args, "sort")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			order, err := OptionalParam[string](args, "order")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			pagination, err := OptionalPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			opts := &github.SearchOptions{
+				Sort:  sort,
+				Order: order,
+				ListOptions: github.ListOptions{
+					Page:    pagination.Page,
+					PerPage: pagination.PerPage,
+				},
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+			result, resp, err := client.Search.Commits(ctx, query, opts)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					fmt.Sprintf("failed to search commits with query '%s'", query),
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search commits", resp, body), nil, nil
+			}
+
+			minimalCommits := make([]MinimalCommitSearchItem, 0, len(result.Commits))
+			for _, commit := range result.Commits {
+				minimalCommits = append(minimalCommits, convertCommitResultToMinimalCommit(commit))
+			}
+
+			minimalResult := &MinimalSearchCommitsResult{
+				TotalCount:        result.GetTotal(),
+				IncompleteResults: result.GetIncompleteResults(),
+				Items:             minimalCommits,
+			}
+
+			r, err := json.Marshal(minimalResult)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
+		},
+	)
+}
