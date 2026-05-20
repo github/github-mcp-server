@@ -3,13 +3,14 @@ package github
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gogithub "github.com/google/go-github/v82/github"
+	gogithub "github.com/google/go-github/v87/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -175,7 +176,7 @@ func TestGranularCreateIssue(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := gogithub.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{Client: client}
 			serverTool := GranularCreateIssue(translations.NullTranslationHelper)
 			handler := serverTool.Handler(deps)
@@ -195,7 +196,7 @@ func TestGranularCreateIssue(t *testing.T) {
 }
 
 func TestGranularUpdateIssueTitle(t *testing.T) {
-	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, &gogithub.Issue{
 			Number: gogithub.Ptr(42),
 			Title:  gogithub.Ptr("New Title"),
@@ -217,7 +218,7 @@ func TestGranularUpdateIssueTitle(t *testing.T) {
 }
 
 func TestGranularUpdateIssueBody(t *testing.T) {
-	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
 			"body": "Updated body",
 		}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{
@@ -241,7 +242,7 @@ func TestGranularUpdateIssueBody(t *testing.T) {
 }
 
 func TestGranularUpdateIssueAssignees(t *testing.T) {
-	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
 			"assignees": []any{"user1", "user2"},
 		}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
@@ -262,7 +263,7 @@ func TestGranularUpdateIssueAssignees(t *testing.T) {
 }
 
 func TestGranularUpdateIssueLabels(t *testing.T) {
-	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
 			"labels": []any{"bug", "enhancement"},
 		}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
@@ -283,7 +284,7 @@ func TestGranularUpdateIssueLabels(t *testing.T) {
 }
 
 func TestGranularUpdateIssueMilestone(t *testing.T) {
-	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
 			"milestone": float64(5),
 		}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
@@ -304,24 +305,103 @@ func TestGranularUpdateIssueMilestone(t *testing.T) {
 }
 
 func TestGranularUpdateIssueType(t *testing.T) {
-	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
-			"type": "bug",
-		}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
-	}))
-	deps := BaseDeps{Client: client}
-	serverTool := GranularUpdateIssueType(translations.NullTranslationHelper)
-	handler := serverTool.Handler(deps)
+	tests := []struct {
+		name        string
+		requestArgs map[string]any
+		expectedReq map[string]any
+	}{
+		{
+			name: "type only",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "bug",
+			},
+			expectedReq: map[string]any{
+				"type": "bug",
+			},
+		},
+		{
+			name: "type with rationale",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "feature",
+				"rationale":    "  This issue requests a new capability  ",
+			},
+			expectedReq: map[string]any{
+				"type": map[string]any{
+					"value":     "feature",
+					"rationale": "This issue requests a new capability",
+				},
+			},
+		},
+	}
 
-	request := createMCPRequest(map[string]any{
-		"owner":        "owner",
-		"repo":         "repo",
-		"issue_number": float64(1),
-		"issue_type":   "bug",
-	})
-	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-	require.NoError(t, err)
-	assert.False(t, result.IsError)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+			}))
+			deps := BaseDeps{Client: client}
+			serverTool := GranularUpdateIssueType(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			assert.False(t, result.IsError)
+		})
+	}
+}
+
+func TestGranularUpdateIssueTypeInvalidRationale(t *testing.T) {
+	tests := []struct {
+		name            string
+		requestArgs     map[string]any
+		expectedErrText string
+	}{
+		{
+			name: "rationale wrong type",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "feature",
+				"rationale":    float64(123),
+			},
+			expectedErrText: "parameter rationale is not of type string, is float64",
+		},
+		{
+			name: "rationale too long",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "feature",
+				"rationale":    strings.Repeat("a", 281),
+			},
+			expectedErrText: "parameter rationale must be 280 characters or less",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			deps := BaseDeps{Client: mustNewGHClient(t, MockHTTPClientWithHandlers(nil))}
+			serverTool := GranularUpdateIssueType(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			errorContent := getErrorResult(t, result)
+			assert.Contains(t, errorContent.Text, tc.expectedErrText)
+		})
+	}
 }
 
 func TestGranularUpdateIssueState(t *testing.T) {
@@ -360,7 +440,7 @@ func TestGranularUpdateIssueState(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
 					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{
 						Number: gogithub.Ptr(1),
@@ -382,7 +462,7 @@ func TestGranularUpdateIssueState(t *testing.T) {
 // --- Pull request granular tool handler tests ---
 
 func TestGranularUpdatePullRequestTitle(t *testing.T) {
-	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		PatchReposPullsByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
 			"title": "New PR Title",
 		}).andThen(mockResponse(t, http.StatusOK, &gogithub.PullRequest{
@@ -406,7 +486,7 @@ func TestGranularUpdatePullRequestTitle(t *testing.T) {
 }
 
 func TestGranularUpdatePullRequestBody(t *testing.T) {
-	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		PatchReposPullsByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
 			"body": "Updated description",
 		}).andThen(mockResponse(t, http.StatusOK, &gogithub.PullRequest{
@@ -430,7 +510,7 @@ func TestGranularUpdatePullRequestBody(t *testing.T) {
 }
 
 func TestGranularUpdatePullRequestState(t *testing.T) {
-	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		PatchReposPullsByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
 			"state": "closed",
 		}).andThen(mockResponse(t, http.StatusOK, &gogithub.PullRequest{
@@ -454,7 +534,7 @@ func TestGranularUpdatePullRequestState(t *testing.T) {
 }
 
 func TestGranularRequestPullRequestReviewers(t *testing.T) {
-	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, &gogithub.PullRequest{Number: gogithub.Ptr(1)}),
 	}))
 	deps := BaseDeps{Client: client}

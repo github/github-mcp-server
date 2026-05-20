@@ -8,6 +8,7 @@
     "properties": {
       "inputs": {
         "description": "Inputs the workflow accepts. Only used for 'run_workflow' method.",
+        "properties": {},
         "type": "object"
       },
       "method": {

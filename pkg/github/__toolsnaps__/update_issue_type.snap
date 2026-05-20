@@ -20,6 +20,11 @@
         "description": "Repository owner (username or organization)",
         "type": "string"
       },
+      "rationale": {
+        "description": "One concise sentence explaining what specifically about the issue led you to choose this type. State the concrete signal (e.g. 'Reports a crash when saving' → bug, 'Asks for dark mode support' → feature).",
+        "maxLength": 280,
+        "type": "string"
+      },
       "repo": {
         "description": "Repository name",
         "type": "string"

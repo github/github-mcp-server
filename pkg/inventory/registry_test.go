@@ -38,7 +38,7 @@ func testToolsetMetadataWithDefault(id string, isDefault bool) ToolsetMetadata {
 
 // mockToolWithDefault creates a mock tool with a default toolset flag
 func mockToolWithDefault(name string, toolsetID string, readOnly bool, isDefault bool) ServerTool {
-	return NewServerToolFromHandler(
+	return NewServerTool(
 		mcp.Tool{
 			Name: name,
 			Annotations: &mcp.ToolAnnotations{
@@ -47,17 +47,15 @@ func mockToolWithDefault(name string, toolsetID string, readOnly bool, isDefault
 			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
 		},
 		testToolsetMetadataWithDefault(toolsetID, isDefault),
-		func(_ any) mcp.ToolHandler {
-			return func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-				return nil, nil
-			}
+		func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return nil, nil
 		},
 	)
 }
 
 // mockTool creates a minimal ServerTool for testing
 func mockTool(name string, toolsetID string, readOnly bool) ServerTool {
-	return NewServerToolFromHandler(
+	return NewServerTool(
 		mcp.Tool{
 			Name: name,
 			Annotations: &mcp.ToolAnnotations{
@@ -66,10 +64,8 @@ func mockTool(name string, toolsetID string, readOnly bool) ServerTool {
 			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
 		},
 		testToolsetMetadata(toolsetID),
-		func(_ any) mcp.ToolHandler {
-			return func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-				return nil, nil
-			}
+		func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return nil, nil
 		},
 	)
 }
@@ -1839,7 +1835,7 @@ func TestWithTools_DeprecatedAliasAndFeatureFlag(t *testing.T) {
 
 // mockToolWithMeta creates a ServerTool with Meta for testing insiders mode
 func mockToolWithMeta(name string, toolsetID string, meta map[string]any) ServerTool {
-	return NewServerToolFromHandler(
+	return NewServerTool(
 		mcp.Tool{
 			Name: name,
 			Annotations: &mcp.ToolAnnotations{
@@ -1849,10 +1845,8 @@ func mockToolWithMeta(name string, toolsetID string, meta map[string]any) Server
 			Meta:        meta,
 		},
 		testToolsetMetadata(toolsetID),
-		func(_ any) mcp.ToolHandler {
-			return func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-				return nil, nil
-			}
+		func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return nil, nil
 		},
 	)
 }
@@ -1863,18 +1857,16 @@ func TestWithMCPApps_DisabledStripsUIMetadata(t *testing.T) {
 		"description": "kept",
 	})
 
-	// Default: MCP Apps is disabled - UI meta should be stripped
+	// Default: MCP Apps is disabled - UI meta should be stripped on registration.
 	reg := mustBuild(t, NewBuilder().SetTools([]ServerTool{toolWithUI}).WithToolsets([]string{"all"}))
-	available := reg.AvailableTools(context.Background())
+	registered := captureRegisteredTools(context.Background(), t, reg)
 
-	require.Len(t, available, 1)
-	// UI metadata should be stripped
-	if available[0].Tool.Meta["ui"] != nil {
+	require.Len(t, registered, 1)
+	if registered[0].Meta["ui"] != nil {
 		t.Errorf("Expected 'ui' meta to be stripped, but it was present")
 	}
-	// Other metadata should be preserved
-	if available[0].Tool.Meta["description"] != "kept" {
-		t.Errorf("Expected 'description' meta to be preserved, got %v", available[0].Tool.Meta["description"])
+	if registered[0].Meta["description"] != "kept" {
+		t.Errorf("Expected 'description' meta to be preserved, got %v", registered[0].Meta["description"])
 	}
 }
 
@@ -1947,7 +1939,6 @@ func TestWithMCPApps_ToolsWithoutUIMetaUnaffected(t *testing.T) {
 }
 
 func TestWithMCPApps_UIOnlyMetaBecomesNil(t *testing.T) {
-	// Tool with ONLY ui metadata - should become nil after stripping when MCP Apps is disabled
 	toolUIOnly := mockToolWithMeta("tool_ui_only", "toolset1", map[string]any{
 		"ui": map[string]any{"html": "<div>hello</div>"},
 	})
@@ -1955,12 +1946,11 @@ func TestWithMCPApps_UIOnlyMetaBecomesNil(t *testing.T) {
 	reg := mustBuild(t, NewBuilder().
 		SetTools([]ServerTool{toolUIOnly}).
 		WithToolsets([]string{"all"}))
-	available := reg.AvailableTools(context.Background())
+	registered := captureRegisteredTools(context.Background(), t, reg)
 
-	require.Len(t, available, 1)
-	// Meta should be nil since ui was the only key and MCP Apps is off by default
-	if available[0].Tool.Meta != nil {
-		t.Errorf("Expected Meta to be nil after stripping only key, got %v", available[0].Tool.Meta)
+	require.Len(t, registered, 1)
+	if registered[0].Meta != nil {
+		t.Errorf("Expected Meta to be nil after stripping only key, got %v", registered[0].Meta)
 	}
 }
 
@@ -2238,4 +2228,26 @@ func TestCreateExcludeToolsFilter(t *testing.T) {
 	allowed, err = filter(context.Background(), &allowedTool)
 	require.NoError(t, err)
 	require.True(t, allowed, "allowed_tool should be included")
+}
+
+// captureRegisteredTools mirrors RegisterTools' per-request strip behavior so
+// tests can verify what the wire sees, without requiring tools to have real
+// handlers (RegisterTools panics on tools without HandlerFunc).
+func captureRegisteredTools(ctx context.Context, t *testing.T, reg *Inventory) []*mcp.Tool {
+	t.Helper()
+	tools := reg.AvailableTools(ctx)
+	out := make([]*mcp.Tool, 0, len(tools))
+	for i := range tools {
+		toolCopy := tools[i].Tool
+		out = append(out, &toolCopy)
+	}
+	if !reg.checkFeatureFlag(ctx, mcpAppsFeatureFlag) {
+		for _, tt := range out {
+			delete(tt.Meta, "ui")
+			if len(tt.Meta) == 0 {
+				tt.Meta = nil
+			}
+		}
+	}
+	return out
 }
