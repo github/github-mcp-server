@@ -1140,6 +1140,28 @@ type SearchIssueResult struct {
 	FieldValues []MinimalIssueFieldValue `json:"field_values,omitempty"`
 }
 
+// MarshalJSON serializes SearchIssueResult, suppressing the raw issue_field_values from the
+// embedded REST response in favour of the normalized field_values populated via GraphQL enrichment.
+func (r SearchIssueResult) MarshalJSON() ([]byte, error) {
+	issueBytes, err := json.Marshal(r.Issue)
+	if err != nil {
+		return nil, err
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(issueBytes, &m); err != nil {
+		return nil, err
+	}
+	delete(m, "issue_field_values")
+	if r.FieldValues != nil {
+		fv, err := json.Marshal(r.FieldValues)
+		if err != nil {
+			return nil, err
+		}
+		m["field_values"] = fv
+	}
+	return json.Marshal(m)
+}
+
 // SearchIssuesResponse mirrors the REST IssuesSearchResult JSON shape and adds field_values
 // per item, sourced from a single GraphQL nodes() round-trip.
 type SearchIssuesResponse struct {
