@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"slices"
 	"sort"
 )
 
@@ -213,62 +212,6 @@ func (r *Inventory) filterPromptsByName(name string) []ServerPrompt {
 		}
 	}
 	return []ServerPrompt{}
-}
-
-// ToolsForToolset returns all tools belonging to a specific toolset.
-// This method bypasses the toolset enabled filter (for dynamic toolset registration),
-// but still respects the read-only filter.
-func (r *Inventory) ToolsForToolset(toolsetID ToolsetID) []ServerTool {
-	var result []ServerTool
-	for i := range r.tools {
-		tool := &r.tools[i]
-		// Only check read-only filter, not toolset enabled filter
-		if tool.Toolset.ID == toolsetID {
-			if r.readOnly && !tool.IsReadOnly() {
-				continue
-			}
-			result = append(result, *tool)
-		}
-	}
-
-	// Sort by tool name for deterministic order
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Tool.Name < result[j].Tool.Name
-	})
-
-	return result
-}
-
-// IsToolsetEnabled checks if a toolset is currently enabled based on filters.
-func (r *Inventory) IsToolsetEnabled(toolsetID ToolsetID) bool {
-	return r.isToolsetEnabled(toolsetID)
-}
-
-// EnableToolset marks a toolset as enabled in this group.
-// This is used by dynamic toolset management to track which toolsets have been enabled.
-func (r *Inventory) EnableToolset(toolsetID ToolsetID) {
-	if r.enabledToolsets == nil {
-		// nil means all enabled, so nothing to do
-		return
-	}
-	r.enabledToolsets[toolsetID] = true
-}
-
-// EnabledToolsetIDs returns the list of enabled toolset IDs based on current filters.
-// Returns all toolset IDs if no filter is set.
-func (r *Inventory) EnabledToolsetIDs() []ToolsetID {
-	if r.enabledToolsets == nil {
-		return r.ToolsetIDs()
-	}
-
-	ids := make([]ToolsetID, 0, len(r.enabledToolsets))
-	for id := range r.enabledToolsets {
-		if r.HasToolset(id) {
-			ids = append(ids, id)
-		}
-	}
-	slices.Sort(ids)
-	return ids
 }
 
 // FilteredTools returns tools filtered by the Enabled function and builder filters.

@@ -153,7 +153,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	inventoryBuilder := github.NewInventory(cfg.Translator).
 		WithDeprecatedAliases(github.DeprecatedToolAliases).
 		WithReadOnly(cfg.ReadOnly).
-		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools)).
+		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools)).
 		WithTools(github.CleanTools(cfg.EnabledTools)).
 		WithExcludeTools(cfg.ExcludeTools).
 		WithServerInstructions().
@@ -210,10 +210,6 @@ type StdioServerConfig struct {
 	// Items with FeatureFlagEnable matching an entry in this list will be available
 	EnabledFeatures []string
 
-	// Whether to enable dynamic toolsets
-	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#dynamic-tool-discovery
-	DynamicToolsets bool
-
 	// ReadOnly indicates if we should only register read-only tools
 	ReadOnly bool
 
@@ -267,7 +263,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo})
 	}
 	logger := slog.New(slogHandler)
-	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
+	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
 
 	// Fetch token scopes for scope-based tool filtering (PAT tokens only)
 	// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.
@@ -292,7 +288,6 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		EnabledToolsets:   cfg.EnabledToolsets,
 		EnabledTools:      cfg.EnabledTools,
 		EnabledFeatures:   cfg.EnabledFeatures,
-		DynamicToolsets:   cfg.DynamicToolsets,
 		ReadOnly:          cfg.ReadOnly,
 		Translator:        t,
 		ContentWindowSize: cfg.ContentWindowSize,

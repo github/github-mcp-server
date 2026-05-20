@@ -424,7 +424,7 @@ The environment variable `GITHUB_TOOLSETS` takes precedence over the command lin
 
 #### Specifying Individual Tools
 
-You can also configure specific tools using the `--tools` flag. Tools can be used independently or combined with toolsets and dynamic toolsets discovery for fine-grained control.
+You can also configure specific tools using the `--tools` flag. Tools can be used independently or combined with toolsets for fine-grained control.
 
 1. **Using Command Line Argument**:
 
@@ -446,17 +446,9 @@ You can also configure specific tools using the `--tools` flag. Tools can be use
 
    This registers all tools from `repos` and `issues` toolsets, plus `get_gist`.
 
-4. **Combining with Dynamic Toolsets** (additive):
-
-   ```bash
-   github-mcp-server --tools get_file_contents --dynamic-toolsets
-   ```
-
-   This registers `get_file_contents` plus the dynamic toolset tools (`enable_toolset`, `list_available_toolsets`, `get_toolset_tools`).
-
 **Important Notes:**
 
-- Tools, toolsets, and dynamic toolsets can all be used together
+- Tools and toolsets can be used together
 - Read-only mode takes priority: write tools are skipped if `--read-only` is set, even if explicitly requested via `--tools`
 - Tool names must match exactly (e.g., `get_file_contents`, not `getFileContents`). Invalid tool names will cause the server to fail at startup with an error message
 - When tools are renamed, old names are preserved as aliases for backward compatibility. See [Tool Renaming](docs/tool-renaming.md) for details.
@@ -1461,29 +1453,6 @@ The following sets of tools are available:
   - `query`: Input from the user about the question they need answered. This is the latest raw unedited user message. You should ALWAYS leave the user message as it is, you should never modify it. (string, required)
 
 </details>
-
-## Dynamic Tool Discovery
-
-**Note**: This feature is currently in beta and is not available in the Remote GitHub MCP Server. Please test it out and let us know if you encounter any issues.
-
-Instead of starting with all tools enabled, you can turn on dynamic toolset discovery. Dynamic toolsets allow the MCP host to list and enable toolsets in response to a user prompt. This should help to avoid situations where the model gets confused by the sheer number of tools available.
-
-### Using Dynamic Tool Discovery
-
-When using the binary, you can pass the `--dynamic-toolsets` flag.
-
-```bash
-./github-mcp-server --dynamic-toolsets
-```
-
-When using Docker, you can pass the toolsets as environment variables:
-
-```bash
-docker run -i --rm \
-  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
-  -e GITHUB_DYNAMIC_TOOLSETS=1 \
-  ghcr.io/github/github-mcp-server
-```
 
 ## Read-Only Mode
 
