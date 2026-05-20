@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -127,7 +128,8 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 				"owner": githubv4.String(owner),
 				"name":  githubv4.String(repo),
 			}
-			if err := gqlClient.Query(ctx, &query, vars); err != nil {
+			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields")
+			if err := gqlClient.Query(ctxWithFeatures, &query, vars); err != nil {
 				return utils.NewToolResultErrorFromErr("failed to list issue fields", err), nil, nil
 			}
 
