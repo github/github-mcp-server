@@ -745,6 +745,47 @@ func Test_SearchIssues(t *testing.T) {
 			expectedResult: mockSearchResult,
 		},
 		{
+			name: "query with field. qualifier enables advanced_search",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":               "is:issue field.priority:P1",
+						"page":            "1",
+						"per_page":        "30",
+						"advanced_search": "true",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
+				),
+			}),
+			requestArgs: map[string]any{
+				"query": "field.priority:P1",
+			},
+			expectError:    false,
+			expectedResult: mockSearchResult,
+		},
+		{
+			name: "query without field. qualifier does not set advanced_search",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":        "is:issue is:open",
+						"page":     "1",
+						"per_page": "30",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
+				),
+			}),
+			requestArgs: map[string]any{
+				"query": "is:open",
+			},
+			expectError:    false,
+			expectedResult: mockSearchResult,
+		},
+		{
 			name: "search issues fails",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetSearchIssues: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -94,14 +95,21 @@ func prepareSearchArgs(args map[string]any, searchType string) (string, *github.
 		return "", nil, err
 	}
 
-	return query, &github.SearchOptions{
+	opts := &github.SearchOptions{
 		Sort:  sort,
 		Order: order,
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
 			PerPage: pagination.PerPage,
 		},
-	}, nil
+	}
+
+	// field.<name>:<value> qualifiers require the advanced search API.
+	if strings.Contains(query, "field.") {
+		opts.AdvancedSearch = github.Ptr(true)
+	}
+
+	return query, opts, nil
 }
 
 func searchHandler(
