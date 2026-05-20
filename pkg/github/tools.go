@@ -7,7 +7,7 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -122,11 +122,6 @@ var (
 		ID:          "stargazers",
 		Description: "GitHub Stargazers related tools",
 		Icon:        "star",
-	}
-	ToolsetMetadataDynamic = inventory.ToolsetMetadata{
-		ID:          "dynamic",
-		Description: "Discover GitHub MCP tools that can help achieve tasks by enabling additional sets of tools, you can control the enablement of any toolset to access its tools when this toolset is enabled.",
-		Icon:        "tools",
 	}
 	ToolsetLabels = inventory.ToolsetMetadata{
 		ID:          "labels",
@@ -351,8 +346,8 @@ func GenerateToolsetsHelp() string {
 		defaultBuf.WriteString(string(id))
 	}
 
-	// Get all available toolsets (excludes context and dynamic for display)
-	allToolsets := r.AvailableToolsets("context", "dynamic")
+	// Get all available toolsets (excludes context for display)
+	allToolsets := r.AvailableToolsets("context")
 	var availableBuf strings.Builder
 	const maxLineLength = 70
 	currentLine := ""

@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -58,6 +58,13 @@ Possible options:
 		Required: []string{"method", "owner", "repo", "pullNumber"},
 	}
 	WithPagination(schema)
+	// get_review_comments uses GraphQL cursor-based pagination and accepts the
+	// `after` cursor. Other methods rely on the `page`/`perPage` parameters
+	// added by WithPagination and ignore `after`.
+	schema.Properties["after"] = &jsonschema.Schema{
+		Type:        "string",
+		Description: "Cursor for pagination, used only by the get_review_comments method. Pass the endCursor from the previous page's PageInfo to fetch the next page.",
+	}
 
 	return NewTool(
 		ToolsetMetadataPullRequests,

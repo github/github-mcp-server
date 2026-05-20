@@ -13,9 +13,31 @@
         "type": "number"
       },
       "labels": {
-        "description": "Labels to apply to this issue",
+        "description": "Labels to apply to this issue.",
         "items": {
-          "type": "string"
+          "oneOf": [
+            {
+              "description": "Label name",
+              "type": "string"
+            },
+            {
+              "properties": {
+                "name": {
+                  "description": "Label name",
+                  "type": "string"
+                },
+                "rationale": {
+                  "description": "One concise sentence explaining what specifically about the issue led you to choose this label. State the concrete signal (e.g. 'Reports a crash when saving' → bug).",
+                  "maxLength": 280,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            }
+          ]
         },
         "type": "array"
       },

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	gogithub "github.com/google/go-github/v87/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	testifymock "github.com/stretchr/testify/mock"
@@ -178,6 +179,22 @@ type expectations struct {
 	path        string
 	queryParams map[string]string
 	requestBody any
+}
+
+// mustNewGHClient creates a new GitHub client for testing.
+// If httpClient is nil, a client with no options is created.
+// The test fails immediately if client creation fails.
+func mustNewGHClient(t *testing.T, httpClient *http.Client) *gogithub.Client {
+	t.Helper()
+	var client *gogithub.Client
+	var err error
+	if httpClient == nil {
+		client, err = gogithub.NewClient()
+	} else {
+		client, err = gogithub.NewClient(gogithub.WithHTTPClient(httpClient))
+	}
+	require.NoError(t, err)
+	return client
 }
 
 // expect is a helper function to create a partial mock that expects various
