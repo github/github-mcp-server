@@ -4,13 +4,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
-	gogithub "github.com/google/go-github/v82/github"
+	gogithub "github.com/google/go-github/v87/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/require"
 )
@@ -81,8 +80,8 @@ func newMockRepoAccessCache(t *testing.T, ttl time.Duration) (*RepoAccessCache, 
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	t.Cleanup(restServer.Close)
-	restClient := gogithub.NewClient(nil)
-	restClient.BaseURL, _ = url.Parse(restServer.URL + "/")
+	restClient, err := gogithub.NewClient(gogithub.WithEnterpriseURLs(restServer.URL+"/", restServer.URL+"/"))
+	require.NoError(t, err)
 
 	return NewRepoAccessCache(gqlClient, restClient, WithTTL(ttl)), counting
 }

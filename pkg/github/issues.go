@@ -10,12 +10,13 @@ import (
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -102,6 +103,54 @@ func getCloseStateReason(stateReason string) IssueClosedStateReason {
 	}
 }
 
+// IssueFieldRef resolves the name of an issue field across its concrete types.
+// IssueFields is a union of IssueFieldDate, IssueFieldNumber, IssueFieldSingleSelect, IssueFieldText,
+// so we have to ask for `name` on each member.
+type IssueFieldRef struct {
+	Date         struct{ Name githubv4.String } `graphql:"... on IssueFieldDate"`
+	Number       struct{ Name githubv4.String } `graphql:"... on IssueFieldNumber"`
+	SingleSelect struct{ Name githubv4.String } `graphql:"... on IssueFieldSingleSelect"`
+	Text         struct{ Name githubv4.String } `graphql:"... on IssueFieldText"`
+}
+
+// Name returns the populated name from whichever IssueFields union variant the field resolved to.
+func (r IssueFieldRef) Name() string {
+	switch {
+	case r.Date.Name != "":
+		return string(r.Date.Name)
+	case r.Number.Name != "":
+		return string(r.Number.Name)
+	case r.SingleSelect.Name != "":
+		return string(r.SingleSelect.Name)
+	case r.Text.Name != "":
+		return string(r.Text.Name)
+	}
+	return ""
+}
+
+// IssueFieldValueFragment captures the value of a custom issue field. IssueFieldValue is a union
+// of 4 concrete value types; each carries its own value scalar and a reference to its parent field.
+// The Number variant's `value` is aliased to `valueNumber` to avoid a Float vs String type clash on decode.
+type IssueFieldValueFragment struct {
+	TypeName  string `graphql:"__typename"`
+	DateValue struct {
+		Field IssueFieldRef
+		Value githubv4.String
+	} `graphql:"... on IssueFieldDateValue"`
+	NumberValue struct {
+		Field IssueFieldRef
+		Value githubv4.Float `graphql:"valueNumber: value"`
+	} `graphql:"... on IssueFieldNumberValue"`
+	SingleSelectValue struct {
+		Field IssueFieldRef
+		Value githubv4.String
+	} `graphql:"... on IssueFieldSingleSelectValue"`
+	TextValue struct {
+		Field IssueFieldRef
+		Value githubv4.String
+	} `graphql:"... on IssueFieldTextValue"`
+}
+
 // IssueFragment represents a fragment of an issue node in the GraphQL API.
 type IssueFragment struct {
 	Number     githubv4.Int
@@ -125,11 +174,15 @@ type IssueFragment struct {
 	Comments struct {
 		TotalCount githubv4.Int
 	} `graphql:"comments"`
+	IssueFieldValues struct {
+		Nodes []IssueFieldValueFragment
+	} `graphql:"issueFieldValues(first: 25)"`
 }
 
 // Common interface for all issue query types
 type IssueQueryResult interface {
 	GetIssueFragment() IssueQueryFragment
+	GetIsPrivate() bool
 }
 
 type IssueQueryFragment struct {
@@ -146,28 +199,32 @@ type IssueQueryFragment struct {
 // ListIssuesQuery is the root query structure for fetching issues with optional label filtering.
 type ListIssuesQuery struct {
 	Repository struct {
-		Issues IssueQueryFragment `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction})"`
+		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction})"`
+		IsPrivate githubv4.Boolean
 	} `graphql:"repository(owner: $owner, name: $repo)"`
 }
 
 // ListIssuesQueryTypeWithLabels is the query structure for fetching issues with optional label filtering.
 type ListIssuesQueryTypeWithLabels struct {
 	Repository struct {
-		Issues IssueQueryFragment `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction})"`
+		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction})"`
+		IsPrivate githubv4.Boolean
 	} `graphql:"repository(owner: $owner, name: $repo)"`
 }
 
 // ListIssuesQueryWithSince is the query structure for fetching issues without label filtering but with since filtering.
 type ListIssuesQueryWithSince struct {
 	Repository struct {
-		Issues IssueQueryFragment `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since})"`
+		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since})"`
+		IsPrivate githubv4.Boolean
 	} `graphql:"repository(owner: $owner, name: $repo)"`
 }
 
 // ListIssuesQueryTypeWithLabelsWithSince is the query structure for fetching issues with both label and since filtering.
 type ListIssuesQueryTypeWithLabelsWithSince struct {
 	Repository struct {
-		Issues IssueQueryFragment `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since})"`
+		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since})"`
+		IsPrivate githubv4.Boolean
 	} `graphql:"repository(owner: $owner, name: $repo)"`
 }
 
@@ -176,16 +233,26 @@ func (q *ListIssuesQueryTypeWithLabels) GetIssueFragment() IssueQueryFragment {
 	return q.Repository.Issues
 }
 
+func (q *ListIssuesQueryTypeWithLabels) GetIsPrivate() bool { return bool(q.Repository.IsPrivate) }
+
 func (q *ListIssuesQuery) GetIssueFragment() IssueQueryFragment {
 	return q.Repository.Issues
 }
+
+func (q *ListIssuesQuery) GetIsPrivate() bool { return bool(q.Repository.IsPrivate) }
 
 func (q *ListIssuesQueryWithSince) GetIssueFragment() IssueQueryFragment {
 	return q.Repository.Issues
 }
 
+func (q *ListIssuesQueryWithSince) GetIsPrivate() bool { return bool(q.Repository.IsPrivate) }
+
 func (q *ListIssuesQueryTypeWithLabelsWithSince) GetIssueFragment() IssueQueryFragment {
 	return q.Repository.Issues
+}
+
+func (q *ListIssuesQueryTypeWithLabelsWithSince) GetIsPrivate() bool {
+	return bool(q.Repository.IsPrivate)
 }
 
 func getIssueQueryType(hasLabels bool, hasSince bool) any {
@@ -280,19 +347,37 @@ Options are:
 				return utils.NewToolResultErrorFromErr("failed to get GitHub graphql client", err), nil, nil
 			}
 
+			// attachIFC adds the IFC label to a successful tool result when
+			// InsidersMode is enabled. If the visibility lookup fails the
+			// label is omitted rather than misclassifying the result.
+			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
+				if r == nil || r.IsError || !deps.GetFlags(ctx).InsidersMode {
+					return r
+				}
+				isPrivate, err := FetchRepoIsPrivate(ctx, client, owner, repo)
+				if err != nil {
+					return r
+				}
+				if r.Meta == nil {
+					r.Meta = mcp.Meta{}
+				}
+				r.Meta["ifc"] = ifc.LabelListIssues(isPrivate)
+				return r
+			}
+
 			switch method {
 			case "get":
 				result, err := GetIssue(ctx, client, deps, owner, repo, issueNumber)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_comments":
 				result, err := GetIssueComments(ctx, client, deps, owner, repo, issueNumber, pagination)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_sub_issues":
 				result, err := GetSubIssues(ctx, client, deps, owner, repo, issueNumber, pagination)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_labels":
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
@@ -418,11 +503,9 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 	}
 	featureFlags := deps.GetFlags(ctx)
 
-	opts := &github.IssueListOptions{
-		ListOptions: github.ListOptions{
-			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
-		},
+	opts := &github.ListOptions{
+		Page:    pagination.Page,
+		PerPage: pagination.PerPage,
 	}
 
 	subIssues, resp, err := client.SubIssue.ListByIssue(ctx, owner, repo, int64(issueNumber), opts)
@@ -527,7 +610,6 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 	}
 
 	return utils.NewToolResultText(string(out)), nil
-
 }
 
 // ListIssueTypes creates a tool to list defined issue types for an organization. This can be used to understand supported issue type values for creating or updating issues.
@@ -822,7 +904,6 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 	}
 
 	return utils.NewToolResultText(string(r)), nil
-
 }
 
 func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int) (*mcp.CallToolResult, error) {
@@ -962,9 +1043,253 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			result, err := searchHandler(ctx, deps.GetClient, args, "issue", "failed to search issues")
+			var options []searchOption
+			if deps.GetFlags(ctx).InsidersMode {
+				options = append(options, withSearchPostProcess(searchIssuesIFCPostProcess(deps)))
+			}
+			result, err := searchIssuesHandler(ctx, deps, args, options...)
 			return result, nil, err
 		})
+}
+
+// searchIssuesIFCPostProcess returns a searchPostProcessFn that attaches the
+// IFC label for a search_issues result. It looks up the visibility (and, for
+// private repos, collaborators) of every repository represented in the search
+// payload and joins the labels via ifc.LabelSearchIssues. If any per-repo
+// lookup fails the label is omitted to avoid misclassifying the result.
+func searchIssuesIFCPostProcess(deps ToolDependencies) searchPostProcessFn {
+	return func(ctx context.Context, result *github.IssuesSearchResult, callResult *mcp.CallToolResult) {
+		if callResult == nil || callResult.IsError || result == nil {
+			return
+		}
+
+		client, err := deps.GetClient(ctx)
+		if err != nil {
+			return
+		}
+
+		uniqueRepos := uniqueSearchIssuesRepos(result)
+		visibilities := make([]bool, 0, len(uniqueRepos))
+		for _, r := range uniqueRepos {
+			isPrivate, err := FetchRepoIsPrivate(ctx, client, r.owner, r.repo)
+			if err != nil {
+				return
+			}
+			visibilities = append(visibilities, isPrivate)
+		}
+
+		if callResult.Meta == nil {
+			callResult.Meta = mcp.Meta{}
+		}
+		callResult.Meta["ifc"] = ifc.LabelSearchIssues(visibilities)
+	}
+}
+
+type searchIssuesRepoRef struct {
+	owner string
+	repo  string
+}
+
+// uniqueSearchIssuesRepos extracts the owner/repo pairs of every issue in the
+// search result, preserving order of first appearance and deduplicating.
+func uniqueSearchIssuesRepos(result *github.IssuesSearchResult) []searchIssuesRepoRef {
+	if result == nil {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	var out []searchIssuesRepoRef
+	for _, issue := range result.Issues {
+		if issue == nil {
+			continue
+		}
+		owner, repo, ok := parseRepositoryURL(issue.GetRepositoryURL())
+		if !ok {
+			continue
+		}
+		key := owner + "/" + repo
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, searchIssuesRepoRef{owner: owner, repo: repo})
+	}
+	return out
+}
+
+// parseRepositoryURL extracts the owner and repo from a GitHub API repository
+// URL of the form https://api.github.com/repos/{owner}/{repo}.
+func parseRepositoryURL(repoURL string) (string, string, bool) {
+	if repoURL == "" {
+		return "", "", false
+	}
+	const marker = "/repos/"
+	idx := strings.LastIndex(repoURL, marker)
+	if idx < 0 {
+		return "", "", false
+	}
+	parts := strings.Split(strings.Trim(repoURL[idx+len(marker):], "/"), "/")
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	return parts[0], parts[1], true
+}
+
+// SearchIssueResult wraps a REST search hit with its custom issue field values, fetched in a follow-up GraphQL nodes() query.
+type SearchIssueResult struct {
+	*github.Issue
+	FieldValues []MinimalIssueFieldValue `json:"field_values,omitempty"`
+}
+
+// MarshalJSON serializes SearchIssueResult, suppressing the raw issue_field_values from the
+// embedded REST response in favour of the normalized field_values populated via GraphQL enrichment.
+func (r SearchIssueResult) MarshalJSON() ([]byte, error) {
+	issueBytes, err := json.Marshal(r.Issue)
+	if err != nil {
+		return nil, err
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(issueBytes, &m); err != nil {
+		return nil, err
+	}
+	delete(m, "issue_field_values")
+	if r.FieldValues != nil {
+		fv, err := json.Marshal(r.FieldValues)
+		if err != nil {
+			return nil, err
+		}
+		m["field_values"] = fv
+	}
+	return json.Marshal(m)
+}
+
+// SearchIssuesResponse mirrors the REST IssuesSearchResult JSON shape and adds field_values
+// per item, sourced from a single GraphQL nodes() round-trip.
+type SearchIssuesResponse struct {
+	Total             *int                `json:"total_count,omitempty"`
+	IncompleteResults *bool               `json:"incomplete_results,omitempty"`
+	Items             []SearchIssueResult `json:"items"`
+}
+
+// searchIssuesNodesQuery batches a nodes(ids:) lookup over the REST search results to retrieve
+// each issue's custom field values in a single GraphQL request.
+type searchIssuesNodesQuery struct {
+	Nodes []struct {
+		Issue struct {
+			ID               githubv4.ID
+			IssueFieldValues struct {
+				Nodes []IssueFieldValueFragment
+			} `graphql:"issueFieldValues(first: 25)"`
+		} `graphql:"... on Issue"`
+	} `graphql:"nodes(ids: $ids)"`
+}
+
+// fetchIssueFieldValuesByNodeID runs one GraphQL nodes() query for the given REST issues and
+// returns a map of node_id -> flattened field values. Issues without a node_id are skipped, and
+// an empty result set short-circuits the round-trip.
+func fetchIssueFieldValuesByNodeID(ctx context.Context, gqlClient *githubv4.Client, issues []*github.Issue) (map[string][]MinimalIssueFieldValue, error) {
+	ids := make([]githubv4.ID, 0, len(issues))
+	for _, iss := range issues {
+		if iss == nil || iss.NodeID == nil || *iss.NodeID == "" {
+			continue
+		}
+		ids = append(ids, githubv4.ID(*iss.NodeID))
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	var q searchIssuesNodesQuery
+	if err := gqlClient.Query(ctx, &q, map[string]any{"ids": ids}); err != nil {
+		return nil, err
+	}
+
+	result := make(map[string][]MinimalIssueFieldValue, len(q.Nodes))
+	for _, n := range q.Nodes {
+		idStr, ok := n.Issue.ID.(string)
+		if !ok || idStr == "" {
+			continue
+		}
+		vals := make([]MinimalIssueFieldValue, 0, len(n.Issue.IssueFieldValues.Nodes))
+		for _, fv := range n.Issue.IssueFieldValues.Nodes {
+			if m, ok := fragmentToMinimalIssueFieldValue(fv); ok {
+				vals = append(vals, m)
+			}
+		}
+		result[idStr] = vals
+	}
+	return result, nil
+}
+
+// searchIssuesHandler runs the REST issues search, enriches each hit with custom field values
+// fetched via a single follow-up GraphQL nodes() query, and applies any post-process options
+// (e.g. IFC labelling).
+func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[string]any, options ...searchOption) (*mcp.CallToolResult, error) {
+	const errorPrefix = "failed to search issues"
+
+	query, opts, err := prepareSearchArgs(args, "issue")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil
+	}
+
+	client, err := deps.GetClient(ctx)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub client", err), nil
+	}
+	result, resp, err := client.Search.Issues(ctx, query, opts)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr(errorPrefix, err), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to read response body", err), nil
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), nil
+	}
+
+	var fieldValuesByID map[string][]MinimalIssueFieldValue
+	if len(result.Issues) > 0 {
+		gqlClient, err := deps.GetGQLClient(ctx)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub GraphQL client", err), nil
+		}
+		fieldValuesByID, err = fetchIssueFieldValuesByNodeID(ctx, gqlClient, result.Issues)
+		if err != nil {
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, errorPrefix+": failed to fetch issue field values", err), nil
+		}
+	}
+
+	items := make([]SearchIssueResult, 0, len(result.Issues))
+	for _, iss := range result.Issues {
+		hit := SearchIssueResult{Issue: iss}
+		if iss != nil && iss.NodeID != nil {
+			hit.FieldValues = fieldValuesByID[*iss.NodeID]
+		}
+		items = append(items, hit)
+	}
+
+	response := SearchIssuesResponse{
+		Total:             result.Total,
+		IncompleteResults: result.IncompleteResults,
+		Items:             items,
+	}
+
+	r, err := json.Marshal(response)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), nil
+	}
+
+	callResult := utils.NewToolResultText(string(r))
+	cfg := searchConfig{}
+	for _, opt := range options {
+		opt(&cfg)
+	}
+	if cfg.postProcess != nil {
+		cfg.postProcess(ctx, result, callResult)
+	}
+	return callResult, nil
 }
 
 // IssueWrite creates a tool to create a new or update an existing issue in a GitHub repository.
@@ -1568,11 +1893,20 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			var resp MinimalIssuesResponse
+			var isPrivate bool
 			if queryResult, ok := issueQuery.(IssueQueryResult); ok {
 				resp = convertToMinimalIssuesResponse(queryResult.GetIssueFragment())
+				isPrivate = queryResult.GetIsPrivate()
 			}
 
-			return MarshalledTextResult(resp), nil, nil
+			result := MarshalledTextResult(resp)
+			if deps.GetFlags(ctx).InsidersMode {
+				if result.Meta == nil {
+					result.Meta = mcp.Meta{}
+				}
+				result.Meta["ifc"] = ifc.LabelListIssues(isPrivate)
+			}
+			return result, nil, nil
 		})
 }
 

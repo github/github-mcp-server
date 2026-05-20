@@ -8,11 +8,12 @@ import (
 	"net/http"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -161,9 +162,35 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 				}
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			callResult := utils.NewToolResultText(string(r))
+			if deps.GetFlags(ctx).InsidersMode {
+				attachSearchRepositoriesIFCLabel(result.Repositories, callResult)
+			}
+			return callResult, nil, nil
 		},
 	)
+}
+
+// attachSearchRepositoriesIFCLabel joins per-repository IFC labels across
+// every matched repository and attaches the result to callResult. Visibility
+// is read directly from the search response — no extra API call. The join
+// math is shared with search_issues via ifc.LabelSearchIssues: integrity is
+// always untrusted; confidentiality is private if any matched repository is
+// private, otherwise public.
+func attachSearchRepositoriesIFCLabel(repos []*github.Repository, callResult *mcp.CallToolResult) {
+	if callResult == nil || callResult.IsError {
+		return
+	}
+
+	visibilities := make([]bool, 0, len(repos))
+	for _, repo := range repos {
+		visibilities = append(visibilities, repo.GetPrivate())
+	}
+
+	if callResult.Meta == nil {
+		callResult.Meta = mcp.Meta{}
+	}
+	callResult.Meta["ifc"] = ifc.LabelSearchIssues(visibilities)
 }
 
 // SearchCode creates a tool to search for code across GitHub repositories.
@@ -173,7 +200,7 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 		Properties: map[string]*jsonschema.Schema{
 			"query": {
 				Type:        "string",
-				Description: "Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more.",
+				Description: "Search query (GitHub code search REST). Implicit AND between terms; supports `OR`, `NOT`, and `\"quoted phrase\"` for exact match. Qualifiers: `repo:owner/repo`, `org:`, `user:`, `language:`, `path:dir` (prefix match), `filename:exact.ext`, `extension:`, `in:file`, `in:path`, `size:`, `is:archived`, `is:fork`. Max 256 chars. Examples: `WithContext language:go org:github`; `\"package main\" repo:o/r`; `func extension:go path:cmd repo:o/r`; `NOT TODO language:go repo:o/r`.",
 			},
 			"sort": {
 				Type:        "string",
@@ -220,8 +247,9 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			opts := &github.SearchOptions{
-				Sort:  sort,
-				Order: order,
+				Sort:      sort,
+				Order:     order,
+				TextMatch: true,
 				ListOptions: github.ListOptions{
 					PerPage: pagination.PerPage,
 					Page:    pagination.Page,
@@ -251,7 +279,27 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search code", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(result)
+			minimalItems := make([]MinimalCodeResult, 0, len(result.CodeResults))
+			for _, code := range result.CodeResults {
+				item := MinimalCodeResult{
+					Name:        code.GetName(),
+					Path:        code.GetPath(),
+					SHA:         code.GetSHA(),
+					TextMatches: code.TextMatches,
+				}
+				if code.Repository != nil {
+					item.Repository = code.Repository.GetFullName()
+				}
+				minimalItems = append(minimalItems, item)
+			}
+
+			minimalResult := &MinimalCodeSearchResult{
+				TotalCount:        result.GetTotal(),
+				IncompleteResults: result.GetIncompleteResults(),
+				Items:             minimalItems,
+			}
+
+			r, err := json.Marshal(minimalResult)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}

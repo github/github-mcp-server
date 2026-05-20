@@ -1,9 +1,10 @@
 package github
 
 import (
+	"strconv"
 	"time"
 
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 
 	"github.com/github/github-mcp-server/pkg/sanitize"
 )
@@ -49,6 +50,31 @@ type MinimalSearchRepositoriesResult struct {
 	TotalCount        int                 `json:"total_count"`
 	IncompleteResults bool                `json:"incomplete_results"`
 	Items             []MinimalRepository `json:"items"`
+}
+
+// MinimalDiscussionComment is the trimmed output type for discussion comment objects.
+type MinimalDiscussionComment struct {
+	ID              string                     `json:"id"`
+	Body            string                     `json:"body"`
+	IsAnswer        bool                       `json:"isAnswer,omitempty"`
+	Replies         []MinimalDiscussionComment `json:"replies,omitempty"`
+	ReplyTotalCount int                        `json:"replyTotalCount,omitempty"`
+}
+
+// MinimalCodeSearchResult is the trimmed output type for code search results.
+type MinimalCodeSearchResult struct {
+	TotalCount        int                 `json:"total_count"`
+	IncompleteResults bool                `json:"incomplete_results"`
+	Items             []MinimalCodeResult `json:"items"`
+}
+
+// MinimalCodeResult is the trimmed output type for a single code search hit.
+type MinimalCodeResult struct {
+	Name        string              `json:"name"`
+	Path        string              `json:"path"`
+	SHA         string              `json:"sha"`
+	Repository  string              `json:"repository"`
+	TextMatches []*github.TextMatch `json:"text_matches,omitempty"`
 }
 
 // MinimalCommitAuthor represents commit author information.
@@ -138,6 +164,13 @@ type MinimalResponse struct {
 	URL string `json:"url"`
 }
 
+// MinimalCollaborator is the trimmed output type for repository collaborators.
+type MinimalCollaborator struct {
+	Login    string `json:"login"`
+	ID       int64  `json:"id"`
+	RoleName string `json:"role_name"`
+}
+
 type MinimalProject struct {
 	ID               *int64            `json:"id,omitempty"`
 	NodeID           *string           `json:"node_id,omitempty"`
@@ -171,26 +204,35 @@ type MinimalReactions struct {
 
 // MinimalIssue is the trimmed output type for issue objects to reduce verbosity.
 type MinimalIssue struct {
-	Number            int               `json:"number"`
-	Title             string            `json:"title"`
-	Body              string            `json:"body,omitempty"`
-	State             string            `json:"state"`
-	StateReason       string            `json:"state_reason,omitempty"`
-	Draft             bool              `json:"draft,omitempty"`
-	Locked            bool              `json:"locked,omitempty"`
-	HTMLURL           string            `json:"html_url,omitempty"`
-	User              *MinimalUser      `json:"user,omitempty"`
-	AuthorAssociation string            `json:"author_association,omitempty"`
-	Labels            []string          `json:"labels,omitempty"`
-	Assignees         []string          `json:"assignees,omitempty"`
-	Milestone         string            `json:"milestone,omitempty"`
-	Comments          int               `json:"comments,omitempty"`
-	Reactions         *MinimalReactions `json:"reactions,omitempty"`
-	CreatedAt         string            `json:"created_at,omitempty"`
-	UpdatedAt         string            `json:"updated_at,omitempty"`
-	ClosedAt          string            `json:"closed_at,omitempty"`
-	ClosedBy          string            `json:"closed_by,omitempty"`
-	IssueType         string            `json:"issue_type,omitempty"`
+	Number            int                      `json:"number"`
+	Title             string                   `json:"title"`
+	Body              string                   `json:"body,omitempty"`
+	State             string                   `json:"state"`
+	StateReason       string                   `json:"state_reason,omitempty"`
+	Draft             bool                     `json:"draft,omitempty"`
+	Locked            bool                     `json:"locked,omitempty"`
+	HTMLURL           string                   `json:"html_url,omitempty"`
+	User              *MinimalUser             `json:"user,omitempty"`
+	AuthorAssociation string                   `json:"author_association,omitempty"`
+	Labels            []string                 `json:"labels,omitempty"`
+	Assignees         []string                 `json:"assignees,omitempty"`
+	Milestone         string                   `json:"milestone,omitempty"`
+	Comments          int                      `json:"comments,omitempty"`
+	Reactions         *MinimalReactions        `json:"reactions,omitempty"`
+	CreatedAt         string                   `json:"created_at,omitempty"`
+	UpdatedAt         string                   `json:"updated_at,omitempty"`
+	ClosedAt          string                   `json:"closed_at,omitempty"`
+	ClosedBy          string                   `json:"closed_by,omitempty"`
+	IssueType         string                   `json:"issue_type,omitempty"`
+	FieldValues       []MinimalIssueFieldValue `json:"field_values,omitempty"`
+}
+
+// MinimalIssueFieldValue is the trimmed output type for a custom issue field value.
+// Single-value variants (date, number, single-select, text) populate Value. Values is reserved for multi-select.
+type MinimalIssueFieldValue struct {
+	Field  string   `json:"field"`
+	Value  string   `json:"value,omitempty"`
+	Values []string `json:"values,omitempty"`
 }
 
 // MinimalIssuesResponse is the trimmed output for a paginated list of issues.
@@ -403,7 +445,41 @@ func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 		m.Labels = append(m.Labels, string(label.Name))
 	}
 
+	for _, fv := range fragment.IssueFieldValues.Nodes {
+		if mfv, ok := fragmentToMinimalIssueFieldValue(fv); ok {
+			m.FieldValues = append(m.FieldValues, mfv)
+		}
+	}
+
 	return m
+}
+
+// fragmentToMinimalIssueFieldValue flattens the union value fragment into a single
+// {field, value} pair. Returns ok=false if the typename is unrecognised.
+func fragmentToMinimalIssueFieldValue(fv IssueFieldValueFragment) (MinimalIssueFieldValue, bool) {
+	switch fv.TypeName {
+	case "IssueFieldDateValue":
+		return MinimalIssueFieldValue{
+			Field: fv.DateValue.Field.Name(),
+			Value: string(fv.DateValue.Value),
+		}, true
+	case "IssueFieldNumberValue":
+		return MinimalIssueFieldValue{
+			Field: fv.NumberValue.Field.Name(),
+			Value: strconv.FormatFloat(float64(fv.NumberValue.Value), 'f', -1, 64),
+		}, true
+	case "IssueFieldSingleSelectValue":
+		return MinimalIssueFieldValue{
+			Field: fv.SingleSelectValue.Field.Name(),
+			Value: string(fv.SingleSelectValue.Value),
+		}, true
+	case "IssueFieldTextValue":
+		return MinimalIssueFieldValue{
+			Field: fv.TextValue.Field.Name(),
+			Value: string(fv.TextValue.Value),
+		}, true
+	}
+	return MinimalIssueFieldValue{}, false
 }
 
 func convertToMinimalIssuesResponse(fragment IssueQueryFragment) MinimalIssuesResponse {

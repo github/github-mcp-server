@@ -16,7 +16,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gogithub "github.com/google/go-github/v82/github"
+	gogithub "github.com/google/go-github/v87/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -80,9 +80,10 @@ func stubExporters() observability.Exporters {
 	return obs
 }
 
-func stubClientFnFromHTTP(httpClient *http.Client) func(context.Context) (*gogithub.Client, error) {
+func stubClientFnFromHTTP(t *testing.T, httpClient *http.Client) func(context.Context) (*gogithub.Client, error) {
+	t.Helper()
 	return func(_ context.Context) (*gogithub.Client, error) {
-		return gogithub.NewClient(httpClient), nil
+		return mustNewGHClient(t, httpClient), nil
 	}
 }
 
@@ -110,7 +111,7 @@ func stubRepoAccessCache(restClient *gogithub.Client, ttl time.Duration) *lockdo
 
 func mockRESTPermissionServer(t *testing.T, defaultPerm string, overrides map[string]string) *gogithub.Client {
 	t.Helper()
-	return gogithub.NewClient(MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+	return mustNewGHClient(t, MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
 		perm := defaultPerm
 		for user, p := range overrides {
 			if strings.Contains(r.URL.Path, "/collaborators/"+user+"/") {
@@ -289,28 +290,17 @@ func TestResolveEnabledToolsets(t *testing.T) {
 		expectedResult []string
 	}{
 		{
-			name: "nil toolsets without dynamic mode and no tools - use defaults",
+			name: "nil toolsets and no tools - use defaults",
 			cfg: MCPServerConfig{
 				EnabledToolsets: nil,
-				DynamicToolsets: false,
 				EnabledTools:    nil,
 			},
 			expectedResult: nil, // nil means "use defaults"
 		},
 		{
-			name: "nil toolsets with dynamic mode - start empty",
-			cfg: MCPServerConfig{
-				EnabledToolsets: nil,
-				DynamicToolsets: true,
-				EnabledTools:    nil,
-			},
-			expectedResult: []string{}, // empty slice means no toolsets
-		},
-		{
 			name: "explicit toolsets",
 			cfg: MCPServerConfig{
 				EnabledToolsets: []string{"repos", "issues"},
-				DynamicToolsets: false,
 			},
 			expectedResult: []string{"repos", "issues"},
 		},
@@ -318,33 +308,47 @@ func TestResolveEnabledToolsets(t *testing.T) {
 			name: "empty toolsets - disable all",
 			cfg: MCPServerConfig{
 				EnabledToolsets: []string{},
-				DynamicToolsets: false,
 			},
-			expectedResult: []string{}, // empty slice means no toolsets
+			expectedResult: []string{},
 		},
 		{
 			name: "specific tools without toolsets - no default toolsets",
 			cfg: MCPServerConfig{
 				EnabledToolsets: nil,
-				DynamicToolsets: false,
 				EnabledTools:    []string{"get_me"},
 			},
 			expectedResult: []string{}, // empty slice when tools specified but no toolsets
-		},
-		{
-			name: "dynamic mode with explicit toolsets removes all and default",
-			cfg: MCPServerConfig{
-				EnabledToolsets: []string{"all", "repos"},
-				DynamicToolsets: true,
-			},
-			expectedResult: []string{"repos"}, // "all" is removed in dynamic mode
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := ResolvedEnabledToolsets(tc.cfg.DynamicToolsets, tc.cfg.EnabledToolsets, tc.cfg.EnabledTools)
+			result := ResolvedEnabledToolsets(tc.cfg.EnabledToolsets, tc.cfg.EnabledTools)
 			assert.Equal(t, tc.expectedResult, result)
+		})
+	}
+}
+
+func TestCompletionsHandler_RejectsMissingRef(t *testing.T) {
+	getClient := func(_ context.Context) (*gogithub.Client, error) {
+		return &gogithub.Client{}, nil
+	}
+	handler := CompletionsHandler(getClient)
+
+	tests := []struct {
+		name string
+		req  *mcp.CompleteRequest
+	}{
+		{name: "nil request", req: nil},
+		{name: "nil params", req: &mcp.CompleteRequest{}},
+		{name: "nil ref", req: &mcp.CompleteRequest{Params: &mcp.CompleteParams{}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := handler(context.Background(), tc.req)
+			require.Error(t, err)
+			assert.Nil(t, result)
+			assert.Contains(t, err.Error(), "missing required parameter: ref")
 		})
 	}
 }
