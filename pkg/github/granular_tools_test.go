@@ -773,7 +773,10 @@ func TestGranularUpdatePullRequestState(t *testing.T) {
 
 func TestGranularRequestPullRequestReviewers(t *testing.T) {
 	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-		PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, &gogithub.PullRequest{Number: gogithub.Ptr(1)}),
+		PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
+			"reviewers":      []any{"user1"},
+			"team_reviewers": []any{"team1"},
+		}).andThen(mockResponse(t, http.StatusOK, &gogithub.PullRequest{Number: gogithub.Ptr(1)})),
 	}))
 	deps := BaseDeps{Client: client}
 	serverTool := GranularRequestPullRequestReviewers(translations.NullTranslationHelper)
@@ -783,7 +786,7 @@ func TestGranularRequestPullRequestReviewers(t *testing.T) {
 		"owner":      "owner",
 		"repo":       "repo",
 		"pullNumber": float64(1),
-		"reviewers":  []string{"user1", "user2"},
+		"reviewers":  []string{"user1", "owner/team1"},
 	})
 	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)

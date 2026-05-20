@@ -1163,7 +1163,7 @@ The following sets of tools are available:
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number to update (number, required)
   - `repo`: Repository name (string, required)
-  - `reviewers`: GitHub usernames to request reviews from (string[], optional)
+  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], optional)
   - `state`: New state (string, optional)
   - `title`: New title (string, optional)
 

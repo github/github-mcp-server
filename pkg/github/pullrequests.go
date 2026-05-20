@@ -752,7 +752,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			},
 			"reviewers": {
 				Type:        "array",
-				Description: "GitHub usernames to request reviews from",
+				Description: "GitHub usernames or ORG/team-slug team reviewers to request reviews from",
 				Items: &jsonschema.Schema{
 					Type: "string",
 				},
@@ -944,8 +944,10 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 				}
 
+				userReviewers, teamReviewers := splitPullRequestReviewers(reviewers)
 				reviewersRequest := github.ReviewersRequest{
-					Reviewers: reviewers,
+					Reviewers:     userReviewers,
+					TeamReviewers: teamReviewers,
 				}
 
 				_, resp, err := client.PullRequests.RequestReviewers(ctx, owner, repo, pullNumber, reviewersRequest)

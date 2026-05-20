@@ -258,6 +258,24 @@ func Test_UpdatePullRequest(t *testing.T) {
 			expectedPR:  mockPRWithReviewers,
 		},
 		{
+			name: "successful PR update with user and team reviewers",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
+					"reviewers":      []any{"reviewer1"},
+					"team_reviewers": []any{"platform"},
+				}).andThen(mockResponse(t, http.StatusOK, mockPRWithReviewers)),
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPRWithReviewers),
+			}),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"reviewers":  []any{"reviewer1", "owner/platform"},
+			},
+			expectError: false,
+			expectedPR:  mockPRWithReviewers,
+		},
+		{
 			name: "successful PR update (title only)",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposPullsByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
