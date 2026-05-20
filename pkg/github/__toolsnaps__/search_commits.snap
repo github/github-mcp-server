@@ -3,7 +3,7 @@
     "readOnlyHint": true,
     "title": "Search commits"
   },
-  "description": "Search for commits across GitHub repositories using specialized commit search syntax. Great for finding specific changes, authors, or messages.",
+  "description": "Search for commits across GitHub repositories using GitHub's commit search syntax. Useful for finding specific changes, authors, or messages across one or many repositories. Searches the default branch only.",
   "inputSchema": {
     "properties": {
       "order": {
@@ -26,11 +26,11 @@
         "type": "number"
       },
       "query": {
-        "description": "Commit search query. Examples: 'repo:owner/repo fix bug', 'author:defunkt', 'committer-date:\u003e2024-01-01'. Supports advanced search syntax.",
+        "description": "Commit search query (GitHub commit search REST). Searches commit messages on the default branch only. Scope the search with `repo:owner/repo`, `org:`, or `user:` (queries without a scope qualifier match across all of GitHub and are usually not what you want). Other qualifiers: `author:`, `committer:`, `author-name:`, `committer-name:`, `author-email:`, `committer-email:`, `author-date:`, `committer-date:` (supports `\u003e`, `\u003c`, `\u003e=`, `\u003c=`, and `YYYY-MM-DD..YYYY-MM-DD` ranges), `merge:true|false`, `hash:`, `tree:`, `parent:`, `is:public`. Examples: `repo:owner/repo fix panic`; `org:github author:defunkt committer-date:\u003e=2024-01-01`; `\"refactor cache\" repo:o/r`; `hash:abc1234 repo:o/r`.",
         "type": "string"
       },
       "sort": {
-        "description": "Sort field ('author-date' or 'committer-date')",
+        "description": "Sort by author or committer date (defaults to best match)",
         "enum": [
           "author-date",
           "committer-date"

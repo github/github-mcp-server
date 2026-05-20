@@ -875,7 +875,7 @@ func Test_SearchCommits(t *testing.T) {
 
 	now := time.Now().Truncate(time.Second)
 	mockSearchResult := &github.CommitsSearchResult{
-		Total:             github.Ptr(1),
+		Total:             github.Ptr(2),
 		IncompleteResults: github.Ptr(false),
 		Commits: []*github.CommitResult{
 			{
@@ -893,6 +893,23 @@ func Test_SearchCommits(t *testing.T) {
 					Login:   github.Ptr("author"),
 					ID:      github.Ptr(int64(1)),
 					HTMLURL: github.Ptr("https://github.com/author"),
+				},
+				Repository: &github.Repository{
+					FullName: github.Ptr("owner/repo"),
+					HTMLURL:  github.Ptr("https://github.com/owner/repo"),
+					Private:  github.Ptr(false),
+				},
+			},
+			{
+				// Commit with no resolved GitHub user for author or committer
+				// (common when the commit email isn't linked to an account).
+				SHA:     github.Ptr("def456commit"),
+				HTMLURL: github.Ptr("https://github.com/owner/repo/commit/def456commit"),
+				Commit: &github.Commit{
+					Message: github.Ptr("Unlinked author"),
+				},
+				Repository: &github.Repository{
+					FullName: github.Ptr("owner/repo"),
 				},
 			},
 		},
@@ -945,7 +962,7 @@ func Test_SearchCommits(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -977,6 +994,23 @@ func Test_SearchCommits(t *testing.T) {
 			assert.Equal(t, *tc.expectedResult.Commits[0].Commit.Author.Name, returnedResult.Items[0].Commit.Author.Name)
 			assert.Equal(t, now.Format(time.RFC3339), returnedResult.Items[0].Commit.Author.Date)
 			assert.Equal(t, *tc.expectedResult.Commits[0].Author.Login, returnedResult.Items[0].Author.Login)
+
+			// Repository info is required so callers can identify which repo
+			// each cross-repo search result belongs to.
+			require.NotNil(t, returnedResult.Items[0].Repository)
+			assert.Equal(t, "owner/repo", returnedResult.Items[0].Repository.FullName)
+			assert.Equal(t, "https://github.com/owner/repo", returnedResult.Items[0].Repository.HTMLURL)
+
+			// Second commit has no resolved GitHub user for author/committer
+			// and no commit-level author block — the handler must not panic
+			// and must omit those fields cleanly.
+			require.Len(t, returnedResult.Items, 2)
+			assert.Equal(t, "def456commit", returnedResult.Items[1].SHA)
+			assert.Nil(t, returnedResult.Items[1].Author)
+			assert.Nil(t, returnedResult.Items[1].Committer)
+			require.NotNil(t, returnedResult.Items[1].Commit)
+			assert.Nil(t, returnedResult.Items[1].Commit.Author)
+			assert.Nil(t, returnedResult.Items[1].Commit.Committer)
 		})
 	}
 }

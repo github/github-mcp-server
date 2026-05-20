@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/ifc"
@@ -487,11 +486,11 @@ func SearchCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 		Properties: map[string]*jsonschema.Schema{
 			"query": {
 				Type:        "string",
-				Description: "Commit search query. Examples: 'repo:owner/repo fix bug', 'author:defunkt', 'committer-date:>2024-01-01'. Supports advanced search syntax.",
+				Description: "Commit search query (GitHub commit search REST). Searches commit messages on the default branch only. Scope the search with `repo:owner/repo`, `org:`, or `user:` (queries without a scope qualifier match across all of GitHub and are usually not what you want). Other qualifiers: `author:`, `committer:`, `author-name:`, `committer-name:`, `author-email:`, `committer-email:`, `author-date:`, `committer-date:` (supports `>`, `<`, `>=`, `<=`, and `YYYY-MM-DD..YYYY-MM-DD` ranges), `merge:true|false`, `hash:`, `tree:`, `parent:`, `is:public`. Examples: `repo:owner/repo fix panic`; `org:github author:defunkt committer-date:>=2024-01-01`; `\"refactor cache\" repo:o/r`; `hash:abc1234 repo:o/r`.",
 			},
 			"sort": {
 				Type:        "string",
-				Description: "Sort field ('author-date' or 'committer-date')",
+				Description: "Sort by author or committer date (defaults to best match)",
 				Enum:        []any{"author-date", "committer-date"},
 			},
 			"order": {
@@ -508,7 +507,7 @@ func SearchCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "search_commits",
-			Description: t("TOOL_SEARCH_COMMITS_DESCRIPTION", "Search for commits across GitHub repositories using specialized commit search syntax. Great for finding specific changes, authors, or messages."),
+			Description: t("TOOL_SEARCH_COMMITS_DESCRIPTION", "Search for commits across GitHub repositories using GitHub's commit search syntax. Useful for finding specific changes, authors, or messages across one or many repositories. Searches the default branch only."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_SEARCH_COMMITS_USER_TITLE", "Search commits"),
 				ReadOnlyHint: true,
@@ -565,60 +564,7 @@ func SearchCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search commits", resp, body), nil, nil
 			}
 
-			convertCommitResultToMinimalCommit := func(commit *github.CommitResult) MinimalCommit {
-				minimalCommit := MinimalCommit{
-					SHA:     commit.GetSHA(),
-					HTMLURL: commit.GetHTMLURL(),
-				}
-
-				if commit.Commit != nil {
-					minimalCommit.Commit = &MinimalCommitInfo{
-						Message: commit.Commit.GetMessage(),
-					}
-
-					if commit.Commit.Author != nil {
-						minimalCommit.Commit.Author = &MinimalCommitAuthor{
-							Name:  commit.Commit.Author.GetName(),
-							Email: commit.Commit.Author.GetEmail(),
-						}
-						if commit.Commit.Author.Date != nil {
-							minimalCommit.Commit.Author.Date = commit.Commit.Author.Date.Format(time.RFC3339)
-						}
-					}
-
-					if commit.Commit.Committer != nil {
-						minimalCommit.Commit.Committer = &MinimalCommitAuthor{
-							Name:  commit.Commit.Committer.GetName(),
-							Email: commit.Commit.Committer.GetEmail(),
-						}
-						if commit.Commit.Committer.Date != nil {
-							minimalCommit.Commit.Committer.Date = commit.Commit.Committer.Date.Format(time.RFC3339)
-						}
-					}
-				}
-
-				if commit.Author != nil {
-					minimalCommit.Author = &MinimalUser{
-						Login:      commit.Author.GetLogin(),
-						ID:         commit.Author.GetID(),
-						ProfileURL: commit.Author.GetHTMLURL(),
-						AvatarURL:  commit.Author.GetAvatarURL(),
-					}
-				}
-
-				if commit.Committer != nil {
-					minimalCommit.Committer = &MinimalUser{
-						Login:      commit.Committer.GetLogin(),
-						ID:         commit.Committer.GetID(),
-						ProfileURL: commit.Committer.GetHTMLURL(),
-						AvatarURL:  commit.Committer.GetAvatarURL(),
-					}
-				}
-
-				return minimalCommit
-			}
-
-			minimalCommits := make([]MinimalCommit, 0, len(result.Commits))
+			minimalCommits := make([]MinimalCommitSearchItem, 0, len(result.Commits))
 			for _, commit := range result.Commits {
 				minimalCommits = append(minimalCommits, convertCommitResultToMinimalCommit(commit))
 			}

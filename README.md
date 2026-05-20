@@ -1307,8 +1307,8 @@ The following sets of tools are available:
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `query`: Commit search query. Examples: 'repo:owner/repo fix bug', 'author:defunkt', 'committer-date:>2024-01-01'. Supports advanced search syntax. (string, required)
-  - `sort`: Sort field ('author-date' or 'committer-date') (string, optional)
+  - `query`: Commit search query (GitHub commit search REST). Searches commit messages on the default branch only. Scope the search with `repo:owner/repo`, `org:`, or `user:` (queries without a scope qualifier match across all of GitHub and are usually not what you want). Other qualifiers: `author:`, `committer:`, `author-name:`, `committer-name:`, `author-email:`, `committer-email:`, `author-date:`, `committer-date:` (supports `>`, `<`, `>=`, `<=`, and `YYYY-MM-DD..YYYY-MM-DD` ranges), `merge:true|false`, `hash:`, `tree:`, `parent:`, `is:public`. Examples: `repo:owner/repo fix panic`; `org:github author:defunkt committer-date:>=2024-01-01`; `"refactor cache" repo:o/r`; `hash:abc1234 repo:o/r`. (string, required)
+  - `sort`: Sort by author or committer date (defaults to best match) (string, optional)
 
 - **search_repositories** - Search repositories
   - **Required OAuth Scopes**: `repo`
