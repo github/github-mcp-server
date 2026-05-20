@@ -1,0 +1,54 @@
+{
+  "annotations": {
+    "title": "Update Dependabot alert"
+  },
+  "description": "Update the state of a Dependabot alert in a GitHub repository.",
+  "inputSchema": {
+    "properties": {
+      "alertNumber": {
+        "description": "The number of the alert.",
+        "type": "number"
+      },
+      "dismissedComment": {
+        "description": "An optional comment associated with dismissing the alert. Maximum 280 characters.",
+        "maxLength": 280,
+        "type": "string"
+      },
+      "dismissedReason": {
+        "description": "Required when state is dismissed. The reason for dismissing the alert.",
+        "enum": [
+          "fix_started",
+          "inaccurate",
+          "no_bandwidth",
+          "not_used",
+          "tolerable_risk"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "The owner of the repository.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "The name of the repository.",
+        "type": "string"
+      },
+      "state": {
+        "description": "The state to set for the alert.",
+        "enum": [
+          "open",
+          "dismissed"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "alertNumber",
+      "state"
+    ],
+    "type": "object"
+  },
+  "name": "update_dependabot_alert"
+}
