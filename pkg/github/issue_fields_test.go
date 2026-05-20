@@ -3,127 +3,169 @@ package github
 import (
 	"context"
 	"encoding/json"
-	"net/http"
-	"strings"
 	"testing"
 
+	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func Test_ListOrgIssueFields(t *testing.T) {
+func Test_ListIssueFields(t *testing.T) {
 	// Verify tool definition
-	serverTool := ListOrgIssueFields(translations.NullTranslationHelper)
+	serverTool := ListIssueFields(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "list_org_issue_fields", tool.Name)
+	assert.Equal(t, "list_issue_fields", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.True(t, tool.Annotations.ReadOnlyHint)
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "org")
-	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"org"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo"})
 
-	mockIssueFields := []*IssueField{
-		{
-			ID:          1,
-			NodeID:      "IFT_kwDNAd3NAZo",
-			Name:        "DRI",
-			Description: "Directly responsible individual",
-			DataType:    "text",
-			Visibility:  "organization_members_only",
-		},
-		{
-			ID:          2,
-			NodeID:      "IFSS_kwDNAd3NAZs",
-			Name:        "Priority",
-			Description: "Level of importance",
-			DataType:    "single_select",
-			Visibility:  "all",
-			Options: []IssueSingleSelectFieldOption{
-				{ID: 1, Name: "High", Color: "red", Priority: 1},
-				{ID: 2, Name: "Medium", Color: "yellow", Priority: 2},
-				{ID: 3, Name: "Low", Color: "gray", Priority: 3},
-			},
-		},
+	queryStruct := issueFieldsQuery{}
+	defaultVars := map[string]any{
+		"owner": githubv4.String("testowner"),
+		"name":  githubv4.String("testrepo"),
 	}
 
 	tests := []struct {
-		name                string
-		mockedClient        *http.Client
-		requestArgs         map[string]any
-		expectError         bool
-		expectedIssueFields []*IssueField
-		expectedErrMsg      string
+		name           string
+		requestArgs    map[string]any
+		gqlResponse    githubv4mock.GQLResponse
+		expectError    bool
+		expectedFields []IssueField
+		expectedErrMsg string
 	}{
 		{
-			name: "successful issue fields retrieval",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /orgs/testorg/issue-fields": mockResponse(t, http.StatusOK, mockIssueFields),
-			}),
+			name: "no fields returns empty list",
 			requestArgs: map[string]any{
-				"org": "testorg",
+				"owner": "testowner",
+				"repo":  "testrepo",
 			},
-			expectError:         false,
-			expectedIssueFields: mockIssueFields,
+			gqlResponse: githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"issueFields": map[string]any{
+						"nodes": []any{},
+					},
+				},
+			}),
+			expectedFields: []IssueField{},
 		},
 		{
-			name: "issue fields not enabled returns empty list",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /orgs/testorg/issue-fields": mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
-			}),
+			name: "text field returned",
 			requestArgs: map[string]any{
-				"org": "testorg",
+				"owner": "testowner",
+				"repo":  "testrepo",
 			},
-			expectError:         false,
-			expectedIssueFields: []*IssueField{},
+			gqlResponse: githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"issueFields": map[string]any{
+						"nodes": []any{
+							map[string]any{
+								"__typename":  "IssueFieldText",
+								"id":          "IFT_1",
+								"name":        "DRI",
+								"description": "Directly responsible individual",
+								"dataType":    "TEXT",
+								"visibility":  "ORG_ONLY",
+							},
+						},
+					},
+				},
+			}),
+			expectedFields: []IssueField{
+				{
+					ID:          "IFT_1",
+					Name:        "DRI",
+					Description: "Directly responsible individual",
+					DataType:    "TEXT",
+					Visibility:  "ORG_ONLY",
+				},
+			},
 		},
 		{
-			name: "missing org parameter",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /orgs/testorg/issue-fields": mockResponse(t, http.StatusOK, mockIssueFields),
+			name: "single_select field with options returned",
+			requestArgs: map[string]any{
+				"owner": "testowner",
+				"repo":  "testrepo",
+			},
+			gqlResponse: githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"issueFields": map[string]any{
+						"nodes": []any{
+							map[string]any{
+								"__typename":  "IssueFieldSingleSelect",
+								"id":          "IFSS_1",
+								"name":        "Priority",
+								"description": "Level of importance",
+								"dataType":    "SINGLE_SELECT",
+								"visibility":  "ALL",
+								"options": []any{
+									map[string]any{
+										"id":    "OPT_1",
+										"name":  "High",
+										"color": "red",
+									},
+									map[string]any{
+										"id":    "OPT_2",
+										"name":  "Low",
+										"color": "blue",
+									},
+								},
+							},
+						},
+					},
+				},
 			}),
-			requestArgs:    map[string]any{},
+			expectedFields: []IssueField{
+				{
+					ID:          "IFSS_1",
+					Name:        "Priority",
+					Description: "Level of importance",
+					DataType:    "SINGLE_SELECT",
+					Visibility:  "ALL",
+					Options: []IssueSingleSelectFieldOption{
+						{ID: "OPT_1", Name: "High", Color: "red"},
+						{ID: "OPT_2", Name: "Low", Color: "blue"},
+					},
+				},
+			},
+		},
+		{
+			name: "missing owner parameter",
+			requestArgs: map[string]any{
+				"repo": "testrepo",
+			},
+			gqlResponse:    githubv4mock.DataResponse(map[string]any{}),
 			expectError:    true,
-			expectedErrMsg: "missing required parameter: org",
+			expectedErrMsg: "missing required parameter: owner",
 		},
 		{
-			name: "forbidden returns error",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /orgs/testorg/issue-fields": mockResponse(t, http.StatusForbidden, `{"message": "Forbidden"}`),
-			}),
+			name: "missing repo parameter",
 			requestArgs: map[string]any{
-				"org": "testorg",
+				"owner": "testowner",
 			},
+			gqlResponse:    githubv4mock.DataResponse(map[string]any{}),
 			expectError:    true,
-			expectedErrMsg: "failed to list issue fields",
-		},
-		{
-			name: "internal server error returns error",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /orgs/testorg/issue-fields": mockResponse(t, http.StatusInternalServerError, `{"message": "Internal Server Error"}`),
-			}),
-			requestArgs: map[string]any{
-				"org": "testorg",
-			},
-			expectError:    true,
-			expectedErrMsg: "failed to list issue fields",
+			expectedErrMsg: "missing required parameter: repo",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := github.NewClient(tc.mockedClient)
-			deps := BaseDeps{
-				Client: client,
-			}
+			mockedHTTPClient := githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(queryStruct, defaultVars, tc.gqlResponse),
+			)
+			gqlClient := githubv4.NewClient(mockedHTTPClient)
+			deps := BaseDeps{GQLClient: gqlClient}
 			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			if tc.expectError {
@@ -138,24 +180,16 @@ func Test_ListOrgIssueFields(t *testing.T) {
 				return
 			}
 
-			if result != nil && result.IsError {
-				errorContent := getErrorResult(t, result)
-				if tc.expectedErrMsg != "" && strings.Contains(errorContent.Text, tc.expectedErrMsg) {
-					return
-				}
-			}
-
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
 
-			var returnedFields []*IssueField
+			var returnedFields []IssueField
 			err = json.Unmarshal([]byte(textContent.Text), &returnedFields)
 			require.NoError(t, err)
-
-			require.Equal(t, len(tc.expectedIssueFields), len(returnedFields))
-			for i, expected := range tc.expectedIssueFields {
+			require.Equal(t, len(tc.expectedFields), len(returnedFields))
+			for i, expected := range tc.expectedFields {
 				assert.Equal(t, expected.ID, returnedFields[i].ID)
 				assert.Equal(t, expected.Name, returnedFields[i].Name)
 				assert.Equal(t, expected.DataType, returnedFields[i].DataType)
