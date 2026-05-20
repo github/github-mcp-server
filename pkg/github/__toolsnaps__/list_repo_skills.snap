@@ -1,0 +1,25 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List Agent Skills in a repository"
+  },
+  "description": "List Agent Skills (SKILL.md files) defined in a GitHub repository. Returns each discovered skill's name plus a `skill://` URI you can pass directly to `resources/read` to fetch its SKILL.md. Recognizes the agentskills.io directory conventions: skills/*/SKILL.md, skills/{namespace}/*/SKILL.md, plugins/*/skills/*/SKILL.md, and root-level */SKILL.md. Use this when you need to discover what skills a repository exposes before reading any of them.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner (username or organization name).",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "list_repo_skills"
+}
