@@ -321,7 +321,6 @@ func hasStaticConfig(cfg *ServerConfig) bool {
 	return cfg.ReadOnly ||
 		cfg.EnabledToolsets != nil ||
 		cfg.EnabledTools != nil ||
-		cfg.DynamicToolsets ||
 		len(cfg.ExcludeTools) > 0 ||
 		cfg.InsidersMode
 }
@@ -337,7 +336,7 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 	b := github.NewInventory(t).
 		WithFeatureChecker(featureChecker).
 		WithReadOnly(cfg.ReadOnly).
-		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools))
+		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools))
 
 	if len(cfg.EnabledTools) > 0 {
 		b = b.WithTools(github.CleanTools(cfg.EnabledTools))
@@ -373,7 +372,7 @@ func InventoryFiltersForRequest(r *http.Request, builder *inventory.Builder) *in
 	tools := ghcontext.GetTools(ctx)
 
 	if len(toolsets) > 0 {
-		builder = builder.WithToolsets(github.ResolvedEnabledToolsets(false, toolsets, tools)) // No dynamic toolsets in HTTP mode
+		builder = builder.WithToolsets(github.ResolvedEnabledToolsets(toolsets, tools))
 	}
 
 	if len(tools) > 0 {
