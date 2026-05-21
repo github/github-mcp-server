@@ -78,9 +78,9 @@ jobs:
           go-version: ${{ fromJSON(steps.resolve-environment.outputs.environment).configuration.go.version }}
           cache: false
 
-      - name: Set up Node.js (for JavaScript CodeQL)
-        if: matrix.language == 'javascript'
-        uses: actions/setup-node@v6
+      - name: Set up Node.js
+        if: matrix.language == 'go' || matrix.language == 'javascript'
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
@@ -88,7 +88,7 @@ jobs:
 
       - name: Build UI
         if: matrix.language == 'go'
-        uses: ./.github/actions/build-ui
+        run: script/build-ui
 
       - name: Autobuild
         uses: github/codeql-action/autobuild@v4

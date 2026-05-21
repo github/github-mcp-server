@@ -1186,7 +1186,7 @@ func Test_SearchIssues_FieldValuesEnrichment(t *testing.T) {
 	require.Equal(t, 2, *response.Total)
 	require.Len(t, response.Items, 2)
 	assert.Equal(t, 42, *response.Items[0].Number)
-	assert.Equal(t, []MinimalIssueFieldValue{
+	assert.Equal(t, []MinimalFieldValue{
 		{Field: "priority", Value: "P1"},
 		{Field: "estimate", Value: "2.5"},
 	}, response.Items[0].FieldValues)
@@ -1976,9 +1976,9 @@ func Test_ListIssues(t *testing.T) {
 				// (including float formatting); #789 has no field values.
 				switch issue.Number {
 				case 123:
-					assert.Equal(t, []MinimalIssueFieldValue{{Field: "priority", Value: "P1"}}, issue.FieldValues)
+					assert.Equal(t, []MinimalFieldValue{{Field: "priority", Value: "P1"}}, issue.FieldValues)
 				case 456:
-					assert.Equal(t, []MinimalIssueFieldValue{
+					assert.Equal(t, []MinimalFieldValue{
 						{Field: "due", Value: "2026-06-01"},
 						{Field: "estimate", Value: "2.5"},
 						{Field: "notes", Value: "needs triage"},
