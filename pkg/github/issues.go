@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -199,7 +201,7 @@ type IssueQueryFragment struct {
 // ListIssuesQuery is the root query structure for fetching issues with optional label filtering.
 type ListIssuesQuery struct {
 	Repository struct {
-		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction})"`
+		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues})"`
 		IsPrivate githubv4.Boolean
 	} `graphql:"repository(owner: $owner, name: $repo)"`
 }
@@ -207,7 +209,7 @@ type ListIssuesQuery struct {
 // ListIssuesQueryTypeWithLabels is the query structure for fetching issues with optional label filtering.
 type ListIssuesQueryTypeWithLabels struct {
 	Repository struct {
-		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction})"`
+		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues})"`
 		IsPrivate githubv4.Boolean
 	} `graphql:"repository(owner: $owner, name: $repo)"`
 }
@@ -215,7 +217,7 @@ type ListIssuesQueryTypeWithLabels struct {
 // ListIssuesQueryWithSince is the query structure for fetching issues without label filtering but with since filtering.
 type ListIssuesQueryWithSince struct {
 	Repository struct {
-		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since})"`
+		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since, issueFieldValues: $issueFieldValues})"`
 		IsPrivate githubv4.Boolean
 	} `graphql:"repository(owner: $owner, name: $repo)"`
 }
@@ -223,9 +225,19 @@ type ListIssuesQueryWithSince struct {
 // ListIssuesQueryTypeWithLabelsWithSince is the query structure for fetching issues with both label and since filtering.
 type ListIssuesQueryTypeWithLabelsWithSince struct {
 	Repository struct {
-		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since})"`
+		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since, issueFieldValues: $issueFieldValues})"`
 		IsPrivate githubv4.Boolean
 	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
+// IssueFieldValueFilter mirrors the GraphQL IssueFieldValueFilter input. Exactly one typed value
+// field should be set per filter (the monolith resolver rejects multiple).
+type IssueFieldValueFilter struct {
+	FieldName               githubv4.String  `json:"fieldName"`
+	TextValue               *githubv4.String `json:"textValue,omitempty"`
+	DateValue               *githubv4.String `json:"dateValue,omitempty"`
+	NumberValue             *githubv4.Float  `json:"numberValue,omitempty"`
+	SingleSelectOptionValue *githubv4.String `json:"singleSelectOptionValue,omitempty"`
 }
 
 // Implement the interface for all query types
@@ -1727,6 +1739,24 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Type:        "string",
 				Description: "Filter by date (ISO 8601 timestamp)",
 			},
+			"field_filters": {
+				Type:        "array",
+				Description: "Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date).",
+				Items: &jsonschema.Schema{
+					Type: "object",
+					Properties: map[string]*jsonschema.Schema{
+						"field_name": {
+							Type:        "string",
+							Description: "Name of the custom field (e.g. \"Priority\"). Case-insensitive.",
+						},
+						"value": {
+							Type:        "string",
+							Description: "Value to filter on. For single-select fields, the option name (e.g. \"P1\"). For dates, YYYY-MM-DD. For numbers, the numeric value as a string. For text, the text value.",
+						},
+					},
+					Required: []string{"field_name", "value"},
+				},
+			},
 		},
 		Required: []string{"owner", "repo"},
 	}
@@ -1822,6 +1852,11 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 			hasLabels := len(labels) > 0
 
+			rawFilters, err := parseRawFieldFilters(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
 			// Get pagination parameters and convert to GraphQL format
 			pagination, err := OptionalCursorPaginationParams(args)
 			if err != nil {
@@ -1853,13 +1888,28 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
 
+			// Resolve field filters by looking up the repo's issue fields so we can
+			// coerce each value into the right typed slot on IssueFieldValueFilter.
+			fieldFilters := []IssueFieldValueFilter{}
+			if len(rawFilters) > 0 {
+				fields, err := fetchIssueFields(ctx, client, owner, repo)
+				if err != nil {
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to look up issue fields for field_filters", err), nil, nil
+				}
+				fieldFilters, err = resolveFieldFilters(rawFilters, fields)
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+			}
+
 			vars := map[string]any{
-				"owner":     githubv4.String(owner),
-				"repo":      githubv4.String(repo),
-				"states":    states,
-				"orderBy":   githubv4.IssueOrderField(orderBy),
-				"direction": githubv4.OrderDirection(direction),
-				"first":     githubv4.Int(*paginationParams.First),
+				"owner":            githubv4.String(owner),
+				"repo":             githubv4.String(repo),
+				"states":           states,
+				"orderBy":          githubv4.IssueOrderField(orderBy),
+				"direction":        githubv4.OrderDirection(direction),
+				"first":            githubv4.Int(*paginationParams.First),
+				"issueFieldValues": fieldFilters,
 			}
 
 			if paginationParams.After != nil {
@@ -1884,7 +1934,11 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			issueQuery := getIssueQueryType(hasLabels, hasSince)
-			if err := client.Query(ctx, issueQuery, vars); err != nil {
+			// The list_issues query references the issue_fields-gated IssueFieldValueFilter
+			// input type unconditionally, so we always opt into the feature via header. This
+			// is a no-op once the flags are globally rolled out.
+			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
+			if err := client.Query(ctxWithFeatures, issueQuery, vars); err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(
 					ctx,
 					"failed to list issues",
@@ -1908,6 +1962,116 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 			return result, nil, nil
 		})
+}
+
+// rawFieldFilter is the user-supplied {field_name, value} pair before type resolution.
+type rawFieldFilter struct {
+	Name  string
+	Value string
+}
+
+// parseRawFieldFilters extracts the optional field_filters parameter into a list of
+// {name, value} pairs. The value is always a string here; type-aware coercion happens
+// later in resolveFieldFilters once we know each field's data_type.
+func parseRawFieldFilters(args map[string]any) ([]rawFieldFilter, error) {
+	raw, ok := args["field_filters"]
+	if !ok {
+		return nil, nil
+	}
+
+	var entries []map[string]any
+	switch v := raw.(type) {
+	case []any:
+		for _, f := range v {
+			entry, ok := f.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("each field_filters entry must be an object")
+			}
+			entries = append(entries, entry)
+		}
+	case []map[string]any:
+		entries = v
+	default:
+		return nil, fmt.Errorf("field_filters must be an array")
+	}
+
+	filters := make([]rawFieldFilter, 0, len(entries))
+	for _, entry := range entries {
+		fieldName, err := RequiredParam[string](entry, "field_name")
+		if err != nil {
+			return nil, fmt.Errorf("field_filters entry: %s", err.Error())
+		}
+		value, err := RequiredParam[string](entry, "value")
+		if err != nil {
+			return nil, fmt.Errorf("field_filters entry %q: %s", fieldName, err.Error())
+		}
+		filters = append(filters, rawFieldFilter{Name: fieldName, Value: value})
+	}
+	return filters, nil
+}
+
+// resolveFieldFilters matches each raw filter against a known field definition and
+// coerces the value into the right typed slot on IssueFieldValueFilter. Matching is
+// case-insensitive on field name; option names are also matched case-insensitively for
+// single-select fields.
+func resolveFieldFilters(rawFilters []rawFieldFilter, fields []IssueField) ([]IssueFieldValueFilter, error) {
+	byName := make(map[string]IssueField, len(fields))
+	knownNames := make([]string, 0, len(fields))
+	for _, f := range fields {
+		byName[strings.ToLower(f.Name)] = f
+		knownNames = append(knownNames, f.Name)
+	}
+
+	out := make([]IssueFieldValueFilter, 0, len(rawFilters))
+	for _, rf := range rawFilters {
+		field, ok := byName[strings.ToLower(rf.Name)]
+		if !ok {
+			return nil, fmt.Errorf("field_filters: unknown field %q. Known fields: %s", rf.Name, strings.Join(knownNames, ", "))
+		}
+
+		filter := IssueFieldValueFilter{FieldName: githubv4.String(field.Name)}
+		switch field.DataType {
+		case "SINGLE_SELECT":
+			// Validate the option name against the field's options so we fail fast
+			// with a useful error instead of an opaque GraphQL one.
+			var matched string
+			for _, o := range field.Options {
+				if strings.EqualFold(o.Name, rf.Value) {
+					matched = o.Name
+					break
+				}
+			}
+			if matched == "" {
+				optionNames := make([]string, 0, len(field.Options))
+				for _, o := range field.Options {
+					optionNames = append(optionNames, o.Name)
+				}
+				return nil, fmt.Errorf("field_filters: %q is not a valid option for %q. Valid options: %s", rf.Value, field.Name, strings.Join(optionNames, ", "))
+			}
+			v := githubv4.String(matched)
+			filter.SingleSelectOptionValue = &v
+		case "TEXT":
+			v := githubv4.String(rf.Value)
+			filter.TextValue = &v
+		case "DATE":
+			if _, err := time.Parse("2006-01-02", rf.Value); err != nil {
+				return nil, fmt.Errorf("field_filters: %q is not a valid date for %q (expected YYYY-MM-DD): %s", rf.Value, field.Name, err.Error())
+			}
+			v := githubv4.String(rf.Value)
+			filter.DateValue = &v
+		case "NUMBER":
+			n, err := strconv.ParseFloat(rf.Value, 64)
+			if err != nil {
+				return nil, fmt.Errorf("field_filters: %q is not a valid number for %q: %s", rf.Value, field.Name, err.Error())
+			}
+			v := githubv4.Float(n)
+			filter.NumberValue = &v
+		default:
+			return nil, fmt.Errorf("field_filters: field %q has unsupported data_type %q", field.Name, field.DataType)
+		}
+		out = append(out, filter)
+	}
+	return out, nil
 }
 
 // parseISOTimestamp parses an ISO 8601 timestamp string into a time.Time object.
