@@ -19,32 +19,35 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
       - name: Build UI
         uses: ./.github/actions/build-ui
+
+      - name: Generate diff configurations
+        id: configs
+        # The generator imports pkg/github so any new entry in
+        # AllowedFeatureFlags is automatically diffed without touching this
+        # workflow. See script/print-mcp-diff-configs/main.go.
+        run: |
+          {
+            echo 'configurations<<MCP_DIFF_EOF'
+            go run ./script/print-mcp-diff-configs
+            echo 'MCP_DIFF_EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Run MCP Server Diff
         uses: SamMorrowDrums/mcp-server-diff@v2.3.5
         with:
-          setup_go: "true"
+          setup_go: "false"
           install_command: go mod download
           start_command: go run ./cmd/github-mcp-server stdio
           env_vars: |
             GITHUB_PERSONAL_ACCESS_TOKEN=test-token
-          configurations: |
-            [
-              {"name": "default", "args": ""},
-              {"name": "read-only", "args": "--read-only"},
-              {"name": "toolsets-repos", "args": "--toolsets=repos"},
-              {"name": "toolsets-issues", "args": "--toolsets=issues"},
-              {"name": "toolsets-context", "args": "--toolsets=context"},
-              {"name": "toolsets-pull_requests", "args": "--toolsets=pull_requests"},
-              {"name": "toolsets-repos,issues", "args": "--toolsets=repos,issues"},
-              {"name": "toolsets-issues,context", "args": "--toolsets=issues,context"},
-              {"name": "toolsets-all", "args": "--toolsets=all"},
-              {"name": "tools-get_me", "args": "--tools=get_me"},
-              {"name": "tools-get_me,list_issues", "args": "--tools=get_me,list_issues"},
-              {"name": "toolsets-repos+read-only", "args": "--toolsets=repos --read-only"}
-            ]
+          configurations: ${{ steps.configs.outputs.configurations }}
 
       - name: Add interpretation note
         if: always()
