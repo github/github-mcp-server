@@ -280,6 +280,123 @@ func getIssueQueryType(hasLabels bool, hasSince bool) any {
 	}
 }
 
+// --- Legacy list_issues GraphQL types ---
+//
+// These mirror the pre-Issues-2.0 shape of the list_issues query and exist solely
+// to back the FeatureFlagIssueFields-disabled variant of the tool. They omit the
+// IssueFieldValues selection and the filterBy: {issueFieldValues: ...} clause so
+// the request does not depend on server-side issue_fields GraphQL features and
+// does not pay the wire/server cost of fetching custom field values when the flag
+// is off. Delete this whole block (and its callers) when FeatureFlagIssueFields
+// is removed.
+
+type LegacyIssueFragment struct {
+	Number     githubv4.Int
+	Title      githubv4.String
+	Body       githubv4.String
+	State      githubv4.String
+	DatabaseID int64
+
+	Author struct {
+		Login githubv4.String
+	}
+	CreatedAt githubv4.DateTime
+	UpdatedAt githubv4.DateTime
+	Labels    struct {
+		Nodes []struct {
+			Name        githubv4.String
+			ID          githubv4.String
+			Description githubv4.String
+		}
+	} `graphql:"labels(first: 100)"`
+	Comments struct {
+		TotalCount githubv4.Int
+	} `graphql:"comments"`
+}
+
+type LegacyIssueQueryFragment struct {
+	Nodes    []LegacyIssueFragment `graphql:"nodes"`
+	PageInfo struct {
+		HasNextPage     githubv4.Boolean
+		HasPreviousPage githubv4.Boolean
+		StartCursor     githubv4.String
+		EndCursor       githubv4.String
+	}
+	TotalCount int
+}
+
+type LegacyIssueQueryResult interface {
+	GetLegacyIssueFragment() LegacyIssueQueryFragment
+	GetIsPrivate() bool
+}
+
+type LegacyListIssuesQuery struct {
+	Repository struct {
+		Issues    LegacyIssueQueryFragment `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction})"`
+		IsPrivate githubv4.Boolean
+	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
+type LegacyListIssuesQueryTypeWithLabels struct {
+	Repository struct {
+		Issues    LegacyIssueQueryFragment `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction})"`
+		IsPrivate githubv4.Boolean
+	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
+type LegacyListIssuesQueryWithSince struct {
+	Repository struct {
+		Issues    LegacyIssueQueryFragment `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since})"`
+		IsPrivate githubv4.Boolean
+	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
+type LegacyListIssuesQueryTypeWithLabelsWithSince struct {
+	Repository struct {
+		Issues    LegacyIssueQueryFragment `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since})"`
+		IsPrivate githubv4.Boolean
+	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
+func (q *LegacyListIssuesQuery) GetLegacyIssueFragment() LegacyIssueQueryFragment {
+	return q.Repository.Issues
+}
+func (q *LegacyListIssuesQuery) GetIsPrivate() bool { return bool(q.Repository.IsPrivate) }
+
+func (q *LegacyListIssuesQueryTypeWithLabels) GetLegacyIssueFragment() LegacyIssueQueryFragment {
+	return q.Repository.Issues
+}
+func (q *LegacyListIssuesQueryTypeWithLabels) GetIsPrivate() bool {
+	return bool(q.Repository.IsPrivate)
+}
+
+func (q *LegacyListIssuesQueryWithSince) GetLegacyIssueFragment() LegacyIssueQueryFragment {
+	return q.Repository.Issues
+}
+func (q *LegacyListIssuesQueryWithSince) GetIsPrivate() bool {
+	return bool(q.Repository.IsPrivate)
+}
+
+func (q *LegacyListIssuesQueryTypeWithLabelsWithSince) GetLegacyIssueFragment() LegacyIssueQueryFragment {
+	return q.Repository.Issues
+}
+func (q *LegacyListIssuesQueryTypeWithLabelsWithSince) GetIsPrivate() bool {
+	return bool(q.Repository.IsPrivate)
+}
+
+func getLegacyIssueQueryType(hasLabels bool, hasSince bool) any {
+	switch {
+	case hasLabels && hasSince:
+		return &LegacyListIssuesQueryTypeWithLabelsWithSince{}
+	case hasLabels:
+		return &LegacyListIssuesQueryTypeWithLabels{}
+	case hasSince:
+		return &LegacyListIssuesQueryWithSince{}
+	default:
+		return &LegacyListIssuesQuery{}
+	}
+}
+
 // IssueRead creates a tool to get details of a specific issue in a GitHub repository.
 func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
@@ -1262,7 +1379,7 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 	}
 
 	var fieldValuesByID map[string][]MinimalIssueFieldValue
-	if len(result.Issues) > 0 {
+	if deps.IsFeatureEnabled(ctx, FeatureFlagIssueFields) && len(result.Issues) > 0 {
 		gqlClient, err := deps.GetGQLClient(ctx)
 		if err != nil {
 			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub GraphQL client", err), nil
@@ -1700,7 +1817,11 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	return utils.NewToolResultText(string(r)), nil
 }
 
-// ListIssues creates a tool to list and filter repository issues
+// ListIssues creates a tool to list and filter repository issues. This variant is
+// gated by FeatureFlagIssueFields and exposes the Issues 2.0 field_filters input
+// plus field_values output enrichment. When the flag is off, LegacyListIssues is
+// served instead. Both registrations share the tool name "list_issues" and rely on
+// the inventory's feature-flag filter to make exactly one active at a time.
 func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -1762,7 +1883,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	}
 	WithCursorPagination(schema)
 
-	return NewTool(
+	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issues",
@@ -1962,6 +2083,211 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 			return result, nil, nil
 		})
+	st.FeatureFlagEnable = FeatureFlagIssueFields
+	return st
+}
+
+// LegacyListIssues is the FeatureFlagIssueFields-disabled variant of list_issues.
+// It exposes the pre-Issues-2.0 schema (no field_filters) and uses a GraphQL query
+// path that does not select issueFieldValues or pass the issue_fields filter, so
+// the request does not depend on server-side issue_fields features and does not pay
+// for custom field values when the flag is off. Both this and ListIssues register
+// under the tool name "list_issues"; exactly one is active for any given request
+// thanks to mutually exclusive FeatureFlagEnable / FeatureFlagDisable annotations.
+// Delete this function (and the rest of the Legacy* block) when the flag is removed.
+func LegacyListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"state": {
+				Type:        "string",
+				Description: "Filter by state, by default both open and closed issues are returned when not provided",
+				Enum:        []any{"OPEN", "CLOSED"},
+			},
+			"labels": {
+				Type:        "array",
+				Description: "Filter by labels",
+				Items: &jsonschema.Schema{
+					Type: "string",
+				},
+			},
+			"orderBy": {
+				Type:        "string",
+				Description: "Order issues by field. If provided, the 'direction' also needs to be provided.",
+				Enum:        []any{"CREATED_AT", "UPDATED_AT", "COMMENTS"},
+			},
+			"direction": {
+				Type:        "string",
+				Description: "Order direction. If provided, the 'orderBy' also needs to be provided.",
+				Enum:        []any{"ASC", "DESC"},
+			},
+			"since": {
+				Type:        "string",
+				Description: "Filter by date (ISO 8601 timestamp)",
+			},
+		},
+		Required: []string{"owner", "repo"},
+	}
+	WithCursorPagination(schema)
+
+	st := NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "list_issues",
+			Description: t("TOOL_LIST_ISSUES_DESCRIPTION", "List issues in a GitHub repository. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_LIST_ISSUES_USER_TITLE", "List issues"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: schema,
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			state, err := OptionalParam[string](args, "state")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			state = strings.ToUpper(state)
+			var states []githubv4.IssueState
+			switch state {
+			case "OPEN", "CLOSED":
+				states = []githubv4.IssueState{githubv4.IssueState(state)}
+			default:
+				states = []githubv4.IssueState{githubv4.IssueStateOpen, githubv4.IssueStateClosed}
+			}
+
+			labels, err := OptionalStringArrayParam(args, "labels")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			orderBy, err := OptionalParam[string](args, "orderBy")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			direction, err := OptionalParam[string](args, "direction")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			orderBy = strings.ToUpper(orderBy)
+			switch orderBy {
+			case "CREATED_AT", "UPDATED_AT", "COMMENTS":
+			default:
+				orderBy = "CREATED_AT"
+			}
+			direction = strings.ToUpper(direction)
+			switch direction {
+			case "ASC", "DESC":
+			default:
+				direction = "DESC"
+			}
+
+			since, err := OptionalParam[string](args, "since")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			var sinceTime time.Time
+			var hasSince bool
+			if since != "" {
+				sinceTime, err = parseISOTimestamp(since)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("failed to list issues: %s", err.Error())), nil, nil
+				}
+				hasSince = true
+			}
+			hasLabels := len(labels) > 0
+
+			pagination, err := OptionalCursorPaginationParams(args)
+			if err != nil {
+				return nil, nil, err
+			}
+			if _, pageProvided := args["page"]; pageProvided {
+				return utils.NewToolResultError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), nil, nil
+			}
+			_, perPageProvided := args["perPage"]
+			paginationExplicit := perPageProvided
+			paginationParams, err := pagination.ToGraphQLParams()
+			if err != nil {
+				return nil, nil, err
+			}
+			if !paginationExplicit {
+				defaultFirst := int32(DefaultGraphQLPageSize)
+				paginationParams.First = &defaultFirst
+			}
+
+			client, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+			}
+
+			vars := map[string]any{
+				"owner":     githubv4.String(owner),
+				"repo":      githubv4.String(repo),
+				"states":    states,
+				"orderBy":   githubv4.IssueOrderField(orderBy),
+				"direction": githubv4.OrderDirection(direction),
+				"first":     githubv4.Int(*paginationParams.First),
+			}
+			if paginationParams.After != nil {
+				vars["after"] = githubv4.String(*paginationParams.After)
+			} else {
+				vars["after"] = (*githubv4.String)(nil)
+			}
+			if hasLabels {
+				labelStrings := make([]githubv4.String, len(labels))
+				for i, label := range labels {
+					labelStrings[i] = githubv4.String(label)
+				}
+				vars["labels"] = labelStrings
+			}
+			if hasSince {
+				vars["since"] = githubv4.DateTime{Time: sinceTime}
+			}
+
+			issueQuery := getLegacyIssueQueryType(hasLabels, hasSince)
+			if err := client.Query(ctx, issueQuery, vars); err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(
+					ctx,
+					"failed to list issues",
+					err,
+				), nil, nil
+			}
+
+			var resp MinimalIssuesResponse
+			var isPrivate bool
+			if queryResult, ok := issueQuery.(LegacyIssueQueryResult); ok {
+				resp = convertLegacyToMinimalIssuesResponse(queryResult.GetLegacyIssueFragment())
+				isPrivate = queryResult.GetIsPrivate()
+			}
+
+			result := MarshalledTextResult(resp)
+			if deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
+				if result.Meta == nil {
+					result.Meta = mcp.Meta{}
+				}
+				result.Meta["ifc"] = ifc.LabelListIssues(isPrivate)
+			}
+			return result, nil, nil
+		})
+	st.FeatureFlagDisable = FeatureFlagIssueFields
+	return st
 }
 
 // rawFieldFilter is the user-supplied {field_name, value} pair before type resolution.

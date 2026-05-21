@@ -95,8 +95,9 @@ type issueFieldsOrgQuery struct {
 }
 
 // ListIssueFields creates a tool to list issue field definitions for a repository or organization.
+// Gated by FeatureFlagIssueFields: the tool is only registered when the flag is on.
 func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issue_fields",
@@ -148,6 +149,8 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
+	st.FeatureFlagEnable = FeatureFlagIssueFields
+	return st
 }
 
 // fetchIssueFields returns the issue field definitions for the given owner.

@@ -525,6 +525,51 @@ func convertToMinimalIssuesResponse(fragment IssueQueryFragment) MinimalIssuesRe
 	}
 }
 
+// legacyFragmentToMinimalIssue converts the FeatureFlagIssueFields-disabled
+// LegacyIssueFragment into a MinimalIssue. MinimalIssue.FieldValues is left
+// nil so omitempty drops it from JSON output. Delete with the rest of the
+// Legacy* block when the flag is removed.
+func legacyFragmentToMinimalIssue(fragment LegacyIssueFragment) MinimalIssue {
+	m := MinimalIssue{
+		Number:    int(fragment.Number),
+		Title:     sanitize.Sanitize(string(fragment.Title)),
+		Body:      sanitize.Sanitize(string(fragment.Body)),
+		State:     string(fragment.State),
+		Comments:  int(fragment.Comments.TotalCount),
+		CreatedAt: fragment.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: fragment.UpdatedAt.Format(time.RFC3339),
+		User: &MinimalUser{
+			Login: string(fragment.Author.Login),
+		},
+	}
+
+	for _, label := range fragment.Labels.Nodes {
+		m.Labels = append(m.Labels, string(label.Name))
+	}
+
+	return m
+}
+
+// convertLegacyToMinimalIssuesResponse mirrors convertToMinimalIssuesResponse for
+// the FeatureFlagIssueFields-disabled list_issues variant.
+func convertLegacyToMinimalIssuesResponse(fragment LegacyIssueQueryFragment) MinimalIssuesResponse {
+	minimalIssues := make([]MinimalIssue, 0, len(fragment.Nodes))
+	for _, issue := range fragment.Nodes {
+		minimalIssues = append(minimalIssues, legacyFragmentToMinimalIssue(issue))
+	}
+
+	return MinimalIssuesResponse{
+		Issues:     minimalIssues,
+		TotalCount: fragment.TotalCount,
+		PageInfo: MinimalPageInfo{
+			HasNextPage:     bool(fragment.PageInfo.HasNextPage),
+			HasPreviousPage: bool(fragment.PageInfo.HasPreviousPage),
+			StartCursor:     string(fragment.PageInfo.StartCursor),
+			EndCursor:       string(fragment.PageInfo.EndCursor),
+		},
+	}
+}
+
 func convertToMinimalIssueComment(comment *github.IssueComment) MinimalIssueComment {
 	m := MinimalIssueComment{
 		ID:                comment.GetID(),

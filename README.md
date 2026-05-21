@@ -909,6 +909,18 @@ The following sets of tools are available:
   - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
   - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
 
+- **list_issues** - List issues
+  - **Required OAuth Scopes**: `repo`
+  - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
+  - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
+  - `labels`: Filter by labels (string[], optional)
+  - `orderBy`: Order issues by field. If provided, the 'direction' also needs to be provided. (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+  - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
+  - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
+
 - **remove_sub_issue** - Remove Sub-Issue
   - **Required OAuth Scopes**: `repo`
   - `issue_number`: The parent issue number (number, required)

@@ -1082,8 +1082,9 @@ func Test_SearchIssues_FieldValuesEnrichment(t *testing.T) {
 	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
 
 	deps := BaseDeps{
-		Client:    mustNewGHClient(t, restClient),
-		GQLClient: gqlClient,
+		Client:         mustNewGHClient(t, restClient),
+		GQLClient:      gqlClient,
+		featureChecker: featureCheckerFor(FeatureFlagIssueFields),
 	}
 	handler := serverTool.Handler(deps)
 
@@ -1446,7 +1447,8 @@ func Test_ListIssues(t *testing.T) {
 	// Verify tool definition
 	serverTool := ListIssues(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueFields, tool))
+	require.Equal(t, FeatureFlagIssueFields, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "list_issues", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -2361,6 +2363,95 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		assert.Equal(t, "untrusted", ifcMap["integrity"])
 		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
+}
+
+func Test_LegacyListIssues_Definition(t *testing.T) {
+	serverTool := LegacyListIssues(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+
+	// LegacyListIssues claims the base tool name "list_issues" and produces the
+	// FeatureFlagIssueFields-disabled schema (no field_filters). It owns the
+	// canonical list_issues.snap; the FeatureFlagIssueFields-enabled variant
+	// owns list_issues_ff_<flag>.snap.
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.Equal(t, "list_issues", tool.Name)
+	require.Equal(t, FeatureFlagIssueFields, serverTool.FeatureFlagDisable)
+	require.Empty(t, serverTool.FeatureFlagEnable)
+
+	props := tool.InputSchema.(*jsonschema.Schema).Properties
+	assert.Contains(t, props, "owner")
+	assert.Contains(t, props, "repo")
+	assert.Contains(t, props, "state")
+	assert.Contains(t, props, "labels")
+	assert.Contains(t, props, "since")
+	assert.NotContains(t, props, "field_filters", "legacy list_issues must not advertise field_filters")
+}
+
+func Test_LegacyListIssues_OmitsFieldValuesAndFilters(t *testing.T) {
+	t.Parallel()
+
+	serverTool := LegacyListIssues(translations.NullTranslationHelper)
+
+	mockIssues := []map[string]any{
+		{
+			"number":     7,
+			"title":      "Legacy issue",
+			"body":       "body",
+			"state":      "OPEN",
+			"databaseId": 7,
+			"createdAt":  "2026-01-01T00:00:00Z",
+			"updatedAt":  "2026-01-01T00:00:00Z",
+			"author":     map[string]any{"login": "octocat"},
+			"labels":     map[string]any{"nodes": []map[string]any{}},
+			"comments":   map[string]any{"totalCount": 0},
+		},
+	}
+	pageInfo := map[string]any{
+		"hasNextPage":     false,
+		"hasPreviousPage": false,
+		"startCursor":     "c1",
+		"endCursor":       "c1",
+	}
+
+	// The legacy query must NOT reference issueFieldValues (neither in the selection
+	// set nor in filterBy). The matcher's query string therefore omits both.
+	const legacyQuery = "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
+	vars := map[string]any{
+		"owner":     "owner",
+		"repo":      "repo",
+		"states":    []any{"OPEN", "CLOSED"},
+		"orderBy":   "CREATED_AT",
+		"direction": "DESC",
+		"first":     float64(30),
+		"after":     nil,
+	}
+	response := githubv4mock.DataResponse(map[string]any{
+		"repository": map[string]any{
+			"isPrivate": false,
+			"issues": map[string]any{
+				"nodes":      mockIssues,
+				"pageInfo":   pageInfo,
+				"totalCount": 1,
+			},
+		},
+	})
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(githubv4mock.NewQueryMatcher(legacyQuery, vars, response)))
+
+	deps := BaseDeps{GQLClient: gqlClient}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"owner": "owner",
+		"repo":  "repo",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, "expected non-error result; got: %v", getTextResult(t, result).Text)
+
+	var resp MinimalIssuesResponse
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &resp))
+	require.Len(t, resp.Issues, 1)
+	assert.Equal(t, 7, resp.Issues[0].Number)
+	assert.Nil(t, resp.Issues[0].FieldValues, "legacy list_issues must not return field_values")
 }
 
 func Test_UpdateIssue(t *testing.T) {
