@@ -42,24 +42,18 @@ type csvOutputDocument struct {
 	rows     []map[string]string
 }
 
-func withCSVOutputVariants(tools []inventory.ServerTool) []inventory.ServerTool {
-	result := make([]inventory.ServerTool, 0, len(tools))
-	for _, tool := range tools {
-		if !isCSVOutputTool(tool) {
-			result = append(result, tool)
+// withCSVOutput wraps the handler of every default-toolset list_* tool so that,
+// at request time, it checks the csv_output feature flag and converts the JSON
+// text response to CSV when enabled. The tool's schema, name, and scope are
+// unchanged — only the response payload format differs.
+func withCSVOutput(tools []inventory.ServerTool) []inventory.ServerTool {
+	for i := range tools {
+		if !isCSVOutputTool(tools[i]) {
 			continue
 		}
-
-		jsonOnly := tool
-		jsonOnly.FeatureFlagDisable = FeatureFlagCSVOutput
-		result = append(result, jsonOnly)
-
-		csvCapable := tool
-		csvCapable.FeatureFlagEnable = FeatureFlagCSVOutput
-		csvCapable.HandlerFunc = wrapHandlerWithCSVOutput(tool.HandlerFunc)
-		result = append(result, csvCapable)
+		tools[i].HandlerFunc = wrapHandlerWithCSVOutput(tools[i].HandlerFunc)
 	}
-	return result
+	return tools
 }
 
 func isCSVOutputTool(tool inventory.ServerTool) bool {
@@ -75,12 +69,15 @@ func isCSVOutputTool(tool inventory.ServerTool) bool {
 func wrapHandlerWithCSVOutput(next inventory.HandlerFunc) inventory.HandlerFunc {
 	return func(deps any) mcp.ToolHandler {
 		handler := next(deps)
+		csvDeps, _ := deps.(ToolDependencies)
 		return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			result, err := handler(ctx, req)
 			if err != nil || result == nil || result.IsError {
 				return result, err
 			}
-
+			if csvDeps == nil || !csvDeps.IsFeatureEnabled(ctx, FeatureFlagCSVOutput) {
+				return result, nil
+			}
 			return convertJSONTextResultToCSV(result), nil
 		}
 	}

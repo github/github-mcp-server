@@ -67,3 +67,35 @@ github-mcp-server stdio --features csv_output
 ```
 
 Because this changes list tool response shape, clients that require JSON list responses should avoid enabling this feature.
+
+---
+
+## How feature flags are resolved
+
+> [!NOTE]
+> This section is for contributors. End users only need the table at the top of this page.
+
+Insiders is a **meta feature flag** — the same shape as `default` or `all` for toolsets. It expands once at startup into a curated set of individual feature flags, and from that point on every code path keys off concrete flags, never `InsidersMode` directly. New experimental work should always get its own flag and then be added to the insiders expansion list, never folded into `insiders` as a catch-all.
+
+### Resolution order
+
+1. **User input.** Users may opt into specific features:
+   - Local server: `--features=<flag>,<flag>` CLI flag (or `GITHUB_FEATURES` env var).
+   - Self-hosted HTTP server: `X-MCP-Features: <flag>,<flag>` request header.
+2. **Allowlist filter.** User-supplied flags are filtered against [`AllowedFeatureFlags`](../pkg/github/feature_flags.go). Anything not on the allowlist is silently dropped — flags missing from the allowlist can only be turned on by remote-server feature management, not by end users.
+3. **Insiders expansion.** If insiders mode is on (`--insiders`, `/insiders` route, or `X-MCP-Insiders: true`), every flag in [`InsidersFeatureFlags`](../pkg/github/feature_flags.go) is unioned in. The insiders expansion is **not** re-validated against the allowlist — insiders is a server-controlled switch that can reach internal-only flags.
+4. **Server-side fallback (remote server only).** Any flag not yet decided falls back to the remote server's feature manager, which can roll a feature out independently of user input or insiders membership.
+
+`AllowedFeatureFlags` and `InsidersFeatureFlags` are deliberately independent sets:
+
+- A flag in **`AllowedFeatureFlags` only** is a regular opt-in: users can turn it on, but insiders does not auto-enable it. Granular issues/PRs flags work this way.
+- A flag in **`InsidersFeatureFlags` only** is reachable through insiders (and remote-server rollouts), but cannot be enabled by user input. Internal-only experiments work this way.
+- A flag in **both** is opt-in for end users *and* automatically on under insiders.
+
+### Adding a new feature flag
+
+1. Add a constant in `pkg/github/feature_flags.go`.
+2. Add it to `AllowedFeatureFlags` if end users should be able to opt in via `--features` / `X-MCP-Features`.
+3. Add it to `InsidersFeatureFlags` if insiders mode should turn it on automatically.
+4. Gate the behavior on the concrete flag (`deps.IsFeatureEnabled(ctx, FeatureFlagX)`), never on `cfg.InsidersMode`. There is a `TestGitHubPackageDoesNotReadInsidersMode` guard test that fails if `pkg/github` reads `InsidersMode` directly.
+5. The MCP-diff CI workflow picks up new entries in `AllowedFeatureFlags` automatically — see `.github/workflows/mcp-diff.yml`.

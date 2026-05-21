@@ -38,8 +38,18 @@ type FeatureFlags struct {
 }
 
 // ResolveFeatureFlags computes the effective set of enabled feature flags by:
-//  1. Taking explicitly enabled features validated against AllowedFeatureFlags
-//  2. Adding features enabled by insiders mode from InsidersFeatureFlags
+//  1. Taking the user-supplied flags (from --features or X-MCP-Features) and
+//     keeping only those present in AllowedFeatureFlags. Unknown or unsafe
+//     flags from request input are silently dropped here.
+//  2. If insiders mode is on, unioning in every flag from InsidersFeatureFlags.
+//     Insiders is a server-controlled meta switch, so its expansion is NOT
+//     re-validated against AllowedFeatureFlags.
+//
+// AllowedFeatureFlags and InsidersFeatureFlags are independent sets:
+//   - A flag in AllowedFeatureFlags but not InsidersFeatureFlags is a regular
+//     opt-in flag that insiders mode does not turn on automatically.
+//   - A flag in InsidersFeatureFlags but not AllowedFeatureFlags is reachable
+//     only through insiders mode and cannot be enabled by user input.
 //
 // Returns a set (map) for O(1) lookup by the feature checker.
 func ResolveFeatureFlags(enabledFeatures []string, insidersMode bool) map[string]bool {
