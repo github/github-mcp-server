@@ -2201,7 +2201,7 @@ func Test_ListIssues_FieldFilters(t *testing.T) {
 		require.False(t, res.IsError, getTextResult(t, res).Text)
 	})
 
-	t.Run("sends GraphQL-Features: issue_fields header", func(t *testing.T) {
+	t.Run("sends GraphQL-Features: issue_fields, repo_issue_fields header", func(t *testing.T) {
 		vars := baseVars()
 		vars["issueFieldValues"] = []any{}
 		matcher := githubv4mock.NewQueryMatcher(qNoLabels, vars, response)
@@ -2223,7 +2223,7 @@ func Test_ListIssues_FieldFilters(t *testing.T) {
 		res, err := handler(ContextWithDeps(context.Background(), deps), &req)
 		require.NoError(t, err)
 		require.False(t, res.IsError, getTextResult(t, res).Text)
-		assert.Equal(t, "issue_fields", spy.captured.Get(headers.GraphQLFeaturesHeader))
+		assert.Equal(t, "issue_fields, repo_issue_fields", spy.captured.Get(headers.GraphQLFeaturesHeader))
 	})
 }
 
