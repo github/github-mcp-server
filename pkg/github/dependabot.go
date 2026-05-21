@@ -95,6 +95,33 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 }
 
 func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.ServerTool {
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "The owner of the repository.",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "The name of the repository.",
+			},
+			"state": {
+				Type:        "string",
+				Description: "Filter dependabot alerts by state. Defaults to open",
+				Enum:        []any{"open", "fixed", "dismissed", "auto_dismissed"},
+				Default:     json.RawMessage(`"open"`),
+			},
+			"severity": {
+				Type:        "string",
+				Description: "Filter dependabot alerts by severity",
+				Enum:        []any{"low", "medium", "high", "critical"},
+			},
+		},
+		Required: []string{"owner", "repo"},
+	}
+	WithPagination(schema)
+
 	return NewTool(
 		ToolsetMetadataDependabot,
 		mcp.Tool{
@@ -104,31 +131,7 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 				Title:        t("TOOL_LIST_DEPENDABOT_ALERTS_USER_TITLE", "List dependabot alerts"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner": {
-						Type:        "string",
-						Description: "The owner of the repository.",
-					},
-					"repo": {
-						Type:        "string",
-						Description: "The name of the repository.",
-					},
-					"state": {
-						Type:        "string",
-						Description: "Filter dependabot alerts by state. Defaults to open",
-						Enum:        []any{"open", "fixed", "dismissed", "auto_dismissed"},
-						Default:     json.RawMessage(`"open"`),
-					},
-					"severity": {
-						Type:        "string",
-						Description: "Filter dependabot alerts by severity",
-						Enum:        []any{"low", "medium", "high", "critical"},
-					},
-				},
-				Required: []string{"owner", "repo"},
-			},
+			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.SecurityEvents},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -149,6 +152,11 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			pagination, err := OptionalPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
@@ -157,6 +165,10 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 			alerts, resp, err := client.Dependabot.ListRepoAlerts(ctx, owner, repo, &github.ListAlertsOptions{
 				State:    ToStringPtr(state),
 				Severity: ToStringPtr(severity),
+				ListOptions: github.ListOptions{
+					Page:    pagination.Page,
+					PerPage: pagination.PerPage,
+				},
 			})
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,

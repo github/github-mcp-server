@@ -1059,7 +1059,7 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if deps.GetFlags(ctx).InsidersMode {
 				options = append(options, withSearchPostProcess(searchIssuesIFCPostProcess(deps)))
 			}
-			result, err := searchHandler(ctx, deps.GetClient, args, "issue", "failed to search issues", options...)
+			result, err := searchIssuesHandler(ctx, deps, args, options...)
 			return result, nil, err
 		})
 }
@@ -1144,6 +1144,164 @@ func parseRepositoryURL(repoURL string) (string, string, bool) {
 		return "", "", false
 	}
 	return parts[0], parts[1], true
+}
+
+// SearchIssueResult wraps a REST search hit with its custom issue field values, fetched in a follow-up GraphQL nodes() query.
+type SearchIssueResult struct {
+	*github.Issue
+	FieldValues []MinimalIssueFieldValue `json:"field_values,omitempty"`
+}
+
+// MarshalJSON serializes SearchIssueResult, suppressing the raw issue_field_values from the
+// embedded REST response in favour of the normalized field_values populated via GraphQL enrichment.
+func (r SearchIssueResult) MarshalJSON() ([]byte, error) {
+	issueBytes, err := json.Marshal(r.Issue)
+	if err != nil {
+		return nil, err
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(issueBytes, &m); err != nil {
+		return nil, err
+	}
+	delete(m, "issue_field_values")
+	if r.FieldValues != nil {
+		fv, err := json.Marshal(r.FieldValues)
+		if err != nil {
+			return nil, err
+		}
+		m["field_values"] = fv
+	}
+	return json.Marshal(m)
+}
+
+// SearchIssuesResponse mirrors the REST IssuesSearchResult JSON shape and adds field_values
+// per item, sourced from a single GraphQL nodes() round-trip.
+type SearchIssuesResponse struct {
+	Total             *int                `json:"total_count,omitempty"`
+	IncompleteResults *bool               `json:"incomplete_results,omitempty"`
+	Items             []SearchIssueResult `json:"items"`
+}
+
+// searchIssuesNodesQuery batches a nodes(ids:) lookup over the REST search results to retrieve
+// each issue's custom field values in a single GraphQL request.
+type searchIssuesNodesQuery struct {
+	Nodes []struct {
+		Issue struct {
+			ID               githubv4.ID
+			IssueFieldValues struct {
+				Nodes []IssueFieldValueFragment
+			} `graphql:"issueFieldValues(first: 25)"`
+		} `graphql:"... on Issue"`
+	} `graphql:"nodes(ids: $ids)"`
+}
+
+// fetchIssueFieldValuesByNodeID runs one GraphQL nodes() query for the given REST issues and
+// returns a map of node_id -> flattened field values. Issues without a node_id are skipped, and
+// an empty result set short-circuits the round-trip.
+func fetchIssueFieldValuesByNodeID(ctx context.Context, gqlClient *githubv4.Client, issues []*github.Issue) (map[string][]MinimalIssueFieldValue, error) {
+	ids := make([]githubv4.ID, 0, len(issues))
+	for _, iss := range issues {
+		if iss == nil || iss.NodeID == nil || *iss.NodeID == "" {
+			continue
+		}
+		ids = append(ids, githubv4.ID(*iss.NodeID))
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	var q searchIssuesNodesQuery
+	if err := gqlClient.Query(ctx, &q, map[string]any{"ids": ids}); err != nil {
+		return nil, err
+	}
+
+	result := make(map[string][]MinimalIssueFieldValue, len(q.Nodes))
+	for _, n := range q.Nodes {
+		idStr, ok := n.Issue.ID.(string)
+		if !ok || idStr == "" {
+			continue
+		}
+		vals := make([]MinimalIssueFieldValue, 0, len(n.Issue.IssueFieldValues.Nodes))
+		for _, fv := range n.Issue.IssueFieldValues.Nodes {
+			if m, ok := fragmentToMinimalIssueFieldValue(fv); ok {
+				vals = append(vals, m)
+			}
+		}
+		result[idStr] = vals
+	}
+	return result, nil
+}
+
+// searchIssuesHandler runs the REST issues search, enriches each hit with custom field values
+// fetched via a single follow-up GraphQL nodes() query, and applies any post-process options
+// (e.g. IFC labelling).
+func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[string]any, options ...searchOption) (*mcp.CallToolResult, error) {
+	const errorPrefix = "failed to search issues"
+
+	query, opts, err := prepareSearchArgs(args, "issue")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil
+	}
+
+	client, err := deps.GetClient(ctx)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub client", err), nil
+	}
+	result, resp, err := client.Search.Issues(ctx, query, opts)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr(errorPrefix, err), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to read response body", err), nil
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), nil
+	}
+
+	var fieldValuesByID map[string][]MinimalIssueFieldValue
+	if len(result.Issues) > 0 {
+		gqlClient, err := deps.GetGQLClient(ctx)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub GraphQL client", err), nil
+		}
+		fieldValuesByID, err = fetchIssueFieldValuesByNodeID(ctx, gqlClient, result.Issues)
+		if err != nil {
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, errorPrefix+": failed to fetch issue field values", err), nil
+		}
+	}
+
+	items := make([]SearchIssueResult, 0, len(result.Issues))
+	for _, iss := range result.Issues {
+		hit := SearchIssueResult{Issue: iss}
+		if iss != nil && iss.NodeID != nil {
+			hit.FieldValues = fieldValuesByID[*iss.NodeID]
+		}
+		items = append(items, hit)
+	}
+
+	response := SearchIssuesResponse{
+		Total:             result.Total,
+		IncompleteResults: result.IncompleteResults,
+		Items:             items,
+	}
+
+	r, err := json.Marshal(response)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), nil
+	}
+
+	callResult := utils.NewToolResultText(string(r))
+	cfg := searchConfig{}
+	for _, opt := range options {
+		opt(&cfg)
+	}
+	if cfg.postProcess != nil {
+		cfg.postProcess(ctx, result, callResult)
+	}
+	return callResult, nil
 }
 
 // IssueWrite creates a tool to create a new or update an existing issue in a GitHub repository.
