@@ -136,7 +136,7 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
 
-			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields")
+			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
 			var nodes []issueFieldNode
 			if repo != "" {
 				var query issueFieldsRepoQuery
