@@ -1303,7 +1303,7 @@ func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "issue_write",
 			Description: t("TOOL_ISSUE_WRITE_DESCRIPTION", "Create a new or update an existing issue in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ISSUE_WRITE_USER_TITLE", "Create or update issue."),
+				Title:        t("TOOL_ISSUE_WRITE_USER_TITLE", "Create or update issue"),
 				ReadOnlyHint: false,
 			},
 			Meta: mcp.Meta{

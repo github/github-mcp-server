@@ -829,7 +829,7 @@ The following sets of tools are available:
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **get_label** - Get a specific label from a repository.
+- **get_label** - Get a specific label from a repository
   - **Required OAuth Scopes**: `repo`
   - `name`: Label name. (string, required)
   - `owner`: Repository owner (username or organization name) (string, required)
@@ -850,7 +850,7 @@ The following sets of tools are available:
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: The name of the repository (string, required)
 
-- **issue_write** - Create or update issue.
+- **issue_write** - Create or update issue
   - **Required OAuth Scopes**: `repo`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
@@ -919,13 +919,13 @@ The following sets of tools are available:
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/tag-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/tag-light.png"><img src="pkg/octicons/icons/tag-light.png" width="20" height="20" alt="tag"></picture> Labels</summary>
 
-- **get_label** - Get a specific label from a repository.
+- **get_label** - Get a specific label from a repository
   - **Required OAuth Scopes**: `repo`
   - `name`: Label name. (string, required)
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
 
-- **label_write** - Write operations on repository labels.
+- **label_write** - Write operations on repository labels
   - **Required OAuth Scopes**: `repo`
   - `color`: Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'. (string, optional)
   - `description`: Label description text. Optional for 'create' and 'update'. (string, optional)
@@ -1125,7 +1125,7 @@ The following sets of tools are available:
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
-- **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews.
+- **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews
   - **Required OAuth Scopes**: `repo`
   - `body`: Review comment text (string, optional)
   - `commitID`: SHA of commit to review (string, optional)
