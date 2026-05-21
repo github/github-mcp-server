@@ -165,7 +165,9 @@ func Test_ListDependabotAlerts(t *testing.T) {
 			name: "successful open alerts listing",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
-					"state": "open",
+					"state":    "open",
+					"page":     "1",
+					"per_page": "30",
 				}).andThen(
 					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert}),
 				),
@@ -183,6 +185,8 @@ func Test_ListDependabotAlerts(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
 					"severity": "high",
+					"page":     "1",
+					"per_page": "30",
 				}).andThen(
 					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&highSeverityAlert}),
 				),
@@ -198,7 +202,10 @@ func Test_ListDependabotAlerts(t *testing.T) {
 		{
 			name: "successful all alerts listing",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{}).andThen(
+				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
 					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert, &highSeverityAlert}),
 				),
 			}),
@@ -208,6 +215,25 @@ func Test_ListDependabotAlerts(t *testing.T) {
 			},
 			expectError:    false,
 			expectedAlerts: []*github.DependabotAlert{&criticalAlert, &highSeverityAlert},
+		},
+		{
+			name: "successful alerts listing with custom pagination",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"page":     "3",
+					"per_page": "100",
+				}).andThen(
+					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert}),
+				),
+			}),
+			requestArgs: map[string]any{
+				"owner":   "owner",
+				"repo":    "repo",
+				"page":    float64(3),
+				"perPage": float64(100),
+			},
+			expectError:    false,
+			expectedAlerts: []*github.DependabotAlert{&criticalAlert},
 		},
 		{
 			name: "alerts listing fails",

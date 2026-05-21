@@ -58,6 +58,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Meta: mcp.Meta{
 				"ui": map[string]any{
 					"resourceUri": GetMeUIResourceURI,
+					"visibility":  []string{"model", "app"},
 				},
 			},
 		},

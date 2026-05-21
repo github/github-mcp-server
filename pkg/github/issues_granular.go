@@ -258,31 +258,182 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 	)
 }
 
+// labelWithRationale represents the object form of a label entry, allowing a
+// rationale to be sent alongside the label name.
+type labelWithRationale struct {
+	Name      string `json:"name"`
+	Rationale string `json:"rationale,omitempty"`
+}
+
+// labelsUpdateRequest is a custom request body for updating an issue's labels
+// where individual labels may optionally include a rationale. Each element of
+// Labels is either a string (label name) or a labelWithRationale object.
+type labelsUpdateRequest struct {
+	Labels []any `json:"labels"`
+}
+
 // GranularUpdateIssueLabels creates a tool to update an issue's labels.
 func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return issueUpdateTool(t,
-		"update_issue_labels",
-		"Update the labels of an existing issue. This replaces the current labels with the provided list.",
-		"Update Issue Labels",
-		map[string]*jsonschema.Schema{
-			"labels": {
-				Type:        "array",
-				Description: "Labels to apply to this issue",
-				Items:       &jsonschema.Schema{Type: "string"},
+	st := NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "update_issue_labels",
+			Description: t("TOOL_UPDATE_ISSUE_LABELS_DESCRIPTION", "Update the labels of an existing issue. This replaces the current labels with the provided list."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_UPDATE_ISSUE_LABELS_USER_TITLE", "Update Issue Labels"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"issue_number": {
+						Type:        "number",
+						Description: "The issue number to update",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"labels": {
+						Type:        "array",
+						Description: "Labels to apply to this issue.",
+						Items: &jsonschema.Schema{
+							OneOf: []*jsonschema.Schema{
+								{Type: "string", Description: "Label name"},
+								{
+									Type: "object",
+									Properties: map[string]*jsonschema.Schema{
+										"name": {
+											Type:        "string",
+											Description: "Label name",
+										},
+										"rationale": {
+											Type: "string",
+											Description: "One concise sentence explaining what specifically about the issue led you to choose this label. " +
+												"State the concrete signal (e.g. 'Reports a crash when saving' → bug).",
+											MaxLength: jsonschema.Ptr(280),
+										},
+									},
+									Required: []string{"name"},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"owner", "repo", "issue_number", "labels"},
 			},
 		},
-		[]string{"labels"},
-		func(args map[string]any) (*github.IssueRequest, error) {
-			if _, ok := args["labels"]; !ok {
-				return nil, fmt.Errorf("missing required parameter: labels")
-			}
-			labels, err := OptionalStringArrayParam(args, "labels")
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return nil, err
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			return &github.IssueRequest{Labels: &labels}, nil
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			labelsRaw, ok := args["labels"]
+			if !ok {
+				return utils.NewToolResultError("missing required parameter: labels"), nil, nil
+			}
+			labelsSlice, ok := labelsRaw.([]any)
+			if !ok {
+				// Also accept []string for callers that pre-typed the array.
+				if strs, ok := labelsRaw.([]string); ok {
+					labelsSlice = make([]any, len(strs))
+					for i, s := range strs {
+						labelsSlice[i] = s
+					}
+				} else {
+					return utils.NewToolResultError("parameter labels must be an array"), nil, nil
+				}
+			}
+
+			anyRationale := false
+			payload := make([]any, 0, len(labelsSlice))
+			for _, item := range labelsSlice {
+				switch v := item.(type) {
+				case string:
+					payload = append(payload, v)
+				case map[string]any:
+					name, err := RequiredParam[string](v, "name")
+					if err != nil {
+						return utils.NewToolResultError("each label object must have a 'name' string"), nil, nil
+					}
+					rationale, err := OptionalParam[string](v, "rationale")
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+					rationale = strings.TrimSpace(rationale)
+					if len([]rune(rationale)) > 280 {
+						return utils.NewToolResultError("label rationale must be 280 characters or less"), nil, nil
+					}
+					if rationale == "" {
+						payload = append(payload, name)
+					} else {
+						anyRationale = true
+						payload = append(payload, labelWithRationale{Name: name, Rationale: rationale})
+					}
+				default:
+					return utils.NewToolResultError("each label must be a string or an object with 'name' and optional 'rationale'"), nil, nil
+				}
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			var body any
+			if anyRationale {
+				body = &labelsUpdateRequest{Labels: payload}
+			} else {
+				// Preserve the standard wire format when no rationale is supplied.
+				names := make([]string, len(payload))
+				for i, p := range payload {
+					names[i] = p.(string)
+				}
+				body = &github.IssueRequest{Labels: &names}
+			}
+
+			apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
+			req, err := client.NewRequest(ctx, "PATCH", apiURL, body)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to create request", err), nil, nil
+			}
+
+			issue := &github.Issue{}
+			resp, err := client.Do(req, issue)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			r, err := json.Marshal(MinimalResponse{
+				ID:  fmt.Sprintf("%d", issue.GetID()),
+				URL: issue.GetHTMLURL(),
+			})
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	return st
 }
 
 // GranularUpdateIssueMilestone creates a tool to update an issue's milestone.
@@ -714,6 +865,7 @@ type IssueFieldCreateOrUpdateInput struct {
 	DateValue            *githubv4.String  `json:"dateValue,omitempty"`
 	SingleSelectOptionID *githubv4.ID      `json:"singleSelectOptionId,omitempty"`
 	Delete               *githubv4.Boolean `json:"delete,omitempty"`
+	Rationale            *githubv4.String  `json:"rationale,omitempty"`
 }
 
 // GranularSetIssueFields creates a tool to set issue field values on an issue using GraphQL.
@@ -775,6 +927,12 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 								"delete": {
 									Type:        "boolean",
 									Description: "Set to true to delete this field value",
+								},
+								"rationale": {
+									Type: "string",
+									Description: "One concise sentence explaining what specifically about the issue led you to choose this field value. " +
+										"State the concrete signal (e.g. 'Reports a crash when saving' → high priority).",
+									MaxLength: jsonschema.Ptr(280),
 								},
 							},
 							Required: []string{"field_id"},
@@ -872,6 +1030,20 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				}
 				if valueCount > 1 {
 					return utils.NewToolResultError("each field must have exactly one value (text_value, number_value, date_value, single_select_option_id) or delete: true, but multiple were provided"), nil, nil
+				}
+
+				if _, exists := fieldMap["rationale"]; exists {
+					rationale, err := OptionalParam[string](fieldMap, "rationale")
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+					rationale = strings.TrimSpace(rationale)
+					if len([]rune(rationale)) > 280 {
+						return utils.NewToolResultError("field rationale must be 280 characters or less"), nil, nil
+					}
+					if rationale != "" {
+						input.Rationale = githubv4.NewString(githubv4.String(rationale))
+					}
 				}
 
 				issueFields = append(issueFields, input)

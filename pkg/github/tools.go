@@ -123,11 +123,6 @@ var (
 		Description: "GitHub Stargazers related tools",
 		Icon:        "star",
 	}
-	ToolsetMetadataDynamic = inventory.ToolsetMetadata{
-		ID:          "dynamic",
-		Description: "Discover GitHub MCP tools that can help achieve tasks by enabling additional sets of tools, you can control the enablement of any toolset to access its tools when this toolset is enabled.",
-		Icon:        "tools",
-	}
 	ToolsetLabels = inventory.ToolsetMetadata{
 		ID:          "labels",
 		Description: "GitHub Labels related tools",
@@ -183,6 +178,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GetFileContents(t),
 		ListCommits(t),
 		SearchCode(t),
+		SearchCommits(t),
 		GetCommit(t),
 		ListBranches(t),
 		ListTags(t),
@@ -350,8 +346,8 @@ func GenerateToolsetsHelp() string {
 		defaultBuf.WriteString(string(id))
 	}
 
-	// Get all available toolsets (excludes context and dynamic for display)
-	allToolsets := r.AvailableToolsets("context", "dynamic")
+	// Get all available toolsets (excludes context for display)
+	allToolsets := r.AvailableToolsets("context")
 	var availableBuf strings.Builder
 	const maxLineLength = 70
 	currentLine := ""

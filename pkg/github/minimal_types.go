@@ -1,6 +1,7 @@
 package github
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/google/go-github/v87/github"
@@ -129,6 +130,23 @@ type MinimalCommit struct {
 	Files     []MinimalCommitFile `json:"files,omitempty"`
 }
 
+// MinimalRepoRef is a lightweight reference to a repository, used when a
+// result needs to identify which repository it belongs to (for example, in
+// cross-repo commit search results).
+type MinimalRepoRef struct {
+	FullName string `json:"full_name"`
+	HTMLURL  string `json:"html_url,omitempty"`
+	Private  bool   `json:"private,omitempty"`
+}
+
+// MinimalCommitSearchItem extends MinimalCommit with the containing
+// repository, since commit search spans repositories and callers need to
+// know which repo each result came from.
+type MinimalCommitSearchItem struct {
+	MinimalCommit
+	Repository *MinimalRepoRef `json:"repository,omitempty"`
+}
+
 // MinimalRelease is the trimmed output type for release objects.
 type MinimalRelease struct {
 	ID          int64        `json:"id"`
@@ -208,13 +226,22 @@ type MinimalIssueFieldValueSingleSelectOption struct {
 	Color string `json:"color"`
 }
 
-// MinimalIssueFieldValue is the trimmed output type for a custom field value attached to an issue.
+// MinimalIssueFieldValue is the trimmed output type for a custom field value attached to an issue,
+// populated from REST API responses (e.g. get_issue). For GraphQL-sourced field values see MinimalFieldValue.
 type MinimalIssueFieldValue struct {
-	IssueFieldID       int64                                     `json:"issue_field_id"`
-	NodeID             string                                    `json:"node_id"`
-	DataType           string                                    `json:"data_type"`
-	Value              any                                       `json:"value"`
+	IssueFieldID       int64                                     `json:"issue_field_id,omitempty"`
+	NodeID             string                                    `json:"node_id,omitempty"`
+	DataType           string                                    `json:"data_type,omitempty"`
+	Value              any                                       `json:"value,omitempty"`
 	SingleSelectOption *MinimalIssueFieldValueSingleSelectOption `json:"single_select_option,omitempty"`
+}
+
+// MinimalFieldValue is the trimmed output type for a custom field value resolved via GraphQL
+// (e.g. list_issues, search_issues). Single-value variants populate Value; Values is reserved for multi-select.
+type MinimalFieldValue struct {
+	Field  string   `json:"field"`
+	Value  string   `json:"value,omitempty"`
+	Values []string `json:"values,omitempty"`
 }
 
 // MinimalIssue is the trimmed output type for issue objects to reduce verbosity.
@@ -240,6 +267,7 @@ type MinimalIssue struct {
 	ClosedBy          string                   `json:"closed_by,omitempty"`
 	IssueType         string                   `json:"issue_type,omitempty"`
 	IssueFieldValues  []MinimalIssueFieldValue `json:"issue_field_values,omitempty"`
+	FieldValues       []MinimalFieldValue      `json:"field_values,omitempty"`
 }
 
 // MinimalIssuesResponse is the trimmed output for a paginated list of issues.
@@ -259,6 +287,13 @@ type MinimalIssueComment struct {
 	Reactions         *MinimalReactions `json:"reactions,omitempty"`
 	CreatedAt         string            `json:"created_at,omitempty"`
 	UpdatedAt         string            `json:"updated_at,omitempty"`
+}
+
+// MinimalSearchCommitsResult is the trimmed output type for commit search results.
+type MinimalSearchCommitsResult struct {
+	TotalCount        int                       `json:"total_count"`
+	IncompleteResults bool                      `json:"incomplete_results"`
+	Items             []MinimalCommitSearchItem `json:"items"`
 }
 
 // MinimalFileContentResponse is the trimmed output type for create/update/delete file responses.
@@ -472,7 +507,41 @@ func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 		m.Labels = append(m.Labels, string(label.Name))
 	}
 
+	for _, fv := range fragment.IssueFieldValues.Nodes {
+		if mfv, ok := fragmentToMinimalFieldValue(fv); ok {
+			m.FieldValues = append(m.FieldValues, mfv)
+		}
+	}
+
 	return m
+}
+
+// fragmentToMinimalFieldValue flattens the union value fragment into a single
+// {field, value} pair. Returns ok=false if the typename is unrecognised.
+func fragmentToMinimalFieldValue(fv IssueFieldValueFragment) (MinimalFieldValue, bool) {
+	switch fv.TypeName {
+	case "IssueFieldDateValue":
+		return MinimalFieldValue{
+			Field: fv.DateValue.Field.Name(),
+			Value: string(fv.DateValue.Value),
+		}, true
+	case "IssueFieldNumberValue":
+		return MinimalFieldValue{
+			Field: fv.NumberValue.Field.Name(),
+			Value: strconv.FormatFloat(float64(fv.NumberValue.Value), 'f', -1, 64),
+		}, true
+	case "IssueFieldSingleSelectValue":
+		return MinimalFieldValue{
+			Field: fv.SingleSelectValue.Field.Name(),
+			Value: string(fv.SingleSelectValue.Value),
+		}, true
+	case "IssueFieldTextValue":
+		return MinimalFieldValue{
+			Field: fv.TextValue.Field.Name(),
+			Value: string(fv.TextValue.Value),
+		}, true
+	}
+	return MinimalFieldValue{}, false
 }
 
 func convertToMinimalIssuesResponse(fragment IssueQueryFragment) MinimalIssuesResponse {
@@ -686,56 +755,72 @@ func convertToMinimalUser(user *github.User) *MinimalUser {
 	}
 }
 
+// newMinimalCommitFromCore builds a MinimalCommit from the fields that are
+// shared between *github.RepositoryCommit and *github.CommitResult. Caller
+// is responsible for setting any type-specific extras (stats/files for
+// RepositoryCommit, repository for CommitResult).
+func newMinimalCommitFromCore(sha, htmlURL string, commit *github.Commit, author, committer *github.User) MinimalCommit {
+	minimalCommit := MinimalCommit{
+		SHA:     sha,
+		HTMLURL: htmlURL,
+	}
+
+	if commit != nil {
+		minimalCommit.Commit = &MinimalCommitInfo{
+			Message: commit.GetMessage(),
+		}
+
+		if commit.Author != nil {
+			minimalCommit.Commit.Author = &MinimalCommitAuthor{
+				Name:  commit.Author.GetName(),
+				Email: commit.Author.GetEmail(),
+			}
+			if commit.Author.Date != nil {
+				minimalCommit.Commit.Author.Date = commit.Author.Date.Format(time.RFC3339)
+			}
+		}
+
+		if commit.Committer != nil {
+			minimalCommit.Commit.Committer = &MinimalCommitAuthor{
+				Name:  commit.Committer.GetName(),
+				Email: commit.Committer.GetEmail(),
+			}
+			if commit.Committer.Date != nil {
+				minimalCommit.Commit.Committer.Date = commit.Committer.Date.Format(time.RFC3339)
+			}
+		}
+	}
+
+	if author != nil {
+		minimalCommit.Author = &MinimalUser{
+			Login:      author.GetLogin(),
+			ID:         author.GetID(),
+			ProfileURL: author.GetHTMLURL(),
+			AvatarURL:  author.GetAvatarURL(),
+		}
+	}
+
+	if committer != nil {
+		minimalCommit.Committer = &MinimalUser{
+			Login:      committer.GetLogin(),
+			ID:         committer.GetID(),
+			ProfileURL: committer.GetHTMLURL(),
+			AvatarURL:  committer.GetAvatarURL(),
+		}
+	}
+
+	return minimalCommit
+}
+
 // convertToMinimalCommit converts a GitHub API RepositoryCommit to MinimalCommit
 func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) MinimalCommit {
-	minimalCommit := MinimalCommit{
-		SHA:     commit.GetSHA(),
-		HTMLURL: commit.GetHTMLURL(),
-	}
-
-	if commit.Commit != nil {
-		minimalCommit.Commit = &MinimalCommitInfo{
-			Message: commit.Commit.GetMessage(),
-		}
-
-		if commit.Commit.Author != nil {
-			minimalCommit.Commit.Author = &MinimalCommitAuthor{
-				Name:  commit.Commit.Author.GetName(),
-				Email: commit.Commit.Author.GetEmail(),
-			}
-			if commit.Commit.Author.Date != nil {
-				minimalCommit.Commit.Author.Date = commit.Commit.Author.Date.Format(time.RFC3339)
-			}
-		}
-
-		if commit.Commit.Committer != nil {
-			minimalCommit.Commit.Committer = &MinimalCommitAuthor{
-				Name:  commit.Commit.Committer.GetName(),
-				Email: commit.Commit.Committer.GetEmail(),
-			}
-			if commit.Commit.Committer.Date != nil {
-				minimalCommit.Commit.Committer.Date = commit.Commit.Committer.Date.Format(time.RFC3339)
-			}
-		}
-	}
-
-	if commit.Author != nil {
-		minimalCommit.Author = &MinimalUser{
-			Login:      commit.Author.GetLogin(),
-			ID:         commit.Author.GetID(),
-			ProfileURL: commit.Author.GetHTMLURL(),
-			AvatarURL:  commit.Author.GetAvatarURL(),
-		}
-	}
-
-	if commit.Committer != nil {
-		minimalCommit.Committer = &MinimalUser{
-			Login:      commit.Committer.GetLogin(),
-			ID:         commit.Committer.GetID(),
-			ProfileURL: commit.Committer.GetHTMLURL(),
-			AvatarURL:  commit.Committer.GetAvatarURL(),
-		}
-	}
+	minimalCommit := newMinimalCommitFromCore(
+		commit.GetSHA(),
+		commit.GetHTMLURL(),
+		commit.Commit,
+		commit.Author,
+		commit.Committer,
+	)
 
 	// Only include stats and files if includeDiffs is true
 	if includeDiffs {
@@ -763,6 +848,31 @@ func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) 
 	}
 
 	return minimalCommit
+}
+
+// convertCommitResultToMinimalCommit converts a GitHub API commit search
+// result, attaching the containing repository so the caller can tell which
+// repo each result came from.
+func convertCommitResultToMinimalCommit(commit *github.CommitResult) MinimalCommitSearchItem {
+	item := MinimalCommitSearchItem{
+		MinimalCommit: newMinimalCommitFromCore(
+			commit.GetSHA(),
+			commit.GetHTMLURL(),
+			commit.Commit,
+			commit.Author,
+			commit.Committer,
+		),
+	}
+
+	if commit.Repository != nil {
+		item.Repository = &MinimalRepoRef{
+			FullName: commit.Repository.GetFullName(),
+			HTMLURL:  commit.Repository.GetHTMLURL(),
+			Private:  commit.Repository.GetPrivate(),
+		}
+	}
+
+	return item
 }
 
 // MinimalPageInfo contains pagination cursor information.
