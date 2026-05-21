@@ -741,7 +741,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 
 			// attachIFC adds the IFC label to a successful tool result when
-			// InsidersMode is enabled. The visibility lookup is performed
+			// IFC labels are enabled. The visibility lookup is performed
 			// lazily on first use and cached because GetFileContents has
 			// many possible return paths and would otherwise re-fetch on
 			// each. If the visibility lookup fails we skip the label rather
@@ -752,7 +752,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				ifcIsPrivate  bool
 			)
 			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
-				if r == nil || r.IsError || !deps.GetFlags(ctx).InsidersMode {
+				if r == nil || r.IsError || !deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
 					return r
 				}
 				if !ifcLabelKnown {

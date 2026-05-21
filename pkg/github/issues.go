@@ -348,10 +348,10 @@ Options are:
 			}
 
 			// attachIFC adds the IFC label to a successful tool result when
-			// InsidersMode is enabled. If the visibility lookup fails the
+			// IFC labels are enabled. If the visibility lookup fails the
 			// label is omitted rather than misclassifying the result.
 			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
-				if r == nil || r.IsError || !deps.GetFlags(ctx).InsidersMode {
+				if r == nil || r.IsError || !deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
 					return r
 				}
 				isPrivate, err := FetchRepoIsPrivate(ctx, client, owner, repo)
@@ -1044,7 +1044,7 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var options []searchOption
-			if deps.GetFlags(ctx).InsidersMode {
+			if deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
 				options = append(options, withSearchPostProcess(searchIssuesIFCPostProcess(deps)))
 			}
 			result, err := searchIssuesHandler(ctx, deps, args, options...)
@@ -1900,7 +1900,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := MarshalledTextResult(resp)
-			if deps.GetFlags(ctx).InsidersMode {
+			if deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
 				if result.Meta == nil {
 					result.Meta = mcp.Meta{}
 				}

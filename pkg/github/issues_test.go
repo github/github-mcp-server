@@ -325,7 +325,6 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 	t.Run("insiders mode disabled omits ifc label", func(t *testing.T) {
 		deps := BaseDeps{
 			Client: mustNewGHClient(t, makeMockClient(false, 0)),
-			Flags:  FeatureFlags{InsidersMode: false},
 		}
 		handler := serverTool.Handler(deps)
 
@@ -339,8 +338,8 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode enabled on public repo emits public untrusted", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: mustNewGHClient(t, makeMockClient(false, 0)),
-			Flags:  FeatureFlags{InsidersMode: true},
+			Client:         mustNewGHClient(t, makeMockClient(false, 0)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -357,8 +356,8 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode enabled on private repo with get_comments emits private untrusted", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: mustNewGHClient(t, makeMockClient(true, 0)),
-			Flags:  FeatureFlags{InsidersMode: true},
+			Client:         mustNewGHClient(t, makeMockClient(true, 0)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -375,8 +374,8 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode skips ifc label when visibility lookup fails", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: mustNewGHClient(t, makeMockClient(false, http.StatusInternalServerError)),
-			Flags:  FeatureFlags{InsidersMode: true},
+			Client:         mustNewGHClient(t, makeMockClient(false, http.StatusInternalServerError)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -910,7 +909,6 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{makeIssue("octocat", "public-repo", 1)}}
 		deps := BaseDeps{
 			Client: mustNewGHClient(t, makeMockClient(searchResult, []repoFixture{{owner: "octocat", repo: "public-repo"}})),
-			Flags:  FeatureFlags{InsidersMode: false},
 		}
 		handler := serverTool.Handler(deps)
 
@@ -924,8 +922,8 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 	t.Run("insiders mode all public emits public untrusted", func(t *testing.T) {
 		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{makeIssue("octocat", "public-repo", 1)}}
 		deps := BaseDeps{
-			Client: mustNewGHClient(t, makeMockClient(searchResult, []repoFixture{{owner: "octocat", repo: "public-repo"}})),
-			Flags:  FeatureFlags{InsidersMode: true},
+			Client:         mustNewGHClient(t, makeMockClient(searchResult, []repoFixture{{owner: "octocat", repo: "public-repo"}})),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -950,7 +948,7 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 				{owner: "octocat", repo: "private-repo", isPrivate: true},
 				{owner: "octocat", repo: "public-repo"},
 			})),
-			Flags: FeatureFlags{InsidersMode: true},
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -971,7 +969,7 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 			Client: mustNewGHClient(t, makeMockClient(searchResult, []repoFixture{
 				{owner: "octocat", repo: "broken", repoStatus: http.StatusInternalServerError},
 			})),
-			Flags: FeatureFlags{InsidersMode: true},
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -989,8 +987,8 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 	t.Run("insiders mode empty results emits public untrusted", func(t *testing.T) {
 		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{}}
 		deps := BaseDeps{
-			Client: mustNewGHClient(t, makeMockClient(searchResult, nil)),
-			Flags:  FeatureFlags{InsidersMode: true},
+			Client:         mustNewGHClient(t, makeMockClient(searchResult, nil)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -1876,7 +1874,6 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
 		deps := BaseDeps{
 			GQLClient: gqlClient,
-			Flags:     FeatureFlags{InsidersMode: false},
 		}
 		handler := serverTool.Handler(deps)
 
@@ -1892,8 +1889,8 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		matcher := githubv4mock.NewQueryMatcher(query, vars, makeResponse(false))
 		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
 		deps := BaseDeps{
-			GQLClient: gqlClient,
-			Flags:     FeatureFlags{InsidersMode: true},
+			GQLClient:      gqlClient,
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -1919,8 +1916,8 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		matcher := githubv4mock.NewQueryMatcher(query, vars, makeResponse(true))
 		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
 		deps := BaseDeps{
-			GQLClient: gqlClient,
-			Flags:     FeatureFlags{InsidersMode: true},
+			GQLClient:      gqlClient,
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
