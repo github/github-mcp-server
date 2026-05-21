@@ -829,22 +829,7 @@ The following sets of tools are available:
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **add_sub_issue** - Add Sub-Issue
-  - **Required OAuth Scopes**: `repo`
-  - `issue_number`: The parent issue number (number, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `replace_parent`: If true, reparent the sub-issue if it already has a parent (boolean, optional)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to add. ID is not the same as issue number (number, required)
-
-- **create_issue** - Create Issue
-  - **Required OAuth Scopes**: `repo`
-  - `body`: Issue body content (optional) (string, optional)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-  - `title`: Issue title (string, required)
-
-- **get_label** - Get a specific label from a repository.
+- **get_label** - Get a specific label from a repository
   - **Required OAuth Scopes**: `repo`
   - `name`: Label name. (string, required)
   - `owner`: Repository owner (username or organization name) (string, required)
@@ -865,7 +850,7 @@ The following sets of tools are available:
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: The name of the repository (string, required)
 
-- **issue_write** - Create or update issue.
+- **issue_write** - Create or update issue
   - **Required OAuth Scopes**: `repo`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
@@ -885,6 +870,12 @@ The following sets of tools are available:
   - `title`: Issue title (string, optional)
   - `type`: Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
 
+- **list_issue_fields** - List issue fields
+  - **Required OAuth Scopes**: `repo`, `read:org`
+  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `repo`, `write:org`
+  - `owner`: The account owner of the repository or organization. The name is not case sensitive. (string, required)
+  - `repo`: The name of the repository. When provided, returns fields for this specific repository (inherited from its organization). When omitted, returns org-level fields directly. (string, optional)
+
 - **list_issue_types** - List available issue types
   - **Required OAuth Scopes**: `read:org`
   - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
@@ -894,6 +885,7 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `repo`
   - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
   - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
+  - `field_filters`: Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date). (object[], optional)
   - `labels`: Filter by labels (string[], optional)
   - `orderBy`: Order issues by field. If provided, the 'direction' also needs to be provided. (string, optional)
   - `owner`: Repository owner (string, required)
@@ -901,22 +893,6 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
   - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
-
-- **remove_sub_issue** - Remove Sub-Issue
-  - **Required OAuth Scopes**: `repo`
-  - `issue_number`: The parent issue number (number, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to remove. ID is not the same as issue number (number, required)
-
-- **reprioritize_sub_issue** - Reprioritize Sub-Issue
-  - **Required OAuth Scopes**: `repo`
-  - `after_id`: The ID of the sub-issue to place this after (either after_id OR before_id should be specified) (number, optional)
-  - `before_id`: The ID of the sub-issue to place this before (either after_id OR before_id should be specified) (number, optional)
-  - `issue_number`: The parent issue number (number, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to reorder. ID is not the same as issue number (number, required)
 
 - **search_issues** - Search issues
   - **Required OAuth Scopes**: `repo`
@@ -927,13 +903,6 @@ The following sets of tools are available:
   - `query`: Search query using GitHub issues search syntax (string, required)
   - `repo`: Optional repository name. If provided with owner, only issues for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
-
-- **set_issue_fields** - Set Issue Fields
-  - **Required OAuth Scopes**: `repo`
-  - `fields`: Array of issue field values to set. Each element must have a 'field_id' (string, the GraphQL node ID of the field) and exactly one value field: 'text_value' for text fields, 'number_value' for number fields, 'date_value' (ISO 8601 date string) for date fields, or 'single_select_option_id' (the GraphQL node ID of the option) for single select fields. Set 'delete' to true to remove a field value. (object[], required)
-  - `issue_number`: The issue number to update (number, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
 
 - **sub_issue_write** - Change sub-issue
   - **Required OAuth Scopes**: `repo`
@@ -951,70 +920,19 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `sub_issue_id`: The ID of the sub-issue to add. ID is not the same as issue number (number, required)
 
-- **update_issue_assignees** - Update Issue Assignees
-  - **Required OAuth Scopes**: `repo`
-  - `assignees`: GitHub usernames to assign to this issue (string[], required)
-  - `issue_number`: The issue number to update (number, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-
-- **update_issue_body** - Update Issue Body
-  - **Required OAuth Scopes**: `repo`
-  - `body`: The new body content for the issue (string, required)
-  - `issue_number`: The issue number to update (number, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-
-- **update_issue_labels** - Update Issue Labels
-  - **Required OAuth Scopes**: `repo`
-  - `issue_number`: The issue number to update (number, required)
-  - `labels`: Labels to apply to this issue. ([], required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-
-- **update_issue_milestone** - Update Issue Milestone
-  - **Required OAuth Scopes**: `repo`
-  - `issue_number`: The issue number to update (number, required)
-  - `milestone`: The milestone number to set on the issue (integer, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-
-- **update_issue_state** - Update Issue State
-  - **Required OAuth Scopes**: `repo`
-  - `issue_number`: The issue number to update (number, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-  - `state`: The new state for the issue (string, required)
-  - `state_reason`: The reason for the state change (only for closed state) (string, optional)
-
-- **update_issue_title** - Update Issue Title
-  - **Required OAuth Scopes**: `repo`
-  - `issue_number`: The issue number to update (number, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-  - `title`: The new title for the issue (string, required)
-
-- **update_issue_type** - Update Issue Type
-  - **Required OAuth Scopes**: `repo`
-  - `issue_number`: The issue number to update (number, required)
-  - `issue_type`: The issue type to set (string, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `rationale`: One concise sentence explaining what specifically about the issue led you to choose this type. State the concrete signal (e.g. 'Reports a crash when saving' → bug, 'Asks for dark mode support' → feature). (string, optional)
-  - `repo`: Repository name (string, required)
-
 </details>
 
 <details>
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/tag-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/tag-light.png"><img src="pkg/octicons/icons/tag-light.png" width="20" height="20" alt="tag"></picture> Labels</summary>
 
-- **get_label** - Get a specific label from a repository.
+- **get_label** - Get a specific label from a repository
   - **Required OAuth Scopes**: `repo`
   - `name`: Label name. (string, required)
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
 
-- **label_write** - Write operations on repository labels.
+- **label_write** - Write operations on repository labels
   - **Required OAuth Scopes**: `repo`
   - `color`: Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'. (string, optional)
   - `description`: Label description text. Optional for 'create' and 'update'. (string, optional)
@@ -1154,19 +1072,6 @@ The following sets of tools are available:
   - `startSide`: For multi-line comments, the starting side of the diff that the comment applies to. LEFT indicates the previous state, RIGHT indicates the new state (string, optional)
   - `subjectType`: The level at which the comment is targeted (string, required)
 
-- **add_pull_request_review_comment** - Add Pull Request Review Comment
-  - **Required OAuth Scopes**: `repo`
-  - `body`: The comment body (string, required)
-  - `line`: The line number in the diff to comment on (optional) (number, optional)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: The relative path of the file to comment on (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
-  - `side`: The side of the diff to comment on (optional) (string, optional)
-  - `startLine`: The start line of a multi-line comment (optional) (number, optional)
-  - `startSide`: The start side of a multi-line comment (optional) (string, optional)
-  - `subjectType`: The subject type of the comment (string, required)
-
 - **add_reply_to_pull_request_comment** - Add reply to pull request comment
   - **Required OAuth Scopes**: `repo`
   - `body`: The text of the reply (string, required)
@@ -1185,21 +1090,6 @@ The following sets of tools are available:
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `title`: PR title (string, required)
-
-- **create_pull_request_review** - Create Pull Request Review
-  - **Required OAuth Scopes**: `repo`
-  - `body`: The review body text (optional) (string, optional)
-  - `commitID`: The SHA of the commit to review (optional, defaults to latest) (string, optional)
-  - `event`: The review action to perform. If omitted, creates a pending review. (string, optional)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **delete_pending_pull_request_review** - Delete Pending Pull Request Review
-  - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
 
 - **list_pull_requests** - List pull requests
   - **Required OAuth Scopes**: `repo`
@@ -1242,7 +1132,7 @@ The following sets of tools are available:
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
-- **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews.
+- **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews
   - **Required OAuth Scopes**: `repo`
   - `body`: Review comment text (string, optional)
   - `commitID`: SHA of commit to review (string, optional)
@@ -1253,17 +1143,6 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `threadId`: The node ID of the review thread (e.g., PRRT_kwDOxxx). Required for resolve_thread and unresolve_thread methods. Get thread IDs from pull_request_read with method get_review_comments. (string, optional)
 
-- **request_pull_request_reviewers** - Request Pull Request Reviewers
-  - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
-  - `reviewers`: GitHub usernames to request reviews from (string[], required)
-
-- **resolve_review_thread** - Resolve Review Thread
-  - **Required OAuth Scopes**: `repo`
-  - `threadID`: The node ID of the review thread to resolve (e.g., PRRT_kwDOxxx) (string, required)
-
 - **search_pull_requests** - Search pull requests
   - **Required OAuth Scopes**: `repo`
   - `order`: Sort order (string, optional)
@@ -1273,18 +1152,6 @@ The following sets of tools are available:
   - `query`: Search query using GitHub pull request search syntax (string, required)
   - `repo`: Optional repository name. If provided with owner, only pull requests for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
-
-- **submit_pending_pull_request_review** - Submit Pending Pull Request Review
-  - **Required OAuth Scopes**: `repo`
-  - `body`: The review body text (optional) (string, optional)
-  - `event`: The review action to perform (string, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **unresolve_review_thread** - Unresolve Review Thread
-  - **Required OAuth Scopes**: `repo`
-  - `threadID`: The node ID of the review thread to unresolve (e.g., PRRT_kwDOxxx) (string, required)
 
 - **update_pull_request** - Edit pull request
   - **Required OAuth Scopes**: `repo`
@@ -1299,40 +1166,12 @@ The following sets of tools are available:
   - `state`: New state (string, optional)
   - `title`: New title (string, optional)
 
-- **update_pull_request_body** - Update Pull Request Body
-  - **Required OAuth Scopes**: `repo`
-  - `body`: The new body content for the pull request (string, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
 - **update_pull_request_branch** - Update pull request branch
   - **Required OAuth Scopes**: `repo`
   - `expectedHeadSha`: The expected SHA of the pull request's HEAD ref (string, optional)
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
-
-- **update_pull_request_draft_state** - Update Pull Request Draft State
-  - **Required OAuth Scopes**: `repo`
-  - `draft`: Set to true to convert to draft, false to mark as ready for review (boolean, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **update_pull_request_state** - Update Pull Request State
-  - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
-  - `state`: The new state for the pull request (string, required)
-
-- **update_pull_request_title** - Update Pull Request Title
-  - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `pullNumber`: The pull request number (number, required)
-  - `repo`: Repository name (string, required)
-  - `title`: The new title for the pull request (string, required)
 
 </details>
 
