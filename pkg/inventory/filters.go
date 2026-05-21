@@ -103,13 +103,24 @@ func (r *Inventory) isToolEnabledWithFeatureFlags(ctx context.Context, tool *Ser
 	return true
 }
 
-func sortTools(tools []ServerTool) {
-	sort.Slice(tools, func(i, j int) bool {
-		if tools[i].Toolset.ID != tools[j].Toolset.ID {
-			return tools[i].Toolset.ID < tools[j].Toolset.ID
+// sortByToolsetThenName sorts items deterministically by their toolset ID,
+// breaking ties by name. The two extractor closures keep this generic helper
+// independent of the concrete inventory item shape (tools, resource templates,
+// prompts).
+func sortByToolsetThenName[T any](items []T, toolsetID func(T) ToolsetID, name func(T) string) {
+	sort.Slice(items, func(i, j int) bool {
+		if toolsetID(items[i]) != toolsetID(items[j]) {
+			return toolsetID(items[i]) < toolsetID(items[j])
 		}
-		return tools[i].Tool.Name < tools[j].Tool.Name
+		return name(items[i]) < name(items[j])
 	})
+}
+
+func sortTools(tools []ServerTool) {
+	sortByToolsetThenName(tools,
+		func(t ServerTool) ToolsetID { return t.Toolset.ID },
+		func(t ServerTool) string { return t.Tool.Name },
+	)
 }
 
 // AvailableTools returns the tools that pass all current filters,
@@ -132,6 +143,12 @@ func (r *Inventory) AvailableTools(ctx context.Context) []ServerTool {
 
 // AvailableToolsWithoutFeatureFiltering returns tools that pass every filter
 // except FeatureFlagEnable/FeatureFlagDisable.
+//
+// HTTP mode uses this to build the static (process-wide) inventory, which acts
+// as an upper bound on what any request may see. Per-request feature flags
+// (from headers like X-MCP-Features or X-MCP-Insiders) are evaluated later
+// when the per-request inventory is derived, so feature-flagged variants must
+// be preserved here.
 func (r *Inventory) AvailableToolsWithoutFeatureFiltering(ctx context.Context) []ServerTool {
 	var result []ServerTool
 	for i := range r.tools {
@@ -147,12 +164,10 @@ func (r *Inventory) AvailableToolsWithoutFeatureFiltering(ctx context.Context) [
 }
 
 func sortResourceTemplates(resourceTemplates []ServerResourceTemplate) {
-	sort.Slice(resourceTemplates, func(i, j int) bool {
-		if resourceTemplates[i].Toolset.ID != resourceTemplates[j].Toolset.ID {
-			return resourceTemplates[i].Toolset.ID < resourceTemplates[j].Toolset.ID
-		}
-		return resourceTemplates[i].Template.Name < resourceTemplates[j].Template.Name
-	})
+	sortByToolsetThenName(resourceTemplates,
+		func(r ServerResourceTemplate) ToolsetID { return r.Toolset.ID },
+		func(r ServerResourceTemplate) string { return r.Template.Name },
+	)
 }
 
 // AvailableResourceTemplates returns resource templates that pass all current filters,
@@ -178,7 +193,9 @@ func (r *Inventory) AvailableResourceTemplates(ctx context.Context) []ServerReso
 }
 
 // AvailableResourceTemplatesWithoutFeatureFiltering returns resource templates
-// that pass every filter except FeatureFlagEnable/FeatureFlagDisable.
+// that pass every filter except FeatureFlagEnable/FeatureFlagDisable. See
+// AvailableToolsWithoutFeatureFiltering for why feature flags are deferred in
+// HTTP mode.
 func (r *Inventory) AvailableResourceTemplatesWithoutFeatureFiltering(_ context.Context) []ServerResourceTemplate {
 	var result []ServerResourceTemplate
 	for i := range r.resourceTemplates {
@@ -194,12 +211,10 @@ func (r *Inventory) AvailableResourceTemplatesWithoutFeatureFiltering(_ context.
 }
 
 func sortPrompts(prompts []ServerPrompt) {
-	sort.Slice(prompts, func(i, j int) bool {
-		if prompts[i].Toolset.ID != prompts[j].Toolset.ID {
-			return prompts[i].Toolset.ID < prompts[j].Toolset.ID
-		}
-		return prompts[i].Prompt.Name < prompts[j].Prompt.Name
-	})
+	sortByToolsetThenName(prompts,
+		func(p ServerPrompt) ToolsetID { return p.Toolset.ID },
+		func(p ServerPrompt) string { return p.Prompt.Name },
+	)
 }
 
 // AvailablePrompts returns prompts that pass all current filters,
@@ -224,8 +239,10 @@ func (r *Inventory) AvailablePrompts(ctx context.Context) []ServerPrompt {
 	return result
 }
 
-// AvailablePromptsWithoutFeatureFiltering returns prompts that pass every filter
-// except FeatureFlagEnable/FeatureFlagDisable.
+// AvailablePromptsWithoutFeatureFiltering returns prompts that pass every
+// filter except FeatureFlagEnable/FeatureFlagDisable. See
+// AvailableToolsWithoutFeatureFiltering for why feature flags are deferred in
+// HTTP mode.
 func (r *Inventory) AvailablePromptsWithoutFeatureFiltering(_ context.Context) []ServerPrompt {
 	var result []ServerPrompt
 	for i := range r.prompts {
