@@ -17,7 +17,6 @@ func SetCorsHeaders(h http.Handler) http.Handler {
 		"Mcp-Session-Id",
 		"Mcp-Protocol-Version",
 		"Last-Event-ID",
-		"X-Custom-Auth-Headers",
 		headers.AuthorizationHeader,
 		headers.MCPReadOnlyHeader,
 		headers.MCPToolsetsHeader,
@@ -26,6 +25,7 @@ func SetCorsHeaders(h http.Handler) http.Handler {
 		headers.MCPFeaturesHeader,
 		headers.MCPLockdownHeader,
 		headers.MCPInsidersHeader,
+		headers.MCPFeaturesHeader,
 	}, ", ")
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
