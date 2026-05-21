@@ -1778,8 +1778,8 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			issueQuery := getIssueQueryType(hasLabels, hasSince)
 			// The list_issues query references the issue_fields-gated IssueFieldValueFilter
 			// input type unconditionally, so we always opt into the feature via header. This
-			// is a no-op once the flag is globally rolled out.
-			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields")
+			// is a no-op once the flags are globally rolled out.
+			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
 			if err := client.Query(ctxWithFeatures, issueQuery, vars); err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(
 					ctx,
