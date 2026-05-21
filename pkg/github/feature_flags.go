@@ -43,8 +43,13 @@ type FeatureFlags struct {
 //     flags from request input are silently dropped here.
 //  2. If insiders mode is on, unioning in every flag from InsidersFeatureFlags.
 //     Insiders is a server-controlled meta switch, so its expansion is NOT
-//     re-validated against AllowedFeatureFlags — InsidersFeatureFlags may
-//     intentionally include flags that are not user-controllable.
+//     re-validated against AllowedFeatureFlags.
+//
+// AllowedFeatureFlags and InsidersFeatureFlags are independent sets:
+//   - A flag in AllowedFeatureFlags but not InsidersFeatureFlags is a regular
+//     opt-in flag that insiders mode does not turn on automatically.
+//   - A flag in InsidersFeatureFlags but not AllowedFeatureFlags is reachable
+//     only through insiders mode and cannot be enabled by user input.
 //
 // Returns a set (map) for O(1) lookup by the feature checker.
 func ResolveFeatureFlags(enabledFeatures []string, insidersMode bool) map[string]bool {

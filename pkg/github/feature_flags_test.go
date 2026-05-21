@@ -185,6 +185,18 @@ func TestResolveFeatureFlags(t *testing.T) {
 			unexpectedFlags: []string{"unknown_flag"},
 		},
 		{
+			name:            "user-only flags can be enabled but are not turned on by insiders",
+			enabledFeatures: []string{FeatureFlagIssuesGranular},
+			insidersMode:    false,
+			expectedFlags:   []string{FeatureFlagIssuesGranular},
+		},
+		{
+			name:            "insiders does not enable user-only allowed flags",
+			enabledFeatures: nil,
+			insidersMode:    true,
+			unexpectedFlags: []string{FeatureFlagIssuesGranular, FeatureFlagPullRequestsGranular},
+		},
+		{
 			name:            "explicit plus insiders deduplicates",
 			enabledFeatures: []string{MCPAppsFeatureFlag},
 			insidersMode:    true,
