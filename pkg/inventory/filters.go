@@ -44,25 +44,23 @@ func (r *Inventory) checkFeatureFlag(ctx context.Context, flagName string) bool 
 //   - If FeatureFlagEnable is set, the item is only allowed if the flag is enabled.
 //   - If FeatureFlagDisable is set, the item is excluded if the flag is enabled.
 func featureFlagAllowed(ctx context.Context, checker FeatureFlagChecker, enableFlag, disableFlag string) bool {
-	if enableFlag != "" {
-		enabled, err := checker(ctx, enableFlag)
+	// Error semantics match the previous checkFeatureFlag helper: a checker
+	// error is logged and treated as "flag not enabled". So an enable-flag
+	// check on error excludes the tool, but a disable-flag check on error
+	// keeps it (the disable condition wasn't met).
+	check := func(flag string) bool {
+		enabled, err := checker(ctx, flag)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", enableFlag, err)
+			fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", flag, err)
 			return false
 		}
-		if !enabled {
-			return false
-		}
+		return enabled
 	}
-	if disableFlag != "" {
-		enabled, err := checker(ctx, disableFlag)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", disableFlag, err)
-			return false
-		}
-		if enabled {
-			return false
-		}
+	if enableFlag != "" && !check(enableFlag) {
+		return false
+	}
+	if disableFlag != "" && check(disableFlag) {
+		return false
 	}
 	return true
 }
@@ -130,8 +128,9 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
 // prompts).
 func sortByToolsetThenName[T any](items []T, toolsetID func(T) ToolsetID, name func(T) string) {
 	sort.Slice(items, func(i, j int) bool {
-		if toolsetID(items[i]) != toolsetID(items[j]) {
-			return toolsetID(items[i]) < toolsetID(items[j])
+		idI, idJ := toolsetID(items[i]), toolsetID(items[j])
+		if idI != idJ {
+			return idI < idJ
 		}
 		return name(items[i]) < name(items[j])
 	})

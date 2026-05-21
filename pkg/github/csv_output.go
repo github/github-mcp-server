@@ -45,8 +45,7 @@ type csvOutputDocument struct {
 // withCSVOutput wraps the handler of every default-toolset list_* tool so that,
 // at request time, it checks the csv_output feature flag and converts the JSON
 // text response to CSV when enabled. The tool's schema, name, and scope are
-// unchanged — only the response payload format differs — so a single tool with
-// a runtime check is sufficient (no dual feature-gated variants needed).
+// unchanged — only the response payload format differs.
 func withCSVOutput(tools []inventory.ServerTool) []inventory.ServerTool {
 	for i := range tools {
 		if !isCSVOutputTool(tools[i]) {
