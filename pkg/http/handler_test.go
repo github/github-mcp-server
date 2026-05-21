@@ -779,7 +779,7 @@ func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTo
 	}
 
 	ctx := context.Background()
-	return inv.AvailableToolsWithoutFeatureFiltering(ctx), inv.AvailableResourceTemplatesWithoutFeatureFiltering(ctx), inv.AvailablePromptsWithoutFeatureFiltering(ctx)
+	return inv.StaticUpperBound(ctx)
 }
 
 func TestCrossOriginProtection(t *testing.T) {

@@ -141,28 +141,6 @@ func (r *Inventory) AvailableTools(ctx context.Context) []ServerTool {
 	return result
 }
 
-// AvailableToolsWithoutFeatureFiltering returns tools that pass every filter
-// except FeatureFlagEnable/FeatureFlagDisable.
-//
-// HTTP mode uses this to build the static (process-wide) inventory, which acts
-// as an upper bound on what any request may see. Per-request feature flags
-// (from headers like X-MCP-Features or X-MCP-Insiders) are evaluated later
-// when the per-request inventory is derived, so feature-flagged variants must
-// be preserved here.
-func (r *Inventory) AvailableToolsWithoutFeatureFiltering(ctx context.Context) []ServerTool {
-	var result []ServerTool
-	for i := range r.tools {
-		tool := &r.tools[i]
-		if r.isToolEnabledWithFeatureFlags(ctx, tool, false) {
-			result = append(result, *tool)
-		}
-	}
-
-	sortTools(result)
-
-	return result
-}
-
 func sortResourceTemplates(resourceTemplates []ServerResourceTemplate) {
 	sortByToolsetThenName(resourceTemplates,
 		func(r ServerResourceTemplate) ToolsetID { return r.Toolset.ID },
@@ -187,24 +165,6 @@ func (r *Inventory) AvailableResourceTemplates(ctx context.Context) []ServerReso
 	}
 
 	// Sort deterministically: by toolset ID, then by template name
-	sortResourceTemplates(result)
-
-	return result
-}
-
-// AvailableResourceTemplatesWithoutFeatureFiltering returns resource templates
-// that pass every filter except FeatureFlagEnable/FeatureFlagDisable. See
-// AvailableToolsWithoutFeatureFiltering for why feature flags are deferred in
-// HTTP mode.
-func (r *Inventory) AvailableResourceTemplatesWithoutFeatureFiltering(_ context.Context) []ServerResourceTemplate {
-	var result []ServerResourceTemplate
-	for i := range r.resourceTemplates {
-		res := &r.resourceTemplates[i]
-		if r.isToolsetEnabled(res.Toolset.ID) {
-			result = append(result, *res)
-		}
-	}
-
 	sortResourceTemplates(result)
 
 	return result
@@ -239,22 +199,43 @@ func (r *Inventory) AvailablePrompts(ctx context.Context) []ServerPrompt {
 	return result
 }
 
-// AvailablePromptsWithoutFeatureFiltering returns prompts that pass every
-// filter except FeatureFlagEnable/FeatureFlagDisable. See
-// AvailableToolsWithoutFeatureFiltering for why feature flags are deferred in
-// HTTP mode.
-func (r *Inventory) AvailablePromptsWithoutFeatureFiltering(_ context.Context) []ServerPrompt {
-	var result []ServerPrompt
+// StaticUpperBound returns the tools, resource templates, and prompts that pass
+// every current filter except FeatureFlagEnable/FeatureFlagDisable. It exists
+// for HTTP mode, which builds a process-wide static inventory at startup as an
+// upper bound on what any request may expose. Feature flags from request
+// headers (X-MCP-Features, X-MCP-Insiders) cannot be evaluated yet at that
+// point, so feature-gated variants — including the dual jsonOnly/csvCapable
+// pattern used for CSV output — must all be carried through to the per-request
+// inventory, which then resolves the flag.
+func (r *Inventory) StaticUpperBound(ctx context.Context) ([]ServerTool, []ServerResourceTemplate, []ServerPrompt) {
+	var tools []ServerTool
+	for i := range r.tools {
+		tool := &r.tools[i]
+		if r.isToolEnabledWithFeatureFlags(ctx, tool, false) {
+			tools = append(tools, *tool)
+		}
+	}
+	sortTools(tools)
+
+	var resources []ServerResourceTemplate
+	for i := range r.resourceTemplates {
+		res := &r.resourceTemplates[i]
+		if r.isToolsetEnabled(res.Toolset.ID) {
+			resources = append(resources, *res)
+		}
+	}
+	sortResourceTemplates(resources)
+
+	var prompts []ServerPrompt
 	for i := range r.prompts {
 		prompt := &r.prompts[i]
 		if r.isToolsetEnabled(prompt.Toolset.ID) {
-			result = append(result, *prompt)
+			prompts = append(prompts, *prompt)
 		}
 	}
+	sortPrompts(prompts)
 
-	sortPrompts(result)
-
-	return result
+	return tools, resources, prompts
 }
 
 // filterToolsByName returns tools matching the given name, checking deprecated aliases.

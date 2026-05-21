@@ -357,7 +357,7 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 	// (/insiders, X-MCP-Features), so variants must be preserved until the
 	// per-request inventory evaluates them.
 	ctx := context.Background()
-	return inv.AvailableToolsWithoutFeatureFiltering(ctx), inv.AvailableResourceTemplatesWithoutFeatureFiltering(ctx), inv.AvailablePromptsWithoutFeatureFiltering(ctx)
+	return inv.StaticUpperBound(ctx)
 }
 
 // InventoryFiltersForRequest applies filters to the inventory builder
