@@ -29,6 +29,12 @@ func init() {
 	rootCmd.AddCommand(generateDocsCmd)
 }
 
+// noFeatureFlagsChecker reports every feature flag as disabled. It models the
+// default user experience used by the generated documentation.
+func noFeatureFlagsChecker(_ context.Context, _ string) (bool, error) {
+	return false, nil
+}
+
 func generateAllDocs() error {
 	for _, doc := range []struct {
 		path string
@@ -51,9 +57,16 @@ func generateReadmeDocs(readmePath string) error {
 	// Create translation helper
 	t, _ := translations.TranslationHelper()
 
-	// (not available to regular users) while including tools with FeatureFlagDisable.
+	// The README documents the default user experience: tools that are
+	// enabled with no special flags set. Installing a checker that reports
+	// every flag as disabled excludes tools gated by FeatureFlagEnable and
+	// keeps the legacy variants of tools gated by FeatureFlagDisable, so
+	// flag-gated duplicates don't appear twice.
 	// Build() can only fail if WithTools specifies invalid tools - not used here
-	r, _ := github.NewInventory(t).WithToolsets([]string{"all"}).Build()
+	r, _ := github.NewInventory(t).
+		WithToolsets([]string{"all"}).
+		WithFeatureChecker(noFeatureFlagsChecker).
+		Build()
 
 	// Generate toolsets documentation
 	toolsetsDoc := generateToolsetsDoc(r)

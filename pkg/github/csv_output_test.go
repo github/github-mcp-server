@@ -38,6 +38,26 @@ func TestCSVOutputAppliedToDefaultListTools(t *testing.T) {
 	}
 }
 
+func TestCSVOutputAppliesToFlagGatedListTools(t *testing.T) {
+	enabledOnly := testCSVOutputTool("list_things", `[{"number":1}]`)
+	enabledOnly.FeatureFlagEnable = FeatureFlagIssueFields
+	disabledOnly := testCSVOutputTool("list_legacy_things", `[{"number":2}]`)
+	disabledOnly.FeatureFlagDisable = FeatureFlagIssueFields
+
+	tools := withCSVOutput([]inventory.ServerTool{enabledOnly, disabledOnly})
+	require.Len(t, tools, 2)
+
+	// Both flag-gated variants get the CSV wrapper; the per-request flag filter
+	// decides which one actually registers, and the runtime csv_output check
+	// decides whether the wrapper converts the response.
+	deps := newCSVOutputTestDeps(true)
+	for _, tool := range tools {
+		result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), testCSVOutputRequest())
+		require.NoError(t, err)
+		assert.Contains(t, textResult(t, result), "number\n")
+	}
+}
+
 func TestCSVOutputOnlyAppliesToDefaultToolsets(t *testing.T) {
 	nonDefaultListTool := testCSVOutputToolWithToolset("list_discussions", `[{"number":1}]`, ToolsetMetadataDiscussions)
 

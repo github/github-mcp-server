@@ -56,14 +56,16 @@ func withCSVOutput(tools []inventory.ServerTool) []inventory.ServerTool {
 	return tools
 }
 
+// isCSVOutputTool reports whether the given tool should have its handler
+// wrapped to honor the csv_output feature flag. Wrapping happens at slice
+// construction time, before the per-request feature-flag filter chooses which
+// variant of a flag-gated tool to register, so flag-gated list_* tools are
+// included on equal footing — only the live variant ever runs at request time.
 func isCSVOutputTool(tool inventory.ServerTool) bool {
 	if !tool.Toolset.Default {
 		return false
 	}
-	if !strings.HasPrefix(tool.Tool.Name, "list_") {
-		return false
-	}
-	return tool.FeatureFlagEnable == "" && tool.FeatureFlagDisable == ""
+	return strings.HasPrefix(tool.Tool.Name, "list_")
 }
 
 func wrapHandlerWithCSVOutput(next inventory.HandlerFunc) inventory.HandlerFunc {
