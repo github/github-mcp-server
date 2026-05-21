@@ -36,9 +36,18 @@ func (r *Inventory) checkFeatureFlag(ctx context.Context, flagName string) bool 
 }
 
 // isFeatureFlagAllowed checks if an item passes feature flag filtering.
-// - If FeatureFlagEnable is set, the item is only allowed if the flag is enabled
-// - If FeatureFlagDisable is set, the item is excluded if the flag is enabled
+//   - If no feature checker is configured, feature flags are not evaluated and
+//     the item passes through. This gives the unfiltered upper bound used by
+//     HTTP mode at startup, before per-request feature checkers exist. The
+//     per-request inventory always installs a checker, so any dual-name
+//     variants are resolved before MCP registration (which can only serve a
+//     given tool name once).
+//   - If FeatureFlagEnable is set, the item is only allowed if the flag is enabled.
+//   - If FeatureFlagDisable is set, the item is excluded if the flag is enabled.
 func (r *Inventory) isFeatureFlagAllowed(ctx context.Context, enableFlag, disableFlag string) bool {
+	if r.featureChecker == nil {
+		return true
+	}
 	// Check enable flag - item requires this flag to be on
 	if enableFlag != "" && !r.checkFeatureFlag(ctx, enableFlag) {
 		return false
@@ -58,10 +67,6 @@ func (r *Inventory) isFeatureFlagAllowed(ctx context.Context, enableFlag, disabl
 //  4. Builder filters (via WithFilter)
 //  5. Toolset/additional tools
 func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
-	return r.isToolEnabledWithFeatureFlags(ctx, tool, true)
-}
-
-func (r *Inventory) isToolEnabledWithFeatureFlags(ctx context.Context, tool *ServerTool, checkFeatureFlags bool) bool {
 	// 1. Check tool's own Enabled function first
 	if tool.Enabled != nil {
 		enabled, err := tool.Enabled(ctx)
@@ -74,7 +79,7 @@ func (r *Inventory) isToolEnabledWithFeatureFlags(ctx context.Context, tool *Ser
 		}
 	}
 	// 2. Check feature flags
-	if checkFeatureFlags && !r.isFeatureFlagAllowed(ctx, tool.FeatureFlagEnable, tool.FeatureFlagDisable) {
+	if !r.isFeatureFlagAllowed(ctx, tool.FeatureFlagEnable, tool.FeatureFlagDisable) {
 		return false
 	}
 	// 3. Check read-only filter (applies to all tools)
@@ -197,45 +202,6 @@ func (r *Inventory) AvailablePrompts(ctx context.Context) []ServerPrompt {
 	sortPrompts(result)
 
 	return result
-}
-
-// StaticUpperBound returns the tools, resource templates, and prompts that pass
-// every current filter except FeatureFlagEnable/FeatureFlagDisable. It exists
-// for HTTP mode, which builds a process-wide static inventory at startup as an
-// upper bound on what any request may expose. Feature flags from request
-// headers (X-MCP-Features, X-MCP-Insiders) cannot be evaluated yet at that
-// point, so feature-gated variants — including the dual jsonOnly/csvCapable
-// pattern used for CSV output — must all be carried through to the per-request
-// inventory, which then resolves the flag.
-func (r *Inventory) StaticUpperBound(ctx context.Context) ([]ServerTool, []ServerResourceTemplate, []ServerPrompt) {
-	var tools []ServerTool
-	for i := range r.tools {
-		tool := &r.tools[i]
-		if r.isToolEnabledWithFeatureFlags(ctx, tool, false) {
-			tools = append(tools, *tool)
-		}
-	}
-	sortTools(tools)
-
-	var resources []ServerResourceTemplate
-	for i := range r.resourceTemplates {
-		res := &r.resourceTemplates[i]
-		if r.isToolsetEnabled(res.Toolset.ID) {
-			resources = append(resources, *res)
-		}
-	}
-	sortResourceTemplates(resources)
-
-	var prompts []ServerPrompt
-	for i := range r.prompts {
-		prompt := &r.prompts[i]
-		if r.isToolsetEnabled(prompt.Toolset.ID) {
-			prompts = append(prompts, *prompt)
-		}
-	}
-	sortPrompts(prompts)
-
-	return tools, resources, prompts
 }
 
 // filterToolsByName returns tools matching the given name, checking deprecated aliases.

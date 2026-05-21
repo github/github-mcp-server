@@ -1057,22 +1057,22 @@ func TestFeatureFlagEnable(t *testing.T) {
 		mockToolWithFlags("needs_flag", "toolset1", true, "my_feature", ""),
 	}
 
-	// Without feature checker, tool with FeatureFlagEnable should be excluded
+	// Without feature checker, feature-flag filtering is skipped: both tools pass
 	reg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}))
 	available := reg.AvailableTools(context.Background())
-	if len(available) != 1 {
-		t.Fatalf("Expected 1 tool without feature checker, got %d", len(available))
-	}
-	if available[0].Tool.Name != "always_available" {
-		t.Errorf("Expected always_available, got %s", available[0].Tool.Name)
+	if len(available) != 2 {
+		t.Fatalf("Expected 2 tools without feature checker (filtering skipped), got %d", len(available))
 	}
 
-	// With feature checker returning false, tool should still be excluded
+	// With feature checker returning false, FeatureFlagEnable tool is excluded
 	checkerFalse := func(_ context.Context, _ string) (bool, error) { return false, nil }
 	regFalse := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerFalse))
 	availableFalse := regFalse.AvailableTools(context.Background())
 	if len(availableFalse) != 1 {
 		t.Fatalf("Expected 1 tool with false checker, got %d", len(availableFalse))
+	}
+	if availableFalse[0].Tool.Name != "always_available" {
+		t.Errorf("Expected always_available, got %s", availableFalse[0].Tool.Name)
 	}
 
 	// With feature checker returning true for "my_feature", tool should be included
@@ -1167,11 +1167,11 @@ func TestFeatureFlagResources(t *testing.T) {
 		},
 	}
 
-	// Without checker, resource with enable flag should be excluded
+	// Without checker, feature-flag filtering is skipped: both resources pass
 	reg := mustBuild(t, NewBuilder().SetResources(resources).WithToolsets([]string{"all"}))
 	available := reg.AvailableResourceTemplates(context.Background())
-	if len(available) != 1 {
-		t.Fatalf("Expected 1 resource without checker, got %d", len(available))
+	if len(available) != 2 {
+		t.Fatalf("Expected 2 resources without checker (filtering skipped), got %d", len(available))
 	}
 
 	// With checker returning true, both should be included
@@ -1192,11 +1192,11 @@ func TestFeatureFlagPrompts(t *testing.T) {
 		},
 	}
 
-	// Without checker, prompt with enable flag should be excluded
+	// Without checker, feature-flag filtering is skipped: both prompts pass
 	reg := mustBuild(t, NewBuilder().SetPrompts(prompts).WithToolsets([]string{"all"}))
 	available := reg.AvailablePrompts(context.Background())
-	if len(available) != 1 {
-		t.Fatalf("Expected 1 prompt without checker, got %d", len(available))
+	if len(available) != 2 {
+		t.Fatalf("Expected 2 prompts without checker (filtering skipped), got %d", len(available))
 	}
 
 	// With checker returning true, both should be included
@@ -1482,9 +1482,11 @@ func TestEnabledAndFeatureFlagInteraction(t *testing.T) {
 	}
 
 	// Feature flag not enabled - tool should be excluded despite Enabled returning true
+	checkerOff := func(_ context.Context, _ string) (bool, error) { return false, nil }
 	reg1 := mustBuild(t, NewBuilder().
 		SetTools([]ServerTool{tool}).
-		WithToolsets([]string{"all"}))
+		WithToolsets([]string{"all"}).
+		WithFeatureChecker(checkerOff))
 	available1 := reg1.AvailableTools(context.Background())
 	if len(available1) != 0 {
 		t.Error("Tool should be excluded when feature flag is not enabled")
@@ -1710,9 +1712,11 @@ func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 	}
 
 	// Test 1: Flag is OFF - first tool variant should be available
+	checkerOff := func(_ context.Context, _ string) (bool, error) { return false, nil }
 	regFlagOff := mustBuild(t, NewBuilder().
 		SetTools(tools).
-		WithToolsets([]string{"all"}))
+		WithToolsets([]string{"all"}).
+		WithFeatureChecker(checkerOff))
 	filteredOff := regFlagOff.ForMCPRequest(MCPMethodToolsCall, "get_job_logs")
 	availableOff := filteredOff.AvailableTools(context.Background())
 	if len(availableOff) != 1 {
@@ -1762,11 +1766,13 @@ func TestWithTools_DeprecatedAliasAndFeatureFlag(t *testing.T) {
 
 	// Test 1: Flag OFF - old_tool should be available via direct name match
 	// (not via alias resolution to new_tool, since old_tool still exists)
+	checkerOff := func(_ context.Context, _ string) (bool, error) { return false, nil }
 	regFlagOff := mustBuild(t, NewBuilder().
 		SetTools(tools).
 		WithDeprecatedAliases(deprecatedAliases).
 		WithToolsets([]string{}).        // No toolsets enabled
-		WithTools([]string{"old_tool"})) // Explicitly request old tool
+		WithTools([]string{"old_tool"}). // Explicitly request old tool
+		WithFeatureChecker(checkerOff))
 	availableOff := regFlagOff.AvailableTools(context.Background())
 	if len(availableOff) != 1 {
 		t.Fatalf("Flag OFF: Expected 1 tool, got %d", len(availableOff))

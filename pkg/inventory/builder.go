@@ -128,7 +128,10 @@ func (b *Builder) WithTools(toolNames []string) *Builder {
 // WithFeatureChecker sets the feature flag checker function.
 // The checker receives a context (for actor extraction) and feature flag name,
 // returns (enabled, error). If error occurs, it will be logged and treated as false.
-// If checker is nil, all feature flag checks return false.
+// If checker is nil, feature flag filtering is skipped entirely — the inventory
+// then returns the full upper bound, including dual-name variants. The
+// per-request inventory must always install a checker so MCP registration
+// (which only serves one tool per name) sees a deduplicated set.
 // Returns self for chaining.
 func (b *Builder) WithFeatureChecker(checker FeatureFlagChecker) *Builder {
 	b.featureChecker = checker

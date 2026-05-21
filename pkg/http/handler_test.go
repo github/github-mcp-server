@@ -554,7 +554,7 @@ func TestStaticConfigEnforcement(t *testing.T) {
 			require.NoError(t, err)
 
 			// Build static tools the same way the production code does
-			staticTools, staticResources, staticPrompts := buildStaticInventoryFromTools(tt.config, tools, featureChecker)
+			staticTools, staticResources, staticPrompts := buildStaticInventoryFromTools(tt.config, tools)
 			hasStatic := hasStaticConfig(tt.config)
 
 			validToolNames := make(map[string]bool, len(staticTools))
@@ -640,7 +640,7 @@ func TestStaticInventoryPreservesPerRequestFeatureVariants(t *testing.T) {
 	cfg := &ServerConfig{Version: "test", EnabledToolsets: []string{"issues"}}
 	featureChecker := createHTTPFeatureChecker(nil, false)
 
-	staticTools, _, _ := buildStaticInventoryFromTools(cfg, tools, featureChecker)
+	staticTools, _, _ := buildStaticInventoryFromTools(cfg, tools)
 	require.Len(t, staticTools, 2, "static upper bounds should preserve both feature variants")
 
 	inv, err := inventory.NewBuilder().
@@ -754,14 +754,13 @@ func TestContentTypeHandling(t *testing.T) {
 
 // buildStaticInventoryFromTools is a test helper that mirrors buildStaticInventory
 // but uses the provided mock tools instead of calling github.AllTools.
-func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTool, featureChecker inventory.FeatureFlagChecker) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt) {
+func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTool) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt) {
 	if !hasStaticConfig(cfg) {
 		return tools, nil, nil
 	}
 
 	b := inventory.NewBuilder().
 		SetTools(tools).
-		WithFeatureChecker(featureChecker).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools))
 
@@ -779,7 +778,7 @@ func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTo
 	}
 
 	ctx := context.Background()
-	return inv.StaticUpperBound(ctx)
+	return inv.AvailableTools(ctx), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx)
 }
 
 func TestCrossOriginProtection(t *testing.T) {

@@ -14,55 +14,55 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCSVOutputVariantsAreFeatureGated(t *testing.T) {
+func TestCSVOutputAppliedToDefaultListTools(t *testing.T) {
 	listTool := testCSVOutputTool("list_things", `[{"number":1}]`)
 	getTool := testCSVOutputTool("get_thing", `{"number":1}`)
 
-	tools := withCSVOutputVariants([]inventory.ServerTool{listTool, getTool})
-	require.Len(t, tools, 3)
+	tools := withCSVOutput([]inventory.ServerTool{listTool, getTool})
+	require.Len(t, tools, 2)
 
-	inv := buildCSVOutputInventory(t, tools, false)
-	available := inv.AvailableTools(context.Background())
-	require.Len(t, available, 2)
+	// CSV mode does not introduce variants or change tool gating; both tools
+	// remain visible regardless of feature flag state.
+	for _, csvOutputEnabled := range []bool{false, true} {
+		inv := buildCSVOutputInventory(t, tools, csvOutputEnabled)
+		available := inv.AvailableTools(context.Background())
+		require.Len(t, available, 2)
 
-	jsonOnly := requireToolByName(t, available, "list_things")
-	assert.Empty(t, jsonOnly.FeatureFlagEnable)
-	assert.Equal(t, FeatureFlagCSVOutput, jsonOnly.FeatureFlagDisable)
+		listing := requireToolByName(t, available, "list_things")
+		assert.Empty(t, listing.FeatureFlagEnable)
+		assert.Empty(t, listing.FeatureFlagDisable)
 
-	getThing := requireToolByName(t, available, "get_thing")
-	assert.Empty(t, getThing.FeatureFlagEnable)
-	assert.Empty(t, getThing.FeatureFlagDisable)
-
-	inv = buildCSVOutputInventory(t, tools, true)
-	available = inv.AvailableTools(context.Background())
-	require.Len(t, available, 2)
-
-	csvCapable := requireToolByName(t, available, "list_things")
-	assert.Equal(t, FeatureFlagCSVOutput, csvCapable.FeatureFlagEnable)
-	assert.Empty(t, csvCapable.FeatureFlagDisable)
+		getting := requireToolByName(t, available, "get_thing")
+		assert.Empty(t, getting.FeatureFlagEnable)
+		assert.Empty(t, getting.FeatureFlagDisable)
+	}
 }
 
-func TestCSVOutputVariantsOnlyApplyToDefaultToolsets(t *testing.T) {
+func TestCSVOutputOnlyAppliesToDefaultToolsets(t *testing.T) {
 	nonDefaultListTool := testCSVOutputToolWithToolset("list_discussions", `[{"number":1}]`, ToolsetMetadataDiscussions)
 
-	tools := withCSVOutputVariants([]inventory.ServerTool{nonDefaultListTool})
+	tools := withCSVOutput([]inventory.ServerTool{nonDefaultListTool})
 	require.Len(t, tools, 1)
 
-	assert.Empty(t, tools[0].FeatureFlagEnable)
-	assert.Empty(t, tools[0].FeatureFlagDisable)
+	// Non-default toolset list tools are not wrapped: even with the flag on,
+	// the response stays in JSON form.
+	deps := newCSVOutputTestDeps(true)
+	result, err := tools[0].Handler(deps)(ContextWithDeps(context.Background(), deps), testCSVOutputRequest())
+	require.NoError(t, err)
+	assert.JSONEq(t, `[{"number":1}]`, textResult(t, result))
 }
 
-func TestCSVOutputVariantDoesNotExposeFormatParameter(t *testing.T) {
-	tools := withCSVOutputVariants([]inventory.ServerTool{testCSVOutputTool("list_things", `[{"number":1}]`)})
-	csvCapable := requireCSVOutputVariant(t, tools)
+func TestCSVOutputDoesNotExposeFormatParameter(t *testing.T) {
+	tools := withCSVOutput([]inventory.ServerTool{testCSVOutputTool("list_things", `[{"number":1}]`)})
+	require.Len(t, tools, 1)
 
-	schema, ok := csvCapable.Tool.InputSchema.(*jsonschema.Schema)
+	schema, ok := tools[0].Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok)
 	assert.NotContains(t, schema.Properties, "output_format")
 }
 
-func TestCSVOutputVariantConvertsJSONTextToCSV(t *testing.T) {
-	tools := withCSVOutputVariants([]inventory.ServerTool{
+func TestCSVOutputConvertsJSONTextToCSVWhenFlagOn(t *testing.T) {
+	tools := withCSVOutput([]inventory.ServerTool{
 		testCSVOutputTool("list_things", `[
 			{
 				"number": 1,
@@ -72,10 +72,10 @@ func TestCSVOutputVariantConvertsJSONTextToCSV(t *testing.T) {
 			}
 		]`),
 	})
-	inv := buildCSVOutputInventory(t, tools, true)
-	csvCapable := requireToolByName(t, inv.AvailableTools(context.Background()), "list_things")
+	require.Len(t, tools, 1)
 
-	result, err := csvCapable.Handler(nil)(context.Background(), testCSVOutputRequest())
+	deps := newCSVOutputTestDeps(true)
+	result, err := tools[0].Handler(deps)(ContextWithDeps(context.Background(), deps), testCSVOutputRequest())
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.False(t, result.IsError)
@@ -90,6 +90,22 @@ func TestCSVOutputVariantConvertsJSONTextToCSV(t *testing.T) {
 	assert.Equal(t, "bug;help wanted", row["labels"])
 	assert.Equal(t, "1", row["number"])
 	assert.Equal(t, "octocat", row["user.login"])
+}
+
+func TestCSVOutputPreservesOriginalJSONWhenFlagOff(t *testing.T) {
+	const jsonResponse = `[{"number":1,"user":{"login":"octocat"}}]`
+	tools := withCSVOutput([]inventory.ServerTool{testCSVOutputTool("list_things", jsonResponse)})
+	require.Len(t, tools, 1)
+
+	deps := newCSVOutputTestDeps(false)
+	result, err := tools[0].Handler(deps)(ContextWithDeps(context.Background(), deps), testCSVOutputRequest())
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	require.Len(t, result.Content, 1)
+	text, ok := result.Content[0].(*mcp.TextContent)
+	require.True(t, ok)
+	assert.JSONEq(t, jsonResponse, text.Text)
 }
 
 func TestCSVOutputVariantMovesMetadataToPreamble(t *testing.T) {
@@ -116,22 +132,6 @@ func TestCSVOutputVariantMovesMetadataToPreamble(t *testing.T) {
 	assert.Equal(t, "First issue", row["title"])
 	assert.NotContains(t, row, "pageInfo.endCursor")
 	assert.NotContains(t, row, "totalCount")
-}
-
-func TestJSONOnlyVariantPreservesOriginalJSONText(t *testing.T) {
-	const jsonResponse = `[{"number":1,"user":{"login":"octocat"}}]`
-	tools := withCSVOutputVariants([]inventory.ServerTool{testCSVOutputTool("list_things", jsonResponse)})
-	inv := buildCSVOutputInventory(t, tools, false)
-	jsonOnly := requireToolByName(t, inv.AvailableTools(context.Background()), "list_things")
-
-	result, err := jsonOnly.Handler(nil)(context.Background(), testCSVOutputRequest())
-	require.NoError(t, err)
-	require.NotNil(t, result)
-
-	require.Len(t, result.Content, 1)
-	text, ok := result.Content[0].(*mcp.TextContent)
-	require.True(t, ok)
-	assert.JSONEq(t, jsonResponse, text.Text)
 }
 
 func TestJSONTextToCSVFlattensPrimaryRows(t *testing.T) {
@@ -329,17 +329,27 @@ func testCSVOutputToolWithToolset(name string, response string, toolset inventor
 	}
 }
 
-func buildCSVOutputInventory(t *testing.T, tools []inventory.ServerTool, csvOutputEnabled bool) *inventory.Inventory {
+func buildCSVOutputInventory(t *testing.T, tools []inventory.ServerTool, _ bool) *inventory.Inventory {
 	t.Helper()
 
 	inv, err := inventory.NewBuilder().
 		SetTools(tools).
-		WithFeatureChecker(func(_ context.Context, flagName string) (bool, error) {
-			return flagName == FeatureFlagCSVOutput && csvOutputEnabled, nil
-		}).
 		Build()
 	require.NoError(t, err)
 	return inv
+}
+
+func newCSVOutputTestDeps(csvOutputEnabled bool) ToolDependencies {
+	return csvOutputTestDeps{stubDeps: stubDeps{obsv: stubExporters()}, csvOn: csvOutputEnabled}
+}
+
+type csvOutputTestDeps struct {
+	stubDeps
+	csvOn bool
+}
+
+func (d csvOutputTestDeps) IsFeatureEnabled(_ context.Context, flag string) bool {
+	return flag == FeatureFlagCSVOutput && d.csvOn
 }
 
 func requireToolByName(t *testing.T, tools []inventory.ServerTool, name string) inventory.ServerTool {
@@ -351,18 +361,6 @@ func requireToolByName(t *testing.T, tools []inventory.ServerTool, name string) 
 		}
 	}
 	require.Failf(t, "tool not found", "tool %q not found", name)
-	return inventory.ServerTool{}
-}
-
-func requireCSVOutputVariant(t *testing.T, tools []inventory.ServerTool) inventory.ServerTool {
-	t.Helper()
-
-	for _, tool := range tools {
-		if tool.FeatureFlagEnable == FeatureFlagCSVOutput {
-			return tool
-		}
-	}
-	require.Fail(t, "CSV output variant not found")
 	return inventory.ServerTool{}
 }
 

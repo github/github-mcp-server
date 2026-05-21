@@ -249,7 +249,7 @@ func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies
 func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelperFunc, featureChecker inventory.FeatureFlagChecker, scopeFetcher scopes.FetcherInterface) InventoryFactoryFunc {
 	// Build the static tool/resource/prompt universe from CLI flags.
 	// This is done once at startup and captured in the closure.
-	staticTools, staticResources, staticPrompts := buildStaticInventory(cfg, t, featureChecker)
+	staticTools, staticResources, staticPrompts := buildStaticInventory(cfg, t)
 	hasStaticFilters := hasStaticConfig(cfg)
 
 	// Pre-compute valid tool names for filtering per-request tool headers.
@@ -325,15 +325,19 @@ func hasStaticConfig(cfg *ServerConfig) bool {
 }
 
 // buildStaticInventory pre-filters the full tool/resource/prompt universe using
-// the static CLI flags (--toolsets, --read-only, --exclude-tools, etc.).
-// The returned slices serve as the upper bound for per-request inventory builders.
-func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFunc, featureChecker inventory.FeatureFlagChecker) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt) {
+// the static config (toolsets, read-only, --tools, --exclude-tools). It does
+// NOT install a feature checker: HTTP feature flags can come from per-request
+// context (/insiders, X-MCP-Features), so dual-name feature variants — for
+// example the granular issues/PRs tools that share a name with their
+// non-granular siblings — must be carried through to the per-request
+// inventory, which then installs a checker and resolves the flag before
+// registering tools with the MCP server.
+func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFunc) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt) {
 	if !hasStaticConfig(cfg) {
 		return github.AllTools(t), github.AllResources(t), github.AllPrompts(t)
 	}
 
 	b := github.NewInventory(t).
-		WithFeatureChecker(featureChecker).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools))
 
@@ -352,12 +356,8 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 		return github.AllTools(t), github.AllResources(t), github.AllPrompts(t)
 	}
 
-	// Static filtering defines an upper bound for all requests. Do not apply
-	// feature flags here: HTTP feature flags can come from request context
-	// (/insiders, X-MCP-Features), so variants must be preserved until the
-	// per-request inventory evaluates them.
 	ctx := context.Background()
-	return inv.StaticUpperBound(ctx)
+	return inv.AvailableTools(ctx), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx)
 }
 
 // InventoryFiltersForRequest applies filters to the inventory builder
