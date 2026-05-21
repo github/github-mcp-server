@@ -23,7 +23,6 @@ import (
 //   - Filtered access to tools/resources/prompts via Available* methods
 //   - Deterministic ordering for documentation generation
 //   - Lazy dependency injection during registration via RegisterAll()
-//   - Runtime toolset enabling for dynamic toolsets mode
 type Inventory struct {
 	// tools holds all tools in this group (ordered for iteration)
 	tools []ServerTool

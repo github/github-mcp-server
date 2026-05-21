@@ -94,6 +94,41 @@ func GetCodeScanningAlert(t translations.TranslationHelperFunc) inventory.Server
 }
 
 func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.ServerTool {
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "The owner of the repository.",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "The name of the repository.",
+			},
+			"state": {
+				Type:        "string",
+				Description: "Filter code scanning alerts by state. Defaults to open",
+				Enum:        []any{"open", "closed", "dismissed", "fixed"},
+				Default:     json.RawMessage(`"open"`),
+			},
+			"ref": {
+				Type:        "string",
+				Description: "The Git reference for the results you want to list.",
+			},
+			"severity": {
+				Type:        "string",
+				Description: "Filter code scanning alerts by severity",
+				Enum:        []any{"critical", "high", "medium", "low", "warning", "note", "error"},
+			},
+			"tool_name": {
+				Type:        "string",
+				Description: "The name of the tool used for code scanning.",
+			},
+		},
+		Required: []string{"owner", "repo"},
+	}
+	WithPagination(schema)
+
 	return NewTool(
 		ToolsetMetadataCodeSecurity,
 		mcp.Tool{
@@ -103,39 +138,7 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 				Title:        t("TOOL_LIST_CODE_SCANNING_ALERTS_USER_TITLE", "List code scanning alerts"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner": {
-						Type:        "string",
-						Description: "The owner of the repository.",
-					},
-					"repo": {
-						Type:        "string",
-						Description: "The name of the repository.",
-					},
-					"state": {
-						Type:        "string",
-						Description: "Filter code scanning alerts by state. Defaults to open",
-						Enum:        []any{"open", "closed", "dismissed", "fixed"},
-						Default:     json.RawMessage(`"open"`),
-					},
-					"ref": {
-						Type:        "string",
-						Description: "The Git reference for the results you want to list.",
-					},
-					"severity": {
-						Type:        "string",
-						Description: "Filter code scanning alerts by severity",
-						Enum:        []any{"critical", "high", "medium", "low", "warning", "note", "error"},
-					},
-					"tool_name": {
-						Type:        "string",
-						Description: "The name of the tool used for code scanning.",
-					},
-				},
-				Required: []string{"owner", "repo"},
-			},
+			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.SecurityEvents},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -164,11 +167,25 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			pagination, err := OptionalPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
-			alerts, resp, err := client.CodeScanning.ListAlertsForRepo(ctx, owner, repo, &github.AlertListOptions{Ref: ref, State: state, Severity: severity, ToolName: toolName})
+			alerts, resp, err := client.CodeScanning.ListAlertsForRepo(ctx, owner, repo, &github.AlertListOptions{
+				Ref:      ref,
+				State:    state,
+				Severity: severity,
+				ToolName: toolName,
+				ListOptions: github.ListOptions{
+					Page:    pagination.Page,
+					PerPage: pagination.PerPage,
+				},
+			})
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to list alerts",

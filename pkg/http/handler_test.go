@@ -738,7 +738,7 @@ func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTo
 		SetTools(tools).
 		WithFeatureChecker(featureChecker).
 		WithReadOnly(cfg.ReadOnly).
-		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools))
+		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools))
 
 	if len(cfg.EnabledTools) > 0 {
 		b = b.WithTools(github.CleanTools(cfg.EnabledTools))
