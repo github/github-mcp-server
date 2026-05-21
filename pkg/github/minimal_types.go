@@ -1,6 +1,7 @@
 package github
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -896,6 +897,7 @@ type MinimalReviewComment struct {
 
 // MinimalReviewThread is the trimmed output type for PR review thread objects.
 type MinimalReviewThread struct {
+	ID          string
 	IsResolved  bool                   `json:"is_resolved"`
 	IsOutdated  bool                   `json:"is_outdated"`
 	IsCollapsed bool                   `json:"is_collapsed"`
@@ -1032,6 +1034,7 @@ func convertToMinimalReviewThread(thread reviewThreadNode) MinimalReviewThread {
 	}
 
 	return MinimalReviewThread{
+		ID:          fmt.Sprintf("%v", thread.ID),
 		IsResolved:  bool(thread.IsResolved),
 		IsOutdated:  bool(thread.IsOutdated),
 		IsCollapsed: bool(thread.IsCollapsed),

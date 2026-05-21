@@ -130,7 +130,6 @@ func mockRESTPermissionServer(t *testing.T, defaultPerm string, overrides map[st
 func stubFeatureFlags(enabledFlags map[string]bool) FeatureFlags {
 	return FeatureFlags{
 		LockdownMode: enabledFlags["lockdown-mode"],
-		InsidersMode: enabledFlags["insiders-mode"],
 	}
 }
 
@@ -164,7 +163,6 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 		Translator:        translations.NullTranslationHelper,
 		ContentWindowSize: 5000,
 		LockdownMode:      false,
-		InsidersMode:      false,
 	}
 
 	deps := stubDeps{obsv: stubExporters()}

@@ -9,7 +9,7 @@
     }
   },
   "annotations": {
-    "title": "Create or update issue."
+    "title": "Create or update issue"
   },
   "description": "Create a new or update an existing issue in a GitHub repository.",
   "inputSchema": {

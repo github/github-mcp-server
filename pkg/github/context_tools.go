@@ -106,7 +106,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := MarshalledTextResult(minimalUser)
-			if deps.GetFlags(ctx).InsidersMode {
+			if deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
 				if result.Meta == nil {
 					result.Meta = mcp.Meta{}
 				}
