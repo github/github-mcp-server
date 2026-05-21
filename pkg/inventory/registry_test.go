@@ -1652,10 +1652,10 @@ func TestFilteredToolsMatchesAvailableTools(t *testing.T) {
 func TestFilteringOrder(t *testing.T) {
 	// Test that filters are applied in the correct order:
 	// 1. Tool.Enabled
-	// 2. Feature flags
-	// 3. Read-only
-	// 4. Builder filters
-	// 5. Toolset/additional tools
+	// 2. Read-only
+	// 3. Builder filters (feature-flag filter is at the head of this list
+	//    when WithFeatureChecker is set)
+	// 4. Toolset/additional tools
 
 	callOrder := []string{}
 
@@ -1688,8 +1688,9 @@ func TestFilteringOrder(t *testing.T) {
 
 	_ = reg.AvailableTools(context.Background())
 
-	// Expected order: Enabled, FeatureFlag, ReadOnly (stops here because it's write tool)
-	expectedOrder := []string{"Enabled", "FeatureFlag"}
+	// Expected order: Enabled, then Read-only stops (write tool, read-only mode);
+	// neither the feature-flag filter nor the user filter is reached.
+	expectedOrder := []string{"Enabled"}
 	if len(callOrder) != len(expectedOrder) {
 		t.Errorf("Expected %d checks, got %d: %v", len(expectedOrder), len(callOrder), callOrder)
 	}
