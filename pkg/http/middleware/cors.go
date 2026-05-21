@@ -25,7 +25,6 @@ func SetCorsHeaders(h http.Handler) http.Handler {
 		headers.MCPFeaturesHeader,
 		headers.MCPLockdownHeader,
 		headers.MCPInsidersHeader,
-		headers.MCPFeaturesHeader,
 	}, ", ")
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
