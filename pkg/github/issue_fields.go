@@ -77,12 +77,11 @@ type issueFieldNode struct {
 }
 
 // issueFieldsRepoQuery is the GraphQL query for listing issue fields on a repository.
-// The monolith enforces ORGANIZATION_ISSUE_FIELDS_LIMIT = 25 fields per organization
 type issueFieldsRepoQuery struct {
 	Repository struct {
 		IssueFields struct {
 			Nodes []issueFieldNode
-		} `graphql:"issueFields(first: 25)"`
+		} `graphql:"issueFields(first: 100)"`
 	} `graphql:"repository(owner: $owner, name: $name)"`
 }
 
@@ -91,7 +90,7 @@ type issueFieldsOrgQuery struct {
 	Organization struct {
 		IssueFields struct {
 			Nodes []issueFieldNode
-		} `graphql:"issueFields(first: 25)"`
+		} `graphql:"issueFields(first: 100)"`
 	} `graphql:"organization(login: $login)"`
 }
 
@@ -155,7 +154,7 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 // If repo is provided, fields are scoped to that repository (inherited from its
 // organization); otherwise fields are returned directly from the organization.
 func fetchIssueFields(ctx context.Context, gqlClient *githubv4.Client, owner, repo string) ([]IssueField, error) {
-	ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields")
+	ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
 	if repo != "" {
 		var query issueFieldsRepoQuery
 		vars := map[string]any{
