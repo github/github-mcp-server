@@ -43,6 +43,8 @@ func generateAllDocs() error {
 		// File to edit, function to generate its docs
 		{"README.md", generateReadmeDocs},
 		{"docs/remote-server.md", generateRemoteServerDocs},
+		{"docs/insiders-features.md", generateInsidersFeaturesDocs},
+		{"docs/feature-flags.md", generateFeatureFlagsDocs},
 		{"docs/tool-renaming.md", generateDeprecatedAliasesDocs},
 	} {
 		if err := doc.fn(doc.path); err != nil {
@@ -168,7 +170,7 @@ func generateToolsetsDoc(i *inventory.Inventory) string {
 }
 
 func generateToolsDoc(r *inventory.Inventory) string {
-	tools := r.AvailableTools(context.Background())
+	tools := r.ToolsForRegistration(context.Background())
 	if len(tools) == 0 {
 		return ""
 	}
@@ -224,6 +226,15 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 		// Only show accepted scopes if they differ from required scopes
 		if len(tool.AcceptedScopes) > 0 && !scopesEqual(tool.RequiredScopes, tool.AcceptedScopes) {
 			fmt.Fprintf(buf, "  - **Accepted OAuth Scopes**: `%s`\n", strings.Join(tool.AcceptedScopes, "`, `"))
+		}
+	}
+
+	// MCP App UI metadata (only rendered when the remote_mcp_ui_apps flag
+	// applied to the inventory; for the no-flags README this section is
+	// stripped by inventory.ToolsForRegistration before rendering).
+	if ui, ok := tool.Tool.Meta["ui"].(map[string]any); ok {
+		if uri, ok := ui["resourceUri"].(string); ok && uri != "" {
+			fmt.Fprintf(buf, "  - **MCP App UI**: `%s`\n", uri)
 		}
 	}
 

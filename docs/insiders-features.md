@@ -20,6 +20,76 @@ For configuration examples, see the [Server Configuration Guide](./server-config
 
 ---
 
+## Tools added or changed by Insiders Mode
+
+The list below is generated from the Go source. It covers tool **inventory and schema deltas** introduced by each Insiders feature flag — newly registered tools, or existing tools whose input schema or MCP metadata changes when the flag is on. Flags that only affect runtime behavior (e.g. output formatting or extra field lookups behind an existing schema) won't appear here; those are documented in the prose sections of this file.
+
+<!-- START AUTOMATED INSIDERS TOOLS -->
+
+### `remote_mcp_ui_apps`
+
+- **create_pull_request** - Open new pull request
+  - **Required OAuth Scopes**: `repo`
+  - **MCP App UI**: `ui://github-mcp-server/pr-write`
+  - `base`: Branch to merge into (string, required)
+  - `body`: PR description (string, optional)
+  - `draft`: Create as draft PR (boolean, optional)
+  - `head`: Branch containing changes (string, required)
+  - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `title`: PR title (string, required)
+
+- **get_me** - Get my user profile
+  - **MCP App UI**: `ui://github-mcp-server/get-me`
+  - No parameters required
+
+- **issue_write** - Create or update issue
+  - **Required OAuth Scopes**: `repo`
+  - **MCP App UI**: `ui://github-mcp-server/issue-write`
+  - `assignees`: Usernames to assign to this issue (string[], optional)
+  - `body`: Issue body content (string, optional)
+  - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
+  - `issue_number`: Issue number to update (number, optional)
+  - `labels`: Labels to apply to this issue (string[], optional)
+  - `method`: Write operation to perform on a single issue.
+    Options are:
+    - 'create' - creates a new issue.
+    - 'update' - updates an existing issue.
+     (string, required)
+  - `milestone`: Milestone number (number, optional)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `state`: New state (string, optional)
+  - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
+  - `title`: Issue title (string, optional)
+  - `type`: Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
+
+### `remote_mcp_issue_fields`
+
+- **list_issue_fields** - List issue fields
+  - **Required OAuth Scopes**: `repo`, `read:org`
+  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `repo`, `write:org`
+  - `owner`: The account owner of the repository or organization. The name is not case sensitive. (string, required)
+  - `repo`: The name of the repository. When provided, returns fields for this specific repository (inherited from its organization). When omitted, returns org-level fields directly. (string, optional)
+
+- **list_issues** - List issues
+  - **Required OAuth Scopes**: `repo`
+  - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
+  - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
+  - `field_filters`: Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date). (object[], optional)
+  - `labels`: Filter by labels (string[], optional)
+  - `orderBy`: Order issues by field. If provided, the 'direction' also needs to be provided. (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+  - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
+  - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
+
+<!-- END AUTOMATED INSIDERS TOOLS -->
+
+---
+
 ## MCP Apps
 
 [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) is an extension to the Model Context Protocol that enables servers to deliver interactive user interfaces to end users. Instead of returning plain text that the LLM must interpret and relay, tools can render forms, profiles, and dashboards right in the chat using MCP Apps.
