@@ -179,7 +179,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	// requiring a UI build (graceful degradation).
 	mcpAppsEnabled, _ := featureChecker(context.Background(), github.MCPAppsFeatureFlag)
 	if mcpAppsEnabled && github.UIAssetsAvailable() {
-		github.RegisterUIResources(ghServer)
+		github.RegisterUIResources(ghServer, cfg.ReadOnly)
 	}
 
 	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.restUATransp, clients.gqlHTTP))

@@ -10,7 +10,7 @@ import (
 // These are static resources (not templates) that serve HTML content for
 // MCP App-enabled tools. The HTML is built from React/Primer components
 // in the ui/ directory using `script/build-ui`.
-func RegisterUIResources(s *mcp.Server) {
+func RegisterUIResources(s *mcp.Server, readOnly bool) {
 	// Register the get_me UI resource
 	s.AddResource(
 		&mcp.Resource{
@@ -42,6 +42,10 @@ func RegisterUIResources(s *mcp.Server) {
 			}, nil
 		},
 	)
+
+	if readOnly {
+		return
+	}
 
 	// Register the issue_write UI resource
 	s.AddResource(
