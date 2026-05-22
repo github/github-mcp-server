@@ -139,6 +139,7 @@ var (
 				Host:                 viper.GetString("host"),
 				Port:                 viper.GetInt("port"),
 				BaseURL:              viper.GetString("base-url"),
+				AuthorizationServer:  viper.GetString("authorization-server"),
 				ResourcePath:         viper.GetString("base-path"),
 				ExportTranslations:   viper.GetBool("export-translations"),
 				EnableCommandLogging: viper.GetBool("enable-command-logging"),
@@ -184,6 +185,7 @@ func init() {
 	// HTTP-specific flags
 	httpCmd.Flags().Int("port", 8082, "HTTP server port")
 	httpCmd.Flags().String("base-url", "", "Base URL where this server is publicly accessible (for OAuth resource metadata)")
+	httpCmd.Flags().String("authorization-server", "", "OAuth authorization server URL override (for OAuth resource metadata)")
 	httpCmd.Flags().String("base-path", "", "Externally visible base path for the HTTP server (for OAuth resource metadata)")
 	httpCmd.Flags().Bool("scope-challenge", false, "Enable OAuth scope challenge responses")
 
@@ -203,6 +205,7 @@ func init() {
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
 	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))
 	_ = viper.BindPFlag("base-url", httpCmd.Flags().Lookup("base-url"))
+	_ = viper.BindPFlag("authorization-server", httpCmd.Flags().Lookup("authorization-server"))
 	_ = viper.BindPFlag("base-path", httpCmd.Flags().Lookup("base-path"))
 	_ = viper.BindPFlag("scope-challenge", httpCmd.Flags().Lookup("scope-challenge"))
 	// Add subcommands

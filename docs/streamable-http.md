@@ -59,6 +59,16 @@ The OAuth protected resource metadata's `resource` attribute will be populated w
 
 This allows OAuth clients to discover authentication requirements and endpoint information automatically.
 
+### With Custom OAuth Authorization Server
+
+If your GHES deployment requires a non-default OAuth authorization server URL, override it explicitly:
+
+```bash
+github-mcp-server http --gh-host https://ghe.example.com --authorization-server https://auth.ghe.example.com/login/oauth
+```
+
+You can also set this via `GITHUB_AUTHORIZATION_SERVER`.
+
 ## Client Configuration
 
 ### Using OAuth Authentication
