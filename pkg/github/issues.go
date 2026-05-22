@@ -105,6 +105,152 @@ func getCloseStateReason(stateReason string) IssueClosedStateReason {
 	}
 }
 
+// IssueWriteFieldInput is a user-supplied issue field assignment: a field name and a string value.
+// The value is forwarded directly to the REST API — for single-select fields it must be the
+// option name (e.g. "P1"), not an option ID. Field ID resolution is done internally via GQL.
+type IssueWriteFieldInput struct {
+	FieldName string
+	Value     string
+}
+
+// issueFieldWriteMetadataNode queries only the fields needed to resolve a write: the field's
+// fullDatabaseId (BigInt scalar, returned as string) plus its name and data type for validation.
+// shurcooL/githubv4 cannot use interface-level fragments at union top-level, so we repeat
+// fullDatabaseId on each concrete type; all four implement IssueFieldCommon.
+type issueFieldWriteMetadataNode struct {
+	TypeName       githubv4.String `graphql:"__typename"`
+	IssueFieldText struct {
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+		Name           githubv4.String
+		DataType       githubv4.String
+	} `graphql:"... on IssueFieldText"`
+	IssueFieldNumber struct {
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+		Name           githubv4.String
+		DataType       githubv4.String
+	} `graphql:"... on IssueFieldNumber"`
+	IssueFieldDate struct {
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+		Name           githubv4.String
+		DataType       githubv4.String
+	} `graphql:"... on IssueFieldDate"`
+	IssueFieldSingleSelect struct {
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+		Name           githubv4.String
+		DataType       githubv4.String
+	} `graphql:"... on IssueFieldSingleSelect"`
+}
+
+// issueFieldWriteMetadata holds the resolved name, database ID, and data type for a single field.
+type issueFieldWriteMetadata struct {
+	DatabaseID int64
+	Name       string
+	DataType   string
+}
+
+type issueFieldWriteMetadataQuery struct {
+	Repository struct {
+		IssueFields struct {
+			Nodes []issueFieldWriteMetadataNode
+		} `graphql:"issueFields(first: 100)"`
+	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
+func optionalIssueWriteFields(args map[string]any) ([]IssueWriteFieldInput, error) {
+	raw, exists := args["issue_fields"]
+	if !exists {
+		return nil, nil
+	}
+
+	var inputMaps []map[string]any
+	switch v := raw.(type) {
+	case []any:
+		for _, item := range v {
+			m, ok := item.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("each issue_fields item must be an object")
+			}
+			inputMaps = append(inputMaps, m)
+		}
+	case []map[string]any:
+		inputMaps = v
+	default:
+		return nil, fmt.Errorf("issue_fields must be an array")
+	}
+
+	out := make([]IssueWriteFieldInput, 0, len(inputMaps))
+	for _, m := range inputMaps {
+		fieldName, err := RequiredParam[string](m, "field_name")
+		if err != nil || strings.TrimSpace(fieldName) == "" {
+			return nil, fmt.Errorf("field_name is required for each issue_fields item")
+		}
+		value, err := RequiredParam[string](m, "value")
+		if err != nil {
+			return nil, fmt.Errorf("issue_fields item %q: value is required", fieldName)
+		}
+		out = append(out, IssueWriteFieldInput{FieldName: fieldName, Value: value})
+	}
+	return out, nil
+}
+
+func resolveIssueWriteFieldValues(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, inputs []IssueWriteFieldInput) ([]*github.IssueRequestFieldValue, error) {
+	if len(inputs) == 0 {
+		return nil, nil
+	}
+
+	ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
+	var query issueFieldWriteMetadataQuery
+	vars := map[string]any{
+		"owner": githubv4.String(owner),
+		"repo":  githubv4.String(repo),
+	}
+	if err := gqlClient.Query(ctxWithFeatures, &query, vars); err != nil {
+		return nil, fmt.Errorf("failed to query issue field metadata: %w", err)
+	}
+
+	// Build name → metadata map from the GQL response.
+	byName := make(map[string]issueFieldWriteMetadata, len(query.Repository.IssueFields.Nodes))
+	for _, node := range query.Repository.IssueFields.Nodes {
+		var name, dataType, fullDBID string
+		switch string(node.TypeName) {
+		case "IssueFieldText":
+			name, dataType, fullDBID = string(node.IssueFieldText.Name), string(node.IssueFieldText.DataType), string(node.IssueFieldText.FullDatabaseID)
+		case "IssueFieldNumber":
+			name, dataType, fullDBID = string(node.IssueFieldNumber.Name), string(node.IssueFieldNumber.DataType), string(node.IssueFieldNumber.FullDatabaseID)
+		case "IssueFieldDate":
+			name, dataType, fullDBID = string(node.IssueFieldDate.Name), string(node.IssueFieldDate.DataType), string(node.IssueFieldDate.FullDatabaseID)
+		case "IssueFieldSingleSelect":
+			name, dataType, fullDBID = string(node.IssueFieldSingleSelect.Name), string(node.IssueFieldSingleSelect.DataType), string(node.IssueFieldSingleSelect.FullDatabaseID)
+		default:
+			continue
+		}
+		dbID, _ := strconv.ParseInt(fullDBID, 10, 64)
+		byName[strings.ToLower(strings.TrimSpace(name))] = issueFieldWriteMetadata{
+			DatabaseID: dbID,
+			Name:       name,
+			DataType:   dataType,
+		}
+	}
+
+	resolved := make([]*github.IssueRequestFieldValue, 0, len(inputs))
+	for _, input := range inputs {
+		meta, ok := byName[strings.ToLower(strings.TrimSpace(input.FieldName))]
+		if !ok {
+			return nil, fmt.Errorf("issue field %q was not found in %s/%s", input.FieldName, owner, repo)
+		}
+		if meta.DatabaseID == 0 {
+			return nil, fmt.Errorf("issue field %q is missing fullDatabaseId", input.FieldName)
+		}
+		// For single-select the REST API expects the option name as a string value.
+		// For all other types, pass the value through as-is.
+		resolved = append(resolved, &github.IssueRequestFieldValue{
+			FieldID: meta.DatabaseID,
+			Value:   input.Value,
+		})
+	}
+	return resolved, nil
+}
+
 // IssueFieldRef resolves the name of an issue field across its concrete types.
 // IssueFields is a union of IssueFieldDate, IssueFieldNumber, IssueFieldSingleSelect, IssueFieldText,
 // so we have to ask for `name` on each member.
@@ -1509,6 +1655,25 @@ Options are:
 						Type:        "number",
 						Description: "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
 					},
+					"issue_fields": {
+						Type:        "array",
+						Description: "Custom issue field values to set. Each entry specifies a field by name and its value. For single-select fields, value must be the option name (e.g. \"P1\"). For date fields, value must be YYYY-MM-DD.",
+						Items: &jsonschema.Schema{
+							Type:                 "object",
+							AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+							Properties: map[string]*jsonschema.Schema{
+								"field_name": {
+									Type:        "string",
+									Description: "Name of the custom field (case-insensitive).",
+								},
+								"value": {
+									Type:        "string",
+									Description: "Value to set. For single-select, the option name. For dates, YYYY-MM-DD. For numbers, the numeric value as a string.",
+								},
+							},
+							Required: []string{"field_name", "value"},
+						},
+					},
 				},
 				Required: []string{"method", "owner", "repo"},
 			},
@@ -1610,6 +1775,11 @@ Options are:
 				return utils.NewToolResultError("duplicate_of can only be used when state_reason is 'duplicate'"), nil, nil
 			}
 
+			issueFieldInputs, err := optionalIssueWriteFields(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
@@ -1620,16 +1790,21 @@ Options are:
 				return utils.NewToolResultErrorFromErr("failed to get GraphQL client", err), nil, nil
 			}
 
+			issueFieldValues, err := resolveIssueWriteFieldValues(ctx, gqlClient, owner, repo, issueFieldInputs)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to resolve issue_fields: %v", err)), nil, nil
+			}
+
 			switch method {
 			case "create":
-				result, err := CreateIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType)
+				result, err := CreateIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues)
 				return result, nil, err
 			case "update":
 				issueNumber, err := RequiredInt(args, "issue_number")
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, state, stateReason, duplicateOf)
+				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, state, stateReason, duplicateOf)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
@@ -1639,17 +1814,18 @@ Options are:
 	return st
 }
 
-func CreateIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string) (*mcp.CallToolResult, error) {
+func CreateIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue) (*mcp.CallToolResult, error) {
 	if title == "" {
 		return utils.NewToolResultError("missing required parameter: title"), nil
 	}
 
 	// Create the issue request
 	issueRequest := &github.IssueRequest{
-		Title:     github.Ptr(title),
-		Body:      github.Ptr(body),
-		Assignees: &assignees,
-		Labels:    &labels,
+		Title:            github.Ptr(title),
+		Body:             github.Ptr(body),
+		Assignees:        &assignees,
+		Labels:           &labels,
+		IssueFieldValues: issueFieldValues,
 	}
 
 	if milestoneNum != 0 {
@@ -1692,7 +1868,7 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 	return utils.NewToolResultText(string(r)), nil
 }
 
-func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, state string, stateReason string, duplicateOf int) (*mcp.CallToolResult, error) {
+func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, state string, stateReason string, duplicateOf int) (*mcp.CallToolResult, error) {
 	// Create the issue request with only provided fields
 	issueRequest := &github.IssueRequest{}
 
@@ -1719,6 +1895,10 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 
 	if issueType != "" {
 		issueRequest.Type = github.Ptr(issueType)
+	}
+
+	if len(issueFieldValues) > 0 {
+		issueRequest.IssueFieldValues = issueFieldValues
 	}
 
 	updatedIssue, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)

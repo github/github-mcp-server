@@ -29,6 +29,28 @@
         "description": "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
         "type": "number"
       },
+      "issue_fields": {
+        "description": "Custom issue field values to set. Each entry specifies a field by name and its value. For single-select fields, value must be the option name (e.g. \"P1\"). For date fields, value must be YYYY-MM-DD.",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "field_name": {
+              "description": "Name of the custom field (case-insensitive).",
+              "type": "string"
+            },
+            "value": {
+              "description": "Value to set. For single-select, the option name. For dates, YYYY-MM-DD. For numbers, the numeric value as a string.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "field_name",
+            "value"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
       "issue_number": {
         "description": "Issue number to update",
         "type": "number"
