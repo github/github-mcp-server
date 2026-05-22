@@ -39,10 +39,6 @@ type ServerConfig struct {
 	// If not set, the server will derive the URL from incoming request headers.
 	BaseURL string
 
-	// AuthorizationServer is the OAuth authorization server URL advertised in OAuth
-	// protected resource metadata. If empty, it is derived from the GitHub host.
-	AuthorizationServer string
-
 	// ResourcePath is the externally visible base path for this server (e.g., "/mcp").
 	// This is used to restore the original path when a proxy strips a base path before forwarding.
 	ResourcePath string
@@ -154,9 +150,8 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	// Register OAuth protected resource metadata endpoints
 	oauthCfg := &oauth.Config{
-		BaseURL:             cfg.BaseURL,
-		AuthorizationServer: cfg.AuthorizationServer,
-		ResourcePath:        cfg.ResourcePath,
+		BaseURL:      cfg.BaseURL,
+		ResourcePath: cfg.ResourcePath,
 	}
 
 	serverOptions := []HandlerOption{}

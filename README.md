@@ -246,7 +246,6 @@ the hostname for GitHub Enterprise Server or GitHub Enterprise Cloud with data r
 
 - For GitHub Enterprise Server, prefix the hostname with the `https://` URI scheme, as it otherwise defaults to `http://`, which GitHub Enterprise Server does not support.
 - For GitHub Enterprise Cloud with data residency, use `https://YOURSUBDOMAIN.ghe.com` as the hostname.
-- If your OAuth authorization server is different from `<host>/login/oauth`, set `--authorization-server` or `GITHUB_AUTHORIZATION_SERVER`.
 
 ``` json
 "github": {
