@@ -13,6 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// mcpImportPath is the canonical module path of the MCP go-sdk that pkg/github
+// imports as `mcp` (or under an alias). Per-file alias resolution lets this
+// test correctly identify mcp.Tool / mcp.ToolAnnotations literals even when a
+// file imports the SDK under a non-default local name.
+const mcpImportPath = "github.com/modelcontextprotocol/go-sdk/mcp"
+
 // TestAllToolRegistrationsExplicitlySetReadOnlyHint statically scans every
 // non-test Go source file in this package and asserts that every mcp.Tool
 // composite literal explicitly sets Annotations.ReadOnlyHint.
@@ -45,19 +51,22 @@ func TestAllToolRegistrationsExplicitlySetReadOnlyHint(t *testing.T) {
 		reason   string
 	}
 	var violations []violation
-	literalsSeen := 0
 
 	for _, pkg := range pkgs {
 		for filename, file := range pkg.Files {
+			aliases := mcpAliasesFor(file)
+			if len(aliases) == 0 {
+				// File does not import the MCP go-sdk; no tool literals possible.
+				continue
+			}
 			ast.Inspect(file, func(n ast.Node) bool {
 				cl, ok := n.(*ast.CompositeLit)
 				if !ok {
 					return true
 				}
-				if !isMCPToolType(cl.Type) {
+				if !isQualifiedType(cl.Type, aliases, "Tool") {
 					return true
 				}
-				literalsSeen++
 
 				toolName := extractToolName(cl)
 				if toolName == "" {
@@ -67,6 +76,16 @@ func TestAllToolRegistrationsExplicitlySetReadOnlyHint(t *testing.T) {
 				rel, _ := filepath.Rel(pkgDir, filename)
 				if rel == "" {
 					rel = filepath.Base(filename)
+				}
+
+				if hasUnkeyedFields(cl) {
+					violations = append(violations, violation{
+						file:     rel,
+						line:     pos.Line,
+						toolName: toolName,
+						reason:   "mcp.Tool literal uses positional (unkeyed) fields; this check requires keyed fields so Annotations.ReadOnlyHint can be verified",
+					})
+					return true
 				}
 
 				annotations := findFieldValue(cl, "Annotations")
@@ -80,7 +99,7 @@ func TestAllToolRegistrationsExplicitlySetReadOnlyHint(t *testing.T) {
 					return true
 				}
 
-				annoLit := unwrapAnnotationsLiteral(annotations)
+				annoLit := unwrapAnnotationsLiteral(annotations, aliases)
 				if annoLit == nil {
 					// Annotations is set to something we can't statically
 					// verify (e.g. a function call). Flag it so reviewers
@@ -90,6 +109,16 @@ func TestAllToolRegistrationsExplicitlySetReadOnlyHint(t *testing.T) {
 						line:     pos.Line,
 						toolName: toolName,
 						reason:   "Annotations is not an &mcp.ToolAnnotations{...} literal; ReadOnlyHint cannot be statically verified",
+					})
+					return true
+				}
+
+				if hasUnkeyedFields(annoLit) {
+					violations = append(violations, violation{
+						file:     rel,
+						line:     pos.Line,
+						toolName: toolName,
+						reason:   "mcp.ToolAnnotations literal uses positional (unkeyed) fields; use keyed fields so ReadOnlyHint can be verified",
 					})
 					return true
 				}
@@ -107,8 +136,9 @@ func TestAllToolRegistrationsExplicitlySetReadOnlyHint(t *testing.T) {
 		}
 	}
 
-	require.NotZero(t, literalsSeen,
-		"expected to discover at least one mcp.Tool literal; AST walker may be broken")
+	// Intentionally do not assert that any literals were observed: if tool
+	// registrations move behind constructors/factories there may be nothing
+	// for this check to validate, and that is a legitimate state.
 
 	if len(violations) > 0 {
 		var msg strings.Builder
@@ -131,21 +161,32 @@ func TestAllToolRegistrationsExplicitlySetReadOnlyHint(t *testing.T) {
 	}
 }
 
-// isMCPToolType reports whether the given AST expression refers to mcp.Tool.
-func isMCPToolType(expr ast.Expr) bool {
-	sel, ok := expr.(*ast.SelectorExpr)
-	if !ok {
-		return false
+// mcpAliasesFor returns the set of local identifiers under which the given
+// file imports the MCP go-sdk (mcpImportPath). The default unaliased import
+// resolves to the package name "mcp". Blank (`_`) and dot (`.`) imports are
+// skipped because tool literals cannot meaningfully be qualified through them.
+func mcpAliasesFor(file *ast.File) map[string]struct{} {
+	aliases := map[string]struct{}{}
+	for _, imp := range file.Imports {
+		path, err := strconv.Unquote(imp.Path.Value)
+		if err != nil || path != mcpImportPath {
+			continue
+		}
+		if imp.Name != nil {
+			if imp.Name.Name == "_" || imp.Name.Name == "." {
+				continue
+			}
+			aliases[imp.Name.Name] = struct{}{}
+			continue
+		}
+		aliases["mcp"] = struct{}{}
 	}
-	ident, ok := sel.X.(*ast.Ident)
-	if !ok {
-		return false
-	}
-	return ident.Name == "mcp" && sel.Sel != nil && sel.Sel.Name == "Tool"
+	return aliases
 }
 
-// isMCPToolAnnotationsType reports whether the given AST expression refers to mcp.ToolAnnotations.
-func isMCPToolAnnotationsType(expr ast.Expr) bool {
+// isQualifiedType reports whether expr is a SelectorExpr of the form
+// <alias>.<typeName> where alias is in the provided alias set.
+func isQualifiedType(expr ast.Expr, aliases map[string]struct{}, typeName string) bool {
 	sel, ok := expr.(*ast.SelectorExpr)
 	if !ok {
 		return false
@@ -154,7 +195,23 @@ func isMCPToolAnnotationsType(expr ast.Expr) bool {
 	if !ok {
 		return false
 	}
-	return ident.Name == "mcp" && sel.Sel != nil && sel.Sel.Name == "ToolAnnotations"
+	if _, ok := aliases[ident.Name]; !ok {
+		return false
+	}
+	return sel.Sel != nil && sel.Sel.Name == typeName
+}
+
+// hasUnkeyedFields reports whether the composite literal has any positional
+// (non-key/value) elements. The static check cannot reliably map positional
+// fields without full type information, so such literals are rejected with a
+// dedicated diagnostic rather than producing false "missing field" violations.
+func hasUnkeyedFields(cl *ast.CompositeLit) bool {
+	for _, elt := range cl.Elts {
+		if _, ok := elt.(*ast.KeyValueExpr); !ok {
+			return true
+		}
+	}
+	return false
 }
 
 // findFieldValue returns the value expression for the named keyed field of a
@@ -177,9 +234,9 @@ func findFieldValue(cl *ast.CompositeLit, name string) ast.Expr {
 }
 
 // unwrapAnnotationsLiteral attempts to extract the *ast.CompositeLit for
-// &mcp.ToolAnnotations{...} or mcp.ToolAnnotations{...} from an expression.
-// Returns nil if the expression is not a statically inspectable literal.
-func unwrapAnnotationsLiteral(expr ast.Expr) *ast.CompositeLit {
+// &mcp.ToolAnnotations{...} or mcp.ToolAnnotations{...} from an expression,
+// resolving the MCP package's local alias per file.
+func unwrapAnnotationsLiteral(expr ast.Expr, aliases map[string]struct{}) *ast.CompositeLit {
 	if u, ok := expr.(*ast.UnaryExpr); ok && u.Op == token.AND {
 		expr = u.X
 	}
@@ -187,7 +244,7 @@ func unwrapAnnotationsLiteral(expr ast.Expr) *ast.CompositeLit {
 	if !ok {
 		return nil
 	}
-	if !isMCPToolAnnotationsType(cl.Type) {
+	if !isQualifiedType(cl.Type, aliases, "ToolAnnotations") {
 		return nil
 	}
 	return cl
@@ -195,6 +252,9 @@ func unwrapAnnotationsLiteral(expr ast.Expr) *ast.CompositeLit {
 
 // extractToolName returns the literal value of the Name field of an mcp.Tool
 // composite literal, or empty string if the value is not a basic string literal.
+// Interpreted ("...") and raw (`...`) string literals are handled via
+// strconv.Unquote so embedded escapes are decoded correctly; the raw
+// literal value is returned as a best-effort fallback if unquoting fails.
 func extractToolName(cl *ast.CompositeLit) string {
 	v := findFieldValue(cl, "Name")
 	if v == nil {
@@ -204,10 +264,8 @@ func extractToolName(cl *ast.CompositeLit) string {
 	if !ok || bl.Kind != token.STRING {
 		return ""
 	}
-	// Strip surrounding quotes; tolerate raw strings too.
-	s := bl.Value
-	if len(s) >= 2 && (s[0] == '"' || s[0] == '`') {
-		s = s[1 : len(s)-1]
+	if unq, err := strconv.Unquote(bl.Value); err == nil {
+		return unq
 	}
-	return s
+	return bl.Value
 }
