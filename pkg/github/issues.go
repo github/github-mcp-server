@@ -1815,7 +1815,7 @@ Options are:
 					},
 					"body": {
 						Type:        "string",
-						Description: "Issue body content (Markdown). When method='update', this REPLACES the entire issue body rather than appending to it; to add a comment without modifying the body, use the add_issue_comment tool.",
+						Description: "Issue body content (Markdown). On `method=\"update\"`, this REPLACES the entire issue body; use `add_issue_comment` to add a comment without modifying the body.",
 					},
 					"assignees": {
 						Type:        "array",
