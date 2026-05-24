@@ -134,8 +134,9 @@ type MinimalTag struct {
 // Success is implicit in the HTTP response status, and all other information
 // can be derived from the URL or fetched separately if needed.
 type MinimalResponse struct {
-	ID  string `json:"id"`
-	URL string `json:"url"`
+	ID      string `json:"id"`
+	URL     string `json:"url"`
+	Warning string `json:"warning,omitempty"`
 }
 
 type MinimalProject struct {

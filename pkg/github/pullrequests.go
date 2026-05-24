@@ -589,7 +589,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 					"labels": {
 						Type:        "array",
 						Items:       &jsonschema.Schema{Type: "string"},
-						Description: "Labels to apply to this pull request",
+						Description: "Labels to apply to this pull request (must already exist in the repository)",
 					},
 				},
 				Required: []string{"owner", "repo", "title", "head", "base"},
@@ -693,15 +693,12 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create pull request", resp, bodyBytes), nil, nil
 			}
 
+			var warningMsg string
 			// Add labels if provided
 			if len(labels) > 0 {
 				_, labelsResp, labelsErr := client.Issues.AddLabelsToIssue(ctx, owner, repo, pr.GetNumber(), labels)
 				if labelsErr != nil {
-					return ghErrors.NewGitHubAPIErrorResponse(ctx,
-						fmt.Sprintf("pull request created (#%d) but failed to add labels", pr.GetNumber()),
-						labelsResp,
-						labelsErr,
-					), nil, nil
+					warningMsg = fmt.Sprintf("pull request created (#%d) but failed to add labels: %s", pr.GetNumber(), labelsErr.Error())
 				}
 				if labelsResp != nil {
 					_ = labelsResp.Body.Close()
@@ -710,8 +707,9 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			// Return minimal response with just essential information
 			minimalResponse := MinimalResponse{
-				ID:  fmt.Sprintf("%d", pr.GetID()),
-				URL: pr.GetHTMLURL(),
+				ID:      fmt.Sprintf("%d", pr.GetID()),
+				URL:     pr.GetHTMLURL(),
+				Warning: warningMsg,
 			}
 
 			r, err := json.Marshal(minimalResponse)

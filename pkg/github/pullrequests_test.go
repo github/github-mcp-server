@@ -2207,12 +2207,13 @@ func Test_CreatePullRequest(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]any
-		expectError    bool
-		expectedPR     *github.PullRequest
-		expectedErrMsg string
+		name            string
+		mockedClient    *http.Client
+		requestArgs     map[string]any
+		expectError     bool
+		expectedPR      *github.PullRequest
+		expectedErrMsg  string
+		expectedWarning string
 	}{
 		{
 			name: "successful PR creation",
@@ -2295,7 +2296,7 @@ func Test_CreatePullRequest(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposPullsByOwnerByRepo: mockResponse(t, http.StatusCreated, mockPR),
 				PostReposIssuesLabelsByOwnerByRepoByIssueNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusNotFound)
+					w.WriteHeader(http.StatusUnprocessableEntity)
 					_, _ = w.Write([]byte(`{"message": "Label does not exist"}`))
 				}),
 			}),
@@ -2307,8 +2308,9 @@ func Test_CreatePullRequest(t *testing.T) {
 				"base":   "main",
 				"labels": []any{"nonexistent-label"},
 			},
-			expectError:    true,
-			expectedErrMsg: "failed to add labels",
+			expectError:     false,
+			expectedPR:      mockPR,
+			expectedWarning: "pull request created (#42) but failed to add labels",
 		},
 	}
 
@@ -2351,6 +2353,12 @@ func Test_CreatePullRequest(t *testing.T) {
 			err = json.Unmarshal([]byte(textContent.Text), &returnedPR)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedPR.GetHTMLURL(), returnedPR.URL)
+
+			if tc.expectedWarning != "" {
+				assert.Contains(t, returnedPR.Warning, tc.expectedWarning)
+			} else {
+				assert.Empty(t, returnedPR.Warning)
+			}
 		})
 	}
 }
