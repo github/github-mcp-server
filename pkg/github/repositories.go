@@ -2281,6 +2281,30 @@ type BlameResult struct {
 	Truncated   bool                   `json:"truncated,omitempty"`
 }
 
+// blameCommitFragment is the GraphQL selection for a Commit's blame data.
+type blameCommitFragment struct {
+	Blame struct {
+		Ranges []struct {
+			StartingLine githubv4.Int
+			EndingLine   githubv4.Int
+			Age          githubv4.Int
+			Commit       struct {
+				OID           githubv4.String
+				Message       githubv4.String
+				CommittedDate githubv4.DateTime
+				Author        struct {
+					Name  githubv4.String
+					Email githubv4.String
+					User  *struct {
+						Login githubv4.String
+						URL   githubv4.String
+					}
+				}
+			}
+		}
+	} `graphql:"blame(path: $path)"`
+}
+
 // validateBlamePath rejects empty, leading-slash, traversal-laden, or
 // control-character paths before any network call is made.
 func validateBlamePath(p string) error {
@@ -2430,29 +2454,16 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Name githubv4.String
 					}
 					Object struct {
-						Typename githubv4.String `graphql:"__typename"`
-						Commit   struct {
-							Blame struct {
-								Ranges []struct {
-									StartingLine githubv4.Int
-									EndingLine   githubv4.Int
-									Age          githubv4.Int
-									Commit       struct {
-										OID           githubv4.String
-										Message       githubv4.String
-										CommittedDate githubv4.DateTime
-										Author        struct {
-											Name  githubv4.String
-											Email githubv4.String
-											User  *struct {
-												Login githubv4.String
-												URL   githubv4.String
-											}
-										}
-									}
-								}
-							} `graphql:"blame(path: $path)"`
-						} `graphql:"... on Commit"`
+						Typename githubv4.String     `graphql:"__typename"`
+						Commit   blameCommitFragment `graphql:"... on Commit"`
+						// Annotated tag targets are followed one level. Tag-of-tag
+						// chains are not followed and will return an error.
+						Tag struct {
+							Target struct {
+								Typename githubv4.String     `graphql:"__typename"`
+								Commit   blameCommitFragment `graphql:"... on Commit"`
+							}
+						} `graphql:"... on Tag"`
 					} `graphql:"object(expression: $ref)"`
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
@@ -2471,15 +2482,29 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 				), nil, nil
 			}
 
-			// The ref must resolve to a commit. Empty typename means not found;
-			// any other type is unsupported for blame.
+			// GitHub's Commit.blame field accepts only path, and Blame.ranges is
+			// not a connection, so cursor pagination is applied locally below.
+			// The ref must resolve to a commit, either directly or via an annotated tag.
 			objectTypename := string(blameQuery.Repository.Object.Typename)
 			if objectTypename == "" {
 				return utils.NewToolResultError(
 					fmt.Sprintf("ref %q was not found in %s/%s", refExpression, owner, repo),
 				), nil, nil
 			}
-			if objectTypename != "Commit" {
+			blameCommit := &blameQuery.Repository.Object.Commit
+			if objectTypename == "Tag" {
+				targetTypename := string(blameQuery.Repository.Object.Tag.Target.Typename)
+				if targetTypename != "Commit" {
+					if targetTypename == "" {
+						targetTypename = "unknown"
+					}
+					return utils.NewToolResultError(
+						fmt.Sprintf("ref %q resolved to a tag in %s/%s, but the tag target did not resolve to a commit (resolved to %s)",
+							refExpression, owner, repo, targetTypename),
+					), nil, nil
+				}
+				blameCommit = &blameQuery.Repository.Object.Tag.Target.Commit
+			} else if objectTypename != "Commit" {
 				return utils.NewToolResultError(
 					fmt.Sprintf("ref %q did not resolve to a commit in %s/%s (resolved to %s)",
 						refExpression, owner, repo, objectTypename),
@@ -2496,7 +2521,7 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 				}
 			}
 
-			rawRanges := blameQuery.Repository.Object.Commit.Blame.Ranges
+			rawRanges := blameCommit.Blame.Ranges
 			pageRanges := make([]BlameRange, 0, pagination.PerPage)
 			commits := make(map[string]BlameCommit)
 			totalRanges := 0

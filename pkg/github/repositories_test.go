@@ -4397,29 +4397,14 @@ func Test_GetFileBlame(t *testing.T) {
 				Name githubv4.String
 			}
 			Object struct {
-				Typename githubv4.String `graphql:"__typename"`
-				Commit   struct {
-					Blame struct {
-						Ranges []struct {
-							StartingLine githubv4.Int
-							EndingLine   githubv4.Int
-							Age          githubv4.Int
-							Commit       struct {
-								OID           githubv4.String
-								Message       githubv4.String
-								CommittedDate githubv4.DateTime
-								Author        struct {
-									Name  githubv4.String
-									Email githubv4.String
-									User  *struct {
-										Login githubv4.String
-										URL   githubv4.String
-									}
-								}
-							}
-						}
-					} `graphql:"blame(path: $path)"`
-				} `graphql:"... on Commit"`
+				Typename githubv4.String     `graphql:"__typename"`
+				Commit   blameCommitFragment `graphql:"... on Commit"`
+				Tag      struct {
+					Target struct {
+						Typename githubv4.String     `graphql:"__typename"`
+						Commit   blameCommitFragment `graphql:"... on Commit"`
+					}
+				} `graphql:"... on Tag"`
 			} `graphql:"object(expression: $ref)"`
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
@@ -4576,6 +4561,56 @@ func Test_GetFileBlame(t *testing.T) {
 			},
 		},
 		{
+			name: "successful blame with annotated tag ref",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					blameQueryShape{},
+					makeBlameVars("testowner", "testrepo", "v1.0.0", "src/tagged.go"),
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"defaultBranchRef": map[string]any{"name": "main"},
+							"object": map[string]any{
+								"__typename": "Tag",
+								"target": map[string]any{
+									"__typename": "Commit",
+									"blame": map[string]any{
+										"ranges": []map[string]any{
+											{
+												"startingLine": 1, "endingLine": 2, "age": 1,
+												"commit": map[string]any{
+													"oid":           "taggedcommit123",
+													"message":       "Tagged release commit",
+													"committedDate": "2024-01-04T10:00:00Z",
+													"author":        map[string]any{"name": "Tag Author", "email": "tag@example.com", "user": nil},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner": "testowner",
+				"repo":  "testrepo",
+				"path":  "src/tagged.go",
+				"ref":   "v1.0.0",
+			},
+			validateResponse: func(t *testing.T, result string) {
+				var br BlameResult
+				require.NoError(t, json.Unmarshal([]byte(result), &br))
+				assert.Equal(t, "v1.0.0", br.Ref, "explicit annotated tag ref echoed back")
+				require.Len(t, br.Ranges, 1)
+				assert.Equal(t, "taggedcommit123", br.Ranges[0].CommitSHA)
+				require.Contains(t, br.Commits, "taggedcommit123")
+				assert.Equal(t, "Tagged release commit", br.Commits["taggedcommit123"].MessageHeadline,
+					"commit metadata threads through the Tag.Target.Commit path")
+				assert.Equal(t, "Tag Author", br.Commits["taggedcommit123"].Author.Name)
+			},
+		},
+		{
 			name: "empty blame ranges",
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
@@ -4658,6 +4693,32 @@ func Test_GetFileBlame(t *testing.T) {
 			},
 			expectError:    true,
 			expectedErrMsg: "was not found",
+		},
+		{
+			name: "annotated tag target is not commit",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					blameQueryShape{},
+					makeBlameVars("testowner", "testrepo", "tree-tag", "README.md"),
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"defaultBranchRef": map[string]any{"name": "main"},
+							"object": map[string]any{
+								"__typename": "Tag",
+								"target":     map[string]any{"__typename": "Tree"},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner": "testowner",
+				"repo":  "testrepo",
+				"path":  "README.md",
+				"ref":   "tree-tag",
+			},
+			expectError:    true,
+			expectedErrMsg: "tag target did not resolve to a commit",
 		},
 		{
 			name: "line-range filter clamps and drops ranges",
