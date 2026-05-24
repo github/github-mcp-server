@@ -27,6 +27,11 @@
               "description": "The value to set for a number field",
               "type": "number"
             },
+            "rationale": {
+              "description": "One concise sentence explaining what specifically about the issue led you to choose this field value. State the concrete signal (e.g. 'Reports a crash when saving' → high priority).",
+              "maxLength": 280,
+              "type": "string"
+            },
             "single_select_option_id": {
               "description": "The GraphQL node ID of the option to set for a single select field",
               "type": "string"

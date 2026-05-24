@@ -8,7 +8,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -89,7 +89,7 @@ func Test_GetDependabotAlert(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{Client: client}
 			handler := toolDef.Handler(deps)
 
@@ -165,7 +165,9 @@ func Test_ListDependabotAlerts(t *testing.T) {
 			name: "successful open alerts listing",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
-					"state": "open",
+					"state":    "open",
+					"page":     "1",
+					"per_page": "30",
 				}).andThen(
 					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert}),
 				),
@@ -183,6 +185,8 @@ func Test_ListDependabotAlerts(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
 					"severity": "high",
+					"page":     "1",
+					"per_page": "30",
 				}).andThen(
 					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&highSeverityAlert}),
 				),
@@ -198,7 +202,10 @@ func Test_ListDependabotAlerts(t *testing.T) {
 		{
 			name: "successful all alerts listing",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{}).andThen(
+				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
 					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert, &highSeverityAlert}),
 				),
 			}),
@@ -208,6 +215,25 @@ func Test_ListDependabotAlerts(t *testing.T) {
 			},
 			expectError:    false,
 			expectedAlerts: []*github.DependabotAlert{&criticalAlert, &highSeverityAlert},
+		},
+		{
+			name: "successful alerts listing with custom pagination",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"page":     "3",
+					"per_page": "100",
+				}).andThen(
+					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert}),
+				),
+			}),
+			requestArgs: map[string]any{
+				"owner":   "owner",
+				"repo":    "repo",
+				"page":    float64(3),
+				"perPage": float64(100),
+			},
+			expectError:    false,
+			expectedAlerts: []*github.DependabotAlert{&criticalAlert},
 		},
 		{
 			name: "alerts listing fails",
@@ -243,7 +269,7 @@ func Test_ListDependabotAlerts(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{Client: client}
 			handler := toolDef.Handler(deps)
 

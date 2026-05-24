@@ -18,7 +18,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -744,7 +744,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 
 			// attachIFC adds the IFC label to a successful tool result when
-			// InsidersMode is enabled. The visibility lookup is performed
+			// IFC labels are enabled. The visibility lookup is performed
 			// lazily on first use and cached because GetFileContents has
 			// many possible return paths and would otherwise re-fetch on
 			// each. If the visibility lookup fails we skip the label rather
@@ -755,7 +755,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				ifcIsPrivate  bool
 			)
 			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
-				if r == nil || r.IsError || !deps.GetFlags(ctx).InsidersMode {
+				if r == nil || r.IsError || !deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
 					return r
 				}
 				if !ifcLabelKnown {

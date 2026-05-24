@@ -1,9 +1,11 @@
 package github
 
 import (
+	"fmt"
+	"strconv"
 	"time"
 
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 
 	"github.com/github/github-mcp-server/pkg/sanitize"
 )
@@ -129,6 +131,23 @@ type MinimalCommit struct {
 	Files     []MinimalCommitFile `json:"files,omitempty"`
 }
 
+// MinimalRepoRef is a lightweight reference to a repository, used when a
+// result needs to identify which repository it belongs to (for example, in
+// cross-repo commit search results).
+type MinimalRepoRef struct {
+	FullName string `json:"full_name"`
+	HTMLURL  string `json:"html_url,omitempty"`
+	Private  bool   `json:"private,omitempty"`
+}
+
+// MinimalCommitSearchItem extends MinimalCommit with the containing
+// repository, since commit search spans repositories and callers need to
+// know which repo each result came from.
+type MinimalCommitSearchItem struct {
+	MinimalCommit
+	Repository *MinimalRepoRef `json:"repository,omitempty"`
+}
+
 // MinimalRelease is the trimmed output type for release objects.
 type MinimalRelease struct {
 	ID          int64        `json:"id"`
@@ -203,26 +222,35 @@ type MinimalReactions struct {
 
 // MinimalIssue is the trimmed output type for issue objects to reduce verbosity.
 type MinimalIssue struct {
-	Number            int               `json:"number"`
-	Title             string            `json:"title"`
-	Body              string            `json:"body,omitempty"`
-	State             string            `json:"state"`
-	StateReason       string            `json:"state_reason,omitempty"`
-	Draft             bool              `json:"draft,omitempty"`
-	Locked            bool              `json:"locked,omitempty"`
-	HTMLURL           string            `json:"html_url,omitempty"`
-	User              *MinimalUser      `json:"user,omitempty"`
-	AuthorAssociation string            `json:"author_association,omitempty"`
-	Labels            []string          `json:"labels,omitempty"`
-	Assignees         []string          `json:"assignees,omitempty"`
-	Milestone         string            `json:"milestone,omitempty"`
-	Comments          int               `json:"comments,omitempty"`
-	Reactions         *MinimalReactions `json:"reactions,omitempty"`
-	CreatedAt         string            `json:"created_at,omitempty"`
-	UpdatedAt         string            `json:"updated_at,omitempty"`
-	ClosedAt          string            `json:"closed_at,omitempty"`
-	ClosedBy          string            `json:"closed_by,omitempty"`
-	IssueType         string            `json:"issue_type,omitempty"`
+	Number            int                      `json:"number"`
+	Title             string                   `json:"title"`
+	Body              string                   `json:"body,omitempty"`
+	State             string                   `json:"state"`
+	StateReason       string                   `json:"state_reason,omitempty"`
+	Draft             bool                     `json:"draft,omitempty"`
+	Locked            bool                     `json:"locked,omitempty"`
+	HTMLURL           string                   `json:"html_url,omitempty"`
+	User              *MinimalUser             `json:"user,omitempty"`
+	AuthorAssociation string                   `json:"author_association,omitempty"`
+	Labels            []string                 `json:"labels,omitempty"`
+	Assignees         []string                 `json:"assignees,omitempty"`
+	Milestone         string                   `json:"milestone,omitempty"`
+	Comments          int                      `json:"comments,omitempty"`
+	Reactions         *MinimalReactions        `json:"reactions,omitempty"`
+	CreatedAt         string                   `json:"created_at,omitempty"`
+	UpdatedAt         string                   `json:"updated_at,omitempty"`
+	ClosedAt          string                   `json:"closed_at,omitempty"`
+	ClosedBy          string                   `json:"closed_by,omitempty"`
+	IssueType         string                   `json:"issue_type,omitempty"`
+	FieldValues       []MinimalIssueFieldValue `json:"field_values,omitempty"`
+}
+
+// MinimalIssueFieldValue is the trimmed output type for a custom issue field value.
+// Single-value variants (date, number, single-select, text) populate Value. Values is reserved for multi-select.
+type MinimalIssueFieldValue struct {
+	Field  string   `json:"field"`
+	Value  string   `json:"value,omitempty"`
+	Values []string `json:"values,omitempty"`
 }
 
 // MinimalIssuesResponse is the trimmed output for a paginated list of issues.
@@ -242,6 +270,13 @@ type MinimalIssueComment struct {
 	Reactions         *MinimalReactions `json:"reactions,omitempty"`
 	CreatedAt         string            `json:"created_at,omitempty"`
 	UpdatedAt         string            `json:"updated_at,omitempty"`
+}
+
+// MinimalSearchCommitsResult is the trimmed output type for commit search results.
+type MinimalSearchCommitsResult struct {
+	TotalCount        int                       `json:"total_count"`
+	IncompleteResults bool                      `json:"incomplete_results"`
+	Items             []MinimalCommitSearchItem `json:"items"`
 }
 
 // MinimalFileContentResponse is the trimmed output type for create/update/delete file responses.
@@ -435,13 +470,92 @@ func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 		m.Labels = append(m.Labels, string(label.Name))
 	}
 
+	for _, fv := range fragment.IssueFieldValues.Nodes {
+		if mfv, ok := fragmentToMinimalIssueFieldValue(fv); ok {
+			m.FieldValues = append(m.FieldValues, mfv)
+		}
+	}
+
 	return m
+}
+
+// fragmentToMinimalIssueFieldValue flattens the union value fragment into a single
+// {field, value} pair. Returns ok=false if the typename is unrecognised.
+func fragmentToMinimalIssueFieldValue(fv IssueFieldValueFragment) (MinimalIssueFieldValue, bool) {
+	switch fv.TypeName {
+	case "IssueFieldDateValue":
+		return MinimalIssueFieldValue{
+			Field: fv.DateValue.Field.Name(),
+			Value: string(fv.DateValue.Value),
+		}, true
+	case "IssueFieldNumberValue":
+		return MinimalIssueFieldValue{
+			Field: fv.NumberValue.Field.Name(),
+			Value: strconv.FormatFloat(float64(fv.NumberValue.Value), 'f', -1, 64),
+		}, true
+	case "IssueFieldSingleSelectValue":
+		return MinimalIssueFieldValue{
+			Field: fv.SingleSelectValue.Field.Name(),
+			Value: string(fv.SingleSelectValue.Value),
+		}, true
+	case "IssueFieldTextValue":
+		return MinimalIssueFieldValue{
+			Field: fv.TextValue.Field.Name(),
+			Value: string(fv.TextValue.Value),
+		}, true
+	}
+	return MinimalIssueFieldValue{}, false
 }
 
 func convertToMinimalIssuesResponse(fragment IssueQueryFragment) MinimalIssuesResponse {
 	minimalIssues := make([]MinimalIssue, 0, len(fragment.Nodes))
 	for _, issue := range fragment.Nodes {
 		minimalIssues = append(minimalIssues, fragmentToMinimalIssue(issue))
+	}
+
+	return MinimalIssuesResponse{
+		Issues:     minimalIssues,
+		TotalCount: fragment.TotalCount,
+		PageInfo: MinimalPageInfo{
+			HasNextPage:     bool(fragment.PageInfo.HasNextPage),
+			HasPreviousPage: bool(fragment.PageInfo.HasPreviousPage),
+			StartCursor:     string(fragment.PageInfo.StartCursor),
+			EndCursor:       string(fragment.PageInfo.EndCursor),
+		},
+	}
+}
+
+// legacyFragmentToMinimalIssue converts the FeatureFlagIssueFields-disabled
+// LegacyIssueFragment into a MinimalIssue. MinimalIssue.FieldValues is left
+// nil so omitempty drops it from JSON output. Delete with the rest of the
+// Legacy* block when the flag is removed.
+func legacyFragmentToMinimalIssue(fragment LegacyIssueFragment) MinimalIssue {
+	m := MinimalIssue{
+		Number:    int(fragment.Number),
+		Title:     sanitize.Sanitize(string(fragment.Title)),
+		Body:      sanitize.Sanitize(string(fragment.Body)),
+		State:     string(fragment.State),
+		Comments:  int(fragment.Comments.TotalCount),
+		CreatedAt: fragment.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: fragment.UpdatedAt.Format(time.RFC3339),
+		User: &MinimalUser{
+			Login: string(fragment.Author.Login),
+		},
+	}
+
+	for _, label := range fragment.Labels.Nodes {
+		m.Labels = append(m.Labels, string(label.Name))
+	}
+
+	return m
+}
+
+// convertLegacyToMinimalIssuesResponse mirrors convertToMinimalIssuesResponse for
+// the FeatureFlagIssueFields-disabled list_issues variant.
+func convertLegacyToMinimalIssuesResponse(fragment LegacyIssueQueryFragment) MinimalIssuesResponse {
+	minimalIssues := make([]MinimalIssue, 0, len(fragment.Nodes))
+	for _, issue := range fragment.Nodes {
+		minimalIssues = append(minimalIssues, legacyFragmentToMinimalIssue(issue))
 	}
 
 	return MinimalIssuesResponse{
@@ -649,56 +763,72 @@ func convertToMinimalUser(user *github.User) *MinimalUser {
 	}
 }
 
+// newMinimalCommitFromCore builds a MinimalCommit from the fields that are
+// shared between *github.RepositoryCommit and *github.CommitResult. Caller
+// is responsible for setting any type-specific extras (stats/files for
+// RepositoryCommit, repository for CommitResult).
+func newMinimalCommitFromCore(sha, htmlURL string, commit *github.Commit, author, committer *github.User) MinimalCommit {
+	minimalCommit := MinimalCommit{
+		SHA:     sha,
+		HTMLURL: htmlURL,
+	}
+
+	if commit != nil {
+		minimalCommit.Commit = &MinimalCommitInfo{
+			Message: commit.GetMessage(),
+		}
+
+		if commit.Author != nil {
+			minimalCommit.Commit.Author = &MinimalCommitAuthor{
+				Name:  commit.Author.GetName(),
+				Email: commit.Author.GetEmail(),
+			}
+			if commit.Author.Date != nil {
+				minimalCommit.Commit.Author.Date = commit.Author.Date.Format(time.RFC3339)
+			}
+		}
+
+		if commit.Committer != nil {
+			minimalCommit.Commit.Committer = &MinimalCommitAuthor{
+				Name:  commit.Committer.GetName(),
+				Email: commit.Committer.GetEmail(),
+			}
+			if commit.Committer.Date != nil {
+				minimalCommit.Commit.Committer.Date = commit.Committer.Date.Format(time.RFC3339)
+			}
+		}
+	}
+
+	if author != nil {
+		minimalCommit.Author = &MinimalUser{
+			Login:      author.GetLogin(),
+			ID:         author.GetID(),
+			ProfileURL: author.GetHTMLURL(),
+			AvatarURL:  author.GetAvatarURL(),
+		}
+	}
+
+	if committer != nil {
+		minimalCommit.Committer = &MinimalUser{
+			Login:      committer.GetLogin(),
+			ID:         committer.GetID(),
+			ProfileURL: committer.GetHTMLURL(),
+			AvatarURL:  committer.GetAvatarURL(),
+		}
+	}
+
+	return minimalCommit
+}
+
 // convertToMinimalCommit converts a GitHub API RepositoryCommit to MinimalCommit
 func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) MinimalCommit {
-	minimalCommit := MinimalCommit{
-		SHA:     commit.GetSHA(),
-		HTMLURL: commit.GetHTMLURL(),
-	}
-
-	if commit.Commit != nil {
-		minimalCommit.Commit = &MinimalCommitInfo{
-			Message: commit.Commit.GetMessage(),
-		}
-
-		if commit.Commit.Author != nil {
-			minimalCommit.Commit.Author = &MinimalCommitAuthor{
-				Name:  commit.Commit.Author.GetName(),
-				Email: commit.Commit.Author.GetEmail(),
-			}
-			if commit.Commit.Author.Date != nil {
-				minimalCommit.Commit.Author.Date = commit.Commit.Author.Date.Format(time.RFC3339)
-			}
-		}
-
-		if commit.Commit.Committer != nil {
-			minimalCommit.Commit.Committer = &MinimalCommitAuthor{
-				Name:  commit.Commit.Committer.GetName(),
-				Email: commit.Commit.Committer.GetEmail(),
-			}
-			if commit.Commit.Committer.Date != nil {
-				minimalCommit.Commit.Committer.Date = commit.Commit.Committer.Date.Format(time.RFC3339)
-			}
-		}
-	}
-
-	if commit.Author != nil {
-		minimalCommit.Author = &MinimalUser{
-			Login:      commit.Author.GetLogin(),
-			ID:         commit.Author.GetID(),
-			ProfileURL: commit.Author.GetHTMLURL(),
-			AvatarURL:  commit.Author.GetAvatarURL(),
-		}
-	}
-
-	if commit.Committer != nil {
-		minimalCommit.Committer = &MinimalUser{
-			Login:      commit.Committer.GetLogin(),
-			ID:         commit.Committer.GetID(),
-			ProfileURL: commit.Committer.GetHTMLURL(),
-			AvatarURL:  commit.Committer.GetAvatarURL(),
-		}
-	}
+	minimalCommit := newMinimalCommitFromCore(
+		commit.GetSHA(),
+		commit.GetHTMLURL(),
+		commit.Commit,
+		commit.Author,
+		commit.Committer,
+	)
 
 	// Only include stats and files if includeDiffs is true
 	if includeDiffs {
@@ -728,6 +858,31 @@ func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) 
 	return minimalCommit
 }
 
+// convertCommitResultToMinimalCommit converts a GitHub API commit search
+// result, attaching the containing repository so the caller can tell which
+// repo each result came from.
+func convertCommitResultToMinimalCommit(commit *github.CommitResult) MinimalCommitSearchItem {
+	item := MinimalCommitSearchItem{
+		MinimalCommit: newMinimalCommitFromCore(
+			commit.GetSHA(),
+			commit.GetHTMLURL(),
+			commit.Commit,
+			commit.Author,
+			commit.Committer,
+		),
+	}
+
+	if commit.Repository != nil {
+		item.Repository = &MinimalRepoRef{
+			FullName: commit.Repository.GetFullName(),
+			HTMLURL:  commit.Repository.GetHTMLURL(),
+			Private:  commit.Repository.GetPrivate(),
+		}
+	}
+
+	return item
+}
+
 // MinimalPageInfo contains pagination cursor information.
 type MinimalPageInfo struct {
 	HasNextPage     bool   `json:"hasNextPage"`
@@ -749,6 +904,7 @@ type MinimalReviewComment struct {
 
 // MinimalReviewThread is the trimmed output type for PR review thread objects.
 type MinimalReviewThread struct {
+	ID          string
 	IsResolved  bool                   `json:"is_resolved"`
 	IsOutdated  bool                   `json:"is_outdated"`
 	IsCollapsed bool                   `json:"is_collapsed"`
@@ -885,6 +1041,7 @@ func convertToMinimalReviewThread(thread reviewThreadNode) MinimalReviewThread {
 	}
 
 	return MinimalReviewThread{
+		ID:          fmt.Sprintf("%v", thread.ID),
 		IsResolved:  bool(thread.IsResolved),
 		IsOutdated:  bool(thread.IsOutdated),
 		IsCollapsed: bool(thread.IsCollapsed),

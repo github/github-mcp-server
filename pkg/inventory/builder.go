@@ -106,8 +106,7 @@ func (b *Builder) WithServerInstructions() *Builder {
 //   - "default": expands to toolsets marked with Default: true in their metadata
 //
 // Input strings are trimmed of whitespace and duplicates are removed.
-// Pass nil to use default toolsets. Pass an empty slice to disable all toolsets
-// (useful for dynamic toolsets mode where tools are enabled on demand).
+// Pass nil to use default toolsets. Pass an empty slice to disable all toolsets.
 // Returns self for chaining.
 func (b *Builder) WithToolsets(toolsetIDs []string) *Builder {
 	b.toolsetIDs = toolsetIDs
@@ -128,8 +127,20 @@ func (b *Builder) WithTools(toolNames []string) *Builder {
 
 // WithFeatureChecker sets the feature flag checker function.
 // The checker receives a context (for actor extraction) and feature flag name,
-// returns (enabled, error). If error occurs, it will be logged and treated as false.
-// If checker is nil, all feature flag checks return false.
+// and returns (enabled, error). Errors are logged and treated as "not enabled".
+//
+// When the checker is non-nil, Build() installs a feature-flag ToolFilter
+// at the head of the filter pipeline so that tools annotated with
+// FeatureFlagEnable / FeatureFlagDisable are gated accordingly. Resources
+// and prompts use the same checker via an explicit guard at their iteration
+// site.
+//
+// When the checker is nil, no feature-flag filter is installed; tools,
+// resources, and prompts pass through feature-flag gating unchanged. The
+// per-request inventory in HTTP mode must always install a checker so that
+// MCP registration (which can only serve a given tool name once) sees a
+// deduplicated set of dual-name variants.
+//
 // Returns self for chaining.
 func (b *Builder) WithFeatureChecker(checker FeatureFlagChecker) *Builder {
 	b.featureChecker = checker
@@ -201,6 +212,16 @@ func cleanTools(tools []string) []string {
 func (b *Builder) Build() (*Inventory, error) {
 	tools := b.tools
 
+	// Install the feature-flag filter at the head of the pipeline so that
+	// flag-gated tools are excluded before any user-supplied WithFilter sees
+	// them. Doing this in Build() (rather than inside WithFeatureChecker)
+	// keeps the install idempotent — repeated WithFeatureChecker calls
+	// replace the checker without stacking duplicate filters.
+	filters := b.filters
+	if b.featureChecker != nil {
+		filters = append([]ToolFilter{createFeatureFlagFilter(b.featureChecker)}, filters...)
+	}
+
 	r := &Inventory{
 		tools:             tools,
 		resourceTemplates: b.resourceTemplates,
@@ -208,7 +229,7 @@ func (b *Builder) Build() (*Inventory, error) {
 		deprecatedAliases: b.deprecatedAliases,
 		readOnly:          b.readOnly,
 		featureChecker:    b.featureChecker,
-		filters:           b.filters,
+		filters:           filters,
 	}
 
 	// Process toolsets and pre-compute metadata in a single pass
