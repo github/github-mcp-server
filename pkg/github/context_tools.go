@@ -6,6 +6,7 @@ import (
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -57,6 +58,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Meta: mcp.Meta{
 				"ui": map[string]any{
 					"resourceUri": GetMeUIResourceURI,
+					"visibility":  []string{"model", "app"},
 				},
 			},
 		},
@@ -103,7 +105,14 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 			}
 
-			return MarshalledTextResult(minimalUser), nil, nil
+			result := MarshalledTextResult(minimalUser)
+			if deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
+				if result.Meta == nil {
+					result.Meta = mcp.Meta{}
+				}
+				result.Meta["ifc"] = ifc.LabelGetMe()
+			}
+			return result, nil, nil
 		},
 	)
 }

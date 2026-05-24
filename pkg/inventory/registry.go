@@ -23,7 +23,6 @@ import (
 //   - Filtered access to tools/resources/prompts via Available* methods
 //   - Deterministic ordering for documentation generation
 //   - Lazy dependency injection during registration via RegisterAll()
-//   - Runtime toolset enabling for dynamic toolsets mode
 type Inventory struct {
 	// tools holds all tools in this group (ordered for iteration)
 	tools []ServerTool
@@ -168,10 +167,30 @@ func (r *Inventory) ToolsetDescriptions() map[ToolsetID]string {
 	return r.toolsetDescriptions
 }
 
+// ToolsForRegistration returns AvailableTools(ctx) post-processed exactly as
+// RegisterTools would expose them: with MCP Apps UI metadata stripped when
+// the remote_mcp_ui_apps feature flag is not enabled in ctx. Useful for
+// documentation generators and diagnostics that need the same view of the
+// tool surface the server would register.
+func (r *Inventory) ToolsForRegistration(ctx context.Context) []ServerTool {
+	tools := r.AvailableTools(ctx)
+	if !r.checkFeatureFlag(ctx, mcpAppsFeatureFlag) {
+		tools = stripMCPAppsMetadata(tools)
+	}
+	return tools
+}
+
 // RegisterTools registers all available tools with the server using the provided dependencies.
 // The context is used for feature flag evaluation.
+//
+// MCP Apps UI metadata (`_meta.ui`) is stripped from the registered tools
+// when the MCP Apps feature flag is not enabled for this request. The strip
+// happens here (rather than at Build() time) so the per-request context is
+// in scope — HTTP feature checkers that read insiders mode or user identity
+// from ctx would otherwise see context.Background() and falsely report the
+// flag off, even when the actual request arrived on the /insiders route.
 func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any) {
-	for _, tool := range r.AvailableTools(ctx) {
+	for _, tool := range r.ToolsForRegistration(ctx) {
 		tool.RegisterFunc(s, deps)
 	}
 }

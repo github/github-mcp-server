@@ -11,7 +11,6 @@ We currently support the following ways in which the GitHub MCP Server can be co
 | Individual Tools | `X-MCP-Tools` header | `--tools` flag or `GITHUB_TOOLS` env var |
 | Exclude Tools | `X-MCP-Exclude-Tools` header | `--exclude-tools` flag or `GITHUB_EXCLUDE_TOOLS` env var |
 | Read-Only Mode | `X-MCP-Readonly` header or `/readonly` URL | `--read-only` flag or `GITHUB_READ_ONLY` env var |
-| Dynamic Mode | Not available | `--dynamic-toolsets` flag or `GITHUB_DYNAMIC_TOOLSETS` env var |
 | Lockdown Mode | `X-MCP-Lockdown` header | `--lockdown-mode` flag or `GITHUB_LOCKDOWN_MODE` env var |
 | Insiders Mode | `X-MCP-Insiders` header or `/insiders` URL | `--insiders` flag or `GITHUB_INSIDERS` env var |
 | Feature Flags | `X-MCP-Features` header | `--features` flag |
@@ -24,7 +23,7 @@ We currently support the following ways in which the GitHub MCP Server can be co
 
 ## How Configuration Works
 
-All configuration options are **composable**: you can combine toolsets, individual tools, excluded tools, dynamic discovery, read-only mode and lockdown mode in any way that suits your workflow.
+All configuration options are **composable**: you can combine toolsets, individual tools, excluded tools, read-only mode and lockdown mode in any way that suits your workflow.
 
 Note: **read-only** mode acts as a strict security filter that takes precedence over any other configuration, by disabling write tools even when explicitly requested.
 
@@ -287,59 +286,6 @@ When active, this mode will disable all tools that are not read-only even if the
 
 ---
 
-### Dynamic Discovery (Local Only)
-
-**Best for:** Letting the LLM discover and enable toolsets as needed.
-
-Starts with only discovery tools (`enable_toolset`, `list_available_toolsets`, `get_toolset_tools`), then expands on demand.
-
-<table>
-<tr><th>Local Server Only</th></tr>
-<tr valign="top">
-<td>
-
-```json
-{
-  "type": "stdio",
-  "command": "go",
-  "args": [
-    "run",
-    "./cmd/github-mcp-server",
-    "stdio",
-    "--dynamic-toolsets"
-  ],
-  "env": {
-    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
-  }
-}
-```
-
-**With some tools pre-enabled:**
-```json
-{
-  "type": "stdio",
-  "command": "go",
-  "args": [
-    "run",
-    "./cmd/github-mcp-server",
-    "stdio",
-    "--dynamic-toolsets",
-    "--tools=get_me,search_code"
-  ],
-  "env": {
-    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
-  }
-}
-```
-
-</td>
-</tr>
-</table>
-
-When both dynamic mode and specific tools are enabled in the server configuration, the server will start with the 3 dynamic tools + the specified tools.
-
----
-
 ### Lockdown Mode
 
 **Best for:** Public repositories where you want to limit content from users without push access.
@@ -521,7 +467,6 @@ See [Scope Filtering](./scope-filtering.md) for details on how filtering works w
 | Server fails to start | Invalid tool name in `--tools` or `X-MCP-Tools` | Check tool name spelling; use exact names from [Tools list](../README.md#tools) |
 | Write tools not working | Read-only mode enabled | Remove `--read-only` flag or `X-MCP-Readonly` header |
 | Tools missing | Toolset not enabled | Add the required toolset or specific tool |
-| Dynamic tools not available | Using remote server | Dynamic mode is available in the local MCP server only |
 
 ---
 

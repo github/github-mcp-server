@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/google/go-github/v82/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 )
@@ -246,8 +245,9 @@ func Test_repositoryResourceContents(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := github.NewClient(tc.mockedClient)
-			mockRawClient := raw.NewClient(client, base)
+			client := mustNewGHClient(t, tc.mockedClient)
+			mockRawClient, err := raw.NewClient(client, base)
+			require.NoError(t, err)
 			deps := BaseDeps{
 				Client:    client,
 				RawClient: mockRawClient,
@@ -290,8 +290,9 @@ func Test_repositoryResourceContentsHandler_NetworkError(t *testing.T) {
 	networkErr := errors.New("network error: connection refused")
 
 	httpClient := &http.Client{Transport: &errorTransport{err: networkErr}}
-	client := github.NewClient(httpClient)
-	mockRawClient := raw.NewClient(client, base)
+	client := mustNewGHClient(t, httpClient)
+	mockRawClient, err := raw.NewClient(client, base)
+	require.NoError(t, err)
 	deps := BaseDeps{
 		Client:    client,
 		RawClient: mockRawClient,

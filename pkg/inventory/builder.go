@@ -106,8 +106,7 @@ func (b *Builder) WithServerInstructions() *Builder {
 //   - "default": expands to toolsets marked with Default: true in their metadata
 //
 // Input strings are trimmed of whitespace and duplicates are removed.
-// Pass nil to use default toolsets. Pass an empty slice to disable all toolsets
-// (useful for dynamic toolsets mode where tools are enabled on demand).
+// Pass nil to use default toolsets. Pass an empty slice to disable all toolsets.
 // Returns self for chaining.
 func (b *Builder) WithToolsets(toolsetIDs []string) *Builder {
 	b.toolsetIDs = toolsetIDs
@@ -128,8 +127,20 @@ func (b *Builder) WithTools(toolNames []string) *Builder {
 
 // WithFeatureChecker sets the feature flag checker function.
 // The checker receives a context (for actor extraction) and feature flag name,
-// returns (enabled, error). If error occurs, it will be logged and treated as false.
-// If checker is nil, all feature flag checks return false.
+// and returns (enabled, error). Errors are logged and treated as "not enabled".
+//
+// When the checker is non-nil, Build() installs a feature-flag ToolFilter
+// at the head of the filter pipeline so that tools annotated with
+// FeatureFlagEnable / FeatureFlagDisable are gated accordingly. Resources
+// and prompts use the same checker via an explicit guard at their iteration
+// site.
+//
+// When the checker is nil, no feature-flag filter is installed; tools,
+// resources, and prompts pass through feature-flag gating unchanged. The
+// per-request inventory in HTTP mode must always install a checker so that
+// MCP registration (which can only serve a given tool name once) sees a
+// deduplicated set of dual-name variants.
+//
 // Returns self for chaining.
 func (b *Builder) WithFeatureChecker(checker FeatureFlagChecker) *Builder {
 	b.featureChecker = checker
@@ -190,19 +201,6 @@ func cleanTools(tools []string) []string {
 	return cleaned
 }
 
-// checkFeatureFlag checks a feature flag at build time using the builder's feature checker.
-// Returns false if no checker is configured or the flag is not enabled.
-func (b *Builder) checkFeatureFlag(flag string) bool {
-	if b.featureChecker == nil {
-		return false
-	}
-	enabled, err := b.featureChecker(context.Background(), flag)
-	if err != nil {
-		return false
-	}
-	return enabled
-}
-
 // Build creates the final Inventory with all configuration applied.
 // This processes toolset filtering, tool name resolution, and sets up
 // the inventory for use. The returned Inventory is ready for use with
@@ -214,11 +212,14 @@ func (b *Builder) checkFeatureFlag(flag string) bool {
 func (b *Builder) Build() (*Inventory, error) {
 	tools := b.tools
 
-	// When MCP Apps feature flag is not enabled, strip UI metadata from tools
-	// so clients won't attempt to load UI resources.
-	// The feature checker is the single source of truth for flag evaluation.
-	if !b.checkFeatureFlag(mcpAppsFeatureFlag) {
-		tools = stripMCPAppsMetadata(tools)
+	// Install the feature-flag filter at the head of the pipeline so that
+	// flag-gated tools are excluded before any user-supplied WithFilter sees
+	// them. Doing this in Build() (rather than inside WithFeatureChecker)
+	// keeps the install idempotent — repeated WithFeatureChecker calls
+	// replace the checker without stacking duplicate filters.
+	filters := b.filters
+	if b.featureChecker != nil {
+		filters = append([]ToolFilter{createFeatureFlagFilter(b.featureChecker)}, filters...)
 	}
 
 	r := &Inventory{
@@ -228,7 +229,7 @@ func (b *Builder) Build() (*Inventory, error) {
 		deprecatedAliases: b.deprecatedAliases,
 		readOnly:          b.readOnly,
 		featureChecker:    b.featureChecker,
-		filters:           b.filters,
+		filters:           filters,
 	}
 
 	// Process toolsets and pre-compute metadata in a single pass

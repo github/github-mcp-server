@@ -7,7 +7,7 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -123,11 +123,6 @@ var (
 		Description: "GitHub Stargazers related tools",
 		Icon:        "star",
 	}
-	ToolsetMetadataDynamic = inventory.ToolsetMetadata{
-		ID:          "dynamic",
-		Description: "Discover GitHub MCP tools that can help achieve tasks by enabling additional sets of tools, you can control the enablement of any toolset to access its tools when this toolset is enabled.",
-		Icon:        "tools",
-	}
 	ToolsetLabels = inventory.ToolsetMetadata{
 		ID:          "labels",
 		Description: "GitHub Labels related tools",
@@ -172,7 +167,7 @@ var (
 // AllTools returns all tools with their embedded toolset metadata.
 // Tool functions return ServerTool directly with toolset info.
 func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
-	return []inventory.ServerTool{
+	return withCSVOutput([]inventory.ServerTool{
 		// Context tools
 		GetMe(t),
 		GetTeams(t),
@@ -183,6 +178,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GetFileContents(t),
 		ListCommits(t),
 		SearchCode(t),
+		SearchCommits(t),
 		GetCommit(t),
 		ListBranches(t),
 		ListTags(t),
@@ -199,6 +195,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListStarredRepositories(t),
 		StarRepository(t),
 		UnstarRepository(t),
+		ListRepositoryCollaborators(t),
 
 		// Git tools
 		GetRepositoryTree(t),
@@ -207,7 +204,9 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		IssueRead(t),
 		SearchIssues(t),
 		ListIssues(t),
+		LegacyListIssues(t),
 		ListIssueTypes(t),
+		ListIssueFields(t),
 		IssueWrite(t),
 		AddIssueComment(t),
 		SubIssueWrite(t),
@@ -258,6 +257,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListDiscussions(t),
 		GetDiscussion(t),
 		GetDiscussionComments(t),
+		DiscussionCommentWrite(t),
 		ListDiscussionCategories(t),
 
 		// Actions tools
@@ -315,7 +315,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GranularAddPullRequestReviewComment(t),
 		GranularResolveReviewThread(t),
 		GranularUnresolveReviewThread(t),
-	}
+	})
 }
 
 // ToBoolPtr converts a bool to a *bool pointer.
@@ -348,8 +348,8 @@ func GenerateToolsetsHelp() string {
 		defaultBuf.WriteString(string(id))
 	}
 
-	// Get all available toolsets (excludes context and dynamic for display)
-	allToolsets := r.AvailableToolsets("context", "dynamic")
+	// Get all available toolsets (excludes context for display)
+	allToolsets := r.AvailableToolsets("context")
 	var availableBuf strings.Builder
 	const maxLineLength = 70
 	currentLine := ""
