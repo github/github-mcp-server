@@ -45,28 +45,6 @@ type IssueWriteFieldInput struct {
 	FieldOptionName string
 }
 
-type issueFieldMetadataOption struct {
-	DatabaseID githubv4.Int `graphql:"databaseId"`
-	Name       githubv4.String
-}
-
-type issueFieldMetadataNode struct {
-	DatabaseID        githubv4.Int `graphql:"databaseId"`
-	Name              githubv4.String
-	DataType          githubv4.String
-	SingleSelectField struct {
-		Options []issueFieldMetadataOption `graphql:"options"`
-	} `graphql:"... on IssueFieldSingleSelect"`
-}
-
-type issueFieldMetadataQuery struct {
-	Repository struct {
-		IssueFields struct {
-			Nodes []issueFieldMetadataNode
-		} `graphql:"issueFields(first: 100)"`
-	} `graphql:"repository(owner: $owner, name: $repo)"`
-}
-
 const (
 	IssueClosedStateReasonCompleted  IssueClosedStateReason = "COMPLETED"
 	IssueClosedStateReasonDuplicate  IssueClosedStateReason = "DUPLICATE"
@@ -135,14 +113,6 @@ func getCloseStateReason(stateReason string) IssueClosedStateReason {
 	}
 }
 
-// IssueWriteFieldInput is a user-supplied issue field assignment: a field name and a string value.
-// The value is forwarded directly to the REST API — for single-select fields it must be the
-// option name (e.g. "P1"), not an option ID. Field ID resolution is done internally via GQL.
-type IssueWriteFieldInput struct {
-	FieldName string
-	Value     string
-}
-
 // issueFieldWriteMetadataNode queries only the fields needed to resolve a write: the field's
 // fullDatabaseId (BigInt scalar, returned as string) plus its name and data type for validation.
 // shurcooL/githubv4 cannot use interface-level fragments at union top-level, so we repeat
@@ -168,14 +138,11 @@ type issueFieldWriteMetadataNode struct {
 		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
 		Name           githubv4.String
 		DataType       githubv4.String
+		Options        []struct {
+			FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+			Name           githubv4.String
+		}
 	} `graphql:"... on IssueFieldSingleSelect"`
-}
-
-// issueFieldWriteMetadata holds the resolved name, database ID, and data type for a single field.
-type issueFieldWriteMetadata struct {
-	DatabaseID int64
-	Name       string
-	DataType   string
 }
 
 type issueFieldWriteMetadataQuery struct {
@@ -184,101 +151,6 @@ type issueFieldWriteMetadataQuery struct {
 			Nodes []issueFieldWriteMetadataNode
 		} `graphql:"issueFields(first: 100)"`
 	} `graphql:"repository(owner: $owner, name: $repo)"`
-}
-
-func optionalIssueWriteFields(args map[string]any) ([]IssueWriteFieldInput, error) {
-	raw, exists := args["issue_fields"]
-	if !exists {
-		return nil, nil
-	}
-
-	var inputMaps []map[string]any
-	switch v := raw.(type) {
-	case []any:
-		for _, item := range v {
-			m, ok := item.(map[string]any)
-			if !ok {
-				return nil, fmt.Errorf("each issue_fields item must be an object")
-			}
-			inputMaps = append(inputMaps, m)
-		}
-	case []map[string]any:
-		inputMaps = v
-	default:
-		return nil, fmt.Errorf("issue_fields must be an array")
-	}
-
-	out := make([]IssueWriteFieldInput, 0, len(inputMaps))
-	for _, m := range inputMaps {
-		fieldName, err := RequiredParam[string](m, "field_name")
-		if err != nil || strings.TrimSpace(fieldName) == "" {
-			return nil, fmt.Errorf("field_name is required for each issue_fields item")
-		}
-		value, err := RequiredParam[string](m, "value")
-		if err != nil {
-			return nil, fmt.Errorf("issue_fields item %q: value is required", fieldName)
-		}
-		out = append(out, IssueWriteFieldInput{FieldName: fieldName, Value: value})
-	}
-	return out, nil
-}
-
-func resolveIssueWriteFieldValues(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, inputs []IssueWriteFieldInput) ([]*github.IssueRequestFieldValue, error) {
-	if len(inputs) == 0 {
-		return nil, nil
-	}
-
-	ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
-	var query issueFieldWriteMetadataQuery
-	vars := map[string]any{
-		"owner": githubv4.String(owner),
-		"repo":  githubv4.String(repo),
-	}
-	if err := gqlClient.Query(ctxWithFeatures, &query, vars); err != nil {
-		return nil, fmt.Errorf("failed to query issue field metadata: %w", err)
-	}
-
-	// Build name → metadata map from the GQL response.
-	byName := make(map[string]issueFieldWriteMetadata, len(query.Repository.IssueFields.Nodes))
-	for _, node := range query.Repository.IssueFields.Nodes {
-		var name, dataType, fullDBID string
-		switch string(node.TypeName) {
-		case "IssueFieldText":
-			name, dataType, fullDBID = string(node.IssueFieldText.Name), string(node.IssueFieldText.DataType), string(node.IssueFieldText.FullDatabaseID)
-		case "IssueFieldNumber":
-			name, dataType, fullDBID = string(node.IssueFieldNumber.Name), string(node.IssueFieldNumber.DataType), string(node.IssueFieldNumber.FullDatabaseID)
-		case "IssueFieldDate":
-			name, dataType, fullDBID = string(node.IssueFieldDate.Name), string(node.IssueFieldDate.DataType), string(node.IssueFieldDate.FullDatabaseID)
-		case "IssueFieldSingleSelect":
-			name, dataType, fullDBID = string(node.IssueFieldSingleSelect.Name), string(node.IssueFieldSingleSelect.DataType), string(node.IssueFieldSingleSelect.FullDatabaseID)
-		default:
-			continue
-		}
-		dbID, _ := strconv.ParseInt(fullDBID, 10, 64)
-		byName[strings.ToLower(strings.TrimSpace(name))] = issueFieldWriteMetadata{
-			DatabaseID: dbID,
-			Name:       name,
-			DataType:   dataType,
-		}
-	}
-
-	resolved := make([]*github.IssueRequestFieldValue, 0, len(inputs))
-	for _, input := range inputs {
-		meta, ok := byName[strings.ToLower(strings.TrimSpace(input.FieldName))]
-		if !ok {
-			return nil, fmt.Errorf("issue field %q was not found in %s/%s", input.FieldName, owner, repo)
-		}
-		if meta.DatabaseID == 0 {
-			return nil, fmt.Errorf("issue field %q is missing fullDatabaseId", input.FieldName)
-		}
-		// For single-select the REST API expects the option name as a string value.
-		// For all other types, pass the value through as-is.
-		resolved = append(resolved, &github.IssueRequestFieldValue{
-			FieldID: meta.DatabaseID,
-			Value:   input.Value,
-		})
-	}
-	return resolved, nil
 }
 
 // IssueFieldRef resolves the name of an issue field across its concrete types.
@@ -391,44 +263,75 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 		return nil, nil
 	}
 
-	query := issueFieldMetadataQuery{}
+	ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
+	var query issueFieldWriteMetadataQuery
 	vars := map[string]any{
 		"owner": githubv4.String(owner),
 		"repo":  githubv4.String(repo),
 	}
-	if err := gqlClient.Query(ctx, &query, vars); err != nil {
+	if err := gqlClient.Query(ctxWithFeatures, &query, vars); err != nil {
 		return nil, fmt.Errorf("failed to query issue fields metadata: %w", err)
 	}
 
-	fieldByName := make(map[string]issueFieldMetadataNode, len(query.Repository.IssueFields.Nodes))
-	for _, field := range query.Repository.IssueFields.Nodes {
-		fieldByName[strings.ToLower(strings.TrimSpace(string(field.Name)))] = field
+	// Build name → node map, dispatching on concrete type to extract name.
+	fieldByName := make(map[string]issueFieldWriteMetadataNode, len(query.Repository.IssueFields.Nodes))
+	for _, node := range query.Repository.IssueFields.Nodes {
+		var name string
+		switch string(node.TypeName) {
+		case "IssueFieldText":
+			name = string(node.IssueFieldText.Name)
+		case "IssueFieldNumber":
+			name = string(node.IssueFieldNumber.Name)
+		case "IssueFieldDate":
+			name = string(node.IssueFieldDate.Name)
+		case "IssueFieldSingleSelect":
+			name = string(node.IssueFieldSingleSelect.Name)
+		default:
+			continue
+		}
+		fieldByName[strings.ToLower(strings.TrimSpace(name))] = node
 	}
 
 	resolved := make([]*github.IssueRequestFieldValue, 0, len(issueFields))
 	for _, fieldInput := range issueFields {
-		field, ok := fieldByName[strings.ToLower(strings.TrimSpace(fieldInput.FieldName))]
+		node, ok := fieldByName[strings.ToLower(strings.TrimSpace(fieldInput.FieldName))]
 		if !ok {
 			return nil, fmt.Errorf("issue field %q was not found in %s/%s", fieldInput.FieldName, owner, repo)
 		}
 
-		fieldID := int64(field.DatabaseID)
+		var fullDatabaseIDStr, dataType string
+		switch string(node.TypeName) {
+		case "IssueFieldText":
+			fullDatabaseIDStr = string(node.IssueFieldText.FullDatabaseID)
+			dataType = string(node.IssueFieldText.DataType)
+		case "IssueFieldNumber":
+			fullDatabaseIDStr = string(node.IssueFieldNumber.FullDatabaseID)
+			dataType = string(node.IssueFieldNumber.DataType)
+		case "IssueFieldDate":
+			fullDatabaseIDStr = string(node.IssueFieldDate.FullDatabaseID)
+			dataType = string(node.IssueFieldDate.DataType)
+		case "IssueFieldSingleSelect":
+			fullDatabaseIDStr = string(node.IssueFieldSingleSelect.FullDatabaseID)
+			dataType = string(node.IssueFieldSingleSelect.DataType)
+		}
+
+		fieldID := parseFullDatabaseID(fullDatabaseIDStr)
 		if fieldID == 0 {
-			return nil, fmt.Errorf("issue field %q is missing databaseId", fieldInput.FieldName)
+			return nil, fmt.Errorf("issue field %q is missing fullDatabaseId", fieldInput.FieldName)
 		}
 
 		resolvedValue := fieldInput.Value
 		if fieldInput.FieldOptionName != "" {
-			if !strings.EqualFold(string(field.DataType), "single_select") {
-				return nil, fmt.Errorf("issue field %q is %q, so field_option_name cannot be used", fieldInput.FieldName, field.DataType)
+			if !strings.EqualFold(dataType, "single_select") {
+				return nil, fmt.Errorf("issue field %q is %q, so field_option_name cannot be used", fieldInput.FieldName, dataType)
 			}
 
 			optionFound := false
-			for _, option := range field.SingleSelectField.Options {
+			for _, option := range node.IssueFieldSingleSelect.Options {
 				if strings.EqualFold(strings.TrimSpace(string(option.Name)), strings.TrimSpace(fieldInput.FieldOptionName)) {
-					optionID := int64(option.DatabaseID)
+					optionID := parseFullDatabaseID(string(option.FullDatabaseID))
 					if optionID == 0 {
-						return nil, fmt.Errorf("issue field option %q on field %q is missing databaseId", fieldInput.FieldOptionName, fieldInput.FieldName)
+						return nil, fmt.Errorf("issue field option %q on field %q is missing fullDatabaseId", fieldInput.FieldOptionName, fieldInput.FieldName)
 					}
 					resolvedValue = optionID
 					optionFound = true

@@ -1313,7 +1313,7 @@ func Test_CreateIssue(t *testing.T) {
 			}),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
-					issueFieldMetadataQuery{},
+					issueFieldWriteMetadataQuery{},
 					map[string]any{
 						"owner": githubv4.String("owner"),
 						"repo":  githubv4.String("repo"),
@@ -1321,19 +1321,21 @@ func Test_CreateIssue(t *testing.T) {
 					githubv4mock.DataResponse(map[string]any{
 						"repository": map[string]any{
 							"issueFields": map[string]any{
-								"nodes": []map[string]any{
-									{
-										"databaseId": 101,
-										"name":       "Priority",
-										"dataType":   "single_select",
-										"options": []map[string]any{
-											{"databaseId": 9001, "name": "P1"},
+								"nodes": []any{
+									map[string]any{
+										"__typename":     "IssueFieldSingleSelect",
+										"fullDatabaseId": "101",
+										"name":           "Priority",
+										"dataType":       "single_select",
+										"options": []any{
+											map[string]any{"fullDatabaseId": "9001", "name": "P1"},
 										},
 									},
-									{
-										"databaseId": 102,
-										"name":       "Customer",
-										"dataType":   "text",
+									map[string]any{
+										"__typename":     "IssueFieldText",
+										"fullDatabaseId": "102",
+										"name":           "Customer",
+										"dataType":       "text",
 									},
 								},
 							},
@@ -2776,7 +2778,7 @@ func Test_UpdateIssue(t *testing.T) {
 			}),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
-					issueFieldMetadataQuery{},
+					issueFieldWriteMetadataQuery{},
 					map[string]any{
 						"owner": githubv4.String("owner"),
 						"repo":  githubv4.String("repo"),
@@ -2784,17 +2786,19 @@ func Test_UpdateIssue(t *testing.T) {
 					githubv4mock.DataResponse(map[string]any{
 						"repository": map[string]any{
 							"issueFields": map[string]any{
-								"nodes": []map[string]any{
-									{
-										"databaseId": 101,
-										"name":       "Priority",
-										"dataType":   "single_select",
-										"options":    []map[string]any{{"databaseId": 9001, "name": "P1"}},
+								"nodes": []any{
+									map[string]any{
+										"__typename":     "IssueFieldSingleSelect",
+										"fullDatabaseId": "101",
+										"name":           "Priority",
+										"dataType":       "single_select",
+										"options":        []any{map[string]any{"fullDatabaseId": "9001", "name": "P1"}},
 									},
-									{
-										"databaseId": 102,
-										"name":       "Customer",
-										"dataType":   "text",
+									map[string]any{
+										"__typename":     "IssueFieldText",
+										"fullDatabaseId": "102",
+										"name":           "Customer",
+										"dataType":       "text",
 									},
 								},
 							},
