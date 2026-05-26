@@ -1131,6 +1131,6 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = []string{FeatureFlagIssuesGranular}
+	st.FeatureFlagEnable = []string{FeatureFlagIssuesGranular, FeatureFlagIssueFields}
 	return st
 }
