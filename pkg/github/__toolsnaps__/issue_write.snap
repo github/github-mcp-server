@@ -30,22 +30,23 @@
         "type": "number"
       },
       "issue_fields": {
-        "description": "Custom issue field values to set. Each entry specifies a field by name and its value. For single-select fields, value must be the option name (e.g. \"P1\"). For date fields, value must be YYYY-MM-DD.",
+        "description": "Issue field values to set. Each item requires field_name and either value or field_option_name. field_option_name is for single-select fields and is resolved to the corresponding option ID automatically.",
         "items": {
-          "additionalProperties": false,
           "properties": {
             "field_name": {
-              "description": "Name of the custom field (case-insensitive).",
+              "description": "Issue field name",
+              "type": "string"
+            },
+            "field_option_name": {
+              "description": "Single-select option name to resolve and set for the field",
               "type": "string"
             },
             "value": {
-              "description": "Value to set. For single-select, the option name. For dates, YYYY-MM-DD. For numbers, the numeric value as a string.",
-              "type": "string"
+              "description": "Value for text/number/date/single-select fields. For single-select, you can use field_option_name instead."
             }
           },
           "required": [
-            "field_name",
-            "value"
+            "field_name"
           ],
           "type": "object"
         },

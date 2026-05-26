@@ -220,6 +220,31 @@ type MinimalReactions struct {
 	Eyes       int `json:"eyes"`
 }
 
+// MinimalIssueFieldValueSingleSelectOption is the trimmed output type for a single-select option of an issue field value.
+type MinimalIssueFieldValueSingleSelectOption struct {
+	ID    int64  `json:"id"`
+	Name  string `json:"name"`
+	Color string `json:"color"`
+}
+
+// MinimalIssueFieldValue is the trimmed output type for a custom field value attached to an issue,
+// populated from REST API responses (e.g. get_issue). For GraphQL-sourced field values see MinimalFieldValue.
+type MinimalIssueFieldValue struct {
+	IssueFieldID       int64                                     `json:"issue_field_id,omitempty"`
+	NodeID             string                                    `json:"node_id,omitempty"`
+	DataType           string                                    `json:"data_type,omitempty"`
+	Value              any                                       `json:"value,omitempty"`
+	SingleSelectOption *MinimalIssueFieldValueSingleSelectOption `json:"single_select_option,omitempty"`
+}
+
+// MinimalFieldValue is the trimmed output type for a custom field value resolved via GraphQL
+// (e.g. list_issues, search_issues). Single-value variants populate Value; Values is reserved for multi-select.
+type MinimalFieldValue struct {
+	Field  string   `json:"field"`
+	Value  string   `json:"value,omitempty"`
+	Values []string `json:"values,omitempty"`
+}
+
 // MinimalIssue is the trimmed output type for issue objects to reduce verbosity.
 type MinimalIssue struct {
 	Number            int                      `json:"number"`
@@ -242,15 +267,8 @@ type MinimalIssue struct {
 	ClosedAt          string                   `json:"closed_at,omitempty"`
 	ClosedBy          string                   `json:"closed_by,omitempty"`
 	IssueType         string                   `json:"issue_type,omitempty"`
-	FieldValues       []MinimalIssueFieldValue `json:"field_values,omitempty"`
-}
-
-// MinimalIssueFieldValue is the trimmed output type for a custom issue field value.
-// Single-value variants (date, number, single-select, text) populate Value. Values is reserved for multi-select.
-type MinimalIssueFieldValue struct {
-	Field  string   `json:"field"`
-	Value  string   `json:"value,omitempty"`
-	Values []string `json:"values,omitempty"`
+	IssueFieldValues  []MinimalIssueFieldValue `json:"issue_field_values,omitempty"`
+	FieldValues       []MinimalFieldValue      `json:"field_values,omitempty"`
 }
 
 // MinimalIssuesResponse is the trimmed output for a paginated list of issues.
@@ -435,6 +453,26 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 		m.IssueType = issueType.GetName()
 	}
 
+	for _, fv := range issue.IssueFieldValues {
+		if fv == nil {
+			continue
+		}
+		mfv := MinimalIssueFieldValue{
+			IssueFieldID: fv.IssueFieldID,
+			NodeID:       fv.NodeID,
+			DataType:     fv.DataType,
+			Value:        fv.Value,
+		}
+		if opt := fv.SingleSelectOption; opt != nil {
+			mfv.SingleSelectOption = &MinimalIssueFieldValueSingleSelectOption{
+				ID:    opt.ID,
+				Name:  opt.Name,
+				Color: opt.Color,
+			}
+		}
+		m.IssueFieldValues = append(m.IssueFieldValues, mfv)
+	}
+
 	if r := issue.Reactions; r != nil {
 		m.Reactions = &MinimalReactions{
 			TotalCount: r.GetTotalCount(),
@@ -471,7 +509,7 @@ func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 	}
 
 	for _, fv := range fragment.IssueFieldValues.Nodes {
-		if mfv, ok := fragmentToMinimalIssueFieldValue(fv); ok {
+		if mfv, ok := fragmentToMinimalFieldValue(fv); ok {
 			m.FieldValues = append(m.FieldValues, mfv)
 		}
 	}
@@ -479,32 +517,32 @@ func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 	return m
 }
 
-// fragmentToMinimalIssueFieldValue flattens the union value fragment into a single
+// fragmentToMinimalFieldValue flattens the union value fragment into a single
 // {field, value} pair. Returns ok=false if the typename is unrecognised.
-func fragmentToMinimalIssueFieldValue(fv IssueFieldValueFragment) (MinimalIssueFieldValue, bool) {
+func fragmentToMinimalFieldValue(fv IssueFieldValueFragment) (MinimalFieldValue, bool) {
 	switch fv.TypeName {
 	case "IssueFieldDateValue":
-		return MinimalIssueFieldValue{
+		return MinimalFieldValue{
 			Field: fv.DateValue.Field.Name(),
 			Value: string(fv.DateValue.Value),
 		}, true
 	case "IssueFieldNumberValue":
-		return MinimalIssueFieldValue{
+		return MinimalFieldValue{
 			Field: fv.NumberValue.Field.Name(),
 			Value: strconv.FormatFloat(float64(fv.NumberValue.Value), 'f', -1, 64),
 		}, true
 	case "IssueFieldSingleSelectValue":
-		return MinimalIssueFieldValue{
+		return MinimalFieldValue{
 			Field: fv.SingleSelectValue.Field.Name(),
 			Value: string(fv.SingleSelectValue.Value),
 		}, true
 	case "IssueFieldTextValue":
-		return MinimalIssueFieldValue{
+		return MinimalFieldValue{
 			Field: fv.TextValue.Field.Name(),
 			Value: string(fv.TextValue.Value),
 		}, true
 	}
-	return MinimalIssueFieldValue{}, false
+	return MinimalFieldValue{}, false
 }
 
 func convertToMinimalIssuesResponse(fragment IssueQueryFragment) MinimalIssuesResponse {
