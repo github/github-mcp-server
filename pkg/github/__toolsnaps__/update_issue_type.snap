@@ -28,6 +28,10 @@
       "repo": {
         "description": "Repository name",
         "type": "string"
+      },
+      "suggest": {
+        "description": "If true, propose the issue type change instead of applying it. Defaults to false, which applies the change to the issue.",
+        "type": "boolean"
       }
     },
     "required": [
