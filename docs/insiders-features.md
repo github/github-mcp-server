@@ -50,7 +50,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
-  - `issue_fields`: Issue field values to set. Each item requires field_name and either value or field_option_name. field_option_name is for single-select fields and is resolved to the corresponding option ID automatically. (object[], optional)
+  - `issue_fields`: Issue field values to set. Each item requires 'field_name' and either 'value' or 'field_option_name'. Use 'field_option_name' for single-select fields to validate the option exists. (object[], optional)
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
   - `method`: Write operation to perform on a single issue.
