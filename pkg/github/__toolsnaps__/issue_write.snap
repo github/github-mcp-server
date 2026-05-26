@@ -30,19 +30,41 @@
         "type": "number"
       },
       "issue_fields": {
-        "description": "Issue field values to set. Each item requires 'field_name' and either 'value' or 'field_option_name'. Use 'field_option_name' for single-select fields to validate the option exists.",
+        "description": "Issue field values to set. Each item requires 'field_name' and exactly one of 'value' or 'field_option_name'.",
         "items": {
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "field_option_name"
+                ]
+              },
+              "required": [
+                "value"
+              ]
+            },
+            {
+              "not": {
+                "required": [
+                  "value"
+                ]
+              },
+              "required": [
+                "field_option_name"
+              ]
+            }
+          ],
           "properties": {
             "field_name": {
               "description": "Issue field name",
               "type": "string"
             },
             "field_option_name": {
-              "description": "Single-select option name (validates option exists before setting)",
+              "description": "Option name for single-select fields — validates the option exists in the field definition before setting it.",
               "type": "string"
             },
             "value": {
-              "description": "Value for text/number/date/single-select fields"
+              "description": "Value to set. For single-select fields, prefer 'field_option_name' to validate the option exists first."
             }
           },
           "required": [

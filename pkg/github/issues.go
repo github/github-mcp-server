@@ -37,9 +37,9 @@ type CloseIssueInput struct {
 // Used to extend the functionality of the githubv4 library to support closing issues as duplicates.
 type IssueClosedStateReason string
 
-// IssueWriteFieldInput is a user-friendly issue field input for issue_write.
+// issueWriteFieldInput is a user-friendly issue field input for issue_write.
 // Field IDs and option IDs are resolved internally before calling the REST API.
-type IssueWriteFieldInput struct {
+type issueWriteFieldInput struct {
 	FieldName       string
 	Value           any
 	FieldOptionName string
@@ -201,7 +201,7 @@ type IssueFieldValueFragment struct {
 	} `graphql:"... on IssueFieldTextValue"`
 }
 
-func optionalIssueWriteFields(args map[string]any) ([]IssueWriteFieldInput, error) {
+func optionalIssueWriteFields(args map[string]any) ([]issueWriteFieldInput, error) {
 	issueFieldsRaw, exists := args["issue_fields"]
 	if !exists {
 		return nil, nil
@@ -223,7 +223,7 @@ func optionalIssueWriteFields(args map[string]any) ([]IssueWriteFieldInput, erro
 		return nil, fmt.Errorf("issue_fields must be an array")
 	}
 
-	issueFields := make([]IssueWriteFieldInput, 0, len(inputMaps))
+	issueFields := make([]issueWriteFieldInput, 0, len(inputMaps))
 	for _, itemMap := range inputMaps {
 		fieldName, err := RequiredParam[string](itemMap, "field_name")
 		if err != nil || strings.TrimSpace(fieldName) == "" {
@@ -248,7 +248,7 @@ func optionalIssueWriteFields(args map[string]any) ([]IssueWriteFieldInput, erro
 			return nil, fmt.Errorf("issue field %q must specify either value or field_option_name", fieldName)
 		}
 
-		issueFields = append(issueFields, IssueWriteFieldInput{
+		issueFields = append(issueFields, issueWriteFieldInput{
 			FieldName:       fieldName,
 			Value:           value,
 			FieldOptionName: fieldOptionName,
@@ -258,7 +258,7 @@ func optionalIssueWriteFields(args map[string]any) ([]IssueWriteFieldInput, erro
 	return issueFields, nil
 }
 
-func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueFields []IssueWriteFieldInput) ([]*github.IssueRequestFieldValue, error) {
+func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueFields []issueWriteFieldInput) ([]*github.IssueRequestFieldValue, error) {
 	if len(issueFields) == 0 {
 		return nil, nil
 	}
@@ -1719,7 +1719,7 @@ Options are:
 					},
 					"issue_fields": {
 						Type:        "array",
-						Description: "Issue field values to set. Each item requires 'field_name' and either 'value' or 'field_option_name'. Use 'field_option_name' for single-select fields to validate the option exists.",
+						Description: "Issue field values to set. Each item requires 'field_name' and exactly one of 'value' or 'field_option_name'.",
 						Items: &jsonschema.Schema{
 							Type: "object",
 							Properties: map[string]*jsonschema.Schema{
@@ -1728,14 +1728,24 @@ Options are:
 									Description: "Issue field name",
 								},
 								"value": {
-									Description: "Value for text/number/date/single-select fields",
+									Description: "Value to set. For single-select fields, prefer 'field_option_name' to validate the option exists first.",
 								},
 								"field_option_name": {
 									Type:        "string",
-									Description: "Single-select option name (validates option exists before setting)",
+									Description: "Option name for single-select fields — validates the option exists in the field definition before setting it.",
 								},
 							},
 							Required: []string{"field_name"},
+							OneOf: []*jsonschema.Schema{
+								{
+									Required: []string{"value"},
+									Not:      &jsonschema.Schema{Required: []string{"field_option_name"}},
+								},
+								{
+									Required: []string{"field_option_name"},
+									Not:      &jsonschema.Schema{Required: []string{"value"}},
+								},
+							},
 						},
 					},
 				},
