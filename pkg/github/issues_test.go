@@ -394,7 +394,10 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 }
 
 func Test_GetIssue_FieldValues(t *testing.T) {
-	// Verify that issue_field_values from the REST API are present in the returned object.
+	// Verify that issue_field_values from the REST API are NOT exposed when the
+	// remote_mcp_issue_fields flag is off. The raw REST format is always cleared;
+	// enriched field_values are only populated when the flag is on (tested via
+	// featureCheckerFor in Test_CreateIssue and the smoke tests).
 	serverTool := IssueRead(translations.NullTranslationHelper)
 
 	mockIssueWithFields := &github.Issue{
@@ -457,24 +460,9 @@ func Test_GetIssue_FieldValues(t *testing.T) {
 	err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 	require.NoError(t, err)
 
-	require.Len(t, returnedIssue.IssueFieldValues, 2, "expected two issue field values")
-
-	first := returnedIssue.IssueFieldValues[0]
-	assert.Equal(t, int64(1001), first.IssueFieldID)
-	assert.Equal(t, "FV_node_1", first.NodeID)
-	assert.Equal(t, "single_select", first.DataType)
-	assert.Equal(t, "High", first.Value)
-	require.NotNil(t, first.SingleSelectOption)
-	assert.Equal(t, int64(42), first.SingleSelectOption.ID)
-	assert.Equal(t, "High", first.SingleSelectOption.Name)
-	assert.Equal(t, "red", first.SingleSelectOption.Color)
-
-	second := returnedIssue.IssueFieldValues[1]
-	assert.Equal(t, int64(1002), second.IssueFieldID)
-	assert.Equal(t, "FV_node_2", second.NodeID)
-	assert.Equal(t, "text", second.DataType)
-	assert.Equal(t, "some text value", second.Value)
-	assert.Nil(t, second.SingleSelectOption)
+	// Flag is off: raw REST IssueFieldValues must be cleared, enriched FieldValues absent.
+	assert.Empty(t, returnedIssue.IssueFieldValues, "raw REST issue_field_values should not be exposed when flag is off")
+	assert.Empty(t, returnedIssue.FieldValues, "enriched field_values should not be present when flag is off")
 }
 
 func Test_AddIssueComment(t *testing.T) {
