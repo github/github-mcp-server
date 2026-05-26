@@ -75,12 +75,13 @@ func Test_ListIssueFields(t *testing.T) {
 					"issueFields": map[string]any{
 						"nodes": []any{
 							map[string]any{
-								"__typename":  "IssueFieldText",
-								"id":          "IFT_1",
-								"name":        "DRI",
-								"description": "Directly responsible individual",
-								"dataType":    "TEXT",
-								"visibility":  "ORG_ONLY",
+								"__typename":     "IssueFieldText",
+								"id":             "IFT_1",
+								"fullDatabaseId": "42",
+								"name":           "DRI",
+								"description":    "Directly responsible individual",
+								"dataType":       "TEXT",
+								"visibility":     "ORG_ONLY",
 							},
 						},
 					},
@@ -89,6 +90,7 @@ func Test_ListIssueFields(t *testing.T) {
 			expectedFields: []IssueField{
 				{
 					ID:          "IFT_1",
+					DatabaseID:  42,
 					Name:        "DRI",
 					Description: "Directly responsible individual",
 					DataType:    "TEXT",
@@ -107,12 +109,13 @@ func Test_ListIssueFields(t *testing.T) {
 					"issueFields": map[string]any{
 						"nodes": []any{
 							map[string]any{
-								"__typename":  "IssueFieldSingleSelect",
-								"id":          "IFSS_1",
-								"name":        "Priority",
-								"description": "Level of importance",
-								"dataType":    "SINGLE_SELECT",
-								"visibility":  "ALL",
+								"__typename":     "IssueFieldSingleSelect",
+								"id":             "IFSS_1",
+								"fullDatabaseId": "99",
+								"name":           "Priority",
+								"description":    "Level of importance",
+								"dataType":       "SINGLE_SELECT",
+								"visibility":     "ALL",
 								"options": []any{
 									map[string]any{
 										"id":    "OPT_1",
@@ -133,6 +136,7 @@ func Test_ListIssueFields(t *testing.T) {
 			expectedFields: []IssueField{
 				{
 					ID:          "IFSS_1",
+					DatabaseID:  99,
 					Name:        "Priority",
 					Description: "Level of importance",
 					DataType:    "SINGLE_SELECT",
@@ -165,18 +169,19 @@ func Test_ListIssueFields(t *testing.T) {
 					"issueFields": map[string]any{
 						"nodes": []any{
 							map[string]any{
-								"__typename": "IssueFieldText",
-								"id":         "IFT_1",
-								"name":       "DRI",
-								"dataType":   "TEXT",
-								"visibility": "ORG_ONLY",
+								"__typename":     "IssueFieldText",
+								"id":             "IFT_1",
+								"fullDatabaseId": "77",
+								"name":           "DRI",
+								"dataType":       "TEXT",
+								"visibility":     "ORG_ONLY",
 							},
 						},
 					},
 				},
 			}),
 			expectedFields: []IssueField{
-				{ID: "IFT_1", Name: "DRI", DataType: "TEXT", Visibility: "ORG_ONLY"},
+				{ID: "IFT_1", DatabaseID: 77, Name: "DRI", DataType: "TEXT", Visibility: "ORG_ONLY"},
 			},
 		},
 		{
@@ -190,18 +195,19 @@ func Test_ListIssueFields(t *testing.T) {
 					"issueFields": map[string]any{
 						"nodes": []any{
 							map[string]any{
-								"__typename": "IssueFieldNumber",
-								"id":         "IFN_1",
-								"name":       "Engineering Staffing",
-								"dataType":   "NUMBER",
-								"visibility": "ORG_ONLY",
+								"__typename":     "IssueFieldNumber",
+								"id":             "IFN_1",
+								"fullDatabaseId": "101",
+								"name":           "Engineering Staffing",
+								"dataType":       "NUMBER",
+								"visibility":     "ORG_ONLY",
 							},
 						},
 					},
 				},
 			}),
 			expectedFields: []IssueField{
-				{ID: "IFN_1", Name: "Engineering Staffing", DataType: "NUMBER", Visibility: "ORG_ONLY"},
+				{ID: "IFN_1", DatabaseID: 101, Name: "Engineering Staffing", DataType: "NUMBER", Visibility: "ORG_ONLY"},
 			},
 		},
 		{
@@ -215,18 +221,19 @@ func Test_ListIssueFields(t *testing.T) {
 					"issueFields": map[string]any{
 						"nodes": []any{
 							map[string]any{
-								"__typename": "IssueFieldDate",
-								"id":         "IFD_1",
-								"name":       "Target Date",
-								"dataType":   "DATE",
-								"visibility": "ORG_ONLY",
+								"__typename":     "IssueFieldDate",
+								"id":             "IFD_1",
+								"fullDatabaseId": "202",
+								"name":           "Target Date",
+								"dataType":       "DATE",
+								"visibility":     "ORG_ONLY",
 							},
 						},
 					},
 				},
 			}),
 			expectedFields: []IssueField{
-				{ID: "IFD_1", Name: "Target Date", DataType: "DATE", Visibility: "ORG_ONLY"},
+				{ID: "IFD_1", DatabaseID: 202, Name: "Target Date", DataType: "DATE", Visibility: "ORG_ONLY"},
 			},
 		},
 		{
@@ -284,6 +291,7 @@ func Test_ListIssueFields(t *testing.T) {
 			require.Equal(t, len(tc.expectedFields), len(returnedFields))
 			for i, expected := range tc.expectedFields {
 				assert.Equal(t, expected.ID, returnedFields[i].ID)
+				assert.Equal(t, expected.DatabaseID, returnedFields[i].DatabaseID)
 				assert.Equal(t, expected.Name, returnedFields[i].Name)
 				assert.Equal(t, expected.DataType, returnedFields[i].DataType)
 				assert.Equal(t, expected.Visibility, returnedFields[i].Visibility)
