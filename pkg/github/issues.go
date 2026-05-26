@@ -329,11 +329,8 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 			optionFound := false
 			for _, option := range node.IssueFieldSingleSelect.Options {
 				if strings.EqualFold(strings.TrimSpace(string(option.Name)), strings.TrimSpace(fieldInput.FieldOptionName)) {
-					optionID := parseFullDatabaseID(string(option.FullDatabaseID))
-					if optionID == 0 {
-						return nil, fmt.Errorf("issue field option %q on field %q is missing fullDatabaseId", fieldInput.FieldOptionName, fieldInput.FieldName)
-					}
-					resolvedValue = optionID
+					// REST API expects the option name, not the ID
+					resolvedValue = string(option.Name)
 					optionFound = true
 					break
 				}
@@ -761,6 +758,17 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 	}
 
 	minimalIssue := convertToMinimalIssue(issue)
+
+	// Enrich with field_values via GraphQL for consistency with list_issues/search_issues
+	if issue != nil && issue.NodeID != nil && *issue.NodeID != "" {
+		gqlClient, err := deps.GetGQLClient(ctx)
+		if err == nil {
+			if fieldValuesByID, err := fetchIssueFieldValuesByNodeID(ctx, gqlClient, []*github.Issue{issue}); err == nil {
+				minimalIssue.FieldValues = fieldValuesByID[*issue.NodeID]
+				minimalIssue.IssueFieldValues = nil // Clear verbose REST format
+			}
+		}
+	}
 
 	return MarshalledTextResult(minimalIssue), nil
 }
@@ -1711,7 +1719,7 @@ Options are:
 					},
 					"issue_fields": {
 						Type:        "array",
-						Description: "Issue field values to set. Each item requires field_name and either value or field_option_name. field_option_name is for single-select fields and is resolved to the corresponding option ID automatically.",
+						Description: "Issue field values to set. Each item requires 'field_name' and either 'value' or 'field_option_name'. Use 'field_option_name' for single-select fields to validate the option exists.",
 						Items: &jsonschema.Schema{
 							Type: "object",
 							Properties: map[string]*jsonschema.Schema{
@@ -1720,11 +1728,11 @@ Options are:
 									Description: "Issue field name",
 								},
 								"value": {
-									Description: "Value for text/number/date/single-select fields. For single-select, you can use field_option_name instead.",
+									Description: "Value for text/number/date/single-select fields",
 								},
 								"field_option_name": {
 									Type:        "string",
-									Description: "Single-select option name to resolve and set for the field",
+									Description: "Single-select option name (validates option exists before setting)",
 								},
 							},
 							Required: []string{"field_name"},

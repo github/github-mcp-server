@@ -1299,7 +1299,7 @@ func Test_CreateIssue(t *testing.T) {
 					"labels":    []any{},
 					"assignees": []any{},
 					"issue_field_values": []any{
-						map[string]any{"field_id": float64(101), "value": float64(9001)},
+						map[string]any{"field_id": float64(101), "value": "P1"},
 						map[string]any{"field_id": float64(102), "value": "Acme"},
 					},
 				}).andThen(
@@ -2768,7 +2768,7 @@ func Test_UpdateIssue(t *testing.T) {
 			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
 					"issue_field_values": []any{
-						map[string]any{"field_id": float64(101), "value": float64(9001)},
+						map[string]any{"field_id": float64(101), "value": "P1"},
 						map[string]any{"field_id": float64(102), "value": "Acme"},
 					},
 					"title": "Updated Title",

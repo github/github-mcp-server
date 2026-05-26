@@ -30,7 +30,7 @@
         "type": "number"
       },
       "issue_fields": {
-        "description": "Issue field values to set. Each item requires field_name and either value or field_option_name. field_option_name is for single-select fields and is resolved to the corresponding option ID automatically.",
+        "description": "Issue field values to set. Each item requires 'field_name' and either 'value' or 'field_option_name'. Use 'field_option_name' for single-select fields to validate the option exists.",
         "items": {
           "properties": {
             "field_name": {
@@ -38,11 +38,11 @@
               "type": "string"
             },
             "field_option_name": {
-              "description": "Single-select option name to resolve and set for the field",
+              "description": "Single-select option name (validates option exists before setting)",
               "type": "string"
             },
             "value": {
-              "description": "Value for text/number/date/single-select fields. For single-select, you can use field_option_name instead."
+              "description": "Value for text/number/date/single-select fields"
             }
           },
           "required": [
