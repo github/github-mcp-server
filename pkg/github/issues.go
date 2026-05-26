@@ -761,14 +761,14 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 
 	// Enrich with field_values via GraphQL for consistency with list_issues/search_issues.
 	// Gated behind FeatureFlagIssueFields so the GraphQL round-trip is only paid when the
-	// feature is active.
+	// feature is active. Always clear the verbose REST IssueFieldValues regardless.
+	minimalIssue.IssueFieldValues = nil
 	if deps.IsFeatureEnabled(ctx, FeatureFlagIssueFields) {
 		if issue != nil && issue.NodeID != nil && *issue.NodeID != "" {
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err == nil {
 				if fieldValuesByID, err := fetchIssueFieldValuesByNodeID(ctx, gqlClient, []*github.Issue{issue}); err == nil {
 					minimalIssue.FieldValues = fieldValuesByID[*issue.NodeID]
-					minimalIssue.IssueFieldValues = nil // Clear verbose REST format
 				}
 			}
 		}
