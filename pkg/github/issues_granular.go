@@ -512,7 +512,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 							"State the concrete signal (e.g. 'Reports a crash when saving' → bug, 'Asks for dark mode support' → feature).",
 						MaxLength: jsonschema.Ptr(280),
 					},
-					"suggest": {
+					"is_suggestion": {
 						Type: "boolean",
 						Description: "If true, propose the issue type change instead of applying it. " +
 							"Defaults to false, which applies the change to the issue.",
