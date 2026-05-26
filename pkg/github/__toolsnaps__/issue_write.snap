@@ -32,6 +32,7 @@
       "issue_fields": {
         "description": "Issue field values to set. Each item requires 'field_name' and exactly one of 'value' or 'field_option_name'.",
         "items": {
+          "additionalProperties": false,
           "oneOf": [
             {
               "not": {
@@ -64,7 +65,12 @@
               "type": "string"
             },
             "value": {
-              "description": "Value to set. For single-select fields, prefer 'field_option_name' to validate the option exists first."
+              "description": "Value to set. For single-select fields, prefer 'field_option_name' to validate the option exists first.",
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
             }
           },
           "required": [

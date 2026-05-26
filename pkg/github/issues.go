@@ -1721,13 +1721,15 @@ Options are:
 						Type:        "array",
 						Description: "Issue field values to set. Each item requires 'field_name' and exactly one of 'value' or 'field_option_name'.",
 						Items: &jsonschema.Schema{
-							Type: "object",
+							Type:                 "object",
+							AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 							Properties: map[string]*jsonschema.Schema{
 								"field_name": {
 									Type:        "string",
 									Description: "Issue field name",
 								},
 								"value": {
+									Types:       []string{"string", "number", "boolean"},
 									Description: "Value to set. For single-select fields, prefer 'field_option_name' to validate the option exists first.",
 								},
 								"field_option_name": {
