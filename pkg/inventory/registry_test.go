@@ -1145,6 +1145,69 @@ func TestFeatureFlagBoth(t *testing.T) {
 	}
 }
 
+func TestFeatureFlagMultipleEnableFlags(t *testing.T) {
+	// Tool requires BOTH flag_a AND flag_b (AND semantics).
+	tool := mockTool("dual_enable_tool", "toolset1", true)
+	tool.FeatureFlagEnable = []string{"flag_a", "flag_b"}
+	tools := []ServerTool{tool}
+
+	// Neither flag enabled → excluded
+	checkerNone := func(_ context.Context, _ string) (bool, error) { return false, nil }
+	regNone := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerNone))
+	if len(regNone.AvailableTools(context.Background())) != 0 {
+		t.Error("Tool should be excluded when no enable flags are on")
+	}
+
+	// Only flag_a enabled → excluded (flag_b still missing)
+	checkerOnlyA := func(_ context.Context, flag string) (bool, error) { return flag == "flag_a", nil }
+	regOnlyA := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerOnlyA))
+	if len(regOnlyA.AvailableTools(context.Background())) != 0 {
+		t.Error("Tool should be excluded when only one of two enable flags is on")
+	}
+
+	// Both flags enabled → included
+	checkerBoth := func(_ context.Context, _ string) (bool, error) { return true, nil }
+	regBoth := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerBoth))
+	if len(regBoth.AvailableTools(context.Background())) != 1 {
+		t.Error("Tool should be included when all enable flags are on")
+	}
+}
+
+func TestFeatureFlagMultipleDisableFlags(t *testing.T) {
+	// Tool is blocked when EITHER kill_a OR kill_b is enabled (OR semantics).
+	tool := mockTool("dual_disable_tool", "toolset1", true)
+	tool.FeatureFlagDisable = []string{"kill_a", "kill_b"}
+	tools := []ServerTool{tool}
+
+	// Neither kill flag on → included
+	checkerNone := func(_ context.Context, _ string) (bool, error) { return false, nil }
+	regNone := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerNone))
+	if len(regNone.AvailableTools(context.Background())) != 1 {
+		t.Error("Tool should be included when no disable flags are on")
+	}
+
+	// Only kill_a on → excluded
+	checkerOnlyA := func(_ context.Context, flag string) (bool, error) { return flag == "kill_a", nil }
+	regOnlyA := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerOnlyA))
+	if len(regOnlyA.AvailableTools(context.Background())) != 0 {
+		t.Error("Tool should be excluded when the first disable flag is on")
+	}
+
+	// Only kill_b on → excluded
+	checkerOnlyB := func(_ context.Context, flag string) (bool, error) { return flag == "kill_b", nil }
+	regOnlyB := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerOnlyB))
+	if len(regOnlyB.AvailableTools(context.Background())) != 0 {
+		t.Error("Tool should be excluded when the second disable flag is on")
+	}
+
+	// Both kill flags on → excluded
+	checkerBoth := func(_ context.Context, _ string) (bool, error) { return true, nil }
+	regBoth := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerBoth))
+	if len(regBoth.AvailableTools(context.Background())) != 0 {
+		t.Error("Tool should be excluded when all disable flags are on")
+	}
+}
+
 func TestFeatureFlagError(t *testing.T) {
 	tools := []ServerTool{
 		mockToolWithFlags("needs_flag", "toolset1", true, "my_feature", ""),

@@ -94,7 +94,7 @@ func TestIssuesGranularToolset(t *testing.T) {
 
 	t.Run("all granular tools have correct feature flag", func(t *testing.T) {
 		for _, tool := range granularToolsForToolset(ToolsetMetadataIssues.ID, FeatureFlagIssuesGranular) {
-			assert.Equal(t, []string{FeatureFlagIssuesGranular}, tool.FeatureFlagEnable, "tool %s", tool.Tool.Name)
+			assert.Contains(t, tool.FeatureFlagEnable, FeatureFlagIssuesGranular, "tool %s should require the granular flag", tool.Tool.Name)
 		}
 	})
 }
@@ -129,7 +129,7 @@ func TestPullRequestsGranularToolset(t *testing.T) {
 
 	t.Run("all granular tools have correct feature flag", func(t *testing.T) {
 		for _, tool := range granularToolsForToolset(ToolsetMetadataPullRequests.ID, FeatureFlagPullRequestsGranular) {
-			assert.Equal(t, []string{FeatureFlagPullRequestsGranular}, tool.FeatureFlagEnable, "tool %s", tool.Tool.Name)
+			assert.Contains(t, tool.FeatureFlagEnable, FeatureFlagPullRequestsGranular, "tool %s should require the granular flag", tool.Tool.Name)
 		}
 	})
 }
