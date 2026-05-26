@@ -1046,8 +1046,12 @@ func TestMCPMethodConstants(t *testing.T) {
 // mockToolWithFlags creates a ServerTool with feature flags for testing
 func mockToolWithFlags(name string, toolsetID string, readOnly bool, enableFlag, disableFlag string) ServerTool {
 	tool := mockTool(name, toolsetID, readOnly)
-	tool.FeatureFlagEnable = enableFlag
-	tool.FeatureFlagDisable = disableFlag
+	if enableFlag != "" {
+		tool.FeatureFlagEnable = []string{enableFlag}
+	}
+	if disableFlag != "" {
+		tool.FeatureFlagDisable = []string{disableFlag}
+	}
 	return tool
 }
 
@@ -1163,7 +1167,7 @@ func TestFeatureFlagResources(t *testing.T) {
 		{
 			Template:          mcp.ResourceTemplate{Name: "needs_flag", URITemplate: "uri2"},
 			Toolset:           testToolsetMetadata("toolset1"),
-			FeatureFlagEnable: "my_feature",
+			FeatureFlagEnable: []string{"my_feature"},
 		},
 	}
 
@@ -1188,7 +1192,7 @@ func TestFeatureFlagPrompts(t *testing.T) {
 		{
 			Prompt:            mcp.Prompt{Name: "needs_flag"},
 			Toolset:           testToolsetMetadata("toolset1"),
-			FeatureFlagEnable: "my_feature",
+			FeatureFlagEnable: []string{"my_feature"},
 		},
 	}
 
@@ -1723,7 +1727,7 @@ func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 	if len(availableOff) != 1 {
 		t.Fatalf("Flag OFF: Expected 1 tool, got %d", len(availableOff))
 	}
-	if availableOff[0].FeatureFlagDisable != "consolidated_flag" {
+	if len(availableOff[0].FeatureFlagDisable) == 0 || availableOff[0].FeatureFlagDisable[0] != "consolidated_flag" {
 		t.Errorf("Flag OFF: Expected tool with FeatureFlagDisable, got FeatureFlagEnable=%q, FeatureFlagDisable=%q",
 			availableOff[0].FeatureFlagEnable, availableOff[0].FeatureFlagDisable)
 	}
@@ -1741,7 +1745,7 @@ func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 	if len(availableOn) != 1 {
 		t.Fatalf("Flag ON: Expected 1 tool, got %d", len(availableOn))
 	}
-	if availableOn[0].FeatureFlagEnable != "consolidated_flag" {
+	if len(availableOn[0].FeatureFlagEnable) == 0 || availableOn[0].FeatureFlagEnable[0] != "consolidated_flag" {
 		t.Errorf("Flag ON: Expected tool with FeatureFlagEnable, got FeatureFlagEnable=%q, FeatureFlagDisable=%q",
 			availableOn[0].FeatureFlagEnable, availableOn[0].FeatureFlagDisable)
 	}

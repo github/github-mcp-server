@@ -116,7 +116,7 @@ func TestNoDuplicateToolNames(t *testing.T) {
 
 	// First pass: identify tools that have feature flags (mutually exclusive at runtime)
 	for _, tool := range tools {
-		if tool.FeatureFlagEnable != "" || tool.FeatureFlagDisable != "" {
+		if len(tool.FeatureFlagEnable) > 0 || len(tool.FeatureFlagDisable) > 0 {
 			featureFlagged[tool.Tool.Name] = true
 		}
 	}

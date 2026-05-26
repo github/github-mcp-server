@@ -1199,7 +1199,8 @@ func Test_CreateIssue(t *testing.T) {
 	// Verify tool definition once
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueFields, tool))
+	require.Equal(t, []string{FeatureFlagIssueFields}, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -1443,6 +1444,28 @@ func Test_CreateIssue(t *testing.T) {
 	}
 }
 
+func Test_LegacyIssueWrite_Definition(t *testing.T) {
+	serverTool := LegacyIssueWrite(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+
+	// LegacyIssueWrite claims the base tool name "issue_write" and produces the
+	// FeatureFlagIssueFields-disabled schema (no issue_fields). It owns the canonical
+	// issue_write.snap; the FeatureFlagIssueFields-enabled variant owns
+	// issue_write_ff_<flag>.snap.
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.Equal(t, "issue_write", tool.Name)
+	require.Equal(t, []string{FeatureFlagIssuesGranular, FeatureFlagIssueFields}, serverTool.FeatureFlagDisable)
+	require.Empty(t, serverTool.FeatureFlagEnable)
+
+	props := tool.InputSchema.(*jsonschema.Schema).Properties
+	assert.Contains(t, props, "method")
+	assert.Contains(t, props, "owner")
+	assert.Contains(t, props, "repo")
+	assert.Contains(t, props, "title")
+	assert.Contains(t, props, "body")
+	assert.NotContains(t, props, "issue_fields", "legacy issue_write must not advertise issue_fields")
+}
+
 // Test_IssueWrite_MCPAppsFeature_UIGate verifies the MCP Apps feature UI gate
 // behavior: UI clients get a form message, non-UI clients execute directly.
 func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
@@ -1624,7 +1647,7 @@ func Test_ListIssues(t *testing.T) {
 	serverTool := ListIssues(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueFields, tool))
-	require.Equal(t, FeatureFlagIssueFields, serverTool.FeatureFlagEnable)
+	require.Equal(t, []string{FeatureFlagIssueFields}, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "list_issues", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -2551,7 +2574,7 @@ func Test_LegacyListIssues_Definition(t *testing.T) {
 	// owns list_issues_ff_<flag>.snap.
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 	require.Equal(t, "list_issues", tool.Name)
-	require.Equal(t, FeatureFlagIssueFields, serverTool.FeatureFlagDisable)
+	require.Equal(t, []string{FeatureFlagIssueFields}, serverTool.FeatureFlagDisable)
 	require.Empty(t, serverTool.FeatureFlagEnable)
 
 	props := tool.InputSchema.(*jsonschema.Schema).Properties
@@ -2634,7 +2657,7 @@ func Test_UpdateIssue(t *testing.T) {
 	// Verify tool definition
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueFields, tool))
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)

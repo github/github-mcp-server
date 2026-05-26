@@ -20,7 +20,7 @@ import (
 func granularToolsForToolset(toolsetID inventory.ToolsetID, featureFlag string) []inventory.ServerTool {
 	var result []inventory.ServerTool
 	for _, tool := range AllTools(translations.NullTranslationHelper) {
-		if tool.Toolset.ID == toolsetID && tool.FeatureFlagEnable == featureFlag {
+		if tool.Toolset.ID == toolsetID && len(tool.FeatureFlagEnable) > 0 && tool.FeatureFlagEnable[0] == featureFlag {
 			result = append(result, tool)
 		}
 	}
@@ -94,7 +94,7 @@ func TestIssuesGranularToolset(t *testing.T) {
 
 	t.Run("all granular tools have correct feature flag", func(t *testing.T) {
 		for _, tool := range granularToolsForToolset(ToolsetMetadataIssues.ID, FeatureFlagIssuesGranular) {
-			assert.Equal(t, FeatureFlagIssuesGranular, tool.FeatureFlagEnable, "tool %s", tool.Tool.Name)
+			assert.Equal(t, []string{FeatureFlagIssuesGranular}, tool.FeatureFlagEnable, "tool %s", tool.Tool.Name)
 		}
 	})
 }
@@ -129,7 +129,7 @@ func TestPullRequestsGranularToolset(t *testing.T) {
 
 	t.Run("all granular tools have correct feature flag", func(t *testing.T) {
 		for _, tool := range granularToolsForToolset(ToolsetMetadataPullRequests.ID, FeatureFlagPullRequestsGranular) {
-			assert.Equal(t, FeatureFlagPullRequestsGranular, tool.FeatureFlagEnable, "tool %s", tool.Tool.Name)
+			assert.Equal(t, []string{FeatureFlagPullRequestsGranular}, tool.FeatureFlagEnable, "tool %s", tool.Tool.Name)
 		}
 	})
 }

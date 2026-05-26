@@ -103,7 +103,7 @@ func issueUpdateTool(
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureFlagEnable = []string{FeatureFlagIssuesGranular}
 	return st
 }
 
@@ -187,7 +187,7 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureFlagEnable = []string{FeatureFlagIssuesGranular}
 	return st
 }
 
@@ -432,7 +432,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureFlagEnable = []string{FeatureFlagIssuesGranular}
 	return st
 }
 
@@ -610,7 +610,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureFlagEnable = []string{FeatureFlagIssuesGranular}
 	return st
 }
 
@@ -719,7 +719,7 @@ func GranularAddSubIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureFlagEnable = []string{FeatureFlagIssuesGranular}
 	return st
 }
 
@@ -788,7 +788,7 @@ func GranularRemoveSubIssue(t translations.TranslationHelperFunc) inventory.Serv
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureFlagEnable = []string{FeatureFlagIssuesGranular}
 	return st
 }
 
@@ -873,7 +873,7 @@ func GranularReprioritizeSubIssue(t translations.TranslationHelperFunc) inventor
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureFlagEnable = []string{FeatureFlagIssuesGranular}
 	return st
 }
 
@@ -1131,6 +1131,6 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureFlagEnable = []string{FeatureFlagIssuesGranular}
 	return st
 }

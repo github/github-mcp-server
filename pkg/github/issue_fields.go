@@ -157,7 +157,7 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
-	st.FeatureFlagEnable = FeatureFlagIssueFields
+	st.FeatureFlagEnable = []string{FeatureFlagIssueFields}
 	return st
 }
 
