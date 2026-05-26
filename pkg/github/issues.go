@@ -759,9 +759,8 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 
 	minimalIssue := convertToMinimalIssue(issue)
 
-	// Enrich with field_values via GraphQL for consistency with list_issues/search_issues.
-	// Gated behind FeatureFlagIssueFields so the GraphQL round-trip is only paid when the
-	// feature is active. Always clear the verbose REST IssueFieldValues regardless.
+	// Enrich with field_values via GraphQL when the flag is on; always clear the verbose
+	// REST IssueFieldValues.
 	minimalIssue.IssueFieldValues = nil
 	if deps.IsFeatureEnabled(ctx, FeatureFlagIssueFields) {
 		if issue != nil && issue.NodeID != nil && *issue.NodeID != "" {
@@ -1636,13 +1635,8 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 // IssueWriteUIResourceURI is the URI for the issue_write tool's MCP App UI resource.
 const IssueWriteUIResourceURI = "ui://github-mcp-server/issue-write"
 
-// IssueWrite is the FeatureFlagIssueFields-enabled variant of issue_write. It exposes
-// the full schema including the issue_fields parameter for setting custom issue field
-// values. When the flag is off, LegacyIssueWrite is served instead. Both registrations
-// share the tool name "issue_write" and rely on the inventory's feature-flag filter to
-// make exactly one active at a time.
-// Delete this comment (and the Legacy* block below) when the flag is removed and fold
-// issue_fields back into a single registration.
+// IssueWrite is the FeatureFlagIssueFields-enabled variant of issue_write (with issue_fields).
+// LegacyIssueWrite is served when the flag is off. Delete both when the flag is removed.
 
 func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
@@ -1902,13 +1896,8 @@ Options are:
 	return st
 }
 
-// LegacyIssueWrite is the FeatureFlagIssueFields-disabled variant of issue_write.
-// It exposes the pre-issue-fields schema (no issue_fields parameter) and skips the
-// custom field value resolution, so the request does not depend on server-side
-// issue_fields GraphQL features. Both this and IssueWrite register under the tool name
-// "issue_write"; exactly one is active for any given request thanks to mutually
-// exclusive FeatureFlagEnable / FeatureFlagDisable annotations.
-// Delete this function (and the Legacy* block) when FeatureFlagIssueFields is removed.
+// LegacyIssueWrite is the FeatureFlagIssueFields-disabled variant of issue_write (no issue_fields).
+// IssueWrite is served when the flag is on. Delete both when the flag is removed.
 func LegacyIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
