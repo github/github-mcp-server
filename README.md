@@ -855,7 +855,7 @@ The following sets of tools are available:
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
-  - `issue_fields`: Issue field values to set. Each item requires 'field_name' and either 'value' or 'field_option_name'. Use 'field_option_name' for single-select fields to validate the option exists. (object[], optional)
+  - `issue_fields`: Issue field values to set. Each item requires 'field_name' and exactly one of 'value' or 'field_option_name'. (object[], optional)
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
   - `method`: Write operation to perform on a single issue.
