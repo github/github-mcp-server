@@ -103,7 +103,7 @@ func prUpdateTool(
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagEnable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 
@@ -272,7 +272,7 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 			return utils.NewToolResultText("pull request marked as ready for review"), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagEnable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 
@@ -347,7 +347,7 @@ func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) i
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagEnable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 
@@ -416,7 +416,7 @@ func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inven
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagEnable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 
@@ -480,7 +480,7 @@ func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagEnable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 
@@ -535,7 +535,7 @@ func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagEnable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 
@@ -646,7 +646,7 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagEnable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 
@@ -690,7 +690,7 @@ func GranularResolveReviewThread(t translations.TranslationHelperFunc) inventory
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagEnable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 
@@ -734,6 +734,6 @@ func GranularUnresolveReviewThread(t translations.TranslationHelperFunc) invento
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagEnable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }

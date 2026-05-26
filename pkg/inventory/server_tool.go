@@ -60,13 +60,13 @@ type ServerTool struct {
 	// and handlers are only created when needed.
 	HandlerFunc HandlerFunc
 
-	// FeatureFlagEnable specifies a feature flag that must be enabled for this tool
-	// to be available. If set and the flag is not enabled, the tool is omitted.
-	FeatureFlagEnable string
+	// FeatureFlagEnable specifies feature flags that must all be enabled for this tool
+	// to be available. If any flag is not enabled, the tool is omitted.
+	FeatureFlagEnable []string
 
-	// FeatureFlagDisable specifies a feature flag that, when enabled, causes this tool
-	// to be omitted. Used to disable tools when a feature flag is on.
-	FeatureFlagDisable string
+	// FeatureFlagDisable specifies feature flags that, when any is enabled, cause this
+	// tool to be omitted. Used to disable tools when a feature flag is on.
+	FeatureFlagDisable []string
 
 	// Enabled is an optional function called at build/filter time to determine
 	// if this tool should be available. If nil, the tool is considered enabled

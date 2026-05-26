@@ -57,8 +57,12 @@ var _ scopes.FetcherInterface = allScopesFetcher{}
 
 func mockToolWithFeatureFlag(name, toolsetID string, readOnly bool, enableFlag, disableFlag string) inventory.ServerTool {
 	tool := mockTool(name, toolsetID, readOnly)
-	tool.FeatureFlagEnable = enableFlag
-	tool.FeatureFlagDisable = disableFlag
+	if enableFlag != "" {
+		tool.FeatureFlagEnable = []string{enableFlag}
+	}
+	if disableFlag != "" {
+		tool.FeatureFlagDisable = []string{disableFlag}
+	}
 	return tool
 }
 
@@ -654,7 +658,7 @@ func TestStaticInventoryPreservesPerRequestFeatureVariants(t *testing.T) {
 	available := inv.AvailableTools(ctx)
 	require.Len(t, available, 1)
 	assert.Equal(t, "list_issues", available[0].Tool.Name)
-	assert.Equal(t, github.FeatureFlagCSVOutput, available[0].FeatureFlagEnable)
+	assert.Equal(t, []string{github.FeatureFlagCSVOutput}, available[0].FeatureFlagEnable)
 }
 
 // TestContentTypeHandling verifies that the MCP StreamableHTTP handler

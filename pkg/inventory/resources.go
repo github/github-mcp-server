@@ -16,12 +16,12 @@ type ServerResourceTemplate struct {
 	HandlerFunc ResourceHandlerFunc
 	// Toolset identifies which toolset this resource belongs to
 	Toolset ToolsetMetadata
-	// FeatureFlagEnable specifies a feature flag that must be enabled for this resource
-	// to be available. If set and the flag is not enabled, the resource is omitted.
-	FeatureFlagEnable string
-	// FeatureFlagDisable specifies a feature flag that, when enabled, causes this resource
+	// FeatureFlagEnable specifies feature flags that must all be enabled for this resource
+	// to be available. If any flag is not enabled, the resource is omitted.
+	FeatureFlagEnable []string
+	// FeatureFlagDisable specifies feature flags that, when any is enabled, cause this resource
 	// to be omitted. Used to disable resources when a feature flag is on.
-	FeatureFlagDisable string
+	FeatureFlagDisable []string
 }
 
 // HasHandler returns true if this resource has a handler function.

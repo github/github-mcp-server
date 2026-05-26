@@ -29,6 +29,57 @@
         "description": "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
         "type": "number"
       },
+      "issue_fields": {
+        "description": "Issue field values to set. Each item requires 'field_name' and exactly one of 'value' or 'field_option_name'.",
+        "items": {
+          "additionalProperties": false,
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "field_option_name"
+                ]
+              },
+              "required": [
+                "value"
+              ]
+            },
+            {
+              "not": {
+                "required": [
+                  "value"
+                ]
+              },
+              "required": [
+                "field_option_name"
+              ]
+            }
+          ],
+          "properties": {
+            "field_name": {
+              "description": "Issue field name",
+              "type": "string"
+            },
+            "field_option_name": {
+              "description": "Option name for single-select fields — validates the option exists in the field definition before setting it.",
+              "type": "string"
+            },
+            "value": {
+              "description": "Value to set. For single-select fields, prefer 'field_option_name' to validate the option exists first.",
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            }
+          },
+          "required": [
+            "field_name"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
       "issue_number": {
         "description": "Issue number to update",
         "type": "number"
