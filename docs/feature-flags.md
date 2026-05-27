@@ -177,7 +177,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **update_issue_type** - Update Issue Type
   - **Required OAuth Scopes**: `repo`
-  - `is_suggestion`: If true, propose the issue type change instead of applying it. Defaults to false, which applies the change to the issue. (boolean, optional)
+  - `is_suggestion`: If true, this issue type change is sent to the API as a suggestion (suggest:true) rather than an applied value. Whether the type is applied or recorded as a proposal is determined by the API. (boolean, optional)
   - `issue_number`: The issue number to update (number, required)
   - `issue_type`: The issue type to set (string, required)
   - `owner`: Repository owner (username or organization) (string, required)

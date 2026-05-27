@@ -23,7 +23,7 @@
             {
               "properties": {
                 "is_suggestion": {
-                  "description": "If true, propose this label instead of applying it. Labels not marked as suggestions are applied to the issue; suggested labels are returned as proposals in the response.",
+                  "description": "If true, this label is sent to the API as a suggestion (suggest:true) rather than an applied label. Whether the label is applied or recorded as a proposal is determined by the API.",
                   "type": "boolean"
                 },
                 "name": {
