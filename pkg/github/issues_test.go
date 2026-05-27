@@ -464,6 +464,102 @@ func Test_GetIssue_FieldValues(t *testing.T) {
 	assert.Empty(t, returnedIssue.FieldValues, "enriched field_values should not be present when flag is off")
 }
 
+func Test_GetIssue_FieldValues_FlagOn(t *testing.T) {
+	// Verify the enriched field_values are populated via GraphQL when the
+	// remote_mcp_issue_fields flag is on, and the raw REST issue_field_values
+	// stays cleared.
+	serverTool := IssueRead(translations.NullTranslationHelper)
+
+	mockIssueWithFields := &github.Issue{
+		Number:  github.Ptr(99),
+		NodeID:  github.Ptr("I_node_99"),
+		Title:   github.Ptr("Issue with field values"),
+		Body:    github.Ptr("body"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/99"),
+		User: &github.User{
+			Login: github.Ptr("testuser"),
+		},
+		IssueFieldValues: []*github.IssueFieldValue{
+			{
+				IssueFieldID: 1001,
+				NodeID:       "FV_node_1",
+				DataType:     "single_select",
+				Value:        "High",
+			},
+		},
+	}
+
+	restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssueWithFields),
+	})
+
+	gqlVars := map[string]any{
+		"ids": []any{"I_node_99"},
+	}
+	gqlResponse := githubv4mock.DataResponse(map[string]any{
+		"nodes": []map[string]any{
+			{
+				"id": "I_node_99",
+				"issueFieldValues": map[string]any{
+					"nodes": []map[string]any{
+						{
+							"__typename": "IssueFieldSingleSelectValue",
+							"field":      map[string]any{"name": "priority"},
+							"value":      "P1",
+						},
+						{
+							"__typename":  "IssueFieldNumberValue",
+							"field":       map[string]any{"name": "estimate"},
+							"valueNumber": 2.5,
+						},
+					},
+				},
+			},
+		},
+	})
+
+	const nodesQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}}}}"
+	matcher := githubv4mock.NewQueryMatcher(nodesQueryString, gqlVars, gqlResponse)
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+
+	cache := stubRepoAccessCache(nil, 15*time.Minute)
+	deps := BaseDeps{
+		Client:          mustNewGHClient(t, restClient),
+		GQLClient:       gqlClient,
+		RepoAccessCache: cache,
+		featureChecker:  featureCheckerFor(FeatureFlagIssueFields),
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":       "get",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(99),
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.IsError, "expected result to not be an error")
+
+	textContent := getTextResult(t, result)
+
+	var returnedIssue MinimalIssue
+	err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
+	require.NoError(t, err)
+
+	// Raw REST IssueFieldValues is always cleared, even when flag is on.
+	assert.Empty(t, returnedIssue.IssueFieldValues, "raw REST issue_field_values should not be exposed even when flag is on")
+
+	// Enriched FieldValues comes from the GraphQL nodes() round-trip.
+	require.Len(t, returnedIssue.FieldValues, 2, "field_values should be populated from GraphQL when flag is on")
+	assert.Equal(t, "priority", returnedIssue.FieldValues[0].Field)
+	assert.Equal(t, "P1", returnedIssue.FieldValues[0].Value)
+	assert.Equal(t, "estimate", returnedIssue.FieldValues[1].Field)
+	assert.Equal(t, "2.5", returnedIssue.FieldValues[1].Value)
+}
+
 func Test_AddIssueComment(t *testing.T) {
 	// Verify tool definition once
 	serverTool := AddIssueComment(translations.NullTranslationHelper)
