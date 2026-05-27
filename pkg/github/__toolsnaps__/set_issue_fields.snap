@@ -23,6 +23,10 @@
               "description": "The GraphQL node ID of the issue field",
               "type": "string"
             },
+            "is_suggestion": {
+              "description": "If true, propose this field value instead of applying it. Fields not marked as suggestions are applied to the issue; suggested fields are returned as proposals in the response.",
+              "type": "boolean"
+            },
             "number_value": {
               "description": "The value to set for a number field",
               "type": "number"

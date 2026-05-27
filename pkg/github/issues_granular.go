@@ -320,6 +320,11 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 												"State the concrete signal (e.g. 'Reports a crash when saving' → bug).",
 											MaxLength: jsonschema.Ptr(280),
 										},
+										"is_suggestion": {
+											Type: "boolean",
+											Description: "If true, propose this label instead of applying it. " +
+												"Labels not marked as suggestions are applied to the issue; suggested labels are returned as proposals in the response.",
+										},
 									},
 									Required: []string{"name"},
 								},
@@ -364,6 +369,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 
 			anyRationale := false
 			payload := make([]any, 0, len(labelsSlice))
+			suggested := make([]any, 0)
 			for _, item := range labelsSlice {
 				switch v := item.(type) {
 				case string:
@@ -381,6 +387,14 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 					if len([]rune(rationale)) > 280 {
 						return utils.NewToolResultError("label rationale must be 280 characters or less"), nil, nil
 					}
+					isSuggestion, err := OptionalParam[bool](v, "is_suggestion")
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+					if isSuggestion {
+						suggested = append(suggested, labelWithRationale{Name: name, Rationale: rationale})
+						continue
+					}
 					if rationale == "" {
 						payload = append(payload, name)
 					} else {
@@ -390,6 +404,21 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 				default:
 					return utils.NewToolResultError("each label must be a string or an object with 'name' and optional 'rationale'"), nil, nil
 				}
+			}
+
+			// If no labels are to be applied, only return suggestions without
+			// calling the API.
+			if len(payload) == 0 {
+				r, err := json.Marshal(map[string]any{
+					"owner":            owner,
+					"repo":             repo,
+					"issue_number":     issueNumber,
+					"suggested_labels": suggested,
+				})
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to marshal suggestion", err), nil, nil
+				}
+				return utils.NewToolResultText(string(r)), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -422,10 +451,14 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			r, err := json.Marshal(MinimalResponse{
-				ID:  fmt.Sprintf("%d", issue.GetID()),
-				URL: issue.GetHTMLURL(),
-			})
+			respBody := map[string]any{
+				"id":  fmt.Sprintf("%d", issue.GetID()),
+				"url": issue.GetHTMLURL(),
+			}
+			if len(suggested) > 0 {
+				respBody["suggested_labels"] = suggested
+			}
+			r, err := json.Marshal(respBody)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
@@ -961,6 +994,11 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 										"State the concrete signal (e.g. 'Reports a crash when saving' → high priority).",
 									MaxLength: jsonschema.Ptr(280),
 								},
+								"is_suggestion": {
+									Type: "boolean",
+									Description: "If true, propose this field value instead of applying it. " +
+										"Fields not marked as suggestions are applied to the issue; suggested fields are returned as proposals in the response.",
+								},
 							},
 							Required: []string{"field_id"},
 						},
@@ -1010,6 +1048,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 			}
 
 			issueFields := make([]IssueFieldCreateOrUpdateInput, 0, len(fieldMaps))
+			suggestedFields := make([]map[string]any, 0)
 			for _, fieldMap := range fieldMaps {
 				fieldID, err := RequiredParam[string](fieldMap, "field_id")
 				if err != nil {
@@ -1019,28 +1058,33 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				input := IssueFieldCreateOrUpdateInput{
 					FieldID: githubv4.ID(fieldID),
 				}
+				display := map[string]any{"field_id": fieldID}
 
 				// Count how many value keys are present; exactly one is required.
 				valueCount := 0
 
 				if v, err := OptionalParam[string](fieldMap, "text_value"); err == nil && v != "" {
 					input.TextValue = githubv4.NewString(githubv4.String(v))
+					display["text_value"] = v
 					valueCount++
 				}
 				if v, err := OptionalParam[float64](fieldMap, "number_value"); err == nil {
 					if _, exists := fieldMap["number_value"]; exists {
 						gqlFloat := githubv4.Float(v)
 						input.NumberValue = &gqlFloat
+						display["number_value"] = v
 						valueCount++
 					}
 				}
 				if v, err := OptionalParam[string](fieldMap, "date_value"); err == nil && v != "" {
 					input.DateValue = githubv4.NewString(githubv4.String(v))
+					display["date_value"] = v
 					valueCount++
 				}
 				if v, err := OptionalParam[string](fieldMap, "single_select_option_id"); err == nil && v != "" {
 					optionID := githubv4.ID(v)
 					input.SingleSelectOptionID = &optionID
+					display["single_select_option_id"] = v
 					valueCount++
 				}
 				if _, exists := fieldMap["delete"]; exists {
@@ -1048,6 +1092,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 					if err == nil && del {
 						deleteVal := githubv4.Boolean(true)
 						input.Delete = &deleteVal
+						display["delete"] = true
 						valueCount++
 					}
 				}
@@ -1070,10 +1115,35 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 					}
 					if rationale != "" {
 						input.Rationale = githubv4.NewString(githubv4.String(rationale))
+						display["rationale"] = rationale
 					}
 				}
 
+				isSuggestion, err := OptionalParam[bool](fieldMap, "is_suggestion")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				if isSuggestion {
+					suggestedFields = append(suggestedFields, display)
+					continue
+				}
+
 				issueFields = append(issueFields, input)
+			}
+
+			// If no fields are to be applied, only return suggestions without
+			// calling the API.
+			if len(issueFields) == 0 {
+				r, err := json.Marshal(map[string]any{
+					"owner":            owner,
+					"repo":             repo,
+					"issue_number":     issueNumber,
+					"suggested_fields": suggestedFields,
+				})
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to marshal suggestion", err), nil, nil
+				}
+				return utils.NewToolResultText(string(r)), nil, nil
 			}
 
 			gqlClient, err := deps.GetGQLClient(ctx)
@@ -1121,10 +1191,14 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to set issue field values", err), nil, nil
 			}
 
-			r, err := json.Marshal(MinimalResponse{
-				ID:  fmt.Sprintf("%v", mutation.SetIssueFieldValue.Issue.ID),
-				URL: string(mutation.SetIssueFieldValue.Issue.URL),
-			})
+			respBody := map[string]any{
+				"id":  fmt.Sprintf("%v", mutation.SetIssueFieldValue.Issue.ID),
+				"url": string(mutation.SetIssueFieldValue.Issue.URL),
+			}
+			if len(suggestedFields) > 0 {
+				respBody["suggested_fields"] = suggestedFields
+			}
+			r, err := json.Marshal(respBody)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}

@@ -22,6 +22,10 @@
             },
             {
               "properties": {
+                "is_suggestion": {
+                  "description": "If true, propose this label instead of applying it. Labels not marked as suggestions are applied to the issue; suggested labels are returned as proposals in the response.",
+                  "type": "boolean"
+                },
                 "name": {
                   "description": "Label name",
                   "type": "string"
