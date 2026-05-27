@@ -14,6 +14,7 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/github/appauth"
 	"github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
@@ -40,7 +41,8 @@ type githubClients struct {
 }
 
 // createGitHubClients creates all the GitHub API clients needed by the server.
-func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolver) (*githubClients, error) {
+// If authTransport is non-nil, it is used for authentication instead of cfg.Token.
+func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolver, authTransport http.RoundTripper) (*githubClients, error) {
 	restURL, err := apiHost.BaseRESTURL(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get base REST URL: %w", err)
@@ -61,30 +63,46 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
 	}
 
+	// Determine the base transport for REST and GraphQL clients
+	baseTransport := http.RoundTripper(http.DefaultTransport)
+	if authTransport != nil {
+		baseTransport = authTransport
+	}
+
 	// Construct REST client
 	restUATransport := &transport.UserAgentTransport{
-		Transport: http.DefaultTransport,
+		Transport: baseTransport,
 		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
 	}
-	restClient, err := gogithub.NewClient(
+	restClientOpts := []gogithub.Option{
 		gogithub.WithHTTPClient(&http.Client{Transport: restUATransport}),
-		gogithub.WithAuthToken(cfg.Token),
 		gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
-	)
+	}
+	if authTransport == nil {
+		restClientOpts = append(restClientOpts, gogithub.WithAuthToken(cfg.Token))
+	}
+	restClient, err := gogithub.NewClient(restClientOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create REST client: %w", err)
 	}
 
 	// Construct GraphQL client
 	// We use NewEnterpriseClient unconditionally since we already parsed the API host
-	gqlHTTPClient := &http.Client{
-		Transport: &transport.BearerAuthTransport{
+	var gqlTransport http.RoundTripper
+	if authTransport != nil {
+		// Auth transport already sets the Authorization header
+		gqlTransport = &transport.GraphQLFeaturesTransport{
+			Transport: authTransport,
+		}
+	} else {
+		gqlTransport = &transport.BearerAuthTransport{
 			Transport: &transport.GraphQLFeaturesTransport{
 				Transport: http.DefaultTransport,
 			},
 			Token: cfg.Token,
-		},
+		}
 	}
+	gqlHTTPClient := &http.Client{Transport: gqlTransport}
 
 	gqlClient := githubv4.NewEnterpriseClient(graphQLURL.String(), gqlHTTPClient)
 
@@ -116,13 +134,13 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	}, nil
 }
 
-func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Server, error) {
+func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig, authTransport http.RoundTripper) (*mcp.Server, error) {
 	apiHost, err := utils.NewAPIHost(cfg.Host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
 	}
 
-	clients, err := createGitHubClients(cfg, apiHost)
+	clients, err := createGitHubClients(cfg, apiHost, authTransport)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
 	}
@@ -238,6 +256,13 @@ type StdioServerConfig struct {
 
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
+
+	// GitHub App authentication (alternative to Token)
+	// When AppID, PrivateKey, and InstallationID are all set, the server
+	// authenticates as a GitHub App installation instead of using a PAT.
+	AppID          int64
+	PrivateKey     []byte
+	InstallationID int64
 }
 
 // RunStdioServer is not concurrent safe.
@@ -264,11 +289,35 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
 
+	// Set up GitHub App authentication transport if configured
+	var appAuthTransport http.RoundTripper
+	if cfg.AppID != 0 && len(cfg.PrivateKey) > 0 && cfg.InstallationID != 0 {
+		apiHost, err := utils.NewAPIHost(cfg.Host)
+		if err != nil {
+			return fmt.Errorf("failed to parse API host for app auth: %w", err)
+		}
+		baseURL, err := apiHost.BaseRESTURL(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get base REST URL for app auth: %w", err)
+		}
+		tr, err := appauth.NewTransport(http.DefaultTransport, appauth.Config{
+			AppID:          cfg.AppID,
+			PrivateKey:     cfg.PrivateKey,
+			InstallationID: cfg.InstallationID,
+			BaseURL:        baseURL.String(),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create GitHub App auth transport: %w", err)
+		}
+		appAuthTransport = tr
+		logger.Info("using GitHub App authentication", "appID", cfg.AppID, "installationID", cfg.InstallationID)
+	}
+
 	// Fetch token scopes for scope-based tool filtering (PAT tokens only)
 	// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.
 	// Fine-grained PATs and other token types don't support this, so we skip filtering.
 	var tokenScopes []string
-	if strings.HasPrefix(cfg.Token, "ghp_") {
+	if appAuthTransport == nil && strings.HasPrefix(cfg.Token, "ghp_") {
 		fetchedScopes, err := fetchTokenScopesForHost(ctx, cfg.Token, cfg.Host)
 		if err != nil {
 			logger.Warn("failed to fetch token scopes, continuing without scope filtering", "error", err)
@@ -276,7 +325,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 			tokenScopes = fetchedScopes
 			logger.Info("token scopes fetched for filtering", "scopes", tokenScopes)
 		}
-	} else {
+	} else if appAuthTransport == nil {
 		logger.Debug("skipping scope filtering for non-PAT token")
 	}
 
@@ -296,7 +345,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Logger:            logger,
 		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
 		TokenScopes:       tokenScopes,
-	})
+	}, appAuthTransport)
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
 	}
