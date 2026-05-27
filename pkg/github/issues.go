@@ -884,13 +884,16 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 
 	minimalIssue := convertToMinimalIssue(issue)
 
-	// Enrich with field_values via GraphQL for consistency with list_issues/search_issues
-	if issue != nil && issue.NodeID != nil && *issue.NodeID != "" {
-		gqlClient, err := deps.GetGQLClient(ctx)
-		if err == nil {
-			if fieldValuesByID, err := fetchIssueFieldValuesByNodeID(ctx, gqlClient, []*github.Issue{issue}); err == nil {
-				minimalIssue.FieldValues = fieldValuesByID[*issue.NodeID]
-				minimalIssue.IssueFieldValues = nil // Clear verbose REST format
+	// Always drop the verbose REST IssueFieldValues; only enrich with the GraphQL
+	// field_values view when the issue-fields feature flag is on.
+	minimalIssue.IssueFieldValues = nil
+	if deps.IsFeatureEnabled(ctx, FeatureFlagIssueFields) {
+		if issue != nil && issue.NodeID != nil && *issue.NodeID != "" {
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err == nil {
+				if fieldValuesByID, err := fetchIssueFieldValuesByNodeID(ctx, gqlClient, []*github.Issue{issue}); err == nil {
+					minimalIssue.FieldValues = fieldValuesByID[*issue.NodeID]
+				}
 			}
 		}
 	}
@@ -1331,7 +1334,7 @@ Options are:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		})
-	st.FeatureFlagDisable = FeatureFlagIssuesGranular
+	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}
 	return st
 }
 
@@ -1754,11 +1757,33 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 	return callResult, nil
 }
 
-// IssueWrite creates a tool to create a new or update an existing issue in a GitHub repository.
 // IssueWriteUIResourceURI is the URI for the issue_write tool's MCP App UI resource.
 const IssueWriteUIResourceURI = "ui://github-mcp-server/issue-write"
 
+// IssueWrite is the FeatureFlagIssueFields-enabled variant of issue_write
+// (with the issue_fields parameter). LegacyIssueWrite is served when the flag
+// is off. Both register under the tool name "issue_write"; exactly one is
+// active at a time via mutually exclusive feature-flag annotations. Delete the
+// LegacyIssueWrite block (and the includeIssueFields parameter) when the flag
+// is removed.
 func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := buildIssueWrite(t, true)
+	st.FeatureFlagEnable = FeatureFlagIssueFields
+	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}
+	return st
+}
+
+// LegacyIssueWrite is the FeatureFlagIssueFields-disabled variant of issue_write.
+// It exposes the pre-issue-fields schema (no issue_fields parameter) and skips
+// the custom field value resolution. Hidden whenever the granular toolset or
+// the issue-fields flag is on.
+func LegacyIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := buildIssueWrite(t, false)
+	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular, FeatureFlagIssueFields}
+	return st
+}
+
+func buildIssueWrite(t translations.TranslationHelperFunc, includeIssueFields bool) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
@@ -1978,9 +2003,12 @@ Options are:
 				return utils.NewToolResultError("duplicate_of can only be used when state_reason is 'duplicate'"), nil, nil
 			}
 
-			issueFields, err := optionalIssueWriteFields(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			var issueFields []issueWriteFieldInput
+			if includeIssueFields {
+				issueFields, err = optionalIssueWriteFields(args)
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -1993,9 +2021,13 @@ Options are:
 				return utils.NewToolResultErrorFromErr("failed to get GraphQL client", err), nil, nil
 			}
 
-			issueFieldValues, fieldIDsToDelete, err := resolveIssueRequestFieldValues(ctx, gqlClient, owner, repo, issueFields)
-			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to resolve issue_fields: %v", err)), nil, nil
+			var issueFieldValues []*github.IssueRequestFieldValue
+			var fieldIDsToDelete []int64
+			if len(issueFields) > 0 {
+				issueFieldValues, fieldIDsToDelete, err = resolveIssueRequestFieldValues(ctx, gqlClient, owner, repo, issueFields)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("failed to resolve issue_fields: %v", err)), nil, nil
+				}
 			}
 
 			switch method {
@@ -2013,7 +2045,11 @@ Options are:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
 			}
 		})
-	st.FeatureFlagDisable = FeatureFlagIssuesGranular
+	if !includeIssueFields {
+		if schema, ok := st.Tool.InputSchema.(*jsonschema.Schema); ok {
+			delete(schema.Properties, "issue_fields")
+		}
+	}
 	return st
 }
 
@@ -2690,7 +2726,7 @@ func LegacyListIssues(t translations.TranslationHelperFunc) inventory.ServerTool
 			}
 			return result, nil, nil
 		})
-	st.FeatureFlagDisable = FeatureFlagIssueFields
+	st.FeatureFlagDisable = []string{FeatureFlagIssueFields}
 	return st
 }
 
