@@ -70,16 +70,15 @@ func (rt *repoAccessMockTransport) RoundTrip(req *http.Request) (*http.Response,
 		value = repoAccessValue{isPrivate: false}
 	}
 
-	responseBody, err := json.Marshal(map[string]any{
-		"data": map[string]any{
-			"viewer": map[string]any{
-				"login": "test-viewer",
-			},
-			"repository": map[string]any{
-				"isPrivate": value.isPrivate,
-			},
-		},
-	})
+	data := map[string]any{}
+	if strings.Contains(payload.Query, "viewer") {
+		data["viewer"] = map[string]any{"login": "test-viewer"}
+	}
+	if strings.Contains(payload.Query, "repository") {
+		data["repository"] = map[string]any{"isPrivate": value.isPrivate}
+	}
+
+	responseBody, err := json.Marshal(map[string]any{"data": data})
 	if err != nil {
 		return nil, err
 	}

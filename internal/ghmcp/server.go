@@ -103,7 +103,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		if cfg.RepoAccessTTL != nil {
 			opts = append(opts, lockdown.WithTTL(*cfg.RepoAccessTTL))
 		}
-		repoAccessCache = lockdown.GetInstance(gqlClient, restClient, opts...)
+		repoAccessCache = lockdown.NewRepoAccessCache(gqlClient, restClient, opts...)
 	}
 
 	return &githubClients{
