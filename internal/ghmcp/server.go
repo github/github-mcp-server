@@ -74,14 +74,19 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		Transport: baseTransport,
 		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
 	}
-	restClientOpts := []gogithub.Option{
-		gogithub.WithHTTPClient(&http.Client{Transport: restUATransport}),
-		gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
+	var restClient *gogithub.Client
+	if authTransport != nil {
+		restClient, err = gogithub.NewClient(
+			gogithub.WithHTTPClient(&http.Client{Transport: restUATransport}),
+			gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
+		)
+	} else {
+		restClient, err = gogithub.NewClient(
+			gogithub.WithHTTPClient(&http.Client{Transport: restUATransport}),
+			gogithub.WithAuthToken(cfg.Token),
+			gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
+		)
 	}
-	if authTransport == nil {
-		restClientOpts = append(restClientOpts, gogithub.WithAuthToken(cfg.Token))
-	}
-	restClient, err := gogithub.NewClient(restClientOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create REST client: %w", err)
 	}
