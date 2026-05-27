@@ -43,6 +43,13 @@ type ServerConfig struct {
 	// This is used to restore the original path when a proxy strips a base path before forwarding.
 	ResourcePath string
 
+	// TrustProxyHeaders indicates whether X-Forwarded-Host and X-Forwarded-Proto
+	// should be honored when constructing OAuth resource metadata URLs. Only
+	// enable this when the server is deployed behind a trusted proxy that sets
+	// these headers. When BaseURL is set, it always wins and this setting has
+	// no effect.
+	TrustProxyHeaders bool
+
 	// ExportTranslations indicates if we should export translations
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#i18n--overriding-descriptions
 	ExportTranslations bool
@@ -150,8 +157,9 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	// Register OAuth protected resource metadata endpoints
 	oauthCfg := &oauth.Config{
-		BaseURL:      cfg.BaseURL,
-		ResourcePath: cfg.ResourcePath,
+		BaseURL:           cfg.BaseURL,
+		ResourcePath:      cfg.ResourcePath,
+		TrustProxyHeaders: cfg.TrustProxyHeaders,
 	}
 
 	serverOptions := []HandlerOption{}

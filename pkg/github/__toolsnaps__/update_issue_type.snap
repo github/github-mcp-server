@@ -7,6 +7,10 @@
   "description": "Update the type of an existing issue (e.g. 'bug', 'feature').",
   "inputSchema": {
     "properties": {
+      "is_suggestion": {
+        "description": "If true, propose the issue type change instead of applying it. Defaults to false, which applies the change to the issue.",
+        "type": "boolean"
+      },
       "issue_number": {
         "description": "The issue number to update",
         "minimum": 1,

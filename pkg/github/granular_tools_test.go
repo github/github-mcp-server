@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -454,6 +455,70 @@ func TestGranularUpdateIssueType(t *testing.T) {
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 			assert.False(t, result.IsError)
+		})
+	}
+}
+
+func TestGranularUpdateIssueTypeSuggest(t *testing.T) {
+	tests := []struct {
+		name        string
+		requestArgs map[string]any
+		expected    map[string]any
+	}{
+		{
+			name: "suggest without rationale",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "bug",
+				"suggest":      true,
+			},
+			expected: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "bug",
+				"suggested":    true,
+			},
+		},
+		{
+			name: "suggest with rationale",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "feature",
+				"rationale":    "  Asks for dark mode support  ",
+				"suggest":      true,
+			},
+			expected: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "feature",
+				"rationale":    "Asks for dark mode support",
+				"suggested":    true,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// No HTTP handler registered: any API call would fail the test.
+			deps := BaseDeps{Client: mustNewGHClient(t, MockHTTPClientWithHandlers(nil))}
+			serverTool := GranularUpdateIssueType(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			textContent := getTextResult(t, result)
+			var got map[string]any
+			require.NoError(t, json.Unmarshal([]byte(textContent.Text), &got))
+			assert.Equal(t, tc.expected, got)
 		})
 	}
 }
