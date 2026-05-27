@@ -512,6 +512,11 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 							"State the concrete signal (e.g. 'Reports a crash when saving' → bug, 'Asks for dark mode support' → feature).",
 						MaxLength: jsonschema.Ptr(280),
 					},
+					"is_suggestion": {
+						Type: "boolean",
+						Description: "If true, propose the issue type change instead of applying it. " +
+							"Defaults to false, which applies the change to the issue.",
+					},
 				},
 				Required: []string{"owner", "repo", "issue_number", "issue_type"},
 			},
@@ -541,6 +546,28 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			rationale = strings.TrimSpace(rationale)
 			if len([]rune(rationale)) > 280 {
 				return utils.NewToolResultError("parameter rationale must be 280 characters or less"), nil, nil
+			}
+			suggest, err := OptionalParam[bool](args, "suggest")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			if suggest {
+				suggestion := map[string]any{
+					"owner":        owner,
+					"repo":         repo,
+					"issue_number": issueNumber,
+					"issue_type":   issueType,
+					"suggested":    true,
+				}
+				if rationale != "" {
+					suggestion["rationale"] = rationale
+				}
+				r, err := json.Marshal(suggestion)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to marshal suggestion", err), nil, nil
+				}
+				return utils.NewToolResultText(string(r)), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
