@@ -398,7 +398,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 						payload = append(payload, labelWithRationale{Name: name, Rationale: rationale, Suggest: isSuggestion})
 					}
 				default:
-					return utils.NewToolResultError("each label must be a string or an object with 'name' and optional 'rationale'"), nil, nil
+					return utils.NewToolResultError("each label must be a string or an object with 'name' and optional 'rationale' and/or 'is_suggestion'"), nil, nil
 				}
 			}
 
