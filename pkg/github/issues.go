@@ -460,16 +460,19 @@ func fetchExistingIssueFieldValues(ctx context.Context, gqlClient *githubv4.Clie
 
 // mergeIssueFieldValues returns a merged slice where incoming values override existing ones
 // for the same field ID, and existing fields not present in incoming are preserved.
+// Ordering is deterministic: incoming entries first in their original order, followed by any
+// existing entries (in their original order) whose field IDs weren't seen in incoming.
 func mergeIssueFieldValues(existing, incoming []*github.IssueRequestFieldValue) []*github.IssueRequestFieldValue {
-	merged := make(map[int64]*github.IssueRequestFieldValue, len(existing)+len(incoming))
-	for _, v := range existing {
-		merged[v.FieldID] = v
-	}
+	seen := make(map[int64]struct{}, len(incoming))
+	result := make([]*github.IssueRequestFieldValue, 0, len(existing)+len(incoming))
 	for _, v := range incoming {
-		merged[v.FieldID] = v
+		seen[v.FieldID] = struct{}{}
+		result = append(result, v)
 	}
-	result := make([]*github.IssueRequestFieldValue, 0, len(merged))
-	for _, v := range merged {
+	for _, v := range existing {
+		if _, ok := seen[v.FieldID]; ok {
+			continue
+		}
 		result = append(result, v)
 	}
 	return result
