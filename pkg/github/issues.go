@@ -37,6 +37,15 @@ type CloseIssueInput struct {
 // Used to extend the functionality of the githubv4 library to support closing issues as duplicates.
 type IssueClosedStateReason string
 
+// issueWriteFieldInput is a user-friendly issue field input for issue_write.
+// Field IDs and option IDs are resolved internally before calling the REST API.
+type issueWriteFieldInput struct {
+	FieldName       string
+	Value           any
+	FieldOptionName string
+	Delete          bool
+}
+
 const (
 	IssueClosedStateReasonCompleted  IssueClosedStateReason = "COMPLETED"
 	IssueClosedStateReasonDuplicate  IssueClosedStateReason = "DUPLICATE"
@@ -105,14 +114,66 @@ func getCloseStateReason(stateReason string) IssueClosedStateReason {
 	}
 }
 
+// issueFieldWriteMetadataNode queries only the fields needed to resolve a write: the field's
+// fullDatabaseId (BigInt scalar, returned as string) plus its name and data type for validation.
+// shurcooL/githubv4 cannot use interface-level fragments at union top-level, so we repeat
+// fullDatabaseId on each concrete type; all four implement IssueFieldCommon.
+type issueFieldWriteMetadataNode struct {
+	TypeName       githubv4.String `graphql:"__typename"`
+	IssueFieldText struct {
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+		Name           githubv4.String
+		DataType       githubv4.String
+	} `graphql:"... on IssueFieldText"`
+	IssueFieldNumber struct {
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+		Name           githubv4.String
+		DataType       githubv4.String
+	} `graphql:"... on IssueFieldNumber"`
+	IssueFieldDate struct {
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+		Name           githubv4.String
+		DataType       githubv4.String
+	} `graphql:"... on IssueFieldDate"`
+	IssueFieldSingleSelect struct {
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+		Name           githubv4.String
+		DataType       githubv4.String
+		Options        []struct {
+			FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+			Name           githubv4.String
+		}
+	} `graphql:"... on IssueFieldSingleSelect"`
+}
+
+type issueFieldWriteMetadataQuery struct {
+	Repository struct {
+		IssueFields struct {
+			Nodes []issueFieldWriteMetadataNode
+		} `graphql:"issueFields(first: 100)"`
+	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
 // IssueFieldRef resolves the name of an issue field across its concrete types.
 // IssueFields is a union of IssueFieldDate, IssueFieldNumber, IssueFieldSingleSelect, IssueFieldText,
 // so we have to ask for `name` on each member.
 type IssueFieldRef struct {
-	Date         struct{ Name githubv4.String } `graphql:"... on IssueFieldDate"`
-	Number       struct{ Name githubv4.String } `graphql:"... on IssueFieldNumber"`
-	SingleSelect struct{ Name githubv4.String } `graphql:"... on IssueFieldSingleSelect"`
-	Text         struct{ Name githubv4.String } `graphql:"... on IssueFieldText"`
+	Date struct {
+		Name           githubv4.String
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+	} `graphql:"... on IssueFieldDate"`
+	Number struct {
+		Name           githubv4.String
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+	} `graphql:"... on IssueFieldNumber"`
+	SingleSelect struct {
+		Name           githubv4.String
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+	} `graphql:"... on IssueFieldSingleSelect"`
+	Text struct {
+		Name           githubv4.String
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+	} `graphql:"... on IssueFieldText"`
 }
 
 // Name returns the populated name from whichever IssueFields union variant the field resolved to.
@@ -126,6 +187,22 @@ func (r IssueFieldRef) Name() string {
 		return string(r.SingleSelect.Name)
 	case r.Text.Name != "":
 		return string(r.Text.Name)
+	}
+	return ""
+}
+
+// FullDatabaseIDStr returns the fullDatabaseId string from whichever IssueFields union variant
+// the field resolved to.
+func (r IssueFieldRef) FullDatabaseIDStr() string {
+	switch {
+	case r.Date.FullDatabaseID != "":
+		return string(r.Date.FullDatabaseID)
+	case r.Number.FullDatabaseID != "":
+		return string(r.Number.FullDatabaseID)
+	case r.SingleSelect.FullDatabaseID != "":
+		return string(r.SingleSelect.FullDatabaseID)
+	case r.Text.FullDatabaseID != "":
+		return string(r.Text.FullDatabaseID)
 	}
 	return ""
 }
@@ -151,6 +228,251 @@ type IssueFieldValueFragment struct {
 		Field IssueFieldRef
 		Value githubv4.String
 	} `graphql:"... on IssueFieldTextValue"`
+}
+
+func optionalIssueWriteFields(args map[string]any) ([]issueWriteFieldInput, error) {
+	issueFieldsRaw, exists := args["issue_fields"]
+	if !exists {
+		return nil, nil
+	}
+
+	var inputMaps []map[string]any
+	switch v := issueFieldsRaw.(type) {
+	case []any:
+		for _, item := range v {
+			itemMap, ok := item.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("each issue_fields item must be an object")
+			}
+			inputMaps = append(inputMaps, itemMap)
+		}
+	case []map[string]any:
+		inputMaps = v
+	default:
+		return nil, fmt.Errorf("issue_fields must be an array")
+	}
+
+	issueFields := make([]issueWriteFieldInput, 0, len(inputMaps))
+	for _, itemMap := range inputMaps {
+		fieldName, err := RequiredParam[string](itemMap, "field_name")
+		if err != nil || strings.TrimSpace(fieldName) == "" {
+			return nil, fmt.Errorf("field_name is required for each issue_fields item")
+		}
+
+		fieldOptionName, err := OptionalParam[string](itemMap, "field_option_name")
+		if err != nil {
+			return nil, err
+		}
+
+		deleteField, _ := OptionalParam[bool](itemMap, "delete")
+		value, hasValue := itemMap["value"]
+		if hasValue && value == nil {
+			return nil, fmt.Errorf("value cannot be null for field %q", fieldName)
+		}
+
+		if deleteField {
+			if hasValue || fieldOptionName != "" {
+				return nil, fmt.Errorf("issue field %q cannot specify 'delete' together with 'value' or 'field_option_name'", fieldName)
+			}
+			issueFields = append(issueFields, issueWriteFieldInput{
+				FieldName: fieldName,
+				Delete:    true,
+			})
+			continue
+		}
+
+		if hasValue && fieldOptionName != "" {
+			return nil, fmt.Errorf("issue field %q cannot specify both value and field_option_name", fieldName)
+		}
+
+		if !hasValue && fieldOptionName == "" {
+			return nil, fmt.Errorf("issue field %q must specify either value or field_option_name", fieldName)
+		}
+
+		issueFields = append(issueFields, issueWriteFieldInput{
+			FieldName:       fieldName,
+			Value:           value,
+			FieldOptionName: fieldOptionName,
+		})
+	}
+
+	return issueFields, nil
+}
+
+func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueFields []issueWriteFieldInput) ([]*github.IssueRequestFieldValue, []int64, error) {
+	if len(issueFields) == 0 {
+		return nil, nil, nil
+	}
+
+	ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
+	var query issueFieldWriteMetadataQuery
+	vars := map[string]any{
+		"owner": githubv4.String(owner),
+		"repo":  githubv4.String(repo),
+	}
+	if err := gqlClient.Query(ctxWithFeatures, &query, vars); err != nil {
+		return nil, nil, fmt.Errorf("failed to query issue fields metadata: %w", err)
+	}
+
+	// Build name → node map, dispatching on concrete type to extract name.
+	fieldByName := make(map[string]issueFieldWriteMetadataNode, len(query.Repository.IssueFields.Nodes))
+	for _, node := range query.Repository.IssueFields.Nodes {
+		var name string
+		switch string(node.TypeName) {
+		case "IssueFieldText":
+			name = string(node.IssueFieldText.Name)
+		case "IssueFieldNumber":
+			name = string(node.IssueFieldNumber.Name)
+		case "IssueFieldDate":
+			name = string(node.IssueFieldDate.Name)
+		case "IssueFieldSingleSelect":
+			name = string(node.IssueFieldSingleSelect.Name)
+		default:
+			continue
+		}
+		fieldByName[strings.ToLower(strings.TrimSpace(name))] = node
+	}
+
+	resolved := make([]*github.IssueRequestFieldValue, 0, len(issueFields))
+	var fieldIDsToDelete []int64
+	for _, fieldInput := range issueFields {
+		node, ok := fieldByName[strings.ToLower(strings.TrimSpace(fieldInput.FieldName))]
+		if !ok {
+			return nil, nil, fmt.Errorf("issue field %q was not found in %s/%s", fieldInput.FieldName, owner, repo)
+		}
+
+		var fullDatabaseIDStr, dataType string
+		switch string(node.TypeName) {
+		case "IssueFieldText":
+			fullDatabaseIDStr = string(node.IssueFieldText.FullDatabaseID)
+			dataType = string(node.IssueFieldText.DataType)
+		case "IssueFieldNumber":
+			fullDatabaseIDStr = string(node.IssueFieldNumber.FullDatabaseID)
+			dataType = string(node.IssueFieldNumber.DataType)
+		case "IssueFieldDate":
+			fullDatabaseIDStr = string(node.IssueFieldDate.FullDatabaseID)
+			dataType = string(node.IssueFieldDate.DataType)
+		case "IssueFieldSingleSelect":
+			fullDatabaseIDStr = string(node.IssueFieldSingleSelect.FullDatabaseID)
+			dataType = string(node.IssueFieldSingleSelect.DataType)
+		}
+
+		fieldID := parseFullDatabaseID(fullDatabaseIDStr)
+		if fieldID == 0 {
+			return nil, nil, fmt.Errorf("issue field %q is missing fullDatabaseId", fieldInput.FieldName)
+		}
+
+		if fieldInput.Delete {
+			fieldIDsToDelete = append(fieldIDsToDelete, fieldID)
+			continue
+		}
+
+		resolvedValue := fieldInput.Value
+		if fieldInput.FieldOptionName != "" {
+			if !strings.EqualFold(dataType, "single_select") {
+				return nil, nil, fmt.Errorf("issue field %q is %q, so field_option_name cannot be used", fieldInput.FieldName, dataType)
+			}
+
+			optionFound := false
+			for _, option := range node.IssueFieldSingleSelect.Options {
+				if strings.EqualFold(strings.TrimSpace(string(option.Name)), strings.TrimSpace(fieldInput.FieldOptionName)) {
+					// REST API expects the option name, not the ID
+					resolvedValue = string(option.Name)
+					optionFound = true
+					break
+				}
+			}
+
+			if !optionFound {
+				return nil, nil, fmt.Errorf("issue field option %q was not found for field %q", fieldInput.FieldOptionName, fieldInput.FieldName)
+			}
+		}
+
+		resolved = append(resolved, &github.IssueRequestFieldValue{
+			FieldID: fieldID,
+			Value:   resolvedValue,
+		})
+	}
+
+	return resolved, fieldIDsToDelete, nil
+}
+
+// fetchExistingIssueFieldValues retrieves the current field values for an issue
+// as IssueRequestFieldValue entries, ready to be merged before an update.
+func fetchExistingIssueFieldValues(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueNumber int) ([]*github.IssueRequestFieldValue, error) {
+	ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
+
+	var query struct {
+		Repository struct {
+			Issue struct {
+				IssueFieldValues struct {
+					Nodes []IssueFieldValueFragment
+				} `graphql:"issueFieldValues(first: 25)"`
+			} `graphql:"issue(number: $number)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	vars := map[string]any{
+		"owner":  githubv4.String(owner),
+		"repo":   githubv4.String(repo),
+		"number": githubv4.Int(issueNumber), // #nosec G115 - issue numbers are always small positive integers
+	}
+
+	if err := gqlClient.Query(ctxWithFeatures, &query, vars); err != nil {
+		return nil, fmt.Errorf("failed to fetch existing issue field values: %w", err)
+	}
+
+	var result []*github.IssueRequestFieldValue
+	for _, node := range query.Repository.Issue.IssueFieldValues.Nodes {
+		var fieldIDStr string
+		var value any
+
+		switch node.TypeName {
+		case "IssueFieldDateValue":
+			fieldIDStr = node.DateValue.Field.FullDatabaseIDStr()
+			value = string(node.DateValue.Value)
+		case "IssueFieldNumberValue":
+			fieldIDStr = node.NumberValue.Field.FullDatabaseIDStr()
+			value = float64(node.NumberValue.Value)
+		case "IssueFieldSingleSelectValue":
+			fieldIDStr = node.SingleSelectValue.Field.FullDatabaseIDStr()
+			value = string(node.SingleSelectValue.Value)
+		case "IssueFieldTextValue":
+			fieldIDStr = node.TextValue.Field.FullDatabaseIDStr()
+			value = string(node.TextValue.Value)
+		default:
+			continue
+		}
+
+		fieldID := parseFullDatabaseID(fieldIDStr)
+		if fieldID == 0 {
+			continue
+		}
+
+		result = append(result, &github.IssueRequestFieldValue{
+			FieldID: fieldID,
+			Value:   value,
+		})
+	}
+
+	return result, nil
+}
+
+// mergeIssueFieldValues returns a merged slice where incoming values override existing ones
+// for the same field ID, and existing fields not present in incoming are preserved.
+func mergeIssueFieldValues(existing, incoming []*github.IssueRequestFieldValue) []*github.IssueRequestFieldValue {
+	merged := make(map[int64]*github.IssueRequestFieldValue, len(existing)+len(incoming))
+	for _, v := range existing {
+		merged[v.FieldID] = v
+	}
+	for _, v := range incoming {
+		merged[v.FieldID] = v
+	}
+	result := make([]*github.IssueRequestFieldValue, 0, len(merged))
+	for _, v := range merged {
+		result = append(result, v)
+	}
+	return result
 }
 
 // IssueFragment represents a fragment of an issue node in the GraphQL API.
@@ -561,6 +883,17 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 	}
 
 	minimalIssue := convertToMinimalIssue(issue)
+
+	// Enrich with field_values via GraphQL for consistency with list_issues/search_issues
+	if issue != nil && issue.NodeID != nil && *issue.NodeID != "" {
+		gqlClient, err := deps.GetGQLClient(ctx)
+		if err == nil {
+			if fieldValuesByID, err := fetchIssueFieldValuesByNodeID(ctx, gqlClient, []*github.Issue{issue}); err == nil {
+				minimalIssue.FieldValues = fieldValuesByID[*issue.NodeID]
+				minimalIssue.IssueFieldValues = nil // Clear verbose REST format
+			}
+		}
+	}
 
 	return MarshalledTextResult(minimalIssue), nil
 }
@@ -1266,7 +1599,7 @@ func parseRepositoryURL(repoURL string) (string, string, bool) {
 // SearchIssueResult wraps a REST search hit with its custom issue field values, fetched in a follow-up GraphQL nodes() query.
 type SearchIssueResult struct {
 	*github.Issue
-	FieldValues []MinimalIssueFieldValue `json:"field_values,omitempty"`
+	FieldValues []MinimalFieldValue `json:"field_values,omitempty"`
 }
 
 // MarshalJSON serializes SearchIssueResult, suppressing the raw issue_field_values from the
@@ -1315,7 +1648,7 @@ type searchIssuesNodesQuery struct {
 // fetchIssueFieldValuesByNodeID runs one GraphQL nodes() query for the given REST issues and
 // returns a map of node_id -> flattened field values. Issues without a node_id are skipped, and
 // an empty result set short-circuits the round-trip.
-func fetchIssueFieldValuesByNodeID(ctx context.Context, gqlClient *githubv4.Client, issues []*github.Issue) (map[string][]MinimalIssueFieldValue, error) {
+func fetchIssueFieldValuesByNodeID(ctx context.Context, gqlClient *githubv4.Client, issues []*github.Issue) (map[string][]MinimalFieldValue, error) {
 	ids := make([]githubv4.ID, 0, len(issues))
 	for _, iss := range issues {
 		if iss == nil || iss.NodeID == nil || *iss.NodeID == "" {
@@ -1332,15 +1665,15 @@ func fetchIssueFieldValuesByNodeID(ctx context.Context, gqlClient *githubv4.Clie
 		return nil, err
 	}
 
-	result := make(map[string][]MinimalIssueFieldValue, len(q.Nodes))
+	result := make(map[string][]MinimalFieldValue, len(q.Nodes))
 	for _, n := range q.Nodes {
 		idStr, ok := n.Issue.ID.(string)
 		if !ok || idStr == "" {
 			continue
 		}
-		vals := make([]MinimalIssueFieldValue, 0, len(n.Issue.IssueFieldValues.Nodes))
+		vals := make([]MinimalFieldValue, 0, len(n.Issue.IssueFieldValues.Nodes))
 		for _, fv := range n.Issue.IssueFieldValues.Nodes {
-			if m, ok := fragmentToMinimalIssueFieldValue(fv); ok {
+			if m, ok := fragmentToMinimalFieldValue(fv); ok {
 				vals = append(vals, m)
 			}
 		}
@@ -1378,8 +1711,8 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), nil
 	}
 
-	var fieldValuesByID map[string][]MinimalIssueFieldValue
-	if deps.IsFeatureEnabled(ctx, FeatureFlagIssueFields) && len(result.Issues) > 0 {
+	var fieldValuesByID map[string][]MinimalFieldValue
+	if len(result.Issues) > 0 {
 		gqlClient, err := deps.GetGQLClient(ctx)
 		if err != nil {
 			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub GraphQL client", err), nil
@@ -1509,6 +1842,41 @@ Options are:
 						Type:        "number",
 						Description: "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
 					},
+					"issue_fields": {
+						Type:        "array",
+						Description: "Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', or 'delete: true'.",
+						Items: &jsonschema.Schema{
+							Type:                 "object",
+							AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+							Properties: map[string]*jsonschema.Schema{
+								"field_name": {
+									Type: "string",
+									Description: "Issue field name (case-insensitive). Must match a field " +
+										"returned by list_issue_fields for this repository or its organization.",
+								},
+								"value": {
+									Types: []string{"string", "number", "boolean"},
+									Description: "Value to set. Use for text, number, and date fields " +
+										"(date as YYYY-MM-DD). For single-select fields, prefer " +
+										"'field_option_name' so the option is validated before the API " +
+										"call. Cannot be combined with 'field_option_name' or 'delete'.",
+								},
+								"field_option_name": {
+									Type: "string",
+									Description: "Option name for single-select fields. Validated against " +
+										"the field's options before the API call. Cannot be combined with " +
+										"'value' or 'delete'.",
+								},
+								"delete": {
+									Type: "boolean",
+									Enum: []any{true},
+									Description: "Set to true to clear this field's current value on the " +
+										"issue. Cannot be combined with 'value' or 'field_option_name'.",
+								},
+							},
+							Required: []string{"field_name"},
+						},
+					},
 				},
 				Required: []string{"method", "owner", "repo"},
 			},
@@ -1610,6 +1978,11 @@ Options are:
 				return utils.NewToolResultError("duplicate_of can only be used when state_reason is 'duplicate'"), nil, nil
 			}
 
+			issueFields, err := optionalIssueWriteFields(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
@@ -1620,16 +1993,21 @@ Options are:
 				return utils.NewToolResultErrorFromErr("failed to get GraphQL client", err), nil, nil
 			}
 
+			issueFieldValues, fieldIDsToDelete, err := resolveIssueRequestFieldValues(ctx, gqlClient, owner, repo, issueFields)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to resolve issue_fields: %v", err)), nil, nil
+			}
+
 			switch method {
 			case "create":
-				result, err := CreateIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType)
+				result, err := CreateIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues)
 				return result, nil, err
 			case "update":
 				issueNumber, err := RequiredInt(args, "issue_number")
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, state, stateReason, duplicateOf)
+				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
@@ -1639,17 +2017,18 @@ Options are:
 	return st
 }
 
-func CreateIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string) (*mcp.CallToolResult, error) {
+func CreateIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue) (*mcp.CallToolResult, error) {
 	if title == "" {
 		return utils.NewToolResultError("missing required parameter: title"), nil
 	}
 
 	// Create the issue request
 	issueRequest := &github.IssueRequest{
-		Title:     github.Ptr(title),
-		Body:      github.Ptr(body),
-		Assignees: &assignees,
-		Labels:    &labels,
+		Title:            github.Ptr(title),
+		Body:             github.Ptr(body),
+		Assignees:        &assignees,
+		Labels:           &labels,
+		IssueFieldValues: issueFieldValues,
 	}
 
 	if milestoneNum != 0 {
@@ -1692,7 +2071,7 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 	return utils.NewToolResultText(string(r)), nil
 }
 
-func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, state string, stateReason string, duplicateOf int) (*mcp.CallToolResult, error) {
+func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldIDsToDelete []int64, state string, stateReason string, duplicateOf int) (*mcp.CallToolResult, error) {
 	// Create the issue request with only provided fields
 	issueRequest := &github.IssueRequest{}
 
@@ -1719,6 +2098,31 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 
 	if issueType != "" {
 		issueRequest.Type = github.Ptr(issueType)
+	}
+
+	if len(issueFieldValues) > 0 || len(fieldIDsToDelete) > 0 {
+		// The REST update endpoint uses "set" semantics — it overwrites all existing
+		// field values with whatever is sent. Fetch the current values first, merge in
+		// the new values, then remove any explicitly deleted fields.
+		existing, err := fetchExistingIssueFieldValues(ctx, gqlClient, owner, repo, issueNumber)
+		if err != nil {
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to fetch existing issue field values", err), nil
+		}
+		merged := mergeIssueFieldValues(existing, issueFieldValues)
+		if len(fieldIDsToDelete) > 0 {
+			deleteSet := make(map[int64]bool, len(fieldIDsToDelete))
+			for _, id := range fieldIDsToDelete {
+				deleteSet[id] = true
+			}
+			kept := make([]*github.IssueRequestFieldValue, 0, len(merged))
+			for _, v := range merged {
+				if !deleteSet[v.FieldID] {
+					kept = append(kept, v)
+				}
+			}
+			merged = kept
+		}
+		issueRequest.IssueFieldValues = merged
 	}
 
 	updatedIssue, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)
