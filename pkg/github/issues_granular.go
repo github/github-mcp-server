@@ -259,10 +259,11 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 }
 
 // labelWithRationale represents the object form of a label entry, allowing a
-// rationale to be sent alongside the label name.
+// rationale and/or suggest flag to be sent alongside the label name.
 type labelWithRationale struct {
 	Name      string `json:"name"`
 	Rationale string `json:"rationale,omitempty"`
+	Suggest   bool   `json:"suggest,omitempty"`
 }
 
 // labelsUpdateRequest is a custom request body for updating an issue's labels
@@ -320,6 +321,11 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 												"State the concrete signal (e.g. 'Reports a crash when saving' → bug).",
 											MaxLength: jsonschema.Ptr(280),
 										},
+										"is_suggestion": {
+											Type: "boolean",
+											Description: "If true, this label is sent to the API as a suggestion (suggest:true) rather than an applied label. " +
+												"Whether the label is applied or recorded as a proposal is determined by the API.",
+										},
 									},
 									Required: []string{"name"},
 								},
@@ -362,7 +368,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 				}
 			}
 
-			anyRationale := false
+			useObjectForm := false
 			payload := make([]any, 0, len(labelsSlice))
 			for _, item := range labelsSlice {
 				switch v := item.(type) {
@@ -381,14 +387,18 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 					if len([]rune(rationale)) > 280 {
 						return utils.NewToolResultError("label rationale must be 280 characters or less"), nil, nil
 					}
-					if rationale == "" {
+					isSuggestion, err := OptionalParam[bool](v, "is_suggestion")
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+					if rationale == "" && !isSuggestion {
 						payload = append(payload, name)
 					} else {
-						anyRationale = true
-						payload = append(payload, labelWithRationale{Name: name, Rationale: rationale})
+						useObjectForm = true
+						payload = append(payload, labelWithRationale{Name: name, Rationale: rationale, Suggest: isSuggestion})
 					}
 				default:
-					return utils.NewToolResultError("each label must be a string or an object with 'name' and optional 'rationale'"), nil, nil
+					return utils.NewToolResultError("each label must be a string or an object with 'name' and optional 'rationale' and/or 'is_suggestion'"), nil, nil
 				}
 			}
 
@@ -398,10 +408,10 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 			}
 
 			var body any
-			if anyRationale {
+			if useObjectForm {
 				body = &labelsUpdateRequest{Labels: payload}
 			} else {
-				// Preserve the standard wire format when no rationale is supplied.
+				// Preserve the standard wire format when no rationale or suggest is supplied.
 				names := make([]string, len(payload))
 				for i, p := range payload {
 					names[i] = p.(string)
@@ -461,10 +471,11 @@ func GranularUpdateIssueMilestone(t translations.TranslationHelperFunc) inventor
 }
 
 // issueTypeWithRationale represents the object form of the issue type field,
-// allowing a rationale to be sent alongside the type name.
+// allowing a rationale and/or suggest flag to be sent alongside the type name.
 type issueTypeWithRationale struct {
 	Value     string `json:"value"`
-	Rationale string `json:"rationale"`
+	Rationale string `json:"rationale,omitempty"`
+	Suggest   bool   `json:"suggest,omitempty"`
 }
 
 // issueTypeUpdateRequest is a custom request body for updating an issue type
@@ -512,6 +523,11 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 							"State the concrete signal (e.g. 'Reports a crash when saving' → bug, 'Asks for dark mode support' → feature).",
 						MaxLength: jsonschema.Ptr(280),
 					},
+					"is_suggestion": {
+						Type: "boolean",
+						Description: "If true, this issue type change is sent to the API as a suggestion (suggest:true) rather than an applied value. " +
+							"Whether the type is applied or recorded as a proposal is determined by the API.",
+					},
 				},
 				Required: []string{"owner", "repo", "issue_number", "issue_type"},
 			},
@@ -542,6 +558,10 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			if len([]rune(rationale)) > 280 {
 				return utils.NewToolResultError("parameter rationale must be 280 characters or less"), nil, nil
 			}
+			isSuggestion, err := OptionalParam[bool](args, "is_suggestion")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -549,11 +569,12 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			}
 
 			var body any
-			if rationale != "" {
+			if rationale != "" || isSuggestion {
 				body = &issueTypeUpdateRequest{
 					Type: issueTypeWithRationale{
 						Value:     issueType,
 						Rationale: rationale,
+						Suggest:   isSuggestion,
 					},
 				}
 			} else {
@@ -866,6 +887,7 @@ type IssueFieldCreateOrUpdateInput struct {
 	SingleSelectOptionID *githubv4.ID      `json:"singleSelectOptionId,omitempty"`
 	Delete               *githubv4.Boolean `json:"delete,omitempty"`
 	Rationale            *githubv4.String  `json:"rationale,omitempty"`
+	Suggest              *githubv4.Boolean `json:"suggest,omitempty"`
 }
 
 // GranularSetIssueFields creates a tool to set issue field values on an issue using GraphQL.
@@ -933,6 +955,11 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 									Description: "One concise sentence explaining what specifically about the issue led you to choose this field value. " +
 										"State the concrete signal (e.g. 'Reports a crash when saving' → high priority).",
 									MaxLength: jsonschema.Ptr(280),
+								},
+								"is_suggestion": {
+									Type: "boolean",
+									Description: "If true, this field value is sent to the API as a suggestion (suggest:true) rather than an applied value. " +
+										"Whether the value is applied or recorded as a proposal is determined by the API.",
 								},
 							},
 							Required: []string{"field_id"},
@@ -1044,6 +1071,15 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 					if rationale != "" {
 						input.Rationale = githubv4.NewString(githubv4.String(rationale))
 					}
+				}
+
+				isSuggestion, err := OptionalParam[bool](fieldMap, "is_suggestion")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				if isSuggestion {
+					suggestVal := githubv4.Boolean(true)
+					input.Suggest = &suggestVal
 				}
 
 				issueFields = append(issueFields, input)

@@ -1047,7 +1047,9 @@ func TestMCPMethodConstants(t *testing.T) {
 func mockToolWithFlags(name string, toolsetID string, readOnly bool, enableFlag, disableFlag string) ServerTool {
 	tool := mockTool(name, toolsetID, readOnly)
 	tool.FeatureFlagEnable = enableFlag
-	tool.FeatureFlagDisable = disableFlag
+	if disableFlag != "" {
+		tool.FeatureFlagDisable = []string{disableFlag}
+	}
 	return tool
 }
 
@@ -1723,8 +1725,8 @@ func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 	if len(availableOff) != 1 {
 		t.Fatalf("Flag OFF: Expected 1 tool, got %d", len(availableOff))
 	}
-	if availableOff[0].FeatureFlagDisable != "consolidated_flag" {
-		t.Errorf("Flag OFF: Expected tool with FeatureFlagDisable, got FeatureFlagEnable=%q, FeatureFlagDisable=%q",
+	if len(availableOff[0].FeatureFlagDisable) != 1 || availableOff[0].FeatureFlagDisable[0] != "consolidated_flag" {
+		t.Errorf("Flag OFF: Expected tool with FeatureFlagDisable, got FeatureFlagEnable=%q, FeatureFlagDisable=%v",
 			availableOff[0].FeatureFlagEnable, availableOff[0].FeatureFlagDisable)
 	}
 
@@ -1742,7 +1744,7 @@ func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 		t.Fatalf("Flag ON: Expected 1 tool, got %d", len(availableOn))
 	}
 	if availableOn[0].FeatureFlagEnable != "consolidated_flag" {
-		t.Errorf("Flag ON: Expected tool with FeatureFlagEnable, got FeatureFlagEnable=%q, FeatureFlagDisable=%q",
+		t.Errorf("Flag ON: Expected tool with FeatureFlagEnable, got FeatureFlagEnable=%q, FeatureFlagDisable=%v",
 			availableOn[0].FeatureFlagEnable, availableOn[0].FeatureFlagDisable)
 	}
 }
