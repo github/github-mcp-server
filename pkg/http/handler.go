@@ -223,16 +223,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Bypass cross-origin protection: this server uses bearer tokens (not
-	// cookies), so Sec-Fetch-Site CSRF checks are unnecessary. See PR #2359.
-	crossOriginProtection := http.NewCrossOriginProtection()
-	crossOriginProtection.AddInsecureBypassPattern("/")
-
+	// Cross-origin protection is intentionally left unset: this server
+	// authenticates via bearer tokens (not cookies), so Sec-Fetch-Site CSRF
+	// checks are unnecessary and would block browser-based MCP clients. As of
+	// go-sdk v1.6.0 a nil CrossOriginProtection disables the check by default;
+	// see also PR #2359.
 	mcpHandler := mcp.NewStreamableHTTPHandler(func(_ *http.Request) *mcp.Server {
 		return ghServer
 	}, &mcp.StreamableHTTPOptions{
-		Stateless:             true,
-		CrossOriginProtection: crossOriginProtection,
+		Stateless: true,
 	})
 
 	mcpHandler.ServeHTTP(w, r)

@@ -59,6 +59,18 @@ The OAuth protected resource metadata's `resource` attribute will be populated w
 
 This allows OAuth clients to discover authentication requirements and endpoint information automatically.
 
+### Behind a Trusted Proxy (advanced)
+
+By default, the server ignores the `X-Forwarded-Host` and `X-Forwarded-Proto` headers when constructing OAuth resource metadata URLs, so an untrusted client cannot influence the URL advertised to MCP clients. For most deployments, setting `--base-url` to the externally visible URL is the right approach.
+
+If the server sits behind an internal forwarder that you fully control (for example, an in-cluster gateway that needs to preserve the originating hostname per request), you can opt into honoring those headers:
+
+```bash
+github-mcp-server http --trust-proxy-headers
+```
+
+Equivalent environment variable: `GITHUB_TRUST_PROXY_HEADERS=1`. Only enable this when the upstream proxy is trusted to set or strip these headers; otherwise prefer `--base-url`. When `--base-url` is set, it always takes precedence and `--trust-proxy-headers` has no effect.
+
 ## Client Configuration
 
 ### Using OAuth Authentication
