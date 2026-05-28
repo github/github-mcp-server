@@ -820,8 +820,13 @@ func listProjectItems(ctx context.Context, client *github.Client, args map[strin
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	minimalItems := make([]MinimalProjectItem, 0, len(projectItems))
+	for _, item := range projectItems {
+		minimalItems = append(minimalItems, convertToMinimalProjectItem(item))
+	}
+
 	response := map[string]any{
-		"items":    projectItems,
+		"items":    minimalItems,
 		"pageInfo": buildPageInfo(resp),
 	}
 
@@ -939,7 +944,7 @@ func getProjectItem(ctx context.Context, client *github.Client, owner, ownerType
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get project item", resp, body), nil, nil
 	}
 
-	r, err := json.Marshal(projectItem)
+	r, err := json.Marshal(convertToMinimalProjectItem(projectItem))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
@@ -978,7 +983,7 @@ func updateProjectItem(ctx context.Context, client *github.Client, owner, ownerT
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectUpdateFailedError, resp, body), nil, nil
 	}
-	r, err := json.Marshal(updatedItem)
+	r, err := json.Marshal(convertToMinimalProjectItem(updatedItem))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
