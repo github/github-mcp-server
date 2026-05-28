@@ -1143,7 +1143,7 @@ func minimalProjectTextValue(value map[string]any) string {
 }
 
 func minimalProjectOptionFromMap(value map[string]any) (minimalProjectOptionValue, bool) {
-	name := stringFromMap(value, "name")
+	name := textContentStringFromMap(value, "name")
 	color := stringFromMap(value, "color")
 	if name == "" && color == "" {
 		return minimalProjectOptionValue{}, false
@@ -1163,10 +1163,23 @@ func minimalProjectIterationFromMap(value map[string]any) (minimalProjectIterati
 	}
 	return minimalProjectIterationValue{
 		ID:        stringFromMap(value, "id"),
-		Title:     stringFromMap(value, "title"),
+		Title:     textContentStringFromMap(value, "title"),
 		StartDate: startDate,
 		Duration:  duration,
 	}, true
+}
+
+// textContentStringFromMap returns a string for a field that may be either a
+// plain string or a nested ProjectV2TextContent object (with raw/html/text
+// fields), as returned for project option names and iteration titles.
+func textContentStringFromMap(value map[string]any, key string) string {
+	if s := stringFromMap(value, key); s != "" {
+		return s
+	}
+	if nested, ok := value[key].(map[string]any); ok {
+		return minimalProjectTextValue(nested)
+	}
+	return ""
 }
 
 func minimalProjectPullRequestRefsFromArray(values []any) ([]minimalProjectPullRequestRef, bool) {
