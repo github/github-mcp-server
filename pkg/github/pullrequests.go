@@ -1000,7 +1000,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
-	st.FeatureFlagDisable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 
@@ -1619,7 +1619,7 @@ Available methods:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
 			}
 		})
-	st.FeatureFlagDisable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 
@@ -2116,7 +2116,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			})
 			return result, nil, err
 		})
-	st.FeatureFlagDisable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 

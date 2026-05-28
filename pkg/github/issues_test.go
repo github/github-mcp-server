@@ -394,7 +394,9 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 }
 
 func Test_GetIssue_FieldValues(t *testing.T) {
-	// Verify that issue_field_values from the REST API are present in the returned object.
+	// Verify that issue_field_values from the REST API are NOT exposed when the
+	// remote_mcp_issue_fields flag is off. The raw REST format is always cleared;
+	// enriched field_values are only populated when the flag is on.
 	serverTool := IssueRead(translations.NullTranslationHelper)
 
 	mockIssueWithFields := &github.Issue{
@@ -457,24 +459,105 @@ func Test_GetIssue_FieldValues(t *testing.T) {
 	err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 	require.NoError(t, err)
 
-	require.Len(t, returnedIssue.IssueFieldValues, 2, "expected two issue field values")
+	// Flag is off: raw REST IssueFieldValues must be cleared, enriched FieldValues absent.
+	assert.Empty(t, returnedIssue.IssueFieldValues, "raw REST issue_field_values should not be exposed when flag is off")
+	assert.Empty(t, returnedIssue.FieldValues, "enriched field_values should not be present when flag is off")
+}
 
-	first := returnedIssue.IssueFieldValues[0]
-	assert.Equal(t, int64(1001), first.IssueFieldID)
-	assert.Equal(t, "FV_node_1", first.NodeID)
-	assert.Equal(t, "single_select", first.DataType)
-	assert.Equal(t, "High", first.Value)
-	require.NotNil(t, first.SingleSelectOption)
-	assert.Equal(t, int64(42), first.SingleSelectOption.ID)
-	assert.Equal(t, "High", first.SingleSelectOption.Name)
-	assert.Equal(t, "red", first.SingleSelectOption.Color)
+func Test_GetIssue_FieldValues_FlagOn(t *testing.T) {
+	// Verify the enriched field_values are populated via GraphQL when the
+	// remote_mcp_issue_fields flag is on, and the raw REST issue_field_values
+	// stays cleared.
+	serverTool := IssueRead(translations.NullTranslationHelper)
 
-	second := returnedIssue.IssueFieldValues[1]
-	assert.Equal(t, int64(1002), second.IssueFieldID)
-	assert.Equal(t, "FV_node_2", second.NodeID)
-	assert.Equal(t, "text", second.DataType)
-	assert.Equal(t, "some text value", second.Value)
-	assert.Nil(t, second.SingleSelectOption)
+	mockIssueWithFields := &github.Issue{
+		Number:  github.Ptr(99),
+		NodeID:  github.Ptr("I_node_99"),
+		Title:   github.Ptr("Issue with field values"),
+		Body:    github.Ptr("body"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/99"),
+		User: &github.User{
+			Login: github.Ptr("testuser"),
+		},
+		IssueFieldValues: []*github.IssueFieldValue{
+			{
+				IssueFieldID: 1001,
+				NodeID:       "FV_node_1",
+				DataType:     "single_select",
+				Value:        "High",
+			},
+		},
+	}
+
+	restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssueWithFields),
+	})
+
+	gqlVars := map[string]any{
+		"ids": []any{"I_node_99"},
+	}
+	gqlResponse := githubv4mock.DataResponse(map[string]any{
+		"nodes": []map[string]any{
+			{
+				"id": "I_node_99",
+				"issueFieldValues": map[string]any{
+					"nodes": []map[string]any{
+						{
+							"__typename": "IssueFieldSingleSelectValue",
+							"field":      map[string]any{"name": "priority"},
+							"value":      "P1",
+						},
+						{
+							"__typename":  "IssueFieldNumberValue",
+							"field":       map[string]any{"name": "estimate"},
+							"valueNumber": 2.5,
+						},
+					},
+				},
+			},
+		},
+	})
+
+	const nodesQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}}}}"
+	matcher := githubv4mock.NewQueryMatcher(nodesQueryString, gqlVars, gqlResponse)
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+
+	cache := stubRepoAccessCache(nil, 15*time.Minute)
+	deps := BaseDeps{
+		Client:          mustNewGHClient(t, restClient),
+		GQLClient:       gqlClient,
+		RepoAccessCache: cache,
+		featureChecker:  featureCheckerFor(FeatureFlagIssueFields),
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":       "get",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(99),
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.IsError, "expected result to not be an error")
+
+	textContent := getTextResult(t, result)
+
+	var returnedIssue MinimalIssue
+	err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
+	require.NoError(t, err)
+
+	// Raw REST IssueFieldValues is always cleared, even when flag is on.
+	assert.Empty(t, returnedIssue.IssueFieldValues, "raw REST issue_field_values should not be exposed even when flag is on")
+
+	// Enriched FieldValues comes from the GraphQL nodes() round-trip.
+	require.Len(t, returnedIssue.FieldValues, 2, "field_values should be populated from GraphQL when flag is on")
+	assert.Equal(t, "priority", returnedIssue.FieldValues[0].Field)
+	assert.Equal(t, "P1", returnedIssue.FieldValues[0].Value)
+	assert.Equal(t, "estimate", returnedIssue.FieldValues[1].Field)
+	assert.Equal(t, "2.5", returnedIssue.FieldValues[1].Value)
 }
 
 func Test_AddIssueComment(t *testing.T) {
@@ -1196,10 +1279,11 @@ func Test_SearchIssues_FieldValuesEnrichment(t *testing.T) {
 }
 
 func Test_CreateIssue(t *testing.T) {
-	// Verify tool definition once
+	// Verify tool definition once (flag-enabled variant snap)
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueFields, tool))
+	require.Equal(t, FeatureFlagIssueFields, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -2551,7 +2635,7 @@ func Test_LegacyListIssues_Definition(t *testing.T) {
 	// owns list_issues_ff_<flag>.snap.
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 	require.Equal(t, "list_issues", tool.Name)
-	require.Equal(t, FeatureFlagIssueFields, serverTool.FeatureFlagDisable)
+	require.Equal(t, []string{FeatureFlagIssueFields}, serverTool.FeatureFlagDisable)
 	require.Empty(t, serverTool.FeatureFlagEnable)
 
 	props := tool.InputSchema.(*jsonschema.Schema).Properties
@@ -2561,6 +2645,24 @@ func Test_LegacyListIssues_Definition(t *testing.T) {
 	assert.Contains(t, props, "labels")
 	assert.Contains(t, props, "since")
 	assert.NotContains(t, props, "field_filters", "legacy list_issues must not advertise field_filters")
+}
+
+func Test_LegacyIssueWrite_Definition(t *testing.T) {
+	serverTool := LegacyIssueWrite(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+
+	// LegacyIssueWrite owns the canonical issue_write.snap; the
+	// FeatureFlagIssueFields-enabled variant owns issue_write_ff_<flag>.snap.
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.Equal(t, "issue_write", tool.Name)
+	require.Equal(t, []string{FeatureFlagIssuesGranular, FeatureFlagIssueFields}, serverTool.FeatureFlagDisable)
+	require.Empty(t, serverTool.FeatureFlagEnable)
+
+	props := tool.InputSchema.(*jsonschema.Schema).Properties
+	assert.Contains(t, props, "method")
+	assert.Contains(t, props, "owner")
+	assert.Contains(t, props, "repo")
+	assert.NotContains(t, props, "issue_fields", "legacy issue_write must not advertise issue_fields")
 }
 
 func Test_LegacyListIssues_OmitsFieldValuesAndFilters(t *testing.T) {
@@ -2631,10 +2733,10 @@ func Test_LegacyListIssues_OmitsFieldValuesAndFilters(t *testing.T) {
 }
 
 func Test_UpdateIssue(t *testing.T) {
-	// Verify tool definition
+	// Verify tool definition (flag-enabled variant snap)
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueFields, tool))
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)

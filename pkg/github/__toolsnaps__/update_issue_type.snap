@@ -8,7 +8,7 @@
   "inputSchema": {
     "properties": {
       "is_suggestion": {
-        "description": "If true, propose the issue type change instead of applying it. Defaults to false, which applies the change to the issue.",
+        "description": "If true, this issue type change is sent to the API as a suggestion (suggest:true) rather than an applied value. Whether the type is applied or recorded as a proposal is determined by the API.",
         "type": "boolean"
       },
       "issue_number": {
