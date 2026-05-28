@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 )
@@ -42,7 +41,7 @@ type Transport struct {
 	key    *rsa.PrivateKey
 	base   http.RoundTripper
 
-	mu    sync.Mutex
+	mu    sync.RWMutex
 	token string
 	exp   time.Time
 }
@@ -55,6 +54,8 @@ type installationToken struct {
 // NewTransport creates a new Transport that authenticates using a GitHub App
 // installation token. The transport automatically handles JWT generation and
 // installation token refresh.
+// The base transport must not inject its own Authorization header, as this
+// transport sets it for both installation token requests and API requests.
 func NewTransport(base http.RoundTripper, cfg Config) (*Transport, error) {
 	key, err := parsePrivateKey(cfg.PrivateKey)
 	if err != nil {
@@ -91,10 +92,20 @@ func (t *Transport) Token(ctx context.Context) (string, error) {
 }
 
 func (t *Transport) installationToken(ctx context.Context) (string, error) {
+	// Fast path: read lock to check cached token
+	t.mu.RLock()
+	if t.token != "" && time.Now().Add(5*time.Minute).Before(t.exp) {
+		token := t.token
+		t.mu.RUnlock()
+		return token, nil
+	}
+	t.mu.RUnlock()
+
+	// Slow path: write lock to refresh
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	// Refresh if the token expires within 5 minutes
+	// Double-check after acquiring write lock
 	if t.token != "" && time.Now().Add(5*time.Minute).Before(t.exp) {
 		return t.token, nil
 	}
@@ -116,15 +127,15 @@ func (t *Transport) installationToken(ctx context.Context) (string, error) {
 
 // generateJWT creates a signed JWT for GitHub App authentication using RS256.
 func (t *Transport) generateJWT() (string, error) {
-	now := time.Now().Add(-30 * time.Second) // allow 30s clock drift
+	now := time.Now()
 
 	header := map[string]string{
 		"alg": "RS256",
 		"typ": "JWT",
 	}
 	payload := map[string]any{
-		"iat": now.Unix(),
-		"exp": now.Add(10 * time.Minute).Unix(),
+		"iat": now.Add(-30 * time.Second).Unix(), // allow 30s clock drift
+		"exp": now.Add(9 * time.Minute).Unix(),   // well within GitHub's 10-minute maximum
 		"iss": fmt.Sprintf("%d", t.config.AppID),
 	}
 
@@ -200,34 +211,4 @@ func parsePrivateKey(pemBytes []byte) (*rsa.PrivateKey, error) {
 	default:
 		return nil, fmt.Errorf("unsupported PEM block type: %s", block.Type)
 	}
-}
-
-// VerifyJWT parses and verifies a JWT token using the given RSA public key.
-// Returns the claims map. This is used only for testing.
-func VerifyJWT(tokenString string, pubKey *rsa.PublicKey) (map[string]any, error) {
-	parts := strings.SplitN(tokenString, ".", 3)
-	if len(parts) != 3 {
-		return nil, fmt.Errorf("invalid JWT: expected 3 parts, got %d", len(parts))
-	}
-
-	signingInput := parts[0] + "." + parts[1]
-	sig, err := base64.RawURLEncoding.DecodeString(parts[2])
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode signature: %w", err)
-	}
-
-	hash := sha256.Sum256([]byte(signingInput))
-	if err := rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hash[:], sig); err != nil {
-		return nil, fmt.Errorf("invalid signature: %w", err)
-	}
-
-	payloadJSON, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode payload: %w", err)
-	}
-	var claims map[string]any
-	if err := json.Unmarshal(payloadJSON, &claims); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal claims: %w", err)
-	}
-	return claims, nil
 }

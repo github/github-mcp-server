@@ -2,14 +2,18 @@ package appauth
 
 import (
 	"context"
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,6 +21,35 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// verifyJWT parses and verifies a JWT token using the given RSA public key.
+func verifyJWT(tokenString string, pubKey *rsa.PublicKey) (map[string]any, error) {
+	parts := strings.SplitN(tokenString, ".", 3)
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("invalid JWT: expected 3 parts, got %d", len(parts))
+	}
+
+	signingInput := parts[0] + "." + parts[1]
+	sig, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode signature: %w", err)
+	}
+
+	hash := sha256.Sum256([]byte(signingInput))
+	if err := rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hash[:], sig); err != nil {
+		return nil, fmt.Errorf("invalid signature: %w", err)
+	}
+
+	payloadJSON, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode payload: %w", err)
+	}
+	var claims map[string]any
+	if err := json.Unmarshal(payloadJSON, &claims); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal claims: %w", err)
+	}
+	return claims, nil
+}
 
 func generateTestKey(t *testing.T) (*rsa.PrivateKey, []byte) {
 	t.Helper()
@@ -111,7 +144,7 @@ func TestTransport_GenerateJWT(t *testing.T) {
 	jwtToken, err := tr.generateJWT()
 	require.NoError(t, err)
 
-	claims, err := VerifyJWT(jwtToken, &key.PublicKey)
+	claims, err := verifyJWT(jwtToken, &key.PublicKey)
 	require.NoError(t, err)
 
 	assert.Equal(t, "12345", claims["iss"])
@@ -119,7 +152,7 @@ func TestTransport_GenerateJWT(t *testing.T) {
 	iat := int64(claims["iat"].(float64))
 	exp := int64(claims["exp"].(float64))
 	assert.InDelta(t, time.Now().Unix(), iat, 60)
-	assert.InDelta(t, time.Now().Add(10*time.Minute).Unix(), exp, 60)
+	assert.InDelta(t, time.Now().Add(9*time.Minute).Unix(), exp, 60)
 }
 
 func TestTransport_FetchInstallationToken(t *testing.T) {
@@ -135,7 +168,7 @@ func TestTransport_FetchInstallationToken(t *testing.T) {
 		assert.True(t, len(authHeader) > 7)
 		jwtToken := authHeader[7:] // strip "Bearer "
 
-		_, err := VerifyJWT(jwtToken, &key.PublicKey)
+		_, err := verifyJWT(jwtToken, &key.PublicKey)
 		assert.NoError(t, err)
 
 		w.WriteHeader(http.StatusCreated)

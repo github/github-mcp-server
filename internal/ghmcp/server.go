@@ -95,9 +95,13 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	// We use NewEnterpriseClient unconditionally since we already parsed the API host
 	var gqlTransport http.RoundTripper
 	if authTransport != nil {
-		// Auth transport already sets the Authorization header
-		gqlTransport = &transport.GraphQLFeaturesTransport{
-			Transport: authTransport,
+		// Auth transport already sets the Authorization header.
+		// Wrap with UserAgentTransport for consistency with the REST path.
+		gqlTransport = &transport.UserAgentTransport{
+			Transport: &transport.GraphQLFeaturesTransport{
+				Transport: authTransport,
+			},
+			Agent: fmt.Sprintf("github-mcp-server/%s", cfg.Version),
 		}
 	} else {
 		gqlTransport = &transport.BearerAuthTransport{

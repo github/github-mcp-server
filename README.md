@@ -254,7 +254,7 @@ The server automatically generates JWTs, fetches installation tokens, and refres
 | `GITHUB_APP_PRIVATE_KEY` | The PEM-encoded private key (inline, `\n` for newlines) |
 | `GITHUB_APP_PRIVATE_KEY_PATH` | Path to the private key file (alternative to inline) |
 
-Either `GITHUB_APP_PRIVATE_KEY` or `GITHUB_APP_PRIVATE_KEY_PATH` must be set, but not both. When all three required variables (`GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, and a private key) are set, the server uses GitHub App authentication instead of a PAT. `GITHUB_PERSONAL_ACCESS_TOKEN` is not required in this case.
+Either `GITHUB_APP_PRIVATE_KEY` or `GITHUB_APP_PRIVATE_KEY_PATH` must be set, but not both (they are mutually exclusive). When all three required variables (`GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, and a private key) are set, the server uses GitHub App authentication instead of a PAT. `GITHUB_PERSONAL_ACCESS_TOKEN` is not required in this case.
 
 #### Example: Using a private key file
 
