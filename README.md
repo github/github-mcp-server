@@ -1134,7 +1134,7 @@ The following sets of tools are available:
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
-- **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews
+- **pull_request_review_write** - Create pending, submit, delete pull request reviews
   - **Required OAuth Scopes**: `repo`
   - `body`: Review comment text (string, optional)
   - `commitID`: SHA of commit to review (string, optional)
