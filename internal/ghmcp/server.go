@@ -155,7 +155,6 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools)).
 		WithTools(github.CleanTools(cfg.EnabledTools)).
 		WithExcludeTools(cfg.ExcludeTools).
-		WithServerInstructions().
 		WithFeatureChecker(featureChecker)
 
 	// Apply token scope filtering if scopes are known (for PAT filtering)

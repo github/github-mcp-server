@@ -77,7 +77,6 @@ type MCPServerOption func(*mcp.ServerOptions)
 func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependencies, inv *inventory.Inventory, middleware ...mcp.Middleware) (*mcp.Server, error) {
 	// Create the MCP server
 	serverOpts := &mcp.ServerOptions{
-		Instructions:      inv.Instructions(),
 		Logger:            cfg.Logger,
 		CompletionHandler: CompletionsHandler(deps.GetClient),
 	}
@@ -113,6 +112,9 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	if UIAssetsAvailable() {
 		RegisterUIResources(ghServer)
 	}
+
+	// Register skill resources for MCP clients that support skills-based discovery.
+	RegisterSkillResources(ghServer)
 
 	return ghServer, nil
 }

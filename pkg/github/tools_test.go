@@ -8,6 +8,28 @@ import (
 )
 
 func TestAddDefaultToolset(t *testing.T) {
+	allDefaultToolsets := []string{
+		"actions",
+		"code_security",
+		"context",
+		"copilot",
+		"dependabot",
+		"discussions",
+		"gists",
+		"git",
+		"issues",
+		"labels",
+		"notifications",
+		"orgs",
+		"projects",
+		"pull_requests",
+		"repos",
+		"secret_protection",
+		"security_advisories",
+		"stargazers",
+		"users",
+	}
+
 	tests := []struct {
 		name     string
 		input    []string
@@ -19,42 +41,19 @@ func TestAddDefaultToolset(t *testing.T) {
 			expected: []string{"actions", "gists"},
 		},
 		{
-			name:  "default keyword present - expand and remove default",
-			input: []string{"default"},
-			expected: []string{
-				"context",
-				"copilot",
-				"repos",
-				"issues",
-				"pull_requests",
-				"users",
-			},
+			name:     "default keyword present - expand and remove default",
+			input:    []string{"default"},
+			expected: allDefaultToolsets,
 		},
 		{
-			name:  "default with additional toolsets",
-			input: []string{"default", "actions", "gists"},
-			expected: []string{
-				"actions",
-				"gists",
-				"context",
-				"copilot",
-				"repos",
-				"issues",
-				"pull_requests",
-				"users",
-			},
+			name:     "default with additional toolsets",
+			input:    []string{"default", "actions", "gists"},
+			expected: allDefaultToolsets,
 		},
 		{
-			name:  "default with overlapping toolsets - should not duplicate",
-			input: []string{"default", "context", "repos"},
-			expected: []string{
-				"context",
-				"copilot",
-				"repos",
-				"issues",
-				"pull_requests",
-				"users",
-			},
+			name:     "default with overlapping toolsets - should not duplicate",
+			input:    []string{"default", "context", "repos"},
+			expected: allDefaultToolsets,
 		},
 		{
 			name:     "empty input",
