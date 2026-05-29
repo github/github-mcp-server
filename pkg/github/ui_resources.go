@@ -13,7 +13,7 @@ import (
 //
 // Resource metadata follows the stable 2026-01-26 MCP Apps spec:
 // https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx
-func RegisterUIResources(s *mcp.Server) {
+func RegisterUIResources(s *mcp.Server, readOnly bool) {
 	// Register the get_me UI resource
 	s.AddResource(
 		&mcp.Resource{
@@ -45,6 +45,10 @@ func RegisterUIResources(s *mcp.Server) {
 			}, nil
 		},
 	)
+
+	if readOnly {
+		return
+	}
 
 	// Register the issue_write UI resource
 	s.AddResource(
