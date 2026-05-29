@@ -173,15 +173,6 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to create GitHub MCP server: %w", err)
 	}
 
-	// Register MCP App UI resources if the remote_mcp_ui_apps feature flag is enabled
-	// and UI assets are available (requires running script/build-ui).
-	// We check availability to allow the feature flag to be enabled without
-	// requiring a UI build (graceful degradation).
-	mcpAppsEnabled, _ := featureChecker(context.Background(), github.MCPAppsFeatureFlag)
-	if mcpAppsEnabled && github.UIAssetsAvailable() {
-		github.RegisterUIResources(ghServer)
-	}
-
 	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.restUATransp, clients.gqlHTTP))
 
 	return ghServer, nil
