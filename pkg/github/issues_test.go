@@ -13,6 +13,8 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/http/headers"
+	transportpkg "github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -68,16 +70,15 @@ func (rt *repoAccessMockTransport) RoundTrip(req *http.Request) (*http.Response,
 		value = repoAccessValue{isPrivate: false}
 	}
 
-	responseBody, err := json.Marshal(map[string]any{
-		"data": map[string]any{
-			"viewer": map[string]any{
-				"login": "test-viewer",
-			},
-			"repository": map[string]any{
-				"isPrivate": value.isPrivate,
-			},
-		},
-	})
+	data := map[string]any{}
+	if strings.Contains(payload.Query, "viewer") {
+		data["viewer"] = map[string]any{"login": "test-viewer"}
+	}
+	if strings.Contains(payload.Query, "repository") {
+		data["repository"] = map[string]any{"isPrivate": value.isPrivate}
+	}
+
+	responseBody, err := json.Marshal(map[string]any{"data": data})
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +326,6 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 	t.Run("insiders mode disabled omits ifc label", func(t *testing.T) {
 		deps := BaseDeps{
 			Client: mustNewGHClient(t, makeMockClient(false, 0)),
-			Flags:  FeatureFlags{InsidersMode: false},
 		}
 		handler := serverTool.Handler(deps)
 
@@ -339,8 +339,8 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode enabled on public repo emits public untrusted", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: mustNewGHClient(t, makeMockClient(false, 0)),
-			Flags:  FeatureFlags{InsidersMode: true},
+			Client:         mustNewGHClient(t, makeMockClient(false, 0)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -357,8 +357,8 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode enabled on private repo with get_comments emits private untrusted", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: mustNewGHClient(t, makeMockClient(true, 0)),
-			Flags:  FeatureFlags{InsidersMode: true},
+			Client:         mustNewGHClient(t, makeMockClient(true, 0)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -375,8 +375,8 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode skips ifc label when visibility lookup fails", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: mustNewGHClient(t, makeMockClient(false, http.StatusInternalServerError)),
-			Flags:  FeatureFlags{InsidersMode: true},
+			Client:         mustNewGHClient(t, makeMockClient(false, http.StatusInternalServerError)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -390,6 +390,173 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 			assert.False(t, hasIFC, "ifc label should be omitted when visibility lookup fails")
 		}
 	})
+}
+
+func Test_GetIssue_FieldValues(t *testing.T) {
+	// Verify that issue_field_values from the REST API are NOT exposed when the
+	// remote_mcp_issue_fields flag is off. The raw REST format is always cleared;
+	// enriched field_values are only populated when the flag is on.
+	serverTool := IssueRead(translations.NullTranslationHelper)
+
+	mockIssueWithFields := &github.Issue{
+		Number:  github.Ptr(99),
+		Title:   github.Ptr("Issue with field values"),
+		Body:    github.Ptr("body"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/99"),
+		User: &github.User{
+			Login: github.Ptr("testuser"),
+		},
+		IssueFieldValues: []*github.IssueFieldValue{
+			{
+				IssueFieldID: 1001,
+				NodeID:       "FV_node_1",
+				DataType:     "single_select",
+				Value:        "High",
+				SingleSelectOption: &github.IssueFieldValueSingleSelectOption{
+					ID:    42,
+					Name:  "High",
+					Color: "red",
+				},
+			},
+			{
+				IssueFieldID: 1002,
+				NodeID:       "FV_node_2",
+				DataType:     "text",
+				Value:        "some text value",
+			},
+		},
+	}
+
+	mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssueWithFields),
+	})
+
+	cache := stubRepoAccessCache(nil, 15*time.Minute)
+	flags := stubFeatureFlags(map[string]bool{"lockdown-mode": false})
+	deps := BaseDeps{
+		Client:          mustNewGHClient(t, mockedClient),
+		GQLClient:       defaultGQLClient,
+		RepoAccessCache: cache,
+		Flags:           flags,
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":       "get",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(99),
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	textContent := getTextResult(t, result)
+
+	var returnedIssue MinimalIssue
+	err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
+	require.NoError(t, err)
+
+	// Flag is off: raw REST IssueFieldValues must be cleared, enriched FieldValues absent.
+	assert.Empty(t, returnedIssue.IssueFieldValues, "raw REST issue_field_values should not be exposed when flag is off")
+	assert.Empty(t, returnedIssue.FieldValues, "enriched field_values should not be present when flag is off")
+}
+
+func Test_GetIssue_FieldValues_FlagOn(t *testing.T) {
+	// Verify the enriched field_values are populated via GraphQL when the
+	// remote_mcp_issue_fields flag is on, and the raw REST issue_field_values
+	// stays cleared.
+	serverTool := IssueRead(translations.NullTranslationHelper)
+
+	mockIssueWithFields := &github.Issue{
+		Number:  github.Ptr(99),
+		NodeID:  github.Ptr("I_node_99"),
+		Title:   github.Ptr("Issue with field values"),
+		Body:    github.Ptr("body"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/99"),
+		User: &github.User{
+			Login: github.Ptr("testuser"),
+		},
+		IssueFieldValues: []*github.IssueFieldValue{
+			{
+				IssueFieldID: 1001,
+				NodeID:       "FV_node_1",
+				DataType:     "single_select",
+				Value:        "High",
+			},
+		},
+	}
+
+	restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssueWithFields),
+	})
+
+	gqlVars := map[string]any{
+		"ids": []any{"I_node_99"},
+	}
+	gqlResponse := githubv4mock.DataResponse(map[string]any{
+		"nodes": []map[string]any{
+			{
+				"id": "I_node_99",
+				"issueFieldValues": map[string]any{
+					"nodes": []map[string]any{
+						{
+							"__typename": "IssueFieldSingleSelectValue",
+							"field":      map[string]any{"name": "priority"},
+							"value":      "P1",
+						},
+						{
+							"__typename":  "IssueFieldNumberValue",
+							"field":       map[string]any{"name": "estimate"},
+							"valueNumber": 2.5,
+						},
+					},
+				},
+			},
+		},
+	})
+
+	const nodesQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}}}}"
+	matcher := githubv4mock.NewQueryMatcher(nodesQueryString, gqlVars, gqlResponse)
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+
+	cache := stubRepoAccessCache(nil, 15*time.Minute)
+	deps := BaseDeps{
+		Client:          mustNewGHClient(t, restClient),
+		GQLClient:       gqlClient,
+		RepoAccessCache: cache,
+		featureChecker:  featureCheckerFor(FeatureFlagIssueFields),
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":       "get",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(99),
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.IsError, "expected result to not be an error")
+
+	textContent := getTextResult(t, result)
+
+	var returnedIssue MinimalIssue
+	err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
+	require.NoError(t, err)
+
+	// Raw REST IssueFieldValues is always cleared, even when flag is on.
+	assert.Empty(t, returnedIssue.IssueFieldValues, "raw REST issue_field_values should not be exposed even when flag is on")
+
+	// Enriched FieldValues comes from the GraphQL nodes() round-trip.
+	require.Len(t, returnedIssue.FieldValues, 2, "field_values should be populated from GraphQL when flag is on")
+	assert.Equal(t, "priority", returnedIssue.FieldValues[0].Field)
+	assert.Equal(t, "P1", returnedIssue.FieldValues[0].Value)
+	assert.Equal(t, "estimate", returnedIssue.FieldValues[1].Field)
+	assert.Equal(t, "2.5", returnedIssue.FieldValues[1].Value)
 }
 
 func Test_AddIssueComment(t *testing.T) {
@@ -910,7 +1077,6 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{makeIssue("octocat", "public-repo", 1)}}
 		deps := BaseDeps{
 			Client: mustNewGHClient(t, makeMockClient(searchResult, []repoFixture{{owner: "octocat", repo: "public-repo"}})),
-			Flags:  FeatureFlags{InsidersMode: false},
 		}
 		handler := serverTool.Handler(deps)
 
@@ -924,8 +1090,8 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 	t.Run("insiders mode all public emits public untrusted", func(t *testing.T) {
 		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{makeIssue("octocat", "public-repo", 1)}}
 		deps := BaseDeps{
-			Client: mustNewGHClient(t, makeMockClient(searchResult, []repoFixture{{owner: "octocat", repo: "public-repo"}})),
-			Flags:  FeatureFlags{InsidersMode: true},
+			Client:         mustNewGHClient(t, makeMockClient(searchResult, []repoFixture{{owner: "octocat", repo: "public-repo"}})),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -950,7 +1116,7 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 				{owner: "octocat", repo: "private-repo", isPrivate: true},
 				{owner: "octocat", repo: "public-repo"},
 			})),
-			Flags: FeatureFlags{InsidersMode: true},
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -971,7 +1137,7 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 			Client: mustNewGHClient(t, makeMockClient(searchResult, []repoFixture{
 				{owner: "octocat", repo: "broken", repoStatus: http.StatusInternalServerError},
 			})),
-			Flags: FeatureFlags{InsidersMode: true},
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -989,8 +1155,8 @@ func Test_SearchIssues_IFC_InsidersMode(t *testing.T) {
 	t.Run("insiders mode empty results emits public untrusted", func(t *testing.T) {
 		searchResult := &github.IssuesSearchResult{Issues: []*github.Issue{}}
 		deps := BaseDeps{
-			Client: mustNewGHClient(t, makeMockClient(searchResult, nil)),
-			Flags:  FeatureFlags{InsidersMode: true},
+			Client:         mustNewGHClient(t, makeMockClient(searchResult, nil)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -1077,13 +1243,14 @@ func Test_SearchIssues_FieldValuesEnrichment(t *testing.T) {
 		},
 	})
 
-	const nodesQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value}}}}}}"
+	const nodesQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}}}}"
 	matcher := githubv4mock.NewQueryMatcher(nodesQueryString, gqlVars, gqlResponse)
 	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
 
 	deps := BaseDeps{
-		Client:    mustNewGHClient(t, restClient),
-		GQLClient: gqlClient,
+		Client:         mustNewGHClient(t, restClient),
+		GQLClient:      gqlClient,
+		featureChecker: featureCheckerFor(FeatureFlagIssueFields),
 	}
 	handler := serverTool.Handler(deps)
 
@@ -1102,7 +1269,7 @@ func Test_SearchIssues_FieldValuesEnrichment(t *testing.T) {
 	require.Equal(t, 2, *response.Total)
 	require.Len(t, response.Items, 2)
 	assert.Equal(t, 42, *response.Items[0].Number)
-	assert.Equal(t, []MinimalIssueFieldValue{
+	assert.Equal(t, []MinimalFieldValue{
 		{Field: "priority", Value: "P1"},
 		{Field: "estimate", Value: "2.5"},
 	}, response.Items[0].FieldValues)
@@ -1111,10 +1278,11 @@ func Test_SearchIssues_FieldValuesEnrichment(t *testing.T) {
 }
 
 func Test_CreateIssue(t *testing.T) {
-	// Verify tool definition once
+	// Verify tool definition once (flag-enabled variant snap)
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueFields, tool))
+	require.Equal(t, FeatureFlagIssueFields, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -1127,6 +1295,7 @@ func Test_CreateIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "labels")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "milestone")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "type")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_fields")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo"})
 
 	// Setup mock issue for success case
@@ -1143,12 +1312,13 @@ func Test_CreateIssue(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]any
-		expectError    bool
-		expectedIssue  *github.Issue
-		expectedErrMsg string
+		name            string
+		mockedClient    *http.Client
+		mockedGQLClient *http.Client
+		requestArgs     map[string]any
+		expectError     bool
+		expectedIssue   *github.Issue
+		expectedErrMsg  string
 	}{
 		{
 			name: "successful issue creation with all fields",
@@ -1204,6 +1374,77 @@ func Test_CreateIssue(t *testing.T) {
 			},
 		},
 		{
+			name: "successful issue creation with issue fields reconciled by names",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesByOwnerByRepo: expectRequestBody(t, map[string]any{
+					"title":     "Issue with fields",
+					"body":      "",
+					"labels":    []any{},
+					"assignees": []any{},
+					"issue_field_values": []any{
+						map[string]any{"field_id": float64(101), "value": "P1"},
+						map[string]any{"field_id": float64(102), "value": "Acme"},
+					},
+				}).andThen(
+					mockResponse(t, http.StatusCreated, &github.Issue{
+						Number:  github.Ptr(125),
+						Title:   github.Ptr("Issue with fields"),
+						HTMLURL: github.Ptr("https://github.com/owner/repo/issues/125"),
+						State:   github.Ptr("open"),
+					}),
+				),
+			}),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					issueFieldWriteMetadataQuery{},
+					map[string]any{
+						"owner": githubv4.String("owner"),
+						"repo":  githubv4.String("repo"),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"issueFields": map[string]any{
+								"nodes": []any{
+									map[string]any{
+										"__typename":     "IssueFieldSingleSelect",
+										"fullDatabaseId": "101",
+										"name":           "Priority",
+										"dataType":       "single_select",
+										"options": []any{
+											map[string]any{"fullDatabaseId": "9001", "name": "P1"},
+										},
+									},
+									map[string]any{
+										"__typename":     "IssueFieldText",
+										"fullDatabaseId": "102",
+										"name":           "Customer",
+										"dataType":       "text",
+									},
+								},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"method": "create",
+				"owner":  "owner",
+				"repo":   "repo",
+				"title":  "Issue with fields",
+				"issue_fields": []any{
+					map[string]any{"field_name": "Priority", "field_option_name": "P1"},
+					map[string]any{"field_name": "Customer", "value": "Acme"},
+				},
+			},
+			expectError: false,
+			expectedIssue: &github.Issue{
+				Number:  github.Ptr(125),
+				Title:   github.Ptr("Issue with fields"),
+				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/125"),
+				State:   github.Ptr("open"),
+			},
+		},
+		{
 			name: "issue creation fails",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -1220,13 +1461,32 @@ func Test_CreateIssue(t *testing.T) {
 			expectError:    false,
 			expectedErrMsg: "missing required parameter: title",
 		},
+		{
+			name:         "issue_fields rejects both value and field_option_name",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"method": "create",
+				"owner":  "owner",
+				"repo":   "repo",
+				"title":  "Invalid fields",
+				"issue_fields": []any{
+					map[string]any{"field_name": "Priority", "value": "P1", "field_option_name": "P1"},
+				},
+			},
+			expectError:    false,
+			expectedErrMsg: "cannot specify both value and field_option_name",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := mustNewGHClient(t, tc.mockedClient)
-			gqlClient := githubv4.NewClient(nil)
+			gqlHTTPClient := tc.mockedGQLClient
+			if gqlHTTPClient == nil {
+				gqlHTTPClient = githubv4mock.NewMockedHTTPClient()
+			}
+			gqlClient := githubv4.NewClient(gqlHTTPClient)
 			deps := BaseDeps{
 				Client:    client,
 				GQLClient: gqlClient,
@@ -1266,9 +1526,9 @@ func Test_CreateIssue(t *testing.T) {
 	}
 }
 
-// Test_IssueWrite_InsidersMode_UIGate verifies the insiders mode UI gate
+// Test_IssueWrite_MCPAppsFeature_UIGate verifies the MCP Apps feature UI gate
 // behavior: UI clients get a form message, non-UI clients execute directly.
-func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
+func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 	t.Parallel()
 
 	mockIssue := &github.Issue{
@@ -1284,9 +1544,9 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 	}))
 
 	deps := BaseDeps{
-		Client:    client,
-		GQLClient: githubv4.NewClient(nil),
-		Flags:     FeatureFlags{InsidersMode: true},
+		Client:         client,
+		GQLClient:      githubv4.NewClient(nil),
+		featureChecker: featureCheckerFor(MCPAppsFeatureFlag),
 	}
 	handler := serverTool.Handler(deps)
 
@@ -1401,9 +1661,9 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 		))
 
 		closeDeps := BaseDeps{
-			Client:    closeClient,
-			GQLClient: closeGQLClient,
-			Flags:     FeatureFlags{InsidersMode: true},
+			Client:         closeClient,
+			GQLClient:      closeGQLClient,
+			featureChecker: featureCheckerFor(MCPAppsFeatureFlag),
 		}
 		closeHandler := serverTool.Handler(closeDeps)
 
@@ -1446,7 +1706,8 @@ func Test_ListIssues(t *testing.T) {
 	// Verify tool definition
 	serverTool := ListIssues(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueFields, tool))
+	require.Equal(t, FeatureFlagIssueFields, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "list_issues", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -1603,56 +1864,63 @@ func Test_ListIssues(t *testing.T) {
 
 	mockErrorRepoNotFound := githubv4mock.ErrorResponse("repository not found")
 
-	// Variables matching what GraphQL receives after JSON marshaling/unmarshaling
+	// Variables matching what GraphQL receives after JSON marshaling/unmarshaling.
+	// issueFieldValues is always sent as an (empty by default) list because the query
+	// declares the variable unconditionally; the server treats an empty list as no filter.
 	varsListAll := map[string]any{
-		"owner":     "owner",
-		"repo":      "repo",
-		"states":    []any{"OPEN", "CLOSED"},
-		"orderBy":   "CREATED_AT",
-		"direction": "DESC",
-		"first":     float64(30),
-		"after":     (*string)(nil),
+		"owner":            "owner",
+		"repo":             "repo",
+		"states":           []any{"OPEN", "CLOSED"},
+		"orderBy":          "CREATED_AT",
+		"direction":        "DESC",
+		"first":            float64(30),
+		"after":            (*string)(nil),
+		"issueFieldValues": []any{},
 	}
 
 	varsOpenOnly := map[string]any{
-		"owner":     "owner",
-		"repo":      "repo",
-		"states":    []any{"OPEN"},
-		"orderBy":   "CREATED_AT",
-		"direction": "DESC",
-		"first":     float64(30),
-		"after":     (*string)(nil),
+		"owner":            "owner",
+		"repo":             "repo",
+		"states":           []any{"OPEN"},
+		"orderBy":          "CREATED_AT",
+		"direction":        "DESC",
+		"first":            float64(30),
+		"after":            (*string)(nil),
+		"issueFieldValues": []any{},
 	}
 
 	varsClosedOnly := map[string]any{
-		"owner":     "owner",
-		"repo":      "repo",
-		"states":    []any{"CLOSED"},
-		"orderBy":   "CREATED_AT",
-		"direction": "DESC",
-		"first":     float64(30),
-		"after":     (*string)(nil),
+		"owner":            "owner",
+		"repo":             "repo",
+		"states":           []any{"CLOSED"},
+		"orderBy":          "CREATED_AT",
+		"direction":        "DESC",
+		"first":            float64(30),
+		"after":            (*string)(nil),
+		"issueFieldValues": []any{},
 	}
 
 	varsWithLabels := map[string]any{
-		"owner":     "owner",
-		"repo":      "repo",
-		"states":    []any{"OPEN", "CLOSED"},
-		"labels":    []any{"bug", "enhancement"},
-		"orderBy":   "CREATED_AT",
-		"direction": "DESC",
-		"first":     float64(30),
-		"after":     (*string)(nil),
+		"owner":            "owner",
+		"repo":             "repo",
+		"states":           []any{"OPEN", "CLOSED"},
+		"labels":           []any{"bug", "enhancement"},
+		"orderBy":          "CREATED_AT",
+		"direction":        "DESC",
+		"first":            float64(30),
+		"after":            (*string)(nil),
+		"issueFieldValues": []any{},
 	}
 
 	varsRepoNotFound := map[string]any{
-		"owner":     "owner",
-		"repo":      "nonexistent-repo",
-		"states":    []any{"OPEN", "CLOSED"},
-		"orderBy":   "CREATED_AT",
-		"direction": "DESC",
-		"first":     float64(30),
-		"after":     (*string)(nil),
+		"owner":            "owner",
+		"repo":             "nonexistent-repo",
+		"states":           []any{"OPEN", "CLOSED"},
+		"orderBy":          "CREATED_AT",
+		"direction":        "DESC",
+		"first":            float64(30),
+		"after":            (*string)(nil),
+		"issueFieldValues": []any{},
 	}
 
 	tests := []struct {
@@ -1723,9 +1991,9 @@ func Test_ListIssues(t *testing.T) {
 	}
 
 	// Define the actual query strings that match the implementation
-	issueFieldValuesSelection := "issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value}}}"
-	qBasicNoLabels := "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}," + issueFieldValuesSelection + "},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
-	qWithLabels := "query($after:String$direction:OrderDirection!$first:Int!$labels:[String!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}," + issueFieldValuesSelection + "},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
+	issueFieldValuesSelection := "issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}"
+	qBasicNoLabels := "query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}," + issueFieldValuesSelection + "},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
+	qWithLabels := "query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$labels:[String!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}," + issueFieldValuesSelection + "},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1802,9 +2070,9 @@ func Test_ListIssues(t *testing.T) {
 				// (including float formatting); #789 has no field values.
 				switch issue.Number {
 				case 123:
-					assert.Equal(t, []MinimalIssueFieldValue{{Field: "priority", Value: "P1"}}, issue.FieldValues)
+					assert.Equal(t, []MinimalFieldValue{{Field: "priority", Value: "P1"}}, issue.FieldValues)
 				case 456:
-					assert.Equal(t, []MinimalIssueFieldValue{
+					assert.Equal(t, []MinimalFieldValue{
 						{Field: "due", Value: "2026-06-01"},
 						{Field: "estimate", Value: "2.5"},
 						{Field: "notes", Value: "needs triage"},
@@ -1815,6 +2083,419 @@ func Test_ListIssues(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_ListIssues_FieldFilters(t *testing.T) {
+	t.Parallel()
+
+	serverTool := ListIssues(translations.NullTranslationHelper)
+
+	mockIssues := []map[string]any{
+		{
+			"number":     1,
+			"title":      "An issue",
+			"body":       "body",
+			"state":      "OPEN",
+			"databaseId": 1,
+			"createdAt":  "2026-01-01T00:00:00Z",
+			"updatedAt":  "2026-01-01T00:00:00Z",
+			"author":     map[string]any{"login": "user1"},
+			"labels":     map[string]any{"nodes": []map[string]any{}},
+			"comments":   map[string]any{"totalCount": 0},
+		},
+	}
+
+	pageInfo := map[string]any{
+		"hasNextPage":     false,
+		"hasPreviousPage": false,
+		"startCursor":     "",
+		"endCursor":       "",
+	}
+
+	response := githubv4mock.DataResponse(map[string]any{
+		"repository": map[string]any{
+			"issues": map[string]any{
+				"nodes":      mockIssues,
+				"pageInfo":   pageInfo,
+				"totalCount": 1,
+			},
+			"isPrivate": false,
+		},
+	})
+
+	// Field-lookup matcher used by every subtest that supplies field_filters.
+	// The handler calls fetchIssueFields(owner, repo) before issuing the issues query.
+	fieldsResponse := githubv4mock.DataResponse(map[string]any{
+		"repository": map[string]any{
+			"issueFields": map[string]any{
+				"nodes": []any{
+					map[string]any{
+						"__typename": "IssueFieldSingleSelect",
+						"id":         "IFSS_1",
+						"name":       "Priority",
+						"dataType":   "SINGLE_SELECT",
+						"visibility": "ALL",
+						"options": []any{
+							map[string]any{"id": "OPT_P1", "name": "P1", "color": "red"},
+							map[string]any{"id": "OPT_P2", "name": "P2", "color": "yellow"},
+						},
+					},
+					map[string]any{
+						"__typename": "IssueFieldText",
+						"id":         "IFT_1",
+						"name":       "Notes",
+						"dataType":   "TEXT",
+						"visibility": "ALL",
+					},
+					map[string]any{
+						"__typename": "IssueFieldNumber",
+						"id":         "IFN_1",
+						"name":       "Estimate",
+						"dataType":   "NUMBER",
+						"visibility": "ALL",
+					},
+					map[string]any{
+						"__typename": "IssueFieldDate",
+						"id":         "IFD_1",
+						"name":       "Due",
+						"dataType":   "DATE",
+						"visibility": "ALL",
+					},
+				},
+			},
+		},
+	})
+	fieldsMatcher := func() githubv4mock.Matcher {
+		return githubv4mock.NewQueryMatcher(
+			issueFieldsRepoQuery{},
+			map[string]any{
+				"owner": githubv4.String("owner"),
+				"name":  githubv4.String("repo"),
+			},
+			fieldsResponse,
+		)
+	}
+
+	qNoLabels := "query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount},issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
+	qWithLabels := "query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$labels:[String!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount},issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
+
+	baseVars := func() map[string]any {
+		return map[string]any{
+			"owner":     "owner",
+			"repo":      "repo",
+			"states":    []any{"OPEN", "CLOSED"},
+			"orderBy":   "CREATED_AT",
+			"direction": "DESC",
+			"first":     float64(30),
+			"after":     (*string)(nil),
+		}
+	}
+
+	t.Run("single select field filter", func(t *testing.T) {
+		vars := baseVars()
+		vars["issueFieldValues"] = []any{
+			map[string]any{"fieldName": "Priority", "singleSelectOptionValue": "P1"},
+		}
+		matcher := githubv4mock.NewQueryMatcher(qNoLabels, vars, response)
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(fieldsMatcher(), matcher))
+		deps := BaseDeps{GQLClient: gqlClient}
+		handler := serverTool.Handler(deps)
+
+		req := createMCPRequest(map[string]any{
+			"owner": "owner",
+			"repo":  "repo",
+			"field_filters": []any{
+				map[string]any{"field_name": "Priority", "value": "P1"},
+			},
+		})
+		res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+		require.NoError(t, err)
+		require.False(t, res.IsError, getTextResult(t, res).Text)
+	})
+
+	t.Run("text field filter combined with labels", func(t *testing.T) {
+		vars := baseVars()
+		vars["labels"] = []any{"bug"}
+		vars["issueFieldValues"] = []any{
+			map[string]any{"fieldName": "Notes", "textValue": "needs triage"},
+		}
+		matcher := githubv4mock.NewQueryMatcher(qWithLabels, vars, response)
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(fieldsMatcher(), matcher))
+		deps := BaseDeps{GQLClient: gqlClient}
+		handler := serverTool.Handler(deps)
+
+		req := createMCPRequest(map[string]any{
+			"owner":  "owner",
+			"repo":   "repo",
+			"labels": []any{"bug"},
+			"field_filters": []any{
+				map[string]any{"field_name": "Notes", "value": "needs triage"},
+			},
+		})
+		res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+		require.NoError(t, err)
+		require.False(t, res.IsError, getTextResult(t, res).Text)
+	})
+
+	t.Run("number and date field filters", func(t *testing.T) {
+		vars := baseVars()
+		vars["issueFieldValues"] = []any{
+			map[string]any{"fieldName": "Estimate", "numberValue": float64(2.5)},
+			map[string]any{"fieldName": "Due", "dateValue": "2026-06-01"},
+		}
+		matcher := githubv4mock.NewQueryMatcher(qNoLabels, vars, response)
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(fieldsMatcher(), matcher))
+		deps := BaseDeps{GQLClient: gqlClient}
+		handler := serverTool.Handler(deps)
+
+		req := createMCPRequest(map[string]any{
+			"owner": "owner",
+			"repo":  "repo",
+			"field_filters": []any{
+				map[string]any{"field_name": "Estimate", "value": "2.5"},
+				map[string]any{"field_name": "Due", "value": "2026-06-01"},
+			},
+		})
+		res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+		require.NoError(t, err)
+		require.False(t, res.IsError, getTextResult(t, res).Text)
+	})
+
+	t.Run("number field accepts zero values", func(t *testing.T) {
+		for _, value := range []string{"0", "0.0"} {
+			t.Run(value, func(t *testing.T) {
+				vars := baseVars()
+				vars["issueFieldValues"] = []any{
+					map[string]any{"fieldName": "Estimate", "numberValue": float64(0)},
+				}
+				matcher := githubv4mock.NewQueryMatcher(qNoLabels, vars, response)
+				gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(fieldsMatcher(), matcher))
+				deps := BaseDeps{GQLClient: gqlClient}
+				handler := serverTool.Handler(deps)
+
+				req := createMCPRequest(map[string]any{
+					"owner": "owner",
+					"repo":  "repo",
+					"field_filters": []any{
+						map[string]any{"field_name": "Estimate", "value": value},
+					},
+				})
+				res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+				require.NoError(t, err)
+				require.False(t, res.IsError, getTextResult(t, res).Text)
+			})
+		}
+	})
+
+	t.Run("validation error when value missing", func(t *testing.T) {
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(githubv4mock.NewQueryMatcher("", nil, response)))
+		deps := BaseDeps{GQLClient: gqlClient}
+		handler := serverTool.Handler(deps)
+
+		req := createMCPRequest(map[string]any{
+			"owner": "owner",
+			"repo":  "repo",
+			"field_filters": []any{
+				map[string]any{"field_name": "Priority"},
+			},
+		})
+		res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+		require.NoError(t, err)
+		require.True(t, res.IsError)
+		text := getTextResult(t, res).Text
+		assert.Contains(t, text, "field_filters entry")
+		assert.Contains(t, text, "Priority")
+		assert.Contains(t, text, "value")
+	})
+
+	t.Run("validation error when field_name missing", func(t *testing.T) {
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(githubv4mock.NewQueryMatcher("", nil, response)))
+		deps := BaseDeps{GQLClient: gqlClient}
+		handler := serverTool.Handler(deps)
+
+		req := createMCPRequest(map[string]any{
+			"owner": "owner",
+			"repo":  "repo",
+			"field_filters": []any{
+				map[string]any{"value": "P1"},
+			},
+		})
+		res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+		require.NoError(t, err)
+		require.True(t, res.IsError)
+		text := getTextResult(t, res).Text
+		assert.Contains(t, text, "field_filters entry")
+		assert.Contains(t, text, "field_name")
+	})
+
+	t.Run("error when field is unknown", func(t *testing.T) {
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(fieldsMatcher()))
+		deps := BaseDeps{GQLClient: gqlClient}
+		handler := serverTool.Handler(deps)
+
+		req := createMCPRequest(map[string]any{
+			"owner": "owner",
+			"repo":  "repo",
+			"field_filters": []any{
+				map[string]any{"field_name": "NotARealField", "value": "x"},
+			},
+		})
+		res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+		require.NoError(t, err)
+		require.True(t, res.IsError)
+		text := getTextResult(t, res).Text
+		assert.Contains(t, text, "unknown field")
+		assert.Contains(t, text, "Priority")
+	})
+
+	t.Run("error when single-select option is invalid", func(t *testing.T) {
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(fieldsMatcher()))
+		deps := BaseDeps{GQLClient: gqlClient}
+		handler := serverTool.Handler(deps)
+
+		req := createMCPRequest(map[string]any{
+			"owner": "owner",
+			"repo":  "repo",
+			"field_filters": []any{
+				map[string]any{"field_name": "Priority", "value": "P9"},
+			},
+		})
+		res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+		require.NoError(t, err)
+		require.True(t, res.IsError)
+		text := getTextResult(t, res).Text
+		assert.Contains(t, text, "not a valid option")
+		assert.Contains(t, text, "P1")
+	})
+
+	t.Run("error when number value is non-numeric", func(t *testing.T) {
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(fieldsMatcher()))
+		deps := BaseDeps{GQLClient: gqlClient}
+		handler := serverTool.Handler(deps)
+
+		req := createMCPRequest(map[string]any{
+			"owner": "owner",
+			"repo":  "repo",
+			"field_filters": []any{
+				map[string]any{"field_name": "Estimate", "value": "not-a-number"},
+			},
+		})
+		res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+		require.NoError(t, err)
+		require.True(t, res.IsError)
+		assert.Contains(t, getTextResult(t, res).Text, "not a valid number")
+	})
+
+	t.Run("error when date value is malformed", func(t *testing.T) {
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(fieldsMatcher()))
+		deps := BaseDeps{GQLClient: gqlClient}
+		handler := serverTool.Handler(deps)
+
+		req := createMCPRequest(map[string]any{
+			"owner": "owner",
+			"repo":  "repo",
+			"field_filters": []any{
+				map[string]any{"field_name": "Due", "value": "06/01/2026"},
+			},
+		})
+		res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+		require.NoError(t, err)
+		require.True(t, res.IsError)
+		assert.Contains(t, getTextResult(t, res).Text, "not a valid date")
+	})
+
+	// Query string fragments for the `since` variants. Built by string concatenation
+	// because they only differ from the base variants by the variable declaration and
+	// the filterBy clause.
+	qNoLabelsWithSince := "query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$since:DateTime!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since, issueFieldValues: $issueFieldValues})" + qNoLabels[len("query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues})"):]
+	qLabelsWithSince := "query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$labels:[String!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$since:DateTime!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since, issueFieldValues: $issueFieldValues})" + qWithLabels[len("query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$labels:[String!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues})"):]
+
+	t.Run("field filter with since", func(t *testing.T) {
+		vars := baseVars()
+		vars["since"] = "2026-01-01T00:00:00Z"
+		vars["issueFieldValues"] = []any{
+			map[string]any{"fieldName": "Priority", "singleSelectOptionValue": "P1"},
+		}
+		matcher := githubv4mock.NewQueryMatcher(qNoLabelsWithSince, vars, response)
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(fieldsMatcher(), matcher))
+		deps := BaseDeps{GQLClient: gqlClient}
+		handler := serverTool.Handler(deps)
+
+		req := createMCPRequest(map[string]any{
+			"owner": "owner",
+			"repo":  "repo",
+			"since": "2026-01-01T00:00:00Z",
+			"field_filters": []any{
+				map[string]any{"field_name": "Priority", "value": "P1"},
+			},
+		})
+		res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+		require.NoError(t, err)
+		require.False(t, res.IsError, getTextResult(t, res).Text)
+	})
+
+	t.Run("field filter with labels and since", func(t *testing.T) {
+		vars := baseVars()
+		vars["labels"] = []any{"bug"}
+		vars["since"] = "2026-01-01T00:00:00Z"
+		vars["issueFieldValues"] = []any{
+			map[string]any{"fieldName": "Priority", "singleSelectOptionValue": "P1"},
+		}
+		matcher := githubv4mock.NewQueryMatcher(qLabelsWithSince, vars, response)
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(fieldsMatcher(), matcher))
+		deps := BaseDeps{GQLClient: gqlClient}
+		handler := serverTool.Handler(deps)
+
+		req := createMCPRequest(map[string]any{
+			"owner":  "owner",
+			"repo":   "repo",
+			"labels": []any{"bug"},
+			"since":  "2026-01-01T00:00:00Z",
+			"field_filters": []any{
+				map[string]any{"field_name": "Priority", "value": "P1"},
+			},
+		})
+		res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+		require.NoError(t, err)
+		require.False(t, res.IsError, getTextResult(t, res).Text)
+	})
+
+	t.Run("sends GraphQL-Features: issue_fields, repo_issue_fields header", func(t *testing.T) {
+		vars := baseVars()
+		vars["issueFieldValues"] = []any{}
+		matcher := githubv4mock.NewQueryMatcher(qNoLabels, vars, response)
+
+		// Build a transport chain matching production: GraphQLFeaturesTransport
+		// wraps a header-capturing spy, which forwards to the mock's RoundTripper.
+		// This verifies the handler sets the issue_fields context value and the
+		// transport translates it into the outgoing header.
+		mockClient := githubv4mock.NewMockedHTTPClient(matcher)
+		spy := &headerCaptureTransport{inner: mockClient.Transport}
+		httpClient := &http.Client{
+			Transport: &transportpkg.GraphQLFeaturesTransport{Transport: spy},
+		}
+		gqlClient := githubv4.NewClient(httpClient)
+		deps := BaseDeps{GQLClient: gqlClient}
+		handler := serverTool.Handler(deps)
+
+		req := createMCPRequest(map[string]any{"owner": "owner", "repo": "repo"})
+		res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+		require.NoError(t, err)
+		require.False(t, res.IsError, getTextResult(t, res).Text)
+		assert.Equal(t, "issue_fields, repo_issue_fields", spy.captured.Get(headers.GraphQLFeaturesHeader))
+	})
+}
+
+// headerCaptureTransport records the headers of the most recent request that passed
+// through it before forwarding to the inner RoundTripper.
+type headerCaptureTransport struct {
+	inner    http.RoundTripper
+	captured http.Header
+}
+
+func (t *headerCaptureTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	t.captured = req.Header.Clone()
+	return t.inner.RoundTrip(req)
 }
 
 func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
@@ -1857,16 +2538,17 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		})
 	}
 
-	query := "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount},issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name},... on IssueFieldNumber{name},... on IssueFieldSingleSelect{name},... on IssueFieldText{name}},value}}}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
+	query := "query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount},issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
 
 	vars := map[string]any{
-		"owner":     "octocat",
-		"repo":      "hello",
-		"states":    []any{"OPEN", "CLOSED"},
-		"orderBy":   "CREATED_AT",
-		"direction": "DESC",
-		"first":     float64(30),
-		"after":     (*string)(nil),
+		"owner":            "octocat",
+		"repo":             "hello",
+		"states":           []any{"OPEN", "CLOSED"},
+		"orderBy":          "CREATED_AT",
+		"direction":        "DESC",
+		"first":            float64(30),
+		"after":            (*string)(nil),
+		"issueFieldValues": []any{},
 	}
 
 	reqParams := map[string]any{"owner": "octocat", "repo": "hello"}
@@ -1876,7 +2558,6 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
 		deps := BaseDeps{
 			GQLClient: gqlClient,
-			Flags:     FeatureFlags{InsidersMode: false},
 		}
 		handler := serverTool.Handler(deps)
 
@@ -1892,8 +2573,8 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		matcher := githubv4mock.NewQueryMatcher(query, vars, makeResponse(false))
 		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
 		deps := BaseDeps{
-			GQLClient: gqlClient,
-			Flags:     FeatureFlags{InsidersMode: true},
+			GQLClient:      gqlClient,
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -1919,8 +2600,8 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		matcher := githubv4mock.NewQueryMatcher(query, vars, makeResponse(true))
 		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
 		deps := BaseDeps{
-			GQLClient: gqlClient,
-			Flags:     FeatureFlags{InsidersMode: true},
+			GQLClient:      gqlClient,
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -1943,11 +2624,118 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 	})
 }
 
+func Test_LegacyListIssues_Definition(t *testing.T) {
+	serverTool := LegacyListIssues(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+
+	// LegacyListIssues claims the base tool name "list_issues" and produces the
+	// FeatureFlagIssueFields-disabled schema (no field_filters). It owns the
+	// canonical list_issues.snap; the FeatureFlagIssueFields-enabled variant
+	// owns list_issues_ff_<flag>.snap.
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.Equal(t, "list_issues", tool.Name)
+	require.Equal(t, []string{FeatureFlagIssueFields}, serverTool.FeatureFlagDisable)
+	require.Empty(t, serverTool.FeatureFlagEnable)
+
+	props := tool.InputSchema.(*jsonschema.Schema).Properties
+	assert.Contains(t, props, "owner")
+	assert.Contains(t, props, "repo")
+	assert.Contains(t, props, "state")
+	assert.Contains(t, props, "labels")
+	assert.Contains(t, props, "since")
+	assert.NotContains(t, props, "field_filters", "legacy list_issues must not advertise field_filters")
+}
+
+func Test_LegacyIssueWrite_Definition(t *testing.T) {
+	serverTool := LegacyIssueWrite(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+
+	// LegacyIssueWrite owns the canonical issue_write.snap; the
+	// FeatureFlagIssueFields-enabled variant owns issue_write_ff_<flag>.snap.
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.Equal(t, "issue_write", tool.Name)
+	require.Equal(t, []string{FeatureFlagIssuesGranular, FeatureFlagIssueFields}, serverTool.FeatureFlagDisable)
+	require.Empty(t, serverTool.FeatureFlagEnable)
+
+	props := tool.InputSchema.(*jsonschema.Schema).Properties
+	assert.Contains(t, props, "method")
+	assert.Contains(t, props, "owner")
+	assert.Contains(t, props, "repo")
+	assert.NotContains(t, props, "issue_fields", "legacy issue_write must not advertise issue_fields")
+}
+
+func Test_LegacyListIssues_OmitsFieldValuesAndFilters(t *testing.T) {
+	t.Parallel()
+
+	serverTool := LegacyListIssues(translations.NullTranslationHelper)
+
+	mockIssues := []map[string]any{
+		{
+			"number":     7,
+			"title":      "Legacy issue",
+			"body":       "body",
+			"state":      "OPEN",
+			"databaseId": 7,
+			"createdAt":  "2026-01-01T00:00:00Z",
+			"updatedAt":  "2026-01-01T00:00:00Z",
+			"author":     map[string]any{"login": "octocat"},
+			"labels":     map[string]any{"nodes": []map[string]any{}},
+			"comments":   map[string]any{"totalCount": 0},
+		},
+	}
+	pageInfo := map[string]any{
+		"hasNextPage":     false,
+		"hasPreviousPage": false,
+		"startCursor":     "c1",
+		"endCursor":       "c1",
+	}
+
+	// The legacy query must NOT reference issueFieldValues (neither in the selection
+	// set nor in filterBy). The matcher's query string therefore omits both.
+	const legacyQuery = "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
+	vars := map[string]any{
+		"owner":     "owner",
+		"repo":      "repo",
+		"states":    []any{"OPEN", "CLOSED"},
+		"orderBy":   "CREATED_AT",
+		"direction": "DESC",
+		"first":     float64(30),
+		"after":     nil,
+	}
+	response := githubv4mock.DataResponse(map[string]any{
+		"repository": map[string]any{
+			"isPrivate": false,
+			"issues": map[string]any{
+				"nodes":      mockIssues,
+				"pageInfo":   pageInfo,
+				"totalCount": 1,
+			},
+		},
+	})
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(githubv4mock.NewQueryMatcher(legacyQuery, vars, response)))
+
+	deps := BaseDeps{GQLClient: gqlClient}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"owner": "owner",
+		"repo":  "repo",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, "expected non-error result; got: %v", getTextResult(t, result).Text)
+
+	var resp MinimalIssuesResponse
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &resp))
+	require.Len(t, resp.Issues, 1)
+	assert.Equal(t, 7, resp.Issues[0].Number)
+	assert.Nil(t, resp.Issues[0].FieldValues, "legacy list_issues must not return field_values")
+}
+
 func Test_UpdateIssue(t *testing.T) {
-	// Verify tool definition
+	// Verify tool definition (flag-enabled variant snap)
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueFields, tool))
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -1964,6 +2752,7 @@ func Test_UpdateIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "state")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "state_reason")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "duplicate_of")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_fields")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo"})
 
 	// Mock issues for reuse across test cases
@@ -2071,6 +2860,81 @@ func Test_UpdateIssue(t *testing.T) {
 				"issue_number": float64(123),
 				"title":        "Updated Title",
 				"body":         "Updated Description",
+			},
+			expectError:   false,
+			expectedIssue: mockUpdatedIssue,
+		},
+		{
+			name: "partial update with issue fields reconciled by names",
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+					"issue_field_values": []any{
+						map[string]any{"field_id": float64(101), "value": "P1"},
+						map[string]any{"field_id": float64(102), "value": "Acme"},
+					},
+					"title": "Updated Title",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockUpdatedIssue),
+				),
+			}),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				// fetch-and-merge: returns no existing fields so the incoming values are used as-is
+				githubv4mock.NewQueryMatcher(
+					"query($number:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){issue(number: $number){issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}}}}",
+					map[string]any{
+						"owner":  githubv4.String("owner"),
+						"repo":   githubv4.String("repo"),
+						"number": githubv4.Int(123),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"issue": map[string]any{
+								"issueFieldValues": map[string]any{
+									"nodes": []any{},
+								},
+							},
+						},
+					}),
+				),
+				githubv4mock.NewQueryMatcher(
+					issueFieldWriteMetadataQuery{},
+					map[string]any{
+						"owner": githubv4.String("owner"),
+						"repo":  githubv4.String("repo"),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"issueFields": map[string]any{
+								"nodes": []any{
+									map[string]any{
+										"__typename":     "IssueFieldSingleSelect",
+										"fullDatabaseId": "101",
+										"name":           "Priority",
+										"dataType":       "single_select",
+										"options":        []any{map[string]any{"fullDatabaseId": "9001", "name": "P1"}},
+									},
+									map[string]any{
+										"__typename":     "IssueFieldText",
+										"fullDatabaseId": "102",
+										"name":           "Customer",
+										"dataType":       "text",
+									},
+								},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"title":        "Updated Title",
+				"issue_fields": []any{
+					map[string]any{"field_name": "Priority", "field_option_name": "P1"},
+					map[string]any{"field_name": "Customer", "value": "Acme"},
+				},
 			},
 			expectError:   false,
 			expectedIssue: mockUpdatedIssue,

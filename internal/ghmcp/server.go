@@ -103,7 +103,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		if cfg.RepoAccessTTL != nil {
 			opts = append(opts, lockdown.WithTTL(*cfg.RepoAccessTTL))
 		}
-		repoAccessCache = lockdown.GetInstance(gqlClient, restClient, opts...)
+		repoAccessCache = lockdown.NewRepoAccessCache(gqlClient, restClient, opts...)
 	}
 
 	return &githubClients{
@@ -143,7 +143,6 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		cfg.Translator,
 		github.FeatureFlags{
 			LockdownMode: cfg.LockdownMode,
-			InsidersMode: cfg.InsidersMode,
 		},
 		cfg.ContentWindowSize,
 		featureChecker,
@@ -172,15 +171,6 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	ghServer, err := github.NewMCPServer(ctx, &cfg, deps, inventory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub MCP server: %w", err)
-	}
-
-	// Register MCP App UI resources if the remote_mcp_ui_apps feature flag is enabled
-	// and UI assets are available (requires running script/build-ui).
-	// We check availability to allow the feature flag to be enabled without
-	// requiring a UI build (graceful degradation).
-	mcpAppsEnabled, _ := featureChecker(context.Background(), github.MCPAppsFeatureFlag)
-	if mcpAppsEnabled && github.UIAssetsAvailable() {
-		github.RegisterUIResources(ghServer)
 	}
 
 	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.restUATransp, clients.gqlHTTP))
@@ -229,7 +219,7 @@ type StdioServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
-	// InsidersMode indicates if we should enable experimental features
+	// InsidersMode expands to the curated set of feature flags enabled for insiders.
 	InsidersMode bool
 
 	// ExcludeTools is a list of tool names to disable regardless of other settings.
@@ -345,7 +335,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 
 // createFeatureChecker returns a FeatureFlagChecker that resolves features
 // using the centralized ResolveFeatureFlags function. For the local server,
-// features are resolved once at startup from --features CLI flag + insiders mode.
+// features are resolved once at startup from --features CLI flag and insiders mode.
 func createFeatureChecker(enabledFeatures []string, insidersMode bool) inventory.FeatureFlagChecker {
 	featureSet := github.ResolveFeatureFlags(enabledFeatures, insidersMode)
 	return func(_ context.Context, flagName string) (bool, error) {

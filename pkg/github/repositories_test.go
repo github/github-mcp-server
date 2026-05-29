@@ -521,7 +521,6 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 	t.Run("insiders mode disabled omits ifc label from result meta", func(t *testing.T) {
 		deps := BaseDeps{
 			Client: mustNewGHClient(t, makeMockClient(false)),
-			Flags:  FeatureFlags{InsidersMode: false},
 		}
 		handler := serverTool.Handler(deps)
 
@@ -535,8 +534,8 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode enabled on public repo emits public untrusted label", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: mustNewGHClient(t, makeMockClient(false)),
-			Flags:  FeatureFlags{InsidersMode: true},
+			Client:         mustNewGHClient(t, makeMockClient(false)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -560,8 +559,8 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode enabled on private repo emits private trusted label", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: mustNewGHClient(t, makeMockClient(true)),
-			Flags:  FeatureFlags{InsidersMode: true},
+			Client:         mustNewGHClient(t, makeMockClient(true)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -604,8 +603,8 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 			},
 		})
 		deps := BaseDeps{
-			Client: mustNewGHClient(t, mockedClient),
-			Flags:  FeatureFlags{InsidersMode: true},
+			Client:         mustNewGHClient(t, mockedClient),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 

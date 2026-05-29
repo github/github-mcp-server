@@ -23,6 +23,10 @@
               "description": "The GraphQL node ID of the issue field",
               "type": "string"
             },
+            "is_suggestion": {
+              "description": "If true, this field value is sent to the API as a suggestion (suggest:true) rather than an applied value. Whether the value is applied or recorded as a proposal is determined by the API.",
+              "type": "boolean"
+            },
             "number_value": {
               "description": "The value to set for a number field",
               "type": "number"

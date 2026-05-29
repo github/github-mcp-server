@@ -43,6 +43,13 @@ type ServerConfig struct {
 	// This is used to restore the original path when a proxy strips a base path before forwarding.
 	ResourcePath string
 
+	// TrustProxyHeaders indicates whether X-Forwarded-Host and X-Forwarded-Proto
+	// should be honored when constructing OAuth resource metadata URLs. Only
+	// enable this when the server is deployed behind a trusted proxy that sets
+	// these headers. When BaseURL is set, it always wins and this setting has
+	// no effect.
+	TrustProxyHeaders bool
+
 	// ExportTranslations indicates if we should export translations
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#i18n--overriding-descriptions
 	ExportTranslations bool
@@ -82,7 +89,10 @@ type ServerConfig struct {
 	// When set via CLI flag, per-request headers cannot re-include these tools.
 	ExcludeTools []string
 
-	// InsidersMode indicates if we should enable experimental features.
+	// EnabledFeatures is a list of feature flags that are enabled.
+	EnabledFeatures []string
+
+	// InsidersMode expands to the curated set of feature flags enabled for insiders.
 	InsidersMode bool
 }
 
@@ -121,7 +131,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 		repoAccessOpts = append(repoAccessOpts, lockdown.WithTTL(*cfg.RepoAccessCacheTTL))
 	}
 
-	featureChecker := createHTTPFeatureChecker()
+	featureChecker := createHTTPFeatureChecker(cfg.EnabledFeatures, cfg.InsidersMode)
 
 	obs, err := observability.NewExporters(logger, metrics.NewNoopMetrics())
 	if err != nil {
@@ -147,8 +157,9 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	// Register OAuth protected resource metadata endpoints
 	oauthCfg := &oauth.Config{
-		BaseURL:      cfg.BaseURL,
-		ResourcePath: cfg.ResourcePath,
+		BaseURL:           cfg.BaseURL,
+		ResourcePath:      cfg.ResourcePath,
+		TrustProxyHeaders: cfg.TrustProxyHeaders,
 	}
 
 	serverOptions := []HandlerOption{}
@@ -228,14 +239,16 @@ func initGlobalToolScopeMap(t translations.TranslationHelperFunc) error {
 	return nil
 }
 
-// createHTTPFeatureChecker creates a feature checker that resolves features
-// per-request by reading header features and insiders mode from context,
-// then validating against the centralized AllowedFeatureFlags allowlist.
-func createHTTPFeatureChecker() inventory.FeatureFlagChecker {
+// createHTTPFeatureChecker creates a feature checker that resolves static CLI
+// features plus per-request header features and insiders mode.
+func createHTTPFeatureChecker(enabledFeatures []string, insidersMode bool) inventory.FeatureFlagChecker {
 	return func(ctx context.Context, flag string) (bool, error) {
 		headerFeatures := ghcontext.GetHeaderFeatures(ctx)
-		insidersMode := ghcontext.IsInsidersMode(ctx)
-		effective := github.ResolveFeatureFlags(headerFeatures, insidersMode)
+		features := make([]string, 0, len(enabledFeatures)+len(headerFeatures))
+		features = append(features, enabledFeatures...)
+		features = append(features, headerFeatures...)
+
+		effective := github.ResolveFeatureFlags(features, insidersMode || ghcontext.IsInsidersMode(ctx))
 		return effective[flag], nil
 	}
 }

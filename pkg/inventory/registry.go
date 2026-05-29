@@ -167,6 +167,19 @@ func (r *Inventory) ToolsetDescriptions() map[ToolsetID]string {
 	return r.toolsetDescriptions
 }
 
+// ToolsForRegistration returns AvailableTools(ctx) post-processed exactly as
+// RegisterTools would expose them: with MCP Apps UI metadata stripped when
+// the remote_mcp_ui_apps feature flag is not enabled in ctx. Useful for
+// documentation generators and diagnostics that need the same view of the
+// tool surface the server would register.
+func (r *Inventory) ToolsForRegistration(ctx context.Context) []ServerTool {
+	tools := r.AvailableTools(ctx)
+	if !r.checkFeatureFlag(ctx, mcpAppsFeatureFlag) {
+		tools = stripMCPAppsMetadata(tools)
+	}
+	return tools
+}
+
 // RegisterTools registers all available tools with the server using the provided dependencies.
 // The context is used for feature flag evaluation.
 //
@@ -177,11 +190,7 @@ func (r *Inventory) ToolsetDescriptions() map[ToolsetID]string {
 // from ctx would otherwise see context.Background() and falsely report the
 // flag off, even when the actual request arrived on the /insiders route.
 func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any) {
-	tools := r.AvailableTools(ctx)
-	if !r.checkFeatureFlag(ctx, mcpAppsFeatureFlag) {
-		tools = stripMCPAppsMetadata(tools)
-	}
-	for _, tool := range tools {
+	for _, tool := range r.ToolsForRegistration(ctx) {
 		tool.RegisterFunc(s, deps)
 	}
 }

@@ -163,7 +163,7 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 			}
 
 			callResult := utils.NewToolResultText(string(r))
-			if deps.GetFlags(ctx).InsidersMode {
+			if deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
 				attachSearchRepositoriesIFCLabel(result.Repositories, callResult)
 			}
 			return callResult, nil, nil

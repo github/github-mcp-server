@@ -611,12 +611,12 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When insiders mode is enabled and the client supports MCP Apps UI,
+			// When MCP Apps are enabled and the client supports UI,
 			// check if this is a UI form submission. The UI sends _ui_submitted=true
 			// to distinguish form submissions from LLM calls.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(ctx, req) && !uiSubmitted {
+			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted {
 				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. IMPORTANT: The PR has NOT been created yet. Do NOT tell the user the PR was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
 			}
 
@@ -1000,7 +1000,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
-	st.FeatureFlagDisable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 
@@ -1581,7 +1581,7 @@ Available methods:
 - unresolve_thread: Unresolve a previously resolved review thread. Requires only "threadId" parameter. The owner, repo, and pullNumber parameters are not used for this method. Unresolving an already-unresolved thread is a no-op.
 `),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews."),
+				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews"),
 				ReadOnlyHint: false,
 			},
 			InputSchema: schema,
@@ -1619,7 +1619,7 @@ Available methods:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
 			}
 		})
-	st.FeatureFlagDisable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 
@@ -2116,7 +2116,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			})
 			return result, nil, err
 		})
-	st.FeatureFlagDisable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 

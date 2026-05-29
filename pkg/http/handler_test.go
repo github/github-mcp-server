@@ -58,7 +58,9 @@ var _ scopes.FetcherInterface = allScopesFetcher{}
 func mockToolWithFeatureFlag(name, toolsetID string, readOnly bool, enableFlag, disableFlag string) inventory.ServerTool {
 	tool := mockTool(name, toolsetID, readOnly)
 	tool.FeatureFlagEnable = enableFlag
-	tool.FeatureFlagDisable = disableFlag
+	if disableFlag != "" {
+		tool.FeatureFlagDisable = []string{disableFlag}
+	}
 	return tool
 }
 
@@ -554,7 +556,7 @@ func TestStaticConfigEnforcement(t *testing.T) {
 			require.NoError(t, err)
 
 			// Build static tools the same way the production code does
-			staticTools, staticResources, staticPrompts := buildStaticInventoryFromTools(tt.config, tools, featureChecker)
+			staticTools, staticResources, staticPrompts := buildStaticInventoryFromTools(tt.config, tools)
 			hasStatic := hasStaticConfig(tt.config)
 
 			validToolNames := make(map[string]bool, len(staticTools))
@@ -630,6 +632,31 @@ func TestStaticConfigEnforcement(t *testing.T) {
 			assert.Equal(t, expectedSorted, toolNames, "tools should match expected")
 		})
 	}
+}
+
+func TestStaticInventoryPreservesPerRequestFeatureVariants(t *testing.T) {
+	tools := []inventory.ServerTool{
+		mockToolWithFeatureFlag("list_issues", "issues", true, "", github.FeatureFlagCSVOutput),
+		mockToolWithFeatureFlag("list_issues", "issues", true, github.FeatureFlagCSVOutput, ""),
+	}
+	cfg := &ServerConfig{Version: "test", EnabledToolsets: []string{"issues"}}
+	featureChecker := createHTTPFeatureChecker(nil, false)
+
+	staticTools, _, _ := buildStaticInventoryFromTools(cfg, tools)
+	require.Len(t, staticTools, 2, "static upper bounds should preserve both feature variants")
+
+	inv, err := inventory.NewBuilder().
+		SetTools(staticTools).
+		WithFeatureChecker(featureChecker).
+		WithToolsets([]string{"all"}).
+		Build()
+	require.NoError(t, err)
+
+	ctx := ghcontext.WithInsidersMode(context.Background(), true)
+	available := inv.AvailableTools(ctx)
+	require.Len(t, available, 1)
+	assert.Equal(t, "list_issues", available[0].Tool.Name)
+	assert.Equal(t, github.FeatureFlagCSVOutput, available[0].FeatureFlagEnable)
 }
 
 // TestContentTypeHandling verifies that the MCP StreamableHTTP handler
@@ -729,14 +756,13 @@ func TestContentTypeHandling(t *testing.T) {
 
 // buildStaticInventoryFromTools is a test helper that mirrors buildStaticInventory
 // but uses the provided mock tools instead of calling github.AllTools.
-func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTool, featureChecker inventory.FeatureFlagChecker) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt) {
+func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTool) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt) {
 	if !hasStaticConfig(cfg) {
 		return tools, nil, nil
 	}
 
 	b := inventory.NewBuilder().
 		SetTools(tools).
-		WithFeatureChecker(featureChecker).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools))
 
@@ -847,7 +873,7 @@ func TestInsidersRoutePreservesUIMeta(t *testing.T) {
 	uiTool := mockTool("with_ui", "repos", true)
 	uiTool.Tool.Meta = mcp.Meta{"ui": map[string]any{"resourceUri": uiURI}}
 
-	checker := createHTTPFeatureChecker()
+	checker := createHTTPFeatureChecker(nil, false)
 	build := func() *inventory.Inventory {
 		inv, err := inventory.NewBuilder().
 			SetTools([]inventory.ServerTool{uiTool}).
