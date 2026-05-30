@@ -1547,7 +1547,7 @@ type MinimalReviewComment struct {
 
 // MinimalReviewThread is the trimmed output type for PR review thread objects.
 type MinimalReviewThread struct {
-	ID          string
+	ID          string                 `json:"id"`
 	IsResolved  bool                   `json:"is_resolved"`
 	IsOutdated  bool                   `json:"is_outdated"`
 	IsCollapsed bool                   `json:"is_collapsed"`
