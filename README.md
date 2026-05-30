@@ -1,5 +1,4 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/github/github-mcp-server)](https://goreportcard.com/report/github.com/github/github-mcp-server)
-
 [![codecov](https://codecov.io/gh/scutuatua-crypto/github-mcp-server/branch/main/graph/badge.svg)](https://codecov.io/gh/scutuatua-crypto/github-mcp-server)
 
 # GitHub MCP Server
