@@ -10,6 +10,9 @@ import (
 // These are static resources (not templates) that serve HTML content for
 // MCP App-enabled tools. The HTML is built from React/Primer components
 // in the ui/ directory using `script/build-ui`.
+//
+// Resource metadata follows the stable 2026-01-26 MCP Apps spec:
+// https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx
 func RegisterUIResources(s *mcp.Server) {
 	// Register the get_me UI resource
 	s.AddResource(
@@ -27,14 +30,14 @@ func RegisterUIResources(s *mcp.Server) {
 						URI:      GetMeUIResourceURI,
 						MIMEType: MCPAppMIMEType,
 						Text:     html,
-						// MCP Apps UI metadata - CSP configuration to allow loading GitHub avatars
-						// See: https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx
 						Meta: mcp.Meta{
 							"ui": map[string]any{
+								// Allow loading images from GitHub's avatar CDN.
 								"csp": map[string]any{
-									// Allow loading images from GitHub's avatar CDN
 									"resourceDomains": []string{"https://avatars.githubusercontent.com"},
 								},
+								// Profile card renders inline within chat without a host border.
+								"prefersBorder": false,
 							},
 						},
 					},
@@ -59,6 +62,14 @@ func RegisterUIResources(s *mcp.Server) {
 						URI:      IssueWriteUIResourceURI,
 						MIMEType: MCPAppMIMEType,
 						Text:     html,
+						Meta: mcp.Meta{
+							"ui": map[string]any{
+								// No external origins required; documents the secure default.
+								"csp": map[string]any{},
+								// Form surface benefits from a host-provided border.
+								"prefersBorder": true,
+							},
+						},
 					},
 				},
 			}, nil
@@ -81,6 +92,12 @@ func RegisterUIResources(s *mcp.Server) {
 						URI:      PullRequestWriteUIResourceURI,
 						MIMEType: MCPAppMIMEType,
 						Text:     html,
+						Meta: mcp.Meta{
+							"ui": map[string]any{
+								"csp":           map[string]any{},
+								"prefersBorder": true,
+							},
+						},
 					},
 				},
 			}, nil
