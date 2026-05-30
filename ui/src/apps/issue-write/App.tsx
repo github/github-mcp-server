@@ -121,7 +121,7 @@ function CreateIssueApp() {
   const [error, setError] = useState<string | null>(null);
   const [successIssue, setSuccessIssue] = useState<IssueResult | null>(null);
 
-  const { app, error: appError, toolInput, callTool } = useMcpApp({
+  const { app, error: appError, toolInput, callTool, hostContext, setModelContext } = useMcpApp({
     appName: "github-mcp-server-issue-write",
   });
 
@@ -181,6 +181,19 @@ function CreateIssueApp() {
           try {
             const issueData = JSON.parse(textContent.text as string);
             setSuccessIssue(issueData);
+            // Per the MCP Apps 2026-01-26 spec, push the created/updated issue
+            // into the model's context so subsequent agent turns have it.
+            void setModelContext({
+              structuredContent: issueData,
+              content: [
+                {
+                  type: "text",
+                  text: isUpdateMode
+                    ? `Issue #${issueNumber} in ${owner}/${repo} was updated by the user via the issue-write view.`
+                    : `A new issue was created in ${owner}/${repo} by the user via the issue-write view.`,
+                },
+              ],
+            });
           } catch {
             setSuccessIssue({ title, body });
           }
@@ -191,8 +204,9 @@ function CreateIssueApp() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [title, body, owner, repo, isUpdateMode, issueNumber, callTool]);
+  }, [title, body, owner, repo, isUpdateMode, issueNumber, callTool, setModelContext]);
 
+  const body_node = (() => {
   if (appError) {
     return (
       <Flash variant="danger" sx={{ m: 2 }}>
@@ -307,12 +321,13 @@ function CreateIssueApp() {
       </Box>
     </Box>
   );
+  })();
+
+  return <AppProvider hostContext={hostContext}>{body_node}</AppProvider>;
 }
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <AppProvider>
-      <CreateIssueApp />
-    </AppProvider>
+    <CreateIssueApp />
   </StrictMode>
 );
