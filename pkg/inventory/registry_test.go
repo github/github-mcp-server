@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 )
@@ -1047,7 +1048,9 @@ func TestMCPMethodConstants(t *testing.T) {
 func mockToolWithFlags(name string, toolsetID string, readOnly bool, enableFlag, disableFlag string) ServerTool {
 	tool := mockTool(name, toolsetID, readOnly)
 	tool.FeatureFlagEnable = enableFlag
-	tool.FeatureFlagDisable = disableFlag
+	if disableFlag != "" {
+		tool.FeatureFlagDisable = []string{disableFlag}
+	}
 	return tool
 }
 
@@ -1723,8 +1726,8 @@ func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 	if len(availableOff) != 1 {
 		t.Fatalf("Flag OFF: Expected 1 tool, got %d", len(availableOff))
 	}
-	if availableOff[0].FeatureFlagDisable != "consolidated_flag" {
-		t.Errorf("Flag OFF: Expected tool with FeatureFlagDisable, got FeatureFlagEnable=%q, FeatureFlagDisable=%q",
+	if len(availableOff[0].FeatureFlagDisable) != 1 || availableOff[0].FeatureFlagDisable[0] != "consolidated_flag" {
+		t.Errorf("Flag OFF: Expected tool with FeatureFlagDisable, got FeatureFlagEnable=%q, FeatureFlagDisable=%v",
 			availableOff[0].FeatureFlagEnable, availableOff[0].FeatureFlagDisable)
 	}
 
@@ -1742,7 +1745,7 @@ func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 		t.Fatalf("Flag ON: Expected 1 tool, got %d", len(availableOn))
 	}
 	if availableOn[0].FeatureFlagEnable != "consolidated_flag" {
-		t.Errorf("Flag ON: Expected tool with FeatureFlagEnable, got FeatureFlagEnable=%q, FeatureFlagDisable=%q",
+		t.Errorf("Flag ON: Expected tool with FeatureFlagEnable, got FeatureFlagEnable=%q, FeatureFlagDisable=%v",
 			availableOn[0].FeatureFlagEnable, availableOn[0].FeatureFlagDisable)
 	}
 }
@@ -2209,7 +2212,7 @@ func captureRegisteredTools(ctx context.Context, t *testing.T, reg *Inventory) [
 		toolCopy := tools[i].Tool
 		out = append(out, &toolCopy)
 	}
-	if !reg.checkFeatureFlag(ctx, mcpAppsFeatureFlag) {
+	if shouldStripMCPAppsMetadata(ctx, reg.checkFeatureFlag(ctx, mcpAppsFeatureFlag)) {
 		for _, tt := range out {
 			delete(tt.Meta, "ui")
 			if len(tt.Meta) == 0 {
@@ -2218,4 +2221,56 @@ func captureRegisteredTools(ctx context.Context, t *testing.T, reg *Inventory) [
 		}
 	}
 	return out
+}
+
+// TestShouldStripMCPAppsMetadata verifies the spec-conformant strip decision:
+// strip when the feature flag is off, OR when the client explicitly does not
+// advertise the io.modelcontextprotocol/ui extension.
+func TestShouldStripMCPAppsMetadata(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		setupCtx func() context.Context
+		ffOn     bool
+		want     bool
+	}{
+		{
+			name:     "FF off, capability unknown -> strip",
+			setupCtx: context.Background,
+			ffOn:     false,
+			want:     true,
+		},
+		{
+			name:     "FF off, capability present -> strip (FF wins)",
+			setupCtx: func() context.Context { return ghcontext.WithUISupport(context.Background(), true) },
+			ffOn:     false,
+			want:     true,
+		},
+		{
+			name:     "FF on, capability unknown -> keep",
+			setupCtx: context.Background,
+			ffOn:     true,
+			want:     false,
+		},
+		{
+			name:     "FF on, capability present -> keep",
+			setupCtx: func() context.Context { return ghcontext.WithUISupport(context.Background(), true) },
+			ffOn:     true,
+			want:     false,
+		},
+		{
+			name:     "FF on, capability explicitly absent -> strip",
+			setupCtx: func() context.Context { return ghcontext.WithUISupport(context.Background(), false) },
+			ffOn:     true,
+			want:     true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := shouldStripMCPAppsMetadata(tc.setupCtx(), tc.ffOn)
+			require.Equal(t, tc.want, got)
+		})
+	}
 }

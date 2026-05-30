@@ -42,7 +42,7 @@ func TestCSVOutputAppliesToFlagGatedListTools(t *testing.T) {
 	enabledOnly := testCSVOutputTool("list_things", `[{"number":1}]`)
 	enabledOnly.FeatureFlagEnable = FeatureFlagIssueFields
 	disabledOnly := testCSVOutputTool("list_legacy_things", `[{"number":2}]`)
-	disabledOnly.FeatureFlagDisable = FeatureFlagIssueFields
+	disabledOnly.FeatureFlagDisable = []string{FeatureFlagIssueFields}
 
 	tools := withCSVOutput([]inventory.ServerTool{enabledOnly, disabledOnly})
 	require.Len(t, tools, 2)
