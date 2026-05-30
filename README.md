@@ -1297,7 +1297,7 @@ The following sets of tools are available:
 - **push_files** - Push files to repository
   - **Required OAuth Scopes**: `repo`
   - `branch`: Branch to push to (string, required)
-  - `files`: Array of file objects to push, each object with path (string) and content (string) (object[], required)
+  - `files`: Array of file objects to push. Each object has path (string), content (string), and an optional mode (string) selecting the Git Data API tree-entry mode. (object[], required)
   - `message`: Commit message (string, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
