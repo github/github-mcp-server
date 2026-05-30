@@ -24,7 +24,7 @@ func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "get_label",
 			Description: t("TOOL_GET_LABEL_DESCRIPTION", "Get a specific label from a repository."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_LABEL_TITLE", "Get a specific label from a repository."),
+				Title:        t("TOOL_GET_LABEL_TITLE", "Get a specific label from a repository"),
 				ReadOnlyHint: true,
 			},
 			InputSchema: &jsonschema.Schema{
@@ -126,7 +126,7 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "list_label",
 			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository."),
+				Title:        t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository"),
 				ReadOnlyHint: true,
 			},
 			InputSchema: &jsonschema.Schema{
@@ -217,7 +217,7 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "label_write",
 			Description: t("TOOL_LABEL_WRITE_DESCRIPTION", "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LABEL_WRITE_TITLE", "Write operations on repository labels."),
+				Title:        t("TOOL_LABEL_WRITE_TITLE", "Write operations on repository labels"),
 				ReadOnlyHint: false,
 			},
 			InputSchema: &jsonschema.Schema{

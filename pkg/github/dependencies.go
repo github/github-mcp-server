@@ -18,7 +18,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	gogithub "github.com/google/go-github/v82/github"
+	gogithub "github.com/google/go-github/v87/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
@@ -253,7 +253,7 @@ func NewToolFromHandler(
 	requiredScopes []scopes.Scope,
 	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest) (*mcp.CallToolResult, error),
 ) inventory.ServerTool {
-	st := inventory.NewServerToolWithRawContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	st := inventory.NewServerTool(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		deps := MustDepsFromContext(ctx)
 		return handler(ctx, deps, req)
 	})
@@ -320,10 +320,14 @@ func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
 	}
 
 	// Construct REST client
-	restClient := gogithub.NewClient(nil).WithAuthToken(token)
-	restClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", d.version)
-	restClient.BaseURL = baseRestURL
-	restClient.UploadURL = uploadURL
+	restClient, err := gogithub.NewClient(
+		gogithub.WithAuthToken(token),
+		gogithub.WithUserAgent(fmt.Sprintf("github-mcp-server/%s", d.version)),
+		gogithub.WithEnterpriseURLs(baseRestURL.String(), uploadURL.String()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create REST client: %w", err)
+	}
 	return restClient, nil
 }
 
@@ -370,7 +374,10 @@ func (d *RequestDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
 	}
 
-	rawClient := raw.NewClient(client, rawURL)
+	rawClient, err := raw.NewClient(client, rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create raw client: %w", err)
+	}
 
 	return rawClient, nil
 }
@@ -386,8 +393,13 @@ func (d *RequestDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAcc
 		return nil, err
 	}
 
+	restClient, err := d.GetClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Create repo access cache
-	instance := lockdown.GetInstance(gqlClient, d.RepoAccessOpts...)
+	instance := lockdown.NewRepoAccessCache(gqlClient, restClient, d.RepoAccessOpts...)
 	return instance, nil
 }
 
@@ -398,7 +410,6 @@ func (d *RequestDeps) GetT() translations.TranslationHelperFunc { return d.T }
 func (d *RequestDeps) GetFlags(ctx context.Context) FeatureFlags {
 	return FeatureFlags{
 		LockdownMode: d.lockdownMode && ghcontext.IsLockdownMode(ctx),
-		InsidersMode: ghcontext.IsInsidersMode(ctx),
 	}
 }
 

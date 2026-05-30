@@ -17,9 +17,9 @@ bin/
 .DS_Store
 
 # binary
-github-mcp-server
-mcpcurl
-e2e.test
+/github-mcp-server
+/mcpcurl
+/e2e.test
 
 .history
 conformance-report/

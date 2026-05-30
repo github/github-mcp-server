@@ -1,0 +1,50 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Update Issue State"
+  },
+  "description": "Update the state of an existing issue (open or closed), with an optional state reason.",
+  "inputSchema": {
+    "properties": {
+      "issue_number": {
+        "description": "The issue number to update",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "state": {
+        "description": "The new state for the issue",
+        "enum": [
+          "open",
+          "closed"
+        ],
+        "type": "string"
+      },
+      "state_reason": {
+        "description": "The reason for the state change (only for closed state)",
+        "enum": [
+          "completed",
+          "not_planned",
+          "duplicate"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "issue_number",
+      "state"
+    ],
+    "type": "object"
+  },
+  "name": "update_issue_state"
+}

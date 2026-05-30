@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -36,7 +36,7 @@ Possible options:
  3. get_status - Get combined commit status of a head commit in a pull request.
  4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
  5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
- 6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
+ 6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
  7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
  8. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
 `,
@@ -58,6 +58,13 @@ Possible options:
 		Required: []string{"method", "owner", "repo", "pullNumber"},
 	}
 	WithPagination(schema)
+	// get_review_comments uses GraphQL cursor-based pagination and accepts the
+	// `after` cursor. Other methods rely on the `page`/`perPage` parameters
+	// added by WithPagination and ignore `after`.
+	schema.Properties["after"] = &jsonschema.Schema{
+		Type:        "string",
+		Description: "Cursor for pagination, used only by the get_review_comments method. Pass the endCursor from the previous page's PageInfo to fetch the next page.",
+	}
 
 	return NewTool(
 		ToolsetMetadataPullRequests,
@@ -124,7 +131,7 @@ Possible options:
 				result, err := GetPullRequestReviewComments(ctx, gqlClient, deps, owner, repo, pullNumber, cursorPagination)
 				return result, nil, err
 			case "get_reviews":
-				result, err := GetPullRequestReviews(ctx, client, deps, owner, repo, pullNumber)
+				result, err := GetPullRequestReviews(ctx, client, deps, owner, repo, pullNumber, pagination)
 				return result, nil, err
 			case "get_comments":
 				result, err := GetIssueComments(ctx, client, deps, owner, repo, pullNumber, pagination)
@@ -478,14 +485,17 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 	return MarshalledTextResult(convertToMinimalReviewThreadsResponse(query)), nil
 }
 
-func GetPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+func GetPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
 	}
 	ff := deps.GetFlags(ctx)
 
-	reviews, resp, err := client.PullRequests.ListReviews(ctx, owner, repo, pullNumber, nil)
+	reviews, resp, err := client.PullRequests.ListReviews(ctx, owner, repo, pullNumber, &github.ListOptions{
+		Page:    pagination.Page,
+		PerPage: pagination.PerPage,
+	})
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
 			"failed to get pull request reviews",
@@ -601,12 +611,12 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When insiders mode is enabled and the client supports MCP Apps UI,
+			// When MCP Apps are enabled and the client supports UI,
 			// check if this is a UI form submission. The UI sends _ui_submitted=true
 			// to distinguish form submissions from LLM calls.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(ctx, req) && !uiSubmitted {
+			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted {
 				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. IMPORTANT: The PR has NOT been created yet. Do NOT tell the user the PR was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
 			}
 
@@ -751,7 +761,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 		Required: []string{"owner", "repo", "pullNumber"},
 	}
 
-	return NewTool(
+	st := NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "update_pull_request",
@@ -990,6 +1000,8 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
+	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
+	return st
 }
 
 // AddReplyToPullRequestComment creates a tool to add a reply to an existing pull request comment.
@@ -1555,7 +1567,7 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.Serv
 		Required: []string{"method", "owner", "repo", "pullNumber"},
 	}
 
-	return NewTool(
+	st := NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name: "pull_request_review_write",
@@ -1569,7 +1581,7 @@ Available methods:
 - unresolve_thread: Unresolve a previously resolved review thread. Requires only "threadId" parameter. The owner, repo, and pullNumber parameters are not used for this method. Unresolving an already-unresolved thread is a no-op.
 `),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews."),
+				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews"),
 				ReadOnlyHint: false,
 			},
 			InputSchema: schema,
@@ -1607,6 +1619,8 @@ Available methods:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
 			}
 		})
+	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
+	return st
 }
 
 func CreatePullRequestReview(ctx context.Context, client *githubv4.Client, params PullRequestReviewWriteParams) (*mcp.CallToolResult, error) {
@@ -1886,6 +1900,113 @@ func ResolveReviewThread(ctx context.Context, client *githubv4.Client, threadID 
 	return utils.NewToolResultText("review thread unresolved successfully"), nil
 }
 
+// AddCommentToPendingReviewParams contains the parameters for adding a comment to a pending review.
+type AddCommentToPendingReviewParams struct {
+	Owner       string
+	Repo        string
+	PullNumber  int32
+	Path        string
+	Body        string
+	SubjectType string
+	Line        *int32
+	Side        *string
+	StartLine   *int32
+	StartSide   *string
+}
+
+// AddCommentToPendingReviewCall adds a review comment to the viewer's pending pull request review.
+func AddCommentToPendingReviewCall(ctx context.Context, client *githubv4.Client, params AddCommentToPendingReviewParams) (*mcp.CallToolResult, error) {
+	// Get the current user
+	var getViewerQuery struct {
+		Viewer struct {
+			Login githubv4.String
+		}
+	}
+
+	if err := client.Query(ctx, &getViewerQuery, nil); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+			"failed to get current user",
+			err,
+		), nil
+	}
+
+	var getLatestReviewForViewerQuery struct {
+		Repository struct {
+			PullRequest struct {
+				Reviews struct {
+					Nodes []struct {
+						ID    githubv4.ID
+						State githubv4.PullRequestReviewState
+						URL   githubv4.URI
+					}
+				} `graphql:"reviews(first: 1, author: $author)"`
+			} `graphql:"pullRequest(number: $prNum)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
+	}
+
+	vars := map[string]any{
+		"author": githubv4.String(getViewerQuery.Viewer.Login),
+		"owner":  githubv4.String(params.Owner),
+		"name":   githubv4.String(params.Repo),
+		"prNum":  githubv4.Int(params.PullNumber),
+	}
+
+	if err := client.Query(ctx, &getLatestReviewForViewerQuery, vars); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+			"failed to get latest review for current user",
+			err,
+		), nil
+	}
+
+	// Validate there is one review and the state is pending
+	if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
+		return utils.NewToolResultError("No pending review found for the viewer"), nil
+	}
+
+	review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
+	if review.State != githubv4.PullRequestReviewStatePending {
+		errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
+		return utils.NewToolResultError(errText), nil
+	}
+
+	// Create a new review thread comment on the review.
+	var addPullRequestReviewThreadMutation struct {
+		AddPullRequestReviewThread struct {
+			Thread struct {
+				ID githubv4.ID
+			}
+		} `graphql:"addPullRequestReviewThread(input: $input)"`
+	}
+
+	if err := client.Mutate(
+		ctx,
+		&addPullRequestReviewThreadMutation,
+		githubv4.AddPullRequestReviewThreadInput{
+			Path:                githubv4.String(params.Path),
+			Body:                githubv4.String(params.Body),
+			SubjectType:         newGQLStringlikePtr[githubv4.PullRequestReviewThreadSubjectType](&params.SubjectType),
+			Line:                newGQLIntPtr(params.Line),
+			Side:                newGQLStringlikePtr[githubv4.DiffSide](params.Side),
+			StartLine:           newGQLIntPtr(params.StartLine),
+			StartSide:           newGQLStringlikePtr[githubv4.DiffSide](params.StartSide),
+			PullRequestReviewID: &review.ID,
+		},
+		nil,
+	); err != nil {
+		return utils.NewToolResultError(err.Error()), nil
+	}
+
+	if addPullRequestReviewThreadMutation.AddPullRequestReviewThread.Thread.ID == nil {
+		return utils.NewToolResultError(`Failed to add comment to pending review. Possible reasons:
+	- The line number doesn't exist in the pull request diff
+	- The file path is incorrect
+	- The side (LEFT/RIGHT) is invalid for the specified line
+`), nil
+	}
+
+	return utils.NewToolResultText("pull request review comment successfully added to pending review"), nil
+}
+
 // AddCommentToPendingReview creates a tool to add a comment to a pull request review.
 func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
@@ -1947,7 +2068,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 		Required: []string{"owner", "repo", "pullNumber", "path", "body", "subjectType"},
 	}
 
-	return NewTool(
+	st := NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "add_comment_to_pending_review",
@@ -1981,99 +2102,22 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
 			}
 
-			// First we'll get the current user
-			var getViewerQuery struct {
-				Viewer struct {
-					Login githubv4.String
-				}
-			}
-
-			if err := client.Query(ctx, &getViewerQuery, nil); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
-					"failed to get current user",
-					err,
-				), nil, nil
-			}
-
-			var getLatestReviewForViewerQuery struct {
-				Repository struct {
-					PullRequest struct {
-						Reviews struct {
-							Nodes []struct {
-								ID    githubv4.ID
-								State githubv4.PullRequestReviewState
-								URL   githubv4.URI
-							}
-						} `graphql:"reviews(first: 1, author: $author)"`
-					} `graphql:"pullRequest(number: $prNum)"`
-				} `graphql:"repository(owner: $owner, name: $name)"`
-			}
-
-			vars := map[string]any{
-				"author": githubv4.String(getViewerQuery.Viewer.Login),
-				"owner":  githubv4.String(params.Owner),
-				"name":   githubv4.String(params.Repo),
-				"prNum":  githubv4.Int(params.PullNumber),
-			}
-
-			if err := client.Query(ctx, &getLatestReviewForViewerQuery, vars); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
-					"failed to get latest review for current user",
-					err,
-				), nil, nil
-			}
-
-			// Validate there is one review and the state is pending
-			if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
-				return utils.NewToolResultError("No pending review found for the viewer"), nil, nil
-			}
-
-			review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
-			if review.State != githubv4.PullRequestReviewStatePending {
-				errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
-				return utils.NewToolResultError(errText), nil, nil
-			}
-
-			// Then we can create a new review thread comment on the review.
-			var addPullRequestReviewThreadMutation struct {
-				AddPullRequestReviewThread struct {
-					Thread struct {
-						ID githubv4.ID // We don't need this, but a selector is required or GQL complains.
-					}
-				} `graphql:"addPullRequestReviewThread(input: $input)"`
-			}
-
-			if err := client.Mutate(
-				ctx,
-				&addPullRequestReviewThreadMutation,
-				githubv4.AddPullRequestReviewThreadInput{
-					Path:                githubv4.String(params.Path),
-					Body:                githubv4.String(params.Body),
-					SubjectType:         newGQLStringlikePtr[githubv4.PullRequestReviewThreadSubjectType](&params.SubjectType),
-					Line:                newGQLIntPtr(params.Line),
-					Side:                newGQLStringlikePtr[githubv4.DiffSide](params.Side),
-					StartLine:           newGQLIntPtr(params.StartLine),
-					StartSide:           newGQLStringlikePtr[githubv4.DiffSide](params.StartSide),
-					PullRequestReviewID: &review.ID,
-				},
-				nil,
-			); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			if addPullRequestReviewThreadMutation.AddPullRequestReviewThread.Thread.ID == nil {
-				return utils.NewToolResultError(`Failed to add comment to pending review. Possible reasons:
-	- The line number doesn't exist in the pull request diff
-	- The file path is incorrect
-	- The side (LEFT/RIGHT) is invalid for the specified line
-`), nil, nil
-			}
-
-			// Return nothing interesting, just indicate success for the time being.
-			// In future, we may want to return the review ID, but for the moment, we're not leaking
-			// API implementation details to the LLM.
-			return utils.NewToolResultText("pull request review comment successfully added to pending review"), nil, nil
+			result, err := AddCommentToPendingReviewCall(ctx, client, AddCommentToPendingReviewParams{
+				Owner:       params.Owner,
+				Repo:        params.Repo,
+				PullNumber:  params.PullNumber,
+				Path:        params.Path,
+				Body:        params.Body,
+				SubjectType: params.SubjectType,
+				Line:        params.Line,
+				Side:        params.Side,
+				StartLine:   params.StartLine,
+				StartSide:   params.StartSide,
+			})
+			return result, nil, err
 		})
+	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
+	return st
 }
 
 // newGQLString like takes something that approximates a string (of which there are many types in shurcooL/githubv4)

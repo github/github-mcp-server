@@ -94,7 +94,7 @@ go test ./pkg/github -run TestGetMe
 
 - **go.mod / go.sum:** Go module dependencies (Go 1.24.0+)
 - **.golangci.yml:** Linter configuration (v2 format, ~15 linters enabled)
-- **Dockerfile:** Multi-stage build (golang:1.25.3-alpine → distroless)
+- **Dockerfile:** Multi-stage build (golang:1.25.8-alpine → distroless)
 - **server.json:** MCP server metadata for registry
 - **.goreleaser.yaml:** Release automation config
 - **.gitignore:** Excludes bin/, dist/, vendor/, *.DS_Store, github-mcp-server binary
@@ -243,7 +243,6 @@ All workflows run on push/PR unless noted. Located in `.github/workflows/`:
 - **GITHUB_HOST** - For GitHub Enterprise Server (prefix with `https://`)
 - **GITHUB_TOOLSETS** - Comma-separated toolset list (overrides --toolsets flag)
 - **GITHUB_READ_ONLY** - Set to "1" for read-only mode
-- **GITHUB_DYNAMIC_TOOLSETS** - Set to "1" for dynamic toolset discovery
 - **UPDATE_TOOLSNAPS** - Set to "true" when running tests to update snapshots
 - **GITHUB_MCP_SERVER_E2E_TOKEN** - Token for e2e tests
 - **GITHUB_MCP_SERVER_E2E_DEBUG** - Set to "true" for in-process e2e debugging
@@ -273,7 +272,7 @@ server.json         - MCP server registry metadata
 `cmd/github-mcp-server/main.go` - Uses cobra for CLI, viper for config, supports:
 - `stdio` command (default) - MCP stdio transport
 - `generate-docs` command - Documentation generation
-- Flags: --toolsets, --read-only, --dynamic-toolsets, --gh-host, --log-file
+- Flags: --toolsets, --read-only, --gh-host, --log-file
 
 ## Important Reminders
 
