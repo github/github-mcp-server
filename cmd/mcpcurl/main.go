@@ -408,11 +408,13 @@ func executeServerCommand(cmdStr, jsonRequest string) (string, error) {
 		return "", fmt.Errorf("failed to start command: %w", err)
 	}
 
-	// Ensure the child process is cleaned up on any error after Start()
-	cleanup := func() {
+	// Ensure the child process is cleaned up on every return path.
+	// stdin must be closed before Wait so the server sees EOF and exits;
+	// its non-zero exit status on EOF is expected, so we ignore the error.
+	defer func() {
 		_ = stdin.Close()
 		_ = cmd.Wait()
-	}
+	}()
 
 	// Use a scanner with a large buffer for reading JSON-RPC responses
 	scanner := bufio.NewScanner(stdoutPipe)
@@ -421,42 +423,32 @@ func executeServerCommand(cmdStr, jsonRequest string) (string, error) {
 	// Step 1: Send MCP initialize request
 	initReq, err := buildInitializeRequest()
 	if err != nil {
-		cleanup()
 		return "", fmt.Errorf("failed to build initialize request: %w", err)
 	}
 	if _, err := io.WriteString(stdin, initReq+"\n"); err != nil {
-		cleanup()
 		return "", fmt.Errorf("failed to write initialize request: %w", err)
 	}
 
 	// Step 2: Read initialize response (skip any server notifications)
 	if _, err := readJSONRPCResponse(scanner); err != nil {
-		cleanup()
 		return "", fmt.Errorf("failed to read initialize response: %w, stderr: %s", err, stderr.String())
 	}
 
 	// Step 3: Send initialized notification
 	if _, err := io.WriteString(stdin, buildInitializedNotification()+"\n"); err != nil {
-		cleanup()
 		return "", fmt.Errorf("failed to write initialized notification: %w", err)
 	}
 
 	// Step 4: Send the actual request
 	if _, err := io.WriteString(stdin, jsonRequest+"\n"); err != nil {
-		cleanup()
 		return "", fmt.Errorf("failed to write request: %w", err)
 	}
 
 	// Step 5: Read the actual response (skip any server notifications)
 	response, err := readJSONRPCResponse(scanner)
 	if err != nil {
-		cleanup()
 		return "", fmt.Errorf("failed to read response: %w, stderr: %s", err, stderr.String())
 	}
-
-	// Close stdin and wait for process to exit. The server will see EOF and
-	// exit with a non-zero status, which is expected — we already have the response.
-	cleanup()
 
 	return response, nil
 }
