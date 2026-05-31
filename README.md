@@ -1,19 +1,60 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/github/github-mcp-server)](https://goreportcard.com/report/github.com/github/github-mcp-server)
+# GitHub MCP Server 
 
-# GitHub MCP Server
+## What It Is
 
-The GitHub MCP Server connects AI tools directly to GitHub's platform. This gives AI agents, assistants, and chatbots the ability to read repositories and code files, manage issues and PRs, analyze code, and automate workflows. All through natural language interactions.
+The **GitHub MCP Server** is an official Model Context Protocol (MCP) server that acts as a bridge between AI tools (like Claude, Copilot) and GitHub's platform. It allows AI agents to understand and manage GitHub resources through natural language commands.
 
-### Use Cases
+**Think of it as:** An API gateway that translates AI requests into GitHub operations (managing repos, issues, PRs, workflows, discussions, etc.).
 
-- Repository Management: Browse and query code, search files, analyze commits, and understand project structure across any repository you have access to.
-- Issue & PR Automation: Create, update, and manage issues and pull requests. Let AI help triage bugs, review code changes, and maintain project boards.
-- CI/CD & Workflow Intelligence: Monitor GitHub Actions workflow runs, analyze build failures, manage releases, and get insights into your development pipeline.
-- Code Analysis: Examine security findings, review Dependabot alerts, understand code patterns, and get comprehensive insights into your codebase.
-- Team Collaboration: Access discussions, manage notifications, analyze team activity, and streamline processes for your team.
+## Core Technology
 
-Built for developers who want to connect their AI tools to GitHub context and capabilities, from simple natural language queries to complex multi-step agent workflows.
+- **Language:** Go 1.24+ (96.7% of codebase)
+- **Protocol:** Model Context Protocol (MCP) for AI-to-GitHub communication
+- **GitHub Integration:** Uses google/go-github SDK + GraphQL API
+- **Size:** ~38k lines across 70 Go files
+- **Deployment:** CLI server with stdio interface; containerized via Docker
 
+## Main Components
+
+| Component | Purpose | Status |
+|-----------|---------|--------|
+| **github-mcp-server** | Primary MCP server - handles all AI↔GitHub communication | Core focus |
+| **mcpcurl** | Testing/debugging utility for MCP interactions | Secondary (maintain, don't break) |
+| **pkg/github** | MCP tools implementation (70+ GitHub operations) | Main logic |
+| **pkg/toolsets** | Tool configuration and management | Infrastructure |
+| **internal/ghmcp** | Server core logic and request handling | Infrastructure |
+
+## Key Capabilities
+
+The server enables AI to:
+- ✅ Search & browse repositories, issues, discussions, PRs
+- ✅ Create/update issues and manage workflows
+- ✅ Analyze code, commits, and repository metadata
+- ✅ Handle authentication and GitHub API operations
+- ✅ Support multi-language documentation via i18n
+
+## Code Quality Standards
+
+Since this is a **popular open-source project**, it maintains high standards:
+- Clean, atomic commits with clear messages
+- Self-documenting code (code over comments)
+- Comprehensive test coverage with `-race` flag
+- Automated linting and formatting
+- Tool schema snapshots ensure intentional API changes
+
+## Critical Workflow
+
+Before committing changes:
+1. **`script/lint`** - Format & lint code (~1s)
+2. **`script/test`** - Run tests with race detection (~1s)
+3. **`script/generate-docs`** - Update README if tools changed (~1s)
+
+These are **fast, must-run** validation steps.
+
+---
+
+**Bottom Line:** This is a well-structured, production-grade Go service that powers AI-GitHub integration, with strong emphasis on code clarity, testing, and maintainability.
 ---
 
 ## Remote GitHub MCP Server
