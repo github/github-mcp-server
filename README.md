@@ -1590,7 +1590,7 @@ For example, to override the `TOOL_ADD_ISSUE_COMMENT_DESCRIPTION` tool, you can
 set the following environment variable:
 
 ```sh
-export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description"
+ GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description"
 ```
 
 ### Overriding Server Name and Title
@@ -1617,8 +1617,8 @@ For example, to configure a server instance for GitHub Enterprise Server:
 Or using environment variables:
 
 ```sh
-export GITHUB_MCP_SERVER_NAME="ghes-mcp-server"
-export GITHUB_MCP_SERVER_TITLE="GHES MCP Server"
+GITHUB_MCP_SERVER_NAME="ghes-mcp-server"
+GITHUB_MCP_SERVER_TITLE="GHES MCP Server"
 ```
 
 ## Library Usage
