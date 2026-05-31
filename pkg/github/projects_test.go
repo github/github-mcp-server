@@ -569,7 +569,7 @@ func Test_ProjectsWrite(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "issue_number")
 	assert.Contains(t, inputSchema.Properties, "pull_request_number")
 	assert.Contains(t, inputSchema.Properties, "updated_field")
-	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner", "project_number"})
+	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner"})
 
 	// Verify DestructiveHint is set
 	assert.NotNil(t, toolDef.Tool.Annotations)
@@ -630,7 +630,8 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 				struct {
 					AddProjectV2ItemByID struct {
 						Item struct {
-							ID githubv4.ID
+							ID             githubv4.ID
+							FullDatabaseID string `graphql:"fullDatabaseId"`
 						}
 					} `graphql:"addProjectV2ItemById(input: $input)"`
 				}{},
@@ -642,7 +643,8 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 				githubv4mock.DataResponse(map[string]any{
 					"addProjectV2ItemById": map[string]any{
 						"item": map[string]any{
-							"id": "PVTI_item1",
+							"id":             "PVTI_item1",
+							"fullDatabaseId": "1001",
 						},
 					},
 				}),
@@ -674,6 +676,8 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
 		assert.NotNil(t, response["id"])
+		assert.Equal(t, float64(1001), response["item_id"])
+		assert.Equal(t, "1001", response["full_database_id"])
 		assert.Contains(t, response["message"], "Successfully added")
 	})
 
@@ -727,7 +731,8 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 				struct {
 					AddProjectV2ItemByID struct {
 						Item struct {
-							ID githubv4.ID
+							ID             githubv4.ID
+							FullDatabaseID string `graphql:"fullDatabaseId"`
 						}
 					} `graphql:"addProjectV2ItemById(input: $input)"`
 				}{},
@@ -739,7 +744,8 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 				githubv4mock.DataResponse(map[string]any{
 					"addProjectV2ItemById": map[string]any{
 						"item": map[string]any{
-							"id": "PVTI_item2",
+							"id":             "PVTI_item2",
+							"fullDatabaseId": "1002",
 						},
 					},
 				}),
@@ -771,6 +777,8 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
 		assert.NotNil(t, response["id"])
+		assert.Equal(t, float64(1002), response["item_id"])
+		assert.Equal(t, "1002", response["full_database_id"])
 		assert.Contains(t, response["message"], "Successfully added")
 	})
 
