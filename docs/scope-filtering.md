@@ -36,18 +36,28 @@ This provides a smoother user experience for OAuth users since you only grant pe
 
 ## Checking Your Token's Scopes
 
-To see what scopes your token has, you can run:
+To see what scopes your token has, run the helper script (requires `--token`):
 
 ```bash
-curl -sI -H "Authorization: Bearer $GITHUB_PERSONAL_ACCESS_TOKEN" \
-  https://api.github.com/user | grep -i x-oauth-scopes
+script/get-token-scopes --token=ghp_yourtoken
 ```
 
 Example output:
 ```
-x-oauth-scopes: delete_repo, gist, read:org, repo
+Scopes for token against https://api.github.com:
+delete_repo
+
+read:org
+repo
 ```
 
+To see which scopes the server requires for enabled toolsets, use:
+
+```bash
+script/list-scopes --toolsets=all --output=summary
+```
+
+Compare the two outputs to confirm your token covers the toolsets you plan to use.
 ## Scope Hierarchy
 
 Some scopes implicitly include others:

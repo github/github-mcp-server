@@ -81,7 +81,6 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 
 ### Install in other MCP hosts
 
-- **[Copilot CLI](/docs/installation-guides/install-copilot-cli.md)** - Installation guide for GitHub Copilot CLI
 - **[GitHub Copilot in other IDEs](/docs/installation-guides/install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
 - **[Claude Applications](/docs/installation-guides/install-claude.md)** - Installation guide for Claude Desktop and Claude Code CLI
 - **[Codex](/docs/installation-guides/install-codex.md)** - Installation guide for OpenAI Codex
@@ -240,6 +239,22 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
   ```
 
 </details>
+
+### Check PAT scopes
+
+- Required scopes per toolset: run [script/list-scopes](script/list-scopes) to print the scopes the server needs. Example:
+
+```bash
+script/list-scopes --toolsets=all --output=summary
+```
+
+- Scopes granted to a PAT: run [script/get-token-scopes](script/get-token-scopes) to read the `X-OAuth-Scopes` header for a token. Example:
+
+```bash
+script/get-token-scopes --token=ghp_yourtoken
+```
+
+Use both commands together to confirm your token covers the toolsets you plan to enable.
 
 ### GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)
 
@@ -450,9 +465,17 @@ You can also configure specific tools using the `--tools` flag. Tools can be use
 
    This registers all tools from `repos` and `issues` toolsets, plus `get_gist`.
 
+4. **Combining with Dynamic Toolsets** (additive):
+
+   ```bash
+   github-mcp-server --tools get_file_contents --dynamic-toolsets
+   ```
+
+   This registers `get_file_contents` plus the dynamic toolset tools (`enable_toolset`, `list_available_toolsets`, `get_toolset_tools`).
+
 **Important Notes:**
 
-- Tools and toolsets can be used together
+- Tools, toolsets, and dynamic toolsets can all be used together
 - Read-only mode takes priority: write tools are skipped if `--read-only` is set, even if explicitly requested via `--tools`
 - Tool names must match exactly (e.g., `get_file_contents`, not `getFileContents`). Invalid tool names will cause the server to fail at startup with an error message
 - When tools are renamed, old names are preserved as aliases for backward compatibility. See [Tool Renaming](docs/tool-renaming.md) for details.
@@ -1465,6 +1488,13 @@ The following sets of tools are available:
 
 - **list_copilot_spaces** - List Copilot Spaces
 
+<details>
+<summary>GitHub Support Docs Search</summary>
+
+- **github_support_docs_search** - Retrieve documentation relevant to answer GitHub product and support questions. Support topics include: GitHub Actions Workflows, Authentication, GitHub Support Inquiries, Pull Request Practices, Repository Maintenance, GitHub Pages, GitHub Packages, GitHub Discussions, Copilot Spaces
+  - `query`: Input from the user about the question they need answered. This is the latest raw unedited user message. You should ALWAYS leave the user message as it is, you should never modify it. (string, required)
+
+</details>
 </details>
 
 <details>
