@@ -639,6 +639,7 @@ function CreateIssueApp() {
 
     try {
       const params: Record<string, unknown> = {
+        ...(toolInput as Record<string, unknown> | undefined),
         method: isUpdateMode ? "update" : "create",
         owner,
         repo,
@@ -715,6 +716,7 @@ function CreateIssueApp() {
     selectedIssueType,
     isUpdateMode,
     issueNumber,
+    toolInput,
     callTool,
     setModelContext,
   ]);

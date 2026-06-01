@@ -309,6 +309,7 @@ function CreatePRApp() {
 
     try {
       const result = await callTool("create_pull_request", {
+        ...(toolInput as Record<string, unknown> | undefined),
         owner, repo,
         title: title.trim(),
         body: body.trim(),
@@ -346,7 +347,7 @@ function CreatePRApp() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [title, body, owner, repo, baseBranch, headBranch, isDraft, maintainerCanModify, callTool, setModelContext]);
+  }, [title, body, owner, repo, baseBranch, headBranch, isDraft, maintainerCanModify, toolInput, callTool, setModelContext]);
 
   if (successPR) {
     return (
