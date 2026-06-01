@@ -29,6 +29,12 @@ func Test_UIGet(t *testing.T) {
 	assert.True(t, tool.Annotations.ReadOnlyHint, "ui_get should be read-only")
 	assert.Equal(t, MCPAppsFeatureFlag, serverTool.FeatureFlagEnable, "ui_get should be gated on the MCP Apps feature flag")
 
+	// ui_get must be app-only so the host hides it from the agent's tool list
+	// while keeping it callable by the views (MCP Apps 2026-01-26 spec).
+	ui, ok := tool.Meta["ui"].(map[string]any)
+	require.True(t, ok, "ui_get should declare _meta.ui")
+	assert.Equal(t, []string{"app"}, ui["visibility"], "ui_get should be app-only")
+
 	// Setup mock data
 	mockAssignees := []*github.User{
 		{Login: github.Ptr("user1"), AvatarURL: github.Ptr("https://avatars.githubusercontent.com/u/1")},
