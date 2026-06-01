@@ -152,6 +152,7 @@ function CreateIssueApp() {
 
     try {
       const params: Record<string, unknown> = {
+        ...(toolInput as Record<string, unknown> | undefined),
         method: isUpdateMode ? "update" : "create",
         owner,
         repo,
@@ -204,7 +205,7 @@ function CreateIssueApp() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [title, body, owner, repo, isUpdateMode, issueNumber, callTool, setModelContext]);
+  }, [title, body, owner, repo, isUpdateMode, issueNumber, toolInput, callTool, setModelContext]);
 
   const body_node = (() => {
   if (appError) {
