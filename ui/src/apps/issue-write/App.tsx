@@ -252,9 +252,12 @@ function CreateIssueApp() {
             const repos = (data.repositories || data.items || []).map(
               (r: { id?: number; owner?: { login?: string } | string; name?: string; full_name?: string; private?: boolean }) => ({
                 id: String(r.id || r.full_name),
-                owner: typeof r.owner === 'string' ? r.owner : r.owner?.login || '',
-                name: r.name || '',
-                fullName: r.full_name || `${typeof r.owner === 'string' ? r.owner : r.owner?.login}/${r.name}`,
+                owner:
+                  typeof r.owner === "string"
+                    ? r.owner
+                    : r.owner?.login || r.full_name?.split("/")[0] || "",
+                name: r.name || r.full_name?.split("/")[1] || "",
+                fullName: r.full_name || "",
                 isPrivate: r.private || false,
               })
             );
