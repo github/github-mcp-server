@@ -37,10 +37,10 @@ runtime behavior (such as output formatting) won't appear here.
 - **create_pull_request** - Open new pull request
   - **Required OAuth Scopes**: `repo`
   - **MCP App UI**: `ui://github-mcp-server/pr-write`
-  - `base`: Branch to merge into (string, required)
-  - `body`: PR description (string, optional)
+  - `base`: Base branch name to merge into, e.g. main (string, required)
+  - `body`: PR description; Markdown supported (string, optional)
   - `draft`: Create as draft PR (boolean, optional)
-  - `head`: Branch containing changes (string, required)
+  - `head`: Branch containing changes, or owner:branch for a fork (string, required)
   - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
@@ -54,7 +54,7 @@ runtime behavior (such as output formatting) won't appear here.
   - **Required OAuth Scopes**: `repo`
   - **MCP App UI**: `ui://github-mcp-server/issue-write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
-  - `body`: Issue body content (string, optional)
+  - `body`: Issue body; Markdown supported. (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
@@ -76,7 +76,7 @@ runtime behavior (such as output formatting) won't appear here.
 - **issue_write** - Create or update issue
   - **Required OAuth Scopes**: `repo`
   - `assignees`: Usernames to assign to this issue (string[], optional)
-  - `body`: Issue body content (string, optional)
+  - `body`: Issue body; Markdown supported. (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
   - `issue_fields`: Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', or 'delete: true'. (object[], optional)
   - `issue_number`: Issue number to update (number, optional)
@@ -125,7 +125,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **create_issue** - Create Issue
   - **Required OAuth Scopes**: `repo`
-  - `body`: Issue body content (optional) (string, optional)
+  - `body`: Issue body (optional); Markdown supported. (string, optional)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)
   - `title`: Issue title (string, required)
@@ -162,7 +162,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **update_issue_body** - Update Issue Body
   - **Required OAuth Scopes**: `repo`
-  - `body`: The new body content for the issue (string, required)
+  - `body`: Issue body; Markdown supported. (string, required)
   - `issue_number`: The issue number to update (number, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)
@@ -209,7 +209,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **add_pull_request_review_comment** - Add Pull Request Review Comment
   - **Required OAuth Scopes**: `repo`
-  - `body`: The comment body (string, required)
+  - `body`: Review comment body; Markdown supported (string, required)
   - `line`: The line number in the diff to comment on (optional) (number, optional)
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: The relative path of the file to comment on (string, required)
@@ -222,7 +222,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **create_pull_request_review** - Create Pull Request Review
   - **Required OAuth Scopes**: `repo`
-  - `body`: The review body text (optional) (string, optional)
+  - `body`: Review body (optional); Markdown supported (string, optional)
   - `commitID`: The SHA of the commit to review (optional, defaults to latest) (string, optional)
   - `event`: The review action to perform. If omitted, creates a pending review. (string, optional)
   - `owner`: Repository owner (username or organization) (string, required)
@@ -240,7 +240,7 @@ runtime behavior (such as output formatting) won't appear here.
   - `owner`: Repository owner (username or organization) (string, required)
   - `pullNumber`: The pull request number (number, required)
   - `repo`: Repository name (string, required)
-  - `reviewers`: GitHub usernames to request reviews from (string[], required)
+  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], required)
 
 - **resolve_review_thread** - Resolve Review Thread
   - **Required OAuth Scopes**: `repo`
@@ -248,7 +248,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **submit_pending_pull_request_review** - Submit Pending Pull Request Review
   - **Required OAuth Scopes**: `repo`
-  - `body`: The review body text (optional) (string, optional)
+  - `body`: Review body; Markdown supported (string, optional)
   - `event`: The review action to perform (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `pullNumber`: The pull request number (number, required)

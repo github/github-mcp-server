@@ -6,7 +6,7 @@
   "inputSchema": {
     "properties": {
       "body": {
-        "description": "Comment content",
+        "description": "Comment body; Markdown supported.",
         "type": "string"
       },
       "issue_number": {

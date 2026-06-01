@@ -137,7 +137,7 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 					},
 					"body": {
 						Type:        "string",
-						Description: "Issue body content (optional)",
+						Description: "Issue body (optional); Markdown supported.",
 					},
 				},
 				Required: []string{"owner", "repo", "title"},
@@ -218,7 +218,7 @@ func GranularUpdateIssueBody(t translations.TranslationHelperFunc) inventory.Ser
 		"Update the body content of an existing issue.",
 		"Update Issue Body",
 		map[string]*jsonschema.Schema{
-			"body": {Type: "string", Description: "The new body content for the issue"},
+			"body": {Type: "string", Description: "Issue body; Markdown supported."},
 		},
 		[]string{"body"},
 		func(args map[string]any) (*github.IssueRequest, error) {

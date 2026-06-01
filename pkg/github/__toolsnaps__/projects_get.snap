@@ -13,6 +13,7 @@
       "fields": {
         "description": "Specific list of field IDs to include in the response when getting a project item (e.g. [\"102589\", \"985201\", \"169875\"]). If not provided, only the title field is included. Only used for 'get_project_item' method.",
         "items": {
+          "description": "Project field ID to include in the project item response, e.g. \"102589\".",
           "type": "string"
         },
         "type": "array"

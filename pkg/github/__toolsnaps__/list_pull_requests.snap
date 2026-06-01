@@ -7,7 +7,7 @@
   "inputSchema": {
     "properties": {
       "base": {
-        "description": "Filter by base branch",
+        "description": "Filter by base branch name.",
         "type": "string"
       },
       "direction": {
@@ -19,7 +19,7 @@
         "type": "string"
       },
       "head": {
-        "description": "Filter by head user/org and branch",
+        "description": "Filter by head user/org and branch, in user:branch format.",
         "type": "string"
       },
       "owner": {

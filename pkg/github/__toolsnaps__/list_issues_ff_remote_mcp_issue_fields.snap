@@ -42,6 +42,7 @@
       "labels": {
         "description": "Filter by labels",
         "items": {
+          "description": "Label name",
           "type": "string"
         },
         "type": "array"

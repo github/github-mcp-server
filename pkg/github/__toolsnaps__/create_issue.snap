@@ -8,7 +8,7 @@
   "inputSchema": {
     "properties": {
       "body": {
-        "description": "Issue body content (optional)",
+        "description": "Issue body (optional); Markdown supported.",
         "type": "string"
       },
       "owner": {

@@ -621,7 +621,7 @@ The following sets of tools are available:
   - `inputs`: Inputs the workflow accepts. Only used for 'run_workflow' method. (object, optional)
   - `method`: The method to execute (string, required)
   - `owner`: Repository owner (string, required)
-  - `ref`: The git reference for the workflow. The reference can be a branch or tag name. Required for 'run_workflow' method. (string, optional)
+  - `ref`: Branch or tag name to run the workflow on. Required for 'run_workflow' method. (string, optional)
   - `repo`: Repository name (string, required)
   - `run_id`: The ID of the workflow run. Required for all methods except 'run_workflow'. (number, optional)
   - `workflow_id`: The workflow ID (numeric) or workflow file name (e.g., main.yml, ci.yaml). Required for 'run_workflow' method. (string, optional)
@@ -655,7 +655,7 @@ The following sets of tools are available:
   - `owner`: The owner of the repository. (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `ref`: The Git reference for the results you want to list. (string, optional)
+  - `ref`: Git ref to filter by, e.g. refs/heads/main or refs/pull/123/merge. (string, optional)
   - `repo`: The name of the repository. (string, required)
   - `severity`: Filter code scanning alerts by severity (string, optional)
   - `state`: Filter code scanning alerts by state. Defaults to open (string, optional)
@@ -689,7 +689,7 @@ The following sets of tools are available:
 
 - **assign_copilot_to_issue** - Assign Copilot to issue
   - **Required OAuth Scopes**: `repo`
-  - `base_ref`: Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch (string, optional)
+  - `base_ref`: Branch or ref the agent starts from; defaults to the repository default branch (string, optional)
   - `custom_instructions`: Optional custom instructions to guide the agent beyond the issue body. Use this to provide additional context, constraints, or guidance that is not captured in the issue description (string, optional)
   - `issue_number`: Issue number (number, required)
   - `owner`: Repository owner (string, required)
@@ -732,7 +732,7 @@ The following sets of tools are available:
 
 - **discussion_comment_write** - Manage discussion comments
   - **Required OAuth Scopes**: `repo`
-  - `body`: Comment content (required for 'add', 'reply', and 'update' methods) (string, optional)
+  - `body`: Comment content. Markdown supported. Required for 'add', 'reply', and 'update' methods. (string, optional)
   - `commentNodeID`: The Node ID of the discussion comment (required for 'reply', 'update', 'delete', 'mark_answer', and 'unmark_answer' methods). For 'reply', this is the top-level comment to reply to; GitHub Discussions only support one level of nesting. (string, optional)
   - `discussionNumber`: Discussion number (required for 'add' and 'reply' methods) (number, optional)
   - `method`: Write operation to perform on a discussion comment.
@@ -785,7 +785,7 @@ The following sets of tools are available:
 
 - **create_gist** - Create Gist
   - **Required OAuth Scopes**: `gist`
-  - `content`: Content for simple single-file gist creation (string, required)
+  - `content`: Raw content for the single gist file (string, required)
   - `description`: Description of the gist (string, optional)
   - `filename`: Filename for simple single-file gist creation (string, required)
   - `public`: Whether the gist is public (boolean, optional)
@@ -801,7 +801,7 @@ The following sets of tools are available:
 
 - **update_gist** - Update Gist
   - **Required OAuth Scopes**: `gist`
-  - `content`: Content for the file (string, required)
+  - `content`: Raw content for the gist file (string, required)
   - `description`: Updated description of the gist (string, optional)
   - `filename`: Filename to update or create (string, required)
   - `gist_id`: ID of the gist to update (string, required)
@@ -828,7 +828,7 @@ The following sets of tools are available:
 
 - **add_issue_comment** - Add comment to issue
   - **Required OAuth Scopes**: `repo`
-  - `body`: Comment content (string, required)
+  - `body`: Comment body; Markdown supported. (string, required)
   - `issue_number`: Issue number to comment on (number, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
@@ -857,7 +857,7 @@ The following sets of tools are available:
 - **issue_write** - Create or update issue
   - **Required OAuth Scopes**: `repo`
   - `assignees`: Usernames to assign to this issue (string[], optional)
-  - `body`: Issue body content (string, optional)
+  - `body`: Issue body; Markdown supported. (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
@@ -897,7 +897,7 @@ The following sets of tools are available:
   - `owner`: Optional repository owner. If provided with repo, only issues for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `query`: Search query using GitHub issues search syntax (string, required)
+  - `query`: Search query using GitHub issues search syntax. The tool adds is:issue and, when owner/repo are provided, repo:owner/repo; examples: "crash label:bug", "author:octocat updated:>=2024-01-01". (string, required)
   - `repo`: Optional repository name. If provided with owner, only issues for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
 
@@ -1062,7 +1062,7 @@ The following sets of tools are available:
 
 - **add_comment_to_pending_review** - Add review comment to the requester's latest pending pull request review
   - **Required OAuth Scopes**: `repo`
-  - `body`: The text of the review comment (string, required)
+  - `body`: Review comment body; Markdown supported (string, required)
   - `line`: The line of the blob in the pull request diff that the comment applies to. For multi-line comments, the last line of the range (number, optional)
   - `owner`: Repository owner (string, required)
   - `path`: The relative path to the file that necessitates a comment (string, required)
@@ -1075,7 +1075,7 @@ The following sets of tools are available:
 
 - **add_reply_to_pull_request_comment** - Add reply to pull request comment
   - **Required OAuth Scopes**: `repo`
-  - `body`: The text of the reply (string, required)
+  - `body`: Reply body; Markdown supported (string, required)
   - `commentId`: The ID of the comment to reply to (number, required)
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
@@ -1083,10 +1083,10 @@ The following sets of tools are available:
 
 - **create_pull_request** - Open new pull request
   - **Required OAuth Scopes**: `repo`
-  - `base`: Branch to merge into (string, required)
-  - `body`: PR description (string, optional)
+  - `base`: Base branch name to merge into, e.g. main (string, required)
+  - `body`: PR description; Markdown supported (string, optional)
   - `draft`: Create as draft PR (boolean, optional)
-  - `head`: Branch containing changes (string, required)
+  - `head`: Branch containing changes, or owner:branch for a fork (string, required)
   - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
@@ -1094,9 +1094,9 @@ The following sets of tools are available:
 
 - **list_pull_requests** - List pull requests
   - **Required OAuth Scopes**: `repo`
-  - `base`: Filter by base branch (string, optional)
+  - `base`: Filter by base branch name. (string, optional)
   - `direction`: Sort direction (string, optional)
-  - `head`: Filter by head user/org and branch (string, optional)
+  - `head`: Filter by head user/org and branch, in user:branch format. (string, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1150,13 +1150,13 @@ The following sets of tools are available:
   - `owner`: Optional repository owner. If provided with repo, only pull requests for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `query`: Search query using GitHub pull request search syntax (string, required)
+  - `query`: Search query using GitHub pull request search syntax. Qualifiers such as is:pr and repo:owner/repo are applied automatically when appropriate; examples: "review-requested:@me", "author:octocat updated:>=2024-01-01". (string, required)
   - `repo`: Optional repository name. If provided with owner, only pull requests for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
 
 - **update_pull_request** - Edit pull request
   - **Required OAuth Scopes**: `repo`
-  - `base`: New base branch name (string, optional)
+  - `base`: New base branch name, e.g. main. (string, optional)
   - `body`: New description (string, optional)
   - `draft`: Mark pull request as draft (true) or ready for review (false) (boolean, optional)
   - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
@@ -1182,18 +1182,18 @@ The following sets of tools are available:
 
 - **create_branch** - Create branch
   - **Required OAuth Scopes**: `repo`
-  - `branch`: Name for new branch (string, required)
-  - `from_branch`: Source branch (defaults to repo default) (string, optional)
+  - `branch`: New branch name, without refs/heads/ (string, required)
+  - `from_branch`: Source branch name; defaults to the repository default branch (string, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
 - **create_or_update_file** - Create or update file
   - **Required OAuth Scopes**: `repo`
-  - `branch`: Branch to create/update the file in (string, required)
-  - `content`: Content of the file (string, required)
-  - `message`: Commit message (string, required)
+  - `branch`: Branch name to create/update the file in (string, required)
+  - `content`: Raw file content (string, required)
+  - `message`: Commit message for this change (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: Path where to create/update the file (string, required)
+  - `path`: Repository-relative file path to create or update (string, required)
   - `repo`: Repository name (string, required)
   - `sha`: The blob SHA of the file being replaced. Required if the file already exists. (string, optional)
 
@@ -1207,10 +1207,10 @@ The following sets of tools are available:
 
 - **delete_file** - Delete file
   - **Required OAuth Scopes**: `repo`
-  - `branch`: Branch to delete the file from (string, required)
-  - `message`: Commit message (string, required)
+  - `branch`: Branch name to delete the file from (string, required)
+  - `message`: Commit message for the delete commit (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: Path to the file to delete (string, required)
+  - `path`: Repository-relative path to the file to delete (string, required)
   - `repo`: Repository name (string, required)
 
 - **fork_repository** - Fork repository
@@ -1231,7 +1231,7 @@ The following sets of tools are available:
 - **get_file_contents** - Get file or directory contents
   - **Required OAuth Scopes**: `repo`
   - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: Path to file/directory (string, optional)
+  - `path`: Repository-relative file or directory path (string, optional)
   - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)
   - `repo`: Repository name (string, required)
   - `sha`: Accepts optional commit SHA. If specified, it will be used instead of ref (string, optional)
@@ -1296,7 +1296,7 @@ The following sets of tools are available:
 
 - **push_files** - Push files to repository
   - **Required OAuth Scopes**: `repo`
-  - `branch`: Branch to push to (string, required)
+  - `branch`: Branch name to push the commit to (string, required)
   - `files`: Array of file objects to push, each object with path (string) and content (string) (object[], required)
   - `message`: Commit message (string, required)
   - `owner`: Repository owner (string, required)
@@ -1308,7 +1308,7 @@ The following sets of tools are available:
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Search query (GitHub code search REST). Implicit AND between terms; supports `OR`, `NOT`, and `"quoted phrase"` for exact match. Qualifiers: `repo:owner/repo`, `org:`, `user:`, `language:`, `path:dir` (prefix match), `filename:exact.ext`, `extension:`, `in:file`, `in:path`, `size:`, `is:archived`, `is:fork`. Max 256 chars. Examples: `WithContext language:go org:github`; `"package main" repo:o/r`; `func extension:go path:cmd repo:o/r`; `NOT TODO language:go repo:o/r`. (string, required)
-  - `sort`: Sort field ('indexed' only) (string, optional)
+  - `sort`: Sort field. Use 'indexed' to sort by recently indexed files. (string, optional)
 
 - **search_commits** - Search commits
   - **Required OAuth Scopes**: `repo`

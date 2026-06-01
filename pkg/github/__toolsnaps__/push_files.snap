@@ -6,7 +6,7 @@
   "inputSchema": {
     "properties": {
       "branch": {
-        "description": "Branch to push to",
+        "description": "Branch name to push the commit to",
         "type": "string"
       },
       "files": {
@@ -15,11 +15,11 @@
           "additionalProperties": false,
           "properties": {
             "content": {
-              "description": "file content",
+              "description": "Raw file content",
               "type": "string"
             },
             "path": {
-              "description": "path to the file",
+              "description": "Repository-relative file path",
               "type": "string"
             }
           },

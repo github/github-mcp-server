@@ -22,7 +22,7 @@
         "type": "number"
       },
       "ref": {
-        "description": "The Git reference for the results you want to list.",
+        "description": "Git ref to filter by, e.g. refs/heads/main or refs/pull/123/merge.",
         "type": "string"
       },
       "repo": {
