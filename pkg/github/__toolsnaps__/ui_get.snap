@@ -1,4 +1,11 @@
 {
+  "_meta": {
+    "ui": {
+      "visibility": [
+        "app"
+      ]
+    }
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "Get UI data"
