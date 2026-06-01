@@ -6,10 +6,15 @@
   "description": "Get details for a commit from a GitHub repository",
   "inputSchema": {
     "properties": {
-      "include_diff": {
-        "default": true,
-        "description": "Whether to include file diffs and stats in the response. Default is true.",
-        "type": "boolean"
+      "detail": {
+        "default": "stats",
+        "description": "Level of detail to include for changed files. \"none\" omits stats and files entirely. \"stats\" (default) includes per-file metadata: filename, status, and lines-of-code counts (additions, deletions, changes), with no patch content. \"full_patch\" additionally includes the unified diff content for each file and can be very large.",
+        "enum": [
+          "none",
+          "stats",
+          "full_patch"
+        ],
+        "type": "string"
       },
       "owner": {
         "description": "Repository owner",
