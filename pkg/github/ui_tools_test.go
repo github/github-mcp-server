@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
+	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,13 +49,25 @@ func Test_UIGet(t *testing.T) {
 		{Name: github.Ptr("feature"), Protected: github.Ptr(false)},
 	}
 
+	dueDate := time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC)
+	mockMilestones := []*github.Milestone{
+		{Number: github.Ptr(1), Title: github.Ptr("with due date"), DueOn: &github.Timestamp{Time: dueDate}},
+		{Number: github.Ptr(2), Title: github.Ptr("no due date")},
+	}
+
+	mockIssueTypes := []*github.IssueType{
+		{Name: github.Ptr("Bug")},
+		{Name: github.Ptr("Feature")},
+	}
+
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]any
-		expectError    bool
-		expectedErrMsg string
-		validateResult func(t *testing.T, response map[string]any)
+		name            string
+		mockedClient    *http.Client
+		mockedGQLClient *http.Client
+		requestArgs     map[string]any
+		expectError     bool
+		expectedErrMsg  string
+		validateResult  func(t *testing.T, responseText string)
 	}{
 		{
 			name: "successful assignees fetch",
@@ -65,7 +80,9 @@ func Test_UIGet(t *testing.T) {
 				"repo":   "repo",
 			},
 			expectError: false,
-			validateResult: func(t *testing.T, response map[string]any) {
+			validateResult: func(t *testing.T, responseText string) {
+				var response map[string]any
+				require.NoError(t, json.Unmarshal([]byte(responseText), &response))
 				assert.Contains(t, response, "assignees")
 				assert.Contains(t, response, "totalCount")
 			},
@@ -81,9 +98,126 @@ func Test_UIGet(t *testing.T) {
 				"repo":   "repo",
 			},
 			expectError: false,
-			validateResult: func(t *testing.T, response map[string]any) {
+			validateResult: func(t *testing.T, responseText string) {
+				var response map[string]any
+				require.NoError(t, json.Unmarshal([]byte(responseText), &response))
 				assert.Contains(t, response, "branches")
 				assert.Contains(t, response, "totalCount")
+			},
+		},
+		{
+			name: "successful milestones fetch",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/owner/repo/milestones": mockResponse(t, http.StatusOK, mockMilestones),
+			}),
+			requestArgs: map[string]any{
+				"method": "milestones",
+				"owner":  "owner",
+				"repo":   "repo",
+			},
+			expectError: false,
+			validateResult: func(t *testing.T, responseText string) {
+				var response map[string]any
+				require.NoError(t, json.Unmarshal([]byte(responseText), &response))
+				milestones, ok := response["milestones"].([]any)
+				require.True(t, ok, "milestones should be a list")
+				require.Len(t, milestones, 2)
+				first := milestones[0].(map[string]any)
+				assert.Equal(t, "2026-01-31", first["due_on"], "milestone with a due date should be formatted")
+				second := milestones[1].(map[string]any)
+				assert.Equal(t, "", second["due_on"], "milestone without a due date should be empty, not zero time")
+			},
+		},
+		{
+			name: "successful issue_types fetch",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /orgs/owner/issue-types": mockResponse(t, http.StatusOK, mockIssueTypes),
+			}),
+			requestArgs: map[string]any{
+				"method": "issue_types",
+				"owner":  "owner",
+			},
+			expectError: false,
+			validateResult: func(t *testing.T, responseText string) {
+				var issueTypes []map[string]any
+				require.NoError(t, json.Unmarshal([]byte(responseText), &issueTypes))
+				require.Len(t, issueTypes, 2)
+				assert.Equal(t, "Bug", issueTypes[0]["name"])
+			},
+		},
+		{
+			name: "issue_types API error returns response context",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /orgs/owner/issue-types": mockResponse(t, http.StatusForbidden, map[string]string{"message": "Forbidden"}),
+			}),
+			requestArgs: map[string]any{
+				"method": "issue_types",
+				"owner":  "owner",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to list issue types",
+		},
+		{
+			name: "successful labels fetch",
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							Labels struct {
+								Nodes []struct {
+									ID          githubv4.ID
+									Name        githubv4.String
+									Color       githubv4.String
+									Description githubv4.String
+								}
+								TotalCount githubv4.Int
+								PageInfo   struct {
+									HasNextPage githubv4.Boolean
+									EndCursor   githubv4.String
+								}
+							} `graphql:"labels(first: 100, after: $cursor)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner":  githubv4.String("owner"),
+						"repo":   githubv4.String("repo"),
+						"cursor": (*githubv4.String)(nil),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"labels": map[string]any{
+								"nodes": []any{
+									map[string]any{
+										"id":          githubv4.ID("label-1"),
+										"name":        githubv4.String("bug"),
+										"color":       githubv4.String("d73a4a"),
+										"description": githubv4.String("Something isn't working"),
+									},
+								},
+								"totalCount": githubv4.Int(1),
+								"pageInfo": map[string]any{
+									"hasNextPage": githubv4.Boolean(false),
+									"endCursor":   githubv4.String(""),
+								},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"method": "labels",
+				"owner":  "owner",
+				"repo":   "repo",
+			},
+			expectError: false,
+			validateResult: func(t *testing.T, responseText string) {
+				var response map[string]any
+				require.NoError(t, json.Unmarshal([]byte(responseText), &response))
+				labels, ok := response["labels"].([]any)
+				require.True(t, ok, "labels should be a list")
+				require.Len(t, labels, 1)
+				assert.Equal(t, "bug", labels[0].(map[string]any)["name"])
+				assert.Equal(t, float64(1), response["totalCount"])
 			},
 		},
 		{
@@ -131,11 +265,15 @@ func Test_UIGet(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
-			client, err := github.NewClient(github.WithHTTPClient(tc.mockedClient))
-			require.NoError(t, err)
-			deps := BaseDeps{
-				Client: client,
+			// Setup deps with REST and/or GraphQL mocks
+			deps := BaseDeps{}
+			if tc.mockedClient != nil {
+				client, err := github.NewClient(github.WithHTTPClient(tc.mockedClient))
+				require.NoError(t, err)
+				deps.Client = client
+			}
+			if tc.mockedGQLClient != nil {
+				deps.GQLClient = githubv4.NewClient(tc.mockedGQLClient)
 			}
 			handler := serverTool.Handler(deps)
 
@@ -163,12 +301,8 @@ func Test_UIGet(t *testing.T) {
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
 
-			var response map[string]any
-			err = json.Unmarshal([]byte(textContent.Text), &response)
-			require.NoError(t, err)
-
 			if tc.validateResult != nil {
-				tc.validateResult(t, response)
+				tc.validateResult(t, textContent.Text)
 			}
 		})
 	}

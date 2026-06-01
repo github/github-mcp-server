@@ -109,32 +109,44 @@ func uiGetLabels(ctx context.Context, deps ToolDependencies, args map[string]any
 					Description githubv4.String
 				}
 				TotalCount githubv4.Int
-			} `graphql:"labels(first: 100)"`
+				PageInfo   struct {
+					HasNextPage githubv4.Boolean
+					EndCursor   githubv4.String
+				}
+			} `graphql:"labels(first: 100, after: $cursor)"`
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
 
 	vars := map[string]any{
-		"owner": githubv4.String(owner),
-		"repo":  githubv4.String(repo),
+		"owner":  githubv4.String(owner),
+		"repo":   githubv4.String(repo),
+		"cursor": (*githubv4.String)(nil),
 	}
 
-	if err := client.Query(ctx, &query, vars); err != nil {
-		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to list labels", err), nil, nil
-	}
-
-	labels := make([]map[string]any, len(query.Repository.Labels.Nodes))
-	for i, labelNode := range query.Repository.Labels.Nodes {
-		labels[i] = map[string]any{
-			"id":          fmt.Sprintf("%v", labelNode.ID),
-			"name":        string(labelNode.Name),
-			"color":       string(labelNode.Color),
-			"description": string(labelNode.Description),
+	labels := make([]map[string]any, 0)
+	var totalCount int
+	for {
+		if err := client.Query(ctx, &query, vars); err != nil {
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to list labels", err), nil, nil
 		}
+		for _, labelNode := range query.Repository.Labels.Nodes {
+			labels = append(labels, map[string]any{
+				"id":          fmt.Sprintf("%v", labelNode.ID),
+				"name":        string(labelNode.Name),
+				"color":       string(labelNode.Color),
+				"description": string(labelNode.Description),
+			})
+		}
+		totalCount = int(query.Repository.Labels.TotalCount)
+		if !query.Repository.Labels.PageInfo.HasNextPage {
+			break
+		}
+		vars["cursor"] = githubv4.NewString(query.Repository.Labels.PageInfo.EndCursor)
 	}
 
 	response := map[string]any{
 		"labels":     labels,
-		"totalCount": int(query.Repository.Labels.TotalCount),
+		"totalCount": totalCount,
 	}
 
 	out, err := json.Marshal(response)
@@ -221,13 +233,17 @@ func uiGetMilestones(ctx context.Context, deps ToolDependencies, args map[string
 
 	result := make([]map[string]any, len(allMilestones))
 	for i, m := range allMilestones {
+		dueOn := ""
+		if m.DueOn != nil {
+			dueOn = m.GetDueOn().Format("2006-01-02")
+		}
 		result[i] = map[string]any{
 			"number":      m.GetNumber(),
 			"title":       m.GetTitle(),
 			"description": m.GetDescription(),
 			"state":       m.GetState(),
 			"open_issues": m.GetOpenIssues(),
-			"due_on":      m.GetDueOn().Format("2006-01-02"),
+			"due_on":      dueOn,
 		}
 	}
 
@@ -250,7 +266,7 @@ func uiGetIssueTypes(ctx context.Context, deps ToolDependencies, owner string) (
 
 	issueTypes, resp, err := client.Organizations.ListIssueTypes(ctx, owner)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr("failed to list issue types", err), nil, nil
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list issue types", resp, err), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
