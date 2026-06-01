@@ -157,7 +157,7 @@ function CreatePRApp() {
   const [repoSearchLoading, setRepoSearchLoading] = useState(false);
   const [repoFilter, setRepoFilter] = useState("");
 
-  const { app, error: appError, toolInput, callTool } = useMcpApp({
+  const { app, error: appError, toolInput, callTool, hostContext, setModelContext } = useMcpApp({
     appName: "github-mcp-server-create-pull-request",
   });
 
@@ -320,6 +320,17 @@ function CreatePRApp() {
         if (textContent && textContent.type === "text" && textContent.text) {
           const prData = JSON.parse(textContent.text);
           setSuccessPR(prData);
+          // Push the new PR into the model context so subsequent agent
+          // turns can reference it (MCP Apps 2026-01-26 ui/update-model-context).
+          void setModelContext({
+            structuredContent: prData,
+            content: [
+              {
+                type: "text",
+                text: `A new pull request was created in ${owner}/${repo} by the user via the create-pull-request view.`,
+              },
+            ],
+          });
         }
       }
     } catch (e) {
@@ -327,11 +338,11 @@ function CreatePRApp() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [title, body, owner, repo, baseBranch, headBranch, isDraft, maintainerCanModify, callTool]);
+  }, [title, body, owner, repo, baseBranch, headBranch, isDraft, maintainerCanModify, callTool, setModelContext]);
 
   if (successPR) {
     return (
-      <AppProvider>
+      <AppProvider hostContext={hostContext}>
         <SuccessView pr={successPR} owner={owner} repo={repo} submittedTitle={submittedTitle} />
       </AppProvider>
     );
@@ -339,7 +350,7 @@ function CreatePRApp() {
 
   if (!app && !appError) {
     return (
-      <AppProvider>
+      <AppProvider hostContext={hostContext}>
         <Box display="flex" alignItems="center" justifyContent="center" p={4}>
           <Spinner size="medium" />
         </Box>
@@ -349,14 +360,14 @@ function CreatePRApp() {
 
   if (appError) {
     return (
-      <AppProvider>
+      <AppProvider hostContext={hostContext}>
         <Flash variant="danger">{appError.message}</Flash>
       </AppProvider>
     );
   }
 
   return (
-    <AppProvider>
+    <AppProvider hostContext={hostContext}>
       <Box
         borderWidth={1}
         borderStyle="solid"

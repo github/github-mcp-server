@@ -7,6 +7,10 @@
   "description": "Update the type of an existing issue (e.g. 'bug', 'feature').",
   "inputSchema": {
     "properties": {
+      "is_suggestion": {
+        "description": "If true, this issue type change is sent to the API as a suggestion (suggest:true) rather than an applied value. Whether the type is applied or recorded as a proposal is determined by the API.",
+        "type": "boolean"
+      },
       "issue_number": {
         "description": "The issue number to update",
         "minimum": 1,
@@ -18,6 +22,11 @@
       },
       "owner": {
         "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "rationale": {
+        "description": "One concise sentence explaining what specifically about the issue led you to choose this type. State the concrete signal (e.g. 'Reports a crash when saving' → bug, 'Asks for dark mode support' → feature).",
+        "maxLength": 280,
         "type": "string"
       },
       "repo": {

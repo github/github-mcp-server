@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -36,7 +36,7 @@ Possible options:
  3. get_status - Get combined commit status of a head commit in a pull request.
  4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
  5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
- 6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
+ 6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
  7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
  8. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
 `,
@@ -58,6 +58,13 @@ Possible options:
 		Required: []string{"method", "owner", "repo", "pullNumber"},
 	}
 	WithPagination(schema)
+	// get_review_comments uses GraphQL cursor-based pagination and accepts the
+	// `after` cursor. Other methods rely on the `page`/`perPage` parameters
+	// added by WithPagination and ignore `after`.
+	schema.Properties["after"] = &jsonschema.Schema{
+		Type:        "string",
+		Description: "Cursor for pagination, used only by the get_review_comments method. Pass the endCursor from the previous page's PageInfo to fetch the next page.",
+	}
 
 	return NewTool(
 		ToolsetMetadataPullRequests,
@@ -124,7 +131,7 @@ Possible options:
 				result, err := GetPullRequestReviewComments(ctx, gqlClient, deps, owner, repo, pullNumber, cursorPagination)
 				return result, nil, err
 			case "get_reviews":
-				result, err := GetPullRequestReviews(ctx, client, deps, owner, repo, pullNumber)
+				result, err := GetPullRequestReviews(ctx, client, deps, owner, repo, pullNumber, pagination)
 				return result, nil, err
 			case "get_comments":
 				result, err := GetIssueComments(ctx, client, deps, owner, repo, pullNumber, pagination)
@@ -478,14 +485,17 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 	return MarshalledTextResult(convertToMinimalReviewThreadsResponse(query)), nil
 }
 
-func GetPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+func GetPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
 	}
 	ff := deps.GetFlags(ctx)
 
-	reviews, resp, err := client.PullRequests.ListReviews(ctx, owner, repo, pullNumber, nil)
+	reviews, resp, err := client.PullRequests.ListReviews(ctx, owner, repo, pullNumber, &github.ListOptions{
+		Page:    pagination.Page,
+		PerPage: pagination.PerPage,
+	})
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
 			"failed to get pull request reviews",
@@ -601,12 +611,12 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When insiders mode is enabled and the client supports MCP Apps UI,
+			// When MCP Apps are enabled and the client supports UI,
 			// check if this is a UI form submission. The UI sends _ui_submitted=true
 			// to distinguish form submissions from LLM calls.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(ctx, req) && !uiSubmitted {
+			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted {
 				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. IMPORTANT: The PR has NOT been created yet. Do NOT tell the user the PR was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
 			}
 
@@ -742,7 +752,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			},
 			"reviewers": {
 				Type:        "array",
-				Description: "GitHub usernames to request reviews from",
+				Description: "GitHub usernames or ORG/team-slug team reviewers to request reviews from",
 				Items: &jsonschema.Schema{
 					Type: "string",
 				},
@@ -934,8 +944,10 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 				}
 
+				userReviewers, teamReviewers := splitPullRequestReviewers(reviewers)
 				reviewersRequest := github.ReviewersRequest{
-					Reviewers: reviewers,
+					Reviewers:     userReviewers,
+					TeamReviewers: teamReviewers,
 				}
 
 				_, resp, err := client.PullRequests.RequestReviewers(ctx, owner, repo, pullNumber, reviewersRequest)
@@ -990,7 +1002,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
-	st.FeatureFlagDisable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 
@@ -1571,7 +1583,7 @@ Available methods:
 - unresolve_thread: Unresolve a previously resolved review thread. Requires only "threadId" parameter. The owner, repo, and pullNumber parameters are not used for this method. Unresolving an already-unresolved thread is a no-op.
 `),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews."),
+				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews"),
 				ReadOnlyHint: false,
 			},
 			InputSchema: schema,
@@ -1609,7 +1621,7 @@ Available methods:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
 			}
 		})
-	st.FeatureFlagDisable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 
@@ -2106,7 +2118,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			})
 			return result, nil, err
 		})
-	st.FeatureFlagDisable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 
