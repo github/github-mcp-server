@@ -229,19 +229,6 @@ function CreateIssueApp() {
   const owner = selectedRepo?.owner || (toolInput?.owner as string) || "";
   const repo = selectedRepo?.name || (toolInput?.repo as string) || "";
 
-  // Initialize selectedRepo from toolInput
-  useEffect(() => {
-    if (toolInput?.owner && toolInput?.repo && !selectedRepo) {
-      setSelectedRepo({
-        id: `${toolInput.owner}/${toolInput.repo}`,
-        owner: toolInput.owner as string,
-        name: toolInput.repo as string,
-        fullName: `${toolInput.owner}/${toolInput.repo}`,
-        isPrivate: false,
-      });
-    }
-  }, [toolInput, selectedRepo]);
-
   // Search repositories when filter changes
   useEffect(() => {
     if (!app || !repoFilter.trim()) {
@@ -429,7 +416,8 @@ function CreateIssueApp() {
   // Reset all transient form/result state when toolInput changes (new invocation).
   // Without this, the SuccessView from a previous submit stays visible and stale
   // form values (e.g. body) bleed through because prefill effects use truthy guards
-  // that won't overwrite with empty values.
+  // that won't overwrite with empty values. The repo is re-initialized from the new
+  // invocation here (rather than in a separate effect) so it isn't wiped by this reset.
   useEffect(() => {
     prefillApplied.current = { title: false, body: false, labels: false, assignees: false, milestone: false, type: false };
     setExistingIssueData(null);
@@ -441,7 +429,17 @@ function CreateIssueApp() {
     setSelectedIssueType(null);
     setSuccessIssue(null);
     setError(null);
-    setSelectedRepo(null);
+    if (toolInput?.owner && toolInput?.repo) {
+      setSelectedRepo({
+        id: `${toolInput.owner}/${toolInput.repo}`,
+        owner: toolInput.owner as string,
+        name: toolInput.repo as string,
+        fullName: `${toolInput.owner}/${toolInput.repo}`,
+        isPrivate: false,
+      });
+    } else {
+      setSelectedRepo(null);
+    }
   }, [toolInput]);
 
   // Load existing issue data when in update mode

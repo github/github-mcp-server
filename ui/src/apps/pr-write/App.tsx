@@ -165,23 +165,12 @@ function CreatePRApp() {
   const repo = selectedRepo?.name || (toolInput?.repo as string) || "";
   const [submittedTitle, setSubmittedTitle] = useState("");
 
-  // Initialize selectedRepo from toolInput
-  useEffect(() => {
-    if (toolInput?.owner && toolInput?.repo && !selectedRepo) {
-      setSelectedRepo({
-        id: `${toolInput.owner}/${toolInput.repo}`,
-        owner: toolInput.owner as string,
-        name: toolInput.repo as string,
-        fullName: `${toolInput.owner}/${toolInput.repo}`,
-        isPrivate: false,
-      });
-    }
-  }, [toolInput, selectedRepo]);
-
   // Reset all transient form/result state when toolInput changes (new invocation).
   // Without this, the SuccessView from a previous submit stays visible and stale
   // form values bleed through because the prefill effect below only sets when
-  // toolInput has truthy values and never clears.
+  // toolInput has truthy values and never clears. The repo is re-initialized from
+  // the new invocation here (rather than in a separate effect) so it isn't wiped
+  // by this reset.
   useEffect(() => {
     setTitle("");
     setBody("");
@@ -192,7 +181,17 @@ function CreatePRApp() {
     setSuccessPR(null);
     setError(null);
     setSubmittedTitle("");
-    setSelectedRepo(null);
+    if (toolInput?.owner && toolInput?.repo) {
+      setSelectedRepo({
+        id: `${toolInput.owner}/${toolInput.repo}`,
+        owner: toolInput.owner as string,
+        name: toolInput.repo as string,
+        fullName: `${toolInput.owner}/${toolInput.repo}`,
+        isPrivate: false,
+      });
+    } else {
+      setSelectedRepo(null);
+    }
   }, [toolInput]);
 
   // Pre-fill from toolInput
@@ -261,9 +260,12 @@ function CreatePRApp() {
               (b: { name: string; protected?: boolean }) => ({ name: b.name, protected: b.protected || false })
             );
             setAvailableBranches(branches);
-            if (!baseBranch && branches.length > 0) {
+            if (branches.length > 0) {
               const defaultBranch = branches.find((b: BranchItem) => b.name === 'main' || b.name === 'master');
-              if (defaultBranch) setBaseBranch(defaultBranch.name);
+              // Functional update so a base branch already prefilled from
+              // toolInput.base (or chosen by the user) isn't overwritten by a
+              // stale closure value captured before the request resolved.
+              if (defaultBranch) setBaseBranch((prev) => prev || defaultBranch.name);
             }
           }
         }
