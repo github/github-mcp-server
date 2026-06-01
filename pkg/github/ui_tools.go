@@ -29,6 +29,14 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_UI_GET_USER_TITLE", "Get UI data"),
 				ReadOnlyHint: true,
 			},
+			// ui_get only backs MCP App views; declaring app-only visibility keeps
+			// it out of the agent's tool list while remaining callable by the views
+			// via tools/call (per the MCP Apps 2026-01-26 spec).
+			Meta: mcp.Meta{
+				"ui": map[string]any{
+					"visibility": []string{"app"},
+				},
+			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
 				Properties: map[string]*jsonschema.Schema{
