@@ -348,6 +348,11 @@ func TestSanitizePreservesAngleBracketsInCodeBlocks(t *testing.T) {
 			input:    "```\nfunc Foo\x00[T any]()\n```",
 			expected: "```\nfunc Foo[T any]()\n```",
 		},
+		{
+			name:     "indented code block with angle brackets",
+			input:    "Text\n\n    let x: Vec<u8> = vec![];\n\nMore text",
+			expected: "Text\n\n    let x: Vec<u8> = vec![];\n\nMore text",
+		},
 	}
 
 	for _, tt := range tests {

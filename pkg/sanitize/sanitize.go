@@ -1,16 +1,38 @@
+// Package sanitize provides functions to sanitize untrusted user content from
+// GitHub (issue titles, PR bodies, search results, etc.) before display.
+//
+// Threat model:
+// - Input source: untrusted GitHub content that may contain malicious HTML/JS
+// - Goal: strip HTML tags from prose without corrupting code samples
+// - Defense: bluemonday HTML sanitizer + angle bracket protection in code blocks
+//
+// The sanitizer preserves angle brackets inside code (fenced blocks, inline spans,
+// and indented blocks) because bluemonday treats <int>, <T>, etc. as unknown HTML
+// tags and removes them. This would corrupt generic type syntax and other code.
 package sanitize
 
 import (
+	"bytes"
 	"strings"
 	"sync"
 	"unicode"
 
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/text"
 )
 
 var policy *bluemonday.Policy
 var policyOnce sync.Once
 
+// Sanitize removes HTML tags and invisible characters from untrusted input.
+//
+// Ordering invariant: FilterInvisibleCharacters must run before
+// protectCodeAngleBrackets to prevent sentinel collision attacks.
+// FilterInvisibleCharacters strips NUL bytes (0x00), so an attacker cannot
+// inject literal "\x00LT\x00script\x00GT\x00" strings that would bypass
+// FilterHTMLTags and get restored to <script> by restoreCodeAngleBrackets.
 func Sanitize(input string) string {
 	cleaned := FilterCodeFenceMetadata(FilterInvisibleCharacters(input))
 	// Protect angle brackets inside code blocks and inline code spans
@@ -24,6 +46,7 @@ func Sanitize(input string) string {
 
 // FilterInvisibleCharacters removes invisible or control characters that should not appear
 // in user-facing titles or bodies. This includes:
+// - NUL bytes: U+0000 (prevents sentinel collision in protectCodeAngleBrackets)
 // - Unicode tag characters: U+E0001, U+E0020–U+E007F
 // - BiDi control characters: U+202A–U+202E, U+2066–U+2069
 // - Hidden modifier characters: U+200B, U+200C, U+200E, U+200F, U+00AD, U+FEFF, U+180E, U+2060–U+2064
@@ -153,153 +176,75 @@ func isSafeCodeFenceToken(token string) bool {
 }
 
 // Sentinels used to protect angle brackets inside code from HTML sanitization.
-// These are chosen to be unlikely to appear in real content.
+// NUL bytes are stripped by FilterInvisibleCharacters before protectCodeAngleBrackets
+// runs, preventing sentinel collision attacks where an attacker injects literal
+// "\x00LT\x00" strings to bypass FilterHTMLTags.
 const (
 	ltSentinel = "\x00LT\x00"
 	gtSentinel = "\x00GT\x00"
 )
 
-// protectCodeAngleBrackets replaces < and > inside fenced code blocks and
-// inline code spans with sentinels so bluemonday does not strip them as HTML.
+// protectCodeAngleBrackets replaces < and > inside code blocks and inline code
+// spans with sentinels so bluemonday does not strip them as HTML.
+//
+// Uses goldmark's CommonMark parser to identify code regions. This correctly
+// handles fenced blocks (```), inline spans (`), and indented (4-space) blocks.
 func protectCodeAngleBrackets(input string) string {
-	var b strings.Builder
-	b.Grow(len(input))
+	src := []byte(input)
+	doc := goldmark.DefaultParser().Parse(text.NewReader(src))
 
-	runes := []rune(input)
-	i := 0
-	n := len(runes)
+	type span struct{ start, stop int }
+	var spans []span
 
-	for i < n {
-		// Fenced code block: ``` ... ```
-		if i+2 < n && runes[i] == '`' && runes[i+1] == '`' && runes[i+2] == '`' {
-			// Find the fence length
-			fenceStart := i
-			fenceLen := 0
-			for i < n && runes[i] == '`' {
-				fenceLen++
-				i++
-			}
-			// Write opening fence + rest of line (info string)
-			for range fenceLen {
-				b.WriteRune('`')
-			}
-			for i < n && runes[i] != '\n' {
-				b.WriteRune(runes[i])
-				i++
-			}
-			if i < n {
-				b.WriteRune(runes[i]) // newline
-				i++
-			}
-			// Inside fence: protect angle brackets until closing fence.
-			// NOTE: CommonMark requires the closing fence to be on its own line
-			// with no info string. This implementation is more permissive: any
-			// run of >= fenceLen backticks ends the block, even mid-line. This
-			// is a soft-fail (some angle brackets may be unprotected) rather
-			// than a security issue.
-			for i < n {
-				// Check for closing fence
-				if runes[i] == '`' {
-					closeLen := 0
-					j := i
-					for j < n && runes[j] == '`' {
-						closeLen++
-						j++
-					}
-					if closeLen >= fenceLen {
-						for range closeLen {
-							b.WriteRune('`')
-						}
-						i = j
-						break
-					}
-				}
-				switch runes[i] {
-				case '<':
-					b.WriteString(ltSentinel)
-				case '>':
-					b.WriteString(gtSentinel)
-				default:
-					b.WriteRune(runes[i])
-				}
-				i++
-			}
-			_ = fenceStart
-			continue
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
 		}
-
-		// Inline code: `...`
-		if runes[i] == '`' {
-			// Count opening backticks
-			openLen := 0
-			j := i
-			for j < n && runes[j] == '`' {
-				openLen++
-				j++
+		switch n.Kind() {
+		case ast.KindFencedCodeBlock, ast.KindCodeBlock:
+			// Fenced (```) and indented (4-space) code blocks
+			lines := n.Lines()
+			for i := range lines.Len() {
+				seg := lines.At(i)
+				spans = append(spans, span{seg.Start, seg.Stop})
 			}
-			// Don't treat ``` as inline code (handled above for fenced blocks)
-			if openLen >= 3 {
-				for range openLen {
-					b.WriteRune('`')
-				}
-				i = j
-				continue
-			}
-			// Find matching closing backticks
-			closeStart := -1
-			for k := j; k <= n-openLen; k++ {
-				match := true
-				for m := range openLen {
-					if runes[k+m] != '`' {
-						match = false
-						break
-					}
-				}
-				if match {
-					// Verify it's exactly openLen backticks (not more)
-					if k+openLen < n && runes[k+openLen] == '`' {
-						continue
-					}
-					closeStart = k
-					break
+		case ast.KindCodeSpan:
+			// Inline code: `...`
+			for c := n.FirstChild(); c != nil; c = c.NextSibling() {
+				if t, ok := c.(*ast.Text); ok {
+					seg := t.Segment
+					spans = append(spans, span{seg.Start, seg.Stop})
 				}
 			}
-			if closeStart == -1 {
-				// No closing backticks found; treat as literal
-				for range openLen {
-					b.WriteRune('`')
-				}
-				i = j
-				continue
-			}
-			// Write opening backticks
-			for range openLen {
-				b.WriteRune('`')
-			}
-			// Protect content
-			for i = j; i < closeStart; i++ {
-				switch runes[i] {
-				case '<':
-					b.WriteString(ltSentinel)
-				case '>':
-					b.WriteString(gtSentinel)
-				default:
-					b.WriteRune(runes[i])
-				}
-			}
-			// Write closing backticks
-			for range openLen {
-				b.WriteRune('`')
-			}
-			i = closeStart + openLen
-			continue
 		}
+		return ast.WalkContinue, nil
+	})
 
-		b.WriteRune(runes[i])
-		i++
+	if len(spans) == 0 {
+		return input
 	}
 
-	return b.String()
+	var out bytes.Buffer
+	out.Grow(len(src))
+	cursor := 0
+	for _, s := range spans {
+		// Write text before this code span
+		out.Write(src[cursor:s.start])
+		// Protect angle brackets in the code span
+		for _, b := range src[s.start:s.stop] {
+			switch b {
+			case '<':
+				out.WriteString(ltSentinel)
+			case '>':
+				out.WriteString(gtSentinel)
+			default:
+				out.WriteByte(b)
+			}
+		}
+		cursor = s.stop
+	}
+	out.Write(src[cursor:])
+	return out.String()
 }
 
 // restoreCodeAngleBrackets converts sentinels back to angle brackets.
