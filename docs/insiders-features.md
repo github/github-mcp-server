@@ -65,6 +65,13 @@ The list below is generated from the Go source. It covers tool **inventory and s
   - `title`: Issue title (string, optional)
   - `type`: Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
 
+- **ui_get** - Get UI data
+  - **Required OAuth Scopes**: `repo`, `read:org`
+  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `repo`, `write:org`
+  - `method`: The type of data to fetch (string, required)
+  - `owner`: Repository owner (required for all methods) (string, required)
+  - `repo`: Repository name (required for labels, assignees, milestones, branches) (string, optional)
+
 ### `remote_mcp_issue_fields`
 
 - **issue_write** - Create or update issue
