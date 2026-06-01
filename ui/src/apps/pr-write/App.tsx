@@ -181,6 +181,12 @@ function CreatePRApp() {
     setSuccessPR(null);
     setError(null);
     setSubmittedTitle("");
+    // Clear branch list and filters so a new invocation doesn't briefly show stale
+    // branches from the previous repo (or allow selecting invalid options) before the
+    // new repo's ui_get branches call resolves.
+    setAvailableBranches([]);
+    setBaseFilter("");
+    setHeadFilter("");
     if (toolInput?.owner && toolInput?.repo) {
       setSelectedRepo({
         id: `${toolInput.owner}/${toolInput.repo}`,

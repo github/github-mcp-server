@@ -432,6 +432,15 @@ function CreateIssueApp() {
     setSelectedIssueType(null);
     setSuccessIssue(null);
     setError(null);
+    // Clear available metadata (and filters) so prefill effects, which are gated
+    // on these lists being non-empty, can't match against the previous repo's data
+    // before the new repo's ui_get calls resolve.
+    setAvailableLabels([]);
+    setAvailableAssignees([]);
+    setAvailableMilestones([]);
+    setAvailableIssueTypes([]);
+    setLabelsFilter("");
+    setAssigneesFilter("");
     if (toolInput?.owner && toolInput?.repo) {
       setSelectedRepo({
         id: `${toolInput.owner}/${toolInput.repo}`,
