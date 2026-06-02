@@ -92,11 +92,11 @@ function SuccessView({
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => {
-              if (prUrl === "#") return;
               // MCP Apps run in a sandboxed iframe where a plain anchor may be
               // blocked, so route the click through the host's open-link
               // capability (falls back to window.open).
               e.preventDefault();
+              if (prUrl === "#") return;
               void openLink(prUrl);
             }}
             style={{
