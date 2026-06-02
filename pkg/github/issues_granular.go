@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"strconv"
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -1157,8 +1156,9 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 
 // issueFieldValueRESTRequest is the JSON body shape accepted by the REST
 // update-issue endpoint when setting issue field values with rationale or
-// suggestion. The endpoint expects integer database IDs and a single string
-// value per field. Used as a fallback to the GraphQL setIssueFieldValue
+// suggestion. The endpoint expects integer database IDs and a value whose
+// JSON type matches the field's data type (string for text/date/single_select,
+// number for number). Used as a fallback to the GraphQL setIssueFieldValue
 // mutation, which does not (yet) support rationale or suggest.
 type issueFieldValueRESTRequest struct {
 	IssueFieldValues []issueFieldValueRESTEntry `json:"issue_field_values"`
@@ -1166,7 +1166,7 @@ type issueFieldValueRESTRequest struct {
 
 type issueFieldValueRESTEntry struct {
 	FieldID   int64  `json:"field_id"`
-	Value     string `json:"value"`
+	Value     any    `json:"value"`
 	Rationale string `json:"rationale,omitempty"`
 	Suggest   bool   `json:"suggest,omitempty"`
 }
@@ -1215,12 +1215,12 @@ func setIssueFieldsViaREST(
 			return utils.NewToolResultError(fmt.Sprintf("could not resolve database ID for field %q", def.Name)), nil, nil
 		}
 
-		var value string
+		var value any
 		switch {
 		case f.TextValue != nil:
 			value = string(*f.TextValue)
 		case f.NumberValue != nil:
-			value = strconv.FormatFloat(float64(*f.NumberValue), 'f', -1, 64)
+			value = float64(*f.NumberValue)
 		case f.DateValue != nil:
 			value = string(*f.DateValue)
 		case f.SingleSelectOptionID != nil:

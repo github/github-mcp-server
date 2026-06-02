@@ -1313,7 +1313,11 @@ func TestGranularSetIssueFields(t *testing.T) {
 						"rationale": "Reflects the reported severity",
 					},
 				},
-			}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(5)})),
+			}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{
+				ID:      gogithub.Ptr(int64(123)),
+				Number:  gogithub.Ptr(5),
+				HTMLURL: gogithub.Ptr("https://github.com/owner/repo/issues/5"),
+			})),
 		}))
 
 		deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
@@ -1335,6 +1339,9 @@ func TestGranularSetIssueFields(t *testing.T) {
 		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
 		assert.False(t, result.IsError)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, `"id":"123"`)
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/5")
 	})
 
 	t.Run("rationale too long returns error", func(t *testing.T) {
@@ -1396,7 +1403,11 @@ func TestGranularSetIssueFields(t *testing.T) {
 						"suggest":   true,
 					},
 				},
-			}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(5)})),
+			}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{
+				ID:      gogithub.Ptr(int64(123)),
+				Number:  gogithub.Ptr(5),
+				HTMLURL: gogithub.Ptr("https://github.com/owner/repo/issues/5"),
+			})),
 		}))
 
 		deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
@@ -1413,6 +1424,138 @@ func TestGranularSetIssueFields(t *testing.T) {
 					"text_value":    "hello",
 					"rationale":     "Reflects the reported severity",
 					"is_suggestion": true,
+				},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, `"id":"123"`)
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/5")
+	})
+
+	t.Run("successful set with single_select_option_id and rationale", func(t *testing.T) {
+		fieldsQuery := githubv4mock.NewQueryMatcher(
+			issueFieldsRepoQuery{},
+			map[string]any{
+				"owner": githubv4.String("owner"),
+				"name":  githubv4.String("repo"),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"issueFields": map[string]any{
+						"nodes": []any{
+							map[string]any{
+								"__typename":     "IssueFieldSingleSelect",
+								"id":             "FIELD_1",
+								"fullDatabaseId": "42",
+								"name":           "Priority",
+								"dataType":       "SINGLE_SELECT",
+								"visibility":     "ALL",
+								"options": []any{
+									map[string]any{"id": "OPT_HIGH", "name": "High", "description": ""},
+								},
+							},
+						},
+					},
+				},
+			}),
+		)
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(fieldsQuery))
+
+		restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+				"issue_field_values": []any{
+					map[string]any{
+						"field_id":  float64(42),
+						"value":     "High",
+						"rationale": "Severe customer impact",
+					},
+				},
+			}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{
+				ID:      gogithub.Ptr(int64(123)),
+				Number:  gogithub.Ptr(5),
+				HTMLURL: gogithub.Ptr("https://github.com/owner/repo/issues/5"),
+			})),
+		}))
+
+		deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{
+					"field_id":                "FIELD_1",
+					"single_select_option_id": "OPT_HIGH",
+					"rationale":               "Severe customer impact",
+				},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+	})
+
+	t.Run("successful set with number value and rationale", func(t *testing.T) {
+		fieldsQuery := githubv4mock.NewQueryMatcher(
+			issueFieldsRepoQuery{},
+			map[string]any{
+				"owner": githubv4.String("owner"),
+				"name":  githubv4.String("repo"),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"issueFields": map[string]any{
+						"nodes": []any{
+							map[string]any{
+								"__typename":     "IssueFieldNumber",
+								"id":             "FIELD_1",
+								"fullDatabaseId": "42",
+								"name":           "Score",
+								"dataType":       "NUMBER",
+								"visibility":     "ALL",
+							},
+						},
+					},
+				},
+			}),
+		)
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(fieldsQuery))
+
+		restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+				"issue_field_values": []any{
+					map[string]any{
+						"field_id":  float64(42),
+						"value":     float64(7),
+						"rationale": "Initial estimate",
+					},
+				},
+			}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{
+				ID:      gogithub.Ptr(int64(123)),
+				Number:  gogithub.Ptr(5),
+				HTMLURL: gogithub.Ptr("https://github.com/owner/repo/issues/5"),
+			})),
+		}))
+
+		deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{
+					"field_id":     "FIELD_1",
+					"number_value": float64(7),
+					"rationale":    "Initial estimate",
 				},
 			},
 		})
