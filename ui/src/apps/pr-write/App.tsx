@@ -36,11 +36,13 @@ function SuccessView({
   owner,
   repo,
   submittedTitle,
+  openLink,
 }: {
   pr: PRResult;
   owner: string;
   repo: string;
   submittedTitle: string;
+  openLink: (url: string) => Promise<void>;
 }) {
   const prUrl = pr.html_url || pr.url || pr.URL || "#";
 
@@ -89,6 +91,14 @@ function SuccessView({
             href={prUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => {
+              if (prUrl === "#") return;
+              // MCP Apps run in a sandboxed iframe where a plain anchor may be
+              // blocked, so route the click through the host's open-link
+              // capability (falls back to window.open).
+              e.preventDefault();
+              void openLink(prUrl);
+            }}
             style={{
               fontWeight: 600,
               fontSize: "14px",
@@ -126,7 +136,7 @@ function CreatePRApp() {
   const [isDraft, setIsDraft] = useState(false);
   const [maintainerCanModify, setMaintainerCanModify] = useState(true);
 
-  const { app, error: appError, toolInput, callTool, hostContext, setModelContext } = useMcpApp({
+  const { app, error: appError, toolInput, callTool, hostContext, setModelContext, openLink } = useMcpApp({
     appName: "github-mcp-server-create-pull-request",
   });
 
@@ -199,7 +209,7 @@ function CreatePRApp() {
   if (successPR) {
     return (
       <AppProvider hostContext={hostContext}>
-        <SuccessView pr={successPR} owner={owner} repo={repo} submittedTitle={submittedTitle} />
+        <SuccessView pr={successPR} owner={owner} repo={repo} submittedTitle={submittedTitle} openLink={openLink} />
       </AppProvider>
     );
   }
