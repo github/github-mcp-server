@@ -11,6 +11,7 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v87/github"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,6 +51,7 @@ func Test_GetMe(t *testing.T) {
 		mockedClient       *http.Client
 		clientErr          string // if set, GetClient returns this error
 		requestArgs        map[string]any
+		missingArguments   bool
 		expectToolError    bool
 		expectedUser       *github.User
 		expectedToolErrMsg string
@@ -62,6 +64,15 @@ func Test_GetMe(t *testing.T) {
 			requestArgs:     map[string]any{},
 			expectToolError: false,
 			expectedUser:    mockUser,
+		},
+		{
+			name: "successful get user with missing arguments",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetUser: mockResponse(t, http.StatusOK, mockUser),
+			}),
+			missingArguments: true,
+			expectToolError:  false,
+			expectedUser:     mockUser,
 		},
 		{
 			name: "successful get user with reason",
@@ -103,7 +114,16 @@ func Test_GetMe(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			request := createMCPRequest(tc.requestArgs)
+			var request mcp.CallToolRequest
+			if tc.missingArguments {
+				request = mcp.CallToolRequest{
+					Params: &mcp.CallToolParamsRaw{
+						Name: "get_me",
+					},
+				}
+			} else {
+				request = createMCPRequest(tc.requestArgs)
+			}
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
