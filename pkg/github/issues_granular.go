@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"strconv"
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -1009,6 +1010,10 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				return utils.NewToolResultError("fields array must not be empty"), nil, nil
 			}
 
+			// needsREST is set when any field has rationale or suggest, since
+			// those are not yet supported on the GraphQL setIssueFieldValue
+			// mutation. The whole request is then dispatched via REST.
+			needsREST := false
 			issueFields := make([]IssueFieldCreateOrUpdateInput, 0, len(fieldMaps))
 			for _, fieldMap := range fieldMaps {
 				fieldID, err := RequiredParam[string](fieldMap, "field_id")
@@ -1070,6 +1075,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 					}
 					if rationale != "" {
 						input.Rationale = githubv4.NewString(githubv4.String(rationale))
+						needsREST = true
 					}
 				}
 
@@ -1080,9 +1086,14 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				if isSuggestion {
 					suggestVal := githubv4.Boolean(true)
 					input.Suggest = &suggestVal
+					needsREST = true
 				}
 
 				issueFields = append(issueFields, input)
+			}
+
+			if needsREST {
+				return setIssueFieldsViaREST(ctx, deps, owner, repo, issueNumber, issueFields)
 			}
 
 			gqlClient, err := deps.GetGQLClient(ctx)
@@ -1142,4 +1153,129 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 	)
 	st.FeatureFlagEnable = FeatureFlagIssuesGranular
 	return st
+}
+
+// issueFieldValueRESTRequest is the JSON body shape accepted by the REST
+// update-issue endpoint when setting issue field values with rationale or
+// suggestion. The endpoint expects integer database IDs and a single string
+// value per field. Used as a fallback to the GraphQL setIssueFieldValue
+// mutation, which does not (yet) support rationale or suggest.
+type issueFieldValueRESTRequest struct {
+	IssueFieldValues []issueFieldValueRESTEntry `json:"issue_field_values"`
+}
+
+type issueFieldValueRESTEntry struct {
+	FieldID   int64  `json:"field_id"`
+	Value     string `json:"value"`
+	Rationale string `json:"rationale,omitempty"`
+	Suggest   bool   `json:"suggest,omitempty"`
+}
+
+// setIssueFieldsViaREST dispatches a set_issue_fields request through the
+// REST update-issue endpoint. It resolves each field's integer database ID
+// (and, for single_select fields, each option's name) using the GraphQL
+// issue field definitions, then PATCHes the issue.
+func setIssueFieldsViaREST(
+	ctx context.Context,
+	deps ToolDependencies,
+	owner, repo string,
+	issueNumber int,
+	issueFields []IssueFieldCreateOrUpdateInput,
+) (*mcp.CallToolResult, any, error) {
+	// Delete is not supported on the REST shape we use here.
+	for _, f := range issueFields {
+		if f.Delete != nil && bool(*f.Delete) {
+			return utils.NewToolResultError("delete is not supported when rationale or is_suggestion is set"), nil, nil
+		}
+	}
+
+	gqlClient, err := deps.GetGQLClient(ctx)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
+	}
+
+	defs, err := fetchIssueFields(ctx, gqlClient, owner, repo)
+	if err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to look up issue field definitions", err), nil, nil
+	}
+
+	fieldByNodeID := make(map[string]IssueField, len(defs))
+	for _, f := range defs {
+		fieldByNodeID[f.ID] = f
+	}
+
+	entries := make([]issueFieldValueRESTEntry, 0, len(issueFields))
+	for _, f := range issueFields {
+		nodeID := fmt.Sprintf("%v", f.FieldID)
+		def, ok := fieldByNodeID[nodeID]
+		if !ok {
+			return utils.NewToolResultError(fmt.Sprintf("unknown field_id %q for %s/%s", nodeID, owner, repo)), nil, nil
+		}
+		if def.DatabaseID == 0 {
+			return utils.NewToolResultError(fmt.Sprintf("could not resolve database ID for field %q", def.Name)), nil, nil
+		}
+
+		var value string
+		switch {
+		case f.TextValue != nil:
+			value = string(*f.TextValue)
+		case f.NumberValue != nil:
+			value = strconv.FormatFloat(float64(*f.NumberValue), 'f', -1, 64)
+		case f.DateValue != nil:
+			value = string(*f.DateValue)
+		case f.SingleSelectOptionID != nil:
+			optID := fmt.Sprintf("%v", *f.SingleSelectOptionID)
+			optName := ""
+			for _, opt := range def.Options {
+				if opt.ID == optID {
+					optName = opt.Name
+					break
+				}
+			}
+			if optName == "" {
+				return utils.NewToolResultError(fmt.Sprintf("unknown single_select_option_id %q for field %q", optID, def.Name)), nil, nil
+			}
+			value = optName
+		}
+
+		entry := issueFieldValueRESTEntry{
+			FieldID: def.DatabaseID,
+			Value:   value,
+		}
+		if f.Rationale != nil {
+			entry.Rationale = string(*f.Rationale)
+		}
+		if f.Suggest != nil {
+			entry.Suggest = bool(*f.Suggest)
+		}
+		entries = append(entries, entry)
+	}
+
+	client, err := deps.GetClient(ctx)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+	}
+
+	body := &issueFieldValueRESTRequest{IssueFieldValues: entries}
+	apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
+	req, err := client.NewRequest(ctx, "PATCH", apiURL, body)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to create request", err), nil, nil
+	}
+
+	issue := &github.Issue{}
+	resp, err := client.Do(req, issue)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to set issue field values", resp, err), nil, nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	r, err := json.Marshal(MinimalResponse{
+		ID:  fmt.Sprintf("%d", issue.GetID()),
+		URL: issue.GetHTMLURL(),
+	})
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+	}
+	return utils.NewToolResultText(string(r)), nil, nil
 }

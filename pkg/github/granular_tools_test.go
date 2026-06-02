@@ -1277,75 +1277,46 @@ func TestGranularSetIssueFields(t *testing.T) {
 	})
 
 	t.Run("successful set with text value and rationale", func(t *testing.T) {
-		matchers := []githubv4mock.Matcher{
-			githubv4mock.NewQueryMatcher(
-				struct {
-					Repository struct {
-						Issue struct {
-							ID githubv4.ID
-						} `graphql:"issue(number: $issueNumber)"`
-					} `graphql:"repository(owner: $owner, name: $repo)"`
-				}{},
-				map[string]any{
-					"owner":       githubv4.String("owner"),
-					"repo":        githubv4.String("repo"),
-					"issueNumber": githubv4.Int(5),
-				},
-				githubv4mock.DataResponse(map[string]any{
-					"repository": map[string]any{
-						"issue": map[string]any{"id": "ISSUE_123"},
-					},
-				}),
-			),
-			githubv4mock.NewMutationMatcher(
-				struct {
-					SetIssueFieldValue struct {
-						Issue struct {
-							ID     githubv4.ID
-							Number githubv4.Int
-							URL    githubv4.String
-						}
-						IssueFieldValues []struct {
-							TextValue struct {
-								Value string
-							} `graphql:"... on IssueFieldTextValue"`
-							SingleSelectValue struct {
-								Name string
-							} `graphql:"... on IssueFieldSingleSelectValue"`
-							DateValue struct {
-								Value string
-							} `graphql:"... on IssueFieldDateValue"`
-							NumberValue struct {
-								Value float64
-							} `graphql:"... on IssueFieldNumberValue"`
-						}
-					} `graphql:"setIssueFieldValue(input: $input)"`
-				}{},
-				SetIssueFieldValueInput{
-					IssueID: githubv4.ID("ISSUE_123"),
-					IssueFields: []IssueFieldCreateOrUpdateInput{
-						{
-							FieldID:   githubv4.ID("FIELD_1"),
-							TextValue: githubv4.NewString(githubv4.String("hello")),
-							Rationale: githubv4.NewString(githubv4.String("Reflects the reported severity")),
+		// fetchIssueFields query mock for resolving the field's database ID.
+		fieldsQuery := githubv4mock.NewQueryMatcher(
+			issueFieldsRepoQuery{},
+			map[string]any{
+				"owner": githubv4.String("owner"),
+				"name":  githubv4.String("repo"),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"issueFields": map[string]any{
+						"nodes": []any{
+							map[string]any{
+								"__typename":     "IssueFieldText",
+								"id":             "FIELD_1",
+								"fullDatabaseId": "42",
+								"name":           "DRI",
+								"dataType":       "TEXT",
+								"visibility":     "ALL",
+							},
 						},
 					},
 				},
-				nil,
-				githubv4mock.DataResponse(map[string]any{
-					"setIssueFieldValue": map[string]any{
-						"issue": map[string]any{
-							"id":     "ISSUE_123",
-							"number": 5,
-							"url":    "https://github.com/owner/repo/issues/5",
-						},
-					},
-				}),
-			),
-		}
+			}),
+		)
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(fieldsQuery))
 
-		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matchers...))
-		deps := BaseDeps{GQLClient: gqlClient}
+		// REST PATCH mock asserting the issue_field_values wire format.
+		restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+				"issue_field_values": []any{
+					map[string]any{
+						"field_id":  float64(42),
+						"value":     "hello",
+						"rationale": "Reflects the reported severity",
+					},
+				},
+			}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(5)})),
+		}))
+
+		deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
 		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
 		handler := serverTool.Handler(deps)
 
@@ -1390,77 +1361,45 @@ func TestGranularSetIssueFields(t *testing.T) {
 	})
 
 	t.Run("successful set with suggest flag", func(t *testing.T) {
-		suggestTrue := githubv4.Boolean(true)
-		matchers := []githubv4mock.Matcher{
-			githubv4mock.NewQueryMatcher(
-				struct {
-					Repository struct {
-						Issue struct {
-							ID githubv4.ID
-						} `graphql:"issue(number: $issueNumber)"`
-					} `graphql:"repository(owner: $owner, name: $repo)"`
-				}{},
-				map[string]any{
-					"owner":       githubv4.String("owner"),
-					"repo":        githubv4.String("repo"),
-					"issueNumber": githubv4.Int(5),
-				},
-				githubv4mock.DataResponse(map[string]any{
-					"repository": map[string]any{
-						"issue": map[string]any{"id": "ISSUE_123"},
-					},
-				}),
-			),
-			githubv4mock.NewMutationMatcher(
-				struct {
-					SetIssueFieldValue struct {
-						Issue struct {
-							ID     githubv4.ID
-							Number githubv4.Int
-							URL    githubv4.String
-						}
-						IssueFieldValues []struct {
-							TextValue struct {
-								Value string
-							} `graphql:"... on IssueFieldTextValue"`
-							SingleSelectValue struct {
-								Name string
-							} `graphql:"... on IssueFieldSingleSelectValue"`
-							DateValue struct {
-								Value string
-							} `graphql:"... on IssueFieldDateValue"`
-							NumberValue struct {
-								Value float64
-							} `graphql:"... on IssueFieldNumberValue"`
-						}
-					} `graphql:"setIssueFieldValue(input: $input)"`
-				}{},
-				SetIssueFieldValueInput{
-					IssueID: githubv4.ID("ISSUE_123"),
-					IssueFields: []IssueFieldCreateOrUpdateInput{
-						{
-							FieldID:   githubv4.ID("FIELD_1"),
-							TextValue: githubv4.NewString(githubv4.String("hello")),
-							Rationale: githubv4.NewString(githubv4.String("Reflects the reported severity")),
-							Suggest:   &suggestTrue,
+		fieldsQuery := githubv4mock.NewQueryMatcher(
+			issueFieldsRepoQuery{},
+			map[string]any{
+				"owner": githubv4.String("owner"),
+				"name":  githubv4.String("repo"),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"issueFields": map[string]any{
+						"nodes": []any{
+							map[string]any{
+								"__typename":     "IssueFieldText",
+								"id":             "FIELD_1",
+								"fullDatabaseId": "42",
+								"name":           "DRI",
+								"dataType":       "TEXT",
+								"visibility":     "ALL",
+							},
 						},
 					},
 				},
-				nil,
-				githubv4mock.DataResponse(map[string]any{
-					"setIssueFieldValue": map[string]any{
-						"issue": map[string]any{
-							"id":     "ISSUE_123",
-							"number": 5,
-							"url":    "https://github.com/owner/repo/issues/5",
-						},
-					},
-				}),
-			),
-		}
+			}),
+		)
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(fieldsQuery))
 
-		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matchers...))
-		deps := BaseDeps{GQLClient: gqlClient}
+		restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+				"issue_field_values": []any{
+					map[string]any{
+						"field_id":  float64(42),
+						"value":     "hello",
+						"rationale": "Reflects the reported severity",
+						"suggest":   true,
+					},
+				},
+			}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(5)})),
+		}))
+
+		deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
 		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
 		handler := serverTool.Handler(deps)
 
