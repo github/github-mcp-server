@@ -410,8 +410,9 @@ func stripMCPAppsMetadata(tools []ServerTool) []ServerTool {
 
 // uiOnlySchemaProperties lists input-schema property names that should only
 // be visible to clients that advertise MCP Apps UI support. They live on the
-// static schema (so toolsnaps and README document the full UI-capable
-// surface) and are stripped per-request when the same gate that hides
+// static schema (so toolsnaps and the feature-flag / insiders docs document
+// the full UI-capable surface; the main README renders the stripped
+// non-UI schema) and are stripped per-request when the same gate that hides
 // _meta.ui is true.
 var uiOnlySchemaProperties = []string{
 	"show_ui", // explicit "render the MCP App form" toggle on form-backed write tools
