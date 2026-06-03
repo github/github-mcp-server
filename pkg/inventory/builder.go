@@ -426,7 +426,7 @@ var uiOnlySchemaProperties = []string{
 // surface — entries here must correspond to a strip rule in
 // ToolsForRegistration.
 func ConditionalSchemaPropertyDescriptions() map[string]string {
-	const uiOnlyCondition = "only visible to clients that advertise MCP App UI support"
+	const uiOnlyCondition = "visible when remote_mcp_ui_apps is enabled unless the client explicitly indicates it does not support io.modelcontextprotocol/ui"
 	out := make(map[string]string, len(uiOnlySchemaProperties))
 	for _, name := range uiOnlySchemaProperties {
 		out[name] = uiOnlyCondition
