@@ -418,6 +418,22 @@ var uiOnlySchemaProperties = []string{
 	"show_ui", // explicit "render the MCP App form" toggle on form-backed write tools
 }
 
+// ConditionalSchemaPropertyDescriptions returns a map of schema property name
+// to a human-readable description of the condition under which the property
+// is visible to clients. The doc generator uses this to annotate conditional
+// parameters so readers can see at a glance which fields are not always
+// available. This is the single source of truth for the conditional-property
+// surface — entries here must correspond to a strip rule in
+// ToolsForRegistration.
+func ConditionalSchemaPropertyDescriptions() map[string]string {
+	const uiOnlyCondition = "only visible to clients that advertise MCP App UI support"
+	out := make(map[string]string, len(uiOnlySchemaProperties))
+	for _, name := range uiOnlySchemaProperties {
+		out[name] = uiOnlyCondition
+	}
+	return out
+}
+
 // stripUIOnlySchemaProperties removes UI-capability-gated input-schema
 // properties (currently just "show_ui") from each tool's static schema.
 // Tools whose InputSchema is not a *jsonschema.Schema (e.g. json.RawMessage)
