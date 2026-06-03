@@ -240,7 +240,7 @@ runtime behavior (such as output formatting) won't appear here.
   - `owner`: Repository owner (username or organization) (string, required)
   - `pullNumber`: The pull request number (number, required)
   - `repo`: Repository name (string, required)
-  - `reviewers`: GitHub usernames to request reviews from (string[], required)
+  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], required)
 
 - **resolve_review_thread** - Resolve Review Thread
   - **Required OAuth Scopes**: `repo`
