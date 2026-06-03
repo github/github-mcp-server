@@ -83,6 +83,7 @@ function SuccessView({
   submittedTitle,
   submittedLabels,
   isUpdate,
+  openLink,
 }: {
   issue: IssueResult;
   owner: string;
@@ -90,6 +91,7 @@ function SuccessView({
   submittedTitle: string;
   submittedLabels: LabelItem[];
   isUpdate: boolean;
+  openLink: (url: string) => Promise<void>;
 }) {
   const issueUrl = issue.html_url || issue.url || issue.URL || "#";
 
@@ -138,6 +140,14 @@ function SuccessView({
             href={issueUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => {
+              // MCP Apps run in a sandboxed iframe where a plain anchor may be
+              // blocked, so route the click through the host's open-link
+              // capability (falls back to window.open).
+              e.preventDefault();
+              if (issueUrl === "#") return;
+              void openLink(issueUrl);
+            }}
             style={{
               fontWeight: 600,
               fontSize: "14px",
@@ -216,7 +226,7 @@ function CreateIssueApp() {
   const [repoSearchLoading, setRepoSearchLoading] = useState(false);
   const [repoFilter, setRepoFilter] = useState("");
 
-  const { app, error: appError, toolInput, callTool, hostContext, setModelContext } = useMcpApp({
+  const { app, error: appError, toolInput, callTool, hostContext, setModelContext, openLink } = useMcpApp({
     appName: "github-mcp-server-issue-write",
   });
 
@@ -764,6 +774,7 @@ function CreateIssueApp() {
         submittedTitle={title}
         submittedLabels={selectedLabels}
         isUpdate={isUpdateMode}
+        openLink={openLink}
       />
     );
   }

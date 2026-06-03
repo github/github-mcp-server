@@ -106,7 +106,12 @@ export function useMcpApp({
         window.open(url, "_blank", "noopener,noreferrer");
         return;
       }
-      await app.openLink({ url });
+      const result = await app.openLink({ url });
+      // The host may deny the request (e.g. blocked domain or user cancelled).
+      // Fall back to a direct window.open so the link still works.
+      if (result?.isError) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
     },
     [app]
   );
