@@ -1774,6 +1774,7 @@ var issueWriteFormParams = map[string]struct{}{
 	"title":         {},
 	"body":          {},
 	"issue_number":  {},
+	"show_ui":       {},
 	"_ui_submitted": {},
 }
 
@@ -1918,6 +1919,15 @@ Options are:
 							Required: []string{"field_name"},
 						},
 					},
+					// show_ui is hidden from clients that do not advertise MCP App
+					// UI support. The strip happens per-request in
+					// inventory.ToolsForRegistration; it is present in the static
+					// schema (and therefore in toolsnaps / README) so the UI-capable
+					// surface is fully documented.
+					"show_ui": {
+						Type:        "boolean",
+						Description: "Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when you have all required values (especially ones the form does not collect, like labels, assignees, milestone, type, issue_fields, or state changes) and the user has already confirmed the action.",
+					},
 				},
 				Required: []string{"method", "owner", "repo"},
 			},
@@ -1939,13 +1949,19 @@ Options are:
 			}
 
 			// When MCP Apps are enabled and the client supports UI, route the
-			// call to the interactive form unless it is itself a form submission
-			// (the UI sends _ui_submitted=true) or it carries parameters the form
-			// cannot represent (e.g. labels, assignees or issue_fields). Those
-			// must be applied directly so their values aren't silently dropped.
+			// call to the interactive form unless:
+			//   - it is itself a form submission (the UI sends _ui_submitted=true),
+			//   - the caller explicitly asked to skip the UI (show_ui=false), or
+			//   - it carries parameters the form cannot represent (e.g. labels,
+			//     assignees or issue_fields). Those must be applied directly so
+			//     their values aren't silently dropped.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
+			showUI, err := OptionalBoolParamWithDefault(args, "show_ui", true)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
-			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && !issueWriteHasNonFormParams(args) {
+			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && showUI && !issueWriteHasNonFormParams(args) {
 				if method == "update" {
 					issueNumber, numErr := RequiredInt(args, "issue_number")
 					if numErr != nil {
@@ -2150,6 +2166,15 @@ Options are:
 						Type:        "number",
 						Description: "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
 					},
+					// show_ui is hidden from clients that do not advertise MCP App
+					// UI support. The strip happens per-request in
+					// inventory.ToolsForRegistration; it is present in the static
+					// schema (and therefore in toolsnaps / README) so the UI-capable
+					// surface is fully documented.
+					"show_ui": {
+						Type:        "boolean",
+						Description: "Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when you have all required values (especially ones the form does not collect, like labels, assignees, milestone, type, or state changes) and the user has already confirmed the action.",
+					},
 				},
 				Required: []string{"method", "owner", "repo"},
 			},
@@ -2171,13 +2196,19 @@ Options are:
 			}
 
 			// When MCP Apps are enabled and the client supports UI, route the
-			// call to the interactive form unless it is itself a form submission
-			// (the UI sends _ui_submitted=true) or it carries parameters the form
-			// cannot represent (e.g. labels, assignees or issue_fields). Those
-			// must be applied directly so their values aren't silently dropped.
+			// call to the interactive form unless:
+			//   - it is itself a form submission (the UI sends _ui_submitted=true),
+			//   - the caller explicitly asked to skip the UI (show_ui=false), or
+			//   - it carries parameters the form cannot represent (e.g. labels,
+			//     assignees or issue_fields). Those must be applied directly so
+			//     their values aren't silently dropped.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
+			showUI, err := OptionalBoolParamWithDefault(args, "show_ui", true)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
-			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && !issueWriteHasNonFormParams(args) {
+			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && showUI && !issueWriteHasNonFormParams(args) {
 				if method == "update" {
 					issueNumber, numErr := RequiredInt(args, "issue_number")
 					if numErr != nil {

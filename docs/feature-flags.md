@@ -44,6 +44,7 @@ runtime behavior (such as output formatting) won't appear here.
   - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+  - `show_ui`: Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when you have all required values (especially ones the form does not collect, like reviewers) and the user has already confirmed the action. (boolean, optional)
   - `title`: PR title (string, required)
 
 - **get_me** - Get my user profile
@@ -66,6 +67,7 @@ runtime behavior (such as output formatting) won't appear here.
   - `milestone`: Milestone number (number, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+  - `show_ui`: Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when you have all required values (especially ones the form does not collect, like labels, assignees, milestone, type, or state changes) and the user has already confirmed the action. (boolean, optional)
   - `state`: New state (string, optional)
   - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
   - `title`: Issue title (string, optional)
@@ -240,7 +242,7 @@ runtime behavior (such as output formatting) won't appear here.
   - `owner`: Repository owner (username or organization) (string, required)
   - `pullNumber`: The pull request number (number, required)
   - `repo`: Repository name (string, required)
-  - `reviewers`: GitHub usernames to request reviews from (string[], required)
+  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], required)
 
 - **resolve_review_thread** - Resolve Review Thread
   - **Required OAuth Scopes**: `repo`
