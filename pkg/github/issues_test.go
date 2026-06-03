@@ -15,6 +15,7 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/http/headers"
 	transportpkg "github.com/github/github-mcp-server/pkg/http/transport"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -1903,6 +1904,56 @@ func Test_issueWriteHasNonFormParams(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tc.want, issueWriteHasNonFormParams(tc.args))
+		})
+	}
+}
+
+// Test_issueWriteSchemaClassification fails when a schema property is added
+// without classifying it as either form-resendable (issueWriteFormParams) or
+// known-non-form (knownNonForm below). Without this guard, an unclassified
+// property would silently flip UI gating: form-incompatible fields would
+// stop tripping the safety-net bypass and the form would drop their values.
+func Test_issueWriteSchemaClassification(t *testing.T) {
+	t.Parallel()
+
+	// Schema properties the MCP App form cannot represent — their presence
+	// must trigger the safety-net bypass via issueWriteHasNonFormParams.
+	knownNonForm := map[string]struct{}{
+		"assignees":    {},
+		"labels":       {},
+		"milestone":    {},
+		"type":         {},
+		"state":        {},
+		"state_reason": {},
+		"duplicate_of": {},
+		"issue_fields": {}, // only on the FF-enabled IssueWrite variant
+	}
+
+	cases := []struct {
+		name string
+		tool inventory.ServerTool
+	}{
+		{name: "IssueWrite", tool: IssueWrite(translations.NullTranslationHelper)},
+		{name: "LegacyIssueWrite", tool: LegacyIssueWrite(translations.NullTranslationHelper)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			schema, ok := tc.tool.Tool.InputSchema.(*jsonschema.Schema)
+			require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+
+			for prop := range schema.Properties {
+				_, isForm := issueWriteFormParams[prop]
+				_, isNonForm := knownNonForm[prop]
+
+				assert.Falsef(t, isForm && isNonForm,
+					"property %q is classified as both form-resendable and non-form — pick one", prop)
+				assert.Truef(t, isForm || isNonForm,
+					"property %q in %s schema is unclassified — add it to issueWriteFormParams (pkg/github/issues.go) "+
+						"if the MCP App form can carry it on submit, otherwise add it to the knownNonForm allowlist in this test",
+					prop, tc.name)
+			}
 		})
 	}
 }
