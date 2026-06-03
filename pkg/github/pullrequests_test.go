@@ -2615,6 +2615,32 @@ func Test_pullRequestWriteHasNonFormParams(t *testing.T) {
 	}
 }
 
+// Test_createPullRequestSchemaClassification fails when a schema property is
+// added without classifying it as either form-resendable
+// (pullRequestWriteFormParams) or known-non-form (knownNonForm below).
+// Today every property is form-resendable, so knownNonForm is empty.
+func Test_createPullRequestSchemaClassification(t *testing.T) {
+	t.Parallel()
+
+	knownNonForm := map[string]struct{}{}
+
+	tool := CreatePullRequest(translations.NullTranslationHelper)
+	schema, ok := tool.Tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+
+	for prop := range schema.Properties {
+		_, isForm := pullRequestWriteFormParams[prop]
+		_, isNonForm := knownNonForm[prop]
+
+		assert.Falsef(t, isForm && isNonForm,
+			"property %q is classified as both form-resendable and non-form — pick one", prop)
+		assert.Truef(t, isForm || isNonForm,
+			"property %q in create_pull_request schema is unclassified — add it to pullRequestWriteFormParams "+
+				"(pkg/github/pullrequests.go) if the MCP App form can carry it on submit, otherwise add it to "+
+				"the knownNonForm allowlist in this test", prop)
+	}
+}
+
 func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 	t.Parallel()
 
