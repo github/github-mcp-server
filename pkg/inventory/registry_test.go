@@ -2182,6 +2182,23 @@ func TestStripUIOnlySchemaProperties(t *testing.T) {
 		"tools with a non-*jsonschema.Schema input schema must be passed through")
 }
 
+// TestConditionalSchemaPropertyDescriptions ensures every property that
+// inventory strips per-request also has a human-readable condition the doc
+// generator can render. A future addition to uiOnlySchemaProperties that
+// forgets to wire a description through will fail here.
+func TestConditionalSchemaPropertyDescriptions(t *testing.T) {
+	t.Parallel()
+
+	descs := ConditionalSchemaPropertyDescriptions()
+	require.NotEmpty(t, descs, "expected at least show_ui to be advertised as conditional")
+
+	for _, name := range uiOnlySchemaProperties {
+		desc, ok := descs[name]
+		require.Truef(t, ok, "ui-only property %q must have a conditional description", name)
+		require.NotEmptyf(t, desc, "conditional description for %q must be non-empty", name)
+	}
+}
+
 func TestToolsForRegistration_StripsShowUIUnderSameGate(t *testing.T) {
 	// A tool whose schema declares both `_meta.ui` and `show_ui`. The strip
 	// for both must fire — or not — together, governed by the same gate
