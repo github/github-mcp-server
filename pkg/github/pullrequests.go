@@ -631,8 +631,10 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 					// show_ui is hidden from clients that do not advertise MCP App
 					// UI support. The strip happens per-request in
 					// inventory.ToolsForRegistration; it is present in the static
-					// schema (and therefore in toolsnaps / README) so the UI-capable
-					// surface is fully documented.
+					// schema (and therefore in toolsnaps and the feature-flag /
+					// insiders docs) so the UI-capable surface is fully
+					// documented. It is intentionally not in the main README,
+					// which renders the stripped (non-UI) schema.
 					"show_ui": {
 						Type:        "boolean",
 						Description: "Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when you have all required values (especially ones the form does not collect, like reviewers) and the user has already confirmed the action.",
