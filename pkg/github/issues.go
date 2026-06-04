@@ -1793,11 +1793,6 @@ func issueWriteHasNonFormParams(args map[string]any) bool {
 	return false
 }
 
-func issueWriteHasNonNilParam(args map[string]any, key string) bool {
-	value, ok := args[key]
-	return ok && value != nil
-}
-
 // IssueWrite is the FeatureFlagIssueFields-enabled variant of issue_write
 // (with the issue_fields parameter). LegacyIssueWrite is served when the flag
 // is off. Both register under the tool name "issue_write"; exactly one is
@@ -1977,14 +1972,16 @@ Options are:
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			assigneesProvided := issueWriteHasNonNilParam(args, "assignees")
+			assigneesValue, assigneesProvided := args["assignees"]
+			assigneesProvided = assigneesProvided && assigneesValue != nil
 
 			// Get labels
 			labels, err := OptionalStringArrayParam(args, "labels")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			labelsProvided := issueWriteHasNonNilParam(args, "labels")
+			labelsValue, labelsProvided := args["labels"]
+			labelsProvided = labelsProvided && labelsValue != nil
 
 			// Get optional milestone
 			milestone, err := OptionalIntParam(args, "milestone")
@@ -2214,14 +2211,16 @@ Options are:
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			assigneesProvided := issueWriteHasNonNilParam(args, "assignees")
+			assigneesValue, assigneesProvided := args["assignees"]
+			assigneesProvided = assigneesProvided && assigneesValue != nil
 
 			// Get labels
 			labels, err := OptionalStringArrayParam(args, "labels")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			labelsProvided := issueWriteHasNonNilParam(args, "labels")
+			labelsValue, labelsProvided := args["labels"]
+			labelsProvided = labelsProvided && labelsValue != nil
 
 			// Get optional milestone
 			milestone, err := OptionalIntParam(args, "milestone")
