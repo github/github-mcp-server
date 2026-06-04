@@ -198,6 +198,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **update_issue_type** - Update Issue Type
   - **Required OAuth Scopes**: `repo`
+  - `confidence`: How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal. (string, optional)
   - `is_suggestion`: If true, this issue type change is sent to the API as a suggestion (suggest:true) rather than an applied value. Whether the type is applied or recorded as a proposal is determined by the API. (boolean, optional)
   - `issue_number`: The issue number to update (number, required)
   - `issue_type`: The issue type to set (string, required)
@@ -240,7 +241,7 @@ runtime behavior (such as output formatting) won't appear here.
   - `owner`: Repository owner (username or organization) (string, required)
   - `pullNumber`: The pull request number (number, required)
   - `repo`: Repository name (string, required)
-  - `reviewers`: GitHub usernames to request reviews from (string[], required)
+  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], required)
 
 - **resolve_review_thread** - Resolve Review Thread
   - **Required OAuth Scopes**: `repo`
