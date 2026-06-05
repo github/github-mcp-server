@@ -1620,6 +1620,10 @@ func convertToMinimalPRFiles(files []*github.CommitFile) []MinimalPRFile {
 func convertToMinimalPullRequestCommits(commits []*github.RepositoryCommit) []MinimalPullRequestCommit {
 	result := make([]MinimalPullRequestCommit, 0, len(commits))
 	for _, commit := range commits {
+		if commit == nil {
+			continue
+		}
+
 		minimalCommit := MinimalPullRequestCommit{
 			SHA:     commit.GetSHA(),
 			HTMLURL: commit.GetHTMLURL(),
