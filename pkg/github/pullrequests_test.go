@@ -1433,6 +1433,12 @@ func Test_GetPullRequestCommits(t *testing.T) {
 	}
 }
 
+func Test_ConvertToMinimalPullRequestCommitsSkipsNilCommit(t *testing.T) {
+	commits := convertToMinimalPullRequestCommits([]*github.RepositoryCommit{nil})
+
+	require.Empty(t, commits)
+}
+
 func Test_GetPullRequestStatus(t *testing.T) {
 	// Verify tool definition once
 	serverTool := PullRequestRead(translations.NullTranslationHelper)
