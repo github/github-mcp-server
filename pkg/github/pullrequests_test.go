@@ -1468,12 +1468,35 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 		},
 	}
 
+	mockWorkflowRuns := &github.WorkflowRuns{
+		TotalCount: github.Ptr(1),
+		WorkflowRuns: []*github.WorkflowRun{
+			{
+				ID:         github.Ptr(int64(99)),
+				Name:       github.Ptr("CI"),
+				Status:     github.Ptr("completed"),
+				Conclusion: github.Ptr("success"),
+				HTMLURL:    github.Ptr("https://github.com/owner/repo/actions/runs/99"),
+			},
+		},
+	}
+
+	mockCommitStatuses := []*github.RepoStatus{
+		{
+			ID:        github.Ptr(int64(7)),
+			Context:   github.Ptr("ci/travis"),
+			State:     github.Ptr("success"),
+			TargetURL: github.Ptr("https://travis-ci.org/owner/repo/builds/1"),
+		},
+	}
+
 	tests := []struct {
 		name              string
 		mockedClient      *http.Client
 		requestArgs       map[string]any
 		expectError       bool
 		expectedCheckRuns *github.ListCheckRunsResults
+		expectedSource    string
 		expectedErrMsg    string
 	}{
 		{
@@ -1490,6 +1513,49 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 			},
 			expectError:       false,
 			expectedCheckRuns: mockCheckRuns,
+			expectedSource:    checkRunsSourceChecksAPI,
+		},
+		{
+			name: "falls back to workflow runs when checks API returns 403",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusForbidden)
+					_, _ = w.Write([]byte(`{"message": "Resource not accessible by personal access token"}`))
+				}),
+				GetReposActionsRunsByOwnerByRepo: mockResponse(t, http.StatusOK, mockWorkflowRuns),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_check_runs",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:    false,
+			expectedSource: checkRunsSourceWorkflowRuns,
+		},
+		{
+			name: "falls back to commit statuses when checks and workflow runs return 403",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusForbidden)
+					_, _ = w.Write([]byte(`{"message": "Resource not accessible by personal access token"}`))
+				}),
+				GetReposActionsRunsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusForbidden)
+					_, _ = w.Write([]byte(`{"message": "Resource not accessible by integration"}`))
+				}),
+				GetReposCommitsStatusesByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockCommitStatuses),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_check_runs",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:    false,
+			expectedSource: checkRunsSourceCommitStatuses,
 		},
 		{
 			name: "PR fetch fails",
@@ -1509,7 +1575,7 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 			expectedErrMsg: "failed to get pull request",
 		},
 		{
-			name: "check runs fetch fails",
+			name: "check runs fetch fails with non-403 error",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
 				GetReposCommitsCheckRunsByOwnerByRepoByRef: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -1525,6 +1591,32 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to get check runs",
+		},
+		{
+			name: "returns permission guidance when all sources are denied",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusForbidden)
+					_, _ = w.Write([]byte(`{"message": "Resource not accessible by personal access token"}`))
+				}),
+				GetReposActionsRunsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusForbidden)
+					_, _ = w.Write([]byte(`{"message": "Resource not accessible by integration"}`))
+				}),
+				GetReposCommitsStatusesByOwnerByRepoByRef: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusForbidden)
+					_, _ = w.Write([]byte(`{"message": "Resource not accessible by integration"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_check_runs",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:    true,
+			expectedErrMsg: "Checks API (checks:read for GitHub Apps",
 		},
 	}
 
@@ -1565,12 +1657,17 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 			var returnedCheckRuns MinimalCheckRunsResult
 			err = json.Unmarshal([]byte(textContent.Text), &returnedCheckRuns)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedCheckRuns.Total, returnedCheckRuns.TotalCount)
-			assert.Len(t, returnedCheckRuns.CheckRuns, len(tc.expectedCheckRuns.CheckRuns))
-			for i, checkRun := range returnedCheckRuns.CheckRuns {
-				assert.Equal(t, *tc.expectedCheckRuns.CheckRuns[i].Name, checkRun.Name)
-				assert.Equal(t, *tc.expectedCheckRuns.CheckRuns[i].Status, checkRun.Status)
-				assert.Equal(t, *tc.expectedCheckRuns.CheckRuns[i].Conclusion, checkRun.Conclusion)
+			if tc.expectedSource != "" {
+				assert.Equal(t, tc.expectedSource, returnedCheckRuns.Source)
+			}
+			if tc.expectedCheckRuns != nil {
+				assert.Equal(t, *tc.expectedCheckRuns.Total, returnedCheckRuns.TotalCount)
+				assert.Len(t, returnedCheckRuns.CheckRuns, len(tc.expectedCheckRuns.CheckRuns))
+				for i, checkRun := range returnedCheckRuns.CheckRuns {
+					assert.Equal(t, *tc.expectedCheckRuns.CheckRuns[i].Name, checkRun.Name)
+					assert.Equal(t, *tc.expectedCheckRuns.CheckRuns[i].Status, checkRun.Status)
+					assert.Equal(t, *tc.expectedCheckRuns.CheckRuns[i].Conclusion, checkRun.Conclusion)
+				}
 			}
 		})
 	}
