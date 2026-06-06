@@ -27,7 +27,7 @@ func TestRateLimitTransport_UpdatesStateFromHeaders(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	state := NewRateLimitState()
-	client := &http.Client{Transport: WrapWithRateLimit(server.Client().Transport, state)}
+	client := &http.Client{Transport: WrapWithRateLimit(server.Client().Transport, state, nil)}
 
 	resp, err := client.Get(server.URL)
 	require.NoError(t, err)

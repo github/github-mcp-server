@@ -55,7 +55,7 @@ type RateLimitTransport struct {
 	Logger       *slog.Logger
 }
 
-func WrapWithRateLimit(base http.RoundTripper, state *RateLimitState) http.RoundTripper {
+func WrapWithRateLimit(base http.RoundTripper, state *RateLimitState, logger *slog.Logger) http.RoundTripper {
 	if state == nil {
 		state = NewRateLimitState()
 	}
@@ -66,6 +66,7 @@ func WrapWithRateLimit(base http.RoundTripper, state *RateLimitState) http.Round
 		MinInterval:  DefaultMinRequestInterval,
 		MinRemaining: DefaultMinRateLimitRemaining,
 		MaxRetries:   DefaultMaxRateLimitRetries,
+		Logger:       logger,
 	}
 }
 

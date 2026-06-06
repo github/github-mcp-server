@@ -63,9 +63,10 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 
 	// Construct REST client
 	rateLimitState := transport.NewRateLimitState()
+	rateLimitLogger := cfg.Logger.With("component", "rate_limit")
 
 	restUATransport := &transport.UserAgentTransport{
-		Transport: transport.WrapWithRateLimit(http.DefaultTransport, rateLimitState),
+		Transport: transport.WrapWithRateLimit(http.DefaultTransport, rateLimitState, rateLimitLogger),
 		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
 	}
 	restClient, err := gogithub.NewClient(
@@ -82,7 +83,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	gqlHTTPClient := &http.Client{
 		Transport: &transport.BearerAuthTransport{
 			Transport: &transport.GraphQLFeaturesTransport{
-				Transport: transport.WrapWithRateLimit(http.DefaultTransport, rateLimitState),
+				Transport: transport.WrapWithRateLimit(http.DefaultTransport, rateLimitState, rateLimitLogger),
 			},
 			Token: cfg.Token,
 		},
