@@ -1062,31 +1062,8 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			// Get the reference for the branch
-			ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/heads/"+branch)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get branch reference: %w", err)
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			// Get the commit object that the branch points to
-			baseCommit, resp, err := client.Git.GetCommit(ctx, owner, repo, *ref.Object.SHA)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get base commit",
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get commit", resp, body), nil, nil
-			}
+			path = strings.TrimPrefix(path, "/")
+			refName := "refs/heads/" + branch
 
 			// Create a tree entry for the file deletion by setting SHA to nil
 			treeEntries := []*github.TreeEntry{
@@ -1098,75 +1075,30 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 			}
 
-			// Create a new tree with the deletion
-			newTree, resp, err := client.Git.CreateTree(ctx, owner, repo, *baseCommit.Tree.SHA, treeEntries)
+			pushResult, resp, err := commitEntriesToRef(ctx, client, owner, repo, refName, message, treeEntries)
 			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to create tree",
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusCreated {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				errMsg := err.Error()
+				if strings.Contains(errMsg, "get branch reference") {
+					return nil, nil, err
 				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create tree", resp, body), nil, nil
-			}
 
-			// Create a new commit with the new tree
-			commit := github.Commit{
-				Message: github.Ptr(message),
-				Tree:    newTree,
-				Parents: []*github.Commit{{SHA: baseCommit.SHA}},
-			}
-			newCommit, resp, err := client.Git.CreateCommit(ctx, owner, repo, commit, nil)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to create commit",
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusCreated {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				stage := "failed to delete file"
+				switch {
+				case strings.Contains(errMsg, "get base commit"):
+					stage = "failed to get base commit"
+				case strings.Contains(errMsg, "create tree"):
+					stage = "failed to create tree"
+				case strings.Contains(errMsg, "create commit"):
+					stage = "failed to create commit"
+				case strings.Contains(errMsg, "update reference"):
+					stage = "failed to update reference"
 				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create commit", resp, body), nil, nil
-			}
-
-			// Update the branch reference to point to the new commit
-			ref.Object.SHA = newCommit.SHA
-			_, resp, err = client.Git.UpdateRef(ctx, owner, repo, *ref.Ref, github.UpdateRef{
-				SHA:   *newCommit.SHA,
-				Force: github.Ptr(false),
-			})
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to update reference",
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update reference", resp, body), nil, nil
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, stage, resp, err), nil, nil
 			}
 
 			// Create a response similar to what the DeleteFile API would return
 			response := map[string]any{
-				"commit":  newCommit,
+				"commit":  pushResult.Commit,
 				"content": nil,
 			}
 
