@@ -98,6 +98,7 @@ WARN: failed to fetch token scopes, continuing without scope filtering
 
 ## Related Documentation
 
+- [Agent Security & Rate Limiting Guide](./agent-security-guide.md) — per-tool blocks and rate limits for agent workflows
 - [Server Configuration Guide](./server-configuration.md)
 - [GitHub PAT Documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
 - [OAuth Scopes Reference](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps)

@@ -64,6 +64,8 @@ github-mcp-server stdio \
 
 Excluded tools take precedence over toolsets and individual tool allowlists.
 
+Tools annotated with `DestructiveHint` in the server source are the highest-risk operations. As of this writing, they are: `delete_file`, `actions_run_trigger`, `delete_pending_pull_request_review`, `discussion_comment_write`, `projects_write`, and `remove_sub_issue`. Block these via `--exclude-tools` or your enforcement proxy even when other write tools are allowed.
+
 ### Lockdown mode
 
 Limits content surfaced from public repositories to collaborators with push access. Useful when agents browse public repos but should not act on unverified external content.
@@ -131,7 +133,7 @@ The exact configuration depends on your proxy. Several open-source MCP proxies s
 
 This repository includes a [recommended security policy template](examples/recommended-security-policy.yaml) with suggested defaults:
 
-- **Blocked tools:** destructive operations like `delete_file`, `actions_run_trigger`, and `projects_write`
+- **Blocked tools:** all tools annotated with `DestructiveHint` in the server (`delete_file`, `actions_run_trigger`, `delete_pending_pull_request_review`, `discussion_comment_write`, `projects_write`, and `remove_sub_issue`)
 - **Write rate limit:** 30 invocations per hour across write tools
 - **Repository creation limit:** 5 per hour
 - **Merge limit:** 10 per hour
