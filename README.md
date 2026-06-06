@@ -670,6 +670,9 @@ The following sets of tools are available:
 - **get_me** - Get my user profile
   - No parameters required
 
+- **get_repository_context** - Get repository context
+  - No parameters required
+
 - **get_team_members** - Get team members
   - **Required OAuth Scopes**: `read:org`
   - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`

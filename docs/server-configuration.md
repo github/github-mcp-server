@@ -15,6 +15,7 @@ We currently support the following ways in which the GitHub MCP Server can be co
 | Insiders Mode | `X-MCP-Insiders` header or `/insiders` URL | `--insiders` flag or `GITHUB_INSIDERS` env var |
 | Feature Flags | `X-MCP-Features` header | `--features` flag |
 | Scope Filtering | Always enabled | Always enabled |
+| Default Repository | Not available | `--repository` flag or `GITHUB_REPOSITORY` env var |
 | Server Name/Title | Not available | `GITHUB_MCP_SERVER_NAME` / `GITHUB_MCP_SERVER_TITLE` env vars or `github-mcp-server-config.json` |
 
 > **Default behavior:** If you don't specify any configuration, the server uses the **default toolsets**: `context`, `issues`, `pull_requests`, `repos`, `users`.
@@ -446,6 +447,49 @@ MCP Apps is enabled by [Insiders Mode](#insiders-mode), or independently via the
 
 ---
 
+### Repository Focus Mode
+
+**Best for:** single-repository development workflows where agents should behave like `gh` inside a git checkout—working directly on one project instead of searching across your account first.
+
+Set a default repository with `--repository owner/repo` or the `GITHUB_REPOSITORY` environment variable. The value accepts common formats such as `owner/repo`, `https://github.com/owner/repo`, or `git@github.com:owner/repo.git`.
+
+When a default repository is configured:
+
+- The `get_repository_context` tool returns the configured owner/repo and verifies token access (including fine-grained PAT permission hints when access fails).
+- Server instructions tell agents to call `get_repository_context` first and use the configured owner/repo with repo-scoped tools like `list_issues`.
+- Open-world discovery tools (`search_repositories`, `search_users`, `search_orgs`, `list_starred_repositories`, `create_repository`, `fork_repository`) are hidden unless you pass `--allow-discovery-tools`.
+
+**Example (local server):**
+
+```json
+{
+  "type": "stdio",
+  "command": "docker",
+  "args": [
+    "run",
+    "-i",
+    "--rm",
+    "-e",
+    "GITHUB_PERSONAL_ACCESS_TOKEN",
+    "-e",
+    "GITHUB_REPOSITORY",
+    "ghcr.io/github/github-mcp-server",
+    "stdio",
+    "--read-only",
+    "--toolsets",
+    "context,issues,pull_requests"
+  ],
+  "env": {
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}",
+    "GITHUB_REPOSITORY": "owner/repo"
+  }
+}
+```
+
+> **Note:** The MCP server cannot read your local `.git` directory directly. Configure `GITHUB_REPOSITORY` in your MCP host settings (or pass `--repository`) to bind an instance to the project you are working on.
+
+---
+
 ### Scope Filtering
 
 **Automatic feature:** The server handles OAuth scopes differently depending on authentication type:
@@ -467,6 +511,8 @@ See [Scope Filtering](./scope-filtering.md) for details on how filtering works w
 | Server fails to start | Invalid tool name in `--tools` or `X-MCP-Tools` | Check tool name spelling; use exact names from [Tools list](../README.md#tools) |
 | Write tools not working | Read-only mode enabled | Remove `--read-only` flag or `X-MCP-Readonly` header |
 | Tools missing | Toolset not enabled | Add the required toolset or specific tool |
+| Agent searches all repos first | No default repository configured | Set `GITHUB_REPOSITORY` or `--repository owner/repo` and call `get_repository_context` |
+| Fine-grained PAT cannot access collaborator repo | Token not authorized for that repository | Grant repository access and required permissions on the fine-grained PAT; check `get_repository_context` hint |
 
 ---
 

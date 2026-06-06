@@ -263,3 +263,27 @@ func TestGenerateInstructionsOnlyEnabledToolsets(t *testing.T) {
 		t.Errorf("Did not expect instructions to contain 'PRS_INSTRUCTIONS' for disabled toolset, but it did. Result: %s", result)
 	}
 }
+
+func TestGenerateInstructionsRepositoryFocusMode(t *testing.T) {
+	inv, err := NewBuilder().
+		SetTools([]ServerTool{{Toolset: ToolsetMetadata{ID: "context", Description: "Context"}}}).
+		WithToolsets([]string{"context"}).
+		WithDefaultRepository("github/github-mcp-server").
+		WithFocusRepository(true).
+		Build()
+	if err != nil {
+		t.Fatalf("Failed to build inventory: %v", err)
+	}
+
+	result := generateInstructions(inv)
+
+	if !strings.Contains(result, "Default repository: github/github-mcp-server") {
+		t.Errorf("Expected default repository in instructions, got: %s", result)
+	}
+	if !strings.Contains(result, "Repository focus mode is enabled") {
+		t.Errorf("Expected focus mode guidance in instructions, got: %s", result)
+	}
+	if !strings.Contains(result, "search_repositories are hidden") {
+		t.Errorf("Expected discovery tool guidance in instructions, got: %s", result)
+	}
+}
