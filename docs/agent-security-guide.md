@@ -131,7 +131,7 @@ The exact configuration depends on your proxy. Several open-source MCP proxies s
 
 This repository includes a [recommended security policy template](examples/recommended-security-policy.yaml) with suggested defaults:
 
-- **Blocked tools:** destructive operations like `delete_file`
+- **Blocked tools:** destructive operations like `delete_file`, `actions_run_trigger`, and `projects_write`
 - **Write rate limit:** 30 invocations per hour across write tools
 - **Repository creation limit:** 5 per hour
 - **Merge limit:** 10 per hour

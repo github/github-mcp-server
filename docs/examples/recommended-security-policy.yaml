@@ -19,6 +19,7 @@ blocked_tools:
   - delete_file
   - actions_run_trigger        # can cancel runs and delete workflow logs
   - discussion_comment_write   # includes delete method; block if not needed
+  - projects_write             # can delete project items and status updates
 
 # Per-tool rate limits. Counts apply per authenticated token/session.
 rate_limits:
