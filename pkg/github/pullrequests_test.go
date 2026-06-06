@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -2054,6 +2055,103 @@ func Test_GetPullRequestComments(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_GetPullRequestCommentsWithSuggestions(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/owner/repo/pull/42/threads/1964378741", r.URL.Path)
+		_, _ = w.Write([]byte(automatedSuggestionHTMLFixture))
+	}))
+	defer server.Close()
+
+	restClient, err := github.NewClient(github.WithHTTPClient(server.Client()), github.WithEnterpriseURLs(server.URL+"/", server.URL+"/"))
+	require.NoError(t, err)
+
+	gqlHTTPClient := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			reviewThreadsQuery{},
+			map[string]any{
+				"owner":             githubv4.String("owner"),
+				"repo":              githubv4.String("repo"),
+				"prNum":             githubv4.Int(42),
+				"first":             githubv4.Int(30),
+				"commentsPerThread": githubv4.Int(100),
+				"after":             (*githubv4.String)(nil),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"pullRequest": map[string]any{
+						"reviewThreads": map[string]any{
+							"nodes": []map[string]any{
+								{
+									"id":          "PRRT_kwDORGz4i851Fgp1",
+									"isResolved":  false,
+									"isOutdated":  false,
+									"isCollapsed": false,
+									"comments": map[string]any{
+										"totalCount": 1,
+										"nodes": []map[string]any{
+											{
+												"id":   "PRRC_kwDORGz4i86v72Xc",
+												"body": "Consider adding validation.",
+												"path": "glmocr/cli.py",
+												"line": 10,
+												"author": map[string]any{
+													"login": "copilot-pull-request-reviewer",
+												},
+												"createdAt": "2024-01-01T12:00:00Z",
+												"updatedAt": "2024-01-01T12:00:00Z",
+												"url":       "https://github.com/owner/repo/pull/42#discussion_r101",
+											},
+										},
+									},
+								},
+							},
+							"pageInfo": map[string]any{
+								"hasNextPage":     false,
+								"hasPreviousPage": false,
+								"startCursor":     "cursor1",
+								"endCursor":       "cursor2",
+							},
+							"totalCount": 1,
+						},
+					},
+				},
+			}),
+		),
+	)
+
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	deps := BaseDeps{
+		Client:    restClient,
+		GQLClient: githubv4.NewClient(gqlHTTPClient),
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":     "get_review_comments",
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(42),
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+	var response MinimalReviewThreadsResponse
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &response))
+	require.Len(t, response.ReviewThreads, 1)
+	require.Len(t, response.ReviewThreads[0].Comments, 1)
+
+	suggestions := response.ReviewThreads[0].Comments[0].Suggestions
+	require.Len(t, suggestions, 1)
+	assert.Equal(t, suggestionSourceAutomated, suggestions[0].Source)
+	assert.Equal(t, "glmocr/cli.py", suggestions[0].Path)
+	assert.Contains(t, suggestions[0].Suggestion, "import re")
 }
 
 func Test_GetPullRequestReviews(t *testing.T) {
