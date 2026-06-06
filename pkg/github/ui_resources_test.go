@@ -25,8 +25,9 @@ func TestRegisterUIResources_ReadableViaClient(t *testing.T) {
 		t.Skip("UI assets not built; run script/build-ui to enable this test")
 	}
 
+	ctx := context.Background()
 	srv := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
-	RegisterUIResources(srv)
+	RegisterUIResources(ctx, srv, mustInventoryWithUIAppTools(t))
 
 	// Connect an in-memory client/server pair and read each advertised URI.
 	st, ct := mcp.NewInMemoryTransports()
@@ -68,6 +69,52 @@ func TestRegisterUIResources_ReadableViaClient(t *testing.T) {
 	}
 }
 
+// TestRegisterUIResources_ReadOnlyExcludesWriteUIResources verifies that write
+// tool UI resources are not registered when the server runs in read-only mode,
+// while read-only tool UI (get_me) remains available.
+func TestRegisterUIResources_ReadOnlyExcludesWriteUIResources(t *testing.T) {
+	t.Parallel()
+
+	if !UIAssetsAvailable() {
+		t.Skip("UI assets not built; run script/build-ui to enable this test")
+	}
+
+	ctx := context.Background()
+	srv := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+	RegisterUIResources(ctx, srv, mustReadOnlyInventoryWithUIAppToolsets(t))
+
+	st, ct := mcp.NewInMemoryTransports()
+
+	type clientResult struct {
+		session *mcp.ClientSession
+		err     error
+	}
+	clientCh := make(chan clientResult, 1)
+	go func() {
+		client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
+		cs, err := client.Connect(context.Background(), ct, nil)
+		clientCh <- clientResult{session: cs, err: err}
+	}()
+
+	ss, err := srv.Connect(context.Background(), st, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ss.Close() })
+
+	got := <-clientCh
+	require.NoError(t, got.err)
+	t.Cleanup(func() { _ = got.session.Close() })
+
+	res, err := got.session.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: GetMeUIResourceURI})
+	require.NoError(t, err)
+	require.NotEmpty(t, res.Contents)
+
+	_, err = got.session.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: IssueWriteUIResourceURI})
+	require.Error(t, err, "issue_write UI should not be registered in read-only mode")
+
+	_, err = got.session.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: PullRequestWriteUIResourceURI})
+	require.Error(t, err, "pr_write UI should not be registered in read-only mode")
+}
+
 // TestNewMCPServer_RegistersUIResources verifies that NewMCPServer — the
 // shared constructor used by both the stdio and HTTP entry points — registers
 // the UI resources when UI assets are embedded. Previously this registration
@@ -80,9 +127,10 @@ func TestNewMCPServer_RegistersUIResources(t *testing.T) {
 	}
 
 	srv, err := NewMCPServer(context.Background(), &MCPServerConfig{
-		Version:    "test",
-		Translator: stubTranslator,
-	}, stubDeps{t: stubTranslator}, mustEmptyInventory(t))
+		Version:         "test",
+		Translator:      stubTranslator,
+		EnabledToolsets: []string{"issues"},
+	}, stubDeps{t: stubTranslator}, mustInventoryWithUIAppTools(t))
 	require.NoError(t, err)
 
 	st, ct := mcp.NewInMemoryTransports()
@@ -113,11 +161,21 @@ func TestNewMCPServer_RegistersUIResources(t *testing.T) {
 	assert.Equal(t, MCPAppMIMEType, res.Contents[0].MIMEType)
 }
 
-// mustEmptyInventory builds an empty inventory for tests that only care about
-// resources/prompts registered outside the inventory (such as the UI resources).
-func mustEmptyInventory(t *testing.T) *inventory.Inventory {
+func mustInventoryWithUIAppTools(t *testing.T) *inventory.Inventory {
 	t.Helper()
-	inv, err := NewInventory(stubTranslator).WithToolsets([]string{}).Build()
+	inv, err := NewInventory(stubTranslator).
+		WithToolsets([]string{"context", "issues", "pull_requests"}).
+		Build()
+	require.NoError(t, err)
+	return inv
+}
+
+func mustReadOnlyInventoryWithUIAppToolsets(t *testing.T) *inventory.Inventory {
+	t.Helper()
+	inv, err := NewInventory(stubTranslator).
+		WithToolsets([]string{"context", "issues", "pull_requests"}).
+		WithReadOnly(true).
+		Build()
 	require.NoError(t, err)
 	return inv
 }
