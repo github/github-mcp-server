@@ -407,20 +407,15 @@ func closeGitHubResponse(resp *github.Response) {
 }
 
 func isGitRefUpdateConflict(err error, resp *github.Response) bool {
-	statusCode := 0
-	if resp != nil && resp.Response != nil {
-		statusCode = resp.StatusCode
-	}
 	if ghErr, ok := err.(*github.ErrorResponse); ok {
-		if ghErr.Response != nil {
-			statusCode = ghErr.Response.StatusCode
-		}
 		msg := strings.ToLower(ghErr.Message)
-		if strings.Contains(msg, "fast forward") || strings.Contains(msg, "not a fast forward") {
+		if strings.Contains(msg, "fast forward") ||
+			strings.Contains(msg, "fast-forward") ||
+			strings.Contains(msg, "not a fast forward") {
 			return true
 		}
 	}
-	return statusCode == http.StatusUnprocessableEntity
+	return false
 }
 
 type gitPushResult struct {

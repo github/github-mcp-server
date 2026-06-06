@@ -82,6 +82,15 @@ func Test_isGitRefUpdateConflict(t *testing.T) {
 		Response: resp422.Response,
 		Message:  "Update is not a fast forward",
 	}, resp422))
+	assert.True(t, isGitRefUpdateConflict(&github.ErrorResponse{
+		Response: resp422.Response,
+		Message:  "Cannot fast-forward",
+	}, resp422))
+
+	assert.False(t, isGitRefUpdateConflict(&github.ErrorResponse{
+		Response: resp422.Response,
+		Message:  "Reference does not exist",
+	}, resp422))
 
 	resp200 := &github.Response{Response: &http.Response{StatusCode: http.StatusOK}}
 	assert.False(t, isGitRefUpdateConflict(nil, resp200))
