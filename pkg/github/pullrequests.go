@@ -35,7 +35,7 @@ Possible options:
  2. get_diff - Get the diff of a pull request.
  3. get_status - Get combined commit status of a head commit in a pull request.
  4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
- 5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
+ 5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Review comments include structured code suggestions when available, including Copilot-generated "Suggest" changesets (via thread partial) and human-authored suggestion code blocks in the comment body. Use cursor-based pagination (perPage, after) to control results.
  6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
  7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
  8. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
@@ -482,7 +482,15 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 		}
 	}
 
-	return MarshalledTextResult(convertToMinimalReviewThreadsResponse(query)), nil
+	response := convertToMinimalReviewThreadsResponse(query)
+
+	client, err := deps.GetClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get GitHub client for review suggestions: %w", err)
+	}
+	enrichReviewThreadsWithSuggestions(ctx, client, owner, repo, pullNumber, response.ReviewThreads)
+
+	return MarshalledTextResult(response), nil
 }
 
 func GetPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
