@@ -544,9 +544,12 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, deps Tool
 // PullRequestWriteUIResourceURI is the URI for the create_pull_request tool's MCP App UI resource.
 const PullRequestWriteUIResourceURI = "ui://github-mcp-server/pr-write"
 
-// pullRequestWriteFormParams are the parameters the create_pull_request MCP App
-// form collects and re-sends on submit. Any other parameter present on a call
-// cannot be represented by the form.
+// pullRequestWriteFormParams lists parameters that do not trigger the non-form
+// safety-net bypass when present on a call. This includes fields the
+// create_pull_request MCP App form collects and re-sends on submit, plus
+// routing flags (show_ui, _ui_submitted) that callers or the server set but the
+// form does not collect. Any other parameter present on a call cannot be
+// represented by the form.
 var pullRequestWriteFormParams = map[string]struct{}{
 	"owner":                 {},
 	"repo":                  {},
@@ -637,7 +640,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 					// which renders the stripped (non-UI) schema.
 					"show_ui": {
 						Type:        "boolean",
-						Description: "Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when you have all required values (especially ones the form does not collect, like reviewers) and the user has already confirmed the action.",
+						Description: "Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when the user has already confirmed the action or for automated workflows.",
 					},
 				},
 				Required: []string{"owner", "repo", "title", "head", "base"},
