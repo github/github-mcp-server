@@ -276,6 +276,45 @@ func Test_GetIssue(t *testing.T) {
 	}
 }
 
+func Test_GetIssue_PreservesAngleBracketsInCodeBlocks(t *testing.T) {
+	body := "```\nlet ptr: mut_raw_ptr<int> = raw_new int;\n```"
+	mockIssue := &github.Issue{
+		Number:  github.Ptr(42),
+		Title:   github.Ptr("Angle brackets in code"),
+		Body:    github.Ptr(body),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+		User:    &github.User{Login: github.Ptr("testuser")},
+	}
+
+	serverTool := IssueRead(translations.NullTranslationHelper)
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
+	}))
+	deps := BaseDeps{
+		Client:    client,
+		GQLClient: defaultGQLClient,
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":       "get",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(42),
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+	var returnedIssue MinimalIssue
+	err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
+	require.NoError(t, err)
+	assert.Equal(t, body, returnedIssue.Body)
+}
+
 func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 	t.Parallel()
 
