@@ -84,6 +84,11 @@ server_configuration:
   read_only: false
   exclude_tools:
     - delete_file
+    - actions_run_trigger
+    - delete_pending_pull_request_review
+    - discussion_comment_write
+    - projects_write
+    - remove_sub_issue
   toolsets:
     - context
     - repos
