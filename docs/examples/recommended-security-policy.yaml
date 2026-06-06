@@ -1,0 +1,88 @@
+# Recommended security policy for GitHub MCP Server agent workflows
+#
+# This is a reference template for MCP enforcement proxies. The GitHub MCP
+# Server does not read this file directly — configure your proxy to load it,
+# or translate these rules into your proxy's native policy format.
+#
+# See docs/agent-security-guide.md for context and deployment guidance.
+
+version: 1
+server: github-mcp-server
+description: >
+  Suggested defaults for limiting destructive operations and rate-limiting
+  write tools when connecting the GitHub MCP Server to AI agents.
+
+# Tools that should never be available to agents in this policy profile.
+# These map to tools annotated with DestructiveHint in the server, plus
+# other high-risk operations.
+blocked_tools:
+  - delete_file
+  - actions_run_trigger        # can cancel runs and delete workflow logs
+  - discussion_comment_write   # includes delete method; block if not needed
+
+# Per-tool rate limits. Counts apply per authenticated token/session.
+rate_limits:
+  # Repository and file writes
+  - tools:
+      - create_repository
+    limit: 5
+    window: 1h
+    action: deny
+
+  - tools:
+      - push_files
+      - create_or_update_file
+      - create_branch
+      - fork_repository
+    limit: 20
+    window: 1h
+    action: deny
+
+  # Pull request operations
+  - tools:
+      - merge_pull_request
+    limit: 10
+    window: 1h
+    action: deny
+
+  - tools:
+      - create_pull_request
+      - update_pull_request
+      - pull_request_review_write
+      - add_comment_to_pending_review
+    limit: 30
+    window: 1h
+    action: deny
+
+  # Issue operations
+  - tools:
+      - issue_write
+      - add_issue_comment
+      - sub_issue_write
+    limit: 30
+    window: 1h
+    action: deny
+
+  # Catch-all for remaining write tools not listed above
+  - category: write
+    limit: 30
+    window: 1h
+    action: deny
+
+# Tools in this list are allowed without rate limiting (reads are cheap
+# and low-risk, though GitHub API rate limits still apply).
+allowed_without_limit:
+  category: read
+
+# Suggested server configuration to pair with this policy.
+# Apply these flags when starting the local server, or use equivalent
+# headers on the remote server.
+server_configuration:
+  read_only: false
+  exclude_tools:
+    - delete_file
+  toolsets:
+    - context
+    - repos
+    - issues
+    - pull_requests

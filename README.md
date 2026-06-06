@@ -1476,6 +1476,12 @@ The following sets of tools are available:
 
 </details>
 
+## Agent Security
+
+The GitHub MCP Server exposes many tools, including destructive and write operations. For production agent workflows, combine server configuration (read-only mode, tool allowlists, excluded tools) with authentication best practices and optional MCP enforcement proxies for per-tool rate limiting.
+
+See the **[Agent Security & Rate Limiting Guide](docs/agent-security-guide.md)** for recommended profiles, a sample security policy template, and deployment patterns. For organization-level controls, see [Policies & Governance](docs/policies-and-governance.md).
+
 ## Read-Only Mode
 
 To run the server in read-only mode, you can use the `--read-only` flag. This will only offer read-only tools, preventing any modifications to repositories, issues, pull requests, etc.

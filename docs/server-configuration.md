@@ -475,5 +475,6 @@ See [Scope Filtering](./scope-filtering.md) for details on how filtering works w
 - [README: Tool Configuration](../README.md#tool-configuration)
 - [README: Available Toolsets](../README.md#available-toolsets) — Complete list of toolsets
 - [README: Tools](../README.md#tools) — Complete list of individual tools
+- [Agent Security & Rate Limiting Guide](./agent-security-guide.md) — Production safeguards, sample policy template
 - [Remote Server Documentation](./remote-server.md) — Remote-specific options and headers
 - [Installation Guides](./installation-guides) — Host-specific setup instructions
