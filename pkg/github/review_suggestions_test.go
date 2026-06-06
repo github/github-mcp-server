@@ -80,6 +80,24 @@ func TestParseAutomatedSuggestionsFromHTML(t *testing.T) {
 	assert.Equal(t, 10, *suggestions[0].StartLine)
 }
 
+func TestParseAutomatedSuggestionsFromHTMLWithDeletions(t *testing.T) {
+	t.Parallel()
+
+	html := `<html><body>` + automatedSuggestionWithDeletionsFixture + `</body></html>`
+	suggestions, err := parseAutomatedSuggestionsFromHTML(html)
+	require.NoError(t, err)
+	require.Len(t, suggestions, 1)
+
+	s := suggestions[0]
+	assert.Equal(t, suggestionSourceAutomated, s.Source)
+	assert.Equal(t, "glmocr/tests/test_layout_device.py", s.Path)
+	assert.NotContains(t, s.Suggestion, "from glmocr.layout.layout_detector import PPDocLayoutDetector")
+	assert.Contains(t, s.Suggestion, "from glmocr import layout as layout_mod")
+	assert.Contains(t, s.Suggestion, "pytest.skip")
+	require.NotNil(t, s.StartLine)
+	assert.Equal(t, 132, *s.StartLine)
+}
+
 func TestFetchAutomatedSuggestionsForThread(t *testing.T) {
 	t.Parallel()
 
@@ -140,3 +158,6 @@ func TestEnrichReviewThreadsWithSuggestions(t *testing.T) {
 }
 
 const automatedSuggestionHTMLFixture = `<script type="application/json" data-target="react-partial.embeddedData">{"props":{"comment":{"automatedComment":{"suggestion":{"diffEntries":[{"path":"glmocr/cli.py","diffLines":[{"type":"HUNK","text":"@@ -9,6 +9,7 @@","left":8,"right":8},{"type":"CONTEXT","text":"from pathlib import Path","left":10,"right":10},{"type":"ADDITION","text":"import re","left":11,"right":12}]}]}}}}}</script>`
+
+// Fixture derived from a real Copilot review thread partial (zai-org/GLM-OCR#131).
+const automatedSuggestionWithDeletionsFixture = `<script type="application/json" data-target="react-partial.embeddedData">{"props":{"comment":{"automatedComment":{"suggestion":{"diffEntries":[{"path":"glmocr/tests/test_layout_device.py","diffLines":[{"type":"HUNK","text":"@@ -132,7 +132,11 @@","left":131,"right":131},{"type":"CONTEXT","text":"    def _mock_detector(self, device_val):","left":132,"right":132},{"type":"CONTEXT","text":"        from glmocr.config import LayoutConfig","left":134,"right":134},{"type":"DELETION","text":"        from glmocr.layout.layout_detector import PPDocLayoutDetector","left":135,"right":134},{"type":"ADDITION","text":"        try:","left":135,"right":135},{"type":"ADDITION","text":"            from glmocr import layout as layout_mod","left":135,"right":136},{"type":"ADDITION","text":"            PPDocLayoutDetector = layout_mod.PPDocLayoutDetector  # type: ignore[attr-defined]","left":135,"right":137},{"type":"ADDITION","text":"        except Exception:","left":135,"right":138},{"type":"ADDITION","text":"            pytest.skip(\"PPDocLayoutDetector (and optional layout deps) not available; skipping mocked detector tests.\")","left":135,"right":139},{"type":"CONTEXT","text":"        cfg = LayoutConfig(device=device_val, **self._MOCK_LAYOUT_KWARGS)","left":137,"right":141}]}]}}}}}</script>`

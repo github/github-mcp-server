@@ -484,11 +484,9 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 
 	response := convertToMinimalReviewThreadsResponse(query)
 
-	client, err := deps.GetClient(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get GitHub client for review suggestions: %w", err)
+	if client, err := deps.GetClient(ctx); err == nil {
+		enrichReviewThreadsWithSuggestions(ctx, client, owner, repo, pullNumber, response.ReviewThreads)
 	}
-	enrichReviewThreadsWithSuggestions(ctx, client, owner, repo, pullNumber, response.ReviewThreads)
 
 	return MarshalledTextResult(response), nil
 }
