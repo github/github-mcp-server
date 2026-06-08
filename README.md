@@ -730,6 +730,23 @@ The following sets of tools are available:
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/comment-discussion-light.png"><img src="pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture> Discussions</summary>
 
+- **discussion_comment_write** - Manage discussion comments
+  - **Required OAuth Scopes**: `repo`
+  - `body`: Comment content (required for 'add', 'reply', and 'update' methods) (string, optional)
+  - `commentNodeID`: The Node ID of the discussion comment (required for 'reply', 'update', 'delete', 'mark_answer', and 'unmark_answer' methods). For 'reply', this is the top-level comment to reply to; GitHub Discussions only support one level of nesting. (string, optional)
+  - `discussionNumber`: Discussion number (required for 'add' and 'reply' methods) (number, optional)
+  - `method`: Write operation to perform on a discussion comment.
+    Options are:
+    - 'add' - adds a new top-level comment to a discussion.
+    - 'reply' - replies to a top-level discussion comment (GitHub Discussions only support one level of nesting).
+    - 'update' - updates an existing discussion comment.
+    - 'delete' - deletes a discussion comment.
+    - 'mark_answer' - marks a discussion comment as the answer (Q&A only).
+    - 'unmark_answer' - unmarks a discussion comment as the answer (Q&A only).
+     (string, required)
+  - `owner`: Repository owner (required for 'add' and 'reply' methods) (string, optional)
+  - `repo`: Repository name (required for 'add' and 'reply' methods) (string, optional)
+
 - **get_discussion** - Get discussion
   - **Required OAuth Scopes**: `repo`
   - `discussionNumber`: Discussion Number (number, required)
@@ -740,6 +757,7 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `repo`
   - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
   - `discussionNumber`: Discussion Number (number, required)
+  - `includeReplies`: When true, each top-level comment will include its replies nested within it (up to 100 replies per comment, which is the GitHub API maximum). Defaults to false. (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
@@ -1286,6 +1304,14 @@ The following sets of tools are available:
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more. (string, required)
   - `sort`: Sort field ('indexed' only) (string, optional)
+
+- **search_commits** - Search commits
+  - **Required OAuth Scopes**: `repo`
+  - `order`: Sort order (string, optional)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `query`: Commit search query (GitHub commit search REST). Searches commit messages on the default branch only. Scope the search with `repo:owner/repo`, `org:`, or `user:` (queries without a scope qualifier match across all of GitHub and are usually not what you want). Other qualifiers: `author:`, `committer:`, `author-name:`, `committer-name:`, `author-email:`, `committer-email:`, `author-date:`, `committer-date:` (supports `>`, `<`, `>=`, `<=`, and `YYYY-MM-DD..YYYY-MM-DD` ranges), `merge:true|false`, `hash:`, `tree:`, `parent:`, `is:public`. Examples: `repo:owner/repo fix panic`; `org:github author:defunkt committer-date:>=2024-01-01`; `"refactor cache" repo:o/r`; `hash:abc1234 repo:o/r`. (string, required)
+  - `sort`: Sort by author or committer date (defaults to best match) (string, optional)
 
 - **search_repositories** - Search repositories
   - **Required OAuth Scopes**: `repo`
