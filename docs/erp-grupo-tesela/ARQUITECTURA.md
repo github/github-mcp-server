@@ -137,17 +137,21 @@ flowchart LR
 
 ---
 
-## 6. Decisión clave: base de datos ("MySQL de Barcelona")
+## 6. Decisión cerrada: base de datos
 
-**Mi recomendación: PostgreSQL, no MySQL.** Para un ERP, Postgres gana en integridad de datos, tipos avanzados (JSON, geolocalización para parcelas), seguridad por fila y extensiones. Tres caminos posibles:
+**Elegido: PostgreSQL en Supabase Cloud, región UE (opción A).**
 
-| Opción | Datos en España | Esfuerzo | Recomendación |
-|--------|-----------------|----------|---------------|
-| **A. Supabase Cloud (región UE)** | UE (no Barcelona exacto) | Mínimo | ✅ La más rápida para arrancar. |
-| **B. Supabase self-host en proveedor español (Barcelona)** | Sí, España | Medio | ✅ Si la soberanía del dato es requisito legal. |
-| **C. MySQL gestionado en Barcelona** | Sí, España | Alto (perdemos las ventajas de Supabase) | ⚠️ Solo si hay una obligación concreta de usar MySQL. |
+Para un ERP, Postgres gana a MySQL en integridad de datos, tipos avanzados (JSON, geolocalización de parcelas), seguridad por fila y extensiones.
 
-> Necesito saber **por qué** estáis mirando "MySQL de Barcelona" (¿soberanía del dato? ¿un proveedor concreto? ¿una recomendación que os han dado?) para cerrar esta decisión.
+- **Hoy:** Supabase Cloud en región UE → arranque inmediato y datos en la Unión Europea (cumple RGPD).
+- **Futuro (si surge requisito legal estricto de datos en España):** Postgres es portable → migración a self-host en proveedor de Barcelona sin rehacer el modelo. Puerta abierta, sin coste hoy.
+- **MySQL descartado:** perderíamos las ventajas de Supabase (Auth, API automática, Storage, RLS) sin ganancia real.
+
+| Opción | Datos en | Estado |
+|--------|----------|--------|
+| **A. Supabase Cloud (región UE)** | UE | ✅ **ELEGIDA** |
+| B. Supabase self-host en Barcelona | España | 🔓 Reservada para el futuro |
+| C. MySQL en Barcelona | España | ❌ Descartada |
 
 ---
 
@@ -160,8 +164,18 @@ flowchart LR
 
 ---
 
-## 8. Pendiente de confirmar
+## 8. Decisiones cerradas
 
-1. **Base de datos:** motivo de "MySQL de Barcelona" → para elegir entre opción A/B/C (§6).
-2. **Holded:** ¿se mantiene como motor contable (mi recomendación) o queréis migrar todo al ERP nuevo?
-3. ¿Tenéis ya alguna herramienta de gestión de obra/promociones que haya que sustituir o de la que migrar datos?
+1. ✅ **Base de datos:** PostgreSQL en Supabase Cloud (región UE). Ver §6.
+2. ✅ **Holded:** se mantiene como motor contable/fiscal, integrado por API (primero lectura). Ver §7.
+
+### Pendiente menor
+- ¿Tenéis ya alguna herramienta de gestión de obra/promociones de la que haya que migrar datos? (No bloquea el arranque.)
+
+---
+
+## 9. Siguiente paso
+
+**Fase 0 en marcha.** El modelo de datos inicial (tablas del ERP) está en
+[`MODELO-DATOS.md`](./MODELO-DATOS.md). Una vez validado, creamos el proyecto Supabase
+y aplicamos el esquema.
