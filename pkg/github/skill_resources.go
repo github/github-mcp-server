@@ -190,16 +190,17 @@ func skillAddressPRFeedback() skillDefinition {
 func skillMergePR() skillDefinition {
 	return skillDefinition{
 		name:        "merge-pr",
-		description: "Get a PR to merge-ready state and merge it. Use when merging a pull request, checking if a PR is ready to merge, updating a PR branch, or converting a draft PR.",
+		description: "Get a PR to merge-ready state and merge it, or close a PR without merging. Use when merging a pull request, checking if a PR is ready to merge, updating a PR branch, converting a draft PR, or abandoning/closing a PR that should not ship.",
 		allowedTools: []string{
 			"pull_request_read",
 			"merge_pull_request",
 			"update_pull_request_branch",
+			"update_pull_request",
 			"update_pull_request_state",
 			"update_pull_request_draft_state",
 			"actions_get",
 		},
-		body: "# Merge Pull Request\n\nVerify a PR is ready and merge it.\n\n## Available Tools\n- `pull_request_read` — check status, reviews, and CI\n- `merge_pull_request` — merge the PR\n- `update_pull_request_branch` — update branch if behind base\n- `update_pull_request_draft_state` — convert draft to ready\n- `actions_get` — check workflow run details\n\n## Pre-Merge Checklist\n1. CI: all checks must pass (use `pull_request_read` with get_status).\n2. Reviews: required approvals present, no outstanding changes_requested.\n3. Branch: if behind base, call `update_pull_request_branch`.\n4. Draft: convert to ready with `update_pull_request_draft_state` if needed.\n5. Merge method: match repo conventions (merge, squash, or rebase).\n\nNever merge with failing checks. Never merge draft PRs without converting first.\n",
+		body: "# Merge Pull Request\n\nVerify a PR is ready and merge it — or close it cleanly if it shouldn't ship.\n\n## Available Tools\n- `pull_request_read` — check status, reviews, and CI\n- `merge_pull_request` — merge the PR\n- `update_pull_request_branch` — update branch if behind base\n- `update_pull_request_draft_state` — convert draft to ready\n- `update_pull_request` / `update_pull_request_state` — change PR state (e.g. close without merging)\n- `actions_get` — check workflow run details\n\n## Pre-Merge Checklist\n1. CI: all checks must pass (use `pull_request_read` with get_status).\n2. Reviews: required approvals present, no outstanding changes_requested.\n3. Branch: if behind base, call `update_pull_request_branch`.\n4. Draft: convert to ready with `update_pull_request_draft_state` if needed.\n5. Merge method: match repo conventions (merge, squash, or rebase).\n\n## Closing without merging\nWhen a PR is superseded, abandoned, or otherwise won't ship, close it instead of leaving it open. Use `update_pull_request_state` (or `update_pull_request` with `state: closed`) and leave a brief comment explaining why and linking to any superseding PR or issue. Don't just close silently.\n\nNever merge with failing checks. Never merge draft PRs without converting first.\n",
 	}
 }
 
