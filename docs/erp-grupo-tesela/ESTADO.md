@@ -11,7 +11,7 @@
 | Esquema inicial (14 tablas) | ✅ Hecho | Migración `esquema_inicial_erp` |
 | RLS base (bloqueo de acceso anónimo) | ✅ Hecho | Migración `rls_base_autenticados` |
 | Prueba end-to-end del modelo | ✅ Superada | Promoción demo creada, consultada y eliminada correctamente |
-| Integración Holded (lectura) | 🟡 Lista, falta activar | Edge Function `sync-holded` desplegada. Falta el secreto `HOLDED_API_KEY` |
+| Integración Holded (lectura) | 🟡 Habilitada en Zapier, falta autorizar | 19 acciones activas (find_contact, create_invoice, etc.). Pendiente: el usuario autoriza su cuenta en el enlace OAuth |
 | Auth + RLS fino por rol | ⏳ Pendiente | Se hace en Fase 1 con la tabla de usuarios |
 
 ## Datos del proyecto Supabase
@@ -30,17 +30,22 @@
 - Las políticas actuales son permisivas para cualquier usuario autenticado (correcto en Fase 0).
 - En Fase 1 se sustituyen por políticas finas por **rol** (dirección/obra/comercial) y por **sociedad/promoción**.
 
-## Cómo activar la sincronización con Holded
+## Conexión con Holded — dos vías
 
-1. Saca tu API key en **Holded → Configuración → Desarrolladores → API**.
-2. En **Supabase → Project Settings → Edge Functions → Secrets**, añade:
-   `HOLDED_API_KEY = <tu_api_key>`
-3. Invoca la función `sync-holded` (yo puedo lanzarla por ti una vez esté el secreto).
-4. Verás los contactos de Holded volcados en las tablas `cliente` y `proveedor`
-   con su `holded_id` poblado.
+**Vía A (elegida, en marcha): Zapier.** Holded habilitado en Zapier con 19 acciones
+(lectura `find_contact` + escritura: facturas, contactos, pagos, presupuestos…).
+Pendiente: el usuario autoriza su cuenta en el enlace OAuth que devuelve `enable_zapier_action`.
+- Ideal para operaciones transaccionales del ERP (crear factura al firmar una compraventa,
+  buscar/crear contacto, registrar pago).
+- Limitación: Zapier no ofrece "listar todos los contactos"; solo búsqueda individual.
 
-> El código vive en `supabase/functions/sync-holded/index.ts`. El mapeo de campos
-> conviene validarlo contra la doc vigente de Holded (developers.holded.com).
+**Vía B (reserva, ya desplegada): Edge Function `sync-holded`.** Mejor para la
+**sincronización masiva inicial** de todos los contactos (la API de Holded sí permite
+listar). Requiere poner el secreto `HOLDED_API_KEY` en Supabase e invocar la función.
+Código en `supabase/functions/sync-holded/index.ts`.
+
+> Plan: usar Zapier para el día a día transaccional y la Edge Function para la carga
+> inicial masiva de contactos. El mapeo de campos se valida contra la cuenta real.
 
 ## Próximos pasos
 
