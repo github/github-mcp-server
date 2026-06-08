@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERP Grupo Tesela — Dashboard de Dirección</title>
+<style>
+  :root{
+    --bg:#f4f6f8; --card:#fff; --prim:#0f766e; --dark:#111827; --mut:#6b7280;
+    --green:#16a34a; --amber:#d97706; --red:#dc2626; --line:#e5e7eb;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--dark);padding:32px;}
+  .wrap{max-width:1280px;margin:0 auto;}
+  header h1{font-size:28px;font-weight:800;}
+  header p{color:var(--mut);font-size:15px;margin-top:4px;}
+  .grid-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:24px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;}
+  .kpi .lbl{font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--mut);text-transform:uppercase;}
+  .kpi .val{font-size:26px;font-weight:800;margin:8px 0;}
+  .kpi .sub{font-size:12px;color:var(--mut);}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:24px;}
+  h2{font-size:16px;font-weight:600;margin-bottom:14px;}
+  table{width:100%;border-collapse:collapse;}
+  td{padding:9px 0;font-size:13px;border-bottom:1px solid var(--line);}
+  tr:last-child td{border-bottom:none;}
+  .ref{font-weight:600;}
+  .tipo{color:var(--mut);}
+  .precio{text-align:right;font-weight:500;}
+  .tag{font-weight:600;}
+  .v{color:var(--green);} .r{color:var(--amber);} .d{color:var(--mut);}
+  .bar-lbl{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;}
+  .bar-lbl b{font-weight:600;}
+  .track{height:10px;background:var(--line);border-radius:5px;overflow:hidden;margin-bottom:18px;}
+  .fill{height:100%;border-radius:5px;}
+  .note{font-size:12px;color:var(--mut);margin-top:6px;line-height:1.5;}
+  .badge{display:inline-block;background:var(--prim);color:#fff;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;margin-left:8px;vertical-align:middle;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Residencial Diagonal Mar <span class="badge">EN OBRA</span></h1>
+    <p>Barcelona · 2 bloques · 38 unidades · Grupo Tesela</p>
+  </header>
+
+  <section class="grid-kpi">
+    <div class="card kpi"><div class="lbl">% Colocado</div><div class="val" style="color:var(--prim)">57,9 %</div><div class="sub">21 vendidas · 1 reservada</div></div>
+    <div class="card kpi"><div class="lbl">Ingresos contratados</div><div class="val">7.777.000 €</div><div class="sub">de 14.103.000 € totales</div></div>
+    <div class="card kpi"><div class="lbl">Coste real a fecha</div><div class="val" style="color:var(--amber)">6.125.500 €</div><div class="sub">previsto 7.200.000 €</div></div>
+    <div class="card kpi"><div class="lbl">Margen a fecha</div><div class="val" style="color:var(--green)">+1.651.500 €</div><div class="sub">proyectado ~6,9 M €</div></div>
+  </section>
+
+  <section class="cols">
+    <div class="card">
+      <h2>Comercialización por unidad</h2>
+      <table>
+        <tr><td class="ref">A-1A</td><td class="tipo">Vivienda</td><td class="tag v">Vendida</td><td class="precio">385.000 €</td></tr>
+        <tr><td class="ref">A-1B</td><td class="tipo">Vivienda</td><td class="tag v">Vendida</td><td class="precio">410.000 €</td></tr>
+        <tr><td class="ref">A-2A</td><td class="tipo">Vivienda</td><td class="tag r">Reservada</td><td class="precio">395.000 €</td></tr>
+        <tr><td class="ref">B-1A</td><td class="tipo">Vivienda</td><td class="tag d">Disponible</td><td class="precio">360.000 €</td></tr>
+        <tr><td class="ref">GAR-01</td><td class="tipo">Garaje</td><td class="tag v">Vendida</td><td class="precio">25.000 €</td></tr>
+        <tr><td class="ref">TRA-01</td><td class="tipo">Trastero</td><td class="tag d">Disponible</td><td class="precio">8.000 €</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Avance de obra (certificado)</h2>
+      <div class="bar-lbl"><b>Estructuras Catalanas SA</b><span style="color:var(--green)">98,4 %</span></div>
+      <div class="track"><div class="fill" style="width:98.4%;background:var(--green)"></div></div>
+      <div class="bar-lbl"><b>Instalaciones Mediterráneo SL</b><span style="color:var(--amber)">26,9 %</span></div>
+      <div class="track"><div class="fill" style="width:26.9%;background:var(--amber)"></div></div>
+      <h2 style="margin-top:8px">Control presupuestario</h2>
+      <table>
+        <tr><td class="ref">Estructura</td><td class="precio">1.820.000 / 1.850.000</td><td class="tag v" style="text-align:right">−30.000</td></tr>
+        <tr><td class="ref">Cimentación</td><td class="precio">695.000 / 680.000</td><td class="tag" style="color:var(--red);text-align:right">+15.000</td></tr>
+        <tr><td class="ref">Mov. tierras</td><td class="precio">310.500 / 320.000</td><td class="tag v" style="text-align:right">−9.500</td></tr>
+      </table>
+      <p class="note">Datos en vivo desde Supabase (vistas <code>v_rentabilidad_promocion</code> y <code>v_comercializacion_promocion</code>). Con Holded conectado, el coste real se alimenta solo de las facturas de proveedores.</p>
+    </div>
+  </section>
+</div>
+</body>
+</html>
