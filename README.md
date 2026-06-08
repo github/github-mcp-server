@@ -1189,6 +1189,8 @@ The following sets of tools are available:
      7. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
      8. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
      9. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
+     10. get_reviewers - Get the list of requested reviewers (users and teams) for a pull request who have not yet submitted a review.
+     11. get_status_checks - Get a unified view of all status checks for a pull request, combining legacy commit statuses and modern check runs.
      (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)

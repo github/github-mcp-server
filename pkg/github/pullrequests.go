@@ -41,8 +41,10 @@ Possible options:
  7. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
  8. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
  9. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
+ 10. get_reviewers - Get the list of requested reviewers (users and teams) for a pull request who have not yet submitted a review.
+ 11. get_status_checks - Get a unified view of all status checks for a pull request, combining legacy commit statuses and modern check runs.
 `,
-				Enum: []any{"get", "get_diff", "get_status", "get_files", "get_commits", "get_review_comments", "get_reviews", "get_comments", "get_check_runs"},
+				Enum: []any{"get", "get_diff", "get_status", "get_files", "get_commits", "get_review_comments", "get_reviews", "get_comments", "get_check_runs", "get_reviewers", "get_status_checks"},
 			},
 			"owner": {
 				Type:        "string",
@@ -153,6 +155,12 @@ Possible options:
 				return attachIFC(result), nil, err
 			case "get_check_runs":
 				result, err := GetPullRequestCheckRuns(ctx, client, owner, repo, pullNumber, pagination)
+				return attachIFC(result), nil, err
+			case "get_reviewers":
+				result, err := GetPullRequestReviewers(ctx, client, owner, repo, pullNumber)
+				return attachIFC(result), nil, err
+			case "get_status_checks":
+				result, err := GetPullRequestStatusChecks(ctx, client, owner, repo, pullNumber)
 				return attachIFC(result), nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -373,6 +381,117 @@ func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, 
 	}
 
 	r, err := json.Marshal(minimalResult)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(r)), nil
+}
+
+func GetPullRequestReviewers(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+	reviewers, resp, err := client.PullRequests.ListReviewers(ctx, owner, repo, pullNumber)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get pull request reviewers", resp, err), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request reviewers", resp, body), nil
+	}
+
+	result := MinimalPRReviewers{}
+	for _, u := range reviewers.Users {
+		result.Users = append(result.Users, MinimalReviewerUser{
+			Login:   u.GetLogin(),
+			HTMLURL: u.GetHTMLURL(),
+		})
+	}
+	for _, t := range reviewers.Teams {
+		result.Teams = append(result.Teams, MinimalReviewerTeam{
+			Slug:    t.GetSlug(),
+			Name:    t.GetName(),
+			HTMLURL: t.GetHTMLURL(),
+		})
+	}
+
+	r, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(r)), nil
+}
+
+func GetPullRequestStatusChecks(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get pull request", resp, err), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
+	}
+
+	sha := pr.GetHead().GetSHA()
+
+	combinedStatus, resp, err := client.Repositories.GetCombinedStatus(ctx, owner, repo, sha, nil)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get combined status", resp, err), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get combined status", resp, body), nil
+	}
+
+	checkRuns, resp, err := client.Checks.ListCheckRunsForRef(ctx, owner, repo, sha, nil)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get check runs", resp, err), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get check runs", resp, body), nil
+	}
+
+	result := MinimalStatusChecks{
+		CombinedState: combinedStatus.GetState(),
+	}
+
+	for _, s := range combinedStatus.Statuses {
+		ms := MinimalCommitStatus{
+			State:       s.GetState(),
+			Context:     s.GetContext(),
+			Description: s.GetDescription(),
+			TargetURL:   s.GetTargetURL(),
+		}
+		result.Statuses = append(result.Statuses, ms)
+	}
+
+	for _, cr := range checkRuns.CheckRuns {
+		result.CheckRuns = append(result.CheckRuns, convertToMinimalCheckRun(cr))
+	}
+
+	result.TotalCount = len(result.Statuses) + len(result.CheckRuns)
+
+	r, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}

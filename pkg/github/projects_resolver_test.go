@@ -358,7 +358,7 @@ func Test_ResolveFieldNamesToIDs_Success(t *testing.T) {
 	assert.Equal(t, []int64{100, 200}, ids)
 }
 
-// Field and single-select option name matching is case-insensitive so agents passing lowercase 
+// Field and single-select option name matching is case-insensitive so agents passing lowercase
 // names like "status" or "in progress" resolve to "Status" and "In Progress" respectively.
 func Test_ResolveProjectFieldByName_CaseInsensitive(t *testing.T) {
 	mocked := githubv4mock.NewMockedHTTPClient(
