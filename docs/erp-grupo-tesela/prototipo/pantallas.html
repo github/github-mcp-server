@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERP Grupo Tesela — Pantallas</title>
+<style>
+  :root{--bg:#f4f6f8;--card:#fff;--prim:#0f766e;--dark:#111827;--mut:#6b7280;--green:#16a34a;--amber:#d97706;--red:#dc2626;--line:#e5e7eb;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#e7eaee;color:var(--dark);padding:32px;}
+  .screen{background:var(--bg);max-width:1200px;margin:0 auto 48px;border-radius:18px;padding:32px;box-shadow:0 8px 30px rgba(0,0,0,.08);}
+  .screen-tag{font-size:12px;font-weight:700;color:var(--prim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px;}
+  h1{font-size:28px;font-weight:800;}
+  .sub{color:var(--mut);font-size:15px;margin-top:4px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;}
+  .grid-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:20px;}
+  .grid-3{grid-template-columns:repeat(3,1fr);}
+  .kpi .lbl{font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--mut);text-transform:uppercase;}
+  .kpi .val{font-size:25px;font-weight:800;margin:8px 0;}
+  .kpi .sub2{font-size:12px;color:var(--mut);}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;}
+  h2{font-size:16px;font-weight:600;margin-bottom:14px;}
+  table{width:100%;border-collapse:collapse;}
+  th{font-size:11px;font-weight:600;color:var(--mut);text-transform:uppercase;text-align:left;padding:6px 0;border-bottom:1px solid var(--line);}
+  td{padding:9px 0;font-size:13px;border-bottom:1px solid var(--line);}
+  tr:last-child td{border-bottom:none;}
+  .r{text-align:right;} .ref{font-weight:600;} .tipo{color:var(--mut);} .m{font-weight:500;}
+  .v{color:var(--green);font-weight:600;} .res{color:var(--amber);font-weight:600;} .d{color:var(--mut);font-weight:600;}
+  .bar-lbl{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;}
+  .track{height:10px;background:var(--line);border-radius:5px;overflow:hidden;margin-bottom:18px;}
+  .fill{height:100%;border-radius:5px;}
+  .badge{display:inline-block;background:var(--green);color:#fff;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;margin-left:8px;vertical-align:middle;}
+  .kv{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;}
+  .kv:last-child{border-bottom:none;} .kv .k{color:var(--mut);} .kv .val{font-weight:600;}
+  /* login */
+  .login{max-width:440px;margin:0 auto;text-align:center;}
+  .brand{font-size:30px;font-weight:800;color:var(--prim);}
+  .brand-sub{color:var(--mut);font-size:14px;margin:2px 0 24px;}
+  .field{text-align:left;margin-bottom:16px;}
+  .field label{font-size:12px;font-weight:600;display:block;margin-bottom:6px;}
+  .input{border:1px solid var(--line);border-radius:10px;padding:12px 14px;color:var(--mut);font-size:14px;background:#fff;}
+  .btn{background:var(--prim);color:#fff;font-weight:600;text-align:center;padding:13px;border-radius:10px;font-size:15px;margin-top:4px;}
+  .foot{color:var(--mut);font-size:12px;margin-top:18px;}
+</style>
+</head>
+<body>
+
+<!-- 1. LOGIN -->
+<div class="screen">
+  <div class="screen-tag">Pantalla 1 · Acceso</div>
+  <div class="login">
+    <div class="brand">Grupo Tesela</div>
+    <div class="brand-sub">ERP · Promoción inmobiliaria</div>
+    <div class="card">
+      <div class="field"><label>Email</label><div class="input">tu@grupotesela.com</div></div>
+      <div class="field"><label>Contraseña</label><div class="input">••••••••</div></div>
+      <div class="btn">Entrar</div>
+    </div>
+    <div class="foot">Acceso restringido · Grupo Tesela</div>
+  </div>
+</div>
+
+<!-- 2. DASHBOARD -->
+<div class="screen">
+  <div class="screen-tag">Pantalla 2 · Dashboard de Dirección</div>
+  <h1>Residencial Diagonal Mar <span class="badge" style="background:var(--prim)">EN OBRA</span></h1>
+  <p class="sub">Barcelona · 2 bloques · 38 unidades</p>
+  <div class="grid-kpi">
+    <div class="card kpi"><div class="lbl">% Colocado</div><div class="val" style="color:var(--prim)">57,9 %</div><div class="sub2">21 vendidas · 1 reservada</div></div>
+    <div class="card kpi"><div class="lbl">Ingresos contratados</div><div class="val">7.777.000 €</div><div class="sub2">de 14.103.000 €</div></div>
+    <div class="card kpi"><div class="lbl">Coste real</div><div class="val" style="color:var(--amber)">6.125.500 €</div><div class="sub2">previsto 7.200.000 €</div></div>
+    <div class="card kpi"><div class="lbl">Margen a fecha</div><div class="val" style="color:var(--green)">+1.651.500 €</div><div class="sub2">proyectado ~6,9 M€</div></div>
+  </div>
+  <div class="cols">
+    <div class="card">
+      <h2>Comercialización por unidad</h2>
+      <table>
+        <tr><th>Unidad</th><th>Tipo</th><th>Estado</th><th class="r">Precio</th></tr>
+        <tr><td class="ref">A-1A</td><td class="tipo">Vivienda</td><td class="v">Vendida</td><td class="r m">385.000 €</td></tr>
+        <tr><td class="ref">A-1B</td><td class="tipo">Vivienda</td><td class="v">Vendida</td><td class="r m">410.000 €</td></tr>
+        <tr><td class="ref">A-2A</td><td class="tipo">Vivienda</td><td class="res">Reservada</td><td class="r m">395.000 €</td></tr>
+        <tr><td class="ref">B-1A</td><td class="tipo">Vivienda</td><td class="d">Disponible</td><td class="r m">360.000 €</td></tr>
+        <tr><td class="ref">GAR-01</td><td class="tipo">Garaje</td><td class="v">Vendida</td><td class="r m">25.000 €</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h2>Avance de obra (certificado)</h2>
+      <div class="bar-lbl"><b>Estructuras Catalanas SA</b><span style="color:var(--green)">98,4 %</span></div>
+      <div class="track"><div class="fill" style="width:98.4%;background:var(--green)"></div></div>
+      <div class="bar-lbl"><b>Instalaciones Mediterráneo SL</b><span style="color:var(--amber)">26,9 %</span></div>
+      <div class="track"><div class="fill" style="width:26.9%;background:var(--amber)"></div></div>
+      <p class="sub2">Control presupuestario: 6 capítulos · desviación global dentro de lo previsto.</p>
+    </div>
+  </div>
+</div>
+
+<!-- 3. LISTADO PROMOCIONES -->
+<div class="screen">
+  <div class="screen-tag">Pantalla 3 · Listado de promociones</div>
+  <h1>Promociones</h1>
+  <div class="card" style="margin-top:18px">
+    <table>
+      <tr><th>Promoción</th><th>Municipio</th><th>Estado</th><th class="r">% colocado</th><th class="r">Margen prev.</th></tr>
+      <tr><td class="ref">Residencial Diagonal Mar</td><td class="tipo">Barcelona</td><td class="v">En obra</td><td class="r">57,9 %</td><td class="r m">+6,9 M€</td></tr>
+      <tr><td class="ref">Torre Marina</td><td class="tipo">Badalona</td><td class="d">Proyecto</td><td class="r">—</td><td class="r m">+4,2 M€</td></tr>
+      <tr><td class="ref">Áticos Gracia</td><td class="tipo">Barcelona</td><td class="d">Licencia</td><td class="r">—</td><td class="r m">+2,1 M€</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 4. PANEL COMERCIAL -->
+<div class="screen">
+  <div class="screen-tag">Pantalla 4 · Panel comercial</div>
+  <h1>Comercial — Diagonal Mar</h1>
+  <div class="grid-kpi grid-3">
+    <div class="card kpi"><div class="lbl">Disponibles</div><div class="val" style="color:var(--mut)">16</div><div class="sub2">viviendas + anexos</div></div>
+    <div class="card kpi"><div class="lbl">Reservadas</div><div class="val" style="color:var(--amber)">1</div><div class="sub2">pendiente de arras</div></div>
+    <div class="card kpi"><div class="lbl">Vendidas</div><div class="val" style="color:var(--green)">21</div><div class="sub2">7.777.000 €</div></div>
+  </div>
+  <div class="card" style="margin-top:20px">
+    <h2>Últimas operaciones</h2>
+    <table>
+      <tr><th>Unidad</th><th>Cliente</th><th>Estado</th><th class="r">Importe</th></tr>
+      <tr><td class="ref">A-1A</td><td>Juan Pérez García</td><td class="v">Escriturado</td><td class="r m">385.000 €</td></tr>
+      <tr><td class="ref">A-1B</td><td>Inversiones Garraf SL</td><td class="v">Arras firmadas</td><td class="r m">410.000 €</td></tr>
+      <tr><td class="ref">A-2A</td><td>María López Sanz</td><td class="res">Reservada</td><td class="r m">395.000 €</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 5. FICHA DE VIVIENDA -->
+<div class="screen" style="max-width:560px">
+  <div class="screen-tag">Pantalla 5 · Ficha de vivienda</div>
+  <h1>Vivienda A-1A <span class="badge">VENDIDA</span></h1>
+  <div class="card" style="margin-top:18px">
+    <div class="kv"><span class="k">Superficie</span><span class="val">85,5 m²</span></div>
+    <div class="kv"><span class="k">Precio de venta</span><span class="val">385.000 €</span></div>
+    <div class="kv"><span class="k">Bloque / Planta</span><span class="val">A · 1ª</span></div>
+    <div class="kv"><span class="k">Estado</span><span class="val" style="color:var(--green)">Vendida</span></div>
+    <div class="kv"><span class="k">Comprador</span><span class="val">Juan Pérez García</span></div>
+  </div>
+  <div class="card" style="margin-top:18px">
+    <h2>Hitos de pago</h2>
+    <table>
+      <tr><th>Concepto</th><th class="r">Importe</th><th class="r">Estado</th></tr>
+      <tr><td class="m">Arras</td><td class="r">38.500 €</td><td class="r v">Pagado</td></tr>
+      <tr><td class="m">A cuenta</td><td class="r">115.500 €</td><td class="r v">Pagado</td></tr>
+      <tr><td class="m">Fin de obra</td><td class="r">231.000 €</td><td class="r res">Pendiente</td></tr>
+    </table>
+  </div>
+</div>
+
+</body>
+</html>
