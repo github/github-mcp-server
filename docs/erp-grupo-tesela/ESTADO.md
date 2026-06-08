@@ -23,6 +23,8 @@
 | Funciones helper RLS | ✅ Hecho | `current_rol()`, `es_direccion()`, `puede_ver_promocion()` |
 | RLS fino por rol y promoción | ✅ Hecho | dirección=todo; obra/comercial=lectura de promociones asignadas + escritura en su dominio |
 | Endurecimiento de funciones | ✅ Hecho | Funciones helper retiradas del API REST público |
+| Almacenamiento documental | ✅ Hecho | Bucket privado `documentos` + RLS por promoción (ruta `<promocion_id>/...`); borrado solo dirección |
+| Cuadro de rentabilidad por promoción | ✅ Hecho | Vista `v_rentabilidad_promocion` (ingresos vs coste real; respeta RLS) |
 
 **Roles:** `direccion` (ve y gestiona todo) · `obra` (sus promociones: presupuestos, contratos de obra) · `comercial` (sus promociones: reservas, compraventas). `NULL` = pendiente de asignar (sin acceso).
 
