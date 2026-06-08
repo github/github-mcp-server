@@ -1668,7 +1668,12 @@ func TestGranularSetIssueFields(t *testing.T) {
 		}
 
 		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matchers...))
-		deps := BaseDeps{GQLClient: gqlClient}
+		deps := BaseDeps{
+			GQLClient: gqlClient,
+			featureChecker: func(_ context.Context, flag string) (bool, error) {
+				return flag == FeatureFlagIssueConfidence, nil
+			},
+		}
 		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
 		handler := serverTool.Handler(deps)
 
@@ -1690,7 +1695,11 @@ func TestGranularSetIssueFields(t *testing.T) {
 	})
 
 	t.Run("invalid confidence value returns error", func(t *testing.T) {
-		deps := BaseDeps{}
+		deps := BaseDeps{
+			featureChecker: func(_ context.Context, flag string) (bool, error) {
+				return flag == FeatureFlagIssueConfidence, nil
+			},
+		}
 		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
 		handler := serverTool.Handler(deps)
 
@@ -1710,6 +1719,99 @@ func TestGranularSetIssueFields(t *testing.T) {
 		require.NoError(t, err)
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "confidence must be one of: low, medium, high")
+	})
+
+	t.Run("confidence is dropped when feature flag is disabled", func(t *testing.T) {
+		matchers := []githubv4mock.Matcher{
+			githubv4mock.NewQueryMatcher(
+				struct {
+					Repository struct {
+						Issue struct {
+							ID githubv4.ID
+						} `graphql:"issue(number: $issueNumber)"`
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}{},
+				map[string]any{
+					"owner":       githubv4.String("owner"),
+					"repo":        githubv4.String("repo"),
+					"issueNumber": githubv4.Int(5),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"repository": map[string]any{
+						"issue": map[string]any{"id": "ISSUE_123"},
+					},
+				}),
+			),
+			// Expect the mutation input WITHOUT Confidence, proving the handler
+			// dropped the user-supplied value because the feature flag is off.
+			githubv4mock.NewMutationMatcher(
+				struct {
+					SetIssueFieldValue struct {
+						Issue struct {
+							ID     githubv4.ID
+							Number githubv4.Int
+							URL    githubv4.String
+						}
+						IssueFieldValues []struct {
+							TextValue struct {
+								Value string
+							} `graphql:"... on IssueFieldTextValue"`
+							SingleSelectValue struct {
+								Name string
+							} `graphql:"... on IssueFieldSingleSelectValue"`
+							DateValue struct {
+								Value string
+							} `graphql:"... on IssueFieldDateValue"`
+							NumberValue struct {
+								Value float64
+							} `graphql:"... on IssueFieldNumberValue"`
+						}
+					} `graphql:"setIssueFieldValue(input: $input)"`
+				}{},
+				SetIssueFieldValueInput{
+					IssueID: githubv4.ID("ISSUE_123"),
+					IssueFields: []IssueFieldCreateOrUpdateInput{
+						{
+							FieldID:   githubv4.ID("FIELD_1"),
+							TextValue: githubv4.NewString(githubv4.String("hello")),
+						},
+					},
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"setIssueFieldValue": map[string]any{
+						"issue": map[string]any{
+							"id":     "ISSUE_123",
+							"number": 5,
+							"url":    "https://github.com/owner/repo/issues/5",
+						},
+					},
+				}),
+			),
+		}
+
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matchers...))
+		deps := BaseDeps{GQLClient: gqlClient}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{
+					"field_id":   "FIELD_1",
+					"text_value": "hello",
+					// Confidence is supplied but should be silently dropped
+					// because FeatureFlagIssueConfidence is off.
+					"confidence": "high",
+				},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		assert.False(t, result.IsError, getTextResult(t, result).Text)
 	})
 
 	t.Run("successful set with suggest flag", func(t *testing.T) {

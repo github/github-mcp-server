@@ -925,7 +925,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "set_issue_fields",
-			Description: t("TOOL_SET_ISSUE_FIELDS_DESCRIPTION", "Set issue field values for an issue. Fields are organization-level custom fields (text, number, date, or single select). Use this to create or update field values on an issue. When setting values, include a confidence level (low, medium, or high) reflecting how certain you are about the choice."),
+			Description: t("TOOL_SET_ISSUE_FIELDS_DESCRIPTION", "Set issue field values for an issue. Fields are organization-level custom fields (text, number, date, or single select). Use this to create or update field values on an issue."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_SET_ISSUE_FIELDS_USER_TITLE", "Set Issue Fields"),
 				ReadOnlyHint:    false,
@@ -984,11 +984,6 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 									Description: "One concise sentence explaining what specifically about the issue led you to choose this field value. " +
 										"State the concrete signal (e.g. 'Reports a crash when saving' → high priority).",
 									MaxLength: jsonschema.Ptr(280),
-								},
-								"confidence": {
-									Type:        "string",
-									Description: "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
-									Enum:        []any{"low", "medium", "high"},
 								},
 								"is_suggestion": {
 									Type: "boolean",
@@ -1107,15 +1102,21 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 					}
 				}
 
-				confidence, err := OptionalParam[string](fieldMap, "confidence")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				if confidence != "" && confidence != "low" && confidence != "medium" && confidence != "high" {
-					return utils.NewToolResultError("confidence must be one of: low, medium, high"), nil, nil
-				}
-				if confidence != "" {
-					input.Confidence = &confidence
+				// The `confidence` input is gated behind FeatureFlagIssueConfidence
+				// because the GitHub GraphQL API does not yet accept it. When the
+				// flag is off the schema hides the field and the handler drops
+				// any value supplied by older callers from the mutation payload.
+				if deps.IsFeatureEnabled(ctx, FeatureFlagIssueConfidence) {
+					confidence, err := OptionalParam[string](fieldMap, "confidence")
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+					if confidence != "" && confidence != "low" && confidence != "medium" && confidence != "high" {
+						return utils.NewToolResultError("confidence must be one of: low, medium, high"), nil, nil
+					}
+					if confidence != "" {
+						input.Confidence = &confidence
+					}
 				}
 
 				isSuggestion, err := OptionalParam[bool](fieldMap, "is_suggestion")

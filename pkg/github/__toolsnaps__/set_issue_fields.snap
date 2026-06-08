@@ -4,22 +4,13 @@
     "openWorldHint": true,
     "title": "Set Issue Fields"
   },
-  "description": "Set issue field values for an issue. Fields are organization-level custom fields (text, number, date, or single select). Use this to create or update field values on an issue. When setting values, include a confidence level (low, medium, or high) reflecting how certain you are about the choice.",
+  "description": "Set issue field values for an issue. Fields are organization-level custom fields (text, number, date, or single select). Use this to create or update field values on an issue.",
   "inputSchema": {
     "properties": {
       "fields": {
         "description": "Array of issue field values to set. Each element must have a 'field_id' (string, the GraphQL node ID of the field) and exactly one value field: 'text_value' for text fields, 'number_value' for number fields, 'date_value' (ISO 8601 date string) for date fields, or 'single_select_option_id' (the GraphQL node ID of the option) for single select fields. Set 'delete' to true to remove a field value.",
         "items": {
           "properties": {
-            "confidence": {
-              "description": "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
-              "enum": [
-                "low",
-                "medium",
-                "high"
-              ],
-              "type": "string"
-            },
             "date_value": {
               "description": "The value to set for a date field (ISO 8601 date string)",
               "type": "string"
