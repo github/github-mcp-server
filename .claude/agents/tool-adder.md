@@ -8,7 +8,7 @@ You add a new MCP tool to `pkg/github/`. Follow CLAUDE.md exactly.
 
 ## Steps
 
-1. **Read CLAUDE.md** (`/home/user/github-mcp-server/CLAUDE.md`) — confirm the
+1. **Read CLAUDE.md** (at the repository root) — confirm the
    current canonical pattern. Then read `pkg/github/issues.go:979` (`IssueWrite`)
    as the reference implementation.
 
