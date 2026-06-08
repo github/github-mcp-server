@@ -105,10 +105,11 @@ func skillTraceHistory() skillDefinition {
 		allowedTools: []string{
 			"list_commits",
 			"get_commit",
+			"search_commits",
 			"search_pull_requests",
 			"pull_request_read",
 		},
-		body: "# Trace Code History\n\nUnderstand why code changed by following the commit to PR to discussion chain.\n\n## Available Tools\n- `list_commits` — commit history, filterable by path\n- `get_commit` — full commit details and diff\n- `search_pull_requests` — find PRs by commit SHA or keywords\n- `pull_request_read` — read PR description and review discussion\n\n## Workflow\n1. `list_commits` with path filter to find relevant commits.\n2. `get_commit` to see what changed.\n3. `search_pull_requests` to find the PR (search by commit SHA or title keywords).\n4. `pull_request_read` for the PR description and review comments — this has the *why*.\n\nCommit messages say *what*. PR descriptions say *why*. Review comments say *what was considered*.\n",
+		body: "# Trace Code History\n\nUnderstand why code changed by following the commit to PR to discussion chain.\n\n## Available Tools\n- `list_commits` — commit history on a branch, filterable by path/author/date\n- `get_commit` — full commit details and diff\n- `search_commits` — find commits across repos by message, author, date range, hash, or path qualifier\n- `search_pull_requests` — find PRs by commit SHA or keywords\n- `pull_request_read` — read PR description and review discussion\n\n## Workflow\n1. `list_commits` with path filter to find relevant commits on a known branch; use `search_commits` instead when you need cross-repo search or message/author qualifiers.\n2. `get_commit` to see what changed.\n3. `search_pull_requests` to find the PR (search by commit SHA or title keywords).\n4. `pull_request_read` for the PR description and review comments — this has the *why*.\n\nCommit messages say *what*. PR descriptions say *why*. Review comments say *what was considered*.\n",
 	}
 }
 
@@ -440,14 +441,15 @@ func skillContributeOSS() skillDefinition {
 func skillBrowseDiscussions() skillDefinition {
 	return skillDefinition{
 		name:        "browse-discussions",
-		description: "Read and explore GitHub Discussions and categories. Use when browsing discussions, reading community conversations, checking discussion categories, or looking for answers in a project's discussions.",
+		description: "Read, explore, and reply to GitHub Discussions. Use when browsing discussions, reading community conversations, posting a reply or top-level comment in a discussion, checking discussion categories, or looking for answers in a project's discussions.",
 		allowedTools: []string{
 			"list_discussions",
 			"get_discussion",
 			"get_discussion_comments",
 			"list_discussion_categories",
+			"discussion_comment_write",
 		},
-		body: "# Browse Discussions\n\nRead and explore GitHub Discussions.\n\n## Available Tools\n- `list_discussions` — list discussions in a repo\n- `get_discussion` — get discussion details\n- `get_discussion_comments` — read comments and replies\n- `list_discussion_categories` — list available categories\n\nCall `list_discussion_categories` first to understand the discussion structure. Filter by category to find relevant conversations.\n",
+		body: "# Browse Discussions\n\nRead, explore, and reply to GitHub Discussions.\n\n## Available Tools\n- `list_discussions` — list discussions in a repo\n- `get_discussion` — get discussion details\n- `get_discussion_comments` — read comments and replies\n- `list_discussion_categories` — list available categories\n- `discussion_comment_write` — add a top-level comment to a discussion or reply to an existing comment\n\nCall `list_discussion_categories` first to understand the discussion structure. Filter by category to find relevant conversations.\n\nWhen replying: a top-level discussion comment needs only the discussion ID; a threaded reply additionally needs the parent comment ID. Don't post a new top-level comment when the intent is to reply inline — that breaks the conversation thread.\n",
 	}
 }
 

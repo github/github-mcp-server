@@ -833,7 +833,7 @@ func Test_SearchCommits(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := mustNewGHClient(t, tc.mockedClient)
+			client := github.NewClient(tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
