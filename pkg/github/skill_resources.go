@@ -52,6 +52,7 @@ func allSkills() []skillDefinition {
 		skillDiscoverGitHub(),
 		skillShareSnippet(),
 		skillReleaseReadiness(),
+		skillCheckAccess(),
 	}
 }
 
@@ -506,6 +507,21 @@ func skillReleaseReadiness() skillDefinition {
 			"actions_list",
 		},
 		body: "# Assess Release Readiness\n\nDecide whether a repository is ready to ship a release. This is a read-only checklist — produce a verdict, not a release.\n\n## Available Tools\n- `get_latest_release` — find the previous version tag\n- `list_commits` — commits on the release branch since that tag\n- `search_pull_requests` — merged PRs in the release window\n- `list_issues` — open issues, filterable by label\n- `actions_list` — recent workflow runs (use `method: list_workflow_runs`)\n\n## Workflow\n1. `get_latest_release` to find the last shipped tag and its date.\n2. `list_commits` on the release branch since that tag — confirm there's anything new to ship.\n3. `search_pull_requests` with `is:pr is:merged base:<branch> merged:>=<tag-date>` to inventory PRs in the window. Note any without release-relevant labels.\n4. `list_issues` with `state: OPEN` and the repo's release-blocker label (e.g. `release-blocker`, `priority:critical`). Any open blocker means not ready.\n5. `actions_list` with `method: list_workflow_runs` filtered to the release branch and the most recent commit — every required workflow run must be `success`.\n\n## Verdict\nReady when all of these are true: commits exist since the last tag, no open release-blocker issues, latest CI green on the release branch's HEAD. Otherwise call out exactly which gate failed and what would unblock it.\n",
+	}
+}
+
+func skillCheckAccess() skillDefinition {
+	return skillDefinition{
+		name:        "check-access",
+		description: "Check who can read, write, or merge to a repository — collaborators, their permission tiers, and CODEOWNERS-protected paths. Use when answering 'who can merge', 'who has admin', auditing collaborator permissions, or identifying required reviewers for a path.",
+		allowedTools: []string{
+			"list_repository_collaborators",
+			"get_file_contents",
+			"search_repositories",
+			"get_team_members",
+			"get_teams",
+		},
+		body: "# Check Repository Access\n\nAnswer who can read, write, or merge to a repository. Collaborator permissions and CODEOWNERS together determine merge eligibility — checking only one gives the wrong answer on protected paths.\n\n## Available Tools\n- `list_repository_collaborators` — collaborators with their permission tier (admin / maintain / write / triage / read)\n- `get_file_contents` — read `.github/CODEOWNERS`, `CODEOWNERS`, or `docs/CODEOWNERS`\n- `search_repositories` — resolve repo metadata and default branch when not given\n- `get_teams` / `get_team_members` — expand org teams referenced from CODEOWNERS\n\n## Workflow\n1. If repo metadata or default branch is unknown, `search_repositories` with `repo:<owner>/<name>` rather than guessing.\n2. `list_repository_collaborators` with `affiliation: all` to get every collaborator and their permission. Only `admin`, `maintain`, and `write` tiers can push or merge by default.\n3. `get_file_contents` for `.github/CODEOWNERS` (fallback `CODEOWNERS`, `docs/CODEOWNERS`). Path-based rules here override the collaborator list for required reviews on those paths.\n4. For `@org/team-name` entries in CODEOWNERS, use `get_teams` and `get_team_members` to expand membership.\n\n## Footguns\n- Collaborator list alone does not answer \"who can merge to `main`\" — branch protection plus CODEOWNERS may require specific reviewers regardless of write access.\n- `affiliation: direct` hides org members with inherited access; use `all` unless the question is specifically about direct invites.\n- A missing CODEOWNERS file is not an error — it just means no path-specific reviewers are required.\n",
 	}
 }
 
