@@ -51,6 +51,7 @@ func allSkills() []skillDefinition {
 		skillDelegateCopilot(),
 		skillDiscoverGitHub(),
 		skillShareSnippet(),
+		skillReleaseReadiness(),
 	}
 }
 
@@ -488,6 +489,21 @@ func skillShareSnippet() skillDefinition {
 			"get_gist",
 		},
 		body: "# Share Snippet\n\nCreate and manage code snippets via GitHub Gists.\n\n## Available Tools\n- `create_gist` — create a new gist (public or private)\n- `update_gist` — update files or description\n- `list_gists` — list your gists\n- `get_gist` — retrieve a specific gist\n\nGists support multiple files per gist. Use descriptive filenames with proper extensions for syntax highlighting.\n",
+	}
+}
+
+func skillReleaseReadiness() skillDefinition {
+	return skillDefinition{
+		name:        "release-readiness",
+		description: "Assess whether a repository is ready to ship a release. Use when checking release readiness, deciding if it's safe to ship, reviewing recent commits since the last tag, hunting for open release-blocker issues, confirming CI is green on the release branch, or auditing merged PRs in the release window.",
+		allowedTools: []string{
+			"get_latest_release",
+			"list_commits",
+			"search_pull_requests",
+			"list_issues",
+			"actions_list",
+		},
+		body: "# Assess Release Readiness\n\nDecide whether a repository is ready to ship a release. This is a read-only checklist — produce a verdict, not a release.\n\n## Available Tools\n- `get_latest_release` — find the previous version tag\n- `list_commits` — commits on the release branch since that tag\n- `search_pull_requests` — merged PRs in the release window\n- `list_issues` — open issues, filterable by label\n- `actions_list` — recent workflow runs (use `method: list_workflow_runs`)\n\n## Workflow\n1. `get_latest_release` to find the last shipped tag and its date.\n2. `list_commits` on the release branch since that tag — confirm there's anything new to ship.\n3. `search_pull_requests` with `is:pr is:merged base:<branch> merged:>=<tag-date>` to inventory PRs in the window. Note any without release-relevant labels.\n4. `list_issues` with `state: OPEN` and the repo's release-blocker label (e.g. `release-blocker`, `priority:critical`). Any open blocker means not ready.\n5. `actions_list` with `method: list_workflow_runs` filtered to the release branch and the most recent commit — every required workflow run must be `success`.\n\n## Verdict\nReady when all of these are true: commits exist since the last tag, no open release-blocker issues, latest CI green on the release branch's HEAD. Otherwise call out exactly which gate failed and what would unblock it.\n",
 	}
 }
 
