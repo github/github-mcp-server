@@ -86,5 +86,8 @@ Cuando esté, avísame y lanzo la sincronización + verifico los contactos impor
 1. **Holded (tú):** autorizar Zapier (enlace OAuth) y poner el secret `HOLDED_SOCIEDADES`
    en Supabase → luego lanzo la sincronización.
 2. **Tu usuario:** registrarte en la app para marcarte como `direccion`.
-3. **Fase 1 (resto):** módulo Promociones/Obras y Documental, CRM con Attio, primeras
-   pantallas en Figma.
+3. **Diseño UI:**
+   - Prototipo HTML del dashboard ya disponible en `docs/erp-grupo-tesela/prototipo/dashboard.html`.
+   - Figma: archivo creado (`9yLjQ40fNgkqD8YGTMBlzK`) pero **bloqueado por el plan Starter / asiento View**.
+     Pendiente: el usuario amplía el plan de Figma (asiento con edición + más llamadas MCP) → retomo el diseño nativo.
+4. **Fase 1 (resto):** CRM con Attio, generar factura en Holded al firmar compraventa.
