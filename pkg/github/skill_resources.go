@@ -99,7 +99,7 @@ func skillSearchCode() skillDefinition {
 func skillTraceHistory() skillDefinition {
 	return skillDefinition{
 		name:        "trace-history",
-		description: "Understand why code changed by tracing commits and PRs. Use when investigating git history, finding who changed something, understanding the motivation behind a change, or tracking down when a bug was introduced.",
+		description: "Understand why code changed by tracing commits and PRs. Use when investigating git history, finding who changed something, understanding the motivation behind a change, tracking down when a bug was introduced, or listing pull requests by author, state, label, or date range.",
 		allowedTools: []string{
 			"list_commits",
 			"get_commit",
@@ -130,7 +130,7 @@ func skillCreatePR() skillDefinition {
 func skillReviewPR() skillDefinition {
 	return skillDefinition{
 		name:        "review-pr",
-		description: "Conduct a thorough code review of a pull request. Use when reviewing someone else's PR, checking code changes, leaving review comments, approving or requesting changes.",
+		description: "Conduct a thorough code review of a pull request. Use when reviewing someone else's PR, checking code changes, leaving review comments, approving or requesting changes, describing a PR's file changes or head branch, listing review threads, or posting a conversation-level comment on a PR.",
 		allowedTools: []string{
 			"pull_request_read",
 			"get_file_contents",
@@ -262,7 +262,7 @@ func skillManageSubIssues() skillDefinition {
 func skillDebugCI() skillDefinition {
 	return skillDefinition{
 		name:        "debug-ci",
-		description: "Investigate and fix failing GitHub Actions workflows. Use when CI is failing, a workflow run errored, you need to read build logs, or debug why tests aren't passing.",
+		description: "Investigate and fix failing GitHub Actions workflows. Use when CI is failing, a workflow run errored, you need to read build logs, debug why tests aren't passing, or check check-runs and Actions status on a PR or commit regardless of pass or fail.",
 		allowedTools: []string{
 			"actions_get",
 			"get_job_logs",
@@ -404,7 +404,7 @@ func skillManageRepo() skillDefinition {
 func skillManageLabels() skillDefinition {
 	return skillDefinition{
 		name:        "manage-labels",
-		description: "Set up and maintain a consistent label scheme. Use when creating labels, organizing a label system, cleaning up labels, or standardizing label naming across a repository.",
+		description: "Create, recolor, rename, or apply repository labels. Set up and maintain a consistent label scheme. Use when creating labels, organizing a label system, cleaning up labels, standardizing label naming, or applying an existing or newly-created label to issues and PRs.",
 		allowedTools: []string{
 			"list_labels",
 			"list_label",
