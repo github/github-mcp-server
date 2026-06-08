@@ -39,13 +39,26 @@ Pendiente: el usuario autoriza su cuenta en el enlace OAuth que devuelve `enable
   buscar/crear contacto, registrar pago).
 - Limitación: Zapier no ofrece "listar todos los contactos"; solo búsqueda individual.
 
-**Vía B (reserva, ya desplegada): Edge Function `sync-holded`.** Mejor para la
-**sincronización masiva inicial** de todos los contactos (la API de Holded sí permite
-listar). Requiere poner el secreto `HOLDED_API_KEY` en Supabase e invocar la función.
-Código en `supabase/functions/sync-holded/index.ts`.
+**Vía B (lista, falta el secret): Edge Function `sync-holded` v2 (multi-sociedad).**
+Desplegada y activa. Sincroniza varias empresas de Holded a la vez (carga masiva inicial).
+Cada contacto se asocia a su `sociedad` (columna `sociedad_id` en `cliente`/`proveedor`).
+Pendiente: configurar el secret `HOLDED_SOCIEDADES` en Supabase.
 
-> Plan: usar Zapier para el día a día transaccional y la Edge Function para la carga
-> inicial masiva de contactos. El mapeo de campos se valida contra la cuenta real.
+### Cómo poner el secret (lo haces tú, las keys NO van al repo)
+En **Supabase → proyecto `erp-grupo-tesela` → Edge Functions → Secrets**, crea:
+
+```
+Nombre:  HOLDED_SOCIEDADES
+Valor:   [
+  {"nombre":"<Nombre Sociedad 1>","key":"<api_key_1>"},
+  {"nombre":"<Nombre Sociedad 2>","key":"<api_key_2>"},
+  {"nombre":"<Nombre Sociedad 3>","key":"<api_key_3>"},
+  {"nombre":"<Nombre Sociedad 4>","key":"<api_key_4>"},
+  {"nombre":"<Nombre Sociedad 5>","key":"<api_key_5>"}
+]
+```
+
+Cuando esté, avísame y lanzo la sincronización + verifico los contactos importados.
 
 ## Próximos pasos
 
