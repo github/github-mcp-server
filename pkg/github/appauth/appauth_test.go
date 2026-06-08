@@ -132,6 +132,18 @@ func TestNewTransport_CustomBaseURL(t *testing.T) {
 	assert.Equal(t, "https://github.example.com/api/v3", tr.config.BaseURL)
 }
 
+func TestNewTransport_TrimsTrailingSlash(t *testing.T) {
+	_, pemBytes := generateTestKey(t)
+	tr, err := NewTransport(nil, Config{
+		AppID:          123,
+		PrivateKey:     pemBytes,
+		InstallationID: 456,
+		BaseURL:        "https://api.github.com/",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.github.com", tr.config.BaseURL)
+}
+
 func TestTransport_GenerateJWT(t *testing.T) {
 	key, pemBytes := generateTestKey(t)
 	tr, err := NewTransport(nil, Config{

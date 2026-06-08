@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -67,6 +68,9 @@ func NewTransport(base http.RoundTripper, cfg Config) (*Transport, error) {
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "https://api.github.com"
 	}
+	// Why: APIHost.BaseRESTURL returns "https://api.github.com/" (with trailing slash).
+	// Concatenating that with "/app/installations/..." yields "//app/..." which GitHub returns 404 for.
+	cfg.BaseURL = strings.TrimRight(cfg.BaseURL, "/")
 	return &Transport{
 		config: cfg,
 		key:    key,

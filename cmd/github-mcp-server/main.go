@@ -145,6 +145,11 @@ var (
 				}
 			}
 
+			appID, privateKey, installationID, err := parseAppAuthConfig()
+			if err != nil {
+				return err
+			}
+
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			httpConfig := ghhttp.ServerConfig{
 				Version:              version,
@@ -166,6 +171,9 @@ var (
 				EnabledFeatures:      enabledFeatures,
 				InsidersMode:         viper.GetBool("insiders"),
 				TrustProxyHeaders:    viper.GetBool("trust-proxy-headers"),
+				AppID:                appID,
+				PrivateKey:           privateKey,
+				InstallationID:       installationID,
 			}
 
 			return ghhttp.RunHTTPServer(httpConfig)
