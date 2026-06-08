@@ -1,6 +1,6 @@
 # Estado de implementación — ERP Grupo Tesela
 
-> Bitácora de avance. Última actualización: Fase 0.
+> Bitácora de avance. Última actualización: Fase 1 (usuarios y roles).
 
 ## ✅ Fase 0 — Cimientos (en marcha)
 
@@ -12,7 +12,26 @@
 | RLS base (bloqueo de acceso anónimo) | ✅ Hecho | Migración `rls_base_autenticados` |
 | Prueba end-to-end del modelo | ✅ Superada | Promoción demo creada, consultada y eliminada correctamente |
 | Integración Holded (lectura) | 🟡 Habilitada en Zapier, falta autorizar | 19 acciones activas (find_contact, create_invoice, etc.). Pendiente: el usuario autoriza su cuenta en el enlace OAuth |
-| Auth + RLS fino por rol | ⏳ Pendiente | Se hace en Fase 1 con la tabla de usuarios |
+| Auth + RLS fino por rol | ✅ Hecho (Fase 1) | Ver sección Fase 1 |
+
+## ✅ Fase 1 — Usuarios y roles (hecho)
+
+| Paso | Estado | Detalle |
+|------|--------|---------|
+| Tablas `perfil` y `acceso_promocion` | ✅ Hecho | Perfil vinculado a Supabase Auth; asignación de promociones por usuario |
+| Alta automática de perfil al registrarse | ✅ Hecho | Trigger `on_auth_user_created` |
+| Funciones helper RLS | ✅ Hecho | `current_rol()`, `es_direccion()`, `puede_ver_promocion()` |
+| RLS fino por rol y promoción | ✅ Hecho | dirección=todo; obra/comercial=lectura de promociones asignadas + escritura en su dominio |
+| Endurecimiento de funciones | ✅ Hecho | Funciones helper retiradas del API REST público |
+
+**Roles:** `direccion` (ve y gestiona todo) · `obra` (sus promociones: presupuestos, contratos de obra) · `comercial` (sus promociones: reservas, compraventas). `NULL` = pendiente de asignar (sin acceso).
+
+> ⚠️ **Primer usuario:** cuando te registres en la app, tu perfil se creará con rol `NULL`.
+> Hay que marcarte como `direccion` (lo haré yo con un UPDATE en cuanto exista tu usuario).
+> A partir de ahí, tú (dirección) asignas roles y promociones al resto del equipo.
+
+> 🔎 La verificación del aislamiento por rol se hará con usuarios reales (al crear las
+> cuentas del equipo), no con usuarios simulados, para no manipular el sistema de Auth.
 
 ## Datos del proyecto Supabase
 
@@ -62,5 +81,8 @@ Cuando esté, avísame y lanzo la sincronización + verifico los contactos impor
 
 ## Próximos pasos
 
-1. **Holded:** añadir el secreto `HOLDED_API_KEY` y lanzar la primera sincronización.
-2. **Fase 1:** tabla de usuarios + roles, módulo Promociones/Obras y Documental, CRM con Attio.
+1. **Holded (tú):** autorizar Zapier (enlace OAuth) y poner el secret `HOLDED_SOCIEDADES`
+   en Supabase → luego lanzo la sincronización.
+2. **Tu usuario:** registrarte en la app para marcarte como `direccion`.
+3. **Fase 1 (resto):** módulo Promociones/Obras y Documental, CRM con Attio, primeras
+   pantallas en Figma.
