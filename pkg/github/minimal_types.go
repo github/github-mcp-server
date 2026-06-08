@@ -108,6 +108,7 @@ type MinimalCommitFile struct {
 	Additions int    `json:"additions,omitempty"`
 	Deletions int    `json:"deletions,omitempty"`
 	Changes   int    `json:"changes,omitempty"`
+	Patch     string `json:"patch,omitempty"`
 }
 
 // MinimalPRFile represents a file changed in a pull request.
@@ -1463,8 +1464,34 @@ func newMinimalCommitFromCore(sha, htmlURL string, commit *github.Commit, author
 	return minimalCommit
 }
 
-// convertToMinimalCommit converts a GitHub API RepositoryCommit to MinimalCommit
-func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) MinimalCommit {
+// commitDetail controls how much per-file information convertToMinimalCommit
+// includes in its output.
+type commitDetail string
+
+const (
+	// commitDetailNone omits Stats and Files entirely.
+	commitDetailNone commitDetail = "none"
+	// commitDetailStats includes Stats and Files with metadata only
+	// (filename, status, additions, deletions, changes) but no patch text.
+	commitDetailStats commitDetail = "stats"
+	// commitDetailFullPatch additionally includes the unified diff for each file.
+	commitDetailFullPatch commitDetail = "full_patch"
+)
+
+// parseCommitDetail validates the user-supplied detail value and returns the
+// default (stats) when the value is empty.
+func parseCommitDetail(s string) (commitDetail, error) {
+	switch s {
+	case "":
+		return commitDetailStats, nil
+	case string(commitDetailNone), string(commitDetailStats), string(commitDetailFullPatch):
+		return commitDetail(s), nil
+	default:
+		return "", fmt.Errorf("invalid detail %q: must be one of \"none\", \"stats\", \"full_patch\"", s)
+	}
+}
+
+func convertToMinimalCommit(commit *github.RepositoryCommit, detail commitDetail) MinimalCommit {
 	minimalCommit := newMinimalCommitFromCore(
 		commit.GetSHA(),
 		commit.GetHTMLURL(),
@@ -1473,28 +1500,32 @@ func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) 
 		commit.Committer,
 	)
 
-	// Only include stats and files if includeDiffs is true
-	if includeDiffs {
-		if commit.Stats != nil {
-			minimalCommit.Stats = &MinimalCommitStats{
-				Additions: commit.Stats.GetAdditions(),
-				Deletions: commit.Stats.GetDeletions(),
-				Total:     commit.Stats.GetTotal(),
-			}
-		}
+	if detail == commitDetailNone {
+		return minimalCommit
+	}
 
-		if len(commit.Files) > 0 {
-			minimalCommit.Files = make([]MinimalCommitFile, 0, len(commit.Files))
-			for _, file := range commit.Files {
-				minimalFile := MinimalCommitFile{
-					Filename:  file.GetFilename(),
-					Status:    file.GetStatus(),
-					Additions: file.GetAdditions(),
-					Deletions: file.GetDeletions(),
-					Changes:   file.GetChanges(),
-				}
-				minimalCommit.Files = append(minimalCommit.Files, minimalFile)
+	if commit.Stats != nil {
+		minimalCommit.Stats = &MinimalCommitStats{
+			Additions: commit.Stats.GetAdditions(),
+			Deletions: commit.Stats.GetDeletions(),
+			Total:     commit.Stats.GetTotal(),
+		}
+	}
+
+	if len(commit.Files) > 0 {
+		minimalCommit.Files = make([]MinimalCommitFile, 0, len(commit.Files))
+		for _, file := range commit.Files {
+			minimalFile := MinimalCommitFile{
+				Filename:  file.GetFilename(),
+				Status:    file.GetStatus(),
+				Additions: file.GetAdditions(),
+				Deletions: file.GetDeletions(),
+				Changes:   file.GetChanges(),
 			}
+			if detail == commitDetailFullPatch {
+				minimalFile.Patch = file.GetPatch()
+			}
+			minimalCommit.Files = append(minimalCommit.Files, minimalFile)
 		}
 	}
 

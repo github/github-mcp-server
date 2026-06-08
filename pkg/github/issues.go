@@ -2041,6 +2041,36 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 // IssueWriteUIResourceURI is the URI for the issue_write tool's MCP App UI resource.
 const IssueWriteUIResourceURI = "ui://github-mcp-server/issue-write"
 
+// issueWriteFormParams are the parameters the issue_write MCP App form collects
+// and re-sends on submit. The form only supports title/body editing (plus the
+// routing/identity fields), so any other parameter present on a call cannot be
+// represented by the form.
+var issueWriteFormParams = map[string]struct{}{
+	"method":        {},
+	"owner":         {},
+	"repo":          {},
+	"title":         {},
+	"body":          {},
+	"issue_number":  {},
+	"_ui_submitted": {},
+}
+
+// issueWriteHasNonFormParams reports whether the call carries any parameter the
+// issue_write MCP App form cannot represent (anything outside issueWriteFormParams,
+// e.g. labels, assignees, issue_fields or a state change). Such calls must bypass
+// the UI form and execute directly so the supplied values aren't silently dropped.
+func issueWriteHasNonFormParams(args map[string]any) bool {
+	for key, value := range args {
+		if value == nil {
+			continue
+		}
+		if _, ok := issueWriteFormParams[key]; !ok {
+			return true
+		}
+	}
+	return false
+}
+
 // IssueWrite is the FeatureFlagIssueFields-enabled variant of issue_write
 // (with the issue_fields parameter). LegacyIssueWrite is served when the flag
 // is off. Both register under the tool name "issue_write"; exactly one is
@@ -2186,26 +2216,22 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When MCP Apps are enabled and the client supports UI,
-			// check if this is a UI form submission. The UI sends _ui_submitted=true
-			// to distinguish form submissions from LLM calls.
+			// When MCP Apps are enabled and the client supports UI, route the
+			// call to the interactive form unless it is itself a form submission
+			// (the UI sends _ui_submitted=true) or it carries parameters the form
+			// cannot represent (e.g. labels, assignees or issue_fields). Those
+			// must be applied directly so their values aren't silently dropped.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted {
+			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && !issueWriteHasNonFormParams(args) {
 				if method == "update" {
-					// Skip the UI form when a state change is requested because
-					// the form only handles title/body editing and would lose the
-					// state transition (e.g. closing or reopening the issue).
-					if _, hasState := args["state"]; !hasState {
-						issueNumber, numErr := RequiredInt(args, "issue_number")
-						if numErr != nil {
-							return utils.NewToolResultError("issue_number is required for update method"), nil, nil
-						}
-						return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. IMPORTANT: The issue has NOT been updated yet. Do NOT tell the user the issue was updated. The user MUST click Submit in the form to update it.", issueNumber, owner, repo)), nil, nil
+					issueNumber, numErr := RequiredInt(args, "issue_number")
+					if numErr != nil {
+						return utils.NewToolResultError("issue_number is required for update method"), nil, nil
 					}
-				} else {
-					return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. IMPORTANT: The issue has NOT been created yet. Do NOT tell the user the issue was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
+					return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. IMPORTANT: The issue has NOT been updated yet. Do NOT tell the user the issue was updated. The user MUST click Submit in the form to update it.", issueNumber, owner, repo)), nil, nil
 				}
+				return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. IMPORTANT: The issue has NOT been created yet. Do NOT tell the user the issue was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
 			}
 
 			title, err := OptionalParam[string](args, "title")
@@ -2224,12 +2250,16 @@ Options are:
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			assigneesValue, assigneesProvided := args["assignees"]
+			assigneesProvided = assigneesProvided && assigneesValue != nil
 
 			// Get labels
 			labels, err := OptionalStringArrayParam(args, "labels")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			labelsValue, labelsProvided := args["labels"]
+			labelsProvided = labelsProvided && labelsValue != nil
 
 			// Get optional milestone
 			milestone, err := OptionalIntParam(args, "milestone")
@@ -2301,7 +2331,10 @@ Options are:
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf)
+				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, UpdateIssueOptions{
+					AssigneesProvided: assigneesProvided,
+					LabelsProvided:    labelsProvided,
+				})
 				return result, nil, err
 			default:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
@@ -2422,26 +2455,22 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When MCP Apps are enabled and the client supports UI,
-			// check if this is a UI form submission. The UI sends _ui_submitted=true
-			// to distinguish form submissions from LLM calls.
+			// When MCP Apps are enabled and the client supports UI, route the
+			// call to the interactive form unless it is itself a form submission
+			// (the UI sends _ui_submitted=true) or it carries parameters the form
+			// cannot represent (e.g. labels, assignees or issue_fields). Those
+			// must be applied directly so their values aren't silently dropped.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted {
+			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && !issueWriteHasNonFormParams(args) {
 				if method == "update" {
-					// Skip the UI form when a state change is requested because
-					// the form only handles title/body editing and would lose the
-					// state transition (e.g. closing or reopening the issue).
-					if _, hasState := args["state"]; !hasState {
-						issueNumber, numErr := RequiredInt(args, "issue_number")
-						if numErr != nil {
-							return utils.NewToolResultError("issue_number is required for update method"), nil, nil
-						}
-						return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. IMPORTANT: The issue has NOT been updated yet. Do NOT tell the user the issue was updated. The user MUST click Submit in the form to update it.", issueNumber, owner, repo)), nil, nil
+					issueNumber, numErr := RequiredInt(args, "issue_number")
+					if numErr != nil {
+						return utils.NewToolResultError("issue_number is required for update method"), nil, nil
 					}
-				} else {
-					return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. IMPORTANT: The issue has NOT been created yet. Do NOT tell the user the issue was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
+					return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. IMPORTANT: The issue has NOT been updated yet. Do NOT tell the user the issue was updated. The user MUST click Submit in the form to update it.", issueNumber, owner, repo)), nil, nil
 				}
+				return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. IMPORTANT: The issue has NOT been created yet. Do NOT tell the user the issue was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
 			}
 
 			title, err := OptionalParam[string](args, "title")
@@ -2460,12 +2489,16 @@ Options are:
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			assigneesValue, assigneesProvided := args["assignees"]
+			assigneesProvided = assigneesProvided && assigneesValue != nil
 
 			// Get labels
 			labels, err := OptionalStringArrayParam(args, "labels")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			labelsValue, labelsProvided := args["labels"]
+			labelsProvided = labelsProvided && labelsValue != nil
 
 			// Get optional milestone
 			milestone, err := OptionalIntParam(args, "milestone")
@@ -2522,7 +2555,10 @@ Options are:
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, nil, nil, state, stateReason, duplicateOf)
+				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, nil, nil, state, stateReason, duplicateOf, UpdateIssueOptions{
+					AssigneesProvided: assigneesProvided,
+					LabelsProvided:    labelsProvided,
+				})
 				return result, nil, err
 			default:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
@@ -2586,7 +2622,24 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 	return utils.NewToolResultText(string(r)), nil
 }
 
-func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldIDsToDelete []int64, state string, stateReason string, duplicateOf int) (*mcp.CallToolResult, error) {
+// UpdateIssueOptions controls which optional fields are included in an issue update request.
+type UpdateIssueOptions struct {
+	// AssigneesProvided sends the assignees field even when the slice is empty.
+	AssigneesProvided bool
+	// LabelsProvided sends the labels field even when the slice is empty.
+	LabelsProvided bool
+}
+
+func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldIDsToDelete []int64, state string, stateReason string, duplicateOf int, opts ...UpdateIssueOptions) (*mcp.CallToolResult, error) {
+	updateOptions := UpdateIssueOptions{
+		AssigneesProvided: len(assignees) > 0,
+		LabelsProvided:    len(labels) > 0,
+	}
+	for _, opt := range opts {
+		updateOptions.AssigneesProvided = updateOptions.AssigneesProvided || opt.AssigneesProvided
+		updateOptions.LabelsProvided = updateOptions.LabelsProvided || opt.LabelsProvided
+	}
+
 	// Create the issue request with only provided fields
 	issueRequest := &github.IssueRequest{}
 
@@ -2599,11 +2652,11 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		issueRequest.Body = github.Ptr(body)
 	}
 
-	if len(labels) > 0 {
+	if updateOptions.LabelsProvided {
 		issueRequest.Labels = &labels
 	}
 
-	if len(assignees) > 0 {
+	if updateOptions.AssigneesProvided {
 		issueRequest.Assignees = &assignees
 	}
 

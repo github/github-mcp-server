@@ -46,10 +46,11 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Type:        "string",
 						Description: "Commit SHA, branch name, or tag name",
 					},
-					"include_diff": {
-						Type:        "boolean",
-						Description: "Whether to include file diffs and stats in the response. Default is true.",
-						Default:     json.RawMessage(`true`),
+					"detail": {
+						Type:        "string",
+						Enum:        []any{"none", "stats", "full_patch"},
+						Description: "Level of detail to include for changed files. \"none\" omits stats and files entirely. \"stats\" (default) includes per-file metadata: filename, status, and lines-of-code counts (additions, deletions, changes), with no patch content. \"full_patch\" additionally includes the unified diff content for each file and can be very large.",
+						Default:     json.RawMessage(`"stats"`),
 					},
 				},
 				Required: []string{"owner", "repo", "sha"},
@@ -69,7 +70,11 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			includeDiff, err := OptionalBoolParamWithDefault(args, "include_diff", true)
+			detailRaw, err := OptionalParam[string](args, "detail")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			detail, err := parseCommitDetail(detailRaw)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -106,7 +111,7 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			// Convert to minimal commit
-			minimalCommit := convertToMinimalCommit(commit, includeDiff)
+			minimalCommit := convertToMinimalCommit(commit, detail)
 
 			r, err := json.Marshal(minimalCommit)
 			if err != nil {
@@ -252,7 +257,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// Convert to minimal commits
 			minimalCommits := make([]MinimalCommit, len(commits))
 			for i, commit := range commits {
-				minimalCommits[i] = convertToMinimalCommit(commit, false)
+				minimalCommits[i] = convertToMinimalCommit(commit, commitDetailNone)
 			}
 
 			r, err := json.Marshal(minimalCommits)
