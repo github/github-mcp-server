@@ -7,6 +7,7 @@ import (
 	"maps"
 	"strings"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
@@ -1170,7 +1171,10 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				IssueFields: issueFields,
 			}
 
-			if err := gqlClient.Mutate(ctx, &mutation, mutationInput, nil); err != nil {
+			// The rationale and suggest input fields on IssueFieldCreateOrUpdateInput
+			// are gated behind the update_issue_suggestions GraphQL feature flag.
+			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "update_issue_suggestions")
+			if err := gqlClient.Mutate(ctxWithFeatures, &mutation, mutationInput, nil); err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to set issue field values", err), nil, nil
 			}
 
