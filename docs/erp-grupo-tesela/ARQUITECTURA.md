@@ -1,37 +1,42 @@
 # Arquitectura del ERP — Grupo Tesela
 
-> Documento vivo. Versión inicial del diseño.
-> Stack basado en los conectores (MCP) disponibles en el entorno de trabajo.
+> Documento vivo. v2.
+> Sector: **Construcción · Estudio de arquitectura · Promoción inmobiliaria**
+> Usuarios objetivo: **10** (arranque por fases, meta a corto plazo: completar **Fase 2**).
+> Sistema actual: **Holded** (contabilidad, facturación, CRM básico).
 
 ---
 
 ## 1. Principios de diseño
 
-1. **Una única fuente de verdad (single source of truth):** todos los datos del negocio viven en una base de datos central. El resto de herramientas leen/escriben contra ella, nunca al revés.
-2. **Modular:** cada área del negocio es un módulo independiente que se puede activar por fases (no hay que construirlo todo de golpe).
-3. **Automatización en el centro:** las tareas repetitivas se orquestan, no se hacen a mano.
-4. **API-first:** todo expone API para poder conectarlo con cualquier herramienta presente o futura.
-5. **Coste escalado:** empezar con el plan gratuito de cada servicio y subir a premium solo cuando el módulo lo justifique.
+1. **Una única fuente de verdad:** los datos del negocio viven en una base de datos central; el resto de herramientas leen/escriben contra ella.
+2. **No reinventar lo que ya funciona:** Holded sigue siendo el **motor contable y fiscal** (cumple normativa española: facturación, SII/Verifactu). El ERP nuevo lo **extiende**, no lo reemplaza.
+3. **Modular y por fases:** cada módulo se activa cuando toca.
+4. **API-first.**
+5. **Soberanía del dato:** los datos sensibles (clientes, contratos, compraventas) deben estar en la UE/España.
 
 ---
 
 ## 2. Stack elegido (decisión tomada)
 
-| Capa | Herramienta elegida | Por qué esta y no otra |
-|------|--------------------|------------------------|
-| **Núcleo de datos / Backend** | **Supabase** | Postgres real + Auth + API automática + Storage + Edge Functions. Es el corazón del ERP. |
-| **Código y CI/CD** | **GitHub** | Repos, ramas, PRs, automatización de despliegues. |
-| **Automatización principal** | **Make.com** | Escenarios visuales con lógica compleja. Más potente que Zapier para flujos serios. |
-| **Automatización secundaria** | **Zapier** | Para la "larga cola" de apps que Make no cubra (+9.000 apps). |
-| **Ingesta de marketing** | **Supermetrics** | +150 fuentes (Google/Meta/TikTok/LinkedIn Ads, GA4, Shopify…). |
-| **ETL / BI** | **Coupler.io** | Mueve datos de +400 servicios a dashboards y a la BD. |
-| **Diseño de interfaz** | **Figma** | Diseño del frontend del ERP y design-to-code. |
-| **CRM / Ventas** | **Attio** | Leads, contactos, pipeline comercial. |
-| **Datos operativos ligeros** | **Airtable** | Vistas operativas rápidas para equipos no técnicos. |
-| **Documentación / Wiki** | **Notion** | Manual interno, procesos, base de conocimiento. |
-| **Ofimática y correo** | **Google Workspace** (Gmail + Calendar + Drive) | Correo, agenda y archivos del día a día. |
-| **Reuniones** | **Zoom** | Grabaciones, transcripciones y resúmenes. |
-| **Gestión de tareas dev** | **Linear** | Roadmap y desarrollo del propio ERP. |
+| Capa | Herramienta | Por qué |
+|------|-------------|---------|
+| **Contabilidad y facturación (motor fiscal)** | **Holded** (se mantiene) | Ya lo usáis y cumple la normativa fiscal española. Se integra vía su API. |
+| **Núcleo de datos del ERP** | **PostgreSQL** (vía Supabase, o self-host en España) | Mejor que MySQL para un ERP: integridad, JSON, extensiones, permisos por fila. Ver §6. |
+| **Lógica de negocio / API** | **Supabase Edge Functions** | Reglas del ERP y conexión con Holded. |
+| **Automatización principal** | **Make.com** | Sincroniza Holded ⇄ ERP ⇄ resto de apps. |
+| **CRM inmobiliario / comercial** | **Attio** | Pipeline de compradores, leads, visitas. |
+| **Gestión documental** | **Google Drive** + **Supabase Storage** | Planos, licencias, contratos, escrituras. |
+| **Documentación / procesos** | **Notion** | Manual interno, procedimientos de obra. |
+| **Datos operativos ligeros** | **Airtable** | Vistas rápidas para obra/comercial sin tocar la BD. |
+| **BI / Reporting** | **Coupler.io** | Cuadros de mando (rentabilidad por promoción, tesorería). |
+| **Diseño de interfaz** | **Figma** | Frontend del ERP. |
+| **Código / CI/CD** | **GitHub** | Versionado y despliegues. |
+| **Gestión del desarrollo** | **Linear** | Roadmap del ERP. |
+| **Ofimática** | **Google Workspace** | Correo, agenda, Drive (10 usuarios). |
+| **Reuniones** | **Zoom** | Comités de obra, reuniones con clientes. |
+
+> **Marketing (Supermetrics):** queda **fuera de las Fases 0–2.** Solo tiene sentido si hacéis inversión publicitaria seria para comercializar promociones. Lo dejamos para más adelante.
 
 ---
 
@@ -39,138 +44,124 @@
 
 ```mermaid
 flowchart TB
-    subgraph PRES["🖥️ Capa de Presentación"]
-        UI["Frontend ERP\n(diseñado en Figma)"]
-        AIR["Airtable\n(vistas operativas)"]
-        NOT["Notion\n(wiki / procesos)"]
+    subgraph PRES["🖥️ Presentación"]
+        UI["Frontend ERP\n(Figma → código)"]
+        AIR["Airtable\n(vistas obra/comercial)"]
+        NOT["Notion\n(procesos)"]
     end
 
-    subgraph APP["⚙️ Capa de Aplicación / Lógica"]
-        EF["Supabase Edge Functions\n(reglas de negocio)"]
-        API["API REST / GraphQL\n(auto-generada)"]
+    subgraph APP["⚙️ Aplicación / Lógica"]
+        EF["Supabase Edge Functions\n(reglas + sync Holded)"]
+        API["API auto-generada"]
     end
 
-    subgraph DATA["🗄️ Capa de Datos — FUENTE ÚNICA DE VERDAD"]
-        PG[("Supabase\nPostgreSQL")]
-        ST["Supabase Storage\n(documentos, facturas)"]
-        AUTH["Supabase Auth\n(usuarios y permisos)"]
+    subgraph DATA["🗄️ Datos — FUENTE ÚNICA DE VERDAD"]
+        PG[("PostgreSQL\n(Supabase / self-host ES)")]
+        ST["Storage\n(planos, contratos)"]
+        AUTH["Auth\n(usuarios y permisos)"]
     end
 
-    subgraph AUTO["🔄 Capa de Automatización"]
-        MAKE["Make.com\n(orquestador principal)"]
-        ZAP["Zapier\n(apps larga cola)"]
-    end
-
-    subgraph BI["📊 Capa de Datos & BI"]
-        SM["Supermetrics\n(marketing)"]
-        COUP["Coupler.io\n(ETL)"]
-    end
-
-    subgraph COLAB["👥 Capa de Colaboración"]
-        GW["Google Workspace\n(Gmail/Calendar/Drive)"]
-        ZOOM["Zoom"]
+    subgraph EXT["🔌 Sistemas Externos"]
+        HOL["Holded\n(contabilidad/facturas)"]
+        GW["Google Workspace\n(Drive/Gmail/Calendar)"]
         ATT["Attio (CRM)"]
+        ZOOM["Zoom"]
     end
 
-    subgraph DEV["🛠️ Capa de Desarrollo"]
+    subgraph AUTO["🔄 Automatización"]
+        MAKE["Make.com"]
+    end
+
+    subgraph BI["📊 BI"]
+        COUP["Coupler.io\n(cuadros de mando)"]
+    end
+
+    subgraph DEV["🛠️ Desarrollo"]
         GH["GitHub"]
         LIN["Linear"]
     end
 
     UI --> API
     AIR --> API
-    NOT --> API
     API --> EF
     EF --> PG
     EF --> ST
     EF --> AUTH
     MAKE <--> PG
-    ZAP <--> PG
-    SM --> COUP
-    COUP --> PG
-    COLAB <--> MAKE
-    ATT <--> MAKE
+    MAKE <--> HOL
+    MAKE <--> ATT
+    MAKE <--> GW
+    PG --> COUP
+    HOL --> COUP
     GH --> EF
-    LIN -.gestiona.-> GH
 ```
 
 ---
 
-## 4. Módulos del ERP
+## 4. Módulos del ERP (adaptados al sector)
 
 ```mermaid
 flowchart LR
-    CORE[("Núcleo Supabase\nDatos + Auth")]
-
-    CORE --- M1["💰 Finanzas\ny Contabilidad"]
-    CORE --- M2["🤝 Ventas y CRM\n(Attio)"]
-    CORE --- M3["📦 Compras y\nProveedores"]
-    CORE --- M4["🏭 Inventario /\nAlmacén"]
-    CORE --- M5["🏗️ Proyectos / Obras\n(sectorial)"]
-    CORE --- M6["👤 RRHH y\nNóminas"]
-    CORE --- M7["📣 Marketing\n(Supermetrics)"]
-    CORE --- M8["📈 BI y Reporting\n(Coupler.io)"]
-    CORE --- M9["📁 Documentación\n(Drive/Notion)"]
+    CORE[("Núcleo\nPostgreSQL")]
+    CORE --- M1["💰 Contabilidad\n(Holded - integrado)"]
+    CORE --- M2["🏗️ Promociones\ny Obras"]
+    CORE --- M3["🏠 Comercialización\nde viviendas"]
+    CORE --- M4["📐 Proyectos de\narquitectura"]
+    CORE --- M5["🧾 Compras y\nsubcontratas"]
+    CORE --- M6["🤝 CRM\n(Attio)"]
+    CORE --- M7["🛠️ Postventa\ny garantías"]
+    CORE --- M8["📈 BI / Cuadros\nde mando"]
+    CORE --- M9["📁 Documental\n(planos/licencias)"]
 ```
 
-| # | Módulo | Conectores implicados | Fase sugerida |
-|---|--------|----------------------|---------------|
-| 1 | Finanzas y Contabilidad | Supabase + Make (+ pasarela contable vía Zapier) | Fase 1 (MVP) |
-| 2 | Ventas y CRM | Attio + Supabase + Make | Fase 1 (MVP) |
-| 3 | Compras y Proveedores | Supabase + Gmail + Make | Fase 2 |
-| 4 | Inventario / Almacén | Supabase + Airtable | Fase 2 |
-| 5 | Proyectos / Obras *(depende del sector)* | Supabase + Linear/Airtable | Fase 2-3 |
-| 6 | RRHH y Nóminas | Supabase + Google Workspace + Zapier | Fase 3 |
-| 7 | Marketing | Supermetrics + Coupler.io | Fase 2 |
-| 8 | BI y Reporting | Coupler.io + Supabase | Fase 2 |
-| 9 | Documentación | Google Drive + Notion + Supabase Storage | Fase 1 |
+| # | Módulo | Qué cubre | Conectores | Fase |
+|---|--------|-----------|-----------|------|
+| 1 | **Contabilidad / Facturación** | Asientos, facturas, impuestos | **Holded** (integrado) | F1 |
+| 2 | **Promociones y Obras** | Promociones, fases, parcelas/viviendas, certificaciones, control de costes vs presupuesto | Postgres + Airtable | F1–F2 |
+| 3 | **Comercialización** | Reservas, arras, contratos de compraventa, estado de cada vivienda | Postgres + Attio | F2 |
+| 4 | **Proyectos de arquitectura** | Encargos, fases de diseño, licencias, honorarios | Postgres + Drive | F2 |
+| 5 | **Compras y subcontratas** | Proveedores, pedidos, comparativas, certificaciones de subcontrata | Postgres + Holded | F2 |
+| 6 | **CRM** | Leads compradores, visitas, seguimiento | Attio | F1–F2 |
+| 7 | **Postventa** | Incidencias y garantías de vivienda entregada | Postgres | F3 |
+| 8 | **BI / Cuadros de mando** | Rentabilidad por promoción, tesorería, avance de obra | Coupler.io | F2 |
+| 9 | **Documental** | Planos, licencias, escrituras, contratos | Drive + Storage | F1 |
 
 ---
 
-## 5. Hoja de ruta por fases
+## 5. Hoja de ruta (objetivo: completar Fase 2)
 
-- **Fase 0 — Cimientos:** Supabase (BD + Auth) + GitHub + diseño en Figma + estructura de datos central.
-- **Fase 1 — MVP:** Finanzas básicas + CRM (Attio) + Documentación + automatizaciones core (Make).
-- **Fase 2 — Operaciones:** Compras, Inventario, Marketing (Supermetrics) y BI (Coupler.io).
-- **Fase 3 — Avanzado:** RRHH/Nóminas, módulo sectorial (obras/proyectos), reporting avanzado.
-
----
-
-## 6. Plan de cuentas premium (qué pagar y cuándo)
-
-> Precios **aproximados** (pueden variar; conviene confirmarlos en cada web). Orientativos por mes.
-
-| Prioridad | Servicio | Plan recomendado | Coste aprox. | ¿Merece premium? |
-|-----------|----------|------------------|--------------|------------------|
-| 🔴 **1 (ya)** | **Supabase** | Pro | ~25 $/mes | **SÍ.** Es el núcleo. Sin esto no hay ERP. |
-| 🔴 **1 (ya)** | **Make.com** | Core/Pro | ~9–16 $/mes | **SÍ.** El motor de automatización. |
-| 🔴 **1 (ya)** | **Google Workspace** | Business Starter | ~6–7 €/usuario | **SÍ.** Correo profesional + Drive. |
-| 🟠 **2** | **Coupler.io** | según volumen | ~49–99 $/mes | Sí, cuando montes BI/reporting. |
-| 🟠 **2** | **Airtable** | Team | ~20 $/usuario | Sí, si el equipo usa vistas operativas. |
-| 🟠 **2** | **Attio** | Plus/Pro | ~29 $/usuario | Sí, cuando arranque el área comercial. |
-| 🟡 **3** | **Supermetrics** | según fuentes | ~100–200+ €/mes | Solo si hay inversión publicitaria seria. |
-| 🟡 **3** | **Notion** | Plus | ~10 $/usuario | Opcional (el plan gratis aguanta al inicio). |
-| 🟡 **3** | **Figma** | Professional | ~12–15 $/editor | Solo para quien diseñe. |
-| 🟢 **4** | **GitHub** | Free → Team | 0 → ~4 $/usuario | Gratis basta al principio. |
-| 🟢 **4** | **Linear** | Free → Standard | 0 → ~8 $/usuario | Gratis basta al principio. |
-| 🟢 **4** | **Zapier** | Starter | ~20–30 $/mes | Solo si Make se queda corto. |
-| 🟢 **4** | **Zoom** | Pro | ~14 €/mes | Solo si necesitas reuniones largas grabadas. |
-
-### Inversión mínima para arrancar (Fase 0-1)
-**Supabase Pro + Make Core + Google Workspace** → del orden de **~40–50 €/mes** para tener un ERP funcional en su núcleo.
+- **Fase 0 — Cimientos:** decidir BD (§6), montar PostgreSQL + Auth, conectar Holded (lectura), estructura de datos, diseño en Figma.
+- **Fase 1 — Núcleo:** Promociones/Obras (base) + Documental + integración Holded + CRM básico (Attio).
+- **Fase 2 — Operación (META actual):** Comercialización de viviendas + Compras/subcontratas + Proyectos de arquitectura + BI (Coupler.io).
+- **Fase 3 — Más adelante:** Postventa, RRHH, marketing (Supermetrics).
 
 ---
 
-## 7. Cómo se gestiona ("manejando yo")
+## 6. Decisión clave: base de datos ("MySQL de Barcelona")
 
-- **Yo orquesto** la conexión de cada herramienta por módulo, en el momento en que toca activarla (no todas a ciegas el día 1).
-- Cada servicio que requiera login te lo pediré **solo cuando vayamos a usarlo** en su fase.
-- El código y la configuración del ERP vivirán versionados en **GitHub**, en este repositorio.
+**Mi recomendación: PostgreSQL, no MySQL.** Para un ERP, Postgres gana en integridad de datos, tipos avanzados (JSON, geolocalización para parcelas), seguridad por fila y extensiones. Tres caminos posibles:
+
+| Opción | Datos en España | Esfuerzo | Recomendación |
+|--------|-----------------|----------|---------------|
+| **A. Supabase Cloud (región UE)** | UE (no Barcelona exacto) | Mínimo | ✅ La más rápida para arrancar. |
+| **B. Supabase self-host en proveedor español (Barcelona)** | Sí, España | Medio | ✅ Si la soberanía del dato es requisito legal. |
+| **C. MySQL gestionado en Barcelona** | Sí, España | Alto (perdemos las ventajas de Supabase) | ⚠️ Solo si hay una obligación concreta de usar MySQL. |
+
+> Necesito saber **por qué** estáis mirando "MySQL de Barcelona" (¿soberanía del dato? ¿un proveedor concreto? ¿una recomendación que os han dado?) para cerrar esta decisión.
+
+---
+
+## 7. Integración con Holded
+
+- Holded **no se sustituye.** Sigue siendo el sistema legal de contabilidad y facturación.
+- El ERP **lee** de Holded (facturas, cobros, proveedores) vía su API y los cruza con cada promoción para calcular rentabilidad real.
+- El ERP **escribe** en Holded cuando proceda (p.ej. generar factura desde un contrato de compraventa) — a través de Make.com.
+- Así evitamos duplicar la contabilidad y mantenemos el cumplimiento fiscal.
 
 ---
 
 ## 8. Pendiente de confirmar
 
-- **Sector / giro de Grupo Tesela:** afina sobre todo el **Módulo 5 (Proyectos/Obras)** y matices de Inventario y Finanzas.
-- Nº de usuarios previstos (para dimensionar los planes de pago por usuario).
-- Si ya usáis algún software actual del que haya que migrar datos.
+1. **Base de datos:** motivo de "MySQL de Barcelona" → para elegir entre opción A/B/C (§6).
+2. **Holded:** ¿se mantiene como motor contable (mi recomendación) o queréis migrar todo al ERP nuevo?
+3. ¿Tenéis ya alguna herramienta de gestión de obra/promociones que haya que sustituir o de la que migrar datos?
