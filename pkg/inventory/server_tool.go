@@ -133,7 +133,12 @@ func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset Too
 		HandlerFunc: func(_ any) mcp.ToolHandler {
 			return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 				var arguments In
-				if err := json.Unmarshal(req.Params.Arguments, &arguments); err != nil {
+				args := req.Params.Arguments
+				// Some MCP clients omit arguments for zero-parameter tools; treat as {}.
+				if len(args) == 0 {
+					args = json.RawMessage(`{}`)
+				}
+				if err := json.Unmarshal(args, &arguments); err != nil {
 					return &mcp.CallToolResult{
 						Content: []mcp.Content{
 							&mcp.TextContent{Text: fmt.Sprintf("invalid arguments: %s", err)},
