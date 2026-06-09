@@ -1,6 +1,7 @@
 package inventory
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -210,18 +211,29 @@ func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset Too
 		HandlerFunc: func(_ any) mcp.ToolHandler {
 			return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 				var arguments In
-				if err := json.Unmarshal(req.Params.Arguments, &arguments); err != nil {
-					return &mcp.CallToolResult{
-						Content: []mcp.Content{
-							&mcp.TextContent{Text: fmt.Sprintf("invalid arguments: %s", err)},
-						},
-						IsError: true,
-					}, nil
+				args := req.Params.Arguments
+				if len(args) == 0 {
+					args = json.RawMessage(`{}`)
+				}
+				if bytes.Equal(bytes.TrimSpace(args), []byte("null")) {
+					return invalidArgumentsResult("arguments must be a JSON object"), nil
+				}
+				if err := json.Unmarshal(args, &arguments); err != nil {
+					return invalidArgumentsResult(err.Error()), nil
 				}
 				resp, _, err := handler(ctx, req, arguments)
 				return resp, err
 			}
 		},
+	}
+}
+
+func invalidArgumentsResult(message string) *mcp.CallToolResult {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf("invalid arguments: %s", message)},
+		},
+		IsError: true,
 	}
 }
 

@@ -139,6 +139,48 @@ func Test_GetMe(t *testing.T) {
 	}
 }
 
+func Test_GetMe_OmittedArguments(t *testing.T) {
+	t.Parallel()
+
+	serverTool := GetMe(translations.NullTranslationHelper)
+
+	mockUser := &github.User{
+		Login:     github.Ptr("testuser"),
+		Name:      github.Ptr("Test User"),
+		HTMLURL:   github.Ptr("https://github.com/testuser"),
+		CreatedAt: &github.Timestamp{Time: time.Now()},
+	}
+	mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetUser: mockResponse(t, http.StatusOK, mockUser),
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, mockedClient), Obsv: stubExporters()}
+	handler := serverTool.Handler(deps)
+
+	tests := []struct {
+		name      string
+		arguments json.RawMessage
+	}{
+		{name: "nil arguments", arguments: nil},
+		{name: "empty byte slice", arguments: json.RawMessage{}},
+		{name: "explicit empty object", arguments: json.RawMessage(`{}`)},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			request := createMCPRequestWithRawArguments(tc.arguments)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			textContent := getTextResult(t, result)
+			var returnedUser MinimalUser
+			err = json.Unmarshal([]byte(textContent.Text), &returnedUser)
+			require.NoError(t, err)
+			assert.Equal(t, "testuser", returnedUser.Login)
+		})
+	}
+}
+
 func Test_GetMe_IFC_FeatureFlag(t *testing.T) {
 	t.Parallel()
 

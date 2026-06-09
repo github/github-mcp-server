@@ -81,6 +81,113 @@ func TestNewServerToolWithContextHandler_ValidArguments_Succeeds(t *testing.T) {
 	assert.Equal(t, "success: octocat/hello-world", textContent.Text)
 }
 
+func TestNewServerToolWithContextHandler_ArgumentObjects(t *testing.T) {
+	type emptyArgs struct{}
+
+	handlerCalled := false
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "zero_arg_tool"},
+		testToolsetMetadata("test"),
+		func(_ context.Context, _ *mcp.CallToolRequest, _ emptyArgs) (*mcp.CallToolResult, any, error) {
+			handlerCalled = true
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: "ok"}},
+			}, nil, nil
+		},
+	)
+	handler := tool.HandlerFunc(nil)
+
+	tests := []struct {
+		name        string
+		arguments   json.RawMessage
+		wantError   bool
+		wantMessage string
+		wantHandler bool
+	}{
+		{
+			name:        "nil arguments",
+			arguments:   nil,
+			wantHandler: true,
+		},
+		{
+			name:        "zero-length arguments",
+			arguments:   json.RawMessage{},
+			wantHandler: true,
+		},
+		{
+			name:        "empty object",
+			arguments:   json.RawMessage(`{}`),
+			wantHandler: true,
+		},
+		{
+			name:        "null",
+			arguments:   json.RawMessage(`null`),
+			wantError:   true,
+			wantMessage: "arguments must be a JSON object",
+		},
+		{
+			name:        "malformed JSON",
+			arguments:   json.RawMessage(`{not valid json`),
+			wantError:   true,
+			wantMessage: "invalid character",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handlerCalled = false
+			result, err := handler(context.Background(), &mcp.CallToolRequest{
+				Params: &mcp.CallToolParamsRaw{
+					Name:      "zero_arg_tool",
+					Arguments: tt.arguments,
+				},
+			})
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.wantError, result.IsError)
+			assert.Equal(t, tt.wantHandler, handlerCalled)
+			if tt.wantMessage != "" {
+				textContent, ok := result.Content[0].(*mcp.TextContent)
+				require.True(t, ok)
+				assert.Contains(t, textContent.Text, tt.wantMessage)
+			}
+		})
+	}
+}
+
+func TestNewServerToolWithContextHandler_OmittedArgumentsReachRequiredParameterValidation(t *testing.T) {
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "parameterized_tool"},
+		testToolsetMetadata("test"),
+		func(_ context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			if _, ok := args["owner"]; !ok {
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{&mcp.TextContent{Text: "missing required parameter: owner"}},
+					IsError: true,
+				}, nil, nil
+			}
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: "ok"}},
+			}, nil, nil
+		},
+	)
+
+	result, err := tool.HandlerFunc(nil)(context.Background(), &mcp.CallToolRequest{
+		Params: &mcp.CallToolParamsRaw{
+			Name:      "parameterized_tool",
+			Arguments: nil,
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.True(t, result.IsError)
+	textContent, ok := result.Content[0].(*mcp.TextContent)
+	require.True(t, ok)
+	assert.Contains(t, textContent.Text, "missing required parameter: owner")
+}
+
 func TestServerToolRegisterFuncAppliesMiddleware(t *testing.T) {
 	tool := NewServerTool(
 		mcp.Tool{
