@@ -161,6 +161,47 @@ Because this changes list tool response shape, clients that require JSON list re
 
 ---
 
+## Issue fields
+
+Issue fields are custom fields attached to issues in GitHub repositories, such as single-select options, text fields, number fields, and date fields.
+
+### `search_issues` — always returns field values
+
+Every `search_issues` result includes a `field_values` array regardless of whether Insiders Mode is on. Each entry has a `field_name` and a human-readable `value`:
+
+```json
+{
+  "field_values": [
+    { "field_name": "Priority", "value": "High" },
+    { "field_name": "Due date", "value": "2025-09-30" }
+  ]
+}
+```
+
+Issues with no custom field values set will have an empty or absent `field_values` array.
+
+### `issue_read` — field values included in Insiders Mode
+
+When Insiders Mode is on, the `issue_read` response includes a `field_values` array in the same format as `search_issues`. Issues with no values set will omit the field.
+
+### `issue_write` — setting and clearing field values (Insiders Mode)
+
+Pass an `issue_fields` array to set or clear custom field values on create or update. Each entry requires `field_name` and exactly one of:
+
+- `field_option_name` — for single-select fields (validated against the field's options before the API call; preferred over `value` for single-select)
+- `value` — for text, number, and date fields (`YYYY-MM-DD` for dates)
+- `delete: true` — to clear the field's current value
+
+On update, the server fetches the issue's existing field values and merges your entries in: fields you provide override their current value, and fields you omit are left unchanged.
+
+### `list_issues` — filtering by field values (Insiders Mode)
+
+Pass a `field_filters` array to filter results by custom field values. Each entry takes a `field_name` and a `value` string; the server resolves the field's data type and coerces the value accordingly (option name for single-select, plain text, number, or `YYYY-MM-DD` date). Field name matching is case-insensitive. Multiple filters are combined with AND logic.
+
+Each item in the response also includes a `field_values` array in the same format as `search_issues`.
+
+---
+
 ## How feature flags are resolved
 
 > [!NOTE]
