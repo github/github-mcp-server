@@ -1858,7 +1858,30 @@ Options are:
 						Type:        "array",
 						Description: "Labels to apply to this issue",
 						Items: &jsonschema.Schema{
-							Type: "string",
+							OneOf: []*jsonschema.Schema{
+								{Type: "string", Description: "Label name"},
+								{
+									Type: "object",
+									Properties: map[string]*jsonschema.Schema{
+										"name": {
+											Type:        "string",
+											Description: "Label name",
+										},
+										"rationale": {
+											Type: "string",
+											Description: "One concise sentence explaining what specifically about the issue led you to choose this label. " +
+												"State the concrete signal (e.g. 'Reports a crash when saving' → bug).",
+											MaxLength: jsonschema.Ptr(280),
+										},
+										"is_suggestion": {
+											Type: "boolean",
+											Description: "If true, this label is sent to the API as a suggestion rather than an applied label. " +
+												"Whether the label is applied or recorded as a proposal is determined by the API. Only honored when updating an existing issue.",
+										},
+									},
+									Required: []string{"name"},
+								},
+							},
 						},
 					},
 					"milestone": {
@@ -1975,13 +1998,11 @@ Options are:
 			assigneesValue, assigneesProvided := args["assignees"]
 			assigneesProvided = assigneesProvided && assigneesValue != nil
 
-			// Get labels
-			labels, err := OptionalStringArrayParam(args, "labels")
+			// Get labels (plain names or per-label intent objects)
+			labels, labelsPayload, labelsHaveIntent, labelsProvided, err := parseIssueWriteLabels(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			labelsValue, labelsProvided := args["labels"]
-			labelsProvided = labelsProvided && labelsValue != nil
 
 			// Get optional milestone
 			milestone, err := OptionalIntParam(args, "milestone")
@@ -2053,10 +2074,14 @@ Options are:
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, UpdateIssueOptions{
+				updateOpts := UpdateIssueOptions{
 					AssigneesProvided: assigneesProvided,
 					LabelsProvided:    labelsProvided,
-				})
+				}
+				if labelsHaveIntent {
+					updateOpts.LabelsWithIntent = labelsPayload
+				}
+				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, updateOpts)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
@@ -2132,7 +2157,30 @@ Options are:
 						Type:        "array",
 						Description: "Labels to apply to this issue",
 						Items: &jsonschema.Schema{
-							Type: "string",
+							OneOf: []*jsonschema.Schema{
+								{Type: "string", Description: "Label name"},
+								{
+									Type: "object",
+									Properties: map[string]*jsonschema.Schema{
+										"name": {
+											Type:        "string",
+											Description: "Label name",
+										},
+										"rationale": {
+											Type: "string",
+											Description: "One concise sentence explaining what specifically about the issue led you to choose this label. " +
+												"State the concrete signal (e.g. 'Reports a crash when saving' → bug).",
+											MaxLength: jsonschema.Ptr(280),
+										},
+										"is_suggestion": {
+											Type: "boolean",
+											Description: "If true, this label is sent to the API as a suggestion rather than an applied label. " +
+												"Whether the label is applied or recorded as a proposal is determined by the API. Only honored when updating an existing issue.",
+										},
+									},
+									Required: []string{"name"},
+								},
+							},
 						},
 					},
 					"milestone": {
@@ -2214,13 +2262,11 @@ Options are:
 			assigneesValue, assigneesProvided := args["assignees"]
 			assigneesProvided = assigneesProvided && assigneesValue != nil
 
-			// Get labels
-			labels, err := OptionalStringArrayParam(args, "labels")
+			// Get labels (plain names or per-label intent objects)
+			labels, labelsPayload, labelsHaveIntent, labelsProvided, err := parseIssueWriteLabels(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			labelsValue, labelsProvided := args["labels"]
-			labelsProvided = labelsProvided && labelsValue != nil
 
 			// Get optional milestone
 			milestone, err := OptionalIntParam(args, "milestone")
@@ -2277,10 +2323,14 @@ Options are:
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, nil, nil, state, stateReason, duplicateOf, UpdateIssueOptions{
+				updateOpts := UpdateIssueOptions{
 					AssigneesProvided: assigneesProvided,
 					LabelsProvided:    labelsProvided,
-				})
+				}
+				if labelsHaveIntent {
+					updateOpts.LabelsWithIntent = labelsPayload
+				}
+				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, nil, nil, state, stateReason, duplicateOf, updateOpts)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
@@ -2350,6 +2400,92 @@ type UpdateIssueOptions struct {
 	AssigneesProvided bool
 	// LabelsProvided sends the labels field even when the slice is empty.
 	LabelsProvided bool
+	// LabelsWithIntent, when non-empty, sends labels in object form (a mix of
+	// plain label names and labelWithIntent objects) via a custom request so
+	// per-label rationale and suggestion intent are preserved. When set, it
+	// takes precedence over the labels slice.
+	LabelsWithIntent []any
+}
+
+// parseIssueWriteLabels parses the issue_write "labels" parameter, which accepts
+// either plain label names (strings) or objects carrying intent metadata
+// (name, rationale, is_suggestion). It returns the plain label names (intent
+// stripped), the object-form payload to send when any label carries intent,
+// whether any label carried intent, whether the labels parameter was provided
+// at all, and an error.
+func parseIssueWriteLabels(args map[string]any) (names []string, payload []any, hasIntent bool, provided bool, err error) {
+	raw, ok := args["labels"]
+	if !ok || raw == nil {
+		return []string{}, nil, false, false, nil
+	}
+
+	var labelsSlice []any
+	switch v := raw.(type) {
+	case []any:
+		labelsSlice = v
+	case []string:
+		labelsSlice = make([]any, len(v))
+		for i, s := range v {
+			labelsSlice[i] = s
+		}
+	default:
+		return nil, nil, false, true, fmt.Errorf("labels must be an array")
+	}
+
+	names = make([]string, 0, len(labelsSlice))
+	payload = make([]any, 0, len(labelsSlice))
+	for _, item := range labelsSlice {
+		switch v := item.(type) {
+		case string:
+			names = append(names, v)
+			payload = append(payload, v)
+		case map[string]any:
+			name, nameErr := RequiredParam[string](v, "name")
+			if nameErr != nil {
+				return nil, nil, false, true, fmt.Errorf("each label object must have a 'name' string")
+			}
+			names = append(names, name)
+
+			rationale, rErr := OptionalParam[string](v, "rationale")
+			if rErr != nil {
+				return nil, nil, false, true, rErr
+			}
+			rationale = strings.TrimSpace(rationale)
+			if len([]rune(rationale)) > 280 {
+				return nil, nil, false, true, fmt.Errorf("label rationale must be 280 characters or less")
+			}
+			isSuggestion, sErr := OptionalParam[bool](v, "is_suggestion")
+			if sErr != nil {
+				return nil, nil, false, true, sErr
+			}
+			if rationale == "" && !isSuggestion {
+				payload = append(payload, name)
+			} else {
+				hasIntent = true
+				payload = append(payload, labelWithIntent{Name: name, Rationale: rationale, Suggest: isSuggestion})
+			}
+		default:
+			return nil, nil, false, true, fmt.Errorf("each label must be a string or an object with 'name' and optional 'rationale' and/or 'is_suggestion'")
+		}
+	}
+	return names, payload, hasIntent, true, nil
+}
+
+// issueRequestWithLabels marshals an IssueRequest into a generic map and sets
+// the labels field to the provided object-form payload (a mix of plain label
+// names and labelWithIntent objects). This lets an issue update carry per-label
+// rationale and suggestion intent that github.IssueRequest cannot represent.
+func issueRequestWithLabels(issueRequest *github.IssueRequest, labels []any) (map[string]any, error) {
+	data, err := json.Marshal(issueRequest)
+	if err != nil {
+		return nil, err
+	}
+	payload := map[string]any{}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil, err
+	}
+	payload["labels"] = labels
+	return payload, nil
 }
 
 func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldIDsToDelete []int64, state string, stateReason string, duplicateOf int, opts ...UpdateIssueOptions) (*mcp.CallToolResult, error) {
@@ -2360,6 +2496,9 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	for _, opt := range opts {
 		updateOptions.AssigneesProvided = updateOptions.AssigneesProvided || opt.AssigneesProvided
 		updateOptions.LabelsProvided = updateOptions.LabelsProvided || opt.LabelsProvided
+		if len(opt.LabelsWithIntent) > 0 {
+			updateOptions.LabelsWithIntent = opt.LabelsWithIntent
+		}
 	}
 
 	// Create the issue request with only provided fields
@@ -2374,7 +2513,9 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		issueRequest.Body = github.Ptr(body)
 	}
 
-	if updateOptions.LabelsProvided {
+	// When labels carry per-label intent, they are sent via a custom request
+	// below instead of through issueRequest.Labels.
+	if updateOptions.LabelsProvided && len(updateOptions.LabelsWithIntent) == 0 {
 		issueRequest.Labels = &labels
 	}
 
@@ -2415,7 +2556,27 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		issueRequest.IssueFieldValues = merged
 	}
 
-	updatedIssue, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)
+	var updatedIssue *github.Issue
+	var resp *github.Response
+	var err error
+	if len(updateOptions.LabelsWithIntent) > 0 {
+		// Send labels in object form so per-label rationale and suggestion intent
+		// are preserved. Marshal the standard request (labels omitted), then inject
+		// the object-form labels into the payload.
+		payload, mErr := issueRequestWithLabels(issueRequest, updateOptions.LabelsWithIntent)
+		if mErr != nil {
+			return utils.NewToolResultErrorFromErr("failed to build issue update request", mErr), nil
+		}
+		apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
+		httpReq, rErr := client.NewRequest(ctx, "PATCH", apiURL, payload)
+		if rErr != nil {
+			return utils.NewToolResultErrorFromErr("failed to create request", rErr), nil
+		}
+		updatedIssue = &github.Issue{}
+		resp, err = client.Do(httpReq, updatedIssue)
+	} else {
+		updatedIssue, resp, err = client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)
+	}
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
 			"failed to update issue",

@@ -36,7 +36,33 @@
       "labels": {
         "description": "Labels to apply to this issue",
         "items": {
-          "type": "string"
+          "oneOf": [
+            {
+              "description": "Label name",
+              "type": "string"
+            },
+            {
+              "properties": {
+                "is_suggestion": {
+                  "description": "If true, this label is sent to the API as a suggestion rather than an applied label. Whether the label is applied or recorded as a proposal is determined by the API. Only honored when updating an existing issue.",
+                  "type": "boolean"
+                },
+                "name": {
+                  "description": "Label name",
+                  "type": "string"
+                },
+                "rationale": {
+                  "description": "One concise sentence explaining what specifically about the issue led you to choose this label. State the concrete signal (e.g. 'Reports a crash when saving' → bug).",
+                  "maxLength": 280,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            }
+          ]
         },
         "type": "array"
       },

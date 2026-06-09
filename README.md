@@ -860,7 +860,7 @@ The following sets of tools are available:
   - `body`: Issue body content (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
   - `issue_number`: Issue number to update (number, optional)
-  - `labels`: Labels to apply to this issue (string[], optional)
+  - `labels`: Labels to apply to this issue ([], optional)
   - `method`: Write operation to perform on a single issue.
     Options are:
     - 'create' - creates a new issue.
