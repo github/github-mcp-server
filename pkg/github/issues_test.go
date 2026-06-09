@@ -1595,78 +1595,10 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 			"non-UI client should execute directly")
 	})
 
-	t.Run("UI client with state change skips form and executes directly", func(t *testing.T) {
-		mockBaseIssue := &github.Issue{
-			Number:  github.Ptr(1),
-			Title:   github.Ptr("Test"),
-			State:   github.Ptr("open"),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/1"),
-		}
-		issueIDQueryResponse := githubv4mock.DataResponse(map[string]any{
-			"repository": map[string]any{
-				"issue": map[string]any{
-					"id": "I_kwDOA0xdyM50BPaO",
-				},
-			},
-		})
-		closeSuccessResponse := githubv4mock.DataResponse(map[string]any{
-			"closeIssue": map[string]any{
-				"issue": map[string]any{
-					"id":     "I_kwDOA0xdyM50BPaO",
-					"number": 1,
-					"url":    "https://github.com/owner/repo/issues/1",
-					"state":  "CLOSED",
-				},
-			},
-		})
-		completedReason := IssueClosedStateReasonCompleted
-
-		closeClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockBaseIssue),
-		}))
-		closeGQLClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
-			githubv4mock.NewQueryMatcher(
-				struct {
-					Repository struct {
-						Issue struct {
-							ID githubv4.ID
-						} `graphql:"issue(number: $issueNumber)"`
-					} `graphql:"repository(owner: $owner, name: $repo)"`
-				}{},
-				map[string]any{
-					"owner":       githubv4.String("owner"),
-					"repo":        githubv4.String("repo"),
-					"issueNumber": githubv4.Int(1),
-				},
-				issueIDQueryResponse,
-			),
-			githubv4mock.NewMutationMatcher(
-				struct {
-					CloseIssue struct {
-						Issue struct {
-							ID     githubv4.ID
-							Number githubv4.Int
-							URL    githubv4.String
-							State  githubv4.String
-						}
-					} `graphql:"closeIssue(input: $input)"`
-				}{},
-				CloseIssueInput{
-					IssueID:     "I_kwDOA0xdyM50BPaO",
-					StateReason: &completedReason,
-				},
-				nil,
-				closeSuccessResponse,
-			),
-		))
-
-		closeDeps := BaseDeps{
-			Client:         closeClient,
-			GQLClient:      closeGQLClient,
-			featureChecker: featureCheckerFor(MCPAppsFeatureFlag),
-		}
-		closeHandler := serverTool.Handler(closeDeps)
-
+	t.Run("UI client with state change routes through UI form", func(t *testing.T) {
+		// state/state_reason/duplicate_of are form params (the issue-write view
+		// renders close/reopen controls), so a call carrying them must go to
+		// the form rather than execute directly.
 		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"method":       "update",
 			"owner":        "owner",
@@ -1675,14 +1607,12 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 			"state":        "closed",
 			"state_reason": "completed",
 		})
-		result, err := closeHandler(ContextWithDeps(context.Background(), closeDeps), &request)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.NotContains(t, textContent.Text, "Ready to update issue",
-			"state change should skip UI form")
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
-			"state change should execute directly and return issue URL")
+		assert.Contains(t, textContent.Text, "Ready to update issue #1",
+			"state change should route through UI form")
 	})
 
 	t.Run("UI client update without state change returns form message", func(t *testing.T) {
@@ -1701,61 +1631,10 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 			"update without state should show UI form")
 	})
 
-	t.Run("UI client with issue_fields skips form and executes directly", func(t *testing.T) {
-		// The MCP App form does not collect or re-send issue_fields, so a call
-		// carrying them must bypass the form and apply the values directly.
-		fieldsClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			PostReposIssuesByOwnerByRepo: expectRequestBody(t, map[string]any{
-				"title":     "Issue with fields",
-				"body":      "",
-				"labels":    []any{},
-				"assignees": []any{},
-				"issue_field_values": []any{
-					map[string]any{"field_id": float64(101), "value": "P1"},
-				},
-			}).andThen(
-				mockResponse(t, http.StatusCreated, &github.Issue{
-					Number:  github.Ptr(125),
-					Title:   github.Ptr("Issue with fields"),
-					HTMLURL: github.Ptr("https://github.com/owner/repo/issues/125"),
-					State:   github.Ptr("open"),
-				}),
-			),
-		}))
-		fieldsGQLClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
-			githubv4mock.NewQueryMatcher(
-				issueFieldWriteMetadataQuery{},
-				map[string]any{
-					"owner": githubv4.String("owner"),
-					"repo":  githubv4.String("repo"),
-				},
-				githubv4mock.DataResponse(map[string]any{
-					"repository": map[string]any{
-						"issueFields": map[string]any{
-							"nodes": []any{
-								map[string]any{
-									"__typename":     "IssueFieldSingleSelect",
-									"fullDatabaseId": "101",
-									"name":           "Priority",
-									"dataType":       "single_select",
-									"options": []any{
-										map[string]any{"fullDatabaseId": "9001", "name": "P1"},
-									},
-								},
-							},
-						},
-					},
-				}),
-			),
-		))
-
-		fieldsDeps := BaseDeps{
-			Client:         fieldsClient,
-			GQLClient:      fieldsGQLClient,
-			featureChecker: featureCheckerFor(MCPAppsFeatureFlag),
-		}
-		fieldsHandler := serverTool.Handler(fieldsDeps)
-
+	t.Run("UI client with issue_fields routes through UI form", func(t *testing.T) {
+		// issue_fields is now a form param (the issue-write view renders a
+		// per-field editor), so a call carrying it must go to the form rather
+		// than execute directly.
 		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"method": "create",
 			"owner":  "owner",
@@ -1765,14 +1644,12 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 				map[string]any{"field_name": "Priority", "field_option_name": "P1"},
 			},
 		})
-		result, err := fieldsHandler(ContextWithDeps(context.Background(), fieldsDeps), &request)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.NotContains(t, textContent.Text, "Ready to create an issue",
-			"issue_fields should skip UI form")
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/125",
-			"issue_fields call should execute directly and return issue URL")
+		assert.Contains(t, textContent.Text, "Ready to create an issue",
+			"issue_fields should route through UI form")
 	})
 
 	t.Run("UI client with labels skips form and executes directly", func(t *testing.T) {
@@ -1810,10 +1687,10 @@ func Test_issueWriteHasNonFormParams(t *testing.T) {
 		{name: "assignees present", args: map[string]any{"title": "t", "assignees": []any{"octocat"}}, want: true},
 		{name: "milestone present", args: map[string]any{"title": "t", "milestone": float64(2)}, want: true},
 		{name: "type present", args: map[string]any{"title": "t", "type": "Bug"}, want: true},
-		{name: "issue_fields present", args: map[string]any{"issue_fields": []any{map[string]any{"field_name": "Priority"}}}, want: true},
-		{name: "state present", args: map[string]any{"state": "closed"}, want: true},
-		{name: "state_reason present", args: map[string]any{"state_reason": "completed"}, want: true},
-		{name: "duplicate_of present", args: map[string]any{"duplicate_of": float64(7)}, want: true},
+		{name: "issue_fields present", args: map[string]any{"issue_fields": []any{map[string]any{"field_name": "Priority"}}}, want: false},
+		{name: "state present", args: map[string]any{"state": "closed"}, want: false},
+		{name: "state_reason present", args: map[string]any{"state_reason": "completed"}, want: false},
+		{name: "duplicate_of present", args: map[string]any{"duplicate_of": float64(7)}, want: false},
 		{name: "nil value is ignored", args: map[string]any{"issue_fields": nil}, want: false},
 	}
 

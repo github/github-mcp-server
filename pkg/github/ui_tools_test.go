@@ -60,6 +60,16 @@ func Test_UIGet(t *testing.T) {
 		{Name: github.Ptr("Feature")},
 	}
 
+	mockReviewers := []*github.User{
+		{Login: github.Ptr("octocat"), AvatarURL: github.Ptr("https://avatars.githubusercontent.com/u/583231")},
+		{Login: github.Ptr("dependabot[bot]"), AvatarURL: github.Ptr("https://avatars.githubusercontent.com/in/29110")},
+		{Login: github.Ptr("github-actions"), Type: github.Ptr("Bot")},
+	}
+
+	mockReviewerTeams := []*github.Team{
+		{Slug: github.Ptr("docs"), Name: github.Ptr("Docs")},
+	}
+
 	tests := []struct {
 		name            string
 		mockedClient    *http.Client
@@ -221,6 +231,50 @@ func Test_UIGet(t *testing.T) {
 			},
 		},
 		{
+			name: "issue_fields feature disabled returns empty list",
+			requestArgs: map[string]any{
+				"method": "issue_fields",
+				"owner":  "owner",
+				"repo":   "repo",
+			},
+			expectError: false,
+			validateResult: func(t *testing.T, responseText string) {
+				var response map[string]any
+				require.NoError(t, json.Unmarshal([]byte(responseText), &response))
+				fields, ok := response["fields"].([]any)
+				require.True(t, ok, "fields should be a list")
+				assert.Empty(t, fields)
+				assert.Equal(t, float64(0), response["totalCount"])
+			},
+		},
+		{
+			name: "successful reviewers fetch",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/owner/repo/collaborators": mockResponse(t, http.StatusOK, mockReviewers),
+				"GET /repos/owner/repo/teams":         mockResponse(t, http.StatusOK, mockReviewerTeams),
+			}),
+			requestArgs: map[string]any{
+				"method": "reviewers",
+				"owner":  "owner",
+				"repo":   "repo",
+			},
+			expectError: false,
+			validateResult: func(t *testing.T, responseText string) {
+				var response map[string]any
+				require.NoError(t, json.Unmarshal([]byte(responseText), &response))
+				users, ok := response["users"].([]any)
+				require.True(t, ok, "users should be a list")
+				require.Len(t, users, 1)
+				assert.Equal(t, "octocat", users[0].(map[string]any)["login"])
+				teams, ok := response["teams"].([]any)
+				require.True(t, ok, "teams should be a list")
+				require.Len(t, teams, 1)
+				assert.Equal(t, "docs", teams[0].(map[string]any)["slug"])
+				assert.Equal(t, "owner", teams[0].(map[string]any)["org"])
+				assert.Equal(t, float64(2), response["totalCount"])
+			},
+		},
+		{
 			name:         "missing method parameter",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
@@ -306,4 +360,55 @@ func Test_UIGet(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_marshalUIGetIssueFields_TrimsForUI(t *testing.T) {
+	priorityLow := 1
+	priorityHigh := 2
+	result, _, err := marshalUIGetIssueFields([]IssueField{
+		{
+			ID:          "field-1",
+			DatabaseID:  123,
+			Name:        "Priority",
+			Description: "How urgent this is",
+			DataType:    "single_select",
+			Visibility:  "public",
+			Options: []IssueSingleSelectFieldOption{
+				{ID: "option-2", Name: "High", Description: "High priority", Color: "red", Priority: &priorityHigh},
+				{ID: "option-1", Name: "Low", Description: "Low priority", Color: "blue", Priority: &priorityLow},
+				{ID: "option-3", Name: "No priority", Description: "No priority set", Color: "gray"},
+			},
+		},
+		{
+			ID:       "field-2",
+			Name:     "Unsupported",
+			DataType: "iteration",
+		},
+		{
+			ID:       "field-3",
+			Name:     "Notes",
+			DataType: "text",
+		},
+	})
+	require.NoError(t, err)
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+	fields := response["fields"].([]any)
+	require.Len(t, fields, 2)
+	assert.Equal(t, float64(2), response["totalCount"])
+
+	singleSelectField := fields[0].(map[string]any)
+	assert.NotContains(t, singleSelectField, "full_database_id")
+	assert.NotContains(t, singleSelectField, "visibility")
+	options := singleSelectField["options"].([]any)
+	require.Len(t, options, 3)
+	assert.Equal(t, "Low", options[0].(map[string]any)["name"])
+	assert.Equal(t, "High", options[1].(map[string]any)["name"])
+	assert.Equal(t, "No priority", options[2].(map[string]any)["name"])
+	assert.NotContains(t, options[0].(map[string]any), "id")
+	assert.NotContains(t, options[0].(map[string]any), "priority")
+
+	textField := fields[1].(map[string]any)
+	assert.NotContains(t, textField, "options")
 }

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
+	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -24,7 +26,7 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 		ToolsetMetadataContext, // Use context toolset so it's always available
 		mcp.Tool{
 			Name:        "ui_get",
-			Description: t("TOOL_UI_GET_DESCRIPTION", "Fetch UI data for MCP Apps (labels, assignees, milestones, issue types, branches)."),
+			Description: t("TOOL_UI_GET_DESCRIPTION", "Fetch UI data for MCP Apps (labels, assignees, milestones, issue types, branches, issue fields, reviewers)."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_UI_GET_USER_TITLE", "Get UI data"),
 				ReadOnlyHint: true,
@@ -42,7 +44,7 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Properties: map[string]*jsonschema.Schema{
 					"method": {
 						Type:        "string",
-						Enum:        []any{"labels", "assignees", "milestones", "issue_types", "branches"},
+						Enum:        []any{"labels", "assignees", "milestones", "issue_types", "branches", "issue_fields", "reviewers"},
 						Description: "The type of data to fetch",
 					},
 					"owner": {
@@ -51,7 +53,7 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"repo": {
 						Type:        "string",
-						Description: "Repository name (required for labels, assignees, milestones, branches)",
+						Description: "Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers)",
 					},
 				},
 				Required: []string{"method", "owner"},
@@ -80,6 +82,10 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return uiGetIssueTypes(ctx, deps, owner)
 			case "branches":
 				return uiGetBranches(ctx, deps, args, owner)
+			case "issue_fields":
+				return uiGetIssueFields(ctx, deps, args, owner)
+			case "reviewers":
+				return uiGetReviewers(ctx, deps, args, owner)
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
@@ -325,6 +331,170 @@ func uiGetBranches(ctx context.Context, deps ToolDependencies, args map[string]a
 	})
 	if err != nil {
 		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+	}
+
+	return utils.NewToolResultText(string(r)), nil, nil
+}
+
+func uiGetIssueFields(ctx context.Context, deps ToolDependencies, args map[string]any, owner string) (*mcp.CallToolResult, any, error) {
+	repo, err := RequiredParam[string](args, "repo")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+
+	if !deps.IsFeatureEnabled(ctx, FeatureFlagIssueFields) {
+		return marshalUIGetIssueFields(nil)
+	}
+
+	gqlClient, err := deps.GetGQLClient(ctx)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
+	}
+
+	fields, err := fetchIssueFields(ctx, gqlClient, owner, repo)
+	if err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to list issue fields", err), nil, nil
+	}
+
+	return marshalUIGetIssueFields(fields)
+}
+
+func marshalUIGetIssueFields(fields []IssueField) (*mcp.CallToolResult, any, error) {
+	resultFields := make([]map[string]any, 0, len(fields))
+	for _, field := range fields {
+		if !uiSupportedIssueFieldDataType(field.DataType) {
+			continue
+		}
+
+		fieldResult := map[string]any{
+			"id":          field.ID,
+			"name":        field.Name,
+			"data_type":   field.DataType,
+			"description": field.Description,
+		}
+
+		if field.DataType == "single_select" {
+			fieldOptions := append([]IssueSingleSelectFieldOption(nil), field.Options...)
+			sort.SliceStable(fieldOptions, func(i, j int) bool {
+				left, leftOK := issueFieldOptionPriority(fieldOptions[i])
+				right, rightOK := issueFieldOptionPriority(fieldOptions[j])
+				if leftOK != rightOK {
+					return leftOK
+				}
+				return left < right
+			})
+
+			options := make([]map[string]string, 0, len(fieldOptions))
+			for _, option := range fieldOptions {
+				options = append(options, map[string]string{
+					"name":        option.Name,
+					"description": option.Description,
+					"color":       option.Color,
+				})
+			}
+			fieldResult["options"] = options
+		}
+
+		resultFields = append(resultFields, fieldResult)
+	}
+
+	r, err := json.Marshal(map[string]any{
+		"fields":     resultFields,
+		"totalCount": len(resultFields),
+	})
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to marshal issue fields", err), nil, nil
+	}
+
+	return utils.NewToolResultText(string(r)), nil, nil
+}
+
+func uiSupportedIssueFieldDataType(dataType string) bool {
+	switch dataType {
+	case "text", "number", "date", "single_select":
+		return true
+	default:
+		return false
+	}
+}
+
+func issueFieldOptionPriority(option IssueSingleSelectFieldOption) (int, bool) {
+	if option.Priority == nil {
+		return 0, false
+	}
+	return *option.Priority, true
+}
+
+func uiGetReviewers(ctx context.Context, deps ToolDependencies, args map[string]any, owner string) (*mcp.CallToolResult, any, error) {
+	repo, err := RequiredParam[string](args, "repo")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+
+	client, err := deps.GetClient(ctx)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+	}
+
+	collaboratorOpts := &github.ListCollaboratorsOptions{
+		Affiliation: "all",
+		ListOptions: github.ListOptions{PerPage: 100},
+	}
+	var allCollaborators []*github.User
+	for {
+		collaborators, resp, err := client.Repositories.ListCollaborators(ctx, owner, repo, collaboratorOpts)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list reviewers", resp, err), nil, nil
+		}
+		allCollaborators = append(allCollaborators, collaborators...)
+		if resp.NextPage == 0 {
+			break
+		}
+		collaboratorOpts.Page = resp.NextPage
+	}
+
+	teamOpts := &github.ListOptions{PerPage: 100}
+	var allTeams []*github.Team
+	for {
+		teams, resp, err := client.Repositories.ListTeams(ctx, owner, repo, teamOpts)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list reviewer teams", resp, err), nil, nil
+		}
+		allTeams = append(allTeams, teams...)
+		if resp.NextPage == 0 {
+			break
+		}
+		teamOpts.Page = resp.NextPage
+	}
+
+	users := make([]map[string]string, 0, len(allCollaborators))
+	for _, user := range allCollaborators {
+		login := user.GetLogin()
+		if user.GetType() == "Bot" || strings.HasSuffix(login, "[bot]") {
+			continue
+		}
+		users = append(users, map[string]string{
+			"login":      login,
+			"avatar_url": user.GetAvatarURL(),
+		})
+	}
+
+	teams := make([]map[string]string, len(allTeams))
+	for i, team := range allTeams {
+		teams[i] = map[string]string{
+			"slug": team.GetSlug(),
+			"name": team.GetName(),
+			"org":  owner,
+		}
+	}
+
+	r, err := json.Marshal(map[string]any{
+		"users":      users,
+		"teams":      teams,
+		"totalCount": len(users) + len(teams),
+	})
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to marshal reviewers", err), nil, nil
 	}
 
 	return utils.NewToolResultText(string(r)), nil, nil

@@ -12,6 +12,8 @@ import {
   ActionList,
   Checkbox,
   ButtonGroup,
+  CounterLabel,
+  Label,
 } from "@primer/react";
 import {
   GitPullRequestIcon,
@@ -20,6 +22,8 @@ import {
   LockIcon,
   GitBranchIcon,
   TriangleDownIcon,
+  PersonIcon,
+  PeopleIcon,
 } from "@primer/octicons-react";
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
@@ -45,6 +49,20 @@ interface RepositoryItem {
 interface BranchItem {
   name: string;
   protected: boolean;
+}
+
+type ReviewerItem = { kind: "user" | "team"; id: string; text: string; avatar?: string; org?: string };
+
+function reviewerFromValue(value: string): ReviewerItem {
+  if (value.includes("/")) {
+    const [org, slug] = value.split("/", 2);
+    return { kind: "team", id: `${org}/${slug}`, text: `${org}/${slug}`, org };
+  }
+  return { kind: "user", id: value, text: value };
+}
+
+function reviewerValue(reviewer: ReviewerItem): string {
+  return reviewer.kind === "team" ? reviewer.id : reviewer.text;
 }
 
 function SuccessView({
@@ -160,6 +178,10 @@ function CreatePRApp() {
   // Options
   const [isDraft, setIsDraft] = useState(false);
   const [maintainerCanModify, setMaintainerCanModify] = useState(true);
+  const [availableReviewers, setAvailableReviewers] = useState<ReviewerItem[]>([]);
+  const [selectedReviewers, setSelectedReviewers] = useState<ReviewerItem[]>([]);
+  const [reviewersLoading, setReviewersLoading] = useState(false);
+  const [reviewersFilter, setReviewersFilter] = useState("");
 
   // Repository state
   const [selectedRepo, setSelectedRepo] = useState<RepositoryItem | null>(null);
@@ -197,6 +219,9 @@ function CreatePRApp() {
     setAvailableBranches([]);
     setBaseFilter("");
     setHeadFilter("");
+    setAvailableReviewers([]);
+    setSelectedReviewers([]);
+    setReviewersFilter("");
     if (toolInput?.owner && toolInput?.repo) {
       setSelectedRepo({
         id: `${toolInput.owner}/${toolInput.repo}`,
@@ -219,6 +244,9 @@ function CreatePRApp() {
     if (toolInput?.draft) setIsDraft(toolInput.draft as boolean);
     if (toolInput?.maintainer_can_modify !== undefined) {
       setMaintainerCanModify(toolInput.maintainer_can_modify as boolean);
+    }
+    if (Array.isArray(toolInput?.reviewers)) {
+      setSelectedReviewers((toolInput.reviewers as string[]).map(reviewerFromValue));
     }
   }, [toolInput]);
 
@@ -260,7 +288,7 @@ function CreatePRApp() {
     return () => clearTimeout(debounce);
   }, [app, callTool, repoFilter]);
 
-  // Load branches, labels, reviewers, milestones when repo is selected
+  // Load branches and reviewers when repo is selected
   useEffect(() => {
     if (!owner || !repo || !app) return;
 
@@ -292,8 +320,52 @@ function CreatePRApp() {
       }
     };
 
+    const loadReviewers = async () => {
+      setReviewersLoading(true);
+      try {
+        const result = await callTool("ui_get", { method: "reviewers", owner, repo });
+        if (result && !result.isError && result.content) {
+          const textContent = result.content.find((c: { type: string }) => c.type === "text");
+          if (textContent && "text" in textContent) {
+            const data = JSON.parse(textContent.text as string);
+            const users = (data.users || []).map(
+              (u: { login: string; avatar_url?: string }) => ({
+                kind: "user" as const,
+                id: u.login,
+                text: u.login,
+                avatar: u.avatar_url,
+              })
+            );
+            const teams = (data.teams || []).map(
+              (t: { slug: string; name?: string; org: string }) => ({
+                kind: "team" as const,
+                id: `${t.org}/${t.slug}`,
+                text: `${t.org}/${t.slug}`,
+                org: t.org,
+              })
+            );
+            setAvailableReviewers([...users, ...teams]);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load reviewers:", e);
+      } finally {
+        setReviewersLoading(false);
+      }
+    };
+
     loadBranches();
+    loadReviewers();
   }, [owner, repo, app, callTool]);
+
+  useEffect(() => {
+    if (availableReviewers.length === 0) return;
+    setSelectedReviewers((prev) =>
+      prev.map((reviewer) =>
+        availableReviewers.find((available) => available.id === reviewer.id || available.text === reviewer.text) || reviewer
+      )
+    );
+  }, [availableReviewers]);
 
   // Filters
   const filteredBaseBranches = useMemo(() => {
@@ -305,6 +377,14 @@ function CreatePRApp() {
     if (!headFilter.trim()) return availableBranches;
     return availableBranches.filter((b) => b.name.toLowerCase().includes(headFilter.toLowerCase()));
   }, [availableBranches, headFilter]);
+
+  const filteredReviewers = useMemo(() => {
+    if (!reviewersFilter.trim()) return availableReviewers;
+    const lowerFilter = reviewersFilter.toLowerCase();
+    return availableReviewers.filter((reviewer) =>
+      reviewer.text.toLowerCase().includes(lowerFilter) || reviewer.id.toLowerCase().includes(lowerFilter)
+    );
+  }, [availableReviewers, reviewersFilter]);
 
   const handleSubmit = useCallback(async () => {
     if (!title.trim()) { setError("Title is required"); return; }
@@ -327,6 +407,7 @@ function CreatePRApp() {
         base: baseBranch,
         draft: isDraft,
         maintainer_can_modify: maintainerCanModify,
+        reviewers: selectedReviewers.map(reviewerValue),
         _ui_submitted: true
       });
 
@@ -357,7 +438,7 @@ function CreatePRApp() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [title, body, owner, repo, baseBranch, headBranch, isDraft, maintainerCanModify, toolInput, callTool, setModelContext]);
+  }, [title, body, owner, repo, baseBranch, headBranch, isDraft, maintainerCanModify, selectedReviewers, toolInput, callTool, setModelContext]);
 
   if (successPR) {
     return (
@@ -444,6 +525,9 @@ function CreatePRApp() {
                         setAvailableBranches([]);
                         setBaseBranch("");
                         setHeadBranch("");
+                        setAvailableReviewers([]);
+                        setSelectedReviewers([]);
+                        setReviewersFilter("");
                       }}
                     >
                       <ActionList.LeadingVisual>
@@ -575,9 +659,93 @@ function CreatePRApp() {
           <MarkdownEditor value={body} onChange={setBody} placeholder="Add a description..." />
         </Box>
 
+        {/* Reviewers */}
+        <Box sx={{ mb: 3 }}>
+          <Text sx={{ fontSize: 0, color: "fg.muted", mb: 1, display: "block" }}>reviewers</Text>
+          <ActionMenu>
+            <ActionMenu.Button size="small" leadingVisual={PersonIcon} sx={{ minWidth: 160 }}>
+              {selectedReviewers.length === 0 ? (
+                "No reviewers"
+              ) : (
+                <>
+                  Reviewers
+                  <CounterLabel sx={{ ml: 1 }}>{selectedReviewers.length}</CounterLabel>
+                </>
+              )}
+            </ActionMenu.Button>
+            <ActionMenu.Overlay width="medium">
+              <Box p={2} borderBottomWidth={1} borderBottomStyle="solid" borderBottomColor="border.default">
+                <TextInput
+                  placeholder="Search reviewers"
+                  value={reviewersFilter}
+                  onChange={(e) => setReviewersFilter(e.target.value)}
+                  size="small"
+                  block
+                />
+              </Box>
+              <ActionList selectionVariant="multiple">
+                {reviewersLoading ? (
+                  <ActionList.Item disabled><Spinner size="small" /> Loading...</ActionList.Item>
+                ) : filteredReviewers.length === 0 ? (
+                  <ActionList.Item disabled>No reviewers available</ActionList.Item>
+                ) : (
+                  filteredReviewers.map((reviewer) => (
+                    <ActionList.Item
+                      key={reviewer.id}
+                      selected={selectedReviewers.some((r) => r.id === reviewer.id)}
+                      onSelect={() => {
+                        setSelectedReviewers((prev) =>
+                          prev.some((r) => r.id === reviewer.id)
+                            ? prev.filter((r) => r.id !== reviewer.id)
+                            : [...prev, reviewer]
+                        );
+                      }}
+                    >
+                      <ActionList.LeadingVisual>
+                        {reviewer.kind === "user" ? (
+                          reviewer.avatar ? (
+                            <img
+                              src={reviewer.avatar}
+                              alt=""
+                              width={16}
+                              height={16}
+                              style={{ borderRadius: "50%", display: "block" }}
+                            />
+                          ) : (
+                            <PersonIcon />
+                          )
+                        ) : (
+                          <PeopleIcon />
+                        )}
+                      </ActionList.LeadingVisual>
+                      {reviewer.text}
+                    </ActionList.Item>
+                  ))
+                )}
+              </ActionList>
+            </ActionMenu.Overlay>
+          </ActionMenu>
+          {selectedReviewers.length > 0 && (
+            <Box display="flex" gap={1} mt={2} flexWrap="wrap">
+              {selectedReviewers.map((reviewer) => (
+                <Label
+                  key={reviewer.id}
+                  sx={{
+                    backgroundColor: "canvas.inset",
+                    color: "fg.muted",
+                    borderColor: "border.default",
+                  }}
+                >
+                  {reviewer.text}
+                </Label>
+              ))}
+            </Box>
+          )}
+        </Box>
+
         {/* Options and Submit */}
         <Box display="flex" justifyContent="space-between" alignItems="flex-end" flexWrap="wrap" gap={3}>
-          <Box as="label" display="flex" alignItems="center" sx={{ cursor: "pointer", gap: 2 }}>
+          <Box as="label" display="flex" alignItems="center" sx={{ cursor: "pointer", gap: 2, mt: 1 }}>
             <Checkbox checked={maintainerCanModify} onChange={(e) => setMaintainerCanModify(e.target.checked)} />
             <Text sx={{ fontSize: 1, color: "fg.muted" }}>Allow maintainer edits</Text>
           </Box>

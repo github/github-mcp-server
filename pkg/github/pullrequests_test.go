@@ -2490,12 +2490,12 @@ func Test_CreatePullRequest_MCPAppsFeature_UIGate(t *testing.T) {
 		// A parameter the form does not collect must bypass the form rather than
 		// be silently dropped.
 		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
-			"owner":     "owner",
-			"repo":      "repo",
-			"title":     "Test PR",
-			"head":      "feature",
-			"base":      "main",
-			"reviewers": []any{"octocat"},
+			"owner":         "owner",
+			"repo":          "repo",
+			"title":         "Test PR",
+			"head":          "feature",
+			"base":          "main",
+			"unknown_param": "value",
 		})
 		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
@@ -2517,8 +2517,8 @@ func Test_pullRequestWriteHasNonFormParams(t *testing.T) {
 		want bool
 	}{
 		{name: "no params", args: map[string]any{}, want: false},
-		{name: "only form params", args: map[string]any{"owner": "o", "repo": "r", "title": "t", "body": "b", "head": "h", "base": "b", "draft": true, "maintainer_can_modify": false, "_ui_submitted": true}, want: false},
-		{name: "unknown param present", args: map[string]any{"title": "t", "reviewers": []any{"octocat"}}, want: true},
+		{name: "only form params", args: map[string]any{"owner": "o", "repo": "r", "title": "t", "body": "b", "head": "h", "base": "b", "draft": true, "maintainer_can_modify": false, "reviewers": []any{"octocat"}, "_ui_submitted": true}, want: false},
+		{name: "unknown param present", args: map[string]any{"title": "t", "unknown_param": "value"}, want: true},
 		{name: "nil value is ignored", args: map[string]any{"reviewers": nil}, want: false},
 	}
 

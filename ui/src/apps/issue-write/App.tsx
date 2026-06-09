@@ -59,6 +59,38 @@ interface IssueTypeItem {
   text: string;
 }
 
+type IssueState = "open" | "closed";
+type StateReason = "completed" | "not_planned" | "duplicate";
+type IssueFieldPrimitive = string | number | boolean;
+
+interface IssueFieldOption {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+}
+
+interface IssueFieldItem {
+  id: string;
+  name: string;
+  data_type: string;
+  description: string;
+  options: IssueFieldOption[];
+}
+
+interface IssueFieldValue {
+  value?: IssueFieldPrimitive;
+  optionName?: string;
+  cleared?: boolean;
+}
+
+interface IssueFieldSubmission {
+  field_name: string;
+  value?: IssueFieldPrimitive;
+  field_option_name?: string;
+  delete?: boolean;
+}
+
 interface RepositoryItem {
   id: string;
   owner: string;
@@ -74,6 +106,173 @@ function getContrastColor(hexColor: string): string {
   const b = parseInt(hexColor.substring(4, 6), 16);
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return luminance > 0.5 ? "#000000" : "#ffffff";
+}
+
+const stateReasonOptions: Array<{ value: StateReason; label: string; description: string }> = [
+  { value: "completed", label: "Completed", description: "The work is done" },
+  { value: "not_planned", label: "Not planned", description: "The issue won't be worked on" },
+  { value: "duplicate", label: "Duplicate", description: "Another issue tracks this" },
+];
+
+function normalizeSwatchColor(color: string): string {
+  const trimmed = color.trim();
+  if (!trimmed) return "var(--borderColor-default, var(--color-border-default))";
+  if (/^#?[0-9a-fA-F]{6}$/.test(trimmed)) {
+    return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+  }
+  return trimmed.toLowerCase();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringValue(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim()) return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return undefined;
+}
+
+function parseIssueState(value: unknown): IssueState | null {
+  return value === "open" || value === "closed" ? value : null;
+}
+
+function parseStateReason(value: unknown): StateReason | null {
+  return value === "completed" || value === "not_planned" || value === "duplicate" ? value : null;
+}
+
+function normalizeRawIssueFieldValue(
+  field: IssueFieldItem | undefined,
+  rawValue: unknown
+): IssueFieldValue | null {
+  if (rawValue === null || rawValue === undefined) return null;
+
+  if (isRecord(rawValue)) {
+    const optionName =
+      stringValue(rawValue.optionName) ||
+      stringValue(rawValue.field_option_name) ||
+      stringValue(rawValue.name);
+    if (field?.data_type === "single_select" && optionName) {
+      return { optionName };
+    }
+    return normalizeRawIssueFieldValue(
+      field,
+      rawValue.value ?? rawValue.text ?? rawValue.number ?? rawValue.date ?? rawValue.name
+    );
+  }
+
+  if (field?.data_type === "single_select") {
+    const optionName = stringValue(rawValue);
+    return optionName ? { optionName } : null;
+  }
+
+  if (
+    typeof rawValue === "string" ||
+    typeof rawValue === "number" ||
+    typeof rawValue === "boolean"
+  ) {
+    return { value: rawValue };
+  }
+
+  return null;
+}
+
+function parseStringIssueFieldValue(
+  entry: string,
+  fieldsByName: Map<string, IssueFieldItem>
+): [string, IssueFieldValue] | null {
+  const match = entry.match(/^([^:=]+)\s*[:=]\s*(.*)$/);
+  if (!match) return null;
+
+  const fieldName = match[1].trim();
+  const field = fieldsByName.get(fieldName);
+  if (!field) return null;
+
+  const normalized = normalizeRawIssueFieldValue(field, match[2].trim());
+  return normalized ? [fieldName, normalized] : null;
+}
+
+function normalizeIssueFieldEntry(
+  entry: unknown,
+  fieldsByName: Map<string, IssueFieldItem>
+): [string, IssueFieldValue] | null {
+  if (typeof entry === "string") return parseStringIssueFieldValue(entry, fieldsByName);
+  if (!isRecord(entry)) return null;
+
+  const fieldRecord = isRecord(entry.field) ? entry.field : undefined;
+  const entryName = stringValue(entry.name);
+  const fieldName =
+    stringValue(entry.field_name) ||
+    stringValue(entry.fieldName) ||
+    (fieldRecord ? stringValue(fieldRecord.name) : undefined) ||
+    entryName;
+  if (!fieldName) return null;
+
+  const field = fieldsByName.get(fieldName);
+  if (!field) return null;
+
+  if (entry.delete === true || entry.cleared === true) {
+    return [fieldName, { cleared: true }];
+  }
+
+  const directOptionName =
+    stringValue(entry.field_option_name) ||
+    stringValue(entry.fieldOptionName) ||
+    stringValue(entry.optionName) ||
+    (field.data_type === "single_select" && entryName && entryName !== fieldName ? entryName : undefined);
+  if (directOptionName) return [fieldName, { optionName: directOptionName }];
+
+  const optionRecord = isRecord(entry.option) ? entry.option : undefined;
+  const optionName = optionRecord ? stringValue(optionRecord.name) : undefined;
+  if (optionName) return [fieldName, { optionName }];
+
+  const normalized = normalizeRawIssueFieldValue(
+    field,
+    entry.value ?? entry.text ?? entry.number ?? entry.date
+  );
+  return normalized ? [fieldName, normalized] : null;
+}
+
+function normalizeIssueFieldValues(
+  input: unknown,
+  fields: IssueFieldItem[]
+): Record<string, IssueFieldValue> {
+  const fieldsByName = new Map(fields.map((field) => [field.name, field]));
+  const values: Record<string, IssueFieldValue> = {};
+
+  if (Array.isArray(input)) {
+    for (const item of input) {
+      const normalized = normalizeIssueFieldEntry(item, fieldsByName);
+      if (normalized) values[normalized[0]] = normalized[1];
+    }
+    return values;
+  }
+
+  if (!isRecord(input)) return values;
+
+  const normalizedEntry = normalizeIssueFieldEntry(input, fieldsByName);
+  if (normalizedEntry) {
+    values[normalizedEntry[0]] = normalizedEntry[1];
+    return values;
+  }
+
+  for (const [fieldName, rawValue] of Object.entries(input)) {
+    const field = fieldsByName.get(fieldName);
+    if (!field) continue;
+
+    if (isRecord(rawValue)) {
+      const nested = normalizeIssueFieldEntry({ ...rawValue, field_name: fieldName }, fieldsByName);
+      if (nested) {
+        values[fieldName] = nested[1];
+        continue;
+      }
+    }
+
+    const normalized = normalizeRawIssueFieldValue(field, rawValue);
+    if (normalized) values[fieldName] = normalized;
+  }
+
+  return values;
 }
 
 function SuccessView({
@@ -220,6 +419,16 @@ function CreateIssueApp() {
   const [selectedIssueType, setSelectedIssueType] = useState<IssueTypeItem | null>(null);
   const [issueTypesLoading, setIssueTypesLoading] = useState(false);
 
+  // State transition state
+  const [currentState, setCurrentState] = useState<IssueState>("open");
+  const [stateReason, setStateReason] = useState<StateReason>("completed");
+  const [duplicateOf, setDuplicateOf] = useState("");
+  const [prefilledStateChange, setPrefilledStateChange] = useState<IssueState | null>(null);
+
+  // Issue fields state
+  const [availableIssueFields, setAvailableIssueFields] = useState<IssueFieldItem[]>([]);
+  const [fieldValues, setFieldValues] = useState<Record<string, IssueFieldValue>>({});
+
   // Repository state
   const [selectedRepo, setSelectedRepo] = useState<RepositoryItem | null>(null);
   const [repoSearchResults, setRepoSearchResults] = useState<RepositoryItem[]>([]);
@@ -285,7 +494,7 @@ function CreateIssueApp() {
     return () => clearTimeout(debounce);
   }, [app, callTool, repoFilter]);
 
-  // Load labels, assignees, milestones, and issue types when owner/repo available
+  // Load labels, assignees, milestones, issue types, and issue fields when owner/repo available
   useEffect(() => {
     if (!owner || !repo || !app) return;
 
@@ -401,10 +610,53 @@ function CreateIssueApp() {
       }
     };
 
+    const loadIssueFields = async () => {
+      try {
+        const result = await callTool("ui_get", { method: "issue_fields", owner, repo });
+        if (result && !result.isError && result.content) {
+          const textContent = result.content.find(
+            (c: { type: string }) => c.type === "text"
+          );
+          if (textContent && "text" in textContent) {
+            const data = JSON.parse(textContent.text as string);
+            const fields = (data.fields || [])
+              .map(
+                (field: {
+                  id?: string;
+                  name?: string;
+                  data_type?: string;
+                  description?: string;
+                  options?: Array<{ id?: string; name?: string; description?: string; color?: string }>;
+                }) => ({
+                  id: String(field.id || field.name || ""),
+                  name: field.name || "",
+                  data_type: field.data_type || "text",
+                  description: field.description || "",
+                  options: (field.options || [])
+                    .map((option) => ({
+                      id: String(option.id || option.name || ""),
+                      name: option.name || "",
+                      description: option.description || "",
+                      color: option.color || "",
+                    }))
+                    .filter((option) => option.name),
+                })
+              )
+              .filter((field: IssueFieldItem) => field.name);
+            setAvailableIssueFields(fields);
+          }
+        }
+      } catch (e) {
+        console.debug("Issue fields not available:", e);
+        setAvailableIssueFields([]);
+      }
+    };
+
     loadLabels();
     loadAssignees();
     loadMilestones();
     loadIssueTypes();
+    loadIssueFields();
   }, [owner, repo, app, callTool]);
 
   // Track which prefill fields have been applied to avoid re-applying after user edits
@@ -415,7 +667,16 @@ function CreateIssueApp() {
     assignees: boolean;
     milestone: boolean;
     type: boolean;
-  }>({ title: false, body: false, labels: false, assignees: false, milestone: false, type: false });
+    issueFields: boolean;
+  }>({
+    title: false,
+    body: false,
+    labels: false,
+    assignees: false,
+    milestone: false,
+    type: false,
+    issueFields: false,
+  });
 
   // Store existing issue data for matching when available lists load
   interface ExistingIssueData {
@@ -423,6 +684,7 @@ function CreateIssueApp() {
     assignees: string[];
     milestoneNumber: number | null;
     issueType: string | null;
+    fieldValues: unknown;
   }
   const [existingIssueData, setExistingIssueData] = useState<ExistingIssueData | null>(null);
 
@@ -432,7 +694,15 @@ function CreateIssueApp() {
   // that won't overwrite with empty values. The repo is re-initialized from the new
   // invocation here (rather than in a separate effect) so it isn't wiped by this reset.
   useEffect(() => {
-    prefillApplied.current = { title: false, body: false, labels: false, assignees: false, milestone: false, type: false };
+    prefillApplied.current = {
+      title: false,
+      body: false,
+      labels: false,
+      assignees: false,
+      milestone: false,
+      type: false,
+      issueFields: false,
+    };
     setExistingIssueData(null);
     setTitle("");
     setBody("");
@@ -440,6 +710,11 @@ function CreateIssueApp() {
     setSelectedAssignees([]);
     setSelectedMilestone(null);
     setSelectedIssueType(null);
+    setCurrentState("open");
+    setStateReason("completed");
+    setDuplicateOf("");
+    setPrefilledStateChange(null);
+    setFieldValues({});
     setSuccessIssue(null);
     setError(null);
     // Clear available metadata (and filters) so prefill effects, which are gated
@@ -449,6 +724,7 @@ function CreateIssueApp() {
     setAvailableAssignees([]);
     setAvailableMilestones([]);
     setAvailableIssueTypes([]);
+    setAvailableIssueFields([]);
     setLabelsFilter("");
     setAssigneesFilter("");
     if (toolInput?.owner && toolInput?.repo) {
@@ -486,6 +762,11 @@ function CreateIssueApp() {
           if (textContent && textContent.type === "text" && textContent.text) {
             const issueData = JSON.parse(textContent.text);
 
+            const issueState = parseIssueState(issueData.state);
+            if (issueState) {
+              setCurrentState(issueState);
+            }
+
             // Pre-fill title and body immediately
             if (issueData.title && !prefillApplied.current.title) {
               setTitle(issueData.title);
@@ -521,7 +802,13 @@ function CreateIssueApp() {
               ? (typeof issueData.milestone === 'object' ? issueData.milestone.number : issueData.milestone)
               : null;
 
-            setExistingIssueData({ labels: labelNames, assignees: assigneeLogins, milestoneNumber, issueType: issueTypeName });
+            setExistingIssueData({
+              labels: labelNames,
+              assignees: assigneeLogins,
+              milestoneNumber,
+              issueType: issueTypeName,
+              fieldValues: issueData.field_values || issueData.fieldValues || [],
+            });
           }
         }
       } catch (e) {
@@ -561,6 +848,23 @@ function CreateIssueApp() {
     if (toolInput?.body && !prefillApplied.current.body) {
       setBody(toolInput.body as string);
       prefillApplied.current.body = true;
+    }
+  }, [toolInput]);
+
+  // Pre-fill requested state transition controls from tool input
+  useEffect(() => {
+    const state = parseIssueState(toolInput?.state);
+    if (state) {
+      setPrefilledStateChange(state);
+    }
+
+    const reason = parseStateReason(toolInput?.state_reason);
+    if (reason) {
+      setStateReason(reason);
+    }
+
+    if (toolInput?.duplicate_of !== undefined && toolInput?.duplicate_of !== null) {
+      setDuplicateOf(String(toolInput.duplicate_of));
     }
   }, [toolInput]);
 
@@ -634,7 +938,35 @@ function CreateIssueApp() {
     }
   }, [toolInput, availableIssueTypes]);
 
-  const handleSubmit = useCallback(async () => {
+  // Pre-fill custom fields once field definitions are loaded
+  useEffect(() => {
+    if (!availableIssueFields.length || prefillApplied.current.issueFields) return;
+
+    const toolInputValues = normalizeIssueFieldValues(toolInput?.issue_fields, availableIssueFields);
+    if (Object.keys(toolInputValues).length > 0) {
+      setFieldValues(toolInputValues);
+      prefillApplied.current.issueFields = true;
+      return;
+    }
+
+    const existingValues = normalizeIssueFieldValues(existingIssueData?.fieldValues, availableIssueFields);
+    if (Object.keys(existingValues).length > 0) {
+      setFieldValues(existingValues);
+      prefillApplied.current.issueFields = true;
+    }
+  }, [toolInput, existingIssueData, availableIssueFields]);
+
+  const issueFieldsByName = useMemo(
+    () => new Map(availableIssueFields.map((field) => [field.name, field])),
+    [availableIssueFields]
+  );
+
+  const updateIssueFieldValue = useCallback((fieldName: string, value: IssueFieldValue) => {
+    prefillApplied.current.issueFields = true;
+    setFieldValues((prev) => ({ ...prev, [fieldName]: value }));
+  }, []);
+
+  const handleSubmit = useCallback(async (stateChange?: IssueState) => {
     if (!title.trim()) {
       setError("Title is required");
       return;
@@ -642,6 +974,16 @@ function CreateIssueApp() {
     if (!owner || !repo) {
       setError("Repository information not available");
       return;
+    }
+
+    const requestedState = isUpdateMode ? stateChange || prefilledStateChange : null;
+    let duplicateIssueNumber: number | undefined;
+    if (requestedState === "closed" && stateReason === "duplicate") {
+      duplicateIssueNumber = Number(duplicateOf);
+      if (!Number.isInteger(duplicateIssueNumber) || duplicateIssueNumber <= 0) {
+        setError("Duplicate issue number is required");
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -658,6 +1000,11 @@ function CreateIssueApp() {
         _ui_submitted: true
       };
 
+      delete params.state;
+      delete params.state_reason;
+      delete params.duplicate_of;
+      delete params.issue_fields;
+
       if (isUpdateMode && issueNumber) {
         params.issue_number = issueNumber;
       }
@@ -673,6 +1020,38 @@ function CreateIssueApp() {
       }
       if (selectedIssueType) {
         params.type = selectedIssueType.text;
+      }
+
+      if (requestedState) {
+        params.state = requestedState;
+        if (requestedState === "closed") {
+          params.state_reason = stateReason;
+          if (stateReason === "duplicate" && duplicateIssueNumber !== undefined) {
+            params.duplicate_of = duplicateIssueNumber;
+          }
+        }
+      }
+
+      const issueFields = Object.entries(fieldValues)
+        .map(([fieldName, value]): IssueFieldSubmission | null => {
+          if (value.cleared) return { field_name: fieldName, delete: true };
+          if (value.optionName !== undefined) {
+            return { field_name: fieldName, field_option_name: value.optionName };
+          }
+          if (value.value !== undefined && value.value !== "") {
+            const field = issueFieldsByName.get(fieldName);
+            const fieldValue =
+              field?.data_type === "number" && typeof value.value === "string"
+                ? Number(value.value)
+                : value.value;
+            if (typeof fieldValue === "number" && Number.isNaN(fieldValue)) return null;
+            return { field_name: fieldName, value: fieldValue };
+          }
+          return null;
+        })
+        .filter((field): field is IssueFieldSubmission => field !== null);
+      if (issueFields.length > 0) {
+        params.issue_fields = issueFields;
       }
 
       const result = await callTool("issue_write", params);
@@ -726,6 +1105,11 @@ function CreateIssueApp() {
     selectedIssueType,
     isUpdateMode,
     issueNumber,
+    stateReason,
+    duplicateOf,
+    prefilledStateChange,
+    fieldValues,
+    issueFieldsByName,
     toolInput,
     callTool,
     setModelContext,
@@ -747,6 +1131,67 @@ function CreateIssueApp() {
       a.text.toLowerCase().includes(lowerFilter)
     );
   }, [availableAssignees, assigneesFilter]);
+
+  const selectedStateReason = stateReasonOptions.find((option) => option.value === stateReason) || stateReasonOptions[0];
+
+  const renderIssueFieldInput = (field: IssueFieldItem) => {
+    const fieldValue = fieldValues[field.name] || {};
+
+    if (field.data_type === "single_select") {
+      const selectedOptionName = fieldValue.cleared ? undefined : fieldValue.optionName;
+      const selectedOption = field.options.find((option) => option.name === selectedOptionName);
+      return (
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <ActionMenu>
+            <ActionMenu.Button size="small" sx={{ maxWidth: "100%" }}>
+              {selectedOption ? selectedOption.name : "Select option"}
+            </ActionMenu.Button>
+            <ActionMenu.Overlay width="medium">
+              <ActionList selectionVariant="single">
+                {field.options.length === 0 ? (
+                  <ActionList.Item disabled>No options available</ActionList.Item>
+                ) : (
+                  field.options.map((option) => (
+                    <ActionList.Item
+                      key={option.id || option.name}
+                      selected={selectedOptionName === option.name}
+                      onSelect={() => updateIssueFieldValue(field.name, { optionName: option.name })}
+                    >
+                      <ActionList.LeadingVisual>
+                        <Box
+                          sx={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: "50%",
+                            backgroundColor: normalizeSwatchColor(option.color),
+                            borderWidth: 1,
+                            borderStyle: "solid",
+                            borderColor: "border.default",
+                          }}
+                        />
+                      </ActionList.LeadingVisual>
+                      {option.name}
+                    </ActionList.Item>
+                  ))
+                )}
+              </ActionList>
+            </ActionMenu.Overlay>
+          </ActionMenu>
+        </Box>
+      );
+    }
+
+    return (
+      <TextInput
+        type={field.data_type === "number" ? "number" : field.data_type === "date" ? "date" : "text"}
+        value={fieldValue.cleared ? "" : String(fieldValue.value ?? "")}
+        onChange={(e) => updateIssueFieldValue(field.name, { value: e.target.value })}
+        block
+        contrast
+        sx={{ flex: 1 }}
+      />
+    );
+  };
 
   const body_node = (() => {
   if (appError) {
@@ -843,6 +1288,8 @@ function CreateIssueApp() {
                       setSelectedMilestone(null);
                       setAvailableIssueTypes([]);
                       setSelectedIssueType(null);
+                      setAvailableIssueFields([]);
+                      setFieldValues({});
                     }}
                   >
                     <ActionList.LeadingVisual>
@@ -1095,6 +1542,54 @@ function CreateIssueApp() {
         </ActionMenu>
       </Box>
 
+      {/* Fields section */}
+      {availableIssueFields.length > 0 && (
+        <Box mb={3}>
+          <Text sx={{ fontWeight: "semibold", display: "block", mb: 3 }}>
+            Fields
+          </Text>
+          <Box
+            display="grid"
+            sx={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 2 }}
+          >
+            {availableIssueFields.map((field) => {
+              const fieldValue = fieldValues[field.name];
+              const hasFieldValue =
+                fieldValue &&
+                !fieldValue.cleared &&
+                (fieldValue.optionName !== undefined ||
+                  (fieldValue.value !== undefined && fieldValue.value !== ""));
+
+              return (
+                <Box key={field.id || field.name}>
+                  <Text sx={{ fontWeight: "semibold", fontSize: 1, display: "block" }}>
+                    {field.name}
+                  </Text>
+                  {field.description && (
+                    <Text sx={{ color: "fg.muted", fontSize: 0, display: "block", mt: 1, mb: 2 }}>
+                      {field.description}
+                    </Text>
+                  )}
+                  <Box display="flex" alignItems="center" gap={2} mt={field.description ? 0 : 2}>
+                    {renderIssueFieldInput(field)}
+                    {hasFieldValue && (
+                      <Button
+                        variant="invisible"
+                        size="small"
+                        sx={{ fontSize: 0, color: "fg.muted" }}
+                        onClick={() => updateIssueFieldValue(field.name, { cleared: true })}
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </Box>
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
+      )}
+
       {/* Selected labels display */}
       {selectedLabels.length > 0 && (
         <Box display="flex" gap={1} mb={3} flexWrap="wrap">
@@ -1127,11 +1622,80 @@ function CreateIssueApp() {
         </Box>
       )}
 
-      {/* Submit button */}
-      <Box display="flex" justifyContent="flex-end" gap={2}>
+      {/* State and submit actions */}
+      <Box
+        display="flex"
+        justifyContent={isUpdateMode ? "space-between" : "flex-end"}
+        alignItems="center"
+        gap={3}
+        sx={{ flexWrap: "wrap" }}
+      >
+        {isUpdateMode && (
+          <Box>
+            {currentState === "open" ? (
+              <>
+                <Box display="flex" alignItems="center" gap={0}>
+                  <Button
+                    size="small"
+                    variant="danger"
+                    onClick={() => void handleSubmit("closed")}
+                    disabled={isSubmitting || !title.trim() || (stateReason === "duplicate" && !duplicateOf.trim())}
+                    sx={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
+                  >
+                    Close issue
+                  </Button>
+                  <ActionMenu>
+                    <ActionMenu.Button
+                      size="small"
+                      sx={{ ml: "-1px", borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
+                    >
+                      {selectedStateReason.label}
+                    </ActionMenu.Button>
+                    <ActionMenu.Overlay width="medium">
+                      <ActionList selectionVariant="single">
+                        {stateReasonOptions.map((option) => (
+                          <ActionList.Item
+                            key={option.value}
+                            selected={stateReason === option.value}
+                            onSelect={() => setStateReason(option.value)}
+                          >
+                            {option.label}
+                            <ActionList.Description>{option.description}</ActionList.Description>
+                          </ActionList.Item>
+                        ))}
+                      </ActionList>
+                    </ActionMenu.Overlay>
+                  </ActionMenu>
+                </Box>
+                {stateReason === "duplicate" && (
+                  <FormControl sx={{ mt: 2 }}>
+                    <FormControl.Label sx={{ fontSize: 0 }}>Duplicate of</FormControl.Label>
+                    <TextInput
+                      type="number"
+                      placeholder="Issue number"
+                      value={duplicateOf}
+                      onChange={(e) => setDuplicateOf(e.target.value)}
+                      size="small"
+                      sx={{ width: 140 }}
+                    />
+                  </FormControl>
+                )}
+              </>
+            ) : (
+              <Button
+                size="small"
+                onClick={() => void handleSubmit("open")}
+                disabled={isSubmitting || !title.trim()}
+              >
+                Reopen issue
+              </Button>
+            )}
+          </Box>
+        )}
+
         <Button
           variant="primary"
-          onClick={handleSubmit}
+          onClick={() => void handleSubmit()}
           disabled={isSubmitting || !title.trim()}
         >
           {isSubmitting ? (

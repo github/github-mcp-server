@@ -1764,8 +1764,7 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 const IssueWriteUIResourceURI = "ui://github-mcp-server/issue-write"
 
 // issueWriteFormParams are the parameters the issue_write MCP App form collects
-// and re-sends on submit. The form only supports title/body editing (plus the
-// routing/identity fields), so any other parameter present on a call cannot be
+// and re-sends on submit. Any other parameter present on a call cannot be
 // represented by the form.
 var issueWriteFormParams = map[string]struct{}{
 	"method":        {},
@@ -1774,12 +1773,16 @@ var issueWriteFormParams = map[string]struct{}{
 	"title":         {},
 	"body":          {},
 	"issue_number":  {},
+	"issue_fields":  {},
+	"state":         {},
+	"state_reason":  {},
+	"duplicate_of":  {},
 	"_ui_submitted": {},
 }
 
 // issueWriteHasNonFormParams reports whether the call carries any parameter the
 // issue_write MCP App form cannot represent (anything outside issueWriteFormParams,
-// e.g. labels, assignees, issue_fields or a state change). Such calls must bypass
+// e.g. labels, assignees, milestones or issue types). Such calls must bypass
 // the UI form and execute directly so the supplied values aren't silently dropped.
 func issueWriteHasNonFormParams(args map[string]any) bool {
 	for key, value := range args {

@@ -38,6 +38,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
   - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], optional)
   - `title`: PR title (string, required)
 
 - **get_me** - Get my user profile
@@ -70,7 +71,21 @@ The list below is generated from the Go source. It covers tool **inventory and s
   - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `repo`, `write:org`
   - `method`: The type of data to fetch (string, required)
   - `owner`: Repository owner (required for all methods) (string, required)
-  - `repo`: Repository name (required for labels, assignees, milestones, branches) (string, optional)
+  - `repo`: Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers) (string, optional)
+
+- **update_pull_request** - Edit pull request
+  - **Required OAuth Scopes**: `repo`
+  - **MCP App UI**: `ui://github-mcp-server/pr-edit`
+  - `base`: New base branch name (string, optional)
+  - `body`: New description (string, optional)
+  - `draft`: Mark pull request as draft (true) or ready for review (false) (boolean, optional)
+  - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number to update (number, required)
+  - `repo`: Repository name (string, required)
+  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], optional)
+  - `state`: New state (string, optional)
+  - `title`: New title (string, optional)
 
 ### `remote_mcp_issue_fields`
 

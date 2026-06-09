@@ -10,7 +10,7 @@
     "readOnlyHint": true,
     "title": "Get UI data"
   },
-  "description": "Fetch UI data for MCP Apps (labels, assignees, milestones, issue types, branches).",
+  "description": "Fetch UI data for MCP Apps (labels, assignees, milestones, issue types, branches, issue fields, reviewers).",
   "inputSchema": {
     "properties": {
       "method": {
@@ -20,7 +20,9 @@
           "assignees",
           "milestones",
           "issue_types",
-          "branches"
+          "branches",
+          "issue_fields",
+          "reviewers"
         ],
         "type": "string"
       },
@@ -29,7 +31,7 @@
         "type": "string"
       },
       "repo": {
-        "description": "Repository name (required for labels, assignees, milestones, branches)",
+        "description": "Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers)",
         "type": "string"
       }
     },
