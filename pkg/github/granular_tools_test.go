@@ -1668,12 +1668,7 @@ func TestGranularSetIssueFields(t *testing.T) {
 		}
 
 		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matchers...))
-		deps := BaseDeps{
-			GQLClient: gqlClient,
-			featureChecker: func(_ context.Context, flag string) (bool, error) {
-				return flag == FeatureFlagIssueConfidence, nil
-			},
-		}
+		deps := BaseDeps{GQLClient: gqlClient}
 		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
 		handler := serverTool.Handler(deps)
 
@@ -1695,11 +1690,7 @@ func TestGranularSetIssueFields(t *testing.T) {
 	})
 
 	t.Run("invalid confidence value returns error", func(t *testing.T) {
-		deps := BaseDeps{
-			featureChecker: func(_ context.Context, flag string) (bool, error) {
-				return flag == FeatureFlagIssueConfidence, nil
-			},
-		}
+		deps := BaseDeps{}
 		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
 		handler := serverTool.Handler(deps)
 
@@ -1721,7 +1712,8 @@ func TestGranularSetIssueFields(t *testing.T) {
 		assert.Contains(t, textContent.Text, "confidence must be one of: low, medium, high")
 	})
 
-	t.Run("confidence is dropped when feature flag is disabled", func(t *testing.T) {
+	t.Run("confidence is sent when supplied", func(t *testing.T) {
+		confidence := "high"
 		matchers := []githubv4mock.Matcher{
 			githubv4mock.NewQueryMatcher(
 				struct {
@@ -1742,8 +1734,6 @@ func TestGranularSetIssueFields(t *testing.T) {
 					},
 				}),
 			),
-			// Expect the mutation input WITHOUT Confidence, proving the handler
-			// dropped the user-supplied value because the feature flag is off.
 			githubv4mock.NewMutationMatcher(
 				struct {
 					SetIssueFieldValue struct {
@@ -1772,8 +1762,9 @@ func TestGranularSetIssueFields(t *testing.T) {
 					IssueID: githubv4.ID("ISSUE_123"),
 					IssueFields: []IssueFieldCreateOrUpdateInput{
 						{
-							FieldID:   githubv4.ID("FIELD_1"),
-							TextValue: githubv4.NewString(githubv4.String("hello")),
+							FieldID:    githubv4.ID("FIELD_1"),
+							TextValue:  githubv4.NewString(githubv4.String("hello")),
+							Confidence: &confidence,
 						},
 					},
 				},
@@ -1803,8 +1794,6 @@ func TestGranularSetIssueFields(t *testing.T) {
 				map[string]any{
 					"field_id":   "FIELD_1",
 					"text_value": "hello",
-					// Confidence is supplied but should be silently dropped
-					// because FeatureFlagIssueConfidence is off.
 					"confidence": "high",
 				},
 			},

@@ -16,13 +16,6 @@ const FeatureFlagIFCLabels = "ifc_labels"
 // and field_values enrichment in list_issues / search_issues output.
 const FeatureFlagIssueFields = "remote_mcp_issue_fields"
 
-// FeatureFlagIssueConfidence is the feature flag name for exposing the
-// per-field `confidence` input on the set_issue_fields GraphQL mutation. The
-// GitHub GraphQL API does not yet accept the confidence input, so the schema
-// hides the parameter and the handler drops it from the mutation payload
-// unless this flag is enabled.
-const FeatureFlagIssueConfidence = "update_issue_confidence"
-
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag or X-MCP-Features HTTP header.
 // Only flags in this list are accepted; unknown flags are silently ignored.
@@ -32,7 +25,6 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagCSVOutput,
 	FeatureFlagIFCLabels,
 	FeatureFlagIssueFields,
-	FeatureFlagIssueConfidence,
 	FeatureFlagIssuesGranular,
 	FeatureFlagPullRequestsGranular,
 }
