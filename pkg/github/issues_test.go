@@ -1700,6 +1700,129 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		assert.Contains(t, textContent.Text, "Ready to update issue #1",
 			"update without state should show UI form")
 	})
+
+	t.Run("UI client with issue_fields skips form and executes directly", func(t *testing.T) {
+		// The MCP App form does not collect or re-send issue_fields, so a call
+		// carrying them must bypass the form and apply the values directly.
+		fieldsClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PostReposIssuesByOwnerByRepo: expectRequestBody(t, map[string]any{
+				"title":     "Issue with fields",
+				"body":      "",
+				"labels":    []any{},
+				"assignees": []any{},
+				"issue_field_values": []any{
+					map[string]any{"field_id": float64(101), "value": "P1"},
+				},
+			}).andThen(
+				mockResponse(t, http.StatusCreated, &github.Issue{
+					Number:  github.Ptr(125),
+					Title:   github.Ptr("Issue with fields"),
+					HTMLURL: github.Ptr("https://github.com/owner/repo/issues/125"),
+					State:   github.Ptr("open"),
+				}),
+			),
+		}))
+		fieldsGQLClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
+			githubv4mock.NewQueryMatcher(
+				issueFieldWriteMetadataQuery{},
+				map[string]any{
+					"owner": githubv4.String("owner"),
+					"repo":  githubv4.String("repo"),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"repository": map[string]any{
+						"issueFields": map[string]any{
+							"nodes": []any{
+								map[string]any{
+									"__typename":     "IssueFieldSingleSelect",
+									"fullDatabaseId": "101",
+									"name":           "Priority",
+									"dataType":       "single_select",
+									"options": []any{
+										map[string]any{"fullDatabaseId": "9001", "name": "P1"},
+									},
+								},
+							},
+						},
+					},
+				}),
+			),
+		))
+
+		fieldsDeps := BaseDeps{
+			Client:         fieldsClient,
+			GQLClient:      fieldsGQLClient,
+			featureChecker: featureCheckerFor(MCPAppsFeatureFlag),
+		}
+		fieldsHandler := serverTool.Handler(fieldsDeps)
+
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"method": "create",
+			"owner":  "owner",
+			"repo":   "repo",
+			"title":  "Issue with fields",
+			"issue_fields": []any{
+				map[string]any{"field_name": "Priority", "field_option_name": "P1"},
+			},
+		})
+		result, err := fieldsHandler(ContextWithDeps(context.Background(), fieldsDeps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.NotContains(t, textContent.Text, "Ready to create an issue",
+			"issue_fields should skip UI form")
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/125",
+			"issue_fields call should execute directly and return issue URL")
+	})
+
+	t.Run("UI client with labels skips form and executes directly", func(t *testing.T) {
+		// The form does not collect labels, so a call carrying them must bypass
+		// the form rather than silently drop them.
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"method": "create",
+			"owner":  "owner",
+			"repo":   "repo",
+			"title":  "Test",
+			"labels": []any{"bug"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.NotContains(t, textContent.Text, "Ready to create an issue",
+			"labels should skip UI form")
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
+			"labels call should execute directly and return issue URL")
+	})
+}
+
+func Test_issueWriteHasNonFormParams(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args map[string]any
+		want bool
+	}{
+		{name: "no params", args: map[string]any{}, want: false},
+		{name: "only form params", args: map[string]any{"method": "create", "owner": "o", "repo": "r", "title": "t", "body": "b", "issue_number": float64(1), "_ui_submitted": true}, want: false},
+		{name: "labels present", args: map[string]any{"title": "t", "labels": []any{"bug"}}, want: true},
+		{name: "assignees present", args: map[string]any{"title": "t", "assignees": []any{"octocat"}}, want: true},
+		{name: "milestone present", args: map[string]any{"title": "t", "milestone": float64(2)}, want: true},
+		{name: "type present", args: map[string]any{"title": "t", "type": "Bug"}, want: true},
+		{name: "issue_fields present", args: map[string]any{"issue_fields": []any{map[string]any{"field_name": "Priority"}}}, want: true},
+		{name: "state present", args: map[string]any{"state": "closed"}, want: true},
+		{name: "state_reason present", args: map[string]any{"state_reason": "completed"}, want: true},
+		{name: "duplicate_of present", args: map[string]any{"duplicate_of": float64(7)}, want: true},
+		{name: "nil value is ignored", args: map[string]any{"issue_fields": nil}, want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, issueWriteHasNonFormParams(tc.args))
+		})
+	}
 }
 
 func Test_ListIssues(t *testing.T) {
@@ -2865,6 +2988,33 @@ func Test_UpdateIssue(t *testing.T) {
 			expectedIssue: mockUpdatedIssue,
 		},
 		{
+			name: "partial update clears labels and assignees",
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+					"labels":    []any{},
+					"assignees": []any{},
+				}).andThen(
+					mockResponse(t, http.StatusOK, &github.Issue{
+						Number:  github.Ptr(123),
+						HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
+					}),
+				),
+			}),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"labels":       []any{},
+				"assignees":    []any{},
+			},
+			expectError: false,
+			expectedIssue: &github.Issue{
+				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
+			},
+		},
+		{
 			name: "partial update with issue fields reconciled by names",
 			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
@@ -3281,6 +3431,47 @@ func Test_UpdateIssue(t *testing.T) {
 			assert.Equal(t, tc.expectedIssue.GetHTMLURL(), updateResp.URL)
 		})
 	}
+}
+
+func Test_LegacyUpdateIssueClearsLabelsAndAssignees(t *testing.T) {
+	serverTool := LegacyIssueWrite(translations.NullTranslationHelper)
+	updatedIssue := &github.Issue{
+		Number:  github.Ptr(8),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/8"),
+	}
+
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+			"labels":    []any{},
+			"assignees": []any{},
+		}).andThen(mockResponse(t, http.StatusOK, updatedIssue)),
+	}))
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
+	deps := BaseDeps{
+		Client:    client,
+		GQLClient: gqlClient,
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":       "update",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(8),
+		"labels":       []any{},
+		"assignees":    []any{},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	if result.IsError {
+		t.Fatalf("Unexpected error result: %s", getErrorResult(t, result).Text)
+	}
+	textContent := getTextResult(t, result)
+
+	var updateResp MinimalResponse
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &updateResp))
+	assert.Equal(t, updatedIssue.GetHTMLURL(), updateResp.URL)
 }
 
 func Test_ParseISOTimestamp(t *testing.T) {
