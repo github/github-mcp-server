@@ -480,11 +480,12 @@ func mergeIssueFieldValues(existing, incoming []*github.IssueRequestFieldValue) 
 
 // IssueFragment represents a fragment of an issue node in the GraphQL API.
 type IssueFragment struct {
-	Number     githubv4.Int
-	Title      githubv4.String
-	Body       githubv4.String
-	State      githubv4.String
-	DatabaseID int64
+	Number            githubv4.Int
+	Title             githubv4.String
+	Body              githubv4.String
+	State             githubv4.String
+	DatabaseID        int64
+	AuthorAssociation githubv4.String
 
 	Author struct {
 		Login githubv4.String
@@ -616,11 +617,12 @@ func getIssueQueryType(hasLabels bool, hasSince bool) any {
 // is removed.
 
 type LegacyIssueFragment struct {
-	Number     githubv4.Int
-	Title      githubv4.String
-	Body       githubv4.String
-	State      githubv4.String
-	DatabaseID int64
+	Number            githubv4.Int
+	Title             githubv4.String
+	Body              githubv4.String
+	State             githubv4.String
+	DatabaseID        int64
+	AuthorAssociation githubv4.String
 
 	Author struct {
 		Login githubv4.String
