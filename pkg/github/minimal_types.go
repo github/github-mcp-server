@@ -1667,6 +1667,44 @@ type MinimalCheckRunsResult struct {
 	CheckRuns  []MinimalCheckRun `json:"check_runs"`
 }
 
+// MinimalReviewerUser is a user requested to review a pull request.
+type MinimalReviewerUser struct {
+	Login   string `json:"login"`
+	HTMLURL string `json:"html_url,omitempty"`
+}
+
+// MinimalReviewerTeam is a team requested to review a pull request.
+type MinimalReviewerTeam struct {
+	Slug        string `json:"slug"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+	HTMLURL     string `json:"html_url,omitempty"`
+}
+
+// MinimalPRReviewers is the output type for PR requested reviewers.
+type MinimalPRReviewers struct {
+	Users []MinimalReviewerUser `json:"users,omitempty"`
+	Teams []MinimalReviewerTeam `json:"teams,omitempty"`
+}
+
+// MinimalCommitStatus is a single commit status entry.
+type MinimalCommitStatus struct {
+	State       string `json:"state"`
+	Context     string `json:"context"`
+	Description string `json:"description,omitempty"`
+	TargetURL   string `json:"target_url,omitempty"`
+	CreatedAt   string `json:"created_at,omitempty"`
+	UpdatedAt   string `json:"updated_at,omitempty"`
+}
+
+// MinimalStatusChecks combines legacy commit statuses and modern check runs.
+type MinimalStatusChecks struct {
+	CombinedState string                `json:"combined_state"`
+	Statuses      []MinimalCommitStatus `json:"statuses,omitempty"`
+	CheckRuns     []MinimalCheckRun     `json:"check_runs,omitempty"`
+	TotalCount    int                   `json:"total_count"`
+}
+
 // convertToMinimalCheckRun converts a GitHub API CheckRun to MinimalCheckRun
 func convertToMinimalCheckRun(checkRun *github.CheckRun) MinimalCheckRun {
 	minimalCheckRun := MinimalCheckRun{
