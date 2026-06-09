@@ -324,6 +324,16 @@ func createMCPRequest(args any) mcp.CallToolRequest {
 	}
 }
 
+// createMCPRequestWithRawArguments creates a CallToolRequest with the given raw JSON arguments.
+// Use nil or an empty slice to simulate clients that omit the arguments field.
+func createMCPRequestWithRawArguments(args json.RawMessage) mcp.CallToolRequest {
+	return mcp.CallToolRequest{
+		Params: &mcp.CallToolParamsRaw{
+			Arguments: args,
+		},
+	}
+}
+
 // Well-known MCP client names used in tests.
 const (
 	ClientNameVSCodeInsiders = "Visual Studio Code - Insiders"

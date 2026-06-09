@@ -78,3 +78,93 @@ func TestNewServerToolWithContextHandler_ValidArguments_Succeeds(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "success: octocat/hello-world", textContent.Text)
 }
+
+func TestNewServerToolWithContextHandler_EmptyArguments_TreatedAsEmptyObject(t *testing.T) {
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "zero_arg_tool"},
+		testToolsetMetadata("test"),
+		func(_ context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			if len(args) != 0 {
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{
+						&mcp.TextContent{Text: "expected empty arguments"},
+					},
+					IsError: true,
+				}, nil, nil
+			}
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: "ok"},
+				},
+			}, args, nil
+		},
+	)
+
+	handler := tool.HandlerFunc(nil)
+
+	tests := []struct {
+		name      string
+		arguments json.RawMessage
+	}{
+		{name: "nil arguments", arguments: nil},
+		{name: "empty byte slice", arguments: json.RawMessage{}},
+		{name: "explicit empty object", arguments: json.RawMessage(`{}`)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := handler(context.Background(), &mcp.CallToolRequest{
+				Params: &mcp.CallToolParamsRaw{
+					Name:      "zero_arg_tool",
+					Arguments: tt.arguments,
+				},
+			})
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.False(t, result.IsError)
+		})
+	}
+}
+
+func TestNewServerToolWithContextHandler_EmptyArguments_TypedEmptyStruct(t *testing.T) {
+	type emptyArgs struct{}
+
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "typed_zero_arg_tool"},
+		testToolsetMetadata("test"),
+		func(_ context.Context, _ *mcp.CallToolRequest, args emptyArgs) (*mcp.CallToolResult, any, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: "ok"},
+				},
+			}, args, nil
+		},
+	)
+
+	handler := tool.HandlerFunc(nil)
+
+	tests := []struct {
+		name      string
+		arguments json.RawMessage
+	}{
+		{name: "nil arguments", arguments: nil},
+		{name: "empty byte slice", arguments: json.RawMessage{}},
+		{name: "explicit empty object", arguments: json.RawMessage(`{}`)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := handler(context.Background(), &mcp.CallToolRequest{
+				Params: &mcp.CallToolParamsRaw{
+					Name:      "typed_zero_arg_tool",
+					Arguments: tt.arguments,
+				},
+			})
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.False(t, result.IsError)
+		})
+	}
+}
