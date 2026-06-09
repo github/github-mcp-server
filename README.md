@@ -859,6 +859,7 @@ The following sets of tools are available:
 - **list_issue_types** - List available issue types
   - **Required OAuth Scopes**: `read:org`
   - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
+  - `fields`: Subset of issue type fields to return for each issue type. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `owner`: The organization owner of the repository (string, required)
 
 - **list_issues** - List issues

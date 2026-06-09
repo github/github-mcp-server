@@ -564,6 +564,14 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Type:        "string",
 						Description: "The organization owner of the repository",
 					},
+					"fields": {
+						Type:        "array",
+						Description: "Subset of issue type fields to return for each issue type. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields.",
+						Items: &jsonschema.Schema{
+							Type: "string",
+							Enum: issueTypeFieldEnum,
+						},
+					},
 				},
 				Required: []string{"owner"},
 			},
@@ -571,6 +579,11 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 		[]scopes.Scope{scopes.ReadOrg},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			fields, err := OptionalStringArrayParam(args, "fields")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -596,11 +609,12 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 			minimalIssueTypes := make([]MinimalIssueType, 0, len(issueTypes))
 			for _, issueType := range issueTypes {
 				if issueType != nil {
-					minimalIssueTypes = append(minimalIssueTypes, convertToMinimalIssueType(issueType))
+					minimalIssueTypes = append(minimalIssueTypes, filterIssueTypeFields(convertToMinimalIssueType(issueType), fields))
 				}
 			}
 
-			result, err := structuredTextResult(ctx, deps, issueTypes, MinimalIssueTypesResponse{IssueTypes: minimalIssueTypes})
+			response := MinimalIssueTypesResponse{IssueTypes: minimalIssueTypes}
+			result, err := structuredTextResult(ctx, deps, response, response)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal issue types", err), nil, nil
 			}

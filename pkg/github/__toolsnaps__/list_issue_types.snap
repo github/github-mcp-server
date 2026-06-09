@@ -6,6 +6,22 @@
   "description": "List supported issue types for repository owner (organization).",
   "inputSchema": {
     "properties": {
+      "fields": {
+        "description": "Subset of issue type fields to return for each issue type. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields.",
+        "items": {
+          "enum": [
+            "id",
+            "node_id",
+            "name",
+            "description",
+            "color",
+            "created_at",
+            "updated_at"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
       "owner": {
         "description": "The organization owner of the repository",
         "type": "string"

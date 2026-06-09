@@ -3367,19 +3367,75 @@ func Test_ListIssueTypes(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedIssueTypes []*github.IssueType
-			err = json.Unmarshal([]byte(textContent.Text), &returnedIssueTypes)
+			var returnedResponse MinimalIssueTypesResponse
+			err = json.Unmarshal([]byte(textContent.Text), &returnedResponse)
 			require.NoError(t, err)
+			returnedIssueTypes := returnedResponse.IssueTypes
 
 			if tc.expectedIssueTypes != nil {
 				require.Equal(t, len(tc.expectedIssueTypes), len(returnedIssueTypes))
 				for i, expected := range tc.expectedIssueTypes {
-					assert.Equal(t, *expected.Name, *returnedIssueTypes[i].Name)
-					assert.Equal(t, *expected.Description, *returnedIssueTypes[i].Description)
-					assert.Equal(t, *expected.Color, *returnedIssueTypes[i].Color)
-					assert.Equal(t, *expected.ID, *returnedIssueTypes[i].ID)
+					assert.Equal(t, *expected.Name, returnedIssueTypes[i].Name)
+					assert.Equal(t, *expected.Description, returnedIssueTypes[i].Description)
+					assert.Equal(t, *expected.Color, returnedIssueTypes[i].Color)
+					assert.Equal(t, *expected.ID, returnedIssueTypes[i].ID)
 				}
 			}
 		})
 	}
+}
+
+func Test_ListIssueTypes_FieldFiltering(t *testing.T) {
+	mockIssueTypes := []*github.IssueType{
+		{
+			ID:          github.Ptr(int64(1)),
+			Name:        github.Ptr("bug"),
+			Description: github.Ptr("Something isn't working"),
+			Color:       github.Ptr("d73a4a"),
+		},
+		{
+			ID:          github.Ptr(int64(2)),
+			Name:        github.Ptr("feature"),
+			Description: github.Ptr("New feature or enhancement"),
+			Color:       github.Ptr("a2eeef"),
+		},
+	}
+
+	serverTool := ListIssueTypes(translations.NullTranslationHelper)
+	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		"GET /orgs/testorg/issue-types": mockResponse(t, http.StatusOK, mockIssueTypes),
+	}))
+	deps := BaseDeps{Client: client}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":  "testorg",
+		"fields": []any{"name"},
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+
+	var returnedResponse MinimalIssueTypesResponse
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &returnedResponse))
+	require.Len(t, returnedResponse.IssueTypes, 2)
+
+	// Only the requested "name" field should be populated; all others are
+	// dropped from the response (omitempty zeroes them out).
+	for i, expected := range mockIssueTypes {
+		got := returnedResponse.IssueTypes[i]
+		assert.Equal(t, *expected.Name, got.Name)
+		assert.Zero(t, got.ID)
+		assert.Empty(t, got.Description)
+		assert.Empty(t, got.Color)
+		assert.Empty(t, got.NodeID)
+	}
+
+	// The raw JSON should not contain the filtered-out keys.
+	assert.NotContains(t, textContent.Text, "description")
+	assert.NotContains(t, textContent.Text, "color")
 }

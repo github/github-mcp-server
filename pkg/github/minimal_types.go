@@ -908,6 +908,39 @@ func convertToMinimalIssueType(issueType *github.IssueType) MinimalIssueType {
 	return m
 }
 
+// issueTypeFieldEnum lists the selectable fields for the list_issue_types tool,
+// matching the JSON field names of MinimalIssueType.
+var issueTypeFieldEnum = []any{"id", "node_id", "name", "description", "color", "created_at", "updated_at"}
+
+// filterIssueTypeFields returns a copy of m containing only the requested fields.
+// When fields is empty, m is returned unchanged. Unknown field names are ignored.
+func filterIssueTypeFields(m MinimalIssueType, fields []string) MinimalIssueType {
+	if len(fields) == 0 {
+		return m
+	}
+
+	var filtered MinimalIssueType
+	for _, field := range fields {
+		switch field {
+		case "id":
+			filtered.ID = m.ID
+		case "node_id":
+			filtered.NodeID = m.NodeID
+		case "name":
+			filtered.Name = m.Name
+		case "description":
+			filtered.Description = m.Description
+		case "color":
+			filtered.Color = m.Color
+		case "created_at":
+			filtered.CreatedAt = m.CreatedAt
+		case "updated_at":
+			filtered.UpdatedAt = m.UpdatedAt
+		}
+	}
+	return filtered
+}
+
 func convertToMinimalCodeSearchResult(result *github.CodeSearchResult) MinimalCodeSearchResult {
 	minimalResult := MinimalCodeSearchResult{
 		TotalCount:        result.GetTotal(),
