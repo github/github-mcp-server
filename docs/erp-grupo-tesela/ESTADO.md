@@ -26,6 +26,7 @@
 | Almacenamiento documental | ✅ Hecho | Bucket privado `documentos` + RLS por promoción (ruta `<promocion_id>/...`); borrado solo dirección |
 | Cuadro de rentabilidad por promoción | ✅ Hecho | Vista `v_rentabilidad_promocion` (ingresos vs coste real; respeta RLS) |
 | Facturación automática (cola → Holded) | ✅ Hecho | Tabla `factura_pendiente` + trigger: al escriturar una compraventa se encola su factura. Make/Zapier la emite en Holded (`create_invoice`) |
+| Tesorería por promoción | ✅ Hecho | Vista `v_tesoreria_promocion` (contratado en hitos / cobrado / pendiente de cobro) |
 
 **Roles:** `direccion` (ve y gestiona todo) · `obra` (sus promociones: presupuestos, contratos de obra) · `comercial` (sus promociones: reservas, compraventas). `NULL` = pendiente de asignar (sin acceso).
 
