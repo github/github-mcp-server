@@ -120,7 +120,11 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 		},
 		Required: []string{"owner", "repo"},
 	}
-	WithPagination(schema)
+	WithCursorPagination(schema)
+	// The Dependabot alerts REST endpoint uses cursor pagination via the response's
+	// Link header (surfaced as pageInfo.nextCursor), not GraphQL. Override the shared
+	// cursor description, which otherwise refers to a GraphQL PageInfo.
+	schema.Properties["after"].Description = "Forward pagination cursor from the previous response's pageInfo.nextCursor."
 
 	return NewTool(
 		ToolsetMetadataDependabot,
@@ -152,7 +156,7 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			pagination, err := OptionalPaginationParams(args)
+			pagination, err := OptionalCursorPaginationParams(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -165,9 +169,9 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 			alerts, resp, err := client.Dependabot.ListRepoAlerts(ctx, owner, repo, &github.ListAlertsOptions{
 				State:    ToStringPtr(state),
 				Severity: ToStringPtr(severity),
-				ListOptions: github.ListOptions{
-					Page:    pagination.Page,
+				ListCursorOptions: github.ListCursorOptions{
 					PerPage: pagination.PerPage,
+					After:   pagination.After,
 				},
 			})
 			if err != nil {
@@ -187,7 +191,12 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(alerts)
+			response := map[string]any{
+				"alerts":   alerts,
+				"pageInfo": buildPageInfo(resp),
+			}
+
+			r, err := json.Marshal(response)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal alerts", err), nil, err
 			}
