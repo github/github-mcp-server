@@ -717,7 +717,7 @@ The following sets of tools are available:
 - **list_dependabot_alerts** - List dependabot alerts
   - **Required OAuth Scopes**: `security_events`
   - **Accepted OAuth Scopes**: `repo`, `security_events`
-  - `after`: Forward pagination cursor from the previous response's pageInfo.nextCursor. (string, optional)
+  - `after`: Omit for the first page. For subsequent pages, use pageInfo.nextCursor from the previous response. (string, optional)
   - `owner`: The owner of the repository. (string, required)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: The name of the repository. (string, required)

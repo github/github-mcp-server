@@ -124,7 +124,7 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 	// The Dependabot alerts REST endpoint uses cursor pagination via the response's
 	// Link header (surfaced as pageInfo.nextCursor), not GraphQL. Override the shared
 	// cursor description, which otherwise refers to a GraphQL PageInfo.
-	schema.Properties["after"].Description = "Forward pagination cursor from the previous response's pageInfo.nextCursor."
+	schema.Properties["after"].Description = "Omit for the first page. For subsequent pages, use pageInfo.nextCursor from the previous response."
 
 	return NewTool(
 		ToolsetMetadataDependabot,
