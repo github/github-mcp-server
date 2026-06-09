@@ -131,6 +131,47 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 	}
 }
 
+func TestResolveListenAddress(t *testing.T) {
+	tests := []struct {
+		name          string
+		listenAddress string
+		port          int
+		want          string
+	}{
+		{
+			name:          "empty address falls back to :port",
+			listenAddress: "",
+			port:          8082,
+			want:          ":8082",
+		},
+		{
+			name:          "explicit host:port wins over port",
+			listenAddress: "127.0.0.1:9090",
+			port:          8082,
+			want:          "127.0.0.1:9090",
+		},
+		{
+			name:          "explicit :port form is preserved",
+			listenAddress: ":9090",
+			port:          8082,
+			want:          ":9090",
+		},
+		{
+			name:          "ipv6 address with port is preserved",
+			listenAddress: "[::1]:9090",
+			port:          8082,
+			want:          "[::1]:9090",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolveListenAddress(tt.listenAddress, tt.port)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestHeaderAllowedFeatureFlagsMatchesAllowed(t *testing.T) {
 	// Ensure HeaderAllowedFeatureFlags delegates to AllowedFeatureFlags
 	allowed := github.HeaderAllowedFeatureFlags()
