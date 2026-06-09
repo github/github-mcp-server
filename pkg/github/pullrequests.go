@@ -101,6 +101,19 @@ Possible options:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			if method == "get_review_comments" {
+				gqlClient, err := deps.GetGQLClient(ctx)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
+				}
+				cursorPagination, err := OptionalCursorPaginationParams(args)
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				result, err := GetPullRequestReviewComments(ctx, gqlClient, deps, owner, repo, pullNumber, cursorPagination)
+				return result, nil, err
+			}
+
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
@@ -118,17 +131,6 @@ Possible options:
 				return result, nil, err
 			case "get_files":
 				result, err := GetPullRequestFiles(ctx, client, owner, repo, pullNumber, pagination)
-				return result, nil, err
-			case "get_review_comments":
-				gqlClient, err := deps.GetGQLClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
-				}
-				cursorPagination, err := OptionalCursorPaginationParams(args)
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				result, err := GetPullRequestReviewComments(ctx, gqlClient, deps, owner, repo, pullNumber, cursorPagination)
 				return result, nil, err
 			case "get_reviews":
 				result, err := GetPullRequestReviews(ctx, client, deps, owner, repo, pullNumber, pagination)

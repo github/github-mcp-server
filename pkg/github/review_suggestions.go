@@ -21,15 +21,6 @@ const (
 
 var suggestionBlockPattern = regexp.MustCompile("(?s)```suggestion\\s*\n(.*?)```")
 
-// MinimalReviewSuggestion is a structured code suggestion attached to a review comment.
-type MinimalReviewSuggestion struct {
-	Path       string `json:"path,omitempty"`
-	Suggestion string `json:"suggestion"`
-	StartLine  *int   `json:"start_line,omitempty"`
-	EndLine    *int   `json:"end_line,omitempty"`
-	Source     string `json:"source,omitempty"`
-}
-
 type automatedDiffLine struct {
 	Text  string `json:"text"`
 	Type  string `json:"type"`
