@@ -1561,7 +1561,8 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "Ready to create an issue")
+		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for creating a new issue")
+		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
 
 	t.Run("UI client with _ui_submitted executes directly", func(t *testing.T) {
@@ -1611,8 +1612,9 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "Ready to update issue #1",
+		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for editing issue #1",
 			"state change should route through UI form")
+		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
 
 	t.Run("UI client update without state change returns form message", func(t *testing.T) {
@@ -1627,8 +1629,9 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "Ready to update issue #1",
+		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for editing issue #1",
 			"update without state should show UI form")
+		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
 
 	t.Run("UI client with issue_fields routes through UI form", func(t *testing.T) {
@@ -1648,8 +1651,9 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "Ready to create an issue",
+		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for creating a new issue",
 			"issue_fields should route through UI form")
+		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
 
 	t.Run("UI client with labels skips form and executes directly", func(t *testing.T) {
@@ -1666,7 +1670,7 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.NotContains(t, textContent.Text, "Ready to create an issue",
+		assert.NotContains(t, textContent.Text, "interactive form has been shown",
 			"labels should skip UI form")
 		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
 			"labels call should execute directly and return issue URL")

@@ -687,7 +687,14 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
 			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && !pullRequestWriteHasNonFormParams(args) {
-				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. IMPORTANT: The PR has NOT been created yet. Do NOT tell the user the PR was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
+				return utils.NewToolResultAwaitingFormSubmission(fmt.Sprintf(
+					"An interactive form has been shown to the user for creating a new pull request in %s/%s. "+
+						"STOP — do not call any other tools, do not respond as if the pull request was created, "+
+						"and do not claim the operation succeeded. The pull request has NOT been created yet; "+
+						"only the form was rendered. Wait silently for the user to review and click Submit. "+
+						"When they do, the real result will be delivered to your context automatically.",
+					owner, repo,
+				)), nil, nil
 			}
 
 			// When creating PR, title/head/base are required
@@ -900,7 +907,14 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && !pullRequestUpdateHasNonFormParams(args) {
-				return utils.NewToolResultText(fmt.Sprintf("Ready to update PR #%d in %s/%s. IMPORTANT: The PR has NOT been updated yet. Do NOT tell the user the PR was updated. The user MUST click Submit in the form to update it.", pullNumber, owner, repo)), nil, nil
+				return utils.NewToolResultAwaitingFormSubmission(fmt.Sprintf(
+					"An interactive form has been shown to the user for editing pull request #%d in %s/%s. "+
+						"STOP — do not call any other tools, do not respond as if the pull request was updated, "+
+						"and do not claim the operation succeeded. The pull request has NOT been updated yet; "+
+						"only the form was rendered. Wait silently for the user to review and click Submit. "+
+						"When they do, the real result will be delivered to your context automatically.",
+					pullNumber, owner, repo,
+				)), nil, nil
 			}
 
 			_, draftProvided := args["draft"]
