@@ -268,13 +268,21 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 			var typeStr string
 
 			// Get the type and description
-			switch prop.Type {
-			case "array":
+			switch {
+			case prop.Type == "array":
 				if prop.Items != nil {
 					typeStr = prop.Items.Type + "[]"
 				} else {
 					typeStr = "array"
 				}
+			case prop.Type == "" && len(prop.OneOf) > 0:
+				var branchTypes []string
+				for _, branch := range prop.OneOf {
+					if branch.Type != "" && !slices.Contains(branchTypes, branch.Type) {
+						branchTypes = append(branchTypes, branch.Type)
+					}
+				}
+				typeStr = strings.Join(branchTypes, "|")
 			default:
 				typeStr = prop.Type
 			}

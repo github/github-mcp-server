@@ -69,7 +69,7 @@ runtime behavior (such as output formatting) won't appear here.
   - `state`: New state (string, optional)
   - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
   - `title`: Issue title (string, optional)
-  - `type`: Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
+  - `type`: Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter. (string|object, optional)
 
 ### `remote_mcp_issue_fields`
 
@@ -92,7 +92,7 @@ runtime behavior (such as output formatting) won't appear here.
   - `state`: New state (string, optional)
   - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
   - `title`: Issue title (string, optional)
-  - `type`: Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
+  - `type`: Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter. (string|object, optional)
 
 - **list_issue_fields** - List issue fields
   - **Required OAuth Scopes**: `repo`, `read:org`
@@ -199,11 +199,11 @@ runtime behavior (such as output formatting) won't appear here.
 - **update_issue_type** - Update Issue Type
   - **Required OAuth Scopes**: `repo`
   - `confidence`: How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal. (string, optional)
-  - `is_suggestion`: If true, this issue type change is sent to the API as a suggestion (suggest:true) rather than an applied value. Whether the type is applied or recorded as a proposal is determined by the API. (boolean, optional)
+  - `is_suggestion`: If true, this value is sent to the API as a suggestion rather than an applied value. Whether it is applied or recorded as a proposal is determined by the API. Only honored when updating an existing issue. (boolean, optional)
   - `issue_number`: The issue number to update (number, required)
   - `issue_type`: The issue type to set (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
-  - `rationale`: One concise sentence explaining what specifically about the issue led you to choose this type. State the concrete signal (e.g. 'Reports a crash when saving' → bug, 'Asks for dark mode support' → feature). (string, optional)
+  - `rationale`: A concise explanation of what specifically about the issue led you to this choice. State the concrete signal (e.g. 'Reports a crash when saving' → bug). (string, optional)
   - `repo`: Repository name (string, required)
 
 ### `pull_requests_granular`

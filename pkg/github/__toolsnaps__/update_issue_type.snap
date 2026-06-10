@@ -17,7 +17,7 @@
         "type": "string"
       },
       "is_suggestion": {
-        "description": "If true, this issue type change is sent to the API as a suggestion (suggest:true) rather than an applied value. Whether the type is applied or recorded as a proposal is determined by the API.",
+        "description": "If true, this value is sent to the API as a suggestion rather than an applied value. Whether it is applied or recorded as a proposal is determined by the API. Only honored when updating an existing issue.",
         "type": "boolean"
       },
       "issue_number": {
@@ -34,7 +34,7 @@
         "type": "string"
       },
       "rationale": {
-        "description": "One concise sentence explaining what specifically about the issue led you to choose this type. State the concrete signal (e.g. 'Reports a crash when saving' → bug, 'Asks for dark mode support' → feature).",
+        "description": "A concise explanation of what specifically about the issue led you to this choice. State the concrete signal (e.g. 'Reports a crash when saving' → bug).",
         "maxLength": 280,
         "type": "string"
       },

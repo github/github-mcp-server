@@ -707,7 +707,7 @@ func TestGranularUpdateIssueTypeInvalidRationale(t *testing.T) {
 				"issue_type":   "feature",
 				"rationale":    strings.Repeat("a", 281),
 			},
-			expectedErrText: "parameter rationale must be 280 characters or less",
+			expectedErrText: "rationale must be 280 characters or less",
 		},
 	}
 

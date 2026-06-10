@@ -439,6 +439,44 @@ func parseParamWithIntent(args map[string]any, param, identityField string) (ide
 	return identities, payload, hasIntent, true, nil
 }
 
+// parseValueParamWithIntent parses a single-value parameter that accepts either
+// a plain string or an object carrying intent metadata. param is the argument
+// key (e.g. "type"); inputField is the identity key read from the object (e.g.
+// "name"); wireField is the identity key used in the object-form payload sent to
+// the API (e.g. "value"). For most value types inputField and wireField match.
+//
+// It returns the plain identity (intent stripped), the wire payload (the plain
+// identity string, or a valueWithIntent object when intent is present), whether
+// the value carried intent, whether the parameter was provided at all, and an
+// error. It mirrors parseParamWithIntent for value types that travel as a single
+// named object rather than an array.
+func parseValueParamWithIntent(args map[string]any, param, inputField, wireField string) (identity string, payload any, hasIntent bool, provided bool, err error) {
+	raw, ok := args[param]
+	if !ok || raw == nil {
+		return "", nil, false, false, nil
+	}
+
+	switch v := raw.(type) {
+	case string:
+		return v, v, false, true, nil
+	case map[string]any:
+		id, idErr := RequiredParam[string](v, inputField)
+		if idErr != nil {
+			return "", nil, false, true, fmt.Errorf("%s object must have a '%s' string", param, inputField)
+		}
+		intent, itemHasIntent, intentErr := parseValueIntent(v)
+		if intentErr != nil {
+			return "", nil, false, true, intentErr
+		}
+		if itemHasIntent {
+			return id, valueWithIntent{identityKey: wireField, identity: id, valueIntent: intent}, true, true, nil
+		}
+		return id, id, false, true, nil
+	default:
+		return "", nil, false, true, fmt.Errorf("%s must be a string or an object with '%s' and optional 'rationale', 'confidence', and/or 'is_suggestion'", param, inputField)
+	}
+}
+
 // GranularUpdateIssueLabels creates a tool to update an issue's labels.
 func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
@@ -594,19 +632,11 @@ func GranularUpdateIssueMilestone(t translations.TranslationHelperFunc) inventor
 	)
 }
 
-// issueTypeWithIntent represents the object form of the issue type field,
-// allowing a rationale, confidence level, and/or suggest flag to be sent alongside the type name.
-type issueTypeWithIntent struct {
-	Value      string `json:"value"`
-	Rationale  string `json:"rationale,omitempty"`
-	Confidence string `json:"confidence,omitempty"`
-	Suggest    bool   `json:"suggest,omitempty"`
-}
-
-// issueTypeUpdateRequest is a custom request body for updating an issue type
-// with optional intent metadata, using the object form that the REST API accepts.
-type issueTypeUpdateRequest struct {
-	Type issueTypeWithIntent `json:"type"`
+// typeUpdateRequest is a custom request body for updating an issue's type with
+// optional intent metadata, using the object form that the REST API accepts:
+// {"type": {"value": ..., "rationale": ..., "confidence": ..., "suggest": ...}}.
+type typeUpdateRequest struct {
+	Type valueWithIntent `json:"type"`
 }
 
 // GranularUpdateIssueType creates a tool to update an issue's type.
@@ -624,7 +654,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
+				Properties: withIntentProperties(map[string]*jsonschema.Schema{
 					"owner": {
 						Type:        "string",
 						Description: "Repository owner (username or organization)",
@@ -642,23 +672,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 						Type:        "string",
 						Description: "The issue type to set",
 					},
-					"rationale": {
-						Type: "string",
-						Description: "One concise sentence explaining what specifically about the issue led you to choose this type. " +
-							"State the concrete signal (e.g. 'Reports a crash when saving' → bug, 'Asks for dark mode support' → feature).",
-						MaxLength: jsonschema.Ptr(280),
-					},
-					"confidence": {
-						Type:        "string",
-						Description: "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
-						Enum:        []any{"low", "medium", "high"},
-					},
-					"is_suggestion": {
-						Type: "boolean",
-						Description: "If true, this issue type change is sent to the API as a suggestion (suggest:true) rather than an applied value. " +
-							"Whether the type is applied or recorded as a proposal is determined by the API.",
-					},
-				},
+				}),
 				Required: []string{"owner", "repo", "issue_number", "issue_type"},
 			},
 		},
@@ -680,22 +694,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			rationale, err := OptionalParam[string](args, "rationale")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			rationale = strings.TrimSpace(rationale)
-			if len([]rune(rationale)) > 280 {
-				return utils.NewToolResultError("parameter rationale must be 280 characters or less"), nil, nil
-			}
-			confidence, err := OptionalParam[string](args, "confidence")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			if confidence != "" && confidence != "low" && confidence != "medium" && confidence != "high" {
-				return utils.NewToolResultError("confidence must be one of: low, medium, high"), nil, nil
-			}
-			isSuggestion, err := OptionalParam[bool](args, "is_suggestion")
+			intent, hasIntent, err := parseValueIntent(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -706,14 +705,9 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			}
 
 			var body any
-			if rationale != "" || isSuggestion || confidence != "" {
-				body = &issueTypeUpdateRequest{
-					Type: issueTypeWithIntent{
-						Value:      issueType,
-						Rationale:  rationale,
-						Confidence: confidence,
-						Suggest:    isSuggestion,
-					},
+			if hasIntent {
+				body = &typeUpdateRequest{
+					Type: valueWithIntent{identityKey: "value", identity: issueType, valueIntent: intent},
 				}
 			} else {
 				body = &github.IssueRequest{Type: &issueType}

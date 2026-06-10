@@ -154,7 +154,42 @@
       },
       "type": {
         "description": "Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter.",
-        "type": "string"
+        "oneOf": [
+          {
+            "description": "Issue type name",
+            "type": "string"
+          },
+          {
+            "properties": {
+              "confidence": {
+                "description": "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "type": "string"
+              },
+              "is_suggestion": {
+                "description": "If true, this value is sent to the API as a suggestion rather than an applied value. Whether it is applied or recorded as a proposal is determined by the API. Only honored when updating an existing issue.",
+                "type": "boolean"
+              },
+              "name": {
+                "description": "Issue type name",
+                "type": "string"
+              },
+              "rationale": {
+                "description": "A concise explanation of what specifically about the issue led you to this choice. State the concrete signal (e.g. 'Reports a crash when saving' → bug).",
+                "maxLength": 280,
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          }
+        ]
       }
     },
     "required": [
