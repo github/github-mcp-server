@@ -12,7 +12,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -56,6 +55,7 @@ type NodeFragment struct {
 	Closed         githubv4.Boolean
 	IsAnswered     githubv4.Boolean
 	AnswerChosenAt *githubv4.DateTime
+	UpvoteCount    githubv4.Int
 	Author         struct {
 		Login githubv4.String
 	}
@@ -94,22 +94,6 @@ type WithCategoryNoOrder struct {
 	Repository struct {
 		Discussions DiscussionFragment `graphql:"discussions(first: $first, after: $after, categoryId: $categoryId)"`
 	} `graphql:"repository(owner: $owner, name: $repo)"`
-}
-
-func fragmentToDiscussion(fragment NodeFragment) *github.Discussion {
-	return &github.Discussion{
-		Number:    github.Ptr(int(fragment.Number)),
-		Title:     github.Ptr(string(fragment.Title)),
-		HTMLURL:   github.Ptr(string(fragment.URL)),
-		CreatedAt: &github.Timestamp{Time: fragment.CreatedAt.Time},
-		UpdatedAt: &github.Timestamp{Time: fragment.UpdatedAt.Time},
-		User: &github.User{
-			Login: github.Ptr(string(fragment.Author.Login)),
-		},
-		DiscussionCategory: &github.DiscussionCategory{
-			Name: github.Ptr(string(fragment.Category.Name)),
-		},
-	}
 }
 
 func getQueryType(useOrdering bool, categoryID *githubv4.ID) any {
@@ -245,13 +229,28 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 
 			// Extract and convert all discussion nodes using the common interface
-			var discussions []*github.Discussion
+			var discussions []map[string]any
 			var pageInfo PageInfoFragment
 			var totalCount githubv4.Int
 			if queryResult, ok := discussionQuery.(DiscussionQueryResult); ok {
 				fragment := queryResult.GetDiscussionFragment()
 				for _, node := range fragment.Nodes {
-					discussions = append(discussions, fragmentToDiscussion(node))
+					d := map[string]any{
+						"number":      int(node.Number),
+						"title":       string(node.Title),
+						"url":         string(node.URL),
+						"createdAt":   node.CreatedAt.Time,
+						"updatedAt":   node.UpdatedAt.Time,
+						"closed":      bool(node.Closed),
+						"isAnswered":  bool(node.IsAnswered),
+						"upvoteCount": int(node.UpvoteCount),
+						"author":      map[string]any{"login": string(node.Author.Login)},
+						"category":    map[string]any{"name": string(node.Category.Name)},
+					}
+					if node.AnswerChosenAt != nil {
+						d["answerChosenAt"] = node.AnswerChosenAt.Time
+					}
+					discussions = append(discussions, d)
 				}
 				pageInfo = fragment.PageInfo
 				totalCount = fragment.TotalCount
@@ -337,6 +336,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Closed         githubv4.Boolean
 						IsAnswered     githubv4.Boolean
 						AnswerChosenAt *githubv4.DateTime
+						UpvoteCount    githubv4.Int
 						URL            githubv4.String `graphql:"url"`
 						Category       struct {
 							Name githubv4.String
@@ -359,13 +359,14 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// so we use map[string]interface{} for the response (consistent with other functions
 			// like ListDiscussions and GetDiscussionComments).
 			response := map[string]any{
-				"number":     int(d.Number),
-				"title":      string(d.Title),
-				"body":       string(d.Body),
-				"url":        string(d.URL),
-				"closed":     bool(d.Closed),
-				"isAnswered": bool(d.IsAnswered),
-				"createdAt":  d.CreatedAt.Time,
+				"number":       int(d.Number),
+				"title":        string(d.Title),
+				"body":         string(d.Body),
+				"url":          string(d.URL),
+				"closed":       bool(d.Closed),
+				"isAnswered":   bool(d.IsAnswered),
+				"createdAt":    d.CreatedAt.Time,
+				"upvoteCount":  int(d.UpvoteCount),
 				"category": map[string]any{
 					"name": string(d.Category.Name),
 				},
