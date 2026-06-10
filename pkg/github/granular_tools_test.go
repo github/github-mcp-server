@@ -441,7 +441,7 @@ func TestGranularUpdateIssueLabelsInvalidRationale(t *testing.T) {
 					map[string]any{"rationale": "no name provided"},
 				},
 			},
-			expectedErrText: "each label object must have a 'name' string",
+			expectedErrText: "each labels object must have a 'name' string",
 		},
 	}
 

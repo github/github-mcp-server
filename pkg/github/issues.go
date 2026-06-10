@@ -1988,7 +1988,7 @@ Options are:
 			assigneesProvided = assigneesProvided && assigneesValue != nil
 
 			// Get labels (plain names or per-label intent objects)
-			labels, labelsPayload, labelsHaveIntent, labelsProvided, err := parseIssueWriteLabels(args)
+			labels, labelsPayload, labelsHaveIntent, labelsProvided, err := parseParamWithIntent(args, "labels", "name")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -2241,7 +2241,7 @@ Options are:
 			assigneesProvided = assigneesProvided && assigneesValue != nil
 
 			// Get labels (plain names or per-label intent objects)
-			labels, labelsPayload, labelsHaveIntent, labelsProvided, err := parseIssueWriteLabels(args)
+			labels, labelsPayload, labelsHaveIntent, labelsProvided, err := parseParamWithIntent(args, "labels", "name")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -2379,71 +2379,15 @@ type UpdateIssueOptions struct {
 	// LabelsProvided sends the labels field even when the slice is empty.
 	LabelsProvided bool
 	// LabelsWithIntent, when non-empty, sends labels in object form (a mix of
-	// plain label names and labelWithIntent objects) via a custom request so
+	// plain label names and valueWithIntent objects) via a custom request so
 	// per-label rationale and suggestion intent are preserved. When set, it
 	// takes precedence over the labels slice.
 	LabelsWithIntent []any
 }
 
-// parseIssueWriteLabels parses the issue_write "labels" parameter, which accepts
-// either plain label names (strings) or objects carrying intent metadata
-// (name, rationale, confidence, is_suggestion). It returns the plain label names
-// (intent stripped), the object-form payload to send when any label carries
-// intent, whether any label carried intent, whether the labels parameter was
-// provided at all, and an error.
-func parseIssueWriteLabels(args map[string]any) (names []string, payload []any, hasIntent bool, provided bool, err error) {
-	raw, ok := args["labels"]
-	if !ok || raw == nil {
-		return []string{}, nil, false, false, nil
-	}
-
-	var labelsSlice []any
-	switch v := raw.(type) {
-	case []any:
-		labelsSlice = v
-	case []string:
-		labelsSlice = make([]any, len(v))
-		for i, s := range v {
-			labelsSlice[i] = s
-		}
-	default:
-		return nil, nil, false, true, fmt.Errorf("labels must be an array")
-	}
-
-	names = make([]string, 0, len(labelsSlice))
-	payload = make([]any, 0, len(labelsSlice))
-	for _, item := range labelsSlice {
-		switch v := item.(type) {
-		case string:
-			names = append(names, v)
-			payload = append(payload, v)
-		case map[string]any:
-			name, nameErr := RequiredParam[string](v, "name")
-			if nameErr != nil {
-				return nil, nil, false, true, fmt.Errorf("each label object must have a 'name' string")
-			}
-			names = append(names, name)
-
-			intent, itemHasIntent, intentErr := parseValueIntent(v)
-			if intentErr != nil {
-				return nil, nil, false, true, intentErr
-			}
-			if itemHasIntent {
-				hasIntent = true
-				payload = append(payload, labelWithIntent{Name: name, valueIntent: intent})
-			} else {
-				payload = append(payload, name)
-			}
-		default:
-			return nil, nil, false, true, fmt.Errorf("each label must be a string or an object with 'name' and optional 'rationale', 'confidence', and/or 'is_suggestion'")
-		}
-	}
-	return names, payload, hasIntent, true, nil
-}
-
 // issueRequestWithLabels marshals an IssueRequest into a generic map and sets
 // the labels field to the provided object-form payload (a mix of plain label
-// names and labelWithIntent objects). This lets an issue update carry per-label
+// names and valueWithIntent objects). This lets an issue update carry per-label
 // rationale and suggestion intent that github.IssueRequest cannot represent.
 func issueRequestWithLabels(issueRequest *github.IssueRequest, labels []any) (map[string]any, error) {
 	data, err := json.Marshal(issueRequest)
