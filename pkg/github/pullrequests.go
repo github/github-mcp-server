@@ -1121,6 +1121,14 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				Description: "Sort direction",
 				Enum:        []any{"asc", "desc"},
 			},
+			"fields": {
+				Type:        "array",
+				Description: "Subset of pull request fields to return for each pull request. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields.",
+				Items: &jsonschema.Schema{
+					Type: "string",
+					Enum: pullRequestFieldEnum,
+				},
+			},
 		},
 		Required: []string{"owner", "repo"},
 	}
@@ -1164,6 +1172,10 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			direction, err := OptionalParam[string](args, "direction")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			fields, err := OptionalStringArrayParam(args, "fields")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -1226,14 +1238,25 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				}
 			}
 
-			r, err := json.Marshal(minimalPRs)
+			var textPayload any = minimalPRs
+			var structured any = MinimalPullRequestsResponse{PullRequests: minimalPRs}
+			if len(fields) > 0 {
+				filteredPRs, err := filterEachField(minimalPRs, fields)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to filter pull requests", err), nil, nil
+				}
+				textPayload = filteredPRs
+				structured = map[string]any{"pull_requests": filteredPRs}
+			}
+
+			r, err := json.Marshal(textPayload)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
 			result := utils.NewToolResultText(string(r))
 			if outputSchemasEnabled(ctx, deps) {
-				result.StructuredContent = MinimalPullRequestsResponse{PullRequests: minimalPRs}
+				result.StructuredContent = structured
 			}
 
 			return result, nil, nil
@@ -1387,6 +1410,14 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 				Type:        "string",
 				Description: "Sort order",
 				Enum:        []any{"asc", "desc"},
+			},
+			"fields": {
+				Type:        "array",
+				Description: "Subset of pull request fields to return for each result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields.",
+				Items: &jsonschema.Schema{
+					Type: "string",
+					Enum: issueFieldEnum,
+				},
 			},
 		},
 		Required: []string{"query"},

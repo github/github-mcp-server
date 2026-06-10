@@ -74,6 +74,10 @@ func searchHandler(
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil
 	}
+	fields, err := OptionalStringArrayParam(args, "fields")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil
+	}
 	pagination, err := OptionalPaginationParams(args)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil
@@ -110,6 +114,23 @@ func searchHandler(
 	toolResult, err := structuredTextResult(ctx, deps, result, convertToMinimalSearchIssuesResult(result))
 	if err != nil {
 		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), nil
+	}
+
+	if len(fields) > 0 {
+		minimal := convertToMinimalSearchIssuesResult(result)
+		filteredItems, err := filterEachField(minimal.Items, fields)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to filter response", err), nil
+		}
+		filtered := map[string]any{
+			"total_count":        minimal.TotalCount,
+			"incomplete_results": minimal.IncompleteResults,
+			"items":              filteredItems,
+		}
+		toolResult, err = structuredTextResult(ctx, deps, filtered, filtered)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), nil
+		}
 	}
 
 	return toolResult, nil

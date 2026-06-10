@@ -693,6 +693,57 @@ func Test_SearchIssues(t *testing.T) {
 	}
 }
 
+func Test_SearchIssues_FieldFiltering(t *testing.T) {
+	mockSearchResult := &github.IssuesSearchResult{
+		Total:             github.Ptr(1),
+		IncompleteResults: github.Ptr(false),
+		Issues: []*github.Issue{
+			{
+				Number:  github.Ptr(42),
+				Title:   github.Ptr("Bug: Something is broken"),
+				Body:    github.Ptr("This is a bug report"),
+				State:   github.Ptr("open"),
+				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+			},
+		},
+	}
+
+	serverTool := SearchIssues(translations.NullTranslationHelper)
+	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetSearchIssues: mockResponse(t, http.StatusOK, mockSearchResult),
+	}))
+	deps := BaseDeps{Client: client}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"query":  "repo:owner/repo is:open",
+		"fields": []any{"number", "title"},
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+
+	// The wrapper metadata is preserved while each item is reduced to the
+	// requested fields only.
+	var returned struct {
+		TotalCount        int              `json:"total_count"`
+		IncompleteResults bool             `json:"incomplete_results"`
+		Items             []map[string]any `json:"items"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &returned))
+	assert.Equal(t, 1, returned.TotalCount)
+	require.Len(t, returned.Items, 1)
+	require.Len(t, returned.Items[0], 2)
+	assert.Contains(t, returned.Items[0], "number")
+	assert.Contains(t, returned.Items[0], "title")
+
+	assert.NotContains(t, textContent.Text, "html_url")
+	assert.NotContains(t, textContent.Text, "This is a bug report")
+}
+
 func Test_CreateIssue(t *testing.T) {
 	// Verify tool definition once
 	serverTool := IssueWrite(translations.NullTranslationHelper)
@@ -1350,6 +1401,86 @@ func Test_ListIssues(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_ListIssues_FieldFiltering(t *testing.T) {
+	serverTool := ListIssues(translations.NullTranslationHelper)
+
+	mockIssues := []map[string]any{
+		{
+			"number":     123,
+			"title":      "First Issue",
+			"body":       "This is the first test issue",
+			"state":      "OPEN",
+			"databaseId": 1001,
+			"createdAt":  "2023-01-01T00:00:00Z",
+			"updatedAt":  "2023-01-01T00:00:00Z",
+			"author":     map[string]any{"login": "user1"},
+			"labels": map[string]any{
+				"nodes": []map[string]any{
+					{"name": "bug", "id": "label1", "description": "Bug label"},
+				},
+			},
+			"comments": map[string]any{"totalCount": 5},
+		},
+	}
+
+	mockResponse := githubv4mock.DataResponse(map[string]any{
+		"repository": map[string]any{
+			"issues": map[string]any{
+				"nodes": mockIssues,
+				"pageInfo": map[string]any{
+					"hasNextPage":     false,
+					"hasPreviousPage": false,
+					"startCursor":     "",
+					"endCursor":       "",
+				},
+				"totalCount": 1,
+			},
+			"isPrivate": false,
+		},
+	})
+
+	query := "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
+	vars := map[string]any{
+		"owner":     "owner",
+		"repo":      "repo",
+		"states":    []any{"OPEN", "CLOSED"},
+		"orderBy":   "CREATED_AT",
+		"direction": "DESC",
+		"first":     float64(30),
+		"after":     (*string)(nil),
+	}
+
+	httpClient := githubv4mock.NewMockedHTTPClient(githubv4mock.NewQueryMatcher(query, vars, mockResponse))
+	deps := BaseDeps{GQLClient: githubv4.NewClient(httpClient)}
+	handler := serverTool.Handler(deps)
+
+	req := createMCPRequest(map[string]any{
+		"owner":  "owner",
+		"repo":   "repo",
+		"fields": []any{"number", "title"},
+	})
+	res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+	require.NoError(t, err)
+	require.False(t, res.IsError)
+
+	text := getTextResult(t, res).Text
+
+	// Wrapper metadata is preserved while each issue is reduced to the
+	// requested fields only.
+	var response struct {
+		Issues     []map[string]any `json:"issues"`
+		TotalCount int              `json:"totalCount"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(text), &response))
+	assert.Equal(t, 1, response.TotalCount)
+	require.Len(t, response.Issues, 1)
+	require.Len(t, response.Issues[0], 2)
+	assert.Contains(t, response.Issues[0], "number")
+	assert.Contains(t, response.Issues[0], "title")
+
+	assert.NotContains(t, text, "This is the first test issue")
 }
 
 func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
@@ -3367,19 +3498,75 @@ func Test_ListIssueTypes(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedIssueTypes []*github.IssueType
-			err = json.Unmarshal([]byte(textContent.Text), &returnedIssueTypes)
+			var returnedResponse MinimalIssueTypesResponse
+			err = json.Unmarshal([]byte(textContent.Text), &returnedResponse)
 			require.NoError(t, err)
+			returnedIssueTypes := returnedResponse.IssueTypes
 
 			if tc.expectedIssueTypes != nil {
 				require.Equal(t, len(tc.expectedIssueTypes), len(returnedIssueTypes))
 				for i, expected := range tc.expectedIssueTypes {
-					assert.Equal(t, *expected.Name, *returnedIssueTypes[i].Name)
-					assert.Equal(t, *expected.Description, *returnedIssueTypes[i].Description)
-					assert.Equal(t, *expected.Color, *returnedIssueTypes[i].Color)
-					assert.Equal(t, *expected.ID, *returnedIssueTypes[i].ID)
+					assert.Equal(t, *expected.Name, returnedIssueTypes[i].Name)
+					assert.Equal(t, *expected.Description, returnedIssueTypes[i].Description)
+					assert.Equal(t, *expected.Color, returnedIssueTypes[i].Color)
+					assert.Equal(t, *expected.ID, returnedIssueTypes[i].ID)
 				}
 			}
 		})
 	}
+}
+
+func Test_ListIssueTypes_FieldFiltering(t *testing.T) {
+	mockIssueTypes := []*github.IssueType{
+		{
+			ID:          github.Ptr(int64(1)),
+			Name:        github.Ptr("bug"),
+			Description: github.Ptr("Something isn't working"),
+			Color:       github.Ptr("d73a4a"),
+		},
+		{
+			ID:          github.Ptr(int64(2)),
+			Name:        github.Ptr("feature"),
+			Description: github.Ptr("New feature or enhancement"),
+			Color:       github.Ptr("a2eeef"),
+		},
+	}
+
+	serverTool := ListIssueTypes(translations.NullTranslationHelper)
+	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		"GET /orgs/testorg/issue-types": mockResponse(t, http.StatusOK, mockIssueTypes),
+	}))
+	deps := BaseDeps{Client: client}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":  "testorg",
+		"fields": []any{"name"},
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+
+	var returnedResponse MinimalIssueTypesResponse
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &returnedResponse))
+	require.Len(t, returnedResponse.IssueTypes, 2)
+
+	// Only the requested "name" field should be populated; all others are
+	// dropped from the response (omitempty zeroes them out).
+	for i, expected := range mockIssueTypes {
+		got := returnedResponse.IssueTypes[i]
+		assert.Equal(t, *expected.Name, got.Name)
+		assert.Zero(t, got.ID)
+		assert.Empty(t, got.Description)
+		assert.Empty(t, got.Color)
+		assert.Empty(t, got.NodeID)
+	}
+
+	// The raw JSON should not contain the filtered-out keys.
+	assert.NotContains(t, textContent.Text, "description")
+	assert.NotContains(t, textContent.Text, "color")
 }

@@ -1,6 +1,8 @@
 package github
 
 import (
+	"bytes"
+	"encoding/json"
 	"time"
 
 	"github.com/google/go-github/v82/github"
@@ -906,6 +908,57 @@ func convertToMinimalIssueType(issueType *github.IssueType) MinimalIssueType {
 	}
 
 	return m
+}
+
+// issueTypeFieldEnum lists the selectable fields for the list_issue_types tool,
+// matching the JSON field names of MinimalIssueType.
+var issueTypeFieldEnum = []any{"id", "node_id", "name", "description", "color", "created_at", "updated_at"}
+
+// issueFieldEnum lists the selectable fields for issue list and search results,
+// matching the JSON field names of MinimalIssue.
+var issueFieldEnum = []any{"number", "title", "body", "state", "state_reason", "draft", "locked", "html_url", "user", "author_association", "labels", "assignees", "milestone", "comments", "reactions", "created_at", "updated_at", "closed_at", "closed_by", "issue_type"}
+
+// pullRequestFieldEnum lists the selectable fields for pull request list results,
+// matching the JSON field names of MinimalPullRequest.
+var pullRequestFieldEnum = []any{"number", "title", "body", "state", "draft", "merged", "mergeable_state", "html_url", "user", "labels", "assignees", "requested_reviewers", "merged_by", "head", "base", "additions", "deletions", "changed_files", "commits", "comments", "created_at", "updated_at", "closed_at", "merged_at", "milestone"}
+
+// filterFields marshals v to a JSON object and returns a map containing only the
+// requested fields. Fields that are unknown or absent from the JSON (for example
+// empty values dropped via omitempty) are skipped.
+func filterFields(v any, fields []string) (map[string]any, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber() // preserve integer precision for fields such as IDs
+	var object map[string]any
+	if err := decoder.Decode(&object); err != nil {
+		return nil, err
+	}
+
+	picked := make(map[string]any, len(fields))
+	for _, field := range fields {
+		if value, ok := object[field]; ok {
+			picked[field] = value
+		}
+	}
+	return picked, nil
+}
+
+// filterEachField applies filterFields to every item, returning a slice in which
+// each element contains only the requested fields.
+func filterEachField[T any](items []T, fields []string) ([]map[string]any, error) {
+	filtered := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		picked, err := filterFields(item, fields)
+		if err != nil {
+			return nil, err
+		}
+		filtered = append(filtered, picked)
+	}
+	return filtered, nil
 }
 
 func convertToMinimalCodeSearchResult(result *github.CodeSearchResult) MinimalCodeSearchResult {
