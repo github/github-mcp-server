@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -23,6 +24,7 @@ func TestExtractUserToken(t *testing.T) {
 		name               string
 		authHeader         string
 		expectedStatusCode int
+		expectedCode       string
 		expectedTokenType  utils.TokenType
 		expectedToken      string
 		expectTokenInfo    bool
@@ -33,6 +35,7 @@ func TestExtractUserToken(t *testing.T) {
 			name:               "missing Authorization header returns 401 with WWW-Authenticate",
 			authHeader:         "",
 			expectedStatusCode: http.StatusUnauthorized,
+			expectedCode:       "missing_token",
 			expectTokenInfo:    false,
 			expectWWWAuth:      true,
 		},
@@ -151,18 +154,21 @@ func TestExtractUserToken(t *testing.T) {
 			name:               "unsupported GitHub-Bearer header returns 400",
 			authHeader:         "GitHub-Bearer some_encrypted_token",
 			expectedStatusCode: http.StatusBadRequest,
+			expectedCode:       "invalid_token",
 			expectTokenInfo:    false,
 		},
 		{
 			name:               "invalid token format returns 400",
 			authHeader:         "Bearer invalid_token_format",
 			expectedStatusCode: http.StatusBadRequest,
+			expectedCode:       "invalid_token",
 			expectTokenInfo:    false,
 		},
 		{
 			name:               "unrecognized prefix returns 400",
 			authHeader:         "Bearer xyz_notavalidprefix",
 			expectedStatusCode: http.StatusBadRequest,
+			expectedCode:       "invalid_token",
 			expectTokenInfo:    false,
 		},
 	}
@@ -189,6 +195,13 @@ func TestExtractUserToken(t *testing.T) {
 			handler.ServeHTTP(rr, req)
 
 			assert.Equal(t, tt.expectedStatusCode, rr.Code)
+			if tt.expectedCode != "" {
+				var body struct {
+					Code string `json:"code"`
+				}
+				require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+				assert.Equal(t, tt.expectedCode, body.Code)
+			}
 
 			if tt.expectWWWAuth {
 				wwwAuth := rr.Header().Get("WWW-Authenticate")
@@ -253,6 +266,11 @@ func TestExtractUserToken_MissingAuthHeader_WWWAuthenticateFormat(t *testing.T) 
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	var body struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, "missing_token", body.Code)
 	wwwAuth := rr.Header().Get("WWW-Authenticate")
 	assert.NotEmpty(t, wwwAuth)
 	assert.Contains(t, wwwAuth, "Bearer")

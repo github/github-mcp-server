@@ -20,10 +20,17 @@ Used for REST API errors from the GitHub API:
 ```go
 type GitHubAPIError struct {
     Message  string           `json:"message"`
+    Code     string           `json:"code"`
     Response *github.Response `json:"-"`
     Err      error            `json:"-"`
 }
 ```
+
+For HTTP-auth related failures, `Code` is populated with a machine-readable classifier so callers and middleware can distinguish:
+
+- `missing_token`: no bearer token was provided
+- `invalid_token`: the token was malformed or GitHub rejected it with `401`
+- `insufficient_scope`: the token was valid but lacked the required permission or scope
 
 ### GitHubGraphQLError
 

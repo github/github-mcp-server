@@ -137,8 +137,13 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 			)
 
 			// Send scope challenge response with the superset of existing and required scopes
-			w.Header().Set("WWW-Authenticate", wwwAuthenticateHeader)
-			http.Error(w, "Forbidden: insufficient scopes", http.StatusForbidden)
+			writeAuthError(
+				w,
+				http.StatusForbidden,
+				"insufficient_scope",
+				"Forbidden: insufficient scopes",
+				wwwAuthenticateHeader,
+			)
 		}
 		return http.HandlerFunc(fn)
 	}

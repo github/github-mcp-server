@@ -30,8 +30,9 @@ func ExtractUserToken(oauthCfg *oauth.Config) func(next http.Handler) http.Handl
 					sendAuthChallenge(w, r, oauthCfg)
 					return
 				}
-				// For other auth errors (bad format, unsupported), return 400
-				http.Error(w, err.Error(), http.StatusBadRequest)
+				// For other auth errors (bad format, unsupported), keep the existing 400
+				// but expose a machine-readable invalid_token classification.
+				writeAuthError(w, http.StatusBadRequest, "invalid_token", err.Error(), "")
 				return
 			}
 
@@ -51,6 +52,11 @@ func ExtractUserToken(oauthCfg *oauth.Config) func(next http.Handler) http.Handl
 func sendAuthChallenge(w http.ResponseWriter, r *http.Request, oauthCfg *oauth.Config) {
 	resourcePath := oauth.ResolveResourcePath(r, oauthCfg)
 	resourceMetadataURL := oauth.BuildResourceMetadataURL(r, oauthCfg, resourcePath)
-	w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Bearer resource_metadata=%q`, resourceMetadataURL))
-	http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	writeAuthError(
+		w,
+		http.StatusUnauthorized,
+		"missing_token",
+		"Unauthorized",
+		fmt.Sprintf(`Bearer resource_metadata=%q`, resourceMetadataURL),
+	)
 }
