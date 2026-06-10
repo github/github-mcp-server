@@ -1565,15 +1565,25 @@ type MinimalPageInfo struct {
 	EndCursor       string `json:"endCursor,omitempty"`
 }
 
+// MinimalReviewSuggestion is a structured code suggestion attached to a review comment.
+type MinimalReviewSuggestion struct {
+	Path       string `json:"path,omitempty"`
+	Suggestion string `json:"suggestion"`
+	StartLine  *int   `json:"start_line,omitempty"`
+	EndLine    *int   `json:"end_line,omitempty"`
+	Source     string `json:"source,omitempty"`
+}
+
 // MinimalReviewComment is the trimmed output type for PR review comment objects.
 type MinimalReviewComment struct {
-	Body      string `json:"body,omitempty"`
-	Path      string `json:"path"`
-	Line      *int   `json:"line,omitempty"`
-	Author    string `json:"author,omitempty"`
-	CreatedAt string `json:"created_at,omitempty"`
-	UpdatedAt string `json:"updated_at,omitempty"`
-	HTMLURL   string `json:"html_url"`
+	Body        string                    `json:"body,omitempty"`
+	Path        string                    `json:"path"`
+	Line        *int                      `json:"line,omitempty"`
+	Author      string                    `json:"author,omitempty"`
+	CreatedAt   string                    `json:"created_at,omitempty"`
+	UpdatedAt   string                    `json:"updated_at,omitempty"`
+	HTMLURL     string                    `json:"html_url"`
+	Suggestions []MinimalReviewSuggestion `json:"suggestions,omitempty"`
 }
 
 // MinimalReviewThread is the trimmed output type for PR review thread objects.

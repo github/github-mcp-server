@@ -35,7 +35,7 @@ Possible options:
  2. get_diff - Get the diff of a pull request.
  3. get_status - Get combined commit status of a head commit in a pull request.
  4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
- 5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
+ 5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Review comments include structured code suggestions when available, including Copilot-generated "Suggest" changesets (via thread partial) and human-authored suggestion code blocks in the comment body. Use cursor-based pagination (perPage, after) to control results.
  6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
  7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
  8. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
@@ -101,6 +101,19 @@ Possible options:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			if method == "get_review_comments" {
+				gqlClient, err := deps.GetGQLClient(ctx)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
+				}
+				cursorPagination, err := OptionalCursorPaginationParams(args)
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				result, err := GetPullRequestReviewComments(ctx, gqlClient, deps, owner, repo, pullNumber, cursorPagination)
+				return result, nil, err
+			}
+
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
@@ -118,17 +131,6 @@ Possible options:
 				return result, nil, err
 			case "get_files":
 				result, err := GetPullRequestFiles(ctx, client, owner, repo, pullNumber, pagination)
-				return result, nil, err
-			case "get_review_comments":
-				gqlClient, err := deps.GetGQLClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
-				}
-				cursorPagination, err := OptionalCursorPaginationParams(args)
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				result, err := GetPullRequestReviewComments(ctx, gqlClient, deps, owner, repo, pullNumber, cursorPagination)
 				return result, nil, err
 			case "get_reviews":
 				result, err := GetPullRequestReviews(ctx, client, deps, owner, repo, pullNumber, pagination)
@@ -482,7 +484,13 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 		}
 	}
 
-	return MarshalledTextResult(convertToMinimalReviewThreadsResponse(query)), nil
+	response := convertToMinimalReviewThreadsResponse(query)
+
+	if client, err := deps.GetClient(ctx); err == nil {
+		enrichReviewThreadsWithSuggestions(ctx, client, owner, repo, pullNumber, response.ReviewThreads)
+	}
+
+	return MarshalledTextResult(response), nil
 }
 
 func GetPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
