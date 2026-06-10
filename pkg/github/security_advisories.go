@@ -17,6 +17,29 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+var advisoryPackageEcosystemEnum = []any{
+	"actions", "composer", "erlang", "go", "maven", "npm", "nuget", "other", "pip", "pub", "rubygems", "rust", "swift",
+}
+
+var validAdvisoryEcosystems = map[string]struct{}{
+	"actions": {}, "composer": {}, "erlang": {}, "go": {}, "maven": {}, "npm": {},
+	"nuget": {}, "other": {}, "pip": {}, "pub": {}, "rubygems": {}, "rust": {}, "swift": {},
+}
+
+var validAdvisoryCreditTypes = map[string]struct{}{
+	"analyst": {}, "finder": {}, "reporter": {}, "coordinator": {},
+	"remediation_developer": {}, "remediation_reviewer": {}, "remediation_verifier": {},
+	"tool": {}, "sponsor": {}, "other": {},
+}
+
+var validAdvisorySeverities = map[string]struct{}{
+	"low": {}, "medium": {}, "high": {}, "critical": {},
+}
+
+var validAdvisoryStates = map[string]struct{}{
+	"draft": {}, "published": {}, "closed": {}, "triage": {},
+}
+
 func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataSecurityAdvisories,
@@ -47,7 +70,7 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 					"ecosystem": {
 						Type:        "string",
 						Description: "Filter by package ecosystem.",
-						Enum:        []any{"actions", "composer", "erlang", "go", "maven", "npm", "nuget", "other", "pip", "pub", "rubygems", "rust"},
+						Enum:        advisoryPackageEcosystemEnum,
 					},
 					"severity": {
 						Type:        "string",
