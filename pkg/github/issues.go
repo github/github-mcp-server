@@ -609,12 +609,20 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 			minimalIssueTypes := make([]MinimalIssueType, 0, len(issueTypes))
 			for _, issueType := range issueTypes {
 				if issueType != nil {
-					minimalIssueTypes = append(minimalIssueTypes, filterIssueTypeFields(convertToMinimalIssueType(issueType), fields))
+					minimalIssueTypes = append(minimalIssueTypes, convertToMinimalIssueType(issueType))
 				}
 			}
 
-			response := MinimalIssueTypesResponse{IssueTypes: minimalIssueTypes}
-			result, err := structuredTextResult(ctx, deps, response, response)
+			var payload any = MinimalIssueTypesResponse{IssueTypes: minimalIssueTypes}
+			if len(fields) > 0 {
+				filtered, err := filterEachField(minimalIssueTypes, fields)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to filter issue types", err), nil, nil
+				}
+				payload = map[string]any{"issue_types": filtered}
+			}
+
+			result, err := structuredTextResult(ctx, deps, payload, payload)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal issue types", err), nil, nil
 			}
@@ -980,6 +988,14 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Type:        "string",
 				Description: "Sort order",
 				Enum:        []any{"asc", "desc"},
+			},
+			"fields": {
+				Type:        "array",
+				Description: "Subset of issue fields to return for each result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields.",
+				Items: &jsonschema.Schema{
+					Type: "string",
+					Enum: issueFieldEnum,
+				},
 			},
 		},
 		Required: []string{"query"},
@@ -1439,6 +1455,14 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Type:        "string",
 				Description: "Filter by date (ISO 8601 timestamp)",
 			},
+			"fields": {
+				Type:        "array",
+				Description: "Subset of issue fields to return for each issue. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields.",
+				Items: &jsonschema.Schema{
+					Type: "string",
+					Enum: issueFieldEnum,
+				},
+			},
 		},
 		Required: []string{"owner", "repo"},
 	}
@@ -1518,6 +1542,11 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			since, err := OptionalParam[string](args, "since")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			fields, err := OptionalStringArrayParam(args, "fields")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -1611,7 +1640,20 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				isPrivate = queryResult.GetIsPrivate()
 			}
 
-			result, err := structuredTextResult(ctx, deps, resp, resp)
+			var payload any = resp
+			if len(fields) > 0 {
+				filteredItems, err := filterEachField(resp.Issues, fields)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to filter issues", err), nil, nil
+				}
+				payload = map[string]any{
+					"issues":     filteredItems,
+					"totalCount": resp.TotalCount,
+					"pageInfo":   resp.PageInfo,
+				}
+			}
+
+			result, err := structuredTextResult(ctx, deps, payload, payload)
 			if err != nil {
 				return nil, nil, err
 			}

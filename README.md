@@ -866,6 +866,7 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `repo`
   - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
   - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
+  - `fields`: Subset of issue fields to return for each issue. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `labels`: Filter by labels (string[], optional)
   - `orderBy`: Order issues by field. If provided, the 'direction' also needs to be provided. (string, optional)
   - `owner`: Repository owner (string, required)
@@ -876,6 +877,7 @@ The following sets of tools are available:
 
 - **search_issues** - Search issues
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of issue fields to return for each result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only issues for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1075,6 +1077,7 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `repo`
   - `base`: Filter by base branch (string, optional)
   - `direction`: Sort direction (string, optional)
+  - `fields`: Subset of pull request fields to return for each pull request. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `head`: Filter by head user/org and branch (string, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1124,6 +1127,7 @@ The following sets of tools are available:
 
 - **search_pull_requests** - Search pull requests
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of pull request fields to return for each result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only pull requests for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
