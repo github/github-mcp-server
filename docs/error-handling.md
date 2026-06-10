@@ -19,11 +19,15 @@ Used for REST API errors from the GitHub API:
 
 ```go
 type GitHubAPIError struct {
-    Message  string           `json:"message"`
-    Response *github.Response `json:"-"`
-    Err      error            `json:"-"`
+    Message           string           `json:"message"`
+    Code              string           `json:"code,omitempty"`
+    RetryAfterSeconds *int             `json:"retry_after_seconds,omitempty"`
+    Response          *github.Response `json:"-"`
+    Err               error            `json:"-"`
 }
 ```
+
+Current HTTP classifications include authentication/scope failures plus distinct rate-limit codes such as `rate_limited`, `secondary_rate_limited`, and `abuse_rate_limited` when the upstream response provides that signal.
 
 ### GitHubGraphQLError
 
