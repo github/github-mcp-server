@@ -1862,23 +1862,12 @@ Options are:
 								{Type: "string", Description: "Label name"},
 								{
 									Type: "object",
-									Properties: map[string]*jsonschema.Schema{
+									Properties: withIntentProperties(map[string]*jsonschema.Schema{
 										"name": {
 											Type:        "string",
 											Description: "Label name",
 										},
-										"rationale": {
-											Type: "string",
-											Description: "One concise sentence explaining what specifically about the issue led you to choose this label. " +
-												"State the concrete signal (e.g. 'Reports a crash when saving' → bug).",
-											MaxLength: jsonschema.Ptr(280),
-										},
-										"is_suggestion": {
-											Type: "boolean",
-											Description: "If true, this label is sent to the API as a suggestion rather than an applied label. " +
-												"Whether the label is applied or recorded as a proposal is determined by the API. Only honored when updating an existing issue.",
-										},
-									},
+									}),
 									Required: []string{"name"},
 								},
 							},
@@ -2161,23 +2150,12 @@ Options are:
 								{Type: "string", Description: "Label name"},
 								{
 									Type: "object",
-									Properties: map[string]*jsonschema.Schema{
+									Properties: withIntentProperties(map[string]*jsonschema.Schema{
 										"name": {
 											Type:        "string",
 											Description: "Label name",
 										},
-										"rationale": {
-											Type: "string",
-											Description: "One concise sentence explaining what specifically about the issue led you to choose this label. " +
-												"State the concrete signal (e.g. 'Reports a crash when saving' → bug).",
-											MaxLength: jsonschema.Ptr(280),
-										},
-										"is_suggestion": {
-											Type: "boolean",
-											Description: "If true, this label is sent to the API as a suggestion rather than an applied label. " +
-												"Whether the label is applied or recorded as a proposal is determined by the API. Only honored when updating an existing issue.",
-										},
-									},
+									}),
 									Required: []string{"name"},
 								},
 							},
@@ -2409,10 +2387,10 @@ type UpdateIssueOptions struct {
 
 // parseIssueWriteLabels parses the issue_write "labels" parameter, which accepts
 // either plain label names (strings) or objects carrying intent metadata
-// (name, rationale, is_suggestion). It returns the plain label names (intent
-// stripped), the object-form payload to send when any label carries intent,
-// whether any label carried intent, whether the labels parameter was provided
-// at all, and an error.
+// (name, rationale, confidence, is_suggestion). It returns the plain label names
+// (intent stripped), the object-form payload to send when any label carries
+// intent, whether any label carried intent, whether the labels parameter was
+// provided at all, and an error.
 func parseIssueWriteLabels(args map[string]any) (names []string, payload []any, hasIntent bool, provided bool, err error) {
 	raw, ok := args["labels"]
 	if !ok || raw == nil {
@@ -2446,26 +2424,18 @@ func parseIssueWriteLabels(args map[string]any) (names []string, payload []any, 
 			}
 			names = append(names, name)
 
-			rationale, rErr := OptionalParam[string](v, "rationale")
-			if rErr != nil {
-				return nil, nil, false, true, rErr
+			intent, itemHasIntent, intentErr := parseValueIntent(v)
+			if intentErr != nil {
+				return nil, nil, false, true, intentErr
 			}
-			rationale = strings.TrimSpace(rationale)
-			if len([]rune(rationale)) > 280 {
-				return nil, nil, false, true, fmt.Errorf("label rationale must be 280 characters or less")
-			}
-			isSuggestion, sErr := OptionalParam[bool](v, "is_suggestion")
-			if sErr != nil {
-				return nil, nil, false, true, sErr
-			}
-			if rationale == "" && !isSuggestion {
-				payload = append(payload, name)
-			} else {
+			if itemHasIntent {
 				hasIntent = true
-				payload = append(payload, labelWithIntent{Name: name, Rationale: rationale, Suggest: isSuggestion})
+				payload = append(payload, labelWithIntent{Name: name, valueIntent: intent})
+			} else {
+				payload = append(payload, name)
 			}
 		default:
-			return nil, nil, false, true, fmt.Errorf("each label must be a string or an object with 'name' and optional 'rationale' and/or 'is_suggestion'")
+			return nil, nil, false, true, fmt.Errorf("each label must be a string or an object with 'name' and optional 'rationale', 'confidence', and/or 'is_suggestion'")
 		}
 	}
 	return names, payload, hasIntent, true, nil

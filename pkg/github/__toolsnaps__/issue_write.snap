@@ -43,8 +43,17 @@
             },
             {
               "properties": {
+                "confidence": {
+                  "description": "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high"
+                  ],
+                  "type": "string"
+                },
                 "is_suggestion": {
-                  "description": "If true, this label is sent to the API as a suggestion rather than an applied label. Whether the label is applied or recorded as a proposal is determined by the API. Only honored when updating an existing issue.",
+                  "description": "If true, this value is sent to the API as a suggestion rather than an applied value. Whether it is applied or recorded as a proposal is determined by the API. Only honored when updating an existing issue.",
                   "type": "boolean"
                 },
                 "name": {
@@ -52,7 +61,7 @@
                   "type": "string"
                 },
                 "rationale": {
-                  "description": "One concise sentence explaining what specifically about the issue led you to choose this label. State the concrete signal (e.g. 'Reports a crash when saving' → bug).",
+                  "description": "A concise explanation of what specifically about the issue led you to this choice. State the concrete signal (e.g. 'Reports a crash when saving' → bug).",
                   "maxLength": 280,
                   "type": "string"
                 }

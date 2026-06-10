@@ -3516,6 +3516,17 @@ func Test_IssueWrite_UpdateLabelsWithIntent(t *testing.T) {
 			},
 		},
 		{
+			name: "suggested label with rationale and confidence",
+			labels: []any{
+				map[string]any{"name": "bug", "rationale": "Reports a crash when saving", "confidence": "high", "is_suggestion": true},
+			},
+			expectedReq: map[string]any{
+				"labels": []any{
+					map[string]any{"name": "bug", "rationale": "Reports a crash when saving", "confidence": "high", "suggest": true},
+				},
+			},
+		},
+		{
 			name: "mix of plain, applied-with-rationale, and suggested labels",
 			labels: []any{
 				"triage",
@@ -3573,7 +3584,14 @@ func Test_IssueWrite_UpdateLabelsWithIntentErrors(t *testing.T) {
 			labels: []any{
 				map[string]any{"name": "bug", "rationale": strings.Repeat("a", 281)},
 			},
-			expectedErrText: "label rationale must be 280 characters or less",
+			expectedErrText: "rationale must be 280 characters or less",
+		},
+		{
+			name: "invalid confidence value",
+			labels: []any{
+				map[string]any{"name": "bug", "confidence": "very_high"},
+			},
+			expectedErrText: "confidence must be one of: low, medium, high",
 		},
 		{
 			name: "label object missing name",

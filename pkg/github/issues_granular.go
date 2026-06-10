@@ -258,13 +258,98 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 	)
 }
 
-// labelWithIntent represents the object form of a label entry, allowing a
-// rationale, confidence level, and/or suggest flag to be sent alongside the label name.
-type labelWithIntent struct {
-	Name       string `json:"name"`
+// maxIntentRationaleLength bounds the free-text rationale an agent may attach to
+// a value it writes to an issue.
+const maxIntentRationaleLength = 280
+
+// valueIntent holds the optional reasoning metadata an agent can attach to a
+// value it writes to an issue: a free-text rationale, a confidence level, and a
+// flag marking the value as a suggestion rather than an applied value. It is
+// embedded into the object form of a written value (today labels; issue types
+// and field values in future) so the same metadata travels with each value on
+// the wire.
+type valueIntent struct {
 	Rationale  string `json:"rationale,omitempty"`
 	Confidence string `json:"confidence,omitempty"`
 	Suggest    bool   `json:"suggest,omitempty"`
+}
+
+// HasIntent reports whether any intent metadata was supplied.
+func (v valueIntent) HasIntent() bool {
+	return v.Rationale != "" || v.Confidence != "" || v.Suggest
+}
+
+// parseValueIntent extracts the shared intent metadata (rationale, confidence,
+// is_suggestion) from the object form of a written value. It trims and
+// length-checks the rationale, validates confidence against the allowed levels,
+// and reports whether any intent field was present.
+func parseValueIntent(obj map[string]any) (valueIntent, bool, error) {
+	rationale, err := OptionalParam[string](obj, "rationale")
+	if err != nil {
+		return valueIntent{}, false, err
+	}
+	rationale = strings.TrimSpace(rationale)
+	if len([]rune(rationale)) > maxIntentRationaleLength {
+		return valueIntent{}, false, fmt.Errorf("rationale must be %d characters or less", maxIntentRationaleLength)
+	}
+
+	confidence, err := OptionalParam[string](obj, "confidence")
+	if err != nil {
+		return valueIntent{}, false, err
+	}
+	switch confidence {
+	case "", "low", "medium", "high":
+	default:
+		return valueIntent{}, false, fmt.Errorf("confidence must be one of: low, medium, high")
+	}
+
+	suggest, err := OptionalParam[bool](obj, "is_suggestion")
+	if err != nil {
+		return valueIntent{}, false, err
+	}
+
+	intent := valueIntent{Rationale: rationale, Confidence: confidence, Suggest: suggest}
+	return intent, intent.HasIntent(), nil
+}
+
+// intentSchemaProperties returns the shared schema properties (rationale,
+// confidence, is_suggestion) describing the reasoning metadata an agent can
+// attach to a written value. The same properties are reused across value types
+// (today labels; issue types and field values in future).
+func intentSchemaProperties() map[string]*jsonschema.Schema {
+	return map[string]*jsonschema.Schema{
+		"rationale": {
+			Type: "string",
+			Description: "A concise explanation of what specifically about the issue led you to this choice. " +
+				"State the concrete signal (e.g. 'Reports a crash when saving' → bug).",
+			MaxLength: jsonschema.Ptr(maxIntentRationaleLength),
+		},
+		"confidence": {
+			Type:        "string",
+			Description: "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
+			Enum:        []any{"low", "medium", "high"},
+		},
+		"is_suggestion": {
+			Type: "boolean",
+			Description: "If true, this value is sent to the API as a suggestion rather than an applied value. " +
+				"Whether it is applied or recorded as a proposal is determined by the API. Only honored when updating an existing issue.",
+		},
+	}
+}
+
+// withIntentProperties merges the shared intent schema properties into props and
+// returns props, so a value's object schema (e.g. a label's {name}) can offer
+// the same rationale/confidence/is_suggestion fields.
+func withIntentProperties(props map[string]*jsonschema.Schema) map[string]*jsonschema.Schema {
+	maps.Copy(props, intentSchemaProperties())
+	return props
+}
+
+// labelWithIntent represents the object form of a label entry, carrying optional
+// intent metadata (rationale, confidence, suggest) alongside the label name.
+type labelWithIntent struct {
+	Name string `json:"name"`
+	valueIntent
 }
 
 // labelsUpdateRequest is a custom request body for updating an issue's labels
@@ -408,7 +493,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 						payload = append(payload, name)
 					} else {
 						useObjectForm = true
-						payload = append(payload, labelWithIntent{Name: name, Rationale: rationale, Confidence: confidence, Suggest: isSuggestion})
+						payload = append(payload, labelWithIntent{Name: name, valueIntent: valueIntent{Rationale: rationale, Confidence: confidence, Suggest: isSuggestion}})
 					}
 				default:
 					return utils.NewToolResultError("each label must be a string or an object with 'name' and optional 'rationale', 'confidence', and/or 'is_suggestion'"), nil, nil
