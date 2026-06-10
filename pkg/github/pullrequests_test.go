@@ -258,6 +258,24 @@ func Test_UpdatePullRequest(t *testing.T) {
 			expectedPR:  mockPRWithReviewers,
 		},
 		{
+			name: "successful PR update with user and team reviewers",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
+					"reviewers":      []any{"reviewer1"},
+					"team_reviewers": []any{"platform"},
+				}).andThen(mockResponse(t, http.StatusOK, mockPRWithReviewers)),
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPRWithReviewers),
+			}),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"reviewers":  []any{"reviewer1", "owner/platform"},
+			},
+			expectError: false,
+			expectedPR:  mockPRWithReviewers,
+		},
+		{
 			name: "successful PR update (title only)",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposPullsByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
@@ -2467,6 +2485,49 @@ func Test_CreatePullRequest_MCPAppsFeature_UIGate(t *testing.T) {
 		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
 			"non-UI client should execute directly")
 	})
+
+	t.Run("UI client with non-form param skips form and executes directly", func(t *testing.T) {
+		// A parameter the form does not collect must bypass the form rather than
+		// be silently dropped.
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"owner":     "owner",
+			"repo":      "repo",
+			"title":     "Test PR",
+			"head":      "feature",
+			"base":      "main",
+			"reviewers": []any{"octocat"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.NotContains(t, textContent.Text, "Ready to create a pull request",
+			"non-form param should skip UI form")
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
+			"non-form param call should execute directly and return PR URL")
+	})
+}
+
+func Test_pullRequestWriteHasNonFormParams(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args map[string]any
+		want bool
+	}{
+		{name: "no params", args: map[string]any{}, want: false},
+		{name: "only form params", args: map[string]any{"owner": "o", "repo": "r", "title": "t", "body": "b", "head": "h", "base": "b", "draft": true, "maintainer_can_modify": false, "_ui_submitted": true}, want: false},
+		{name: "unknown param present", args: map[string]any{"title": "t", "reviewers": []any{"octocat"}}, want: true},
+		{name: "nil value is ignored", args: map[string]any{"reviewers": nil}, want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, pullRequestWriteHasNonFormParams(tc.args))
+		})
+	}
 }
 
 func TestCreateAndSubmitPullRequestReview(t *testing.T) {

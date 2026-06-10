@@ -4,7 +4,7 @@
     "openWorldHint": true,
     "title": "Update Issue Labels"
   },
-  "description": "Update the labels of an existing issue. This replaces the current labels with the provided list.",
+  "description": "Update the labels of an existing issue. This replaces the current labels with the provided list. When setting values, include a confidence level (low, medium, or high) reflecting how certain you are about the choice.",
   "inputSchema": {
     "properties": {
       "issue_number": {
@@ -22,6 +22,19 @@
             },
             {
               "properties": {
+                "confidence": {
+                  "description": "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high"
+                  ],
+                  "type": "string"
+                },
+                "is_suggestion": {
+                  "description": "If true, this label is sent to the API as a suggestion (suggest:true) rather than an applied label. Whether the label is applied or recorded as a proposal is determined by the API.",
+                  "type": "boolean"
+                },
                 "name": {
                   "description": "Label name",
                   "type": "string"

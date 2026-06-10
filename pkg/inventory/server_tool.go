@@ -64,9 +64,9 @@ type ServerTool struct {
 	// to be available. If set and the flag is not enabled, the tool is omitted.
 	FeatureFlagEnable string
 
-	// FeatureFlagDisable specifies a feature flag that, when enabled, causes this tool
-	// to be omitted. Used to disable tools when a feature flag is on.
-	FeatureFlagDisable string
+	// FeatureFlagDisable specifies feature flags that, when any is enabled, cause this
+	// tool to be omitted. Used to disable tools when a feature flag is on.
+	FeatureFlagDisable []string
 
 	// Enabled is an optional function called at build/filter time to determine
 	// if this tool should be available. If nil, the tool is considered enabled

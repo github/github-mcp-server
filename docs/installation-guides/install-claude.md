@@ -37,9 +37,17 @@ echo -e ".env\n.mcp.json" >> .gitignore
 claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp","headers":{"Authorization":"Bearer YOUR_GITHUB_PAT"}}'
 ```
 
-With an environment variable:
+With an environment variable (Linux/macOS):
 ```bash
-claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp","headers":{"Authorization":"Bearer '"$(grep GITHUB_PAT .env | cut -d '=' -f2)"'"}}'
+export GITHUB_PAT="$(grep '^GITHUB_PAT=' .env | cut -d '=' -f2-)"
+claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp","headers":{"Authorization":"Bearer '"$GITHUB_PAT"'"}}'
+```
+
+With an environment variable (Windows PowerShell):
+```powershell
+$githubPatLine = Get-Content .env | Select-String "^\s*GITHUB_PAT\s*=" | Select-Object -First 1
+$env:GITHUB_PAT = ($githubPatLine.Line -split "=", 2)[1].Trim().Trim('"').Trim("'")
+claude mcp add-json github "{`"type`":`"http`",`"url`":`"https://api.githubcopilot.com/mcp`",`"headers`":{`"Authorization`":`"Bearer $env:GITHUB_PAT`"}}"
 ```
 
 > **About the `--scope` flag** (optional): Use this to specify where the configuration is stored:

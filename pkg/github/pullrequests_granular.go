@@ -297,7 +297,7 @@ func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) i
 					"pullNumber": {Type: "number", Description: "The pull request number", Minimum: jsonschema.Ptr(1.0)},
 					"reviewers": {
 						Type:        "array",
-						Description: "GitHub usernames to request reviews from",
+						Description: "GitHub usernames or ORG/team-slug team reviewers to request reviews from",
 						Items:       &jsonschema.Schema{Type: "string"},
 					},
 				},
@@ -325,13 +325,17 @@ func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) i
 			if len(reviewers) == 0 {
 				return utils.NewToolResultError("missing required parameter: reviewers"), nil, nil
 			}
+			userReviewers, teamReviewers := splitPullRequestReviewers(reviewers)
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			pr, resp, err := client.PullRequests.RequestReviewers(ctx, owner, repo, pullNumber, gogithub.ReviewersRequest{Reviewers: reviewers})
+			pr, resp, err := client.PullRequests.RequestReviewers(ctx, owner, repo, pullNumber, gogithub.ReviewersRequest{
+				Reviewers:     userReviewers,
+				TeamReviewers: teamReviewers,
+			})
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to request reviewers", resp, err), nil, nil
 			}
@@ -349,6 +353,22 @@ func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) i
 	)
 	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
 	return st
+}
+
+func splitPullRequestReviewers(reviewers []string) ([]string, []string) {
+	userReviewers := make([]string, 0, len(reviewers))
+	teamReviewers := make([]string, 0)
+
+	for _, reviewer := range reviewers {
+		org, team, ok := strings.Cut(reviewer, "/")
+		if ok && org != "" && team != "" && !strings.Contains(team, "/") {
+			teamReviewers = append(teamReviewers, team)
+			continue
+		}
+		userReviewers = append(userReviewers, reviewer)
+	}
+
+	return userReviewers, teamReviewers
 }
 
 // GranularCreatePullRequestReview creates a tool to create a PR review.
