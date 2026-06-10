@@ -3626,6 +3626,132 @@ func Test_IssueWrite_UpdateLabelsWithIntentErrors(t *testing.T) {
 	}
 }
 
+func Test_IssueWrite_UpdateTypeWithIntent(t *testing.T) {
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+	updatedIssue := &github.Issue{
+		Number:  github.Ptr(1),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/1"),
+	}
+
+	tests := []struct {
+		name        string
+		issueType   any
+		expectedReq map[string]any
+	}{
+		{
+			name:      "plain type name sent as string",
+			issueType: "bug",
+			expectedReq: map[string]any{
+				"type": "bug",
+			},
+		},
+		{
+			name:      "type object without intent sent as string",
+			issueType: map[string]any{"name": "bug"},
+			expectedReq: map[string]any{
+				"type": "bug",
+			},
+		},
+		{
+			name:      "suggested type without rationale",
+			issueType: map[string]any{"name": "bug", "is_suggestion": true},
+			expectedReq: map[string]any{
+				"type": map[string]any{"value": "bug", "suggest": true},
+			},
+		},
+		{
+			name:      "applied type with rationale",
+			issueType: map[string]any{"name": "feature", "rationale": "Asks for dark mode support"},
+			expectedReq: map[string]any{
+				"type": map[string]any{"value": "feature", "rationale": "Asks for dark mode support"},
+			},
+		},
+		{
+			name:      "suggested type with rationale and confidence",
+			issueType: map[string]any{"name": "bug", "rationale": "Reports a crash when saving", "confidence": "high", "is_suggestion": true},
+			expectedReq: map[string]any{
+				"type": map[string]any{"value": "bug", "rationale": "Reports a crash when saving", "confidence": "high", "suggest": true},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
+					andThen(mockResponse(t, http.StatusOK, updatedIssue)),
+			}))
+			deps := BaseDeps{
+				Client:    client,
+				GQLClient: githubv4.NewClient(githubv4mock.NewMockedHTTPClient()),
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"type":         tc.issueType,
+			})
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			if result.IsError {
+				t.Fatalf("unexpected error result: %s", getErrorResult(t, result).Text)
+			}
+		})
+	}
+}
+
+func Test_IssueWrite_UpdateTypeWithIntentErrors(t *testing.T) {
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+
+	tests := []struct {
+		name            string
+		issueType       any
+		expectedErrText string
+	}{
+		{
+			name:            "rationale too long",
+			issueType:       map[string]any{"name": "bug", "rationale": strings.Repeat("a", 281)},
+			expectedErrText: "rationale must be 280 characters or less",
+		},
+		{
+			name:            "invalid confidence value",
+			issueType:       map[string]any{"name": "bug", "confidence": "very_high"},
+			expectedErrText: "confidence must be one of: low, medium, high",
+		},
+		{
+			name:            "type object missing name",
+			issueType:       map[string]any{"rationale": "no name provided"},
+			expectedErrText: "type object must have a 'name' string",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			deps := BaseDeps{
+				Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(nil)),
+				GQLClient: githubv4.NewClient(githubv4mock.NewMockedHTTPClient()),
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"type":         tc.issueType,
+			})
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			errorContent := getErrorResult(t, result)
+			assert.Contains(t, errorContent.Text, tc.expectedErrText)
+		})
+	}
+}
+
 func Test_ParseISOTimestamp(t *testing.T) {
 	tests := []struct {
 		name         string

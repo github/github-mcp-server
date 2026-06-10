@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"strconv"
 	"strings"
@@ -1793,6 +1794,29 @@ func issueWriteHasNonFormParams(args map[string]any) bool {
 	return false
 }
 
+// issueWriteTypeSchema returns the schema for the issue_write "type" property,
+// which accepts either a plain type name (string) or an object carrying intent
+// metadata (a "name" plus optional rationale/confidence/is_suggestion), mirroring
+// the labels schema so a type can be applied or suggested with reasoning.
+func issueWriteTypeSchema() *jsonschema.Schema {
+	return &jsonschema.Schema{
+		Description: "Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter.",
+		OneOf: []*jsonschema.Schema{
+			{Type: "string", Description: "Issue type name"},
+			{
+				Type: "object",
+				Properties: withIntentProperties(map[string]*jsonschema.Schema{
+					"name": {
+						Type:        "string",
+						Description: "Issue type name",
+					},
+				}),
+				Required: []string{"name"},
+			},
+		},
+	}
+}
+
 // IssueWrite is the FeatureFlagIssueFields-enabled variant of issue_write
 // (with the issue_fields parameter). LegacyIssueWrite is served when the flag
 // is off. Both register under the tool name "issue_write"; exactly one is
@@ -1877,10 +1901,7 @@ Options are:
 						Type:        "number",
 						Description: "Milestone number",
 					},
-					"type": {
-						Type:        "string",
-						Description: "Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter.",
-					},
+					"type": issueWriteTypeSchema(),
 					"state": {
 						Type:        "string",
 						Description: "New state",
@@ -2004,8 +2025,8 @@ Options are:
 				milestoneNum = milestone
 			}
 
-			// Get optional type
-			issueType, err := OptionalParam[string](args, "type")
+			// Get optional type (plain name or an object carrying intent)
+			issueType, issueTypePayload, issueTypeHasIntent, _, err := parseValueParamWithIntent(args, "type", "name", "value")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -2069,6 +2090,9 @@ Options are:
 				}
 				if labelsHaveIntent {
 					updateOpts.LabelsWithIntent = labelsPayload
+				}
+				if issueTypeHasIntent {
+					updateOpts.TypeWithIntent = issueTypePayload
 				}
 				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, updateOpts)
 				return result, nil, err
@@ -2165,10 +2189,7 @@ Options are:
 						Type:        "number",
 						Description: "Milestone number",
 					},
-					"type": {
-						Type:        "string",
-						Description: "Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter.",
-					},
+					"type": issueWriteTypeSchema(),
 					"state": {
 						Type:        "string",
 						Description: "New state",
@@ -2257,8 +2278,8 @@ Options are:
 				milestoneNum = milestone
 			}
 
-			// Get optional type
-			issueType, err := OptionalParam[string](args, "type")
+			// Get optional type (plain name or an object carrying intent)
+			issueType, issueTypePayload, issueTypeHasIntent, _, err := parseValueParamWithIntent(args, "type", "name", "value")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -2307,6 +2328,9 @@ Options are:
 				}
 				if labelsHaveIntent {
 					updateOpts.LabelsWithIntent = labelsPayload
+				}
+				if issueTypeHasIntent {
+					updateOpts.TypeWithIntent = issueTypePayload
 				}
 				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, nil, nil, state, stateReason, duplicateOf, updateOpts)
 				return result, nil, err
@@ -2383,13 +2407,18 @@ type UpdateIssueOptions struct {
 	// per-label rationale and suggestion intent are preserved. When set, it
 	// takes precedence over the labels slice.
 	LabelsWithIntent []any
+	// TypeWithIntent, when non-nil, sends the type in object form (a
+	// valueWithIntent) via a custom request so type rationale and suggestion
+	// intent are preserved. When set, it takes precedence over the issueType
+	// string.
+	TypeWithIntent any
 }
 
-// issueRequestWithLabels marshals an IssueRequest into a generic map and sets
-// the labels field to the provided object-form payload (a mix of plain label
-// names and valueWithIntent objects). This lets an issue update carry per-label
-// rationale and suggestion intent that github.IssueRequest cannot represent.
-func issueRequestWithLabels(issueRequest *github.IssueRequest, labels []any) (map[string]any, error) {
+// issueRequestWithIntentOverrides marshals an IssueRequest into a generic map and
+// applies the given overrides (object-form fields that github.IssueRequest cannot
+// represent, e.g. labels or type carrying per-value rationale and suggestion
+// intent). This lets an issue update carry intent metadata on the wire.
+func issueRequestWithIntentOverrides(issueRequest *github.IssueRequest, overrides map[string]any) (map[string]any, error) {
 	data, err := json.Marshal(issueRequest)
 	if err != nil {
 		return nil, err
@@ -2398,7 +2427,7 @@ func issueRequestWithLabels(issueRequest *github.IssueRequest, labels []any) (ma
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return nil, err
 	}
-	payload["labels"] = labels
+	maps.Copy(payload, overrides)
 	return payload, nil
 }
 
@@ -2412,6 +2441,9 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		updateOptions.LabelsProvided = updateOptions.LabelsProvided || opt.LabelsProvided
 		if len(opt.LabelsWithIntent) > 0 {
 			updateOptions.LabelsWithIntent = opt.LabelsWithIntent
+		}
+		if opt.TypeWithIntent != nil {
+			updateOptions.TypeWithIntent = opt.TypeWithIntent
 		}
 	}
 
@@ -2441,7 +2473,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		issueRequest.Milestone = &milestoneNum
 	}
 
-	if issueType != "" {
+	if issueType != "" && updateOptions.TypeWithIntent == nil {
 		issueRequest.Type = github.Ptr(issueType)
 	}
 
@@ -2473,11 +2505,18 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	var updatedIssue *github.Issue
 	var resp *github.Response
 	var err error
-	if len(updateOptions.LabelsWithIntent) > 0 {
-		// Send labels in object form so per-label rationale and suggestion intent
-		// are preserved. Marshal the standard request (labels omitted), then inject
-		// the object-form labels into the payload.
-		payload, mErr := issueRequestWithLabels(issueRequest, updateOptions.LabelsWithIntent)
+	if len(updateOptions.LabelsWithIntent) > 0 || updateOptions.TypeWithIntent != nil {
+		// Send values that carry intent (labels and/or type) in object form so
+		// their rationale and suggestion intent are preserved. Marshal the standard
+		// request (those fields omitted), then inject the object-form values.
+		overrides := map[string]any{}
+		if len(updateOptions.LabelsWithIntent) > 0 {
+			overrides["labels"] = updateOptions.LabelsWithIntent
+		}
+		if updateOptions.TypeWithIntent != nil {
+			overrides["type"] = updateOptions.TypeWithIntent
+		}
+		payload, mErr := issueRequestWithIntentOverrides(issueRequest, overrides)
 		if mErr != nil {
 			return utils.NewToolResultErrorFromErr("failed to build issue update request", mErr), nil
 		}
