@@ -2395,7 +2395,9 @@ func issueRequestWithLabels(issueRequest *github.IssueRequest, labels []any) (ma
 		return nil, err
 	}
 	payload := map[string]any{}
-	if err := json.Unmarshal(data, &payload); err != nil {
+	dec := json.NewDecoder(strings.NewReader(string(data)))
+	dec.UseNumber()
+	if err := dec.Decode(&payload); err != nil {
 		return nil, err
 	}
 	payload["labels"] = labels
