@@ -470,30 +470,15 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 					if err != nil {
 						return utils.NewToolResultError("each label object must have a 'name' string"), nil, nil
 					}
-					rationale, err := OptionalParam[string](v, "rationale")
+					intent, itemHasIntent, err := parseValueIntent(v)
 					if err != nil {
 						return utils.NewToolResultError(err.Error()), nil, nil
 					}
-					rationale = strings.TrimSpace(rationale)
-					if len([]rune(rationale)) > 280 {
-						return utils.NewToolResultError("label rationale must be 280 characters or less"), nil, nil
-					}
-					confidence, err := OptionalParam[string](v, "confidence")
-					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
-					}
-					if confidence != "" && confidence != "low" && confidence != "medium" && confidence != "high" {
-						return utils.NewToolResultError("confidence must be one of: low, medium, high"), nil, nil
-					}
-					isSuggestion, err := OptionalParam[bool](v, "is_suggestion")
-					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
-					}
-					if rationale == "" && !isSuggestion && confidence == "" {
-						payload = append(payload, name)
-					} else {
+					if itemHasIntent {
 						useObjectForm = true
-						payload = append(payload, labelWithIntent{Name: name, valueIntent: valueIntent{Rationale: rationale, Confidence: confidence, Suggest: isSuggestion}})
+						payload = append(payload, labelWithIntent{Name: name, valueIntent: intent})
+					} else {
+						payload = append(payload, name)
 					}
 				default:
 					return utils.NewToolResultError("each label must be a string or an object with 'name' and optional 'rationale', 'confidence', and/or 'is_suggestion'"), nil, nil

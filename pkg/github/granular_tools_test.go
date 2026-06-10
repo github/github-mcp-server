@@ -429,7 +429,7 @@ func TestGranularUpdateIssueLabelsInvalidRationale(t *testing.T) {
 					map[string]any{"name": "bug", "rationale": strings.Repeat("a", 281)},
 				},
 			},
-			expectedErrText: "label rationale must be 280 characters or less",
+			expectedErrText: "rationale must be 280 characters or less",
 		},
 		{
 			name: "label object missing name",
