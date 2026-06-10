@@ -12,7 +12,12 @@
         "items": {
           "properties": {
             "confidence": {
-              "description": "How confident you are in this field value: low, medium, or high.",
+              "description": "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ],
               "type": "string"
             },
             "date_value": {

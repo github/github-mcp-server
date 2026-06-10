@@ -987,7 +987,8 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 								},
 								"confidence": {
 									Type:        "string",
-									Description: "How confident you are in this field value: low, medium, or high.",
+									Description: "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
+									Enum:        []any{"low", "medium", "high"},
 								},
 								"is_suggestion": {
 									Type: "boolean",
