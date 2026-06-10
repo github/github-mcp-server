@@ -44,7 +44,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
   - **MCP App UI**: `ui://github-mcp-server/get-me`
   - No parameters required
 
-- **issue_write** - Create or update issue
+- **issue_write** - Create or update issue/pull request
   - **Required OAuth Scopes**: `repo`
   - **MCP App UI**: `ui://github-mcp-server/issue-write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
@@ -67,7 +67,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
 
 ### `remote_mcp_issue_fields`
 
-- **issue_write** - Create or update issue
+- **issue_write** - Create or update issue/pull request
   - **Required OAuth Scopes**: `repo`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)

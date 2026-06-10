@@ -50,7 +50,7 @@ runtime behavior (such as output formatting) won't appear here.
   - **MCP App UI**: `ui://github-mcp-server/get-me`
   - No parameters required
 
-- **issue_write** - Create or update issue
+- **issue_write** - Create or update issue/pull request
   - **Required OAuth Scopes**: `repo`
   - **MCP App UI**: `ui://github-mcp-server/issue-write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
@@ -73,7 +73,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 ### `remote_mcp_issue_fields`
 
-- **issue_write** - Create or update issue
+- **issue_write** - Create or update issue/pull request
   - **Required OAuth Scopes**: `repo`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
