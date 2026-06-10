@@ -717,7 +717,7 @@ The following sets of tools are available:
 - **list_dependabot_alerts** - List dependabot alerts
   - **Required OAuth Scopes**: `security_events`
   - **Accepted OAuth Scopes**: `repo`, `security_events`
-  - `after`: Omit for the first page. For subsequent pages, use pageInfo.nextCursor from the previous response. (string, optional)
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `owner`: The owner of the repository. (string, required)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: The name of the repository. (string, required)
@@ -755,7 +755,7 @@ The following sets of tools are available:
 
 - **get_discussion_comments** - Get discussion comments
   - **Required OAuth Scopes**: `repo`
-  - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `discussionNumber`: Discussion Number (number, required)
   - `includeReplies`: When true, each top-level comment will include its replies nested within it (up to 100 replies per comment, which is the GitHub API maximum). Defaults to false. (boolean, optional)
   - `owner`: Repository owner (string, required)
@@ -769,7 +769,7 @@ The following sets of tools are available:
 
 - **list_discussions** - List discussions
   - **Required OAuth Scopes**: `repo`
-  - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `category`: Optional filter by discussion category ID. If provided, only discussions with this category are listed. (string, optional)
   - `direction`: Order direction. (string, optional)
   - `orderBy`: Order discussions by field. If provided, the 'direction' also needs to be provided. (string, optional)
@@ -881,7 +881,7 @@ The following sets of tools are available:
 
 - **list_issues** - List issues
   - **Required OAuth Scopes**: `repo`
-  - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
   - `labels`: Filter by labels (string[], optional)
   - `orderBy`: Order issues by field. If provided, the 'direction' also needs to be provided. (string, optional)

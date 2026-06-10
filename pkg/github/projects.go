@@ -1350,13 +1350,6 @@ func getProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, sta
 	return utils.NewToolResultText(string(r)), nil, nil
 }
 
-type pageInfo struct {
-	HasNextPage     bool   `json:"hasNextPage"`
-	HasPreviousPage bool   `json:"hasPreviousPage"`
-	NextCursor      string `json:"nextCursor,omitempty"`
-	PrevCursor      string `json:"prevCursor,omitempty"`
-}
-
 // validateAndConvertToInt64 ensures the value is a number and converts it to int64.
 func validateAndConvertToInt64(value any) (int64, error) {
 	switch v := value.(type) {
@@ -1405,15 +1398,6 @@ func buildUpdateProjectItem(input map[string]any) (*github.UpdateProjectItemOpti
 	}
 
 	return payload, nil
-}
-
-func buildPageInfo(resp *github.Response) pageInfo {
-	return pageInfo{
-		HasNextPage:     resp.After != "",
-		HasPreviousPage: resp.Before != "",
-		NextCursor:      resp.After,
-		PrevCursor:      resp.Before,
-	}
 }
 
 func extractPaginationOptionsFromArgs(args map[string]any) (github.ListProjectsPaginationOptions, error) {

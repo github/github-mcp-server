@@ -96,7 +96,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
 
 - **list_issues** - List issues
   - **Required OAuth Scopes**: `repo`
-  - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
   - `field_filters`: Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date). (object[], optional)
   - `labels`: Filter by labels (string[], optional)

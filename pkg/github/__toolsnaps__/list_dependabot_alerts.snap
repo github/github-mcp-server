@@ -7,7 +7,7 @@
   "inputSchema": {
     "properties": {
       "after": {
-        "description": "Omit for the first page. For subsequent pages, use pageInfo.nextCursor from the previous response.",
+        "description": "Cursor for pagination. Use the cursor from the previous response.",
         "type": "string"
       },
       "owner": {
