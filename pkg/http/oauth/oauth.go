@@ -49,6 +49,15 @@ type Config struct {
 	// This is used to restore the original path when a proxy strips a base path before forwarding.
 	// If empty, requests are treated as already using the external path.
 	ResourcePath string
+
+	// TrustProxyHeaders indicates whether X-Forwarded-Host and X-Forwarded-Proto
+	// should be honored when deriving the effective host and scheme for OAuth
+	// resource URLs. This must only be enabled when the server is deployed
+	// behind a trusted proxy that sets these headers; otherwise an untrusted
+	// client can influence the OAuth resource metadata URL advertised to MCP
+	// clients. When BaseURL is set, it always takes precedence and these
+	// headers are unused.
+	TrustProxyHeaders bool
 }
 
 // AuthHandler handles OAuth-related HTTP endpoints.
@@ -196,18 +205,31 @@ func (h *AuthHandler) buildResourceURL(r *http.Request, resourcePath string) str
 }
 
 // GetEffectiveHostAndScheme returns the effective host and scheme for a request.
+//
+// X-Forwarded-Host and X-Forwarded-Proto are only honored when cfg.TrustProxyHeaders
+// is true. Without that opt-in, an untrusted client could otherwise influence the
+// OAuth resource metadata URL advertised to MCP clients.
 func GetEffectiveHostAndScheme(r *http.Request, cfg *Config) (host, scheme string) { //nolint:revive
-	if fh := r.Header.Get(headers.ForwardedHostHeader); fh != "" {
-		host = fh
-	} else {
+	trustProxy := cfg != nil && cfg.TrustProxyHeaders
+
+	if trustProxy {
+		if fh := r.Header.Get(headers.ForwardedHostHeader); fh != "" {
+			host = fh
+		}
+	}
+	if host == "" {
 		host = r.Host
 	}
 	if host == "" {
 		host = "localhost"
 	}
-	if fp := r.Header.Get(headers.ForwardedProtoHeader); fp != "" {
-		scheme = strings.ToLower(fp)
-	} else {
+
+	if trustProxy {
+		if fp := r.Header.Get(headers.ForwardedProtoHeader); fp != "" {
+			scheme = strings.ToLower(fp)
+		}
+	}
+	if scheme == "" {
 		if r.TLS != nil {
 			scheme = "https"
 		} else {

@@ -1,7 +1,7 @@
 {
   "annotations": {
     "readOnlyHint": true,
-    "title": "List labels from a repository."
+    "title": "List labels from a repository"
   },
   "description": "List labels from a repository",
   "inputSchema": {

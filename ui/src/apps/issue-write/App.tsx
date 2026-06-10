@@ -33,12 +33,14 @@ function SuccessView({
   repo,
   submittedTitle,
   isUpdate,
+  openLink,
 }: {
   issue: IssueResult;
   owner: string;
   repo: string;
   submittedTitle: string;
   isUpdate: boolean;
+  openLink: (url: string) => Promise<void>;
 }) {
   const issueUrl = issue.html_url || issue.url || issue.URL || "#";
 
@@ -87,6 +89,14 @@ function SuccessView({
             href={issueUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => {
+              // MCP Apps run in a sandboxed iframe where a plain anchor may be
+              // blocked, so route the click through the host's open-link
+              // capability (falls back to window.open).
+              e.preventDefault();
+              if (issueUrl === "#") return;
+              void openLink(issueUrl);
+            }}
             style={{
               fontWeight: 600,
               fontSize: "14px",
@@ -121,7 +131,7 @@ function CreateIssueApp() {
   const [error, setError] = useState<string | null>(null);
   const [successIssue, setSuccessIssue] = useState<IssueResult | null>(null);
 
-  const { app, error: appError, toolInput, callTool } = useMcpApp({
+  const { app, error: appError, toolInput, callTool, hostContext, setModelContext, openLink } = useMcpApp({
     appName: "github-mcp-server-issue-write",
   });
 
@@ -152,6 +162,7 @@ function CreateIssueApp() {
 
     try {
       const params: Record<string, unknown> = {
+        ...(toolInput as Record<string, unknown> | undefined),
         method: isUpdateMode ? "update" : "create",
         owner,
         repo,
@@ -181,6 +192,19 @@ function CreateIssueApp() {
           try {
             const issueData = JSON.parse(textContent.text as string);
             setSuccessIssue(issueData);
+            // Per the MCP Apps 2026-01-26 spec, push the created/updated issue
+            // into the model's context so subsequent agent turns have it.
+            void setModelContext({
+              structuredContent: issueData,
+              content: [
+                {
+                  type: "text",
+                  text: isUpdateMode
+                    ? `Issue #${issueNumber} in ${owner}/${repo} was updated by the user via the issue-write view.`
+                    : `A new issue was created in ${owner}/${repo} by the user via the issue-write view.`,
+                },
+              ],
+            });
           } catch {
             setSuccessIssue({ title, body });
           }
@@ -191,8 +215,9 @@ function CreateIssueApp() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [title, body, owner, repo, isUpdateMode, issueNumber, callTool]);
+  }, [title, body, owner, repo, isUpdateMode, issueNumber, toolInput, callTool, setModelContext]);
 
+  const body_node = (() => {
   if (appError) {
     return (
       <Flash variant="danger" sx={{ m: 2 }}>
@@ -217,6 +242,7 @@ function CreateIssueApp() {
         repo={repo}
         submittedTitle={title}
         isUpdate={isUpdateMode}
+        openLink={openLink}
       />
     );
   }
@@ -307,12 +333,13 @@ function CreateIssueApp() {
       </Box>
     </Box>
   );
+  })();
+
+  return <AppProvider hostContext={hostContext}>{body_node}</AppProvider>;
 }
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <AppProvider>
-      <CreateIssueApp />
-    </AppProvider>
+    <CreateIssueApp />
   </StrictMode>
 );

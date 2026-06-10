@@ -1,0 +1,133 @@
+{
+  "_meta": {
+    "ui": {
+      "resourceUri": "ui://github-mcp-server/issue-write",
+      "visibility": [
+        "model",
+        "app"
+      ]
+    }
+  },
+  "annotations": {
+    "title": "Create or update issue"
+  },
+  "description": "Create a new or update an existing issue in a GitHub repository.",
+  "inputSchema": {
+    "properties": {
+      "assignees": {
+        "description": "Usernames to assign to this issue",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "body": {
+        "description": "Issue body content",
+        "type": "string"
+      },
+      "duplicate_of": {
+        "description": "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
+        "type": "number"
+      },
+      "issue_fields": {
+        "description": "Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', or 'delete: true'.",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "delete": {
+              "description": "Set to true to clear this field's current value on the issue. Cannot be combined with 'value' or 'field_option_name'.",
+              "enum": [
+                true
+              ],
+              "type": "boolean"
+            },
+            "field_name": {
+              "description": "Issue field name (case-insensitive). Must match a field returned by list_issue_fields for this repository or its organization.",
+              "type": "string"
+            },
+            "field_option_name": {
+              "description": "Option name for single-select fields. Validated against the field's options before the API call. Cannot be combined with 'value' or 'delete'.",
+              "type": "string"
+            },
+            "value": {
+              "description": "Value to set. Use for text, number, and date fields (date as YYYY-MM-DD). For single-select fields, prefer 'field_option_name' so the option is validated before the API call. Cannot be combined with 'field_option_name' or 'delete'.",
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            }
+          },
+          "required": [
+            "field_name"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "issue_number": {
+        "description": "Issue number to update",
+        "type": "number"
+      },
+      "labels": {
+        "description": "Labels to apply to this issue",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "method": {
+        "description": "Write operation to perform on a single issue.\nOptions are:\n- 'create' - creates a new issue.\n- 'update' - updates an existing issue.\n",
+        "enum": [
+          "create",
+          "update"
+        ],
+        "type": "string"
+      },
+      "milestone": {
+        "description": "Milestone number",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "state": {
+        "description": "New state",
+        "enum": [
+          "open",
+          "closed"
+        ],
+        "type": "string"
+      },
+      "state_reason": {
+        "description": "Reason for the state change. Ignored unless state is changed.",
+        "enum": [
+          "completed",
+          "not_planned",
+          "duplicate"
+        ],
+        "type": "string"
+      },
+      "title": {
+        "description": "Issue title",
+        "type": "string"
+      },
+      "type": {
+        "description": "Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "issue_write"
+}

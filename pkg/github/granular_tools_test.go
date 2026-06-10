@@ -8,6 +8,8 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/http/headers"
+	transportpkg "github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v87/github"
@@ -335,6 +337,84 @@ func TestGranularUpdateIssueLabels(t *testing.T) {
 	}
 }
 
+func TestGranularUpdateIssueLabelsSuggest(t *testing.T) {
+	tests := []struct {
+		name        string
+		requestArgs map[string]any
+		expectedReq map[string]any
+	}{
+		{
+			name: "single label suggested without rationale",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"labels": []any{
+					map[string]any{"name": "bug", "is_suggestion": true},
+				},
+			},
+			expectedReq: map[string]any{
+				"labels": []any{
+					map[string]any{"name": "bug", "suggest": true},
+				},
+			},
+		},
+		{
+			name: "suggested label with rationale",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"labels": []any{
+					map[string]any{"name": "frontend", "rationale": "Mentions the UI button", "is_suggestion": true},
+				},
+			},
+			expectedReq: map[string]any{
+				"labels": []any{
+					map[string]any{"name": "frontend", "rationale": "Mentions the UI button", "suggest": true},
+				},
+			},
+		},
+		{
+			name: "mix of plain, applied-with-rationale, and suggested labels",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"labels": []any{
+					"triage",
+					map[string]any{"name": "bug", "rationale": "Reports a crash when saving"},
+					map[string]any{"name": "needs-design", "is_suggestion": true},
+				},
+			},
+			expectedReq: map[string]any{
+				"labels": []any{
+					"triage",
+					map[string]any{"name": "bug", "rationale": "Reports a crash when saving"},
+					map[string]any{"name": "needs-design", "suggest": true},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+			}))
+			deps := BaseDeps{Client: client}
+			serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			assert.False(t, result.IsError)
+		})
+	}
+}
+
 func TestGranularUpdateIssueLabelsInvalidRationale(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -379,6 +459,91 @@ func TestGranularUpdateIssueLabelsInvalidRationale(t *testing.T) {
 
 			errorContent := getErrorResult(t, result)
 			assert.Contains(t, errorContent.Text, tc.expectedErrText)
+		})
+	}
+}
+
+func TestGranularUpdateIssueLabelsConfidence(t *testing.T) {
+	tests := []struct {
+		name        string
+		requestArgs map[string]any
+		expectedReq map[string]any
+	}{
+		{
+			name: "label with confidence triggers object form",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"labels": []any{
+					map[string]any{"name": "bug", "confidence": "high"},
+				},
+			},
+			expectedReq: map[string]any{
+				"labels": []any{
+					map[string]any{"name": "bug", "confidence": "high"},
+				},
+			},
+		},
+		{
+			name: "label with confidence and rationale",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"labels": []any{
+					map[string]any{"name": "bug", "rationale": "Reports a crash", "confidence": "medium"},
+				},
+			},
+			expectedReq: map[string]any{
+				"labels": []any{
+					map[string]any{"name": "bug", "rationale": "Reports a crash", "confidence": "medium"},
+				},
+			},
+		},
+		{
+			name: "invalid confidence value",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"labels": []any{
+					map[string]any{"name": "bug", "confidence": "very_high"},
+				},
+			},
+			expectedReq: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.expectedReq == nil {
+				// Error case
+				deps := BaseDeps{Client: mustNewGHClient(t, MockHTTPClientWithHandlers(nil))}
+				serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+				handler := serverTool.Handler(deps)
+
+				request := createMCPRequest(tc.requestArgs)
+				result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+				require.NoError(t, err)
+
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, "confidence must be one of: low, medium, high")
+				return
+			}
+
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+			}))
+			deps := BaseDeps{Client: client}
+			serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			assert.False(t, result.IsError)
 		})
 	}
 }
@@ -458,6 +623,66 @@ func TestGranularUpdateIssueType(t *testing.T) {
 	}
 }
 
+func TestGranularUpdateIssueTypeSuggest(t *testing.T) {
+	tests := []struct {
+		name        string
+		requestArgs map[string]any
+		expectedReq map[string]any
+	}{
+		{
+			name: "suggest without rationale",
+			requestArgs: map[string]any{
+				"owner":         "owner",
+				"repo":          "repo",
+				"issue_number":  float64(1),
+				"issue_type":    "bug",
+				"is_suggestion": true,
+			},
+			expectedReq: map[string]any{
+				"type": map[string]any{
+					"value":   "bug",
+					"suggest": true,
+				},
+			},
+		},
+		{
+			name: "suggest with rationale",
+			requestArgs: map[string]any{
+				"owner":         "owner",
+				"repo":          "repo",
+				"issue_number":  float64(1),
+				"issue_type":    "feature",
+				"rationale":     "  Asks for dark mode support  ",
+				"is_suggestion": true,
+			},
+			expectedReq: map[string]any{
+				"type": map[string]any{
+					"value":     "feature",
+					"rationale": "Asks for dark mode support",
+					"suggest":   true,
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+			}))
+			deps := BaseDeps{Client: client}
+			serverTool := GranularUpdateIssueType(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			assert.False(t, result.IsError)
+		})
+	}
+}
+
 func TestGranularUpdateIssueTypeInvalidRationale(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -485,6 +710,128 @@ func TestGranularUpdateIssueTypeInvalidRationale(t *testing.T) {
 				"rationale":    strings.Repeat("a", 281),
 			},
 			expectedErrText: "parameter rationale must be 280 characters or less",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			deps := BaseDeps{Client: mustNewGHClient(t, MockHTTPClientWithHandlers(nil))}
+			serverTool := GranularUpdateIssueType(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			errorContent := getErrorResult(t, result)
+			assert.Contains(t, errorContent.Text, tc.expectedErrText)
+		})
+	}
+}
+
+func TestGranularUpdateIssueTypeConfidence(t *testing.T) {
+	tests := []struct {
+		name        string
+		requestArgs map[string]any
+		expectedReq map[string]any
+	}{
+		{
+			name: "type with confidence only",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "bug",
+				"confidence":   "high",
+			},
+			expectedReq: map[string]any{
+				"type": map[string]any{
+					"value":      "bug",
+					"confidence": "high",
+				},
+			},
+		},
+		{
+			name: "type with confidence and rationale",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "feature",
+				"rationale":    "Asks for dark mode support",
+				"confidence":   "medium",
+			},
+			expectedReq: map[string]any{
+				"type": map[string]any{
+					"value":      "feature",
+					"rationale":  "Asks for dark mode support",
+					"confidence": "medium",
+				},
+			},
+		},
+		{
+			name: "type with low confidence triggers object form",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "bug",
+				"confidence":   "low",
+			},
+			expectedReq: map[string]any{
+				"type": map[string]any{
+					"value":      "bug",
+					"confidence": "low",
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+			}))
+			deps := BaseDeps{Client: client}
+			serverTool := GranularUpdateIssueType(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			assert.False(t, result.IsError)
+		})
+	}
+}
+
+func TestGranularUpdateIssueTypeInvalidConfidence(t *testing.T) {
+	tests := []struct {
+		name            string
+		requestArgs     map[string]any
+		expectedErrText string
+	}{
+		{
+			name: "invalid confidence value",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "bug",
+				"confidence":   "very_high",
+			},
+			expectedErrText: "confidence must be one of: low, medium, high",
+		},
+		{
+			name: "confidence wrong type",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "bug",
+				"confidence":   float64(85),
+			},
+			expectedErrText: "parameter confidence is not of type string",
 		},
 	}
 
@@ -635,7 +982,10 @@ func TestGranularUpdatePullRequestState(t *testing.T) {
 
 func TestGranularRequestPullRequestReviewers(t *testing.T) {
 	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-		PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, &gogithub.PullRequest{Number: gogithub.Ptr(1)}),
+		PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
+			"reviewers":      []any{"user1"},
+			"team_reviewers": []any{"team1"},
+		}).andThen(mockResponse(t, http.StatusOK, &gogithub.PullRequest{Number: gogithub.Ptr(1)})),
 	}))
 	deps := BaseDeps{Client: client}
 	serverTool := GranularRequestPullRequestReviewers(translations.NullTranslationHelper)
@@ -645,7 +995,7 @@ func TestGranularRequestPullRequestReviewers(t *testing.T) {
 		"owner":      "owner",
 		"repo":       "repo",
 		"pullNumber": float64(1),
-		"reviewers":  []string{"user1", "user2"},
+		"reviewers":  []string{"user1", "owner/team1"},
 	})
 	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)
@@ -1246,5 +1596,400 @@ func TestGranularSetIssueFields(t *testing.T) {
 		require.NoError(t, err)
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "field rationale must be 280 characters or less")
+	})
+
+	t.Run("successful set with confidence", func(t *testing.T) {
+		confidence := "high"
+		matchers := []githubv4mock.Matcher{
+			githubv4mock.NewQueryMatcher(
+				struct {
+					Repository struct {
+						Issue struct {
+							ID githubv4.ID
+						} `graphql:"issue(number: $issueNumber)"`
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}{},
+				map[string]any{
+					"owner":       githubv4.String("owner"),
+					"repo":        githubv4.String("repo"),
+					"issueNumber": githubv4.Int(5),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"repository": map[string]any{
+						"issue": map[string]any{"id": "ISSUE_123"},
+					},
+				}),
+			),
+			githubv4mock.NewMutationMatcher(
+				struct {
+					SetIssueFieldValue struct {
+						Issue struct {
+							ID     githubv4.ID
+							Number githubv4.Int
+							URL    githubv4.String
+						}
+						IssueFieldValues []struct {
+							TextValue struct {
+								Value string
+							} `graphql:"... on IssueFieldTextValue"`
+							SingleSelectValue struct {
+								Name string
+							} `graphql:"... on IssueFieldSingleSelectValue"`
+							DateValue struct {
+								Value string
+							} `graphql:"... on IssueFieldDateValue"`
+							NumberValue struct {
+								Value float64
+							} `graphql:"... on IssueFieldNumberValue"`
+						}
+					} `graphql:"setIssueFieldValue(input: $input)"`
+				}{},
+				SetIssueFieldValueInput{
+					IssueID: githubv4.ID("ISSUE_123"),
+					IssueFields: []IssueFieldCreateOrUpdateInput{
+						{
+							FieldID:    githubv4.ID("FIELD_1"),
+							TextValue:  githubv4.NewString(githubv4.String("hello")),
+							Confidence: &confidence,
+						},
+					},
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"setIssueFieldValue": map[string]any{
+						"issue": map[string]any{
+							"id":     "ISSUE_123",
+							"number": 5,
+							"url":    "https://github.com/owner/repo/issues/5",
+						},
+					},
+				}),
+			),
+		}
+
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matchers...))
+		deps := BaseDeps{GQLClient: gqlClient}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{
+					"field_id":   "FIELD_1",
+					"text_value": "hello",
+					"confidence": "high",
+				},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+	})
+
+	t.Run("invalid confidence value returns error", func(t *testing.T) {
+		deps := BaseDeps{}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{
+					"field_id":   "FIELD_1",
+					"text_value": "hello",
+					"confidence": "very_high",
+				},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "confidence must be one of: low, medium, high")
+	})
+
+	t.Run("confidence is sent when supplied", func(t *testing.T) {
+		confidence := "high"
+		matchers := []githubv4mock.Matcher{
+			githubv4mock.NewQueryMatcher(
+				struct {
+					Repository struct {
+						Issue struct {
+							ID githubv4.ID
+						} `graphql:"issue(number: $issueNumber)"`
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}{},
+				map[string]any{
+					"owner":       githubv4.String("owner"),
+					"repo":        githubv4.String("repo"),
+					"issueNumber": githubv4.Int(5),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"repository": map[string]any{
+						"issue": map[string]any{"id": "ISSUE_123"},
+					},
+				}),
+			),
+			githubv4mock.NewMutationMatcher(
+				struct {
+					SetIssueFieldValue struct {
+						Issue struct {
+							ID     githubv4.ID
+							Number githubv4.Int
+							URL    githubv4.String
+						}
+						IssueFieldValues []struct {
+							TextValue struct {
+								Value string
+							} `graphql:"... on IssueFieldTextValue"`
+							SingleSelectValue struct {
+								Name string
+							} `graphql:"... on IssueFieldSingleSelectValue"`
+							DateValue struct {
+								Value string
+							} `graphql:"... on IssueFieldDateValue"`
+							NumberValue struct {
+								Value float64
+							} `graphql:"... on IssueFieldNumberValue"`
+						}
+					} `graphql:"setIssueFieldValue(input: $input)"`
+				}{},
+				SetIssueFieldValueInput{
+					IssueID: githubv4.ID("ISSUE_123"),
+					IssueFields: []IssueFieldCreateOrUpdateInput{
+						{
+							FieldID:    githubv4.ID("FIELD_1"),
+							TextValue:  githubv4.NewString(githubv4.String("hello")),
+							Confidence: &confidence,
+						},
+					},
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"setIssueFieldValue": map[string]any{
+						"issue": map[string]any{
+							"id":     "ISSUE_123",
+							"number": 5,
+							"url":    "https://github.com/owner/repo/issues/5",
+						},
+					},
+				}),
+			),
+		}
+
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matchers...))
+		deps := BaseDeps{GQLClient: gqlClient}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{
+					"field_id":   "FIELD_1",
+					"text_value": "hello",
+					"confidence": "high",
+				},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		assert.False(t, result.IsError, getTextResult(t, result).Text)
+	})
+
+	t.Run("successful set with suggest flag", func(t *testing.T) {
+		suggestTrue := githubv4.Boolean(true)
+		matchers := []githubv4mock.Matcher{
+			githubv4mock.NewQueryMatcher(
+				struct {
+					Repository struct {
+						Issue struct {
+							ID githubv4.ID
+						} `graphql:"issue(number: $issueNumber)"`
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}{},
+				map[string]any{
+					"owner":       githubv4.String("owner"),
+					"repo":        githubv4.String("repo"),
+					"issueNumber": githubv4.Int(5),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"repository": map[string]any{
+						"issue": map[string]any{"id": "ISSUE_123"},
+					},
+				}),
+			),
+			githubv4mock.NewMutationMatcher(
+				struct {
+					SetIssueFieldValue struct {
+						Issue struct {
+							ID     githubv4.ID
+							Number githubv4.Int
+							URL    githubv4.String
+						}
+						IssueFieldValues []struct {
+							TextValue struct {
+								Value string
+							} `graphql:"... on IssueFieldTextValue"`
+							SingleSelectValue struct {
+								Name string
+							} `graphql:"... on IssueFieldSingleSelectValue"`
+							DateValue struct {
+								Value string
+							} `graphql:"... on IssueFieldDateValue"`
+							NumberValue struct {
+								Value float64
+							} `graphql:"... on IssueFieldNumberValue"`
+						}
+					} `graphql:"setIssueFieldValue(input: $input)"`
+				}{},
+				SetIssueFieldValueInput{
+					IssueID: githubv4.ID("ISSUE_123"),
+					IssueFields: []IssueFieldCreateOrUpdateInput{
+						{
+							FieldID:   githubv4.ID("FIELD_1"),
+							TextValue: githubv4.NewString(githubv4.String("hello")),
+							Rationale: githubv4.NewString(githubv4.String("Reflects the reported severity")),
+							Suggest:   &suggestTrue,
+						},
+					},
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"setIssueFieldValue": map[string]any{
+						"issue": map[string]any{
+							"id":     "ISSUE_123",
+							"number": 5,
+							"url":    "https://github.com/owner/repo/issues/5",
+						},
+					},
+				}),
+			),
+		}
+
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matchers...))
+		deps := BaseDeps{GQLClient: gqlClient}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{
+					"field_id":      "FIELD_1",
+					"text_value":    "hello",
+					"rationale":     "Reflects the reported severity",
+					"is_suggestion": true,
+				},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+	})
+
+	t.Run("sends GraphQL-Features: update_issue_suggestions header on mutation", func(t *testing.T) {
+		matchers := []githubv4mock.Matcher{
+			githubv4mock.NewQueryMatcher(
+				struct {
+					Repository struct {
+						Issue struct {
+							ID githubv4.ID
+						} `graphql:"issue(number: $issueNumber)"`
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}{},
+				map[string]any{
+					"owner":       githubv4.String("owner"),
+					"repo":        githubv4.String("repo"),
+					"issueNumber": githubv4.Int(5),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"repository": map[string]any{
+						"issue": map[string]any{"id": "ISSUE_123"},
+					},
+				}),
+			),
+			githubv4mock.NewMutationMatcher(
+				struct {
+					SetIssueFieldValue struct {
+						Issue struct {
+							ID     githubv4.ID
+							Number githubv4.Int
+							URL    githubv4.String
+						}
+						IssueFieldValues []struct {
+							TextValue struct {
+								Value string
+							} `graphql:"... on IssueFieldTextValue"`
+							SingleSelectValue struct {
+								Name string
+							} `graphql:"... on IssueFieldSingleSelectValue"`
+							DateValue struct {
+								Value string
+							} `graphql:"... on IssueFieldDateValue"`
+							NumberValue struct {
+								Value float64
+							} `graphql:"... on IssueFieldNumberValue"`
+						}
+					} `graphql:"setIssueFieldValue(input: $input)"`
+				}{},
+				SetIssueFieldValueInput{
+					IssueID: githubv4.ID("ISSUE_123"),
+					IssueFields: []IssueFieldCreateOrUpdateInput{
+						{
+							FieldID:   githubv4.ID("FIELD_1"),
+							TextValue: githubv4.NewString(githubv4.String("hello")),
+						},
+					},
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"setIssueFieldValue": map[string]any{
+						"issue": map[string]any{
+							"id":     "ISSUE_123",
+							"number": 5,
+							"url":    "https://github.com/owner/repo/issues/5",
+						},
+					},
+				}),
+			),
+		}
+
+		// Build a transport chain matching production: GraphQLFeaturesTransport
+		// wraps a header-capturing spy, which forwards to the mock's RoundTripper.
+		// This verifies the mutation request sets the update_issue_suggestions
+		// feature flag so the rationale/suggest input fields are accepted.
+		mockClient := githubv4mock.NewMockedHTTPClient(matchers...)
+		spy := &headerCaptureTransport{inner: mockClient.Transport}
+		httpClient := &http.Client{
+			Transport: &transportpkg.GraphQLFeaturesTransport{Transport: spy},
+		}
+		gqlClient := githubv4.NewClient(httpClient)
+		deps := BaseDeps{GQLClient: gqlClient}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{"field_id": "FIELD_1", "text_value": "hello"},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError, getTextResult(t, result).Text)
+		// The last request captured is the mutation; the preceding issue ID
+		// query does not require the feature flag.
+		assert.Equal(t, "update_issue_suggestions", spy.captured.Get(headers.GraphQLFeaturesHeader))
 	})
 }

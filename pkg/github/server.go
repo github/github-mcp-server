@@ -50,7 +50,7 @@ type MCPServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
-	// InsidersMode indicates if we should enable experimental features
+	// InsidersMode expands to the curated set of feature flags enabled for insiders.
 	InsidersMode bool
 
 	// Logger is used for logging within the server
@@ -101,6 +101,18 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 
 	// Register GitHub tools/resources/prompts from the inventory.
 	inv.RegisterAll(ctx, ghServer, deps)
+
+	// Register MCP App UI resources whenever the embedded UI assets are
+	// available. The resources are static HTML and are only referenced by
+	// tools when the remote_mcp_ui_apps feature flag is enabled for the
+	// request (the inventory strips the _meta.ui block otherwise via
+	// stripMCPAppsMetadata), so registering them unconditionally is safe.
+	// Registering here — rather than in the stdio bootstrap — ensures the
+	// remote/HTTP server also serves them, fixing the "-32002 Resource not
+	// found" error clients hit after the tool returns a ui:// URI.
+	if UIAssetsAvailable() {
+		RegisterUIResources(ghServer)
+	}
 
 	return ghServer, nil
 }

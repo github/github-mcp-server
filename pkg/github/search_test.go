@@ -207,7 +207,6 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 	t.Run("insiders mode disabled omits ifc label", func(t *testing.T) {
 		deps := BaseDeps{
 			Client: mustNewGHClient(t, makeMockClient([]repoFixture{{owner: "octocat", name: "public-repo"}})),
-			Flags:  FeatureFlags{InsidersMode: false},
 		}
 		handler := serverTool.Handler(deps)
 
@@ -224,7 +223,7 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 				{owner: "octocat", name: "public-a"},
 				{owner: "octocat", name: "public-b"},
 			})),
-			Flags: FeatureFlags{InsidersMode: true},
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -245,7 +244,7 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 				{owner: "octocat", name: "private-repo", isPrivate: true},
 				{owner: "octocat", name: "public-repo"},
 			})),
-			Flags: FeatureFlags{InsidersMode: true},
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -262,8 +261,8 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode empty results emits public untrusted", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: mustNewGHClient(t, makeMockClient(nil)),
-			Flags:  FeatureFlags{InsidersMode: true},
+			Client:         mustNewGHClient(t, makeMockClient(nil)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 

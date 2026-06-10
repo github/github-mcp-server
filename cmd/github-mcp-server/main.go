@@ -126,6 +126,13 @@ var (
 				}
 			}
 
+			var enabledFeatures []string
+			if viper.IsSet("features") {
+				if err := viper.UnmarshalKey("features", &enabledFeatures); err != nil {
+					return fmt.Errorf("failed to unmarshal features: %w", err)
+				}
+			}
+
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			httpConfig := ghhttp.ServerConfig{
 				Version:              version,
@@ -144,7 +151,9 @@ var (
 				EnabledToolsets:      enabledToolsets,
 				EnabledTools:         enabledTools,
 				ExcludeTools:         excludeTools,
+				EnabledFeatures:      enabledFeatures,
 				InsidersMode:         viper.GetBool("insiders"),
+				TrustProxyHeaders:    viper.GetBool("trust-proxy-headers"),
 			}
 
 			return ghhttp.RunHTTPServer(httpConfig)
@@ -178,6 +187,7 @@ func init() {
 	httpCmd.Flags().String("base-url", "", "Base URL where this server is publicly accessible (for OAuth resource metadata)")
 	httpCmd.Flags().String("base-path", "", "Externally visible base path for the HTTP server (for OAuth resource metadata)")
 	httpCmd.Flags().Bool("scope-challenge", false, "Enable OAuth scope challenge responses")
+	httpCmd.Flags().Bool("trust-proxy-headers", false, "Honor X-Forwarded-Host and X-Forwarded-Proto when constructing OAuth resource metadata URLs. Only enable when the server is deployed behind a trusted proxy that sets these headers. Ignored when --base-url is set.")
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
@@ -197,6 +207,7 @@ func init() {
 	_ = viper.BindPFlag("base-url", httpCmd.Flags().Lookup("base-url"))
 	_ = viper.BindPFlag("base-path", httpCmd.Flags().Lookup("base-path"))
 	_ = viper.BindPFlag("scope-challenge", httpCmd.Flags().Lookup("scope-challenge"))
+	_ = viper.BindPFlag("trust-proxy-headers", httpCmd.Flags().Lookup("trust-proxy-headers"))
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
 	rootCmd.AddCommand(httpCmd)

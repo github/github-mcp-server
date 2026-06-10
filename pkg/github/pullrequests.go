@@ -544,6 +544,37 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, deps Tool
 // PullRequestWriteUIResourceURI is the URI for the create_pull_request tool's MCP App UI resource.
 const PullRequestWriteUIResourceURI = "ui://github-mcp-server/pr-write"
 
+// pullRequestWriteFormParams are the parameters the create_pull_request MCP App
+// form collects and re-sends on submit. Any other parameter present on a call
+// cannot be represented by the form.
+var pullRequestWriteFormParams = map[string]struct{}{
+	"owner":                 {},
+	"repo":                  {},
+	"title":                 {},
+	"body":                  {},
+	"head":                  {},
+	"base":                  {},
+	"draft":                 {},
+	"maintainer_can_modify": {},
+	"_ui_submitted":         {},
+}
+
+// pullRequestWriteHasNonFormParams reports whether the call carries any parameter
+// the create_pull_request MCP App form cannot represent (anything outside
+// pullRequestWriteFormParams). Such calls must bypass the UI form and execute
+// directly so the supplied values aren't silently dropped.
+func pullRequestWriteHasNonFormParams(args map[string]any) bool {
+	for key, value := range args {
+		if value == nil {
+			continue
+		}
+		if _, ok := pullRequestWriteFormParams[key]; !ok {
+			return true
+		}
+	}
+	return false
+}
+
 // CreatePullRequest creates a tool to create a new pull request.
 func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
@@ -611,12 +642,14 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When insiders mode is enabled and the client supports MCP Apps UI,
-			// check if this is a UI form submission. The UI sends _ui_submitted=true
-			// to distinguish form submissions from LLM calls.
+			// When MCP Apps are enabled and the client supports UI, route the
+			// call to the interactive form unless it is itself a form submission
+			// (the UI sends _ui_submitted=true) or it carries parameters the form
+			// cannot represent. Those must be applied directly so their values
+			// aren't silently dropped.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(ctx, req) && !uiSubmitted {
+			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && !pullRequestWriteHasNonFormParams(args) {
 				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. IMPORTANT: The PR has NOT been created yet. Do NOT tell the user the PR was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
 			}
 
@@ -752,7 +785,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			},
 			"reviewers": {
 				Type:        "array",
-				Description: "GitHub usernames to request reviews from",
+				Description: "GitHub usernames or ORG/team-slug team reviewers to request reviews from",
 				Items: &jsonschema.Schema{
 					Type: "string",
 				},
@@ -944,8 +977,10 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 				}
 
+				userReviewers, teamReviewers := splitPullRequestReviewers(reviewers)
 				reviewersRequest := github.ReviewersRequest{
-					Reviewers: reviewers,
+					Reviewers:     userReviewers,
+					TeamReviewers: teamReviewers,
 				}
 
 				_, resp, err := client.PullRequests.RequestReviewers(ctx, owner, repo, pullNumber, reviewersRequest)
@@ -1000,7 +1035,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
-	st.FeatureFlagDisable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 
@@ -1581,7 +1616,7 @@ Available methods:
 - unresolve_thread: Unresolve a previously resolved review thread. Requires only "threadId" parameter. The owner, repo, and pullNumber parameters are not used for this method. Unresolving an already-unresolved thread is a no-op.
 `),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews."),
+				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews"),
 				ReadOnlyHint: false,
 			},
 			InputSchema: schema,
@@ -1619,7 +1654,7 @@ Available methods:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
 			}
 		})
-	st.FeatureFlagDisable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 
@@ -2116,7 +2151,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			})
 			return result, nil, err
 		})
-	st.FeatureFlagDisable = FeatureFlagPullRequestsGranular
+	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
 

@@ -521,7 +521,6 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 	t.Run("insiders mode disabled omits ifc label from result meta", func(t *testing.T) {
 		deps := BaseDeps{
 			Client: mustNewGHClient(t, makeMockClient(false)),
-			Flags:  FeatureFlags{InsidersMode: false},
 		}
 		handler := serverTool.Handler(deps)
 
@@ -535,8 +534,8 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode enabled on public repo emits public untrusted label", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: mustNewGHClient(t, makeMockClient(false)),
-			Flags:  FeatureFlags{InsidersMode: true},
+			Client:         mustNewGHClient(t, makeMockClient(false)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -560,8 +559,8 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 
 	t.Run("insiders mode enabled on private repo emits private trusted label", func(t *testing.T) {
 		deps := BaseDeps{
-			Client: mustNewGHClient(t, makeMockClient(true)),
-			Flags:  FeatureFlags{InsidersMode: true},
+			Client:         mustNewGHClient(t, makeMockClient(true)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -604,8 +603,8 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 			},
 		})
 		deps := BaseDeps{
-			Client: mustNewGHClient(t, mockedClient),
-			Flags:  FeatureFlags{InsidersMode: true},
+			Client:         mustNewGHClient(t, mockedClient),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
 		}
 		handler := serverTool.Handler(deps)
 
@@ -1025,6 +1024,120 @@ func Test_GetCommit(t *testing.T) {
 			assert.Equal(t, *tc.expectedCommit.Commit.Message, *returnedCommit.Commit.Message)
 			assert.Equal(t, *tc.expectedCommit.Author.Login, *returnedCommit.Author.Login)
 			assert.Equal(t, *tc.expectedCommit.HTMLURL, *returnedCommit.HTMLURL)
+		})
+	}
+}
+
+func Test_GetCommit_Detail(t *testing.T) {
+	mockCommit := &github.RepositoryCommit{
+		SHA:     github.Ptr("abc123def456"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/commit/abc123def456"),
+		Commit: &github.Commit{
+			Message: github.Ptr("First commit"),
+		},
+		Stats: &github.CommitStats{
+			Additions: github.Ptr(10),
+			Deletions: github.Ptr(2),
+			Total:     github.Ptr(12),
+		},
+		Files: []*github.CommitFile{
+			{
+				Filename:  github.Ptr("file1.go"),
+				Status:    github.Ptr("modified"),
+				Additions: github.Ptr(10),
+				Deletions: github.Ptr(2),
+				Changes:   github.Ptr(12),
+				Patch:     github.Ptr("@@ -1,2 +1,10 @@\n+new line"),
+			},
+		},
+	}
+
+	cases := []struct {
+		name        string
+		args        map[string]any
+		expectFiles bool
+		expectStats bool
+		expectPatch bool
+		expectError string
+	}{
+		{
+			name:        "default returns stats",
+			args:        map[string]any{"owner": "owner", "repo": "repo", "sha": "abc123def456"},
+			expectFiles: true,
+			expectStats: true,
+			expectPatch: false,
+		},
+		{
+			name:        "detail=none omits stats and files",
+			args:        map[string]any{"owner": "owner", "repo": "repo", "sha": "abc123def456", "detail": "none"},
+			expectFiles: false,
+			expectStats: false,
+			expectPatch: false,
+		},
+		{
+			name:        "detail=stats returns metadata without patch",
+			args:        map[string]any{"owner": "owner", "repo": "repo", "sha": "abc123def456", "detail": "stats"},
+			expectFiles: true,
+			expectStats: true,
+			expectPatch: false,
+		},
+		{
+			name:        "detail=full_patch includes patch text",
+			args:        map[string]any{"owner": "owner", "repo": "repo", "sha": "abc123def456", "detail": "full_patch"},
+			expectFiles: true,
+			expectStats: true,
+			expectPatch: true,
+		},
+		{
+			name:        "invalid detail value is rejected",
+			args:        map[string]any{"owner": "owner", "repo": "repo", "sha": "abc123def456", "detail": "everything"},
+			expectError: `invalid detail "everything"`,
+		},
+	}
+
+	serverTool := GetCommit(translations.NullTranslationHelper)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCommitsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockCommit),
+			})
+			client := mustNewGHClient(t, mockedClient)
+			deps := BaseDeps{Client: client}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			if tc.expectError != "" {
+				require.True(t, result.IsError)
+				assert.Contains(t, getErrorResult(t, result).Text, tc.expectError)
+				return
+			}
+			require.False(t, result.IsError)
+
+			var returned MinimalCommit
+			require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returned))
+
+			if tc.expectStats {
+				require.NotNil(t, returned.Stats)
+				assert.Equal(t, 12, returned.Stats.Total)
+			} else {
+				assert.Nil(t, returned.Stats)
+			}
+
+			if tc.expectFiles {
+				require.Len(t, returned.Files, 1)
+				assert.Equal(t, "file1.go", returned.Files[0].Filename)
+				if tc.expectPatch {
+					assert.Equal(t, "@@ -1,2 +1,10 @@\n+new line", returned.Files[0].Patch)
+				} else {
+					assert.Empty(t, returned.Files[0].Patch)
+				}
+			} else {
+				assert.Empty(t, returned.Files)
+			}
 		})
 	}
 }
