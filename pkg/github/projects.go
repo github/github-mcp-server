@@ -1567,7 +1567,7 @@ func createIterationField(ctx context.Context, gqlClient *githubv4.Client, owner
 					ID   string
 					Name string
 				} `graphql:"... on ProjectV2IterationField"`
-			}
+			} `graphql:"projectV2Field"`
 		} `graphql:"createProjectV2Field(input: $input)"`
 	}
 
@@ -1600,7 +1600,7 @@ func createIterationField(ctx context.Context, gqlClient *githubv4.Client, owner
 						}
 					}
 				} `graphql:"... on ProjectV2IterationField"`
-			}
+			} `graphql:"projectV2Field"`
 		} `graphql:"updateProjectV2Field(input: $input)"`
 	}
 
