@@ -122,21 +122,25 @@ func getCloseStateReason(stateReason string) IssueClosedStateReason {
 type issueFieldWriteMetadataNode struct {
 	TypeName       githubv4.String `graphql:"__typename"`
 	IssueFieldText struct {
+		ID             githubv4.ID
 		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
 		Name           githubv4.String
 		DataType       githubv4.String
 	} `graphql:"... on IssueFieldText"`
 	IssueFieldNumber struct {
+		ID             githubv4.ID
 		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
 		Name           githubv4.String
 		DataType       githubv4.String
 	} `graphql:"... on IssueFieldNumber"`
 	IssueFieldDate struct {
+		ID             githubv4.ID
 		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
 		Name           githubv4.String
 		DataType       githubv4.String
 	} `graphql:"... on IssueFieldDate"`
 	IssueFieldSingleSelect struct {
+		ID             githubv4.ID
 		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
 		Name           githubv4.String
 		DataType       githubv4.String
@@ -146,6 +150,7 @@ type issueFieldWriteMetadataNode struct {
 		}
 	} `graphql:"... on IssueFieldSingleSelect"`
 	IssueFieldMultiSelect struct {
+		ID             githubv4.ID
 		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
 		Name           githubv4.String
 		DataType       githubv4.String
@@ -353,7 +358,15 @@ func optionalIssueWriteFields(args map[string]any) ([]issueWriteFieldInput, erro
 	return issueFields, nil
 }
 
-func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueFields []issueWriteFieldInput) ([]*github.IssueRequestFieldValue, []int64, error) {
+// fieldDeletion carries both identifiers needed to clear an issue field value:
+// the REST/v3 database ID (used to exclude the field from the REST PATCH payload)
+// and the GraphQL node ID (used as input to the deleteIssueFieldValue mutation).
+type fieldDeletion struct {
+	DatabaseID int64
+	NodeID     githubv4.ID
+}
+
+func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueFields []issueWriteFieldInput) ([]*github.IssueRequestFieldValue, []fieldDeletion, error) {
 	if len(issueFields) == 0 {
 		return nil, nil, nil
 	}
@@ -390,7 +403,7 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 	}
 
 	resolved := make([]*github.IssueRequestFieldValue, 0, len(issueFields))
-	var fieldIDsToDelete []int64
+	var fieldsToDelete []fieldDeletion
 	for _, fieldInput := range issueFields {
 		node, ok := fieldByName[strings.ToLower(strings.TrimSpace(fieldInput.FieldName))]
 		if !ok {
@@ -398,22 +411,28 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 		}
 
 		var fullDatabaseIDStr, dataType string
+		var nodeID githubv4.ID
 		switch string(node.TypeName) {
 		case "IssueFieldText":
 			fullDatabaseIDStr = string(node.IssueFieldText.FullDatabaseID)
 			dataType = string(node.IssueFieldText.DataType)
+			nodeID = node.IssueFieldText.ID
 		case "IssueFieldNumber":
 			fullDatabaseIDStr = string(node.IssueFieldNumber.FullDatabaseID)
 			dataType = string(node.IssueFieldNumber.DataType)
+			nodeID = node.IssueFieldNumber.ID
 		case "IssueFieldDate":
 			fullDatabaseIDStr = string(node.IssueFieldDate.FullDatabaseID)
 			dataType = string(node.IssueFieldDate.DataType)
+			nodeID = node.IssueFieldDate.ID
 		case "IssueFieldSingleSelect":
 			fullDatabaseIDStr = string(node.IssueFieldSingleSelect.FullDatabaseID)
 			dataType = string(node.IssueFieldSingleSelect.DataType)
+			nodeID = node.IssueFieldSingleSelect.ID
 		case "IssueFieldMultiSelect":
 			fullDatabaseIDStr = string(node.IssueFieldMultiSelect.FullDatabaseID)
 			dataType = string(node.IssueFieldMultiSelect.DataType)
+			nodeID = node.IssueFieldMultiSelect.ID
 		}
 
 		fieldID := parseFullDatabaseID(fullDatabaseIDStr)
@@ -422,7 +441,7 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 		}
 
 		if fieldInput.Delete {
-			fieldIDsToDelete = append(fieldIDsToDelete, fieldID)
+			fieldsToDelete = append(fieldsToDelete, fieldDeletion{DatabaseID: fieldID, NodeID: nodeID})
 			continue
 		}
 
@@ -483,7 +502,7 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 		})
 	}
 
-	return resolved, fieldIDsToDelete, nil
+	return resolved, fieldsToDelete, nil
 }
 
 // fieldOptionInputHint returns the user-facing input slot name that matches a select field's data type.
@@ -2165,9 +2184,9 @@ Options are:
 			}
 
 			var issueFieldValues []*github.IssueRequestFieldValue
-			var fieldIDsToDelete []int64
+			var fieldsToDelete []fieldDeletion
 			if len(issueFields) > 0 {
-				issueFieldValues, fieldIDsToDelete, err = resolveIssueRequestFieldValues(ctx, gqlClient, owner, repo, issueFields)
+				issueFieldValues, fieldsToDelete, err = resolveIssueRequestFieldValues(ctx, gqlClient, owner, repo, issueFields)
 				if err != nil {
 					return utils.NewToolResultError(fmt.Sprintf("failed to resolve issue_fields: %v", err)), nil, nil
 				}
@@ -2182,7 +2201,7 @@ Options are:
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, UpdateIssueOptions{
+				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldsToDelete, state, stateReason, duplicateOf, UpdateIssueOptions{
 					AssigneesProvided: assigneesProvided,
 					LabelsProvided:    labelsProvided,
 				})
@@ -2481,7 +2500,7 @@ type UpdateIssueOptions struct {
 	LabelsProvided bool
 }
 
-func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldIDsToDelete []int64, state string, stateReason string, duplicateOf int, opts ...UpdateIssueOptions) (*mcp.CallToolResult, error) {
+func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldsToDelete []fieldDeletion, state string, stateReason string, duplicateOf int, opts ...UpdateIssueOptions) (*mcp.CallToolResult, error) {
 	updateOptions := UpdateIssueOptions{
 		AssigneesProvided: len(assignees) > 0,
 		LabelsProvided:    len(labels) > 0,
@@ -2519,19 +2538,22 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		issueRequest.Type = github.Ptr(issueType)
 	}
 
-	if len(issueFieldValues) > 0 || len(fieldIDsToDelete) > 0 {
+	if len(issueFieldValues) > 0 || len(fieldsToDelete) > 0 {
 		// The REST update endpoint uses "set" semantics — it overwrites all existing
-		// field values with whatever is sent. Fetch the current values first, merge in
-		// the new values, then remove any explicitly deleted fields.
+		// field values with whatever is sent. Fetch the current values first and merge
+		// in the new values so unrelated fields aren't dropped. Fields marked for deletion
+		// are excluded from the payload, but the REST PATCH alone can't reliably clear
+		// them (an empty merged list is stripped by Go's omitempty, leaving the values
+		// untouched), so we follow up with deleteIssueFieldValue GraphQL mutations below.
 		existing, err := fetchExistingIssueFieldValues(ctx, gqlClient, owner, repo, issueNumber)
 		if err != nil {
 			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to fetch existing issue field values", err), nil
 		}
 		merged := mergeIssueFieldValues(existing, issueFieldValues)
-		if len(fieldIDsToDelete) > 0 {
-			deleteSet := make(map[int64]bool, len(fieldIDsToDelete))
-			for _, id := range fieldIDsToDelete {
-				deleteSet[id] = true
+		if len(fieldsToDelete) > 0 {
+			deleteSet := make(map[int64]bool, len(fieldsToDelete))
+			for _, d := range fieldsToDelete {
+				deleteSet[d.DatabaseID] = true
 			}
 			kept := make([]*github.IssueRequestFieldValue, 0, len(merged))
 			for _, v := range merged {
@@ -2560,6 +2582,32 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update issue", resp, body), nil
+	}
+
+	// Clear any fields marked with delete:true via the GraphQL deleteIssueFieldValue
+	// mutation. The REST PATCH above can't do this reliably — Go's omitempty drops an
+	// empty issue_field_values array, leaving the old values intact.
+	if len(fieldsToDelete) > 0 {
+		issueID, _, err := fetchIssueIDs(ctx, gqlClient, owner, repo, issueNumber, 0)
+		if err != nil {
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to look up issue for field deletion", err), nil
+		}
+		for _, deletion := range fieldsToDelete {
+			var mutation struct {
+				DeleteIssueFieldValue struct {
+					Issue struct {
+						Number githubv4.Int
+					}
+				} `graphql:"deleteIssueFieldValue(input: $input)"`
+			}
+			input := DeleteIssueFieldValueInput{
+				IssueID: issueID,
+				FieldID: deletion.NodeID,
+			}
+			if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to delete issue field value", err), nil
+			}
+		}
 	}
 
 	// Use GraphQL API for state updates

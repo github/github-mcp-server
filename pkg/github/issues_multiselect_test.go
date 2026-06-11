@@ -2,9 +2,11 @@ package github
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
+	gogithub "github.com/google/go-github/v87/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -299,6 +301,7 @@ func Test_resolveIssueRequestFieldValues_MultiSelect(t *testing.T) {
 				"nodes": []any{
 					map[string]any{
 						"__typename":     "IssueFieldMultiSelect",
+						"id":             "IFMS_node_101",
 						"fullDatabaseId": "101",
 						"name":           "Components",
 						"dataType":       "multi_select",
@@ -383,6 +386,145 @@ func Test_resolveIssueRequestFieldValues_MultiSelect(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "multi_select")
 	})
+
+	t.Run("captures node ID for delete:true so the GraphQL mutation can clear the field", func(t *testing.T) {
+		in := []issueWriteFieldInput{{
+			FieldName: "Components",
+			Delete:    true,
+		}}
+		vals, deletions, err := resolveIssueRequestFieldValues(context.Background(), newClient(), "owner", "repo", in)
+		require.NoError(t, err)
+		assert.Empty(t, vals)
+		require.Len(t, deletions, 1)
+		assert.Equal(t, int64(101), deletions[0].DatabaseID)
+		// The GraphQL node ID is what deleteIssueFieldValue needs — without it the
+		// REST PATCH would silently no-op (Go's omitempty strips an empty array).
+		assert.Equal(t, githubv4.ID("IFMS_node_101"), deletions[0].NodeID)
+	})
+}
+
+// Regression test for the delete:true bug: REST PATCH alone can't clear an issue
+// field value (an empty issue_field_values array gets stripped by omitempty, so the
+// field's old value sticks around). UpdateIssue has to follow up with a
+// deleteIssueFieldValue GraphQL mutation per deleted field.
+func Test_UpdateIssue_DeleteFieldValueRunsGraphQLMutation(t *testing.T) {
+	t.Parallel()
+
+	mockIssue := &gogithub.Issue{
+		Number:  gogithub.Ptr(42),
+		Title:   gogithub.Ptr("Test issue"),
+		State:   gogithub.Ptr("open"),
+		HTMLURL: gogithub.Ptr("https://github.com/owner/repo/issues/42"),
+	}
+
+	restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
+	}))
+
+	// (1) fetchExistingIssueFieldValues for the merge step. Returning the field that's
+	// about to be deleted is the worst case — it makes the kept list empty, which is
+	// when omitempty bites and the GraphQL mutation is the only thing that can clear it.
+	existingFieldsResponse := githubv4mock.DataResponse(map[string]any{
+		"repository": map[string]any{
+			"issue": map[string]any{
+				"issueFieldValues": map[string]any{
+					"nodes": []any{
+						map[string]any{
+							"__typename": "IssueFieldMultiSelectValue",
+							"field": map[string]any{
+								"fullDatabaseId": "101",
+								"name":           "Components",
+							},
+							"options": []any{
+								map[string]any{"name": "Auth"},
+								map[string]any{"name": "Billing"},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+
+	// (2) fetchIssueIDs lookup so UpdateIssue can address the issue from GraphQL.
+	issueIDResponse := githubv4mock.DataResponse(map[string]any{
+		"repository": map[string]any{
+			"issue": map[string]any{"id": "I_node_42"},
+		},
+	})
+
+	// (3) The actual delete mutation — this is the thing that fixes the bug. The matcher
+	// will fail the test if the handler skips it or sends the wrong issueId/fieldId.
+	deleteResponse := githubv4mock.DataResponse(map[string]any{
+		"deleteIssueFieldValue": map[string]any{
+			"issue": map[string]any{"number": 42},
+		},
+	})
+
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			struct {
+				Repository struct {
+					Issue struct {
+						IssueFieldValues struct {
+							Nodes []IssueFieldValueFragment
+						} `graphql:"issueFieldValues(first: 25)"`
+					} `graphql:"issue(number: $number)"`
+				} `graphql:"repository(owner: $owner, name: $repo)"`
+			}{},
+			map[string]any{
+				"owner":  githubv4.String("owner"),
+				"repo":   githubv4.String("repo"),
+				"number": githubv4.Int(42),
+			},
+			existingFieldsResponse,
+		),
+		githubv4mock.NewQueryMatcher(
+			struct {
+				Repository struct {
+					Issue struct {
+						ID githubv4.ID
+					} `graphql:"issue(number: $issueNumber)"`
+				} `graphql:"repository(owner: $owner, name: $repo)"`
+			}{},
+			map[string]any{
+				"owner":       githubv4.String("owner"),
+				"repo":        githubv4.String("repo"),
+				"issueNumber": githubv4.Int(42),
+			},
+			issueIDResponse,
+		),
+		githubv4mock.NewMutationMatcher(
+			struct {
+				DeleteIssueFieldValue struct {
+					Issue struct {
+						Number githubv4.Int
+					}
+				} `graphql:"deleteIssueFieldValue(input: $input)"`
+			}{},
+			DeleteIssueFieldValueInput{
+				IssueID: githubv4.ID("I_node_42"),
+				FieldID: githubv4.ID("IFMS_node_101"),
+			},
+			nil,
+			deleteResponse,
+		),
+	))
+
+	result, err := UpdateIssue(
+		context.Background(),
+		restClient,
+		gqlClient,
+		"owner", "repo", 42,
+		"", "", nil, nil, 0, "",
+		nil,
+		[]fieldDeletion{{DatabaseID: 101, NodeID: githubv4.ID("IFMS_node_101")}},
+		"", "", 0,
+	)
+	require.NoError(t, err)
+	if result.IsError {
+		t.Fatalf("expected non-error result, got: %s", getTextResult(t, result).Text)
+	}
 }
 
 // (intentionally no further helpers)

@@ -906,6 +906,13 @@ type SetIssueFieldValueInput struct {
 	ClientMutationID *githubv4.String                `json:"clientMutationId,omitempty"`
 }
 
+// DeleteIssueFieldValueInput represents the input for the deleteIssueFieldValue GraphQL mutation.
+type DeleteIssueFieldValueInput struct {
+	IssueID          githubv4.ID      `json:"issueId"`
+	FieldID          githubv4.ID      `json:"fieldId"`
+	ClientMutationID *githubv4.String `json:"clientMutationId,omitempty"`
+}
+
 // IssueFieldCreateOrUpdateInput represents a single field value to set on an issue.
 type IssueFieldCreateOrUpdateInput struct {
 	FieldID              githubv4.ID       `json:"fieldId"`
