@@ -48,7 +48,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
   - **Required OAuth Scopes**: `repo`
   - **MCP App UI**: `ui://github-mcp-server/issue-write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
-  - `body`: Issue body content (string, optional)
+  - `body`: Issue body content (Markdown). On `method="update"`, this REPLACES the entire issue body; use `add_issue_comment` to add a comment without modifying the body. (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
