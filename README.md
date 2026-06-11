@@ -591,15 +591,19 @@ The following sets of tools are available:
 
 - **actions_get** - Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)
   - **Required OAuth Scopes**: `repo`
+  - `artifact_name`: Exact workflow artifact name to resolve within 'run_id' for 'download_workflow_run_artifact'. (string, optional)
+  - `max_bytes`: Maximum number of bytes of text content to return per file when extracting 'download_workflow_run_artifact'. Defaults to 65536. (number, optional)
   - `method`: The method to execute (string, required)
   - `owner`: Repository owner (string, required)
+  - `path`: Optional exact file path inside the artifact ZIP to return for 'download_workflow_run_artifact'. (string, optional)
   - `repo`: Repository name (string, required)
   - `resource_id`: The unique identifier of the resource. This will vary based on the "method" provided, so ensure you provide the correct ID:
     - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'get_workflow' method.
     - Provide a workflow run ID for 'get_workflow_run', 'get_workflow_run_usage', and 'get_workflow_run_logs_url' methods.
-    - Provide an artifact ID for 'download_workflow_run_artifact' method.
+    - Provide an artifact ID for 'download_workflow_run_artifact' to get a temporary download URL, or omit it and use 'run_id' plus 'artifact_name' to return artifact contents.
     - Provide a job ID for 'get_workflow_job' method.
-     (string, required)
+     (string, optional)
+  - `run_id`: Workflow run ID used with 'artifact_name' to resolve and extract an artifact for 'download_workflow_run_artifact'. (number, optional)
 
 - **actions_list** - List GitHub Actions workflows in a repository
   - **Required OAuth Scopes**: `repo`
