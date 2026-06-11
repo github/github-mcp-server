@@ -30,6 +30,7 @@
 | App web real (frontend) | ✅ Hecho | `app/` — login con Supabase + dashboard de promociones en vivo (RLS por rol) |
 | ERP publicado (URL pública) | ✅ Hecho | Edge Function `app` (verify_jwt=false): https://jpojckqnhepiuwefyvdr.supabase.co/functions/v1/app · usuario demo de dirección creado |
 | Detalle de promoción + registrar venta | ✅ Hecho | Detalle con unidades/tesorería/obra/documentos; botón "Vender" → crea contrato, marca unidad vendida y encola factura (todo por triggers) |
+| Dashboard global del grupo | ✅ Hecho | Vista `v_resumen_grupo` + banda de KPIs del grupo (cartera, vendido, margen, caja) y ranking de promociones por margen |
 
 **Roles:** `direccion` (ve y gestiona todo) · `obra` (sus promociones: presupuestos, contratos de obra) · `comercial` (sus promociones: reservas, compraventas). `NULL` = pendiente de asignar (sin acceso).
 

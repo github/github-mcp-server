@@ -34,6 +34,19 @@ function mostrarLista() {
 async function cargar() {
   const grid = $("grid");
   grid.innerHTML = "";
+
+  // Resumen del grupo (KPIs agregados)
+  const { data: g } = await sb.from("v_resumen_grupo").select("*").maybeSingle();
+  if (g) {
+    $("resumenGrupo").innerHTML =
+      kpiCard("Promociones", g.num_promociones) +
+      kpiCard("Valor cartera", eur(g.valor_cartera)) +
+      kpiCard("Total vendido", eur(g.total_vendido), "var(--prim)") +
+      kpiCard("Margen total", eur(g.margen_total), "var(--green)") +
+      kpiCard("Caja cobrada", eur(g.caja_cobrada), "var(--green)") +
+      kpiCard("Caja pendiente", eur(g.caja_pendiente), "var(--amber)");
+  }
+
   const [com, rent] = await Promise.all([
     sb.from("v_comercializacion_promocion").select("*"),
     sb.from("v_rentabilidad_promocion").select("*"),
@@ -52,6 +65,7 @@ async function cargar() {
     return;
   }
   $("appSub").textContent = `${promos.length} promoción(es) — haz clic en una para ver el detalle.`;
+  promos.sort((a, b) => (rentById[b.id]?.margen || 0) - (rentById[a.id]?.margen || 0));
   promos.forEach((p) => {
     PROMOS[p.id] = p;
     const r = rentById[p.id] || {};
@@ -76,6 +90,7 @@ async function cargar() {
 }
 
 const kpiBox = (l, v) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div></div>`;
+const kpiCard = (l, v, col) => `<div class="card kpi"><div class="l">${l}</div><div class="v" style="${col ? `color:${col}` : ""}">${v}</div></div>`;
 
 function abrirDetalle(id) {
   const p = PROMOS[id];
