@@ -28,6 +28,7 @@
 | Facturación automática (cola → Holded) | ✅ Hecho | Tabla `factura_pendiente` + trigger: al escriturar una compraventa se encola su factura. Make/Zapier la emite en Holded (`create_invoice`) |
 | Tesorería por promoción | ✅ Hecho | Vista `v_tesoreria_promocion` (contratado en hitos / cobrado / pendiente de cobro) |
 | App web real (frontend) | ✅ Hecho | `app/` — login con Supabase + dashboard de promociones en vivo (RLS por rol) |
+| ERP publicado (URL pública) | ✅ Hecho | Edge Function `app` (verify_jwt=false): https://jpojckqnhepiuwefyvdr.supabase.co/functions/v1/app · usuario demo de dirección creado |
 
 **Roles:** `direccion` (ve y gestiona todo) · `obra` (sus promociones: presupuestos, contratos de obra) · `comercial` (sus promociones: reservas, compraventas). `NULL` = pendiente de asignar (sin acceso).
 
