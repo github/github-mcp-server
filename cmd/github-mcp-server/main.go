@@ -138,6 +138,7 @@ var (
 				Version:              version,
 				Host:                 viper.GetString("host"),
 				Port:                 viper.GetInt("port"),
+				ListenAddress:        viper.GetString("listen-address"),
 				BaseURL:              viper.GetString("base-url"),
 				ResourcePath:         viper.GetString("base-path"),
 				ExportTranslations:   viper.GetBool("export-translations"),
@@ -183,7 +184,8 @@ func init() {
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
 
 	// HTTP-specific flags
-	httpCmd.Flags().Int("port", 8082, "HTTP server port")
+	httpCmd.Flags().Int("port", 8082, "HTTP server port (ignored when --listen-address is set)")
+	httpCmd.Flags().String("listen-address", "", "HTTP server listen address (host:port). Overrides --port when set (e.g. 127.0.0.1:8082)")
 	httpCmd.Flags().String("base-url", "", "Base URL where this server is publicly accessible (for OAuth resource metadata)")
 	httpCmd.Flags().String("base-path", "", "Externally visible base path for the HTTP server (for OAuth resource metadata)")
 	httpCmd.Flags().Bool("scope-challenge", false, "Enable OAuth scope challenge responses")
@@ -204,6 +206,7 @@ func init() {
 	_ = viper.BindPFlag("insiders", rootCmd.PersistentFlags().Lookup("insiders"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
 	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))
+	_ = viper.BindPFlag("listen-address", httpCmd.Flags().Lookup("listen-address"))
 	_ = viper.BindPFlag("base-url", httpCmd.Flags().Lookup("base-url"))
 	_ = viper.BindPFlag("base-path", httpCmd.Flags().Lookup("base-path"))
 	_ = viper.BindPFlag("scope-challenge", httpCmd.Flags().Lookup("scope-challenge"))
