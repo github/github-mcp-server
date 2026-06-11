@@ -7,6 +7,7 @@ import (
 	"maps"
 	"strings"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
@@ -924,7 +925,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "set_issue_fields",
-			Description: t("TOOL_SET_ISSUE_FIELDS_DESCRIPTION", "Set issue field values for an issue. Fields are organization-level custom fields (text, number, date, or single select). Use this to create or update field values on an issue. When setting values, include a confidence level (low, medium, or high) reflecting how certain you are about the choice."),
+			Description: t("TOOL_SET_ISSUE_FIELDS_DESCRIPTION", "Set issue field values for an issue. Fields are organization-level custom fields (text, number, date, or single select). Use this to create or update field values on an issue."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_SET_ISSUE_FIELDS_USER_TITLE", "Set Issue Fields"),
 				ReadOnlyHint:    false,
@@ -1170,7 +1171,10 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				IssueFields: issueFields,
 			}
 
-			if err := gqlClient.Mutate(ctx, &mutation, mutationInput, nil); err != nil {
+			// The rationale and suggest input fields on IssueFieldCreateOrUpdateInput
+			// are gated behind the update_issue_suggestions GraphQL feature flag.
+			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "update_issue_suggestions")
+			if err := gqlClient.Mutate(ctxWithFeatures, &mutation, mutationInput, nil); err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to set issue field values", err), nil, nil
 			}
 

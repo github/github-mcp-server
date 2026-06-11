@@ -8,6 +8,7 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -155,7 +156,17 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return utils.NewToolResultErrorFromErr("failed to marshal issue fields", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Issue field definitions are repo/org structural metadata
+			// (trusted). When scoped to a specific repo, confidentiality
+			// follows that repo's visibility; for an org-level lookup (no
+			// repo) it is conservatively treated as private.
+			if repo == "" {
+				result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoMetadata(true))
+			} else {
+				result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
+			}
+			return result, nil, nil
 		})
 	st.FeatureFlagEnable = FeatureFlagIssueFields
 	return st
