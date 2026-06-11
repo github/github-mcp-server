@@ -142,3 +142,8 @@ Example:
     "url": "https://api.githubcopilot.com/mcp/x/issues/readonly"
 }
 ```
+
+## Related Documentation
+
+- [Agent Security & Rate Limiting Guide](./agent-security-guide.md) — per-tool blocks, rate limits, and recommended agent profiles
+- [Server Configuration Guide](./server-configuration.md) — headers, toolsets, and exclude-tools

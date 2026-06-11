@@ -180,6 +180,7 @@ Organizations may block **GitHub Apps** and **OAuth Apps** until explicitly appr
 - **PKCE:** We strongly recommend implementing [PKCE](https://datatracker.ietf.org/doc/html/rfc7636) for all OAuth flows to prevent code interception, to prepare for upcoming PKCE support.
 
 ## Additional Resources
+- [Agent Security & Rate Limiting Guide](./agent-security-guide.md) — per-tool blocks, rate limits, and recommended agent profiles
 - [MCP Official Spec](https://modelcontextprotocol.io/specification/draft)
 - [MCP SDKs](https://modelcontextprotocol.io/sdk/java/mcp-overview)
 - [GitHub Docs on Creating GitHub Apps](https://docs.github.com/en/apps/creating-github-apps)
