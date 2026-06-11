@@ -241,6 +241,80 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
 
 </details>
 
+### GitHub App Authentication
+
+As an alternative to Personal Access Tokens, the MCP server supports authenticating as a [GitHub App](https://docs.github.com/en/apps) installation. This is useful for organizations that want to grant scoped, short-lived access without relying on individual PATs.
+
+The server automatically generates JWTs, fetches installation tokens, and refreshes them before expiry (installation tokens are valid for 1 hour).
+
+#### Required Environment Variables
+
+| Variable | Description |
+|---|---|
+| `GITHUB_APP_ID` | The GitHub App ID |
+| `GITHUB_APP_INSTALLATION_ID` | The installation ID of the GitHub App |
+| `GITHUB_APP_PRIVATE_KEY` | The PEM-encoded private key (inline, `\n` for newlines) |
+| `GITHUB_APP_PRIVATE_KEY_PATH` | Path to the private key file (alternative to inline) |
+
+Either `GITHUB_APP_PRIVATE_KEY` or `GITHUB_APP_PRIVATE_KEY_PATH` must be set, but not both (they are mutually exclusive). When all three required variables (`GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, and a private key) are set, the server uses GitHub App authentication instead of a PAT. `GITHUB_PERSONAL_ACCESS_TOKEN` is not required in this case.
+
+#### Example: Using a private key file
+
+```bash
+export GITHUB_APP_ID=12345
+export GITHUB_APP_INSTALLATION_ID=67890
+export GITHUB_APP_PRIVATE_KEY_PATH=/path/to/private-key.pem
+github-mcp-server stdio
+```
+
+#### Example: Using an inline private key
+
+```bash
+export GITHUB_APP_ID=12345
+export GITHUB_APP_INSTALLATION_ID=67890
+export GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n-----END RSA PRIVATE KEY-----"
+github-mcp-server stdio
+```
+
+#### Example: Docker with GitHub App authentication
+
+```bash
+docker run -i --rm \
+  -e GITHUB_APP_ID=12345 \
+  -e GITHUB_APP_INSTALLATION_ID=67890 \
+  -e GITHUB_APP_PRIVATE_KEY_PATH=/key/private-key.pem \
+  -v /path/to/private-key.pem:/key/private-key.pem:ro \
+  ghcr.io/github/github-mcp-server
+```
+
+#### Example: VS Code configuration
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "github": {
+        "command": "docker",
+        "args": [
+          "run",
+          "-i",
+          "--rm",
+          "-e", "GITHUB_APP_ID",
+          "-e", "GITHUB_APP_INSTALLATION_ID",
+          "-e", "GITHUB_APP_PRIVATE_KEY",
+          "ghcr.io/github/github-mcp-server"
+        ],
+        "env": {
+          "GITHUB_APP_ID": "12345",
+          "GITHUB_APP_INSTALLATION_ID": "67890",
+          "GITHUB_APP_PRIVATE_KEY": "-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n-----END RSA PRIVATE KEY-----"
+        }
+      }
+    }
+  }
+}
+```
+
 ### GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)
 
 The flag `--gh-host` and the environment variable `GITHUB_HOST` can be used to set

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,8 +35,16 @@ var (
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			token := viper.GetString("personal_access_token")
-			if token == "" {
-				return errors.New("GITHUB_PERSONAL_ACCESS_TOKEN not set")
+
+			// Parse GitHub App authentication config
+			appID, privateKey, installationID, err := parseAppAuthConfig()
+			if err != nil {
+				return err
+			}
+			useAppAuth := appID != 0 && len(privateKey) > 0 && installationID != 0
+
+			if token == "" && !useAppAuth {
+				return errors.New("GITHUB_PERSONAL_ACCESS_TOKEN not set (or configure GitHub App auth with GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY/GITHUB_APP_PRIVATE_KEY_PATH, and GITHUB_APP_INSTALLATION_ID)")
 			}
 
 			// If you're wondering why we're not using viper.GetStringSlice("toolsets"),
@@ -94,6 +103,9 @@ var (
 				InsidersMode:         viper.GetBool("insiders"),
 				ExcludeTools:         excludeTools,
 				RepoAccessCacheTTL:   &ttl,
+				AppID:                appID,
+				PrivateKey:           privateKey,
+				InstallationID:       installationID,
 			}
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
@@ -133,6 +145,11 @@ var (
 				}
 			}
 
+			appID, privateKey, installationID, err := parseAppAuthConfig()
+			if err != nil {
+				return err
+			}
+
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			httpConfig := ghhttp.ServerConfig{
 				Version:              version,
@@ -154,6 +171,9 @@ var (
 				EnabledFeatures:      enabledFeatures,
 				InsidersMode:         viper.GetBool("insiders"),
 				TrustProxyHeaders:    viper.GetBool("trust-proxy-headers"),
+				AppID:                appID,
+				PrivateKey:           privateKey,
+				InstallationID:       installationID,
 			}
 
 			return ghhttp.RunHTTPServer(httpConfig)
@@ -234,4 +254,54 @@ func wordSepNormalizeFunc(_ *pflag.FlagSet, name string) pflag.NormalizedName {
 		name = strings.ReplaceAll(name, sep, to)
 	}
 	return pflag.NormalizedName(name)
+}
+
+// parseAppAuthConfig reads GitHub App authentication config from environment variables.
+// Returns (0, nil, 0, nil) when no App auth is configured.
+func parseAppAuthConfig() (appID int64, privateKey []byte, installationID int64, err error) {
+	appIDStr := viper.GetString("app_id")
+	installationIDStr := viper.GetString("app_installation_id")
+	privateKeyStr := viper.GetString("app_private_key")
+	privateKeyPath := viper.GetString("app_private_key_path")
+
+	// If none are set, App auth is not configured
+	if appIDStr == "" && installationIDStr == "" && privateKeyStr == "" && privateKeyPath == "" {
+		return 0, nil, 0, nil
+	}
+
+	// If some but not all are set, that's a configuration error
+	if appIDStr == "" || installationIDStr == "" || (privateKeyStr == "" && privateKeyPath == "") {
+		return 0, nil, 0, errors.New("incomplete GitHub App auth config: GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID, and GITHUB_APP_PRIVATE_KEY or GITHUB_APP_PRIVATE_KEY_PATH are all required")
+	}
+
+	if privateKeyStr != "" && privateKeyPath != "" {
+		return 0, nil, 0, errors.New("GITHUB_APP_PRIVATE_KEY and GITHUB_APP_PRIVATE_KEY_PATH are mutually exclusive")
+	}
+
+	appID, err = strconv.ParseInt(appIDStr, 10, 64)
+	if err != nil {
+		return 0, nil, 0, fmt.Errorf("invalid GITHUB_APP_ID: %w", err)
+	}
+
+	installationID, err = strconv.ParseInt(installationIDStr, 10, 64)
+	if err != nil {
+		return 0, nil, 0, fmt.Errorf("invalid GITHUB_APP_INSTALLATION_ID: %w", err)
+	}
+
+	if privateKeyStr != "" {
+		// Environment variables often use literal "\n" instead of actual newlines.
+		// Only replace when the value has no real newlines to avoid corrupting
+		// keys that were correctly passed with actual newlines.
+		if !strings.Contains(privateKeyStr, "\n") {
+			privateKeyStr = strings.ReplaceAll(privateKeyStr, `\n`, "\n")
+		}
+		privateKey = []byte(privateKeyStr)
+	} else {
+		privateKey, err = os.ReadFile(privateKeyPath)
+		if err != nil {
+			return 0, nil, 0, fmt.Errorf("failed to read private key from %s: %w", privateKeyPath, err)
+		}
+	}
+
+	return appID, privateKey, installationID, nil
 }
