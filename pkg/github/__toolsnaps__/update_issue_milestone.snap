@@ -1,0 +1,38 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Update Issue Milestone"
+  },
+  "description": "Update the milestone of an existing issue.",
+  "inputSchema": {
+    "properties": {
+      "issue_number": {
+        "description": "The issue number to update",
+        "minimum": 1,
+        "type": "number"
+      },
+      "milestone": {
+        "description": "The milestone number to set on the issue",
+        "minimum": 1,
+        "type": "integer"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "issue_number",
+      "milestone"
+    ],
+    "type": "object"
+  },
+  "name": "update_issue_milestone"
+}

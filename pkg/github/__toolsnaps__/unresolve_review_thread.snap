@@ -1,0 +1,21 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Unresolve Review Thread"
+  },
+  "description": "Unresolve a previously resolved review thread on a pull request. Unresolving an already-unresolved thread is a no-op.",
+  "inputSchema": {
+    "properties": {
+      "threadID": {
+        "description": "The node ID of the review thread to unresolve (e.g., PRRT_kwDOxxx)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "threadID"
+    ],
+    "type": "object"
+  },
+  "name": "unresolve_review_thread"
+}

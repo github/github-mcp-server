@@ -5,14 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/observability"
+	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gogithub "github.com/google/go-github/v82/github"
+	gogithub "github.com/google/go-github/v87/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -30,6 +34,7 @@ type stubDeps struct {
 	t                 translations.TranslationHelperFunc
 	flags             FeatureFlags
 	contentWindowSize int
+	obsv              observability.Exporters
 }
 
 func (s stubDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
@@ -60,11 +65,25 @@ func (s stubDeps) GetT() translations.TranslationHelperFunc          { return s.
 func (s stubDeps) GetFlags(_ context.Context) FeatureFlags           { return s.flags }
 func (s stubDeps) GetContentWindowSize() int                         { return s.contentWindowSize }
 func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool { return false }
+func (s stubDeps) Logger(_ context.Context) *slog.Logger {
+	return s.obsv.Logger()
+}
+func (s stubDeps) Metrics(ctx context.Context) metrics.Metrics {
+	return s.obsv.Metrics(ctx)
+}
 
 // Helper functions to create stub client functions for error testing
-func stubClientFnFromHTTP(httpClient *http.Client) func(context.Context) (*gogithub.Client, error) {
+
+// stubExporters returns a discard-logger + noop-metrics Exporters for tests.
+func stubExporters() observability.Exporters {
+	obs, _ := observability.NewExporters(slog.New(slog.DiscardHandler), metrics.NewNoopMetrics())
+	return obs
+}
+
+func stubClientFnFromHTTP(t *testing.T, httpClient *http.Client) func(context.Context) (*gogithub.Client, error) {
+	t.Helper()
 	return func(_ context.Context) (*gogithub.Client, error) {
-		return gogithub.NewClient(httpClient), nil
+		return mustNewGHClient(t, httpClient), nil
 	}
 }
 
@@ -80,15 +99,37 @@ func stubGQLClientFnErr(errMsg string) func(context.Context) (*githubv4.Client, 
 	}
 }
 
-func stubRepoAccessCache(client *githubv4.Client, ttl time.Duration) *lockdown.RepoAccessCache {
+func stubRepoAccessCache(restClient *gogithub.Client, ttl time.Duration) *lockdown.RepoAccessCache {
 	cacheName := fmt.Sprintf("repo-access-cache-test-%d", time.Now().UnixNano())
-	return lockdown.GetInstance(client, lockdown.WithTTL(ttl), lockdown.WithCacheName(cacheName))
+	return lockdown.NewRepoAccessCache(
+		githubv4.NewClient(newRepoAccessHTTPClient()),
+		restClient,
+		lockdown.WithTTL(ttl),
+		lockdown.WithCacheName(cacheName),
+	)
+}
+
+func mockRESTPermissionServer(t *testing.T, defaultPerm string, overrides map[string]string) *gogithub.Client {
+	t.Helper()
+	return mustNewGHClient(t, MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+		perm := defaultPerm
+		for user, p := range overrides {
+			if strings.Contains(r.URL.Path, "/collaborators/"+user+"/") {
+				perm = p
+				break
+			}
+		}
+		resp := gogithub.RepositoryPermissionLevel{
+			Permission: gogithub.Ptr(perm),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
 }
 
 func stubFeatureFlags(enabledFlags map[string]bool) FeatureFlags {
 	return FeatureFlags{
 		LockdownMode: enabledFlags["lockdown-mode"],
-		InsidersMode: enabledFlags["insiders-mode"],
 	}
 }
 
@@ -122,10 +163,9 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 		Translator:        translations.NullTranslationHelper,
 		ContentWindowSize: 5000,
 		LockdownMode:      false,
-		InsidersMode:      false,
 	}
 
-	deps := stubDeps{}
+	deps := stubDeps{obsv: stubExporters()}
 
 	// Build inventory
 	inv, err := NewInventory(cfg.Translator).
@@ -248,28 +288,17 @@ func TestResolveEnabledToolsets(t *testing.T) {
 		expectedResult []string
 	}{
 		{
-			name: "nil toolsets without dynamic mode and no tools - use defaults",
+			name: "nil toolsets and no tools - use defaults",
 			cfg: MCPServerConfig{
 				EnabledToolsets: nil,
-				DynamicToolsets: false,
 				EnabledTools:    nil,
 			},
 			expectedResult: nil, // nil means "use defaults"
 		},
 		{
-			name: "nil toolsets with dynamic mode - start empty",
-			cfg: MCPServerConfig{
-				EnabledToolsets: nil,
-				DynamicToolsets: true,
-				EnabledTools:    nil,
-			},
-			expectedResult: []string{}, // empty slice means no toolsets
-		},
-		{
 			name: "explicit toolsets",
 			cfg: MCPServerConfig{
 				EnabledToolsets: []string{"repos", "issues"},
-				DynamicToolsets: false,
 			},
 			expectedResult: []string{"repos", "issues"},
 		},
@@ -277,33 +306,47 @@ func TestResolveEnabledToolsets(t *testing.T) {
 			name: "empty toolsets - disable all",
 			cfg: MCPServerConfig{
 				EnabledToolsets: []string{},
-				DynamicToolsets: false,
 			},
-			expectedResult: []string{}, // empty slice means no toolsets
+			expectedResult: []string{},
 		},
 		{
 			name: "specific tools without toolsets - no default toolsets",
 			cfg: MCPServerConfig{
 				EnabledToolsets: nil,
-				DynamicToolsets: false,
 				EnabledTools:    []string{"get_me"},
 			},
 			expectedResult: []string{}, // empty slice when tools specified but no toolsets
-		},
-		{
-			name: "dynamic mode with explicit toolsets removes all and default",
-			cfg: MCPServerConfig{
-				EnabledToolsets: []string{"all", "repos"},
-				DynamicToolsets: true,
-			},
-			expectedResult: []string{"repos"}, // "all" is removed in dynamic mode
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := ResolvedEnabledToolsets(tc.cfg.DynamicToolsets, tc.cfg.EnabledToolsets, tc.cfg.EnabledTools)
+			result := ResolvedEnabledToolsets(tc.cfg.EnabledToolsets, tc.cfg.EnabledTools)
 			assert.Equal(t, tc.expectedResult, result)
+		})
+	}
+}
+
+func TestCompletionsHandler_RejectsMissingRef(t *testing.T) {
+	getClient := func(_ context.Context) (*gogithub.Client, error) {
+		return &gogithub.Client{}, nil
+	}
+	handler := CompletionsHandler(getClient)
+
+	tests := []struct {
+		name string
+		req  *mcp.CompleteRequest
+	}{
+		{name: "nil request", req: nil},
+		{name: "nil params", req: &mcp.CompleteRequest{}},
+		{name: "nil ref", req: &mcp.CompleteRequest{Params: &mcp.CompleteParams{}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := handler(context.Background(), tc.req)
+			require.Error(t, err)
+			assert.Nil(t, result)
+			assert.Contains(t, err.Error(), "missing required parameter: ref")
 		})
 	}
 }

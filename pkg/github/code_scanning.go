@@ -7,11 +7,12 @@ import (
 	"net/http"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -88,12 +89,52 @@ func GetCodeScanningAlert(t translations.TranslationHelperFunc) inventory.Server
 				return utils.NewToolResultErrorFromErr("failed to marshal alert", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Code scanning alerts are access-restricted regardless of repo
+			// visibility and embed attacker-influenceable code snippets, so the
+			// label is always private-untrusted.
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
+			return result, nil, nil
 		},
 	)
 }
 
 func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.ServerTool {
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "The owner of the repository.",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "The name of the repository.",
+			},
+			"state": {
+				Type:        "string",
+				Description: "Filter code scanning alerts by state. Defaults to open",
+				Enum:        []any{"open", "closed", "dismissed", "fixed"},
+				Default:     json.RawMessage(`"open"`),
+			},
+			"ref": {
+				Type:        "string",
+				Description: "The Git reference for the results you want to list.",
+			},
+			"severity": {
+				Type:        "string",
+				Description: "Filter code scanning alerts by severity",
+				Enum:        []any{"critical", "high", "medium", "low", "warning", "note", "error"},
+			},
+			"tool_name": {
+				Type:        "string",
+				Description: "The name of the tool used for code scanning.",
+			},
+		},
+		Required: []string{"owner", "repo"},
+	}
+	WithPagination(schema)
+
 	return NewTool(
 		ToolsetMetadataCodeSecurity,
 		mcp.Tool{
@@ -103,39 +144,7 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 				Title:        t("TOOL_LIST_CODE_SCANNING_ALERTS_USER_TITLE", "List code scanning alerts"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner": {
-						Type:        "string",
-						Description: "The owner of the repository.",
-					},
-					"repo": {
-						Type:        "string",
-						Description: "The name of the repository.",
-					},
-					"state": {
-						Type:        "string",
-						Description: "Filter code scanning alerts by state. Defaults to open",
-						Enum:        []any{"open", "closed", "dismissed", "fixed"},
-						Default:     json.RawMessage(`"open"`),
-					},
-					"ref": {
-						Type:        "string",
-						Description: "The Git reference for the results you want to list.",
-					},
-					"severity": {
-						Type:        "string",
-						Description: "Filter code scanning alerts by severity",
-						Enum:        []any{"critical", "high", "medium", "low", "warning", "note", "error"},
-					},
-					"tool_name": {
-						Type:        "string",
-						Description: "The name of the tool used for code scanning.",
-					},
-				},
-				Required: []string{"owner", "repo"},
-			},
+			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.SecurityEvents},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -164,11 +173,25 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			pagination, err := OptionalPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
-			alerts, resp, err := client.CodeScanning.ListAlertsForRepo(ctx, owner, repo, &github.AlertListOptions{Ref: ref, State: state, Severity: severity, ToolName: toolName})
+			alerts, resp, err := client.CodeScanning.ListAlertsForRepo(ctx, owner, repo, &github.AlertListOptions{
+				Ref:      ref,
+				State:    state,
+				Severity: severity,
+				ToolName: toolName,
+				ListOptions: github.ListOptions{
+					Page:    pagination.Page,
+					PerPage: pagination.PerPage,
+				},
+			})
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to list alerts",
@@ -191,7 +214,12 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 				return utils.NewToolResultErrorFromErr("failed to marshal alerts", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Code scanning alerts are access-restricted regardless of repo
+			// visibility and embed attacker-influenceable code snippets, so the
+			// label is always private-untrusted.
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
+			return result, nil, nil
 		},
 	)
 }

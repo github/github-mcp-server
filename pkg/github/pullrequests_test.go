@@ -9,9 +9,8 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -96,12 +95,12 @@ func Test_GetPullRequest(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
 			deps := BaseDeps{
 				Client:          client,
 				GQLClient:       gqlClient,
-				RepoAccessCache: stubRepoAccessCache(gqlClient, 5*time.Minute),
+				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
 			handler := serverTool.Handler(deps)
@@ -259,6 +258,24 @@ func Test_UpdatePullRequest(t *testing.T) {
 			expectedPR:  mockPRWithReviewers,
 		},
 		{
+			name: "successful PR update with user and team reviewers",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
+					"reviewers":      []any{"reviewer1"},
+					"team_reviewers": []any{"platform"},
+				}).andThen(mockResponse(t, http.StatusOK, mockPRWithReviewers)),
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPRWithReviewers),
+			}),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"reviewers":  []any{"reviewer1", "owner/platform"},
+			},
+			expectError: false,
+			expectedPR:  mockPRWithReviewers,
+		},
+		{
 			name: "successful PR update (title only)",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposPullsByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
@@ -328,7 +345,7 @@ func Test_UpdatePullRequest(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			gqlClient := githubv4.NewClient(nil)
 			deps := BaseDeps{
 				Client:    client,
@@ -512,7 +529,7 @@ func Test_UpdatePullRequest_Draft(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// For draft-only tests, we need to mock both GraphQL and the final REST GET call
-			restClient := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockUpdatedPR),
 			}))
 			gqlClient := githubv4.NewClient(tc.mockedClient)
@@ -642,7 +659,7 @@ func Test_ListPullRequests(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := ListPullRequests(translations.NullTranslationHelper)
 			deps := BaseDeps{
 				Client: client,
@@ -760,7 +777,7 @@ func Test_MergePullRequest(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := MergePullRequest(translations.NullTranslationHelper)
 			deps := BaseDeps{
 				Client: client,
@@ -1039,7 +1056,7 @@ func Test_SearchPullRequests(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := SearchPullRequests(translations.NullTranslationHelper)
 			deps := BaseDeps{
 				Client: client,
@@ -1198,11 +1215,11 @@ func Test_GetPullRequestFiles(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
 			deps := BaseDeps{
 				Client:          client,
-				RepoAccessCache: stubRepoAccessCache(githubv4.NewClient(githubv4mock.NewMockedHTTPClient()), 5*time.Minute),
+				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
 			handler := serverTool.Handler(deps)
@@ -1241,6 +1258,185 @@ func Test_GetPullRequestFiles(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_GetPullRequestCommits(t *testing.T) {
+	// Verify tool definition once
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "pull_request_read", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "method")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
+
+	authorDate := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
+	mockCommits := []*github.RepositoryCommit{
+		{
+			SHA:     github.Ptr("abc123def456"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/commit/abc123def456"),
+			Commit: &github.Commit{
+				Message: github.Ptr("feat: add commit listing"),
+				Author: &github.CommitAuthor{
+					Name:  github.Ptr("Test User"),
+					Email: github.Ptr("test@example.com"),
+					Date:  &github.Timestamp{Time: authorDate},
+				},
+				Committer: &github.CommitAuthor{
+					Name:  github.Ptr("Merge Bot"),
+					Email: github.Ptr("merge@example.com"),
+					Date:  &github.Timestamp{Time: authorDate.Add(30 * time.Minute)},
+				},
+			},
+			Author: &github.User{
+				Login:     github.Ptr("test-user"),
+				ID:        github.Ptr(int64(12345)),
+				HTMLURL:   github.Ptr("https://github.com/test-user"),
+				AvatarURL: github.Ptr("https://github.com/test-user.png"),
+			},
+			Committer: &github.User{
+				Login:     github.Ptr("merge-bot"),
+				ID:        github.Ptr(int64(67890)),
+				HTMLURL:   github.Ptr("https://github.com/merge-bot"),
+				AvatarURL: github.Ptr("https://github.com/merge-bot.png"),
+			},
+		},
+		{
+			SHA:     github.Ptr("def456abc789"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/commit/def456abc789"),
+			Commit: &github.Commit{
+				Message: github.Ptr("fix: handle pagination"),
+			},
+		},
+	}
+
+	tests := []struct {
+		name            string
+		mockedClient    *http.Client
+		requestArgs     map[string]any
+		expectError     bool
+		expectedCommits []*github.RepositoryCommit
+		expectedErrMsg  string
+	}{
+		{
+			name: "successful commits fetch",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsCommitsByOwnerByRepoByPullNumber: expectQueryParams(t, map[string]string{
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockCommits),
+				),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_commits",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:     false,
+			expectedCommits: mockCommits,
+		},
+		{
+			name: "successful commits fetch with pagination",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsCommitsByOwnerByRepoByPullNumber: expectQueryParams(t, map[string]string{
+					"page":     "2",
+					"per_page": "10",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockCommits),
+				),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_commits",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"page":       float64(2),
+				"perPage":    float64(10),
+			},
+			expectError:     false,
+			expectedCommits: mockCommits,
+		},
+		{
+			name: "commits fetch fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsCommitsByOwnerByRepoByPullNumber: expectQueryParams(t, map[string]string{
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_commits",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(999),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get pull request commits",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			serverTool := PullRequestRead(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client:          client,
+				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+			}
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(tc.requestArgs)
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			if tc.expectError {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			textContent := getTextResult(t, result)
+			assert.NotContains(t, textContent.Text, `"committer"`)
+			assert.NotContains(t, textContent.Text, `"profile_url"`)
+
+			var returnedCommits []MinimalPullRequestCommit
+			err = json.Unmarshal([]byte(textContent.Text), &returnedCommits)
+			require.NoError(t, err)
+			assert.Len(t, returnedCommits, len(tc.expectedCommits))
+			for i, commit := range returnedCommits {
+				assert.Equal(t, tc.expectedCommits[i].GetSHA(), commit.SHA)
+				assert.Equal(t, tc.expectedCommits[i].GetHTMLURL(), commit.HTMLURL)
+				assert.Equal(t, tc.expectedCommits[i].GetCommit().GetMessage(), commit.Message)
+			}
+
+			assert.Equal(t, authorDate.Format(time.RFC3339), returnedCommits[0].Author.Date)
+		})
+	}
+}
+
+func Test_ConvertToMinimalPullRequestCommitsSkipsNilCommit(t *testing.T) {
+	commits := convertToMinimalPullRequestCommits([]*github.RepositoryCommit{nil})
+
+	require.Empty(t, commits)
 }
 
 func Test_GetPullRequestStatus(t *testing.T) {
@@ -1358,11 +1554,11 @@ func Test_GetPullRequestStatus(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
 			deps := BaseDeps{
 				Client:          client,
-				RepoAccessCache: stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute),
+				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
 			handler := serverTool.Handler(deps)
@@ -1514,11 +1710,11 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
 			deps := BaseDeps{
 				Client:          client,
-				RepoAccessCache: stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute),
+				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
 			handler := serverTool.Handler(deps)
@@ -1642,7 +1838,7 @@ func Test_UpdatePullRequestBranch(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := UpdatePullRequestBranch(translations.NullTranslationHelper)
 			deps := BaseDeps{
 				Client: client,
@@ -1688,6 +1884,11 @@ func Test_GetPullRequestComments(t *testing.T) {
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
 	assert.Contains(t, schema.Properties, "pullNumber")
+	// `after` is required for cursor-based pagination on get_review_comments
+	// to be reachable from MCP clients; without it in the schema, callers
+	// cannot advance past the first page (issue #2122).
+	assert.Contains(t, schema.Properties, "after")
+	assert.Equal(t, "string", schema.Properties["after"].Type)
 	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
 	tests := []struct {
@@ -1803,6 +2004,54 @@ func Test_GetPullRequestComments(t *testing.T) {
 
 				// Validate total count
 				assert.Equal(t, 1, result.TotalCount)
+			},
+		},
+		{
+			name: "after cursor is forwarded to GraphQL query",
+			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					reviewThreadsQuery{},
+					map[string]any{
+						"owner":             githubv4.String("owner"),
+						"repo":              githubv4.String("repo"),
+						"prNum":             githubv4.Int(42),
+						"first":             githubv4.Int(30),
+						"commentsPerThread": githubv4.Int(100),
+						"after":             githubv4.String("cursor-page-2"),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"pullRequest": map[string]any{
+								"reviewThreads": map[string]any{
+									"nodes": []map[string]any{},
+									"pageInfo": map[string]any{
+										"hasNextPage":     false,
+										"hasPreviousPage": true,
+										"startCursor":     "cursor3",
+										"endCursor":       "cursor4",
+									},
+									"totalCount": 5,
+								},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"method":     "get_review_comments",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"after":      "cursor-page-2",
+			},
+			expectError: false,
+			validateResult: func(t *testing.T, textContent string) {
+				var result MinimalReviewThreadsResponse
+				err := json.Unmarshal([]byte(textContent), &result)
+				require.NoError(t, err)
+				assert.Len(t, result.ReviewThreads, 0)
+				assert.Equal(t, true, result.PageInfo.HasPreviousPage)
+				assert.Equal(t, "cursor4", result.PageInfo.EndCursor)
 			},
 		},
 		{
@@ -1937,17 +2186,20 @@ func Test_GetPullRequestComments(t *testing.T) {
 			}
 
 			// Setup cache for lockdown mode
-			var cache *lockdown.RepoAccessCache
+			var restClient *github.Client
 			if tc.lockdownEnabled {
-				cache = stubRepoAccessCache(githubv4.NewClient(newRepoAccessHTTPClient()), 5*time.Minute)
-			} else {
-				cache = stubRepoAccessCache(gqlClient, 5*time.Minute)
+				restClient = mockRESTPermissionServer(t, "read", map[string]string{
+					"maintainer":    "write",
+					"external-user": "read",
+					"testuser":      "read",
+				})
 			}
+			cache := stubRepoAccessCache(restClient, 5*time.Minute)
 
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
 			deps := BaseDeps{
-				Client:          github.NewClient(nil),
+				Client:          mustNewGHClient(t, nil),
 				GQLClient:       gqlClient,
 				RepoAccessCache: cache,
 				Flags:           flags,
@@ -2049,12 +2301,38 @@ func Test_GetPullRequestReviews(t *testing.T) {
 			expectedReviews: mockReviews,
 		},
 		{
+			name: "successful reviews fetch with pagination",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsReviewsByOwnerByRepoByPullNumber: expectQueryParams(t, map[string]string{
+					"page":     "2",
+					"per_page": "10",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockReviews),
+				),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_reviews",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"page":       float64(2),
+				"perPage":    float64(10),
+			},
+			expectError:     false,
+			expectedReviews: mockReviews,
+		},
+		{
 			name: "reviews fetch fails",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposPullsReviewsByOwnerByRepoByPullNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusNotFound)
-					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-				}),
+				GetReposPullsReviewsByOwnerByRepoByPullNumber: expectQueryParams(t, map[string]string{
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
 			}),
 			requestArgs: map[string]any{
 				"method":     "get_reviews",
@@ -2083,7 +2361,6 @@ func Test_GetPullRequestReviews(t *testing.T) {
 					},
 				}),
 			}),
-			gqlHTTPClient: newRepoAccessHTTPClient(),
 			requestArgs: map[string]any{
 				"method":     "get_reviews",
 				"owner":      "owner",
@@ -2106,14 +2383,15 @@ func Test_GetPullRequestReviews(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
-			var gqlClient *githubv4.Client
-			if tc.gqlHTTPClient != nil {
-				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
-			} else {
-				gqlClient = githubv4.NewClient(nil)
+			client := mustNewGHClient(t, tc.mockedClient)
+			var restClient *github.Client
+			if tc.lockdownEnabled {
+				restClient = mockRESTPermissionServer(t, "read", map[string]string{
+					"maintainer": "write",
+					"testuser":   "read",
+				})
 			}
-			cache := stubRepoAccessCache(gqlClient, 5*time.Minute)
+			cache := stubRepoAccessCache(restClient, 5*time.Minute)
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
 			deps := BaseDeps{
@@ -2272,7 +2550,7 @@ func Test_CreatePullRequest(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := CreatePullRequest(translations.NullTranslationHelper)
 			deps := BaseDeps{
 				Client: client,
@@ -2312,9 +2590,9 @@ func Test_CreatePullRequest(t *testing.T) {
 	}
 }
 
-// Test_CreatePullRequest_InsidersMode_UIGate verifies the insiders mode UI gate
+// Test_CreatePullRequest_MCPAppsFeature_UIGate verifies the MCP Apps feature UI gate
 // behavior: UI clients get a form message, non-UI clients execute directly.
-func Test_CreatePullRequest_InsidersMode_UIGate(t *testing.T) {
+func Test_CreatePullRequest_MCPAppsFeature_UIGate(t *testing.T) {
 	t.Parallel()
 
 	mockPR := &github.PullRequest{
@@ -2328,14 +2606,14 @@ func Test_CreatePullRequest_InsidersMode_UIGate(t *testing.T) {
 
 	serverTool := CreatePullRequest(translations.NullTranslationHelper)
 
-	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		PostReposPullsByOwnerByRepo: mockResponse(t, http.StatusCreated, mockPR),
 	}))
 
 	deps := BaseDeps{
-		Client:    client,
-		GQLClient: githubv4.NewClient(nil),
-		Flags:     FeatureFlags{InsidersMode: true},
+		Client:         client,
+		GQLClient:      githubv4.NewClient(nil),
+		featureChecker: featureCheckerFor(MCPAppsFeatureFlag),
 	}
 	handler := serverTool.Handler(deps)
 
@@ -2386,6 +2664,49 @@ func Test_CreatePullRequest_InsidersMode_UIGate(t *testing.T) {
 		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
 			"non-UI client should execute directly")
 	})
+
+	t.Run("UI client with non-form param skips form and executes directly", func(t *testing.T) {
+		// A parameter the form does not collect must bypass the form rather than
+		// be silently dropped.
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"owner":     "owner",
+			"repo":      "repo",
+			"title":     "Test PR",
+			"head":      "feature",
+			"base":      "main",
+			"reviewers": []any{"octocat"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.NotContains(t, textContent.Text, "Ready to create a pull request",
+			"non-form param should skip UI form")
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
+			"non-form param call should execute directly and return PR URL")
+	})
+}
+
+func Test_pullRequestWriteHasNonFormParams(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args map[string]any
+		want bool
+	}{
+		{name: "no params", args: map[string]any{}, want: false},
+		{name: "only form params", args: map[string]any{"owner": "o", "repo": "r", "title": "t", "body": "b", "head": "h", "base": "b", "draft": true, "maintainer_can_modify": false, "_ui_submitted": true}, want: false},
+		{name: "unknown param present", args: map[string]any{"title": "t", "reviewers": []any{"octocat"}}, want: true},
+		{name: "nil value is ignored", args: map[string]any{"reviewers": nil}, want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, pullRequestWriteHasNonFormParams(tc.args))
+		})
+	}
 }
 
 func TestCreateAndSubmitPullRequestReview(t *testing.T) {
@@ -3344,11 +3665,11 @@ index 5d6e7b2..8a4f5c3 100644
 			t.Parallel()
 
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
 			deps := BaseDeps{
 				Client:          client,
-				RepoAccessCache: stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute),
+				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
 			handler := serverTool.Handler(deps)
@@ -3581,7 +3902,7 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 			t.Parallel()
 
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := AddReplyToPullRequestComment(translations.NullTranslationHelper)
 			deps := BaseDeps{
 				Client: client,

@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Update Pull Request Body"
+  },
+  "description": "Update the body description of an existing pull request.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "The new body content for the pull request",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "The pull request number",
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber",
+      "body"
+    ],
+    "type": "object"
+  },
+  "name": "update_pull_request_body"
+}

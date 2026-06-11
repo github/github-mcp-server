@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -11,11 +12,13 @@ import (
 	"github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/observability"
+	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	gogithub "github.com/google/go-github/v82/github"
+	gogithub "github.com/google/go-github/v87/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
@@ -94,6 +97,14 @@ type ToolDependencies interface {
 
 	// IsFeatureEnabled checks if a feature flag is enabled.
 	IsFeatureEnabled(ctx context.Context, flagName string) bool
+
+	// Logger returns the structured logger, optionally enriched with
+	// request-scoped data from ctx. Integrators provide their own slog.Handler
+	// to control where logs are sent.
+	Logger(ctx context.Context) *slog.Logger
+
+	// Metrics returns the metrics client
+	Metrics(ctx context.Context) metrics.Metrics
 }
 
 // BaseDeps is the standard implementation of ToolDependencies for the local server.
@@ -113,6 +124,9 @@ type BaseDeps struct {
 
 	// Feature flag checker for runtime checks
 	featureChecker inventory.FeatureFlagChecker
+
+	// Observability exporters (includes logger)
+	Obsv observability.Exporters
 }
 
 // Compile-time assertion to verify that BaseDeps implements the ToolDependencies interface.
@@ -128,6 +142,7 @@ func NewBaseDeps(
 	flags FeatureFlags,
 	contentWindowSize int,
 	featureChecker inventory.FeatureFlagChecker,
+	obsv observability.Exporters,
 ) *BaseDeps {
 	return &BaseDeps{
 		Client:            client,
@@ -138,6 +153,7 @@ func NewBaseDeps(
 		Flags:             flags,
 		ContentWindowSize: contentWindowSize,
 		featureChecker:    featureChecker,
+		Obsv:              obsv,
 	}
 }
 
@@ -169,6 +185,16 @@ func (d BaseDeps) GetFlags(_ context.Context) FeatureFlags { return d.Flags }
 
 // GetContentWindowSize implements ToolDependencies.
 func (d BaseDeps) GetContentWindowSize() int { return d.ContentWindowSize }
+
+// Logger implements ToolDependencies.
+func (d BaseDeps) Logger(_ context.Context) *slog.Logger {
+	return d.Obsv.Logger()
+}
+
+// Metrics implements ToolDependencies.
+func (d BaseDeps) Metrics(ctx context.Context) metrics.Metrics {
+	return d.Obsv.Metrics(ctx)
+}
 
 // IsFeatureEnabled checks if a feature flag is enabled.
 // Returns false if the feature checker is nil, flag name is empty, or an error occurs.
@@ -227,7 +253,7 @@ func NewToolFromHandler(
 	requiredScopes []scopes.Scope,
 	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest) (*mcp.CallToolResult, error),
 ) inventory.ServerTool {
-	st := inventory.NewServerToolWithRawContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	st := inventory.NewServerTool(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		deps := MustDepsFromContext(ctx)
 		return handler(ctx, deps, req)
 	})
@@ -247,6 +273,9 @@ type RequestDeps struct {
 
 	// Feature flag checker for runtime checks
 	featureChecker inventory.FeatureFlagChecker
+
+	// Observability exporters (includes logger)
+	obsv observability.Exporters
 }
 
 // NewRequestDeps creates a RequestDeps with the provided clients and configuration.
@@ -258,6 +287,7 @@ func NewRequestDeps(
 	t translations.TranslationHelperFunc,
 	contentWindowSize int,
 	featureChecker inventory.FeatureFlagChecker,
+	obsv observability.Exporters,
 ) *RequestDeps {
 	return &RequestDeps{
 		apiHosts:          apiHosts,
@@ -267,6 +297,7 @@ func NewRequestDeps(
 		T:                 t,
 		ContentWindowSize: contentWindowSize,
 		featureChecker:    featureChecker,
+		obsv:              obsv,
 	}
 }
 
@@ -289,10 +320,14 @@ func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
 	}
 
 	// Construct REST client
-	restClient := gogithub.NewClient(nil).WithAuthToken(token)
-	restClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", d.version)
-	restClient.BaseURL = baseRestURL
-	restClient.UploadURL = uploadURL
+	restClient, err := gogithub.NewClient(
+		gogithub.WithAuthToken(token),
+		gogithub.WithUserAgent(fmt.Sprintf("github-mcp-server/%s", d.version)),
+		gogithub.WithEnterpriseURLs(baseRestURL.String(), uploadURL.String()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create REST client: %w", err)
+	}
 	return restClient, nil
 }
 
@@ -339,7 +374,10 @@ func (d *RequestDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
 	}
 
-	rawClient := raw.NewClient(client, rawURL)
+	rawClient, err := raw.NewClient(client, rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create raw client: %w", err)
+	}
 
 	return rawClient, nil
 }
@@ -355,8 +393,13 @@ func (d *RequestDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAcc
 		return nil, err
 	}
 
+	restClient, err := d.GetClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Create repo access cache
-	instance := lockdown.GetInstance(gqlClient, d.RepoAccessOpts...)
+	instance := lockdown.NewRepoAccessCache(gqlClient, restClient, d.RepoAccessOpts...)
 	return instance, nil
 }
 
@@ -367,12 +410,21 @@ func (d *RequestDeps) GetT() translations.TranslationHelperFunc { return d.T }
 func (d *RequestDeps) GetFlags(ctx context.Context) FeatureFlags {
 	return FeatureFlags{
 		LockdownMode: d.lockdownMode && ghcontext.IsLockdownMode(ctx),
-		InsidersMode: ghcontext.IsInsidersMode(ctx),
 	}
 }
 
 // GetContentWindowSize implements ToolDependencies.
 func (d *RequestDeps) GetContentWindowSize() int { return d.ContentWindowSize }
+
+// Logger implements ToolDependencies.
+func (d *RequestDeps) Logger(_ context.Context) *slog.Logger {
+	return d.obsv.Logger()
+}
+
+// Metrics implements ToolDependencies.
+func (d *RequestDeps) Metrics(ctx context.Context) metrics.Metrics {
+	return d.obsv.Metrics(ctx)
+}
 
 // IsFeatureEnabled checks if a feature flag is enabled.
 func (d *RequestDeps) IsFeatureEnabled(ctx context.Context, flagName string) bool {
