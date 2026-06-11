@@ -85,6 +85,19 @@ func TestGetEffectiveHostAndScheme(t *testing.T) {
 			expectedScheme: "http", // defaults to http
 		},
 		{
+			name: "X-Forwarded-Host ignored by default",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/test", nil)
+				req.Host = "internal.example.com"
+				req.Header.Set(headers.ForwardedHostHeader, "attacker.example.com")
+				req.Header.Set(headers.ForwardedProtoHeader, "https")
+				return req
+			},
+			cfg:            &Config{},
+			expectedHost:   "internal.example.com",
+			expectedScheme: "http",
+		},
+		{
 			name: "request with X-Forwarded-Host header",
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -92,7 +105,7 @@ func TestGetEffectiveHostAndScheme(t *testing.T) {
 				req.Header.Set(headers.ForwardedHostHeader, "public.example.com")
 				return req
 			},
-			cfg:            &Config{},
+			cfg:            &Config{TrustProxyHeaders: true},
 			expectedHost:   "public.example.com",
 			expectedScheme: "http",
 		},
@@ -104,7 +117,7 @@ func TestGetEffectiveHostAndScheme(t *testing.T) {
 				req.Header.Set(headers.ForwardedProtoHeader, "http")
 				return req
 			},
-			cfg:            &Config{},
+			cfg:            &Config{TrustProxyHeaders: true},
 			expectedHost:   "example.com",
 			expectedScheme: "http",
 		},
@@ -117,7 +130,7 @@ func TestGetEffectiveHostAndScheme(t *testing.T) {
 				req.Header.Set(headers.ForwardedProtoHeader, "https")
 				return req
 			},
-			cfg:            &Config{},
+			cfg:            &Config{TrustProxyHeaders: true},
 			expectedHost:   "public.example.com",
 			expectedScheme: "https",
 		},
@@ -142,7 +155,7 @@ func TestGetEffectiveHostAndScheme(t *testing.T) {
 				req.Header.Set(headers.ForwardedProtoHeader, "http")
 				return req
 			},
-			cfg:            &Config{},
+			cfg:            &Config{TrustProxyHeaders: true},
 			expectedHost:   "example.com",
 			expectedScheme: "http",
 		},
@@ -154,7 +167,7 @@ func TestGetEffectiveHostAndScheme(t *testing.T) {
 				req.Header.Set(headers.ForwardedProtoHeader, "HTTPS")
 				return req
 			},
-			cfg:            &Config{},
+			cfg:            &Config{TrustProxyHeaders: true},
 			expectedHost:   "example.com",
 			expectedScheme: "https",
 		},
@@ -301,8 +314,21 @@ func TestBuildResourceMetadataURL(t *testing.T) {
 			expectedURL:  "https://custom.example.com/.well-known/oauth-protected-resource/mcp",
 		},
 		{
-			name: "with forwarded headers",
+			name: "with forwarded headers ignored by default",
 			cfg:  &Config{},
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/mcp", nil)
+				req.Host = "internal.example.com"
+				req.Header.Set(headers.ForwardedHostHeader, "attacker.example.com")
+				req.Header.Set(headers.ForwardedProtoHeader, "https")
+				return req
+			},
+			resourcePath: "/mcp",
+			expectedURL:  "http://internal.example.com/.well-known/oauth-protected-resource/mcp",
+		},
+		{
+			name: "with forwarded headers",
+			cfg:  &Config{TrustProxyHeaders: true},
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequest(http.MethodGet, "/mcp", nil)
 				req.Host = "internal.example.com"

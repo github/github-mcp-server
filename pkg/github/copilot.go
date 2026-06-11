@@ -17,7 +17,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -209,7 +209,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				BaseRef            string `mapstructure:"base_ref"`
 				CustomInstructions string `mapstructure:"custom_instructions"`
 			}
-			if err := mapstructure.Decode(args, &params); err != nil {
+			if err := mapstructure.WeakDecode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 

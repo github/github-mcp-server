@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -24,7 +25,7 @@ func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "get_label",
 			Description: t("TOOL_GET_LABEL_DESCRIPTION", "Get a specific label from a repository."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_LABEL_TITLE", "Get a specific label from a repository."),
+				Title:        t("TOOL_GET_LABEL_TITLE", "Get a specific label from a repository"),
 				ReadOnlyHint: true,
 			},
 			InputSchema: &jsonschema.Schema{
@@ -105,7 +106,11 @@ func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal label: %w", err)
 			}
 
-			return utils.NewToolResultText(string(out)), nil, nil
+			result := utils.NewToolResultText(string(out))
+			// Labels are structural repo metadata defined by collaborators
+			// (trusted); confidentiality follows repo visibility.
+			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
+			return result, nil, nil
 		},
 	)
 }
@@ -126,7 +131,7 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "list_label",
 			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository."),
+				Title:        t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository"),
 				ReadOnlyHint: true,
 			},
 			InputSchema: &jsonschema.Schema{
@@ -204,7 +209,11 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal labels: %w", err)
 			}
 
-			return utils.NewToolResultText(string(out)), nil, nil
+			result := utils.NewToolResultText(string(out))
+			// Labels are structural repo metadata defined by collaborators
+			// (trusted); confidentiality follows repo visibility.
+			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
+			return result, nil, nil
 		},
 	)
 }
@@ -217,7 +226,7 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "label_write",
 			Description: t("TOOL_LABEL_WRITE_DESCRIPTION", "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LABEL_WRITE_TITLE", "Write operations on repository labels."),
+				Title:        t("TOOL_LABEL_WRITE_TITLE", "Write operations on repository labels"),
 				ReadOnlyHint: false,
 			},
 			InputSchema: &jsonschema.Schema{

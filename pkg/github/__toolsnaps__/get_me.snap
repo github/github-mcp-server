@@ -1,7 +1,11 @@
 {
   "_meta": {
     "ui": {
-      "resourceUri": "ui://github-mcp-server/get-me"
+      "resourceUri": "ui://github-mcp-server/get-me",
+      "visibility": [
+        "model",
+        "app"
+      ]
     }
   },
   "annotations": {

@@ -1,0 +1,41 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Update Pull Request State"
+  },
+  "description": "Update the state of an existing pull request (open or closed).",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "The pull request number",
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "state": {
+        "description": "The new state for the pull request",
+        "enum": [
+          "open",
+          "closed"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber",
+      "state"
+    ],
+    "type": "object"
+  },
+  "name": "update_pull_request_state"
+}

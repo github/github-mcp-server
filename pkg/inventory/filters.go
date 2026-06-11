@@ -36,28 +36,52 @@ func (r *Inventory) checkFeatureFlag(ctx context.Context, flagName string) bool 
 	return enabled
 }
 
-// isFeatureFlagAllowed checks if an item passes feature flag filtering.
-// - If FeatureFlagEnable is set, the item is only allowed if the flag is enabled
-// - If FeatureFlagDisable is set, the item is excluded if the flag is enabled
-func (r *Inventory) isFeatureFlagAllowed(ctx context.Context, enableFlag, disableFlag string) bool {
-	// Check enable flag - item requires this flag to be on
-	if enableFlag != "" && !r.checkFeatureFlag(ctx, enableFlag) {
+// featureFlagAllowed reports whether an item with the given enable/disable
+// flag pair is permitted under the supplied checker. The checker must be
+// non-nil — callers that don't want feature filtering should not call this at
+// all (this is also the contract for createFeatureFlagFilter, which is only
+// installed when WithFeatureChecker received a non-nil checker).
+//
+//   - If FeatureFlagEnable is set, the item is only allowed if the flag is enabled.
+//   - If FeatureFlagDisable is non-empty, the item is excluded if any listed flag is enabled.
+func featureFlagAllowed(ctx context.Context, checker FeatureFlagChecker, enableFlag string, disableFlags []string) bool {
+	// Error semantics match the previous checkFeatureFlag helper: a checker
+	// error is logged and treated as "flag not enabled". So an enable-flag
+	// check on error excludes the tool, but a disable-flag check on error
+	// keeps it (the disable condition wasn't met).
+	check := func(flag string) bool {
+		enabled, err := checker(ctx, flag)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", flag, err)
+			return false
+		}
+		return enabled
+	}
+	if enableFlag != "" && !check(enableFlag) {
 		return false
 	}
-	// Check disable flag - item is excluded if this flag is on
-	if disableFlag != "" && r.checkFeatureFlag(ctx, disableFlag) {
-		return false
+	return !slices.ContainsFunc(disableFlags, check)
+}
+
+// createFeatureFlagFilter returns a ToolFilter that gates tools on their
+// FeatureFlagEnable / FeatureFlagDisable annotations using the given checker.
+// Builder.Build() installs this filter exactly once when WithFeatureChecker
+// has been called with a non-nil checker, so "no feature filtering" is
+// expressed structurally — by the absence of the filter — rather than by a
+// runtime nil check inside the filter itself.
+func createFeatureFlagFilter(checker FeatureFlagChecker) ToolFilter {
+	return func(ctx context.Context, tool *ServerTool) (bool, error) {
+		return featureFlagAllowed(ctx, checker, tool.FeatureFlagEnable, tool.FeatureFlagDisable), nil
 	}
-	return true
 }
 
 // isToolEnabled checks if a specific tool is enabled based on current filters.
 // Filter evaluation order:
 //  1. Tool.Enabled (tool self-filtering)
-//  2. FeatureFlagEnable/FeatureFlagDisable
-//  3. Read-only filter
-//  4. Builder filters (via WithFilter)
-//  5. Toolset/additional tools
+//  2. Read-only filter
+//  3. Builder filters (via WithFilter; the feature-flag filter, when
+//     installed via WithFeatureChecker, runs as part of this step)
+//  4. Toolset/additional tools
 func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
 	// 1. Check tool's own Enabled function first
 	if tool.Enabled != nil {
@@ -70,15 +94,11 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
 			return false
 		}
 	}
-	// 2. Check feature flags
-	if !r.isFeatureFlagAllowed(ctx, tool.FeatureFlagEnable, tool.FeatureFlagDisable) {
-		return false
-	}
-	// 3. Check read-only filter (applies to all tools)
+	// 2. Check read-only filter (applies to all tools)
 	if r.readOnly && !tool.IsReadOnly() {
 		return false
 	}
-	// 4. Apply builder filters
+	// 3. Apply builder filters (includes the feature-flag filter when set)
 	for _, filter := range r.filters {
 		allowed, err := filter(ctx, tool)
 		if err != nil {
@@ -89,15 +109,36 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
 			return false
 		}
 	}
-	// 5. Check if tool is in additionalTools (bypasses toolset filter)
+	// 4. Check if tool is in additionalTools (bypasses toolset filter)
 	if r.additionalTools != nil && r.additionalTools[tool.Tool.Name] {
 		return true
 	}
-	// 5. Check toolset filter
+	// 4. Check toolset filter
 	if !r.isToolsetEnabled(tool.Toolset.ID) {
 		return false
 	}
 	return true
+}
+
+// sortByToolsetThenName sorts items deterministically by their toolset ID,
+// breaking ties by name. The two extractor closures keep this generic helper
+// independent of the concrete inventory item shape (tools, resource templates,
+// prompts).
+func sortByToolsetThenName[T any](items []T, toolsetID func(T) ToolsetID, name func(T) string) {
+	sort.Slice(items, func(i, j int) bool {
+		idI, idJ := toolsetID(items[i]), toolsetID(items[j])
+		if idI != idJ {
+			return idI < idJ
+		}
+		return name(items[i]) < name(items[j])
+	})
+}
+
+func sortTools(tools []ServerTool) {
+	sortByToolsetThenName(tools,
+		func(t ServerTool) ToolsetID { return t.Toolset.ID },
+		func(t ServerTool) string { return t.Tool.Name },
+	)
 }
 
 // AvailableTools returns the tools that pass all current filters,
@@ -113,14 +154,16 @@ func (r *Inventory) AvailableTools(ctx context.Context) []ServerTool {
 	}
 
 	// Sort deterministically: by toolset ID, then by tool name
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].Toolset.ID != result[j].Toolset.ID {
-			return result[i].Toolset.ID < result[j].Toolset.ID
-		}
-		return result[i].Tool.Name < result[j].Tool.Name
-	})
+	sortTools(result)
 
 	return result
+}
+
+func sortResourceTemplates(resourceTemplates []ServerResourceTemplate) {
+	sortByToolsetThenName(resourceTemplates,
+		func(r ServerResourceTemplate) ToolsetID { return r.Toolset.ID },
+		func(r ServerResourceTemplate) string { return r.Template.Name },
+	)
 }
 
 // AvailableResourceTemplates returns resource templates that pass all current filters,
@@ -130,8 +173,11 @@ func (r *Inventory) AvailableResourceTemplates(ctx context.Context) []ServerReso
 	var result []ServerResourceTemplate
 	for i := range r.resourceTemplates {
 		res := &r.resourceTemplates[i]
-		// Check feature flags
-		if !r.isFeatureFlagAllowed(ctx, res.FeatureFlagEnable, res.FeatureFlagDisable) {
+		// Resources have no filter pipeline, so feature gating runs inline.
+		// The featureChecker != nil guard mirrors the structural "no checker
+		// = no filtering" contract used for tools (where the absence of a
+		// pipeline step expresses the same thing).
+		if r.featureChecker != nil && !featureFlagAllowed(ctx, r.featureChecker, res.FeatureFlagEnable, res.FeatureFlagDisable) {
 			continue
 		}
 		if r.isToolsetEnabled(res.Toolset.ID) {
@@ -140,14 +186,16 @@ func (r *Inventory) AvailableResourceTemplates(ctx context.Context) []ServerReso
 	}
 
 	// Sort deterministically: by toolset ID, then by template name
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].Toolset.ID != result[j].Toolset.ID {
-			return result[i].Toolset.ID < result[j].Toolset.ID
-		}
-		return result[i].Template.Name < result[j].Template.Name
-	})
+	sortResourceTemplates(result)
 
 	return result
+}
+
+func sortPrompts(prompts []ServerPrompt) {
+	sortByToolsetThenName(prompts,
+		func(p ServerPrompt) ToolsetID { return p.Toolset.ID },
+		func(p ServerPrompt) string { return p.Prompt.Name },
+	)
 }
 
 // AvailablePrompts returns prompts that pass all current filters,
@@ -157,8 +205,9 @@ func (r *Inventory) AvailablePrompts(ctx context.Context) []ServerPrompt {
 	var result []ServerPrompt
 	for i := range r.prompts {
 		prompt := &r.prompts[i]
-		// Check feature flags
-		if !r.isFeatureFlagAllowed(ctx, prompt.FeatureFlagEnable, prompt.FeatureFlagDisable) {
+		// Prompts have no filter pipeline; see AvailableResourceTemplates for
+		// the rationale behind the explicit nil guard.
+		if r.featureChecker != nil && !featureFlagAllowed(ctx, r.featureChecker, prompt.FeatureFlagEnable, prompt.FeatureFlagDisable) {
 			continue
 		}
 		if r.isToolsetEnabled(prompt.Toolset.ID) {
@@ -167,12 +216,7 @@ func (r *Inventory) AvailablePrompts(ctx context.Context) []ServerPrompt {
 	}
 
 	// Sort deterministically: by toolset ID, then by prompt name
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].Toolset.ID != result[j].Toolset.ID {
-			return result[i].Toolset.ID < result[j].Toolset.ID
-		}
-		return result[i].Prompt.Name < result[j].Prompt.Name
-	})
+	sortPrompts(result)
 
 	return result
 }
@@ -213,62 +257,6 @@ func (r *Inventory) filterPromptsByName(name string) []ServerPrompt {
 		}
 	}
 	return []ServerPrompt{}
-}
-
-// ToolsForToolset returns all tools belonging to a specific toolset.
-// This method bypasses the toolset enabled filter (for dynamic toolset registration),
-// but still respects the read-only filter.
-func (r *Inventory) ToolsForToolset(toolsetID ToolsetID) []ServerTool {
-	var result []ServerTool
-	for i := range r.tools {
-		tool := &r.tools[i]
-		// Only check read-only filter, not toolset enabled filter
-		if tool.Toolset.ID == toolsetID {
-			if r.readOnly && !tool.IsReadOnly() {
-				continue
-			}
-			result = append(result, *tool)
-		}
-	}
-
-	// Sort by tool name for deterministic order
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Tool.Name < result[j].Tool.Name
-	})
-
-	return result
-}
-
-// IsToolsetEnabled checks if a toolset is currently enabled based on filters.
-func (r *Inventory) IsToolsetEnabled(toolsetID ToolsetID) bool {
-	return r.isToolsetEnabled(toolsetID)
-}
-
-// EnableToolset marks a toolset as enabled in this group.
-// This is used by dynamic toolset management to track which toolsets have been enabled.
-func (r *Inventory) EnableToolset(toolsetID ToolsetID) {
-	if r.enabledToolsets == nil {
-		// nil means all enabled, so nothing to do
-		return
-	}
-	r.enabledToolsets[toolsetID] = true
-}
-
-// EnabledToolsetIDs returns the list of enabled toolset IDs based on current filters.
-// Returns all toolset IDs if no filter is set.
-func (r *Inventory) EnabledToolsetIDs() []ToolsetID {
-	if r.enabledToolsets == nil {
-		return r.ToolsetIDs()
-	}
-
-	ids := make([]ToolsetID, 0, len(r.enabledToolsets))
-	for id := range r.enabledToolsets {
-		if r.HasToolset(id) {
-			ids = append(ids, id)
-		}
-	}
-	slices.Sort(ids)
-	return ids
 }
 
 // FilteredTools returns tools filtered by the Enabled function and builder filters.

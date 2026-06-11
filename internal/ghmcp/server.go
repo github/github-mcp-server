@@ -18,22 +18,25 @@ import (
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	mcplog "github.com/github/github-mcp-server/pkg/log"
+	"github.com/github/github-mcp-server/pkg/observability"
+	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	gogithub "github.com/google/go-github/v82/github"
+	gogithub "github.com/google/go-github/v87/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
 
 // githubClients holds all the GitHub API clients created for a server instance.
 type githubClients struct {
-	rest       *gogithub.Client
-	gql        *githubv4.Client
-	gqlHTTP    *http.Client // retained for middleware to modify transport
-	raw        *raw.Client
-	repoAccess *lockdown.RepoAccessCache
+	rest         *gogithub.Client
+	restUATransp *transport.UserAgentTransport
+	gql          *githubv4.Client
+	gqlHTTP      *http.Client // retained for middleware to modify transport
+	raw          *raw.Client
+	repoAccess   *lockdown.RepoAccessCache
 }
 
 // createGitHubClients creates all the GitHub API clients needed by the server.
@@ -59,10 +62,18 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	}
 
 	// Construct REST client
-	restClient := gogithub.NewClient(nil).WithAuthToken(cfg.Token)
-	restClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", cfg.Version)
-	restClient.BaseURL = restURL
-	restClient.UploadURL = uploadURL
+	restUATransport := &transport.UserAgentTransport{
+		Transport: http.DefaultTransport,
+		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
+	}
+	restClient, err := gogithub.NewClient(
+		gogithub.WithHTTPClient(&http.Client{Transport: restUATransport}),
+		gogithub.WithAuthToken(cfg.Token),
+		gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create REST client: %w", err)
+	}
 
 	// Construct GraphQL client
 	// We use NewEnterpriseClient unconditionally since we already parsed the API host
@@ -78,7 +89,10 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	gqlClient := githubv4.NewEnterpriseClient(graphQLURL.String(), gqlHTTPClient)
 
 	// Create raw content client (shares REST client's HTTP transport)
-	rawClient := raw.NewClient(restClient, rawURL)
+	rawClient, err := raw.NewClient(restClient, rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create raw client: %w", err)
+	}
 
 	// Set up repo access cache for lockdown mode
 	var repoAccessCache *lockdown.RepoAccessCache
@@ -89,15 +103,16 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		if cfg.RepoAccessTTL != nil {
 			opts = append(opts, lockdown.WithTTL(*cfg.RepoAccessTTL))
 		}
-		repoAccessCache = lockdown.GetInstance(gqlClient, opts...)
+		repoAccessCache = lockdown.NewRepoAccessCache(gqlClient, restClient, opts...)
 	}
 
 	return &githubClients{
-		rest:       restClient,
-		gql:        gqlClient,
-		gqlHTTP:    gqlHTTPClient,
-		raw:        rawClient,
-		repoAccess: repoAccessCache,
+		rest:         restClient,
+		restUATransp: restUATransport,
+		gql:          gqlClient,
+		gqlHTTP:      gqlHTTPClient,
+		raw:          rawClient,
+		repoAccess:   repoAccessCache,
 	}, nil
 }
 
@@ -112,10 +127,14 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
 	}
 
-	// Create feature checker
-	featureChecker := createFeatureChecker(cfg.EnabledFeatures)
+	// Create feature checker — resolves explicit features + insiders expansion
+	featureChecker := createFeatureChecker(cfg.EnabledFeatures, cfg.InsidersMode)
 
 	// Create dependencies for tool handlers
+	obs, err := observability.NewExporters(cfg.Logger, metrics.NewNoopMetrics())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create observability exporters: %w", err)
+	}
 	deps := github.NewBaseDeps(
 		clients.rest,
 		clients.gql,
@@ -124,21 +143,20 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		cfg.Translator,
 		github.FeatureFlags{
 			LockdownMode: cfg.LockdownMode,
-			InsidersMode: cfg.InsidersMode,
 		},
 		cfg.ContentWindowSize,
 		featureChecker,
+		obs,
 	)
 	// Build and register the tool/resource/prompt inventory
 	inventoryBuilder := github.NewInventory(cfg.Translator).
 		WithDeprecatedAliases(github.DeprecatedToolAliases).
 		WithReadOnly(cfg.ReadOnly).
-		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools)).
+		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools)).
 		WithTools(github.CleanTools(cfg.EnabledTools)).
 		WithExcludeTools(cfg.ExcludeTools).
 		WithServerInstructions().
-		WithFeatureChecker(featureChecker).
-		WithInsidersMode(cfg.InsidersMode)
+		WithFeatureChecker(featureChecker)
 
 	// Apply token scope filtering if scopes are known (for PAT filtering)
 	if cfg.TokenScopes != nil {
@@ -155,14 +173,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to create GitHub MCP server: %w", err)
 	}
 
-	// Register MCP App UI resources if available (requires running script/build-ui).
-	// We check availability to allow Insiders mode to work for non-UI features
-	// even when UI assets haven't been built.
-	if cfg.InsidersMode && github.UIAssetsAvailable() {
-		github.RegisterUIResources(ghServer)
-	}
-
-	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.rest, clients.gqlHTTP))
+	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.restUATransp, clients.gqlHTTP))
 
 	return ghServer, nil
 }
@@ -189,10 +200,6 @@ type StdioServerConfig struct {
 	// Items with FeatureFlagEnable matching an entry in this list will be available
 	EnabledFeatures []string
 
-	// Whether to enable dynamic toolsets
-	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#dynamic-tool-discovery
-	DynamicToolsets bool
-
 	// ReadOnly indicates if we should only register read-only tools
 	ReadOnly bool
 
@@ -212,7 +219,7 @@ type StdioServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
-	// InsidersMode indicates if we should enable experimental features
+	// InsidersMode expands to the curated set of feature flags enabled for insiders.
 	InsidersMode bool
 
 	// ExcludeTools is a list of tool names to disable regardless of other settings.
@@ -246,7 +253,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo})
 	}
 	logger := slog.New(slogHandler)
-	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
+	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
 
 	// Fetch token scopes for scope-based tool filtering (PAT tokens only)
 	// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.
@@ -271,7 +278,6 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		EnabledToolsets:   cfg.EnabledToolsets,
 		EnabledTools:      cfg.EnabledTools,
 		EnabledFeatures:   cfg.EnabledFeatures,
-		DynamicToolsets:   cfg.DynamicToolsets,
 		ReadOnly:          cfg.ReadOnly,
 		Translator:        t,
 		ContentWindowSize: cfg.ContentWindowSize,
@@ -327,21 +333,17 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	return nil
 }
 
-// createFeatureChecker returns a FeatureFlagChecker that checks if a flag name
-// is present in the provided list of enabled features. For the local server,
-// this is populated from the --features CLI flag.
-func createFeatureChecker(enabledFeatures []string) inventory.FeatureFlagChecker {
-	// Build a set for O(1) lookup
-	featureSet := make(map[string]bool, len(enabledFeatures))
-	for _, f := range enabledFeatures {
-		featureSet[f] = true
-	}
+// createFeatureChecker returns a FeatureFlagChecker that resolves features
+// using the centralized ResolveFeatureFlags function. For the local server,
+// features are resolved once at startup from --features CLI flag and insiders mode.
+func createFeatureChecker(enabledFeatures []string, insidersMode bool) inventory.FeatureFlagChecker {
+	featureSet := github.ResolveFeatureFlags(enabledFeatures, insidersMode)
 	return func(_ context.Context, flagName string) (bool, error) {
 		return featureSet[flagName], nil
 	}
 }
 
-func addUserAgentsMiddleware(cfg github.MCPServerConfig, restClient *gogithub.Client, gqlHTTPClient *http.Client) func(next mcp.MethodHandler) mcp.MethodHandler {
+func addUserAgentsMiddleware(cfg github.MCPServerConfig, restUATransp *transport.UserAgentTransport, gqlHTTPClient *http.Client) func(next mcp.MethodHandler) mcp.MethodHandler {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, request mcp.Request) (result mcp.Result, err error) {
 			if method != "initialize" {
@@ -364,7 +366,7 @@ func addUserAgentsMiddleware(cfg github.MCPServerConfig, restClient *gogithub.Cl
 				userAgent += " (insiders)"
 			}
 
-			restClient.UserAgent = userAgent
+			restUATransp.Agent = userAgent
 
 			gqlHTTPClient.Transport = &transport.UserAgentTransport{
 				Transport: gqlHTTPClient.Transport,
