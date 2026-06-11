@@ -458,6 +458,12 @@ This happens transparently—no configuration needed. If scope detection fails f
 
 See [Scope Filtering](./scope-filtering.md) for details on how filtering works with different token types.
 
+### Fine-Grained Permission Requirements
+
+Each tool also declares the **fine-grained permission** it needs (e.g. `issues:write`). This metadata is published as the public source of truth and powers tool filtering for fine-grained PATs and GitHub App tokens in consumers such as the remote server. It is dormant in the OSS server, which has no granted-permission source.
+
+See [Fine-Grained Permission Filtering](./permissions-filtering.md) for details.
+
 ---
 
 ## Troubleshooting

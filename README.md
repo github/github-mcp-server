@@ -398,6 +398,10 @@ docker run -it --rm ghcr.io/github/github-mcp-server tool-search "issue" --max-r
 github-mcp-server tool-search "issue" --max-results 5
 ```
 
+- `github-mcp-server list-scopes` lists the OAuth scopes each enabled tool requires. See [PAT Scope Filtering](./docs/scope-filtering.md).
+- `github-mcp-server list-permissions` lists the fine-grained permission each enabled tool requires. See [Fine-Grained Permission Filtering](./docs/permissions-filtering.md).
+
+
 ## Tool Configuration
 
 The GitHub MCP Server supports enabling or disabling specific groups of functionalities via the `--toolsets` flag. This allows you to control which GitHub API capabilities are available to your AI tools. Enabling only the toolsets that you need can help the LLM with tool choice and reduce the context size.
@@ -591,6 +595,7 @@ The following sets of tools are available:
 
 - **actions_get** - Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `actions:read`
   - `method`: The method to execute (string, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
@@ -603,6 +608,7 @@ The following sets of tools are available:
 
 - **actions_list** - List GitHub Actions workflows in a repository
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `actions:read`
   - `method`: The action to perform (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (default: 1) (number, optional)
@@ -618,6 +624,7 @@ The following sets of tools are available:
 
 - **actions_run_trigger** - Trigger GitHub Actions workflow actions
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `actions:write`
   - `inputs`: Inputs the workflow accepts. Only used for 'run_workflow' method. (object, optional)
   - `method`: The method to execute (string, required)
   - `owner`: Repository owner (string, required)
@@ -628,6 +635,7 @@ The following sets of tools are available:
 
 - **get_job_logs** - Get GitHub Actions workflow job logs
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `actions:read`
   - `failed_only`: When true, gets logs for all failed jobs in the workflow run specified by run_id. Requires run_id to be provided. (boolean, optional)
   - `job_id`: The unique identifier of the workflow job. Required when getting logs for a single job. (number, optional)
   - `owner`: Repository owner (string, required)
@@ -645,6 +653,7 @@ The following sets of tools are available:
 - **get_code_scanning_alert** - Get code scanning alert
   - **Required OAuth Scopes**: `security_events`
   - **Accepted OAuth Scopes**: `repo`, `security_events`
+  - **Required Permissions (fine-grained)**: `security_events:read`
   - `alertNumber`: The number of the alert. (number, required)
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
@@ -652,6 +661,7 @@ The following sets of tools are available:
 - **list_code_scanning_alerts** - List code scanning alerts
   - **Required OAuth Scopes**: `security_events`
   - **Accepted OAuth Scopes**: `repo`, `security_events`
+  - **Required Permissions (fine-grained)**: `security_events:read`
   - `owner`: The owner of the repository. (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -710,6 +720,7 @@ The following sets of tools are available:
 - **get_dependabot_alert** - Get dependabot alert
   - **Required OAuth Scopes**: `security_events`
   - **Accepted OAuth Scopes**: `repo`, `security_events`
+  - **Required Permissions (fine-grained)**: `vulnerability_alerts:read`
   - `alertNumber`: The number of the alert. (number, required)
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
@@ -717,6 +728,7 @@ The following sets of tools are available:
 - **list_dependabot_alerts** - List dependabot alerts
   - **Required OAuth Scopes**: `security_events`
   - **Accepted OAuth Scopes**: `repo`, `security_events`
+  - **Required Permissions (fine-grained)**: `vulnerability_alerts:read`
   - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `owner`: The owner of the repository. (string, required)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -841,6 +853,7 @@ The following sets of tools are available:
 
 - **issue_read** - Get issue details
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `issues:read`
   - `issue_number`: The number of the issue (number, required)
   - `method`: The read operation to perform on a single issue.
     Options are:
@@ -856,6 +869,7 @@ The following sets of tools are available:
 
 - **issue_write** - Create or update issue/pull request
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `issues:write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
@@ -881,6 +895,7 @@ The following sets of tools are available:
 
 - **list_issues** - List issues
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `issues:read`
   - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
   - `labels`: Filter by labels (string[], optional)
@@ -1083,6 +1098,7 @@ The following sets of tools are available:
 
 - **create_pull_request** - Open new pull request
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `pull_requests:write`
   - `base`: Branch to merge into (string, required)
   - `body`: PR description (string, optional)
   - `draft`: Create as draft PR (boolean, optional)
@@ -1094,6 +1110,7 @@ The following sets of tools are available:
 
 - **list_pull_requests** - List pull requests
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `pull_requests:read`
   - `base`: Filter by base branch (string, optional)
   - `direction`: Sort direction (string, optional)
   - `head`: Filter by head user/org and branch (string, optional)
@@ -1115,6 +1132,7 @@ The following sets of tools are available:
 
 - **pull_request_read** - Get details for a single pull request
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `pull_requests:read`
   - `after`: Cursor for pagination, used only by the get_review_comments method. Pass the endCursor from the previous page's PageInfo to fetch the next page. (string, optional)
   - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
     Possible options: 
@@ -1183,6 +1201,7 @@ The following sets of tools are available:
 
 - **create_branch** - Create branch
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `contents:write`
   - `branch`: Name for new branch (string, required)
   - `from_branch`: Source branch (defaults to repo default) (string, optional)
   - `owner`: Repository owner (string, required)
@@ -1190,6 +1209,7 @@ The following sets of tools are available:
 
 - **create_or_update_file** - Create or update file
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `contents:write`
   - `branch`: Branch to create/update the file in (string, required)
   - `content`: Content of the file (string, required)
   - `message`: Commit message (string, required)
@@ -1231,6 +1251,7 @@ The following sets of tools are available:
 
 - **get_file_contents** - Get file or directory contents
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `contents:read`
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: Path to file/directory (string, optional)
   - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)
@@ -1256,6 +1277,7 @@ The following sets of tools are available:
 
 - **list_branches** - List branches
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `contents:read`
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1263,6 +1285,7 @@ The following sets of tools are available:
 
 - **list_commits** - List commits
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `contents:read`
   - `author`: Author username or email address to filter commits by (string, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1290,6 +1313,7 @@ The following sets of tools are available:
 
 - **list_tags** - List tags
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `contents:read`
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1297,6 +1321,7 @@ The following sets of tools are available:
 
 - **push_files** - Push files to repository
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `contents:write`
   - `branch`: Branch to push to (string, required)
   - `files`: Array of file objects to push, each object with path (string) and content (string) (object[], required)
   - `message`: Commit message (string, required)
@@ -1337,6 +1362,7 @@ The following sets of tools are available:
 - **get_secret_scanning_alert** - Get secret scanning alert
   - **Required OAuth Scopes**: `security_events`
   - **Accepted OAuth Scopes**: `repo`, `security_events`
+  - **Required Permissions (fine-grained)**: `secret_scanning_alerts:read`
   - `alertNumber`: The number of the alert. (number, required)
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
@@ -1344,6 +1370,7 @@ The following sets of tools are available:
 - **list_secret_scanning_alerts** - List secret scanning alerts
   - **Required OAuth Scopes**: `security_events`
   - **Accepted OAuth Scopes**: `repo`, `security_events`
+  - **Required Permissions (fine-grained)**: `secret_scanning_alerts:read`
   - `owner`: The owner of the repository. (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)

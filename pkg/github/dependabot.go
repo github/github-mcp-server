@@ -10,6 +10,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/permissions"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -97,7 +98,7 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.VulnerabilityAlerts.Read()))
 }
 
 func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -210,7 +211,7 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.VulnerabilityAlerts.Read()))
 }
 
 // dependabotErrMsg enhances error messages for dependabot API failures by
