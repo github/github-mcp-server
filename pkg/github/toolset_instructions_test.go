@@ -16,7 +16,7 @@ import (
 func inventoryWithToolset(t *testing.T, toolsetID string) *inventory.Inventory {
 	t.Helper()
 
-	tool := inventory.NewServerToolWithRawContextHandler(
+	tool := inventory.NewServerTool(
 		mcp.Tool{
 			Name:        "sample_tool",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),

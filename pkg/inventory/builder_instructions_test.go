@@ -34,13 +34,11 @@ func TestBuilderWithServerInstructions_ToolsetInstructionsFunc(t *testing.T) {
 			return "CUSTOM TOOLSET INSTRUCTIONS"
 		},
 	}
-	tool := NewServerToolFromHandler(
+	tool := NewServerTool(
 		mcp.Tool{Name: "custom_tool", InputSchema: json.RawMessage(`{"type":"object","properties":{}}`)},
 		toolset,
-		func(_ any) mcp.ToolHandler {
-			return func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-				return &mcp.CallToolResult{}, nil
-			}
+		func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return &mcp.CallToolResult{}, nil
 		},
 	)
 
