@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -89,7 +90,12 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 				return utils.NewToolResultErrorFromErr("failed to marshal alert", err), nil, err
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Dependabot alerts are access-restricted regardless of repo
+			// visibility and embed attacker-influenceable advisory text, so the
+			// label is always private-untrusted.
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
+			return result, nil, nil
 		},
 	)
 }
@@ -120,7 +126,7 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 		},
 		Required: []string{"owner", "repo"},
 	}
-	WithPagination(schema)
+	WithCursorPagination(schema)
 
 	return NewTool(
 		ToolsetMetadataDependabot,
@@ -152,7 +158,7 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			pagination, err := OptionalPaginationParams(args)
+			pagination, err := OptionalCursorPaginationParams(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -165,9 +171,9 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 			alerts, resp, err := client.Dependabot.ListRepoAlerts(ctx, owner, repo, &github.ListAlertsOptions{
 				State:    ToStringPtr(state),
 				Severity: ToStringPtr(severity),
-				ListOptions: github.ListOptions{
-					Page:    pagination.Page,
+				ListCursorOptions: github.ListCursorOptions{
 					PerPage: pagination.PerPage,
+					After:   pagination.After,
 				},
 			})
 			if err != nil {
@@ -187,12 +193,22 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(alerts)
+			response := map[string]any{
+				"alerts":   alerts,
+				"pageInfo": buildPageInfo(resp),
+			}
+
+			r, err := json.Marshal(response)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal alerts", err), nil, err
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Dependabot alerts are access-restricted regardless of repo
+			// visibility and embed attacker-influenceable advisory text, so the
+			// label is always private-untrusted.
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
+			return result, nil, nil
 		},
 	)
 }
