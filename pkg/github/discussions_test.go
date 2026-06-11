@@ -18,89 +18,96 @@ import (
 
 var (
 	discussionsGeneral = []map[string]any{
-		{"number": 1, "title": "Discussion 1 title", "createdAt": "2023-01-01T00:00:00Z", "updatedAt": "2023-01-01T00:00:00Z", "closed": false, "isAnswered": false, "author": map[string]any{"login": "user1"}, "url": "https://github.com/owner/repo/discussions/1", "category": map[string]any{"name": "General"}},
-		{"number": 3, "title": "Discussion 3 title", "createdAt": "2023-03-01T00:00:00Z", "updatedAt": "2023-02-01T00:00:00Z", "closed": false, "isAnswered": false, "author": map[string]any{"login": "user1"}, "url": "https://github.com/owner/repo/discussions/3", "category": map[string]any{"name": "General"}},
+		{"number": 1, "title": "Discussion 1 title", "createdAt": "2023-01-01T00:00:00Z", "updatedAt": "2023-01-01T00:00:00Z", "closed": false, "isAnswered": false, "upvoteCount": 5, "author": map[string]any{"login": "user1"}, "url": "https://github.com/owner/repo/discussions/1", "category": map[string]any{"name": "General"}},
+		{"number": 3, "title": "Discussion 3 title", "createdAt": "2023-03-01T00:00:00Z", "updatedAt": "2023-02-01T00:00:00Z", "closed": false, "isAnswered": false, "upvoteCount": 10, "author": map[string]any{"login": "user1"}, "url": "https://github.com/owner/repo/discussions/3", "category": map[string]any{"name": "General"}},
 	}
 	discussionsAll = []map[string]any{
 		{
-			"number":     1,
-			"title":      "Discussion 1 title",
-			"createdAt":  "2023-01-01T00:00:00Z",
-			"updatedAt":  "2023-01-01T00:00:00Z",
-			"closed":     false,
-			"isAnswered": false,
-			"author":     map[string]any{"login": "user1"},
-			"url":        "https://github.com/owner/repo/discussions/1",
-			"category":   map[string]any{"name": "General"},
+			"number":      1,
+			"title":       "Discussion 1 title",
+			"createdAt":   "2023-01-01T00:00:00Z",
+			"updatedAt":   "2023-01-01T00:00:00Z",
+			"closed":      false,
+			"isAnswered":  false,
+			"upvoteCount": 5,
+			"author":      map[string]any{"login": "user1"},
+			"url":         "https://github.com/owner/repo/discussions/1",
+			"category":    map[string]any{"name": "General"},
 		},
 		{
-			"number":     2,
-			"title":      "Discussion 2 title",
-			"createdAt":  "2023-02-01T00:00:00Z",
-			"updatedAt":  "2023-02-01T00:00:00Z",
-			"closed":     false,
-			"isAnswered": false,
-			"author":     map[string]any{"login": "user2"},
-			"url":        "https://github.com/owner/repo/discussions/2",
-			"category":   map[string]any{"name": "Questions"},
+			"number":      2,
+			"title":       "Discussion 2 title",
+			"createdAt":   "2023-02-01T00:00:00Z",
+			"updatedAt":   "2023-02-01T00:00:00Z",
+			"closed":      false,
+			"isAnswered":  false,
+			"upvoteCount": 3,
+			"author":      map[string]any{"login": "user2"},
+			"url":         "https://github.com/owner/repo/discussions/2",
+			"category":    map[string]any{"name": "Questions"},
 		},
 		{
-			"number":     3,
-			"title":      "Discussion 3 title",
-			"createdAt":  "2023-03-01T00:00:00Z",
-			"updatedAt":  "2023-03-01T00:00:00Z",
-			"closed":     false,
-			"isAnswered": false,
-			"author":     map[string]any{"login": "user3"},
-			"url":        "https://github.com/owner/repo/discussions/3",
-			"category":   map[string]any{"name": "General"},
+			"number":      3,
+			"title":       "Discussion 3 title",
+			"createdAt":   "2023-03-01T00:00:00Z",
+			"updatedAt":   "2023-03-01T00:00:00Z",
+			"closed":      false,
+			"isAnswered":  false,
+			"upvoteCount": 10,
+			"author":      map[string]any{"login": "user3"},
+			"url":         "https://github.com/owner/repo/discussions/3",
+			"category":    map[string]any{"name": "General"},
 		},
 	}
 
 	discussionsOrgLevel = []map[string]any{
 		{
-			"number":     1,
-			"title":      "Org Discussion 1 - Community Guidelines",
-			"createdAt":  "2023-01-15T00:00:00Z",
-			"updatedAt":  "2023-01-15T00:00:00Z",
-			"closed":     false,
-			"isAnswered": false,
-			"author":     map[string]any{"login": "org-admin"},
-			"url":        "https://github.com/owner/.github/discussions/1",
-			"category":   map[string]any{"name": "Announcements"},
+			"number":      1,
+			"title":       "Org Discussion 1 - Community Guidelines",
+			"createdAt":   "2023-01-15T00:00:00Z",
+			"updatedAt":   "2023-01-15T00:00:00Z",
+			"closed":      false,
+			"isAnswered":  false,
+			"upvoteCount": 15,
+			"author":      map[string]any{"login": "org-admin"},
+			"url":         "https://github.com/owner/.github/discussions/1",
+			"category":    map[string]any{"name": "Announcements"},
 		},
 		{
-			"number":     2,
-			"title":      "Org Discussion 2 - Roadmap 2023",
-			"createdAt":  "2023-02-20T00:00:00Z",
-			"updatedAt":  "2023-02-20T00:00:00Z",
-			"closed":     false,
-			"isAnswered": false,
-			"author":     map[string]any{"login": "org-admin"},
-			"url":        "https://github.com/owner/.github/discussions/2",
-			"category":   map[string]any{"name": "General"},
+			"number":      2,
+			"title":       "Org Discussion 2 - Roadmap 2023",
+			"createdAt":   "2023-02-20T00:00:00Z",
+			"updatedAt":   "2023-02-20T00:00:00Z",
+			"closed":      false,
+			"isAnswered":  false,
+			"upvoteCount": 8,
+			"author":      map[string]any{"login": "org-admin"},
+			"url":         "https://github.com/owner/.github/discussions/2",
+			"category":    map[string]any{"name": "General"},
 		},
 		{
-			"number":     3,
-			"title":      "Org Discussion 3 - Roadmap 2024",
-			"createdAt":  "2023-02-20T00:00:00Z",
-			"updatedAt":  "2023-02-20T00:00:00Z",
-			"closed":     false,
-			"isAnswered": false,
-			"author":     map[string]any{"login": "org-admin"},
-			"url":        "https://github.com/owner/.github/discussions/3",
-			"category":   map[string]any{"name": "General"},
+			"number":      3,
+			"title":       "Org Discussion 3 - Roadmap 2024",
+			"createdAt":   "2023-02-20T00:00:00Z",
+			"updatedAt":   "2023-02-20T00:00:00Z",
+			"closed":      false,
+			"isAnswered":  false,
+			"upvoteCount": 12,
+			"author":      map[string]any{"login": "org-admin"},
+			"url":         "https://github.com/owner/.github/discussions/3",
+			"category":    map[string]any{"name": "General"},
 		},
 		{
-			"number":     4,
-			"title":      "Org Discussion 4 - Roadmap 2025",
-			"createdAt":  "2023-02-20T00:00:00Z",
-			"updatedAt":  "2023-02-20T00:00:00Z",
-			"closed":     false,
-			"isAnswered": false,
-			"author":     map[string]any{"login": "org-admin"},
-			"url":        "https://github.com/owner/.github/discussions/4",
-			"category":   map[string]any{"name": "General"},
+			"number":      4,
+			"title":       "Org Discussion 4 - Roadmap 2025",
+			"createdAt":   "2023-02-20T00:00:00Z",
+			"updatedAt":   "2023-02-20T00:00:00Z",
+			"closed":      false,
+			"isAnswered":  false,
+			"upvoteCount": 7,
+			"author":      map[string]any{"login": "org-admin"},
+			"url":         "https://github.com/owner/.github/discussions/4",
+			"category":    map[string]any{"name": "General"},
 		},
 	}
 
@@ -407,10 +414,10 @@ func Test_ListDiscussions(t *testing.T) {
 	}
 
 	// Define the actual query strings that match the implementation
-	qBasicNoOrder := "query($after:String$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
-	qWithCategoryNoOrder := "query($after:String$categoryId:ID!$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, categoryId: $categoryId){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
-	qBasicWithOrder := "query($after:String$first:Int!$orderByDirection:OrderDirection!$orderByField:DiscussionOrderField!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, orderBy: { field: $orderByField, direction: $orderByDirection }){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
-	qWithCategoryAndOrder := "query($after:String$categoryId:ID!$first:Int!$orderByDirection:OrderDirection!$orderByField:DiscussionOrderField!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, categoryId: $categoryId, orderBy: { field: $orderByField, direction: $orderByDirection }){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
+	qBasicNoOrder := "query($after:String$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,upvoteCount,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
+	qWithCategoryNoOrder := "query($after:String$categoryId:ID!$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, categoryId: $categoryId){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,upvoteCount,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
+	qBasicWithOrder := "query($after:String$first:Int!$orderByDirection:OrderDirection!$orderByField:DiscussionOrderField!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, orderBy: { field: $orderByField, direction: $orderByDirection }){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,upvoteCount,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
+	qWithCategoryAndOrder := "query($after:String$categoryId:ID!$first:Int!$orderByDirection:OrderDirection!$orderByField:DiscussionOrderField!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, categoryId: $categoryId, orderBy: { field: $orderByField, direction: $orderByDirection }){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,upvoteCount,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -463,7 +470,7 @@ func Test_ListDiscussions(t *testing.T) {
 
 			// Parse the structured response with pagination info
 			var response struct {
-				Discussions []*github.Discussion `json:"discussions"`
+				Discussions []map[string]any `json:"discussions"`
 				PageInfo    struct {
 					HasNextPage     bool   `json:"hasNextPage"`
 					HasPreviousPage bool   `json:"hasPreviousPage"`
@@ -479,14 +486,21 @@ func Test_ListDiscussions(t *testing.T) {
 
 			// Verify order if verifyOrder function is provided
 			if tc.verifyOrder != nil {
-				tc.verifyOrder(t, response.Discussions)
+				// Convert map responses to github.Discussion for compatibility with verifyOrder functions
+				discussions := make([]*github.Discussion, len(response.Discussions))
+				for i, d := range response.Discussions {
+					number := int(d["number"].(float64))
+					discussions[i] = &github.Discussion{Number: &number}
+				}
+				tc.verifyOrder(t, discussions)
 			}
 
 			// Verify that all returned discussions have a category if filtered
 			if _, hasCategory := tc.reqParams["category"]; hasCategory {
 				for _, discussion := range response.Discussions {
-					require.NotNil(t, discussion.DiscussionCategory, "Discussion should have category")
-					assert.NotEmpty(t, *discussion.DiscussionCategory.Name, "Discussion should have category name")
+					require.NotNil(t, discussion["category"], "Discussion should have category")
+					category := discussion["category"].(map[string]any)
+					assert.NotEmpty(t, category["name"], "Discussion should have category name")
 				}
 			}
 		})
@@ -509,7 +523,7 @@ func Test_GetDiscussion(t *testing.T) {
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "discussionNumber"})
 
 	// Use exact string query that matches implementation output
-	qGetDiscussion := "query($discussionNumber:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){number,title,body,createdAt,closed,isAnswered,answerChosenAt,url,category{name}}}}"
+	qGetDiscussion := "query($discussionNumber:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){number,title,body,createdAt,closed,isAnswered,answerChosenAt,upvoteCount,url,category{name}}}}"
 
 	vars := map[string]any{
 		"owner":            "owner",
@@ -527,24 +541,26 @@ func Test_GetDiscussion(t *testing.T) {
 			name: "successful retrieval",
 			response: githubv4mock.DataResponse(map[string]any{
 				"repository": map[string]any{"discussion": map[string]any{
-					"number":     1,
-					"title":      "Test Discussion Title",
-					"body":       "This is a test discussion",
-					"url":        "https://github.com/owner/repo/discussions/1",
-					"createdAt":  "2025-04-25T12:00:00Z",
-					"closed":     false,
-					"isAnswered": false,
-					"category":   map[string]any{"name": "General"},
+					"number":      1,
+					"title":       "Test Discussion Title",
+					"body":        "This is a test discussion",
+					"url":         "https://github.com/owner/repo/discussions/1",
+					"createdAt":   "2025-04-25T12:00:00Z",
+					"closed":      false,
+					"isAnswered":  false,
+					"upvoteCount": 42,
+					"category":    map[string]any{"name": "General"},
 				}},
 			}),
 			expectError: false,
 			expected: map[string]any{
-				"number":     float64(1),
-				"title":      "Test Discussion Title",
-				"body":       "This is a test discussion",
-				"url":        "https://github.com/owner/repo/discussions/1",
-				"closed":     false,
-				"isAnswered": false,
+				"number":      float64(1),
+				"title":       "Test Discussion Title",
+				"body":        "This is a test discussion",
+				"url":         "https://github.com/owner/repo/discussions/1",
+				"closed":      false,
+				"isAnswered":  false,
+				"upvoteCount": float64(42),
 			},
 		},
 		{
@@ -582,6 +598,7 @@ func Test_GetDiscussion(t *testing.T) {
 			assert.Equal(t, tc.expected["url"], out["url"])
 			assert.Equal(t, tc.expected["closed"], out["closed"])
 			assert.Equal(t, tc.expected["isAnswered"], out["isAnswered"])
+			assert.Equal(t, tc.expected["upvoteCount"], out["upvoteCount"])
 			// Check category is present
 			category, ok := out["category"].(map[string]any)
 			require.True(t, ok)
@@ -594,7 +611,7 @@ func Test_GetDiscussionWithStringNumber(t *testing.T) {
 	// Test that WeakDecode handles string discussionNumber from MCP clients
 	toolDef := GetDiscussion(translations.NullTranslationHelper)
 
-	qGetDiscussion := "query($discussionNumber:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){number,title,body,createdAt,closed,isAnswered,answerChosenAt,url,category{name}}}}"
+	qGetDiscussion := "query($discussionNumber:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){number,title,body,createdAt,closed,isAnswered,answerChosenAt,upvoteCount,url,category{name}}}}"
 
 	vars := map[string]any{
 		"owner":            "owner",
@@ -604,14 +621,15 @@ func Test_GetDiscussionWithStringNumber(t *testing.T) {
 
 	matcher := githubv4mock.NewQueryMatcher(qGetDiscussion, vars, githubv4mock.DataResponse(map[string]any{
 		"repository": map[string]any{"discussion": map[string]any{
-			"number":     1,
-			"title":      "Test Discussion Title",
-			"body":       "This is a test discussion",
-			"url":        "https://github.com/owner/repo/discussions/1",
-			"createdAt":  "2025-04-25T12:00:00Z",
-			"closed":     false,
-			"isAnswered": false,
-			"category":   map[string]any{"name": "General"},
+			"number":      1,
+			"title":       "Test Discussion Title",
+			"body":        "This is a test discussion",
+			"url":         "https://github.com/owner/repo/discussions/1",
+			"createdAt":   "2025-04-25T12:00:00Z",
+			"closed":      false,
+			"isAnswered":  false,
+			"upvoteCount": 42,
+			"category":    map[string]any{"name": "General"},
 		}},
 	}))
 	httpClient := githubv4mock.NewMockedHTTPClient(matcher)
