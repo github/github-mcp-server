@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"slices"
 	"sort"
@@ -368,8 +367,12 @@ func generateRemoteToolsetsDoc() string {
 	// Add "default" and "all" meta toolsets first (special cases). The base
 	// URL serves the default toolset; /x/all enables every toolset at once.
 	metaIcon := octiconImg("apps", "../")
-	fmt.Fprintf(&buf, "| %s<br>`default` | Default toolset | https://api.githubcopilot.com/mcp/ | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2F%%22%%7D) | [read-only](https://api.githubcopilot.com/mcp/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Freadonly%%22%%7D) |\n", metaIcon)
-	fmt.Fprintf(&buf, "| %s<br>`all` | All available GitHub MCP tools | https://api.githubcopilot.com/mcp/x/all | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-all&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Fx%%2Fall%%22%%7D) | [read-only](https://api.githubcopilot.com/mcp/x/all/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-all&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Fx%%2Fall%%2Freadonly%%22%%7D) |\n", metaIcon)
+	defaultInstall := mustHTTPToolsetInstallLink("github", "https://api.githubcopilot.com/mcp/")
+	defaultReadonlyInstall := mustHTTPToolsetInstallLink("github", "https://api.githubcopilot.com/mcp/readonly")
+	allInstall := mustHTTPToolsetInstallLink("gh-all", "https://api.githubcopilot.com/mcp/x/all")
+	allReadonlyInstall := mustHTTPToolsetInstallLink("gh-all", "https://api.githubcopilot.com/mcp/x/all/readonly")
+	fmt.Fprintf(&buf, "| %s<br>`default` | Default toolset | https://api.githubcopilot.com/mcp/ | %s | [read-only](https://api.githubcopilot.com/mcp/readonly) | %s |\n", metaIcon, defaultInstall, defaultReadonlyInstall)
+	fmt.Fprintf(&buf, "| %s<br>`all` | All available GitHub MCP tools | https://api.githubcopilot.com/mcp/x/all | %s | [read-only](https://api.githubcopilot.com/mcp/x/all/readonly) | %s |\n", metaIcon, allInstall, allReadonlyInstall)
 
 	// AvailableToolsets() returns toolsets that have tools, sorted by ID
 	// Exclude context (handled separately)
@@ -379,16 +382,8 @@ func generateRemoteToolsetsDoc() string {
 		apiURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s", idStr)
 		readonlyURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s/readonly", idStr)
 
-		// Create install config JSON (URL encoded)
-		installConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, apiURL))
-		readonlyConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, readonlyURL))
-
-		// Fix URL encoding to use %20 instead of + for spaces
-		installConfig = strings.ReplaceAll(installConfig, "+", "%20")
-		readonlyConfig = strings.ReplaceAll(readonlyConfig, "+", "%20")
-
-		installLink := fmt.Sprintf("[Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, installConfig)
-		readonlyInstallLink := fmt.Sprintf("[Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, readonlyConfig)
+		installLink := mustHTTPToolsetInstallLink(fmt.Sprintf("gh-%s", idStr), apiURL)
+		readonlyInstallLink := mustHTTPToolsetInstallLink(fmt.Sprintf("gh-%s", idStr), readonlyURL)
 
 		icon := octiconImg(ts.Icon, "../")
 		fmt.Fprintf(&buf, "| %s<br>`%s` | %s | %s | %s | [read-only](%s) | %s |\n",
@@ -419,16 +414,8 @@ func generateRemoteOnlyToolsetsDoc() string {
 		apiURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s", idStr)
 		readonlyURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s/readonly", idStr)
 
-		// Create install config JSON (URL encoded)
-		installConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, apiURL))
-		readonlyConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, readonlyURL))
-
-		// Fix URL encoding to use %20 instead of + for spaces
-		installConfig = strings.ReplaceAll(installConfig, "+", "%20")
-		readonlyConfig = strings.ReplaceAll(readonlyConfig, "+", "%20")
-
-		installLink := fmt.Sprintf("[Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, installConfig)
-		readonlyInstallLink := fmt.Sprintf("[Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, readonlyConfig)
+		installLink := mustHTTPToolsetInstallLink(fmt.Sprintf("gh-%s", idStr), apiURL)
+		readonlyInstallLink := mustHTTPToolsetInstallLink(fmt.Sprintf("gh-%s", idStr), readonlyURL)
 
 		icon := octiconImg(ts.Icon, "../")
 		fmt.Fprintf(&buf, "| %s<br>`%s` | %s | %s | %s | [read-only](%s) | %s |\n",
@@ -443,6 +430,14 @@ func generateRemoteOnlyToolsetsDoc() string {
 	}
 
 	return strings.TrimSuffix(buf.String(), "\n")
+}
+
+func mustHTTPToolsetInstallLink(name, serverURL string) string {
+	link, err := github.VSCodeHTTPToolsetInstallLink(name, serverURL)
+	if err != nil {
+		panic(fmt.Sprintf("failed to build VS Code install link for %s: %v", name, err))
+	}
+	return link
 }
 
 func generateDeprecatedAliasesDocs(docsPath string) error {
