@@ -190,12 +190,17 @@ func LabelGlobalSecurityAdvisory() SecurityLabel {
 // LabelRepositorySecurityAdvisory returns the IFC label for repository- or
 // organization-scoped security advisories.
 //
-// Integrity is untrusted (externally authored advisory prose). Confidentiality
-// follows repository visibility: advisories on public repositories are
-// readable by anyone, while those on private repositories are restricted to
-// the repository's readers.
-func LabelRepositorySecurityAdvisory(isPrivate bool) SecurityLabel {
-	if isPrivate {
+// Integrity is untrusted (externally authored advisory prose).
+//
+// Confidentiality is public only when the repository is public AND every
+// advisory in the result is in the "published" state. Repository security
+// advisories also exist in draft, triage, and closed states; those are visible
+// only to maintainers and are NOT world-readable even on a public repository.
+// Treating any non-published advisory as private (allPublished == false)
+// prevents misclassifying an unpublished advisory from a public repo as
+// public-readable. Private repositories are always private regardless of state.
+func LabelRepositorySecurityAdvisory(isPrivate bool, allPublished bool) SecurityLabel {
+	if isPrivate || !allPublished {
 		return PrivateUntrusted()
 	}
 	return PublicUntrusted()

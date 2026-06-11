@@ -122,16 +122,32 @@ func TestLabelGlobalSecurityAdvisory(t *testing.T) {
 func TestLabelRepositorySecurityAdvisory(t *testing.T) {
 	t.Parallel()
 
-	t.Run("public repo advisory is untrusted and public", func(t *testing.T) {
+	t.Run("public repo with all published advisories is untrusted and public", func(t *testing.T) {
 		t.Parallel()
-		label := LabelRepositorySecurityAdvisory(false)
+		label := LabelRepositorySecurityAdvisory(false, true)
 		assert.Equal(t, IntegrityUntrusted, label.Integrity)
 		assert.Equal(t, ConfidentialityPublic, label.Confidentiality)
 	})
 
+	t.Run("public repo with an unpublished advisory is untrusted and private", func(t *testing.T) {
+		t.Parallel()
+		// draft/triage/closed advisories are not world-readable even on a
+		// public repo, so confidentiality must be private.
+		label := LabelRepositorySecurityAdvisory(false, false)
+		assert.Equal(t, IntegrityUntrusted, label.Integrity)
+		assert.Equal(t, ConfidentialityPrivate, label.Confidentiality)
+	})
+
 	t.Run("private repo advisory is untrusted and private", func(t *testing.T) {
 		t.Parallel()
-		label := LabelRepositorySecurityAdvisory(true)
+		label := LabelRepositorySecurityAdvisory(true, true)
+		assert.Equal(t, IntegrityUntrusted, label.Integrity)
+		assert.Equal(t, ConfidentialityPrivate, label.Confidentiality)
+	})
+
+	t.Run("private repo with unpublished advisory is untrusted and private", func(t *testing.T) {
+		t.Parallel()
+		label := LabelRepositorySecurityAdvisory(true, false)
 		assert.Equal(t, IntegrityUntrusted, label.Integrity)
 		assert.Equal(t, ConfidentialityPrivate, label.Confidentiality)
 	})
