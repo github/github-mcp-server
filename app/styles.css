@@ -1,0 +1,44 @@
+:root{--bg:#f4f6f8;--card:#fff;--prim:#0f766e;--dark:#111827;--mut:#6b7280;--green:#16a34a;--amber:#d97706;--red:#dc2626;--line:#e5e7eb;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--dark);}
+.hidden{display:none!important;}
+
+/* Login */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+.login{width:100%;max-width:400px;text-align:center;}
+.brand{font-size:30px;font-weight:800;color:var(--prim);}
+.brand-sub{color:var(--mut);font-size:14px;margin:2px 0 24px;}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px;}
+.field{text-align:left;margin-bottom:16px;}
+.field label{font-size:12px;font-weight:600;display:block;margin-bottom:6px;}
+.field input{width:100%;border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:14px;outline:none;}
+.field input:focus{border-color:var(--prim);}
+.btn{width:100%;background:var(--prim);color:#fff;font-weight:600;border:none;padding:13px;border-radius:10px;font-size:15px;cursor:pointer;}
+.btn:hover{opacity:.92;}
+.msg{font-size:13px;margin-top:12px;min-height:18px;}
+.msg.err{color:var(--red);} .msg.ok{color:var(--green);}
+.foot{color:var(--mut);font-size:12px;margin-top:18px;}
+
+/* App */
+.topbar{background:#fff;border-bottom:1px solid var(--line);padding:16px 32px;display:flex;align-items:center;gap:12px;}
+.topbar .logo{font-weight:800;color:var(--prim);font-size:18px;}
+.topbar .spacer{flex:1;}
+.topbar .who{font-size:13px;color:var(--mut);text-align:right;}
+.topbar .who b{color:var(--dark);}
+.rolepill{display:inline-block;background:var(--prim);color:#fff;font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;margin-left:6px;text-transform:capitalize;}
+.linkbtn{background:none;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer;color:var(--dark);}
+.content{padding:32px;max-width:1200px;margin:0 auto;}
+h1{font-size:26px;font-weight:800;margin-bottom:4px;}
+.sub{color:var(--mut);font-size:14px;margin-bottom:24px;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:20px;}
+.promo{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;}
+.promo h3{font-size:18px;font-weight:700;}
+.promo .loc{color:var(--mut);font-size:13px;margin-bottom:14px;}
+.estado{font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;text-transform:capitalize;}
+.e-obra{background:#ecfdf5;color:var(--green);} .e-proyecto,.e-suelo,.e-licencia{background:#f3f4f6;color:var(--mut);} .e-entregada{background:#eff6ff;color:#2563eb;}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;}
+.kpi .l{font-size:11px;color:var(--mut);text-transform:uppercase;font-weight:600;}
+.kpi .v{font-size:18px;font-weight:700;margin-top:2px;}
+.track{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:14px;}
+.fill{height:100%;background:var(--prim);border-radius:4px;}
+.empty{background:#fff;border:1px dashed var(--line);border-radius:14px;padding:40px;text-align:center;color:var(--mut);}

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERP Grupo Tesela</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login" class="login-wrap">
+  <div class="login">
+    <div class="brand">Grupo Tesela</div>
+    <div class="brand-sub">ERP · Promoción inmobiliaria</div>
+    <form id="loginForm" class="card">
+      <div class="field"><label>Email</label><input id="email" type="email" placeholder="tu@grupotesela.com" required></div>
+      <div class="field"><label>Contraseña</label><input id="password" type="password" placeholder="••••••••" required></div>
+      <button class="btn" type="submit">Entrar</button>
+      <div id="loginMsg" class="msg"></div>
+    </form>
+    <div class="foot">Acceso restringido · Grupo Tesela</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <div class="topbar">
+    <span class="logo">Grupo Tesela ERP</span>
+    <span class="spacer"></span>
+    <span class="who" id="who"></span>
+    <button class="linkbtn" id="logout">Salir</button>
+  </div>
+  <div class="content">
+    <h1>Promociones</h1>
+    <div class="sub" id="appSub">Cargando…</div>
+    <div id="grid" class="grid"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
