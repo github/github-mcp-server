@@ -1,9 +1,12 @@
 package inventory
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // createTestInventory creates an inventory with the specified toolsets for testing.
@@ -261,5 +264,40 @@ func TestGenerateInstructionsOnlyEnabledToolsets(t *testing.T) {
 	}
 	if strings.Contains(result, "PRS_INSTRUCTIONS") {
 		t.Errorf("Did not expect instructions to contain 'PRS_INSTRUCTIONS' for disabled toolset, but it did. Result: %s", result)
+	}
+}
+
+func TestToolsetInstructionsOmitWriteGuidanceWhenWriteToolsAreFiltered(t *testing.T) {
+	issuesToolset := ToolsetMetadata{
+		ID:          "issues",
+		Description: "Issue tools",
+		InstructionsFunc: func(inv *Inventory) string {
+			instructions := "Use search_issues before creating new issues."
+			if inv.HasAvailableTool(context.Background(), "issue_write") {
+				instructions += " Always set state_reason when closing issues."
+			}
+			return instructions
+		},
+	}
+
+	tools := []ServerTool{
+		{
+			Tool:    mcp.Tool{Name: "search_issues", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}},
+			Toolset: issuesToolset,
+		},
+		{
+			Tool:    mcp.Tool{Name: "issue_write", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false}},
+			Toolset: issuesToolset,
+		},
+	}
+
+	reg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithServerInstructions())
+	if !strings.Contains(reg.instructions, "Always set state_reason when closing issues.") {
+		t.Fatalf("Expected write guidance when issue_write is available, got %q", reg.instructions)
+	}
+
+	readOnly := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithReadOnly(true).WithServerInstructions())
+	if strings.Contains(readOnly.instructions, "Always set state_reason when closing issues.") {
+		t.Fatalf("Did not expect write guidance in read-only mode, got %q", readOnly.instructions)
 	}
 }
