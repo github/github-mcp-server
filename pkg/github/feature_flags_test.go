@@ -162,10 +162,10 @@ func TestResolveFeatureFlags(t *testing.T) {
 			expectedFlags:   InsidersFeatureFlags,
 		},
 		{
-			name:            "insiders mode enables internal-only flags",
+			name:            "insiders mode does not auto-enable ifc labels",
 			enabledFeatures: nil,
 			insidersMode:    true,
-			expectedFlags:   []string{FeatureFlagIFCLabels},
+			unexpectedFlags: []string{FeatureFlagIFCLabels},
 		},
 		{
 			name:            "ifc_labels can be directly enabled",
