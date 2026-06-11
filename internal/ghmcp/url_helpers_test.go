@@ -104,8 +104,9 @@ func TestUserAgentTransport(t *testing.T) {
 	rt := &userAgentTransport{transport: capture, agent: "github-mcp-server/test"}
 
 	req := httptest.NewRequest(http.MethodGet, "https://api.github.com/", nil)
-	_, err := rt.RoundTrip(req)
+	resp, err := rt.RoundTrip(req)
 	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, "github-mcp-server/test", capture.captured.Header.Get("User-Agent"))
 	// The original request must not be mutated (RoundTrip clones it).
@@ -119,8 +120,9 @@ func TestBearerAuthTransport(t *testing.T) {
 	rt := &bearerAuthTransport{transport: capture, token: "secret-token"}
 
 	req := httptest.NewRequest(http.MethodGet, "https://api.github.com/", nil)
-	_, err := rt.RoundTrip(req)
+	resp, err := rt.RoundTrip(req)
 	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, "Bearer secret-token", capture.captured.Header.Get("Authorization"))
 	assert.Empty(t, req.Header.Get("Authorization"))

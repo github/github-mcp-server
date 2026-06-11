@@ -16,16 +16,14 @@ import (
 func inventoryWithToolset(t *testing.T, toolsetID string) *inventory.Inventory {
 	t.Helper()
 
-	tool := inventory.NewServerToolFromHandler(
+	tool := inventory.NewServerToolWithRawContextHandler(
 		mcp.Tool{
 			Name:        "sample_tool",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
 		},
 		inventory.ToolsetMetadata{ID: inventory.ToolsetID(toolsetID), Description: "test toolset"},
-		func(_ any) mcp.ToolHandler {
-			return func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-				return nil, nil
-			}
+		func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return nil, nil
 		},
 	)
 
