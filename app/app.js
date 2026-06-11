@@ -4,6 +4,8 @@ const sb = supabase.createClient(window.SUPABASE_CONFIG.url, window.SUPABASE_CON
 const $ = (id) => document.getElementById(id);
 const eur = (n) => (n == null ? "—" : Number(n).toLocaleString("es-ES") + " €");
 const PROMOS = {};
+let ROL = null;
+let DETALLE_ID = null;
 
 async function init() {
   const { data: { session } } = await sb.auth.getSession();
@@ -19,6 +21,7 @@ async function showApp(user) {
   let rol = "sin rol";
   const { data: perfil } = await sb.from("perfil").select("rol").eq("id", user.id).maybeSingle();
   if (perfil && perfil.rol) rol = perfil.rol;
+  ROL = rol;
   $("who").innerHTML = `<b>${user.email}</b><span class="rolepill">${rol}</span>`;
   mostrarLista();
   cargar();
@@ -77,6 +80,7 @@ const kpiBox = (l, v) => `<div class="kpi"><div class="l">${l}</div><div class="
 function abrirDetalle(id) {
   const p = PROMOS[id];
   if (!p) return;
+  DETALLE_ID = id;
   $("vistaLista").classList.add("hidden");
   const d = $("vistaDetalle");
   d.classList.remove("hidden");
@@ -112,15 +116,19 @@ async function cargarDetalle(id) {
   let ud = [];
   if (faseIds.length) {
     const uni = await sb.from("unidad")
-      .select("referencia,tipo,estado,precio_venta,contrato_venta(cliente(nombre))")
+      .select("id,referencia,tipo,estado,precio_venta,contrato_venta(cliente(nombre))")
       .in("fase_id", faseIds).order("referencia");
     ud = uni.data || [];
   }
+  const puedeVender = ROL === "direccion" || ROL === "comercial";
   $("detUnidades").innerHTML = ud.length ? `<table>
-    <tr><th>Ref.</th><th>Tipo</th><th>Estado</th><th class="rt">Precio</th><th>Comprador</th></tr>
+    <tr><th>Ref.</th><th>Tipo</th><th>Estado</th><th class="rt">Precio</th><th>Comprador</th><th></th></tr>
     ${ud.map((u) => {
       const comp = u.contrato_venta?.[0]?.cliente?.nombre || "—";
-      return `<tr><td>${u.referencia}</td><td>${u.tipo}</td><td>${u.estado}</td><td class="rt">${eur(u.precio_venta)}</td><td>${comp}</td></tr>`;
+      const accion = (puedeVender && u.estado !== "vendida")
+        ? `<button class="mini" onclick="registrarVenta('${u.id}',${u.precio_venta || 0},'${u.referencia}')">Vender</button>`
+        : "";
+      return `<tr><td>${u.referencia}</td><td>${u.tipo}</td><td>${u.estado}</td><td class="rt">${eur(u.precio_venta)}</td><td>${comp}</td><td class="rt">${accion}</td></tr>`;
     }).join("")}</table>` : `<div class="sub">Sin unidades.</div>`;
 
   // Tesorería
@@ -149,6 +157,42 @@ async function cargarDetalle(id) {
     ${dd.map((x) => `<tr><td>${x.tipo}</td><td>${x.nombre}</td></tr>`).join("")}</table>`
     : `<div class="sub">Sin documentos.</div>`;
 }
+
+// ---- Modal + registrar venta ----
+function openModal(html) { $("modalBody").innerHTML = html; $("modal").classList.remove("hidden"); }
+function closeModal() { $("modal").classList.add("hidden"); $("modalBody").innerHTML = ""; }
+window.closeModal = closeModal;
+
+window.registrarVenta = async function (unidadId, precio, ref) {
+  const { data: clientes } = await sb.from("cliente").select("id,nombre").order("nombre");
+  const opts = (clientes || []).map((c) => `<option value="${c.id}">${c.nombre}</option>`).join("");
+  openModal(`
+    <h2>Registrar venta · ${ref}</h2>
+    <div class="field"><label>Cliente</label><select id="mCliente">${opts}</select></div>
+    <div class="field"><label>Precio (€)</label><input id="mPrecio" type="number" value="${precio}"></div>
+    <div id="mMsg" class="msg"></div>
+    <div class="modal-actions">
+      <button class="linkbtn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-sm" onclick="confirmarVenta('${unidadId}')">Confirmar venta</button>
+    </div>`);
+};
+
+window.confirmarVenta = async function (unidadId) {
+  const clienteId = $("mCliente").value;
+  const precio = Number($("mPrecio").value);
+  const msg = $("mMsg");
+  msg.className = "msg";
+  msg.textContent = "Guardando…";
+  if (!clienteId) { msg.className = "msg err"; msg.textContent = "Selecciona un cliente."; return; }
+  const ins = await sb.from("contrato_venta").insert({
+    unidad_id: unidadId, cliente_id: clienteId, precio_total: precio,
+    fecha_firma: new Date().toISOString().slice(0, 10), estado: "escriturado",
+  });
+  if (ins.error) { msg.className = "msg err"; msg.textContent = ins.error.message; return; }
+  // La unidad pasa a 'vendida' por trigger; la factura se encola por trigger.
+  closeModal();
+  abrirDetalle(DETALLE_ID); // recargar el detalle con los datos actualizados
+};
 
 // Eventos de login
 $("loginForm").addEventListener("submit", async (e) => {
