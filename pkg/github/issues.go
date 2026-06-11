@@ -484,6 +484,7 @@ type IssueFragment struct {
 	Title      githubv4.String
 	Body       githubv4.String
 	State      githubv4.String
+	URL        githubv4.URI `graphql:"url"`
 	DatabaseID int64
 
 	Author struct {
@@ -620,6 +621,7 @@ type LegacyIssueFragment struct {
 	Title      githubv4.String
 	Body       githubv4.String
 	State      githubv4.String
+	URL        githubv4.URI `graphql:"url"`
 	DatabaseID int64
 
 	Author struct {
