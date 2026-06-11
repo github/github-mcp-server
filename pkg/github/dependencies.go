@@ -276,6 +276,8 @@ type RequestDeps struct {
 
 	// Observability exporters (includes logger)
 	obsv observability.Exporters
+
+	rateLimits *transport.RateLimitRegistry
 }
 
 // NewRequestDeps creates a RequestDeps with the provided clients and configuration.
@@ -298,6 +300,7 @@ func NewRequestDeps(
 		ContentWindowSize: contentWindowSize,
 		featureChecker:    featureChecker,
 		obsv:              obsv,
+		rateLimits:        transport.NewRateLimitRegistry(),
 	}
 }
 
@@ -320,9 +323,15 @@ func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
 	}
 
 	// Construct REST client
+	rateLimitLogger := d.obsv.Logger().With("component", "rate_limit")
 	restClient, err := gogithub.NewClient(
+		gogithub.WithHTTPClient(&http.Client{
+			Transport: &transport.UserAgentTransport{
+				Transport: transport.WrapWithRateLimit(http.DefaultTransport, d.rateLimits.Get(token), rateLimitLogger),
+				Agent:     fmt.Sprintf("github-mcp-server/%s", d.version),
+			},
+		}),
 		gogithub.WithAuthToken(token),
-		gogithub.WithUserAgent(fmt.Sprintf("github-mcp-server/%s", d.version)),
 		gogithub.WithEnterpriseURLs(baseRestURL.String(), uploadURL.String()),
 	)
 	if err != nil {
@@ -344,10 +353,11 @@ func (d *RequestDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error
 	// We use NewEnterpriseClient unconditionally since we already parsed the API host
 	// Wrap transport with GraphQLFeaturesTransport to inject feature flags from context,
 	// matching the transport chain used by the remote server.
+	rateLimitLogger := d.obsv.Logger().With("component", "rate_limit")
 	gqlHTTPClient := &http.Client{
 		Transport: &transport.BearerAuthTransport{
 			Transport: &transport.GraphQLFeaturesTransport{
-				Transport: http.DefaultTransport,
+				Transport: transport.WrapWithRateLimit(http.DefaultTransport, d.rateLimits.Get(token), rateLimitLogger),
 			},
 			Token: token,
 		},
