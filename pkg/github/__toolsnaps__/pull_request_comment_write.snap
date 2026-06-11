@@ -1,0 +1,48 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "title": "Write operations (reply, update, delete) on pull request review comments"
+  },
+  "description": "Write operations for pull request review comments.\n\nAvailable methods:\n- reply: Add a reply to an existing review comment. This creates a new comment that is linked as a reply to the specified comment.\n- update: Replace the body of an existing review comment. Only comments authored by the authenticated user can be updated.\n- delete: Delete an existing review comment. Only comments authored by the authenticated user can be deleted.\n",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "Comment text (required for 'reply' and 'update' methods)",
+        "type": "string"
+      },
+      "commentId": {
+        "description": "The ID of the review comment to operate on. For 'reply', this is the comment to reply to.",
+        "type": "number"
+      },
+      "method": {
+        "description": "Write operation to perform on a pull request review comment.\nOptions are:\n- 'reply' - add a reply to an existing review comment. This creates a new comment that is linked as a reply to the specified comment. Requires \"pullNumber\" and \"body\".\n- 'update' - replace the body of an existing review comment. Requires \"body\". Only comments authored by the authenticated user can be updated.\n- 'delete' - delete an existing review comment. Only comments authored by the authenticated user can be deleted.\n",
+        "enum": [
+          "reply",
+          "update",
+          "delete"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "Pull request number (required for 'reply' method)",
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo",
+      "commentId"
+    ],
+    "type": "object"
+  },
+  "name": "pull_request_comment_write"
+}

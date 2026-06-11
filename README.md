@@ -1073,14 +1073,6 @@ The following sets of tools are available:
   - `startSide`: For multi-line comments, the starting side of the diff that the comment applies to. LEFT indicates the previous state, RIGHT indicates the new state (string, optional)
   - `subjectType`: The level at which the comment is targeted (string, required)
 
-- **add_reply_to_pull_request_comment** - Add reply to pull request comment
-  - **Required OAuth Scopes**: `repo`
-  - `body`: The text of the reply (string, required)
-  - `commentId`: The ID of the comment to reply to (number, required)
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
 - **create_pull_request** - Open new pull request
   - **Required OAuth Scopes**: `repo`
   - `base`: Branch to merge into (string, required)
@@ -1111,6 +1103,20 @@ The following sets of tools are available:
   - `merge_method`: Merge method (string, optional)
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **pull_request_comment_write** - Write operations (reply, update, delete) on pull request review comments
+  - **Required OAuth Scopes**: `repo`
+  - `body`: Comment text (required for 'reply' and 'update' methods) (string, optional)
+  - `commentId`: The ID of the review comment to operate on. For 'reply', this is the comment to reply to. (number, required)
+  - `method`: Write operation to perform on a pull request review comment.
+    Options are:
+    - 'reply' - add a reply to an existing review comment. This creates a new comment that is linked as a reply to the specified comment. Requires "pullNumber" and "body".
+    - 'update' - replace the body of an existing review comment. Requires "body". Only comments authored by the authenticated user can be updated.
+    - 'delete' - delete an existing review comment. Only comments authored by the authenticated user can be deleted.
+     (string, required)
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (required for 'reply' method) (number, optional)
   - `repo`: Repository name (string, required)
 
 - **pull_request_read** - Get details for a single pull request

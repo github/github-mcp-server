@@ -39,4 +39,7 @@ var DeprecatedToolAliases = map[string]string{
 	"add_project_item":    "projects_write",
 	"update_project_item": "projects_write",
 	"delete_project_item": "projects_write",
+
+	// Pull request comment tools consolidated
+	"add_reply_to_pull_request_comment": "pull_request_comment_write",
 }
