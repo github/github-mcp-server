@@ -74,17 +74,32 @@ func TestNewGHECHost(t *testing.T) {
 }
 
 func TestNewGHESHost(t *testing.T) {
-	t.Parallel()
+	// Substitute the subdomain-isolation probe to avoid live network calls.
+	// (Not parallel: it swaps a package-level seam.)
+	original := subdomainIsolationCheck
+	t.Cleanup(func() { subdomainIsolationCheck = original })
 
-	// Use a non-resolvable host so the subdomain-isolation probe fails fast and
-	// deterministically (returns false). We assert only the isolation-independent
-	// REST and GraphQL URLs; upload/raw merely need to be constructed.
-	host, err := newGHESHost("https://ghes.invalid")
-	require.NoError(t, err)
-	assert.Equal(t, "https://ghes.invalid/api/v3/", host.baseRESTURL.String())
-	assert.Equal(t, "https://ghes.invalid/api/graphql", host.graphqlURL.String())
-	assert.NotNil(t, host.uploadURL)
-	assert.NotNil(t, host.rawURL)
+	t.Run("with subdomain isolation", func(t *testing.T) {
+		subdomainIsolationCheck = func(_, _ string) bool { return true }
+
+		host, err := newGHESHost("https://ghes.example.com")
+		require.NoError(t, err)
+		assert.Equal(t, "https://ghes.example.com/api/v3/", host.baseRESTURL.String())
+		assert.Equal(t, "https://ghes.example.com/api/graphql", host.graphqlURL.String())
+		assert.Equal(t, "https://uploads.ghes.example.com/", host.uploadURL.String())
+		assert.Equal(t, "https://raw.ghes.example.com/", host.rawURL.String())
+	})
+
+	t.Run("without subdomain isolation", func(t *testing.T) {
+		subdomainIsolationCheck = func(_, _ string) bool { return false }
+
+		host, err := newGHESHost("https://ghes.example.com")
+		require.NoError(t, err)
+		assert.Equal(t, "https://ghes.example.com/api/v3/", host.baseRESTURL.String())
+		assert.Equal(t, "https://ghes.example.com/api/graphql", host.graphqlURL.String())
+		assert.Equal(t, "https://ghes.example.com/api/uploads/", host.uploadURL.String())
+		assert.Equal(t, "https://ghes.example.com/raw/", host.rawURL.String())
+	})
 }
 
 // capturingRoundTripper records the request it receives and returns a canned response.
