@@ -258,6 +258,24 @@ func Test_UpdatePullRequest(t *testing.T) {
 			expectedPR:  mockPRWithReviewers,
 		},
 		{
+			name: "successful PR update with user and team reviewers",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
+					"reviewers":      []any{"reviewer1"},
+					"team_reviewers": []any{"platform"},
+				}).andThen(mockResponse(t, http.StatusOK, mockPRWithReviewers)),
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPRWithReviewers),
+			}),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"reviewers":  []any{"reviewer1", "owner/platform"},
+			},
+			expectError: false,
+			expectedPR:  mockPRWithReviewers,
+		},
+		{
 			name: "successful PR update (title only)",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposPullsByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
@@ -1240,6 +1258,185 @@ func Test_GetPullRequestFiles(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_GetPullRequestCommits(t *testing.T) {
+	// Verify tool definition once
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "pull_request_read", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "method")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
+
+	authorDate := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
+	mockCommits := []*github.RepositoryCommit{
+		{
+			SHA:     github.Ptr("abc123def456"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/commit/abc123def456"),
+			Commit: &github.Commit{
+				Message: github.Ptr("feat: add commit listing"),
+				Author: &github.CommitAuthor{
+					Name:  github.Ptr("Test User"),
+					Email: github.Ptr("test@example.com"),
+					Date:  &github.Timestamp{Time: authorDate},
+				},
+				Committer: &github.CommitAuthor{
+					Name:  github.Ptr("Merge Bot"),
+					Email: github.Ptr("merge@example.com"),
+					Date:  &github.Timestamp{Time: authorDate.Add(30 * time.Minute)},
+				},
+			},
+			Author: &github.User{
+				Login:     github.Ptr("test-user"),
+				ID:        github.Ptr(int64(12345)),
+				HTMLURL:   github.Ptr("https://github.com/test-user"),
+				AvatarURL: github.Ptr("https://github.com/test-user.png"),
+			},
+			Committer: &github.User{
+				Login:     github.Ptr("merge-bot"),
+				ID:        github.Ptr(int64(67890)),
+				HTMLURL:   github.Ptr("https://github.com/merge-bot"),
+				AvatarURL: github.Ptr("https://github.com/merge-bot.png"),
+			},
+		},
+		{
+			SHA:     github.Ptr("def456abc789"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/commit/def456abc789"),
+			Commit: &github.Commit{
+				Message: github.Ptr("fix: handle pagination"),
+			},
+		},
+	}
+
+	tests := []struct {
+		name            string
+		mockedClient    *http.Client
+		requestArgs     map[string]any
+		expectError     bool
+		expectedCommits []*github.RepositoryCommit
+		expectedErrMsg  string
+	}{
+		{
+			name: "successful commits fetch",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsCommitsByOwnerByRepoByPullNumber: expectQueryParams(t, map[string]string{
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockCommits),
+				),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_commits",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:     false,
+			expectedCommits: mockCommits,
+		},
+		{
+			name: "successful commits fetch with pagination",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsCommitsByOwnerByRepoByPullNumber: expectQueryParams(t, map[string]string{
+					"page":     "2",
+					"per_page": "10",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockCommits),
+				),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_commits",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"page":       float64(2),
+				"perPage":    float64(10),
+			},
+			expectError:     false,
+			expectedCommits: mockCommits,
+		},
+		{
+			name: "commits fetch fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsCommitsByOwnerByRepoByPullNumber: expectQueryParams(t, map[string]string{
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_commits",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(999),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get pull request commits",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			serverTool := PullRequestRead(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client:          client,
+				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+			}
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(tc.requestArgs)
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			if tc.expectError {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			textContent := getTextResult(t, result)
+			assert.NotContains(t, textContent.Text, `"committer"`)
+			assert.NotContains(t, textContent.Text, `"profile_url"`)
+
+			var returnedCommits []MinimalPullRequestCommit
+			err = json.Unmarshal([]byte(textContent.Text), &returnedCommits)
+			require.NoError(t, err)
+			assert.Len(t, returnedCommits, len(tc.expectedCommits))
+			for i, commit := range returnedCommits {
+				assert.Equal(t, tc.expectedCommits[i].GetSHA(), commit.SHA)
+				assert.Equal(t, tc.expectedCommits[i].GetHTMLURL(), commit.HTMLURL)
+				assert.Equal(t, tc.expectedCommits[i].GetCommit().GetMessage(), commit.Message)
+			}
+
+			assert.Equal(t, authorDate.Format(time.RFC3339), returnedCommits[0].Author.Date)
+		})
+	}
+}
+
+func Test_ConvertToMinimalPullRequestCommitsSkipsNilCommit(t *testing.T) {
+	commits := convertToMinimalPullRequestCommits([]*github.RepositoryCommit{nil})
+
+	require.Empty(t, commits)
 }
 
 func Test_GetPullRequestStatus(t *testing.T) {
@@ -2467,6 +2664,49 @@ func Test_CreatePullRequest_MCPAppsFeature_UIGate(t *testing.T) {
 		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
 			"non-UI client should execute directly")
 	})
+
+	t.Run("UI client with non-form param skips form and executes directly", func(t *testing.T) {
+		// A parameter the form does not collect must bypass the form rather than
+		// be silently dropped.
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"owner":     "owner",
+			"repo":      "repo",
+			"title":     "Test PR",
+			"head":      "feature",
+			"base":      "main",
+			"reviewers": []any{"octocat"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.NotContains(t, textContent.Text, "Ready to create a pull request",
+			"non-form param should skip UI form")
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
+			"non-form param call should execute directly and return PR URL")
+	})
+}
+
+func Test_pullRequestWriteHasNonFormParams(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args map[string]any
+		want bool
+	}{
+		{name: "no params", args: map[string]any{}, want: false},
+		{name: "only form params", args: map[string]any{"owner": "o", "repo": "r", "title": "t", "body": "b", "head": "h", "base": "b", "draft": true, "maintainer_can_modify": false, "_ui_submitted": true}, want: false},
+		{name: "unknown param present", args: map[string]any{"title": "t", "reviewers": []any{"octocat"}}, want: true},
+		{name: "nil value is ignored", args: map[string]any{"reviewers": nil}, want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, pullRequestWriteHasNonFormParams(tc.args))
+		})
+	}
 }
 
 func TestCreateAndSubmitPullRequestReview(t *testing.T) {

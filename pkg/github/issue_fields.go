@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -19,6 +21,7 @@ import (
 // IssueField represents a repository issue field definition.
 type IssueField struct {
 	ID          string                         `json:"id"`
+	DatabaseID  int64                          `json:"full_database_id,omitempty"`
 	Name        string                         `json:"name"`
 	Description string                         `json:"description,omitempty"`
 	DataType    string                         `json:"data_type"`
@@ -37,36 +40,42 @@ type IssueSingleSelectFieldOption struct {
 
 // issueFieldNode is the GraphQL fragment for a single issue field in the IssueFields union.
 // Only the fragment matching __typename is populated; read from the matching fragment.
+// fullDatabaseId (BigInt scalar, returned as string) is fetched on each concrete type because
+// shurcooL/githubv4 does not support interface fragments at the top level of a union.
 type issueFieldNode struct {
 	TypeName       githubv4.String `graphql:"__typename"`
 	IssueFieldText struct {
-		ID          githubv4.ID
-		Name        githubv4.String
-		Description githubv4.String
-		DataType    githubv4.String
-		Visibility  githubv4.String
+		ID             githubv4.ID
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+		Name           githubv4.String
+		Description    githubv4.String
+		DataType       githubv4.String
+		Visibility     githubv4.String
 	} `graphql:"... on IssueFieldText"`
 	IssueFieldNumber struct {
-		ID          githubv4.ID
-		Name        githubv4.String
-		Description githubv4.String
-		DataType    githubv4.String
-		Visibility  githubv4.String
+		ID             githubv4.ID
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+		Name           githubv4.String
+		Description    githubv4.String
+		DataType       githubv4.String
+		Visibility     githubv4.String
 	} `graphql:"... on IssueFieldNumber"`
 	IssueFieldDate struct {
-		ID          githubv4.ID
-		Name        githubv4.String
-		Description githubv4.String
-		DataType    githubv4.String
-		Visibility  githubv4.String
+		ID             githubv4.ID
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+		Name           githubv4.String
+		Description    githubv4.String
+		DataType       githubv4.String
+		Visibility     githubv4.String
 	} `graphql:"... on IssueFieldDate"`
 	IssueFieldSingleSelect struct {
-		ID          githubv4.ID
-		Name        githubv4.String
-		Description githubv4.String
-		DataType    githubv4.String
-		Visibility  githubv4.String
-		Options     []struct {
+		ID             githubv4.ID
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+		Name           githubv4.String
+		Description    githubv4.String
+		DataType       githubv4.String
+		Visibility     githubv4.String
+		Options        []struct {
 			ID          githubv4.ID
 			Name        githubv4.String
 			Description githubv4.String
@@ -147,7 +156,17 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return utils.NewToolResultErrorFromErr("failed to marshal issue fields", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Issue field definitions are repo/org structural metadata
+			// (trusted). When scoped to a specific repo, confidentiality
+			// follows that repo's visibility; for an org-level lookup (no
+			// repo) it is conservatively treated as private.
+			if repo == "" {
+				result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoMetadata(true))
+			} else {
+				result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
+			}
+			return result, nil, nil
 		})
 	st.FeatureFlagEnable = FeatureFlagIssueFields
 	return st
@@ -200,6 +219,7 @@ func issueFieldsFromNodes(nodes []issueFieldNode) []IssueField {
 			}
 			f = IssueField{
 				ID:          fmt.Sprintf("%v", node.IssueFieldSingleSelect.ID),
+				DatabaseID:  parseFullDatabaseID(string(node.IssueFieldSingleSelect.FullDatabaseID)),
 				Name:        string(node.IssueFieldSingleSelect.Name),
 				Description: string(node.IssueFieldSingleSelect.Description),
 				DataType:    string(node.IssueFieldSingleSelect.DataType),
@@ -209,6 +229,7 @@ func issueFieldsFromNodes(nodes []issueFieldNode) []IssueField {
 		case "IssueFieldText":
 			f = IssueField{
 				ID:          fmt.Sprintf("%v", node.IssueFieldText.ID),
+				DatabaseID:  parseFullDatabaseID(string(node.IssueFieldText.FullDatabaseID)),
 				Name:        string(node.IssueFieldText.Name),
 				Description: string(node.IssueFieldText.Description),
 				DataType:    string(node.IssueFieldText.DataType),
@@ -217,6 +238,7 @@ func issueFieldsFromNodes(nodes []issueFieldNode) []IssueField {
 		case "IssueFieldNumber":
 			f = IssueField{
 				ID:          fmt.Sprintf("%v", node.IssueFieldNumber.ID),
+				DatabaseID:  parseFullDatabaseID(string(node.IssueFieldNumber.FullDatabaseID)),
 				Name:        string(node.IssueFieldNumber.Name),
 				Description: string(node.IssueFieldNumber.Description),
 				DataType:    string(node.IssueFieldNumber.DataType),
@@ -225,6 +247,7 @@ func issueFieldsFromNodes(nodes []issueFieldNode) []IssueField {
 		case "IssueFieldDate":
 			f = IssueField{
 				ID:          fmt.Sprintf("%v", node.IssueFieldDate.ID),
+				DatabaseID:  parseFullDatabaseID(string(node.IssueFieldDate.FullDatabaseID)),
 				Name:        string(node.IssueFieldDate.Name),
 				Description: string(node.IssueFieldDate.Description),
 				DataType:    string(node.IssueFieldDate.DataType),
@@ -236,4 +259,17 @@ func issueFieldsFromNodes(nodes []issueFieldNode) []IssueField {
 		fields = append(fields, f)
 	}
 	return fields
+}
+
+// parseFullDatabaseID converts a BigInt scalar string (e.g. "12345") to int64.
+// Returns 0 if the string is empty or cannot be parsed.
+func parseFullDatabaseID(s string) int64 {
+	if s == "" {
+		return 0
+	}
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return n
 }

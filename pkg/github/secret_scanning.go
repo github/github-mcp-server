@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -89,7 +90,12 @@ func GetSecretScanningAlert(t translations.TranslationHelperFunc) inventory.Serv
 				return nil, nil, fmt.Errorf("failed to marshal alert: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Secret scanning alerts are access-restricted regardless of repo
+			// visibility and surface the matched secret material itself, so the
+			// label is always private-untrusted.
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
+			return result, nil, nil
 		},
 	)
 }
@@ -199,7 +205,12 @@ func ListSecretScanningAlerts(t translations.TranslationHelperFunc) inventory.Se
 				return nil, nil, fmt.Errorf("failed to marshal alerts: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Secret scanning alerts are access-restricted regardless of repo
+			// visibility and surface the matched secret material itself, so the
+			// label is always private-untrusted.
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
+			return result, nil, nil
 		},
 	)
 }

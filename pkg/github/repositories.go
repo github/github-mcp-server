@@ -49,10 +49,11 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Type:        "string",
 						Description: "Commit SHA, branch name, or tag name",
 					},
-					"include_diff": {
-						Type:        "boolean",
-						Description: "Whether to include file diffs and stats in the response. Default is true.",
-						Default:     json.RawMessage(`true`),
+					"detail": {
+						Type:        "string",
+						Enum:        []any{"none", "stats", "full_patch"},
+						Description: "Level of detail to include for changed files. \"none\" omits stats and files entirely. \"stats\" (default) includes per-file metadata: filename, status, and lines-of-code counts (additions, deletions, changes), with no patch content. \"full_patch\" additionally includes the unified diff content for each file and can be very large.",
+						Default:     json.RawMessage(`"stats"`),
 					},
 				},
 				Required: []string{"owner", "repo", "sha"},
@@ -72,7 +73,11 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			includeDiff, err := OptionalBoolParamWithDefault(args, "include_diff", true)
+			detailRaw, err := OptionalParam[string](args, "detail")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			detail, err := parseCommitDetail(detailRaw)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -109,14 +114,20 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			// Convert to minimal commit
-			minimalCommit := convertToMinimalCommit(commit, includeDiff)
+			minimalCommit := convertToMinimalCommit(commit, detail)
 
 			r, err := json.Marshal(minimalCommit)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Commit content is reachable from the repo's history; in public
+			// repos anyone can land it via a PR (untrusted), in private repos
+			// only collaborators can (trusted). Confidentiality follows repo
+			// visibility.
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelCommitContents)
+			return result, nil, nil
 		},
 	)
 }
@@ -255,7 +266,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// Convert to minimal commits
 			minimalCommits := make([]MinimalCommit, len(commits))
 			for i, commit := range commits {
-				minimalCommits[i] = convertToMinimalCommit(commit, false)
+				minimalCommits[i] = convertToMinimalCommit(commit, commitDetailNone)
 			}
 
 			r, err := json.Marshal(minimalCommits)
@@ -263,7 +274,12 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Commit content is reachable from the repo's history; integrity
+			// follows the same public-untrusted / private-trusted rule as file
+			// contents. Confidentiality follows repo visibility.
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelCommitContents)
+			return result, nil, nil
 		},
 	)
 }
@@ -350,7 +366,12 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Branches are structural repo metadata that only collaborators
+			// with push access can create, so integrity is trusted.
+			// Confidentiality follows repo visibility.
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
+			return result, nil, nil
 		},
 	)
 }
@@ -750,28 +771,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			// each. If the visibility lookup fails we skip the label rather
 			// than misclassify the result; the failure is not cached so a
 			// later return path can retry.
-			var (
-				ifcLabelKnown bool
-				ifcIsPrivate  bool
-			)
-			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
-				if r == nil || r.IsError || !deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
-					return r
-				}
-				if !ifcLabelKnown {
-					isPrivate, err := FetchRepoIsPrivate(ctx, client, owner, repo)
-					if err != nil {
-						return r
-					}
-					ifcIsPrivate = isPrivate
-					ifcLabelKnown = true
-				}
-				if r.Meta == nil {
-					r.Meta = mcp.Meta{}
-				}
-				r.Meta["ifc"] = ifc.LabelGetFileContents(ifcIsPrivate)
-				return r
-			}
+			attachIFC := newRepoVisibilityIFCLabeler(ctx, deps, client, owner, repo, ifc.LabelGetFileContents)
 
 			rawOpts, fallbackUsed, err := resolveGitReference(ctx, client, owner, repo, ref, sha)
 			if err != nil {
@@ -1607,7 +1607,12 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Tags are structural repo metadata created by collaborators with
+			// push access, so integrity is trusted. Confidentiality follows
+			// repo visibility.
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
+			return result, nil, nil
 		},
 	)
 }
@@ -1687,7 +1692,9 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 				if err != nil {
 					return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 				}
-				return utils.NewToolResultText(string(r)), nil, nil
+				result := utils.NewToolResultText(string(r))
+				result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
+				return result, nil, nil
 			}
 
 			tagObj, resp, err := client.Git.GetTag(ctx, owner, repo, *ref.Object.SHA)
@@ -1713,7 +1720,12 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// An annotated tag object is structural repo metadata created by a
+			// collaborator with push access. Confidentiality follows repo
+			// visibility.
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
+			return result, nil, nil
 		},
 	)
 }
@@ -1795,7 +1807,24 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Releases are published by collaborators with push access, so
+			// integrity is trusted. Confidentiality follows repo visibility,
+			// but draft releases are visible only to push-access users and are
+			// not world-readable even on a public repo, so the result is only
+			// public when no returned release is a draft.
+			hasDraft := false
+			for _, mr := range minimalReleases {
+				if mr.Draft {
+					hasDraft = true
+					break
+				}
+			}
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result,
+				func(isPrivate bool) ifc.SecurityLabel {
+					return ifc.LabelRelease(isPrivate, hasDraft)
+				})
+			return result, nil, nil
 		},
 	)
 }
@@ -1861,7 +1890,16 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Releases are published by collaborators with push access, so
+			// integrity is trusted. The "latest release" endpoint never returns
+			// a draft, but the draft flag is honored defensively: a draft is
+			// not world-readable even on a public repo.
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result,
+				func(isPrivate bool) ifc.SecurityLabel {
+					return ifc.LabelRelease(isPrivate, release.GetDraft())
+				})
+			return result, nil, nil
 		},
 	)
 }
@@ -1938,7 +1976,16 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Releases are published by collaborators with push access, so
+			// integrity is trusted. A release fetched by tag may be a draft,
+			// which is visible only to push-access users and not world-readable
+			// even on a public repo, so a draft forces private confidentiality.
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result,
+				func(isPrivate bool) ifc.SecurityLabel {
+					return ifc.LabelRelease(isPrivate, release.GetDraft())
+				})
+			return result, nil, nil
 		},
 	)
 }
@@ -2070,7 +2117,18 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.Ser
 				return nil, nil, fmt.Errorf("failed to marshal starred repositories: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// A starred-repository listing exposes repository data across many
+			// repos; reuse the multi-repo join shared with search_repositories
+			// (untrusted integrity; confidentiality private if any matched repo
+			// is private). Visibility is read directly from the response, so no
+			// extra API call is needed.
+			visibilities := make([]bool, 0, len(minimalRepos))
+			for _, mr := range minimalRepos {
+				visibilities = append(visibilities, mr.Private)
+			}
+			result = attachJoinedIFCLabel(ctx, deps, result, visibilities, ifc.LabelSearchIssues)
+			return result, nil, nil
 		},
 	)
 }
@@ -2726,7 +2784,13 @@ func ListRepositoryCollaborators(t translations.TranslationHelperFunc) inventory
 				"lastPage":  resp.LastPage,
 			}
 
-			return MarshalledTextResult(response), nil, nil
+			callResult := MarshalledTextResult(response)
+			// The collaborator roster is GitHub-maintained membership data
+			// (trusted, not attacker-authored). Listing collaborators requires
+			// push access, so the roster is never world-readable — not even on
+			// a public repo — hence always private confidentiality.
+			callResult = attachStaticIFCLabel(ctx, deps, callResult, ifc.LabelCollaboratorRoster())
+			return callResult, nil, nil
 		},
 	)
 }

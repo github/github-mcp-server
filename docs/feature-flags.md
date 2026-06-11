@@ -50,7 +50,7 @@ runtime behavior (such as output formatting) won't appear here.
   - **MCP App UI**: `ui://github-mcp-server/get-me`
   - No parameters required
 
-- **issue_write** - Create or update issue
+- **issue_write** - Create or update issue/pull request
   - **Required OAuth Scopes**: `repo`
   - **MCP App UI**: `ui://github-mcp-server/issue-write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
@@ -73,6 +73,27 @@ runtime behavior (such as output formatting) won't appear here.
 
 ### `remote_mcp_issue_fields`
 
+- **issue_write** - Create or update issue/pull request
+  - **Required OAuth Scopes**: `repo`
+  - `assignees`: Usernames to assign to this issue (string[], optional)
+  - `body`: Issue body content (string, optional)
+  - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
+  - `issue_fields`: Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', or 'delete: true'. (object[], optional)
+  - `issue_number`: Issue number to update (number, optional)
+  - `labels`: Labels to apply to this issue (string[], optional)
+  - `method`: Write operation to perform on a single issue.
+    Options are:
+    - 'create' - creates a new issue.
+    - 'update' - updates an existing issue.
+     (string, required)
+  - `milestone`: Milestone number (number, optional)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `state`: New state (string, optional)
+  - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
+  - `title`: Issue title (string, optional)
+  - `type`: Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
+
 - **list_issue_fields** - List issue fields
   - **Required OAuth Scopes**: `repo`, `read:org`
   - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `repo`, `write:org`
@@ -81,7 +102,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **list_issues** - List issues
   - **Required OAuth Scopes**: `repo`
-  - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
   - `field_filters`: Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date). (object[], optional)
   - `labels`: Filter by labels (string[], optional)
@@ -177,6 +198,8 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **update_issue_type** - Update Issue Type
   - **Required OAuth Scopes**: `repo`
+  - `confidence`: How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal. (string, optional)
+  - `is_suggestion`: If true, this issue type change is sent to the API as a suggestion (suggest:true) rather than an applied value. Whether the type is applied or recorded as a proposal is determined by the API. (boolean, optional)
   - `issue_number`: The issue number to update (number, required)
   - `issue_type`: The issue type to set (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
@@ -218,7 +241,7 @@ runtime behavior (such as output formatting) won't appear here.
   - `owner`: Repository owner (username or organization) (string, required)
   - `pullNumber`: The pull request number (number, required)
   - `repo`: Repository name (string, required)
-  - `reviewers`: GitHub usernames to request reviews from (string[], required)
+  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], required)
 
 - **resolve_review_thread** - Resolve Review Thread
   - **Required OAuth Scopes**: `repo`

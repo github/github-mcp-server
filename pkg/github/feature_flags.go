@@ -23,6 +23,7 @@ const FeatureFlagIssueFields = "remote_mcp_issue_fields"
 var AllowedFeatureFlags = []string{
 	MCPAppsFeatureFlag,
 	FeatureFlagCSVOutput,
+	FeatureFlagIFCLabels,
 	FeatureFlagIssueFields,
 	FeatureFlagIssuesGranular,
 	FeatureFlagPullRequestsGranular,
@@ -35,7 +36,6 @@ var AllowedFeatureFlags = []string{
 var InsidersFeatureFlags = []string{
 	MCPAppsFeatureFlag,
 	FeatureFlagCSVOutput,
-	FeatureFlagIFCLabels,
 	FeatureFlagIssueFields,
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 )
 
@@ -42,8 +43,8 @@ func (r *Inventory) checkFeatureFlag(ctx context.Context, flagName string) bool 
 // installed when WithFeatureChecker received a non-nil checker).
 //
 //   - If FeatureFlagEnable is set, the item is only allowed if the flag is enabled.
-//   - If FeatureFlagDisable is set, the item is excluded if the flag is enabled.
-func featureFlagAllowed(ctx context.Context, checker FeatureFlagChecker, enableFlag, disableFlag string) bool {
+//   - If FeatureFlagDisable is non-empty, the item is excluded if any listed flag is enabled.
+func featureFlagAllowed(ctx context.Context, checker FeatureFlagChecker, enableFlag string, disableFlags []string) bool {
 	// Error semantics match the previous checkFeatureFlag helper: a checker
 	// error is logged and treated as "flag not enabled". So an enable-flag
 	// check on error excludes the tool, but a disable-flag check on error
@@ -59,10 +60,7 @@ func featureFlagAllowed(ctx context.Context, checker FeatureFlagChecker, enableF
 	if enableFlag != "" && !check(enableFlag) {
 		return false
 	}
-	if disableFlag != "" && check(disableFlag) {
-		return false
-	}
-	return true
+	return !slices.ContainsFunc(disableFlags, check)
 }
 
 // createFeatureFlagFilter returns a ToolFilter that gates tools on their
