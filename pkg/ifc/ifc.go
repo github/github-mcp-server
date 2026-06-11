@@ -59,8 +59,18 @@ func PrivateUntrusted() SecurityLabel {
 	}
 }
 
+// LabelGetMe returns the IFC label for the authenticated user's own profile
+// (get_me).
+//
+// Integrity is trusted: this is GitHub-maintained data about the caller's own
+// account, not attacker-authored content.
+//
+// Confidentiality is private. The result includes fields that are NOT part of
+// the user's public profile — private_gists, total_private_repos, and
+// owned_private_repos — which are visible only to the authenticated user. The
+// result therefore must not be treated as world-readable.
 func LabelGetMe() SecurityLabel {
-	return PublicTrusted()
+	return PrivateTrusted()
 }
 
 // LabelListIssues returns the IFC label for a list_issues result.
@@ -126,6 +136,38 @@ func LabelRepoMetadata(isPrivate bool) SecurityLabel {
 		return PrivateTrusted()
 	}
 	return PublicTrusted()
+}
+
+// LabelRelease returns the IFC label for repository releases (list_releases,
+// get_latest_release, get_release_by_tag).
+//
+// Integrity is trusted: releases are published by collaborators with push
+// access, not by arbitrary outsiders.
+//
+// Confidentiality is public only when the repository is public AND no returned
+// release is a draft. Draft releases are visible only to users with push
+// access — they are NOT world-readable even on a public repository — so a
+// result containing one must be private. hasDraft reflects whether any release
+// in the result is a draft; private repositories are always private regardless.
+func LabelRelease(isPrivate bool, hasDraft bool) SecurityLabel {
+	if isPrivate || hasDraft {
+		return PrivateTrusted()
+	}
+	return PublicTrusted()
+}
+
+// LabelCollaboratorRoster returns the IFC label for a repository's collaborator
+// list (list_repository_collaborators).
+//
+// Integrity is trusted: the roster is GitHub-maintained membership data, not
+// attacker-authored content.
+//
+// Confidentiality is always private. Listing collaborators requires push
+// access to the repository, so the roster is never world-readable — not even
+// for public repositories. This mirrors LabelTeam: membership data is
+// restricted regardless of the repository's own visibility.
+func LabelCollaboratorRoster() SecurityLabel {
+	return PrivateTrusted()
 }
 
 // LabelCommitContents returns the IFC label for committed repository content

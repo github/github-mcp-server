@@ -68,6 +68,56 @@ func TestLabelRepoMetadata(t *testing.T) {
 	})
 }
 
+func TestLabelGetMe(t *testing.T) {
+	t.Parallel()
+
+	// get_me exposes private_gists/total_private_repos/owned_private_repos,
+	// which are not part of the public profile, so the result is trusted but
+	// private — never public.
+	label := LabelGetMe()
+	assert.Equal(t, IntegrityTrusted, label.Integrity)
+	assert.Equal(t, ConfidentialityPrivate, label.Confidentiality)
+}
+
+func TestLabelRelease(t *testing.T) {
+	t.Parallel()
+
+	t.Run("public repo with no draft is trusted and public", func(t *testing.T) {
+		t.Parallel()
+		label := LabelRelease(false, false)
+		assert.Equal(t, IntegrityTrusted, label.Integrity)
+		assert.Equal(t, ConfidentialityPublic, label.Confidentiality)
+	})
+
+	t.Run("public repo with a draft release is private", func(t *testing.T) {
+		t.Parallel()
+		// Draft releases are visible only to push-access users, so a draft on
+		// a public repo must not be labeled public.
+		label := LabelRelease(false, true)
+		assert.Equal(t, IntegrityTrusted, label.Integrity)
+		assert.Equal(t, ConfidentialityPrivate, label.Confidentiality)
+	})
+
+	t.Run("private repo is private regardless of draft", func(t *testing.T) {
+		t.Parallel()
+		for _, hasDraft := range []bool{false, true} {
+			label := LabelRelease(true, hasDraft)
+			assert.Equal(t, IntegrityTrusted, label.Integrity)
+			assert.Equal(t, ConfidentialityPrivate, label.Confidentiality)
+		}
+	})
+}
+
+func TestLabelCollaboratorRoster(t *testing.T) {
+	t.Parallel()
+
+	// A collaborator roster requires push access to list, so it is never
+	// world-readable — always trusted and private.
+	label := LabelCollaboratorRoster()
+	assert.Equal(t, IntegrityTrusted, label.Integrity)
+	assert.Equal(t, ConfidentialityPrivate, label.Confidentiality)
+}
+
 func TestLabelCommitContents(t *testing.T) {
 	t.Parallel()
 

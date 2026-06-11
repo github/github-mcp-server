@@ -1806,8 +1806,21 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			result := utils.NewToolResultText(string(r))
 			// Releases are published by collaborators with push access, so
-			// integrity is trusted. Confidentiality follows repo visibility.
-			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
+			// integrity is trusted. Confidentiality follows repo visibility,
+			// but draft releases are visible only to push-access users and are
+			// not world-readable even on a public repo, so the result is only
+			// public when no returned release is a draft.
+			hasDraft := false
+			for _, mr := range minimalReleases {
+				if mr.Draft {
+					hasDraft = true
+					break
+				}
+			}
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result,
+				func(isPrivate bool) ifc.SecurityLabel {
+					return ifc.LabelRelease(isPrivate, hasDraft)
+				})
 			return result, nil, nil
 		},
 	)
@@ -1876,8 +1889,13 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 
 			result := utils.NewToolResultText(string(r))
 			// Releases are published by collaborators with push access, so
-			// integrity is trusted. Confidentiality follows repo visibility.
-			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
+			// integrity is trusted. The "latest release" endpoint never returns
+			// a draft, but the draft flag is honored defensively: a draft is
+			// not world-readable even on a public repo.
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result,
+				func(isPrivate bool) ifc.SecurityLabel {
+					return ifc.LabelRelease(isPrivate, release.GetDraft())
+				})
 			return result, nil, nil
 		},
 	)
@@ -1957,8 +1975,13 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			result := utils.NewToolResultText(string(r))
 			// Releases are published by collaborators with push access, so
-			// integrity is trusted. Confidentiality follows repo visibility.
-			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
+			// integrity is trusted. A release fetched by tag may be a draft,
+			// which is visible only to push-access users and not world-readable
+			// even on a public repo, so a draft forces private confidentiality.
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result,
+				func(isPrivate bool) ifc.SecurityLabel {
+					return ifc.LabelRelease(isPrivate, release.GetDraft())
+				})
 			return result, nil, nil
 		},
 	)
@@ -2343,9 +2366,10 @@ func ListRepositoryCollaborators(t translations.TranslationHelperFunc) inventory
 
 			callResult := MarshalledTextResult(response)
 			// The collaborator roster is GitHub-maintained membership data
-			// (trusted, not attacker-authored). Confidentiality follows repo
-			// visibility — collaborators of a private repo are not public.
-			callResult = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, callResult, ifc.LabelRepoMetadata)
+			// (trusted, not attacker-authored). Listing collaborators requires
+			// push access, so the roster is never world-readable — not even on
+			// a public repo — hence always private confidentiality.
+			callResult = attachStaticIFCLabel(ctx, deps, callResult, ifc.LabelCollaboratorRoster())
 			return callResult, nil, nil
 		},
 	)
