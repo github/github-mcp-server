@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -203,7 +204,12 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 				return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Global advisories come from the world-readable GitHub Advisory
+			// Database (public) but contain externally authored prose
+			// (untrusted).
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGlobalSecurityAdvisory())
+			return result, nil, nil
 		},
 	)
 }
@@ -307,7 +313,11 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 				return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Repository advisories carry externally authored prose (untrusted);
+			// confidentiality follows repo visibility.
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepositorySecurityAdvisory)
+			return result, nil, nil
 		},
 	)
 }
@@ -364,7 +374,11 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 				return nil, nil, fmt.Errorf("failed to marshal advisory: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// A global advisory is world-readable (public) but externally
+			// authored (untrusted).
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGlobalSecurityAdvisory())
+			return result, nil, nil
 		},
 	)
 }
@@ -459,7 +473,12 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 				return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Org-wide advisory listings span the organization's repositories
+			// (including private ones) and are restricted to org members, so
+			// they are conservatively labeled private-untrusted.
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepositorySecurityAdvisory(true))
+			return result, nil, nil
 		},
 	)
 }

@@ -106,3 +106,166 @@ func LabelSearchIssues(repoVisibilities []bool) SecurityLabel {
 	}
 	return PublicUntrusted()
 }
+
+// LabelRepoMetadata returns the IFC label for structural repository metadata
+// that only collaborators with write access can define: labels, branches,
+// tags, releases, issue types, issue field definitions, discussion
+// categories, and the collaborator roster.
+//
+// Integrity is trusted because, unlike issue/PR/comment bodies, these
+// artifacts cannot be authored by arbitrary outsiders — creating a branch,
+// tag, release, or label requires push access, so the data reflects decisions
+// made by the repository's trusted writers rather than attacker-controllable
+// input.
+//
+// Confidentiality follows repository visibility: public repositories are
+// universally readable; private repositories restrict the reader set (the
+// opaque "private" marker, resolved client-side at egress time).
+func LabelRepoMetadata(isPrivate bool) SecurityLabel {
+	if isPrivate {
+		return PrivateTrusted()
+	}
+	return PublicTrusted()
+}
+
+// LabelCommitContents returns the IFC label for committed repository content
+// reachable from the default branch and its history: commits, commit diffs,
+// and the repository file tree.
+//
+// It shares the reasoning of LabelGetFileContents. In public repositories any
+// outsider can land content via a pull request, so the integrity of committed
+// content is untrusted. In private repositories only collaborators can push,
+// so committed content is trusted. Confidentiality follows repository
+// visibility.
+func LabelCommitContents(isPrivate bool) SecurityLabel {
+	if isPrivate {
+		return PrivateTrusted()
+	}
+	return PublicUntrusted()
+}
+
+// LabelActionsResult returns the IFC label for GitHub Actions resources:
+// workflow definitions, runs, jobs, artifacts, and job logs.
+//
+// Integrity is untrusted. Workflow logs echo arbitrary text produced during a
+// run — including output derived from pull-request branches, dependency
+// downloads, and other attacker-influenceable sources — so log and artifact
+// content must be treated as low integrity. Workflow definitions are
+// themselves editable through pull requests in public repositories.
+//
+// Confidentiality follows repository visibility.
+func LabelActionsResult(isPrivate bool) SecurityLabel {
+	if isPrivate {
+		return PrivateUntrusted()
+	}
+	return PublicUntrusted()
+}
+
+// LabelSecurityAlert returns the IFC label for security findings: code
+// scanning alerts, secret scanning alerts, and Dependabot alerts.
+//
+// Integrity is untrusted because alert payloads embed attacker-influenceable
+// material — the offending code snippet, the matched secret string, or a
+// vulnerable dependency's advisory text — none of which the agent should treat
+// as a trustworthy instruction source.
+//
+// Confidentiality is always private. Security alerts are access-restricted by
+// GitHub regardless of repository visibility (only users with a security role
+// can read them), so the reader set is narrow even for public repositories.
+// Secret scanning results additionally surface the secret material itself.
+func LabelSecurityAlert() SecurityLabel {
+	return PrivateUntrusted()
+}
+
+// LabelGlobalSecurityAdvisory returns the IFC label for advisories served from
+// the public GitHub Advisory Database (global advisories).
+//
+// The advisory database is world-readable, so confidentiality is public.
+// Integrity is untrusted: advisory descriptions are externally authored prose
+// and must not be treated as a trusted instruction source.
+func LabelGlobalSecurityAdvisory() SecurityLabel {
+	return PublicUntrusted()
+}
+
+// LabelRepositorySecurityAdvisory returns the IFC label for repository- or
+// organization-scoped security advisories.
+//
+// Integrity is untrusted (externally authored advisory prose). Confidentiality
+// follows repository visibility: advisories on public repositories are
+// readable by anyone, while those on private repositories are restricted to
+// the repository's readers.
+func LabelRepositorySecurityAdvisory(isPrivate bool) SecurityLabel {
+	if isPrivate {
+		return PrivateUntrusted()
+	}
+	return PublicUntrusted()
+}
+
+// LabelGist returns the IFC label for gist content.
+//
+// Integrity is untrusted: gist contents are arbitrary user-authored text.
+// Confidentiality derives from the gist's own visibility rather than any
+// repository — public gists are universally readable, while secret gists are
+// restricted to those who hold the gist URL (modeled with the opaque "private"
+// marker).
+func LabelGist(isPublic bool) SecurityLabel {
+	if isPublic {
+		return PublicUntrusted()
+	}
+	return PrivateUntrusted()
+}
+
+// LabelGistList returns the IFC label for a list of gists belonging to a user,
+// joining the per-gist confidentiality across the result set.
+//
+// Integrity is untrusted (user-authored content). Confidentiality follows the
+// IFC meet: if any gist in the result is secret the joined label is private;
+// otherwise public. An empty result is treated as public-untrusted.
+func LabelGistList(gistVisibilities []bool) SecurityLabel {
+	for _, isPublic := range gistVisibilities {
+		if !isPublic {
+			return PrivateUntrusted()
+		}
+	}
+	return PublicUntrusted()
+}
+
+// LabelProject returns the IFC label for a GitHub Project (Projects v2) and its
+// items, status updates, and field definitions.
+//
+// Integrity is untrusted: project titles, item content, and status update
+// bodies are user-authored free text. Confidentiality derives from the
+// project's own public flag — public projects are universally readable, while
+// private projects restrict the reader set.
+func LabelProject(isPublic bool) SecurityLabel {
+	if isPublic {
+		return PublicUntrusted()
+	}
+	return PrivateUntrusted()
+}
+
+// LabelTeam returns the IFC label for organization team membership data
+// (get_teams, get_team_members).
+//
+// Integrity is trusted: team membership is maintained by GitHub and cannot be
+// forged by outside contributors, so it is not an attacker-controllable
+// instruction source.
+//
+// Confidentiality is private. Organization team rosters and the teams a user
+// belongs to are visible only to members of the organization, not to the
+// public, so the reader set is restricted (the opaque "private" marker).
+func LabelTeam() SecurityLabel {
+	return PrivateTrusted()
+}
+
+// LabelNotificationDetails returns the IFC label for the subject of a single
+// notification.
+//
+// Integrity is untrusted: a notification subject points at an issue, pull
+// request, comment, or discussion whose content is user-authored and may carry
+// attacker-controlled text. Confidentiality is private because notifications
+// are delivered to a specific recipient and may reference private
+// repositories; the result cannot be assumed to be publicly readable.
+func LabelNotificationDetails() SecurityLabel {
+	return PrivateUntrusted()
+}
