@@ -47,6 +47,7 @@ Will get `issue_read` and `get_file_contents` tools registered, with no errors.
 | Old Name | New Name |
 |----------|----------|
 | `add_project_item` | `projects_write` |
+| `add_reply_to_pull_request_comment` | `pull_request_comment_write` |
 | `cancel_workflow_run` | `actions_run_trigger` |
 | `delete_project_item` | `projects_write` |
 | `delete_workflow_run_logs` | `actions_run_trigger` |

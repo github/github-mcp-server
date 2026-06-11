@@ -78,6 +78,8 @@ const (
 	PutReposPullsUpdateBranchByOwnerByRepoByPullNumber        = "PUT /repos/{owner}/{repo}/pulls/{pull_number}/update-branch"
 	PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber = "POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers"
 	PostReposPullsCommentsByOwnerByRepoByPullNumber           = "POST /repos/{owner}/{repo}/pulls/{pull_number}/comments"
+	PatchReposPullsCommentsByOwnerByRepoByCommentID           = "PATCH /repos/{owner}/{repo}/pulls/comments/{comment_id}"
+	DeleteReposPullsCommentsByOwnerByRepoByCommentID          = "DELETE /repos/{owner}/{repo}/pulls/comments/{comment_id}"
 
 	// Notifications endpoints
 	GetNotifications                                 = "GET /notifications"
