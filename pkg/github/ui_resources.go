@@ -3,18 +3,46 @@ package github
 import (
 	"context"
 
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+type uiResourceSpec struct {
+	toolName string
+	register func(s *mcp.Server)
+}
 
 // RegisterUIResources registers MCP App UI resources with the server.
 // These are static resources (not templates) that serve HTML content for
 // MCP App-enabled tools. The HTML is built from React/Primer components
 // in the ui/ directory using `script/build-ui`.
 //
+// UI resources are registered only when their backing tool is present in
+// the inventory's available tools (respecting read-only mode and other filters).
+//
 // Resource metadata follows the stable 2026-01-26 MCP Apps spec:
 // https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx
-func RegisterUIResources(s *mcp.Server) {
-	// Register the get_me UI resource
+func RegisterUIResources(ctx context.Context, s *mcp.Server, inv *inventory.Inventory) {
+	tools := inv.AvailableTools(ctx)
+	available := make(map[string]struct{}, len(tools))
+	for _, tool := range tools {
+		available[tool.Tool.Name] = struct{}{}
+	}
+
+	specs := []uiResourceSpec{
+		{toolName: "get_me", register: registerGetMeUIResource},
+		{toolName: "issue_write", register: registerIssueWriteUIResource},
+		{toolName: "create_pull_request", register: registerPullRequestWriteUIResource},
+	}
+
+	for _, spec := range specs {
+		if _, ok := available[spec.toolName]; ok {
+			spec.register(s)
+		}
+	}
+}
+
+func registerGetMeUIResource(s *mcp.Server) {
 	s.AddResource(
 		&mcp.Resource{
 			URI:         GetMeUIResourceURI,
@@ -45,8 +73,9 @@ func RegisterUIResources(s *mcp.Server) {
 			}, nil
 		},
 	)
+}
 
-	// Register the issue_write UI resource
+func registerIssueWriteUIResource(s *mcp.Server) {
 	s.AddResource(
 		&mcp.Resource{
 			URI:         IssueWriteUIResourceURI,
@@ -75,8 +104,9 @@ func RegisterUIResources(s *mcp.Server) {
 			}, nil
 		},
 	)
+}
 
-	// Register the create_pull_request UI resource
+func registerPullRequestWriteUIResource(s *mcp.Server) {
 	s.AddResource(
 		&mcp.Resource{
 			URI:         PullRequestWriteUIResourceURI,
