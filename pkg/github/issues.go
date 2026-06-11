@@ -1858,7 +1858,19 @@ Options are:
 						Type:        "array",
 						Description: "Labels to apply to this issue",
 						Items: &jsonschema.Schema{
-							Type: "string",
+							OneOf: []*jsonschema.Schema{
+								{Type: "string", Description: "Label name"},
+								{
+									Type: "object",
+									Properties: withIntentProperties(map[string]*jsonschema.Schema{
+										"name": {
+											Type:        "string",
+											Description: "Label name",
+										},
+									}),
+									Required: []string{"name"},
+								},
+							},
 						},
 					},
 					"milestone": {
@@ -1975,13 +1987,11 @@ Options are:
 			assigneesValue, assigneesProvided := args["assignees"]
 			assigneesProvided = assigneesProvided && assigneesValue != nil
 
-			// Get labels
-			labels, err := OptionalStringArrayParam(args, "labels")
+			// Get labels (plain names or per-label intent objects)
+			labels, labelsPayload, labelsHaveIntent, labelsProvided, err := parseParamWithIntent(args, "labels", "name")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			labelsValue, labelsProvided := args["labels"]
-			labelsProvided = labelsProvided && labelsValue != nil
 
 			// Get optional milestone
 			milestone, err := OptionalIntParam(args, "milestone")
@@ -2053,10 +2063,14 @@ Options are:
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, UpdateIssueOptions{
+				updateOpts := UpdateIssueOptions{
 					AssigneesProvided: assigneesProvided,
 					LabelsProvided:    labelsProvided,
-				})
+				}
+				if labelsHaveIntent {
+					updateOpts.LabelsWithIntent = labelsPayload
+				}
+				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, updateOpts)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
@@ -2132,7 +2146,19 @@ Options are:
 						Type:        "array",
 						Description: "Labels to apply to this issue",
 						Items: &jsonschema.Schema{
-							Type: "string",
+							OneOf: []*jsonschema.Schema{
+								{Type: "string", Description: "Label name"},
+								{
+									Type: "object",
+									Properties: withIntentProperties(map[string]*jsonschema.Schema{
+										"name": {
+											Type:        "string",
+											Description: "Label name",
+										},
+									}),
+									Required: []string{"name"},
+								},
+							},
 						},
 					},
 					"milestone": {
@@ -2214,13 +2240,11 @@ Options are:
 			assigneesValue, assigneesProvided := args["assignees"]
 			assigneesProvided = assigneesProvided && assigneesValue != nil
 
-			// Get labels
-			labels, err := OptionalStringArrayParam(args, "labels")
+			// Get labels (plain names or per-label intent objects)
+			labels, labelsPayload, labelsHaveIntent, labelsProvided, err := parseParamWithIntent(args, "labels", "name")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			labelsValue, labelsProvided := args["labels"]
-			labelsProvided = labelsProvided && labelsValue != nil
 
 			// Get optional milestone
 			milestone, err := OptionalIntParam(args, "milestone")
@@ -2277,10 +2301,14 @@ Options are:
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, nil, nil, state, stateReason, duplicateOf, UpdateIssueOptions{
+				updateOpts := UpdateIssueOptions{
 					AssigneesProvided: assigneesProvided,
 					LabelsProvided:    labelsProvided,
-				})
+				}
+				if labelsHaveIntent {
+					updateOpts.LabelsWithIntent = labelsPayload
+				}
+				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, nil, nil, state, stateReason, duplicateOf, updateOpts)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
@@ -2350,6 +2378,30 @@ type UpdateIssueOptions struct {
 	AssigneesProvided bool
 	// LabelsProvided sends the labels field even when the slice is empty.
 	LabelsProvided bool
+	// LabelsWithIntent, when non-empty, sends labels in object form (a mix of
+	// plain label names and valueWithIntent objects) via a custom request so
+	// per-label rationale and suggestion intent are preserved. When set, it
+	// takes precedence over the labels slice.
+	LabelsWithIntent []any
+}
+
+// issueRequestWithLabels marshals an IssueRequest into a generic map and sets
+// the labels field to the provided object-form payload (a mix of plain label
+// names and valueWithIntent objects). This lets an issue update carry per-label
+// rationale and suggestion intent that github.IssueRequest cannot represent.
+func issueRequestWithLabels(issueRequest *github.IssueRequest, labels []any) (map[string]any, error) {
+	data, err := json.Marshal(issueRequest)
+	if err != nil {
+		return nil, err
+	}
+	payload := map[string]any{}
+	dec := json.NewDecoder(strings.NewReader(string(data)))
+	dec.UseNumber()
+	if err := dec.Decode(&payload); err != nil {
+		return nil, err
+	}
+	payload["labels"] = labels
+	return payload, nil
 }
 
 func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldIDsToDelete []int64, state string, stateReason string, duplicateOf int, opts ...UpdateIssueOptions) (*mcp.CallToolResult, error) {
@@ -2360,6 +2412,9 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	for _, opt := range opts {
 		updateOptions.AssigneesProvided = updateOptions.AssigneesProvided || opt.AssigneesProvided
 		updateOptions.LabelsProvided = updateOptions.LabelsProvided || opt.LabelsProvided
+		if len(opt.LabelsWithIntent) > 0 {
+			updateOptions.LabelsWithIntent = opt.LabelsWithIntent
+		}
 	}
 
 	// Create the issue request with only provided fields
@@ -2374,7 +2429,9 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		issueRequest.Body = github.Ptr(body)
 	}
 
-	if updateOptions.LabelsProvided {
+	// When labels carry per-label intent, they are sent via a custom request
+	// below instead of through issueRequest.Labels.
+	if updateOptions.LabelsProvided && len(updateOptions.LabelsWithIntent) == 0 {
 		issueRequest.Labels = &labels
 	}
 
@@ -2415,7 +2472,27 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		issueRequest.IssueFieldValues = merged
 	}
 
-	updatedIssue, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)
+	var updatedIssue *github.Issue
+	var resp *github.Response
+	var err error
+	if len(updateOptions.LabelsWithIntent) > 0 {
+		// Send labels in object form so per-label rationale and suggestion intent
+		// are preserved. Marshal the standard request (labels omitted), then inject
+		// the object-form labels into the payload.
+		payload, mErr := issueRequestWithLabels(issueRequest, updateOptions.LabelsWithIntent)
+		if mErr != nil {
+			return utils.NewToolResultErrorFromErr("failed to build issue update request", mErr), nil
+		}
+		apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
+		httpReq, rErr := client.NewRequest(ctx, "PATCH", apiURL, payload)
+		if rErr != nil {
+			return utils.NewToolResultErrorFromErr("failed to create request", rErr), nil
+		}
+		updatedIssue = &github.Issue{}
+		resp, err = client.Do(httpReq, updatedIssue)
+	} else {
+		updatedIssue, resp, err = client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)
+	}
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
 			"failed to update issue",
