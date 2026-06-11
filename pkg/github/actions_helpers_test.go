@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +25,7 @@ func notFoundHandler(message string) http.HandlerFunc {
 
 func newActionsTestClient(t *testing.T, handlers map[string]http.HandlerFunc) *github.Client {
 	t.Helper()
-	return github.NewClient(MockHTTPClientWithHandlers(handlers))
+	return mustNewGHClient(t, MockHTTPClientWithHandlers(handlers))
 }
 
 func TestGetWorkflowJob(t *testing.T) {

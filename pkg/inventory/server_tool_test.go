@@ -78,3 +78,57 @@ func TestNewServerToolWithContextHandler_ValidArguments_Succeeds(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "success: octocat/hello-world", textContent.Text)
 }
+
+func sampleTool(name string) mcp.Tool {
+	return mcp.Tool{Name: name, InputSchema: json.RawMessage(`{"type":"object","properties":{}}`)}
+}
+
+// TestNewServerTool covers the raw (non-generic) constructor, which stores the
+// handler directly. NewServerToolWithContextHandler is already covered above.
+func TestNewServerTool(t *testing.T) {
+	ts := testToolsetMetadata("repos")
+	st := NewServerTool(
+		sampleTool("raw_tool"), ts,
+		func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return &mcp.CallToolResult{}, nil
+		},
+	)
+	assert.Equal(t, "raw_tool", st.Tool.Name)
+	assert.Equal(t, ts, st.Toolset)
+	require.True(t, st.HasHandler())
+
+	handler := st.Handler(nil)
+	require.NotNil(t, handler)
+	_, err := handler(context.Background(), &mcp.CallToolRequest{
+		Params: &mcp.CallToolParamsRaw{Arguments: json.RawMessage(`{}`)},
+	})
+	require.NoError(t, err)
+}
+
+func TestToolsetMetadataIcons(t *testing.T) {
+	assert.Nil(t, ToolsetMetadata{Icon: ""}.Icons())
+
+	icons := ToolsetMetadata{Icon: "repo"}.Icons()
+	require.Len(t, icons, 2)
+	for _, ic := range icons {
+		assert.NotEmpty(t, ic.Source)
+	}
+}
+
+func TestServerToolRegisterFunc(t *testing.T) {
+	server := mcp.NewServer(&mcp.Implementation{Name: "test"}, nil)
+
+	// A toolset with an icon exercises the icon-application path in RegisterFunc.
+	toolset := ToolsetMetadata{ID: "repos", Description: "repos", Icon: "repo"}
+	st := NewServerTool(
+		sampleTool("registered_tool"), toolset,
+		func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return &mcp.CallToolResult{}, nil
+		},
+	)
+	assert.NotPanics(t, func() { st.RegisterFunc(server, nil) })
+
+	// A tool with no handler must panic on registration.
+	nilHandlerTool := ServerTool{Tool: sampleTool("broken"), Toolset: toolset}
+	assert.Panics(t, func() { nilHandlerTool.RegisterFunc(server, nil) })
+}
