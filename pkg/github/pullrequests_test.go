@@ -829,23 +829,45 @@ func Test_SearchPullRequests(t *testing.T) {
 	assert.Contains(t, schema.Properties, "repo")
 	assert.Contains(t, schema.Properties, "sort")
 	assert.Contains(t, schema.Properties, "order")
+	assert.Contains(t, schema.Properties, "minimal_output")
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.Contains(t, schema.Properties, "page")
 	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
+	createdAt := &github.Timestamp{Time: time.Date(2026, 6, 10, 12, 0, 0, 0, time.UTC)}
+	updatedAt := &github.Timestamp{Time: time.Date(2026, 6, 11, 15, 30, 0, 0, time.UTC)}
 	mockSearchResult := &github.IssuesSearchResult{
 		Total:             github.Ptr(2),
 		IncompleteResults: github.Ptr(false),
 		Issues: []*github.Issue{
 			{
-				Number:   github.Ptr(42),
-				Title:    github.Ptr("Test PR 1"),
-				Body:     github.Ptr("Updated tests."),
-				State:    github.Ptr("open"),
-				HTMLURL:  github.Ptr("https://github.com/owner/repo/pull/1"),
-				Comments: github.Ptr(5),
+				Number:        github.Ptr(42),
+				Title:         github.Ptr("Test PR 1"),
+				Body:          github.Ptr("Updated tests."),
+				State:         github.Ptr("open"),
+				Draft:         github.Ptr(true),
+				HTMLURL:       github.Ptr("https://github.com/owner/repo/pull/1"),
+				RepositoryURL: github.Ptr("https://api.github.com/repos/owner/repo"),
+				Comments:      github.Ptr(5),
+				CreatedAt:     createdAt,
+				UpdatedAt:     updatedAt,
 				User: &github.User{
-					Login: github.Ptr("user1"),
+					Login:     github.Ptr("user1"),
+					URL:       github.Ptr("https://api.github.com/users/user1"),
+					AvatarURL: github.Ptr("https://avatars.githubusercontent.com/u/1?v=4"),
+				},
+				Repository: &github.Repository{
+					FullName: github.Ptr("owner/repo"),
+				},
+				Labels: []*github.Label{
+					{Name: github.Ptr("ci")},
+					{Name: github.Ptr("backend")},
+				},
+				PullRequestLinks: &github.PullRequestLinks{
+					URL:      github.Ptr("https://api.github.com/repos/owner/repo/pulls/1"),
+					HTMLURL:  github.Ptr("https://github.com/owner/repo/pull/1"),
+					DiffURL:  github.Ptr("https://github.com/owner/repo/pull/1.diff"),
+					PatchURL: github.Ptr("https://github.com/owner/repo/pull/1.patch"),
 				},
 			},
 			{
@@ -863,12 +885,14 @@ func Test_SearchPullRequests(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]any
-		expectError    bool
-		expectedResult *github.IssuesSearchResult
-		expectedErrMsg string
+		name             string
+		mockedClient     *http.Client
+		requestArgs      map[string]any
+		expectError      bool
+		expectRaw        bool
+		expectedResult   *github.IssuesSearchResult
+		expectedErrMsg   string
+		expectedJSONLack []string
 	}{
 		{
 			name: "successful pull request search with all parameters",
@@ -972,8 +996,9 @@ func Test_SearchPullRequests(t *testing.T) {
 			requestArgs: map[string]any{
 				"query": "is:pr repo:owner/repo is:open",
 			},
-			expectError:    false,
-			expectedResult: mockSearchResult,
+			expectError:      false,
+			expectedResult:   mockSearchResult,
+			expectedJSONLack: []string{"avatar_url", "\"url\":\"https://api.github.com/users/user1\""},
 		},
 		{
 			name: "query with existing is:pr filter - no duplication",
@@ -1051,6 +1076,18 @@ func Test_SearchPullRequests(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to search pull requests",
 		},
+		{
+			name: "pull request search with minimal_output false returns raw result",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: mockResponse(t, http.StatusOK, mockSearchResult),
+			}),
+			requestArgs: map[string]any{
+				"query":          "is:pr repo:owner/repo is:open",
+				"minimal_output": false,
+			},
+			expectRaw:      true,
+			expectedResult: mockSearchResult,
+		},
 	}
 
 	for _, tc := range tests {
@@ -1084,20 +1121,57 @@ func Test_SearchPullRequests(t *testing.T) {
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedResult github.IssuesSearchResult
+			if tc.expectRaw {
+				var returnedResult github.IssuesSearchResult
+				err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+				require.NoError(t, err)
+				assert.Equal(t, *tc.expectedResult.Total, *returnedResult.Total)
+				assert.Equal(t, *tc.expectedResult.IncompleteResults, *returnedResult.IncompleteResults)
+				assert.Len(t, returnedResult.Issues, len(tc.expectedResult.Issues))
+				for i, issue := range returnedResult.Issues {
+					assert.Equal(t, *tc.expectedResult.Issues[i].Number, *issue.Number)
+					assert.Equal(t, *tc.expectedResult.Issues[i].Title, *issue.Title)
+					assert.Equal(t, *tc.expectedResult.Issues[i].State, *issue.State)
+					assert.Equal(t, *tc.expectedResult.Issues[i].HTMLURL, *issue.HTMLURL)
+					assert.Equal(t, *tc.expectedResult.Issues[i].User.Login, *issue.User.Login)
+				}
+				assert.Contains(t, textContent.Text, "\"avatar_url\":\"https://avatars.githubusercontent.com/u/1?v=4\"")
+				return
+			}
+
+			for _, missingJSON := range tc.expectedJSONLack {
+				assert.NotContains(t, textContent.Text, missingJSON)
+			}
+
+			var returnedResult MinimalSearchPullRequestsResult
 			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedResult.Total, *returnedResult.Total)
-			assert.Equal(t, *tc.expectedResult.IncompleteResults, *returnedResult.IncompleteResults)
-			assert.Len(t, returnedResult.Issues, len(tc.expectedResult.Issues))
-			for i, issue := range returnedResult.Issues {
-				assert.Equal(t, *tc.expectedResult.Issues[i].Number, *issue.Number)
-				assert.Equal(t, *tc.expectedResult.Issues[i].Title, *issue.Title)
-				assert.Equal(t, *tc.expectedResult.Issues[i].State, *issue.State)
-				assert.Equal(t, *tc.expectedResult.Issues[i].HTMLURL, *issue.HTMLURL)
-				assert.Equal(t, *tc.expectedResult.Issues[i].User.Login, *issue.User.Login)
-			}
+			assert.Equal(t, tc.expectedResult.GetTotal(), returnedResult.TotalCount)
+			assert.Equal(t, tc.expectedResult.GetIncompleteResults(), returnedResult.IncompleteResults)
+			assert.Len(t, returnedResult.Items, len(tc.expectedResult.Issues))
+
+			first := returnedResult.Items[0]
+			assert.Equal(t, 42, first.Number)
+			assert.Equal(t, "Test PR 1", first.Title)
+			assert.Equal(t, "open", first.State)
+			assert.True(t, first.Draft)
+			assert.Equal(t, "user1", first.User)
+			assert.Equal(t, createdAt.Format(time.RFC3339), first.CreatedAt)
+			assert.Equal(t, updatedAt.Format(time.RFC3339), first.UpdatedAt)
+			assert.Equal(t, "https://github.com/owner/repo/pull/1", first.HTMLURL)
+			assert.Equal(t, "owner/repo", first.Repository)
+			assert.Equal(t, "https://api.github.com/repos/owner/repo", first.RepositoryURL)
+			assert.Equal(t, []string{"ci", "backend"}, first.Labels)
+			assert.Equal(t, 5, first.Comments)
+			require.NotNil(t, first.PullRequest)
+			assert.Equal(t, "https://api.github.com/repos/owner/repo/pulls/1", first.PullRequest.URL)
+			assert.Equal(t, "https://github.com/owner/repo/pull/1", first.PullRequest.HTMLURL)
+			assert.Equal(t, "https://github.com/owner/repo/pull/1.diff", first.PullRequest.DiffURL)
+			assert.Equal(t, "https://github.com/owner/repo/pull/1.patch", first.PullRequest.PatchURL)
+
+			second := returnedResult.Items[1]
+			assert.Equal(t, 43, second.Number)
+			assert.Equal(t, "user2", second.User)
 		})
 	}
 
