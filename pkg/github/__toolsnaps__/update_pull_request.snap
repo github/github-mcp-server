@@ -1,4 +1,13 @@
 {
+  "_meta": {
+    "ui": {
+      "resourceUri": "ui://github-mcp-server/pr-edit",
+      "visibility": [
+        "model",
+        "app"
+      ]
+    }
+  },
   "annotations": {
     "title": "Edit pull request"
   },

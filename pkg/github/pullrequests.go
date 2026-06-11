@@ -555,6 +555,9 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, deps Tool
 // PullRequestWriteUIResourceURI is the URI for the create_pull_request tool's MCP App UI resource.
 const PullRequestWriteUIResourceURI = "ui://github-mcp-server/pr-write"
 
+// PullRequestEditUIResourceURI is the URI for the update_pull_request tool's MCP App UI resource.
+const PullRequestEditUIResourceURI = "ui://github-mcp-server/pr-edit"
+
 // pullRequestWriteFormParams are the parameters the create_pull_request MCP App
 // form collects and re-sends on submit. Any other parameter present on a call
 // cannot be represented by the form.
@@ -567,6 +570,21 @@ var pullRequestWriteFormParams = map[string]struct{}{
 	"base":                  {},
 	"draft":                 {},
 	"maintainer_can_modify": {},
+	"reviewers":             {},
+	"_ui_submitted":         {},
+}
+
+var pullRequestUpdateFormParams = map[string]struct{}{
+	"owner":                 {},
+	"repo":                  {},
+	"pullNumber":            {},
+	"title":                 {},
+	"body":                  {},
+	"state":                 {},
+	"draft":                 {},
+	"base":                  {},
+	"maintainer_can_modify": {},
+	"reviewers":             {},
 	"_ui_submitted":         {},
 }
 
@@ -580,6 +598,18 @@ func pullRequestWriteHasNonFormParams(args map[string]any) bool {
 			continue
 		}
 		if _, ok := pullRequestWriteFormParams[key]; !ok {
+			return true
+		}
+	}
+	return false
+}
+
+func pullRequestUpdateHasNonFormParams(args map[string]any) bool {
+	for key, value := range args {
+		if value == nil {
+			continue
+		}
+		if _, ok := pullRequestUpdateFormParams[key]; !ok {
 			return true
 		}
 	}
@@ -638,6 +668,13 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 						Type:        "boolean",
 						Description: "Allow maintainer edits",
 					},
+					"reviewers": {
+						Type:        "array",
+						Description: "GitHub usernames or ORG/team-slug team reviewers to request reviews from",
+						Items: &jsonschema.Schema{
+							Type: "string",
+						},
+					},
 				},
 				Required: []string{"owner", "repo", "title", "head", "base"},
 			},
@@ -661,7 +698,14 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
 			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && !pullRequestWriteHasNonFormParams(args) {
-				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. IMPORTANT: The PR has NOT been created yet. Do NOT tell the user the PR was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
+				return utils.NewToolResultAwaitingFormSubmission(fmt.Sprintf(
+					"An interactive form has been shown to the user for creating a new pull request in %s/%s. "+
+						"STOP — do not call any other tools, do not respond as if the pull request was created, "+
+						"and do not claim the operation succeeded. The pull request has NOT been created yet; "+
+						"only the form was rendered. Wait silently for the user to review and click Submit. "+
+						"When they do, the real result will be delivered to your context automatically.",
+					owner, repo,
+				)), nil, nil
 			}
 
 			// When creating PR, title/head/base are required
@@ -702,6 +746,11 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			reviewers, err := OptionalStringArrayParam(args, "reviewers")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
 			newPR := &github.NewPullRequest{
 				Title: github.Ptr(title),
 				Head:  github.Ptr(head),
@@ -735,6 +784,36 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create pull request", resp, bodyBytes), nil, nil
+			}
+
+			if len(reviewers) > 0 {
+				userReviewers, teamReviewers := splitPullRequestReviewers(reviewers)
+				reviewersRequest := github.ReviewersRequest{
+					Reviewers:     userReviewers,
+					TeamReviewers: teamReviewers,
+				}
+
+				_, reviewerResp, err := client.PullRequests.RequestReviewers(ctx, owner, repo, pr.GetNumber(), reviewersRequest)
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx,
+						"failed to request reviewers",
+						reviewerResp,
+						err,
+					), nil, nil
+				}
+				defer func() {
+					if reviewerResp != nil && reviewerResp.Body != nil {
+						_ = reviewerResp.Body.Close()
+					}
+				}()
+
+				if reviewerResp.StatusCode != http.StatusCreated && reviewerResp.StatusCode != http.StatusOK {
+					bodyBytes, err := io.ReadAll(reviewerResp.Body)
+					if err != nil {
+						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					}
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to request reviewers", reviewerResp, bodyBytes), nil, nil
+				}
 			}
 
 			// Return minimal response with just essential information
@@ -814,10 +893,16 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				Title:        t("TOOL_UPDATE_PULL_REQUEST_USER_TITLE", "Edit pull request"),
 				ReadOnlyHint: false,
 			},
+			Meta: mcp.Meta{
+				"ui": map[string]any{
+					"resourceUri": PullRequestEditUIResourceURI,
+					"visibility":  []string{"model", "app"},
+				},
+			},
 			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -829,6 +914,18 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			pullNumber, err := RequiredInt(args, "pullNumber")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
+			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && !pullRequestUpdateHasNonFormParams(args) {
+				return utils.NewToolResultAwaitingFormSubmission(fmt.Sprintf(
+					"An interactive form has been shown to the user for editing pull request #%d in %s/%s. "+
+						"STOP — do not call any other tools, do not respond as if the pull request was updated, "+
+						"and do not claim the operation succeeded. The pull request has NOT been updated yet; "+
+						"only the form was rendered. Wait silently for the user to review and click Submit. "+
+						"When they do, the real result will be delivered to your context automatically.",
+					pullNumber, owner, repo,
+				)), nil, nil
 			}
 
 			_, draftProvided := args["draft"]
