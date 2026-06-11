@@ -34,6 +34,15 @@
         "items": {
           "additionalProperties": false,
           "properties": {
+            "confidence": {
+              "description": "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "type": "string"
+            },
             "delete": {
               "description": "Set to true to clear this field's current value on the issue. Cannot be combined with 'value' or 'field_option_name'.",
               "enum": [
@@ -47,6 +56,15 @@
             },
             "field_option_name": {
               "description": "Option name for single-select fields. Validated against the field's options before the API call. Cannot be combined with 'value' or 'delete'.",
+              "type": "string"
+            },
+            "is_suggestion": {
+              "description": "If true, this value is sent to the API as a suggestion rather than an applied value. Whether it is applied or recorded as a proposal is determined by the API. Only honored when updating an existing issue.",
+              "type": "boolean"
+            },
+            "rationale": {
+              "description": "A concise explanation of what specifically about the issue led you to this choice. State the concrete signal (e.g. 'Reports a crash when saving' → bug).",
+              "maxLength": 280,
               "type": "string"
             },
             "value": {

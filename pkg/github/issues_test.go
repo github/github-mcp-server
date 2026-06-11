@@ -3752,6 +3752,186 @@ func Test_IssueWrite_UpdateTypeWithIntentErrors(t *testing.T) {
 	}
 }
 
+func Test_IssueWrite_UpdateFieldValuesWithIntent(t *testing.T) {
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+	updatedIssue := &github.Issue{
+		Number:  github.Ptr(123),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
+	}
+
+	const fetchExistingFieldValuesQuery = "query($number:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){issue(number: $number){issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}}}}"
+
+	// newGQLMock returns a mocked GraphQL client that reports no existing field
+	// values (so incoming values are used as-is) and two fields: Priority
+	// (single_select, id 101, option P1) and Customer (text, id 102).
+	newGQLMock := func() *http.Client {
+		return githubv4mock.NewMockedHTTPClient(
+			githubv4mock.NewQueryMatcher(
+				fetchExistingFieldValuesQuery,
+				map[string]any{
+					"owner":  githubv4.String("owner"),
+					"repo":   githubv4.String("repo"),
+					"number": githubv4.Int(123),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"repository": map[string]any{
+						"issue": map[string]any{
+							"issueFieldValues": map[string]any{
+								"nodes": []any{},
+							},
+						},
+					},
+				}),
+			),
+			githubv4mock.NewQueryMatcher(
+				issueFieldWriteMetadataQuery{},
+				map[string]any{
+					"owner": githubv4.String("owner"),
+					"repo":  githubv4.String("repo"),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"repository": map[string]any{
+						"issueFields": map[string]any{
+							"nodes": []any{
+								map[string]any{
+									"__typename":     "IssueFieldSingleSelect",
+									"fullDatabaseId": "101",
+									"name":           "Priority",
+									"dataType":       "single_select",
+									"options":        []any{map[string]any{"fullDatabaseId": "9001", "name": "P1"}},
+								},
+								map[string]any{
+									"__typename":     "IssueFieldText",
+									"fullDatabaseId": "102",
+									"name":           "Customer",
+									"dataType":       "text",
+								},
+							},
+						},
+					},
+				}),
+			),
+		)
+	}
+
+	tests := []struct {
+		name        string
+		issueFields []any
+		expectedReq map[string]any
+	}{
+		{
+			name: "applied field value with rationale",
+			issueFields: []any{
+				map[string]any{"field_name": "Customer", "value": "Acme", "rationale": "Customer named in the report"},
+			},
+			expectedReq: map[string]any{
+				"issue_field_values": []any{
+					map[string]any{"field_id": float64(102), "value": "Acme", "rationale": "Customer named in the report"},
+				},
+			},
+		},
+		{
+			name: "suggested field value with confidence",
+			issueFields: []any{
+				map[string]any{"field_name": "Priority", "field_option_name": "P1", "confidence": "high", "is_suggestion": true},
+			},
+			expectedReq: map[string]any{
+				"issue_field_values": []any{
+					map[string]any{"field_id": float64(101), "value": "P1", "confidence": "high", "suggest": true},
+				},
+			},
+		},
+		{
+			name: "mix of field value with intent and plain field value",
+			issueFields: []any{
+				map[string]any{"field_name": "Priority", "field_option_name": "P1", "rationale": "Reports a crash when saving"},
+				map[string]any{"field_name": "Customer", "value": "Acme"},
+			},
+			expectedReq: map[string]any{
+				"issue_field_values": []any{
+					map[string]any{"field_id": float64(101), "value": "P1", "rationale": "Reports a crash when saving"},
+					map[string]any{"field_id": float64(102), "value": "Acme"},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
+					andThen(mockResponse(t, http.StatusOK, updatedIssue)),
+			}))
+			deps := BaseDeps{
+				Client:    client,
+				GQLClient: githubv4.NewClient(newGQLMock()),
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"issue_fields": tc.issueFields,
+			})
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			if result.IsError {
+				t.Fatalf("unexpected error result: %s", getErrorResult(t, result).Text)
+			}
+		})
+	}
+}
+
+func Test_IssueWrite_UpdateFieldValuesWithIntentErrors(t *testing.T) {
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+
+	tests := []struct {
+		name            string
+		issueFields     []any
+		expectedErrText string
+	}{
+		{
+			name: "rationale too long",
+			issueFields: []any{
+				map[string]any{"field_name": "Customer", "value": "Acme", "rationale": strings.Repeat("a", 281)},
+			},
+			expectedErrText: "rationale must be 280 characters or less",
+		},
+		{
+			name: "invalid confidence value",
+			issueFields: []any{
+				map[string]any{"field_name": "Customer", "value": "Acme", "confidence": "very_high"},
+			},
+			expectedErrText: "confidence must be one of: low, medium, high",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			deps := BaseDeps{
+				Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(nil)),
+				GQLClient: githubv4.NewClient(githubv4mock.NewMockedHTTPClient()),
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"issue_fields": tc.issueFields,
+			})
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			errorContent := getErrorResult(t, result)
+			assert.Contains(t, errorContent.Text, tc.expectedErrText)
+		})
+	}
+}
+
 func Test_ParseISOTimestamp(t *testing.T) {
 	tests := []struct {
 		name         string

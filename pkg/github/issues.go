@@ -45,6 +45,9 @@ type issueWriteFieldInput struct {
 	Value           any
 	FieldOptionName string
 	Delete          bool
+	// Intent carries optional rationale/confidence/suggestion metadata for a
+	// value-setting field. It is ignored for delete entries and on create.
+	Intent valueIntent
 }
 
 const (
@@ -290,19 +293,30 @@ func optionalIssueWriteFields(args map[string]any) ([]issueWriteFieldInput, erro
 			return nil, fmt.Errorf("issue field %q must specify either value or field_option_name", fieldName)
 		}
 
+		intent, _, err := parseValueIntent(itemMap)
+		if err != nil {
+			return nil, err
+		}
+
 		issueFields = append(issueFields, issueWriteFieldInput{
 			FieldName:       fieldName,
 			Value:           value,
 			FieldOptionName: fieldOptionName,
+			Intent:          intent,
 		})
 	}
 
 	return issueFields, nil
 }
 
-func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueFields []issueWriteFieldInput) ([]*github.IssueRequestFieldValue, []int64, error) {
+// resolveIssueRequestFieldValues resolves user-friendly field inputs into REST
+// IssueRequestFieldValue entries (field IDs and option values resolved). It also
+// returns the IDs of fields marked for deletion and a map of field ID to intent
+// metadata for fields that carried rationale/confidence/suggestion intent, so the
+// caller can send those values in object form.
+func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueFields []issueWriteFieldInput) ([]*github.IssueRequestFieldValue, []int64, map[int64]valueIntent, error) {
 	if len(issueFields) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
@@ -312,7 +326,7 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 		"repo":  githubv4.String(repo),
 	}
 	if err := gqlClient.Query(ctxWithFeatures, &query, vars); err != nil {
-		return nil, nil, fmt.Errorf("failed to query issue fields metadata: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to query issue fields metadata: %w", err)
 	}
 
 	// Build name → node map, dispatching on concrete type to extract name.
@@ -336,10 +350,11 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 
 	resolved := make([]*github.IssueRequestFieldValue, 0, len(issueFields))
 	var fieldIDsToDelete []int64
+	var fieldIntents map[int64]valueIntent
 	for _, fieldInput := range issueFields {
 		node, ok := fieldByName[strings.ToLower(strings.TrimSpace(fieldInput.FieldName))]
 		if !ok {
-			return nil, nil, fmt.Errorf("issue field %q was not found in %s/%s", fieldInput.FieldName, owner, repo)
+			return nil, nil, nil, fmt.Errorf("issue field %q was not found in %s/%s", fieldInput.FieldName, owner, repo)
 		}
 
 		var fullDatabaseIDStr, dataType string
@@ -360,7 +375,7 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 
 		fieldID := parseFullDatabaseID(fullDatabaseIDStr)
 		if fieldID == 0 {
-			return nil, nil, fmt.Errorf("issue field %q is missing fullDatabaseId", fieldInput.FieldName)
+			return nil, nil, nil, fmt.Errorf("issue field %q is missing fullDatabaseId", fieldInput.FieldName)
 		}
 
 		if fieldInput.Delete {
@@ -371,7 +386,7 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 		resolvedValue := fieldInput.Value
 		if fieldInput.FieldOptionName != "" {
 			if !strings.EqualFold(dataType, "single_select") {
-				return nil, nil, fmt.Errorf("issue field %q is %q, so field_option_name cannot be used", fieldInput.FieldName, dataType)
+				return nil, nil, nil, fmt.Errorf("issue field %q is %q, so field_option_name cannot be used", fieldInput.FieldName, dataType)
 			}
 
 			optionFound := false
@@ -385,8 +400,15 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 			}
 
 			if !optionFound {
-				return nil, nil, fmt.Errorf("issue field option %q was not found for field %q", fieldInput.FieldOptionName, fieldInput.FieldName)
+				return nil, nil, nil, fmt.Errorf("issue field option %q was not found for field %q", fieldInput.FieldOptionName, fieldInput.FieldName)
 			}
+		}
+
+		if fieldInput.Intent.HasIntent() {
+			if fieldIntents == nil {
+				fieldIntents = make(map[int64]valueIntent)
+			}
+			fieldIntents[fieldID] = fieldInput.Intent
 		}
 
 		resolved = append(resolved, &github.IssueRequestFieldValue{
@@ -395,7 +417,7 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 		})
 	}
 
-	return resolved, fieldIDsToDelete, nil
+	return resolved, fieldIDsToDelete, fieldIntents, nil
 }
 
 // fetchExistingIssueFieldValues retrieves the current field values for an issue
@@ -1922,7 +1944,7 @@ Options are:
 						Items: &jsonschema.Schema{
 							Type:                 "object",
 							AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
-							Properties: map[string]*jsonschema.Schema{
+							Properties: withIntentProperties(map[string]*jsonschema.Schema{
 								"field_name": {
 									Type: "string",
 									Description: "Issue field name (case-insensitive). Must match a field " +
@@ -1947,7 +1969,7 @@ Options are:
 									Description: "Set to true to clear this field's current value on the " +
 										"issue. Cannot be combined with 'value' or 'field_option_name'.",
 								},
-							},
+							}),
 							Required: []string{"field_name"},
 						},
 					},
@@ -2068,8 +2090,9 @@ Options are:
 
 			var issueFieldValues []*github.IssueRequestFieldValue
 			var fieldIDsToDelete []int64
+			var fieldValuesWithIntent map[int64]valueIntent
 			if len(issueFields) > 0 {
-				issueFieldValues, fieldIDsToDelete, err = resolveIssueRequestFieldValues(ctx, gqlClient, owner, repo, issueFields)
+				issueFieldValues, fieldIDsToDelete, fieldValuesWithIntent, err = resolveIssueRequestFieldValues(ctx, gqlClient, owner, repo, issueFields)
 				if err != nil {
 					return utils.NewToolResultError(fmt.Sprintf("failed to resolve issue_fields: %v", err)), nil, nil
 				}
@@ -2093,6 +2116,9 @@ Options are:
 				}
 				if issueTypeHasIntent {
 					updateOpts.TypeWithIntent = issueTypePayload
+				}
+				if len(fieldValuesWithIntent) > 0 {
+					updateOpts.FieldValuesWithIntent = fieldValuesWithIntent
 				}
 				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, updateOpts)
 				return result, nil, err
@@ -2412,6 +2438,10 @@ type UpdateIssueOptions struct {
 	// intent are preserved. When set, it takes precedence over the issueType
 	// string.
 	TypeWithIntent any
+	// FieldValuesWithIntent, when non-empty, maps a field ID to the intent
+	// metadata supplied for it, so those field values are sent in object form
+	// (field_id, value, plus rationale/confidence/suggest) via a custom request.
+	FieldValuesWithIntent map[int64]valueIntent
 }
 
 // issueRequestWithIntentOverrides marshals an IssueRequest into a generic map and
@@ -2431,6 +2461,33 @@ func issueRequestWithIntentOverrides(issueRequest *github.IssueRequest, override
 	return payload, nil
 }
 
+// issueFieldValueWithIntent is the object form of an issue field value: its
+// field ID and value alongside optional intent metadata. It marshals to a single
+// object merging field_id and value with the embedded
+// rationale/confidence/suggest fields, mirroring how labels and types carry
+// intent on the wire.
+type issueFieldValueWithIntent struct {
+	FieldID int64
+	Value   any
+	valueIntent
+}
+
+// MarshalJSON renders the value as a single object with field_id and value
+// alongside the embedded intent metadata.
+func (v issueFieldValueWithIntent) MarshalJSON() ([]byte, error) {
+	data, err := json.Marshal(v.valueIntent)
+	if err != nil {
+		return nil, err
+	}
+	obj := map[string]any{}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return nil, err
+	}
+	obj["field_id"] = v.FieldID
+	obj["value"] = v.Value
+	return json.Marshal(obj)
+}
+
 func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldIDsToDelete []int64, state string, stateReason string, duplicateOf int, opts ...UpdateIssueOptions) (*mcp.CallToolResult, error) {
 	updateOptions := UpdateIssueOptions{
 		AssigneesProvided: len(assignees) > 0,
@@ -2444,6 +2501,9 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		}
 		if opt.TypeWithIntent != nil {
 			updateOptions.TypeWithIntent = opt.TypeWithIntent
+		}
+		if len(opt.FieldValuesWithIntent) > 0 {
+			updateOptions.FieldValuesWithIntent = opt.FieldValuesWithIntent
 		}
 	}
 
@@ -2505,16 +2565,28 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	var updatedIssue *github.Issue
 	var resp *github.Response
 	var err error
-	if len(updateOptions.LabelsWithIntent) > 0 || updateOptions.TypeWithIntent != nil {
-		// Send values that carry intent (labels and/or type) in object form so
-		// their rationale and suggestion intent are preserved. Marshal the standard
-		// request (those fields omitted), then inject the object-form values.
+	if len(updateOptions.LabelsWithIntent) > 0 || updateOptions.TypeWithIntent != nil || len(updateOptions.FieldValuesWithIntent) > 0 {
+		// Send values that carry intent (labels, type, and/or field values) in
+		// object form so their rationale and suggestion intent are preserved.
+		// Marshal the standard request (those fields omitted), then inject the
+		// object-form values.
 		overrides := map[string]any{}
 		if len(updateOptions.LabelsWithIntent) > 0 {
 			overrides["labels"] = updateOptions.LabelsWithIntent
 		}
 		if updateOptions.TypeWithIntent != nil {
 			overrides["type"] = updateOptions.TypeWithIntent
+		}
+		if len(updateOptions.FieldValuesWithIntent) > 0 && len(issueRequest.IssueFieldValues) > 0 {
+			fieldValues := make([]any, 0, len(issueRequest.IssueFieldValues))
+			for _, v := range issueRequest.IssueFieldValues {
+				if intent, ok := updateOptions.FieldValuesWithIntent[v.FieldID]; ok {
+					fieldValues = append(fieldValues, issueFieldValueWithIntent{FieldID: v.FieldID, Value: v.Value, valueIntent: intent})
+				} else {
+					fieldValues = append(fieldValues, map[string]any{"field_id": v.FieldID, "value": v.Value})
+				}
+			}
+			overrides["issue_field_values"] = fieldValues
 		}
 		payload, mErr := issueRequestWithIntentOverrides(issueRequest, overrides)
 		if mErr != nil {
