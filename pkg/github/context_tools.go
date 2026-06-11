@@ -43,7 +43,7 @@ type UserDetails struct {
 
 // GetMe creates a tool to get details of the authenticated user.
 func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolFromHandler(
 		ToolsetMetadataContext,
 		mcp.Tool{
 			Name:        "get_me",
@@ -63,10 +63,10 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 		},
 		nil,
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil
 			}
 
 			user, res, err := client.Users.Get(ctx, "")
@@ -75,7 +75,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 					"failed to get user",
 					res,
 					err,
-				), nil, nil
+				), nil
 			}
 
 			// Create minimal user representation instead of returning full user object
@@ -107,7 +107,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			result := MarshalledTextResult(minimalUser)
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGetMe())
-			return result, nil, nil
+			return result, nil
 		},
 	)
 }
