@@ -6,6 +6,11 @@
   "description": "Search for pull requests in GitHub repositories using issues search syntax already scoped to is:pr",
   "inputSchema": {
     "properties": {
+      "minimal_output": {
+        "default": true,
+        "description": "Return minimal pull request search results (default: true). When false, returns the full GitHub API search payload.",
+        "type": "boolean"
+      },
       "order": {
         "description": "Sort order",
         "enum": [
