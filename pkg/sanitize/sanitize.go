@@ -12,7 +12,10 @@ var policy *bluemonday.Policy
 var policyOnce sync.Once
 
 func Sanitize(input string) string {
-	return FilterHTMLTags(FilterCodeFenceMetadata(FilterInvisibleCharacters(input)))
+	cleaned := FilterCodeFenceMetadata(FilterInvisibleCharacters(input))
+	protected := protectCodeAngleBrackets(cleaned)
+	sanitized := FilterHTMLTags(protected)
+	return restoreCodeAngleBrackets(sanitized)
 }
 
 // FilterInvisibleCharacters removes invisible or control characters that should not appear
@@ -145,6 +148,141 @@ func isSafeCodeFenceToken(token string) bool {
 	return true
 }
 
+// Sentinels used to protect angle brackets inside code from HTML sanitization.
+// NUL bytes are stripped by FilterInvisibleCharacters before protectCodeAngleBrackets
+// runs, preventing sentinel collision attacks.
+const (
+	ltSentinel = "\x00LT\x00"
+	gtSentinel = "\x00GT\x00"
+)
+
+// protectCodeAngleBrackets replaces < and > inside fenced and inline code with
+// sentinels so bluemonday does not strip them as HTML tags.
+func protectCodeAngleBrackets(input string) string {
+	if input == "" {
+		return input
+	}
+
+	lines := strings.Split(input, "\n")
+	insideFence := false
+	currentFenceLen := 0
+
+	for i, line := range lines {
+		if toggled, fenceLen := toggleCodeFence(line, insideFence, currentFenceLen); toggled {
+			insideFence = !insideFence
+			if insideFence {
+				currentFenceLen = fenceLen
+			} else {
+				currentFenceLen = 0
+			}
+			continue
+		}
+
+		if insideFence {
+			lines[i] = replaceAngleBrackets(line)
+			continue
+		}
+		lines[i] = protectInlineCodeAngleBrackets(line)
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func toggleCodeFence(line string, insideFence bool, currentFenceLen int) (bool, int) {
+	idx := strings.Index(line, "```")
+	if idx == -1 || hasNonWhitespace(line[:idx]) {
+		return false, currentFenceLen
+	}
+
+	fenceEnd := idx
+	for fenceEnd < len(line) && line[fenceEnd] == '`' {
+		fenceEnd++
+	}
+
+	fenceLen := fenceEnd - idx
+	if fenceLen < 3 {
+		return false, currentFenceLen
+	}
+
+	if insideFence {
+		if currentFenceLen != 0 && fenceLen < currentFenceLen {
+			return false, currentFenceLen
+		}
+		return true, fenceLen
+	}
+
+	return true, fenceLen
+}
+
+func protectInlineCodeAngleBrackets(line string) string {
+	if !strings.Contains(line, "`") {
+		return line
+	}
+
+	var out strings.Builder
+	out.Grow(len(line))
+	i := 0
+	for i < len(line) {
+		if line[i] != '`' {
+			out.WriteByte(line[i])
+			i++
+			continue
+		}
+
+		openStart := i
+		openLen := 0
+		for i < len(line) && line[i] == '`' {
+			openLen++
+			i++
+		}
+
+		contentStart := i
+		closeIdx := findInlineCodeClose(line, contentStart, openLen)
+		if closeIdx == -1 {
+			out.WriteString(line[openStart:i])
+			continue
+		}
+
+		out.WriteString(line[openStart:contentStart])
+		out.WriteString(replaceAngleBrackets(line[contentStart:closeIdx]))
+		out.WriteString(line[closeIdx : closeIdx+openLen])
+		i = closeIdx + openLen
+	}
+
+	return out.String()
+}
+
+func findInlineCodeClose(line string, contentStart, openLen int) int {
+	for i := contentStart; i < len(line); i++ {
+		if line[i] != '`' {
+			continue
+		}
+
+		closeLen := 0
+		for j := i; j < len(line) && line[j] == '`'; j++ {
+			closeLen++
+		}
+		if closeLen == openLen {
+			return i
+		}
+	}
+
+	return -1
+}
+
+func replaceAngleBrackets(s string) string {
+	if !strings.ContainsAny(s, "<>") {
+		return s
+	}
+	s = strings.ReplaceAll(s, "<", ltSentinel)
+	return strings.ReplaceAll(s, ">", gtSentinel)
+}
+
+func restoreCodeAngleBrackets(input string) string {
+	s := strings.ReplaceAll(input, ltSentinel, "<")
+	return strings.ReplaceAll(s, gtSentinel, ">")
+}
+
 func getPolicy() *bluemonday.Policy {
 	policyOnce.Do(func() {
 		p := bluemonday.StrictPolicy()
@@ -175,7 +313,8 @@ func getPolicy() *bluemonday.Policy {
 
 func shouldRemoveRune(r rune) bool {
 	switch r {
-	case 0x200B, // ZERO WIDTH SPACE
+	case 0x0000, // NUL — stripped to prevent sentinel collision in protectCodeAngleBrackets
+		0x200B, // ZERO WIDTH SPACE
 		0x200C, // ZERO WIDTH NON-JOINER
 		0x200E, // LEFT-TO-RIGHT MARK
 		0x200F, // RIGHT-TO-LEFT MARK
