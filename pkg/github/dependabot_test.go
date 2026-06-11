@@ -154,19 +154,19 @@ func Test_ListDependabotAlerts(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]any
-		expectError    bool
-		expectedAlerts []*github.DependabotAlert
-		expectedErrMsg string
+		name               string
+		mockedClient       *http.Client
+		requestArgs        map[string]any
+		expectError        bool
+		expectedAlerts     []*github.DependabotAlert
+		expectedNextCursor string
+		expectedErrMsg     string
 	}{
 		{
 			name: "successful open alerts listing",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
 					"state":    "open",
-					"page":     "1",
 					"per_page": "30",
 				}).andThen(
 					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert}),
@@ -185,7 +185,6 @@ func Test_ListDependabotAlerts(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
 					"severity": "high",
-					"page":     "1",
 					"per_page": "30",
 				}).andThen(
 					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&highSeverityAlert}),
@@ -203,7 +202,6 @@ func Test_ListDependabotAlerts(t *testing.T) {
 			name: "successful all alerts listing",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
-					"page":     "1",
 					"per_page": "30",
 				}).andThen(
 					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert, &highSeverityAlert}),
@@ -217,10 +215,10 @@ func Test_ListDependabotAlerts(t *testing.T) {
 			expectedAlerts: []*github.DependabotAlert{&criticalAlert, &highSeverityAlert},
 		},
 		{
-			name: "successful alerts listing with custom pagination",
+			name: "successful alerts listing with cursor pagination",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
-					"page":     "3",
+					"after":    "Y3Vyc29yOnYyOpK5",
 					"per_page": "100",
 				}).andThen(
 					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert}),
@@ -229,11 +227,34 @@ func Test_ListDependabotAlerts(t *testing.T) {
 			requestArgs: map[string]any{
 				"owner":   "owner",
 				"repo":    "repo",
-				"page":    float64(3),
+				"after":   "Y3Vyc29yOnYyOpK5",
 				"perPage": float64(100),
 			},
 			expectError:    false,
 			expectedAlerts: []*github.DependabotAlert{&criticalAlert},
+		},
+		{
+			name: "successful alerts listing surfaces next page cursor",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"per_page": "30",
+				}).andThen(
+					func(w http.ResponseWriter, _ *http.Request) {
+						w.Header().Set("Link", `<https://api.github.com/repos/owner/repo/dependabot/alerts?after=nextcursor123&per_page=30>; rel="next"`)
+						w.WriteHeader(http.StatusOK)
+						b, err := json.Marshal([]*github.DependabotAlert{&criticalAlert})
+						require.NoError(t, err)
+						_, _ = w.Write(b)
+					},
+				),
+			}),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError:        false,
+			expectedAlerts:     []*github.DependabotAlert{&criticalAlert},
+			expectedNextCursor: "nextcursor123",
 		},
 		{
 			name: "alerts listing fails",
@@ -291,11 +312,17 @@ func Test_ListDependabotAlerts(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedAlerts []*github.DependabotAlert
-			err = json.Unmarshal([]byte(textContent.Text), &returnedAlerts)
+			var returnedResult struct {
+				Alerts   []*github.DependabotAlert `json:"alerts"`
+				PageInfo struct {
+					HasNextPage bool   `json:"hasNextPage"`
+					NextCursor  string `json:"nextCursor"`
+				} `json:"pageInfo"`
+			}
+			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 			assert.NoError(t, err)
-			assert.Len(t, returnedAlerts, len(tc.expectedAlerts))
-			for i, alert := range returnedAlerts {
+			assert.Len(t, returnedResult.Alerts, len(tc.expectedAlerts))
+			for i, alert := range returnedResult.Alerts {
 				assert.Equal(t, *tc.expectedAlerts[i].Number, *alert.Number)
 				assert.Equal(t, *tc.expectedAlerts[i].HTMLURL, *alert.HTMLURL)
 				assert.Equal(t, *tc.expectedAlerts[i].State, *alert.State)
@@ -304,6 +331,8 @@ func Test_ListDependabotAlerts(t *testing.T) {
 					assert.Equal(t, *tc.expectedAlerts[i].SecurityAdvisory.Severity, *alert.SecurityAdvisory.Severity)
 				}
 			}
+			assert.Equal(t, tc.expectedNextCursor, returnedResult.PageInfo.NextCursor)
+			assert.Equal(t, tc.expectedNextCursor != "", returnedResult.PageInfo.HasNextPage)
 		})
 	}
 }
