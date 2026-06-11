@@ -108,6 +108,16 @@ func LabelGetFileContents(isPrivate bool) SecurityLabel {
 //
 // An empty result set is treated as public-untrusted (no repository data is
 // leaked).
+//
+// Why a single joined label rather than one label per item: a tool result is
+// delivered as one opaque payload (a single content block) and the IFC engine
+// makes one allow/deny decision per flow at egress. Once the items share a
+// buffer in the agent's context they can be copied anywhere together, so the
+// only sound bound for the whole result is the meet of every item's label.
+// Per-item labels would only become load-bearing if the enforcement engine
+// could partition a result and route individual items to different sinks;
+// until then they would invite unsafe declassification of a "public" item that
+// actually arrived alongside private data.
 func LabelSearchIssues(repoVisibilities []bool) SecurityLabel {
 	for _, isPrivate := range repoVisibilities {
 		if isPrivate {
@@ -268,6 +278,9 @@ func LabelGist(isPublic bool) SecurityLabel {
 // Integrity is untrusted (user-authored content). Confidentiality follows the
 // IFC meet: if any gist in the result is secret the joined label is private;
 // otherwise public. An empty result is treated as public-untrusted.
+//
+// See LabelSearchIssues for why list results carry a single joined label
+// rather than one label per item.
 func LabelGistList(gistVisibilities []bool) SecurityLabel {
 	for _, isPublic := range gistVisibilities {
 		if !isPublic {
