@@ -10,6 +10,7 @@ import (
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/permissions"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -187,7 +188,7 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			}
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Issues.Write()))
 	st.FeatureFlagEnable = FeatureFlagIssuesGranular
 	return st
 }

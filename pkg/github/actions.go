@@ -14,6 +14,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/permissions"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -400,7 +401,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Actions.Read()))
 	return tool
 }
 
@@ -522,7 +523,7 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Actions.Read()))
 	return tool
 }
 
@@ -639,7 +640,7 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Actions.Write()))
 	return tool
 }
 
@@ -766,7 +767,7 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 
 			return utils.NewToolResultError("Either job_id must be provided for single job logs, or run_id with failed_only=true for failed job logs"), nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Actions.Read()))
 	return tool
 }
 

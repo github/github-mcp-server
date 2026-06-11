@@ -1,0 +1,24 @@
+#!/bin/bash
+#
+# List required fine-grained permissions for enabled tools.
+#
+# Usage:
+#   script/list-permissions [--toolsets=...] [--output=text|json|summary]
+#
+# Examples:
+#   script/list-permissions
+#   script/list-permissions --toolsets=all --output=json
+#   script/list-permissions --toolsets=repos,issues --output=summary
+#
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+# Build the server if it doesn't exist or is outdated
+if [ ! -f github-mcp-server ] || [ cmd/github-mcp-server/list_permissions.go -nt github-mcp-server ]; then
+    echo "Building github-mcp-server..." >&2
+    go build -o github-mcp-server ./cmd/github-mcp-server
+fi
+
+exec ./github-mcp-server list-permissions "$@"

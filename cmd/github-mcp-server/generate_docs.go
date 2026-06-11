@@ -46,6 +46,7 @@ func generateAllDocs() error {
 		{"docs/insiders-features.md", generateInsidersFeaturesDocs},
 		{"docs/feature-flags.md", generateFeatureFlagsDocs},
 		{"docs/tool-renaming.md", generateDeprecatedAliasesDocs},
+		{"docs/permissions-filtering.md", generatePermissionsDocs},
 	} {
 		if err := doc.fn(doc.path); err != nil {
 			return fmt.Errorf("failed to generate docs for %s: %w", doc.path, err)
@@ -227,6 +228,11 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 		if len(tool.AcceptedScopes) > 0 && !scopesEqual(tool.RequiredScopes, tool.AcceptedScopes) {
 			fmt.Fprintf(buf, "  - **Accepted OAuth Scopes**: `%s`\n", strings.Join(tool.AcceptedScopes, "`, `"))
 		}
+	}
+
+	// Fine-grained permission requirement if present
+	if !tool.RequiredPermissions.IsZero() {
+		fmt.Fprintf(buf, "  - **Required Permissions (fine-grained)**: `%s`\n", tool.RequiredPermissions.String())
 	}
 
 	// MCP App UI metadata (only rendered when the remote_mcp_ui_apps flag
@@ -497,5 +503,64 @@ func generateDeprecatedAliasesTable() string {
 		}
 	}
 
+	return buf.String()
+}
+
+func generatePermissionsDocs(docsPath string) error {
+	// Read the current file
+	content, err := os.ReadFile(docsPath) //#nosec G304
+	if err != nil {
+		return fmt.Errorf("failed to read docs file: %w", err)
+	}
+
+	// Replace content between markers
+	updatedContent, err := replaceSection(string(content), "START AUTOMATED PERMISSIONS", "END AUTOMATED PERMISSIONS", generatePermissionsTable())
+	if err != nil {
+		return err
+	}
+
+	// Write back to file
+	if err := os.WriteFile(docsPath, []byte(updatedContent), 0600); err != nil {
+		return fmt.Errorf("failed to write permissions docs: %w", err)
+	}
+
+	return nil
+}
+
+// generatePermissionsTable renders the tool -> fine-grained permission requirement
+// table for the default (no-flags) tool inventory. Only tools with a non-zero
+// RequiredPermissions are listed; everything else is ungated and always shown.
+func generatePermissionsTable() string {
+	t, _ := translations.TranslationHelper()
+
+	// Mirror generateReadmeDocs: document the default, no-flags experience.
+	r, _ := github.NewInventory(t).
+		WithToolsets([]string{"all"}).
+		WithFeatureChecker(noFeatureFlagsChecker).
+		Build()
+
+	var buf strings.Builder
+	buf.WriteString("| Toolset | Tool | Required Permissions (fine-grained) |\n")
+	buf.WriteString("|---------|------|-------------------------------------|\n")
+
+	// ToolsForRegistration applies the same feature-flag filtering as the
+	// README so flag-gated duplicates (e.g. list_issues) don't appear twice.
+	tools := r.ToolsForRegistration(context.Background())
+	var rows []string
+	for _, tool := range tools {
+		if tool.RequiredPermissions.IsZero() {
+			continue
+		}
+		rows = append(rows, fmt.Sprintf("| `%s` | `%s` | `%s` |",
+			tool.Toolset.ID, tool.Tool.Name, tool.RequiredPermissions.String()))
+	}
+	sort.Strings(rows)
+
+	if len(rows) == 0 {
+		buf.WriteString("| *(none currently)* | | |")
+		return buf.String()
+	}
+
+	buf.WriteString(strings.Join(rows, "\n"))
 	return buf.String()
 }
