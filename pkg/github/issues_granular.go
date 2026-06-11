@@ -7,6 +7,7 @@ import (
 	"maps"
 	"strings"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
@@ -258,17 +259,18 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 	)
 }
 
-// labelWithRationale represents the object form of a label entry, allowing a
-// rationale and/or suggest flag to be sent alongside the label name.
-type labelWithRationale struct {
-	Name      string `json:"name"`
-	Rationale string `json:"rationale,omitempty"`
-	Suggest   bool   `json:"suggest,omitempty"`
+// labelWithIntent represents the object form of a label entry, allowing a
+// rationale, confidence level, and/or suggest flag to be sent alongside the label name.
+type labelWithIntent struct {
+	Name       string `json:"name"`
+	Rationale  string `json:"rationale,omitempty"`
+	Confidence string `json:"confidence,omitempty"`
+	Suggest    bool   `json:"suggest,omitempty"`
 }
 
 // labelsUpdateRequest is a custom request body for updating an issue's labels
 // where individual labels may optionally include a rationale. Each element of
-// Labels is either a string (label name) or a labelWithRationale object.
+// Labels is either a string (label name) or a labelWithIntent object.
 type labelsUpdateRequest struct {
 	Labels []any `json:"labels"`
 }
@@ -279,7 +281,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_labels",
-			Description: t("TOOL_UPDATE_ISSUE_LABELS_DESCRIPTION", "Update the labels of an existing issue. This replaces the current labels with the provided list."),
+			Description: t("TOOL_UPDATE_ISSUE_LABELS_DESCRIPTION", "Update the labels of an existing issue. This replaces the current labels with the provided list. When setting values, include a confidence level (low, medium, or high) reflecting how certain you are about the choice."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_LABELS_USER_TITLE", "Update Issue Labels"),
 				ReadOnlyHint:    false,
@@ -320,6 +322,11 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 											Description: "One concise sentence explaining what specifically about the issue led you to choose this label. " +
 												"State the concrete signal (e.g. 'Reports a crash when saving' → bug).",
 											MaxLength: jsonschema.Ptr(280),
+										},
+										"confidence": {
+											Type:        "string",
+											Description: "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
+											Enum:        []any{"low", "medium", "high"},
 										},
 										"is_suggestion": {
 											Type: "boolean",
@@ -387,18 +394,25 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 					if len([]rune(rationale)) > 280 {
 						return utils.NewToolResultError("label rationale must be 280 characters or less"), nil, nil
 					}
+					confidence, err := OptionalParam[string](v, "confidence")
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+					if confidence != "" && confidence != "low" && confidence != "medium" && confidence != "high" {
+						return utils.NewToolResultError("confidence must be one of: low, medium, high"), nil, nil
+					}
 					isSuggestion, err := OptionalParam[bool](v, "is_suggestion")
 					if err != nil {
 						return utils.NewToolResultError(err.Error()), nil, nil
 					}
-					if rationale == "" && !isSuggestion {
+					if rationale == "" && !isSuggestion && confidence == "" {
 						payload = append(payload, name)
 					} else {
 						useObjectForm = true
-						payload = append(payload, labelWithRationale{Name: name, Rationale: rationale, Suggest: isSuggestion})
+						payload = append(payload, labelWithIntent{Name: name, Rationale: rationale, Confidence: confidence, Suggest: isSuggestion})
 					}
 				default:
-					return utils.NewToolResultError("each label must be a string or an object with 'name' and optional 'rationale' and/or 'is_suggestion'"), nil, nil
+					return utils.NewToolResultError("each label must be a string or an object with 'name' and optional 'rationale', 'confidence', and/or 'is_suggestion'"), nil, nil
 				}
 			}
 
@@ -470,18 +484,19 @@ func GranularUpdateIssueMilestone(t translations.TranslationHelperFunc) inventor
 	)
 }
 
-// issueTypeWithRationale represents the object form of the issue type field,
-// allowing a rationale and/or suggest flag to be sent alongside the type name.
-type issueTypeWithRationale struct {
-	Value     string `json:"value"`
-	Rationale string `json:"rationale,omitempty"`
-	Suggest   bool   `json:"suggest,omitempty"`
+// issueTypeWithIntent represents the object form of the issue type field,
+// allowing a rationale, confidence level, and/or suggest flag to be sent alongside the type name.
+type issueTypeWithIntent struct {
+	Value      string `json:"value"`
+	Rationale  string `json:"rationale,omitempty"`
+	Confidence string `json:"confidence,omitempty"`
+	Suggest    bool   `json:"suggest,omitempty"`
 }
 
 // issueTypeUpdateRequest is a custom request body for updating an issue type
-// with an optional rationale, using the object form that the REST API accepts.
+// with optional intent metadata, using the object form that the REST API accepts.
 type issueTypeUpdateRequest struct {
-	Type issueTypeWithRationale `json:"type"`
+	Type issueTypeWithIntent `json:"type"`
 }
 
 // GranularUpdateIssueType creates a tool to update an issue's type.
@@ -490,7 +505,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_type",
-			Description: t("TOOL_UPDATE_ISSUE_TYPE_DESCRIPTION", "Update the type of an existing issue (e.g. 'bug', 'feature')."),
+			Description: t("TOOL_UPDATE_ISSUE_TYPE_DESCRIPTION", "Update the type of an existing issue (e.g. 'bug', 'feature'). When setting values, include a confidence level (low, medium, or high) reflecting how certain you are about the choice."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_TYPE_USER_TITLE", "Update Issue Type"),
 				ReadOnlyHint:    false,
@@ -522,6 +537,11 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 						Description: "One concise sentence explaining what specifically about the issue led you to choose this type. " +
 							"State the concrete signal (e.g. 'Reports a crash when saving' → bug, 'Asks for dark mode support' → feature).",
 						MaxLength: jsonschema.Ptr(280),
+					},
+					"confidence": {
+						Type:        "string",
+						Description: "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
+						Enum:        []any{"low", "medium", "high"},
 					},
 					"is_suggestion": {
 						Type: "boolean",
@@ -558,6 +578,13 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			if len([]rune(rationale)) > 280 {
 				return utils.NewToolResultError("parameter rationale must be 280 characters or less"), nil, nil
 			}
+			confidence, err := OptionalParam[string](args, "confidence")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if confidence != "" && confidence != "low" && confidence != "medium" && confidence != "high" {
+				return utils.NewToolResultError("confidence must be one of: low, medium, high"), nil, nil
+			}
 			isSuggestion, err := OptionalParam[bool](args, "is_suggestion")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -569,12 +596,13 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			}
 
 			var body any
-			if rationale != "" || isSuggestion {
+			if rationale != "" || isSuggestion || confidence != "" {
 				body = &issueTypeUpdateRequest{
-					Type: issueTypeWithRationale{
-						Value:     issueType,
-						Rationale: rationale,
-						Suggest:   isSuggestion,
+					Type: issueTypeWithIntent{
+						Value:      issueType,
+						Rationale:  rationale,
+						Confidence: confidence,
+						Suggest:    isSuggestion,
 					},
 				}
 			} else {
@@ -887,6 +915,7 @@ type IssueFieldCreateOrUpdateInput struct {
 	SingleSelectOptionID *githubv4.ID      `json:"singleSelectOptionId,omitempty"`
 	Delete               *githubv4.Boolean `json:"delete,omitempty"`
 	Rationale            *githubv4.String  `json:"rationale,omitempty"`
+	Confidence           *string           `json:"confidence,omitempty"`
 	Suggest              *githubv4.Boolean `json:"suggest,omitempty"`
 }
 
@@ -955,6 +984,11 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 									Description: "One concise sentence explaining what specifically about the issue led you to choose this field value. " +
 										"State the concrete signal (e.g. 'Reports a crash when saving' → high priority).",
 									MaxLength: jsonschema.Ptr(280),
+								},
+								"confidence": {
+									Type:        "string",
+									Description: "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
+									Enum:        []any{"low", "medium", "high"},
 								},
 								"is_suggestion": {
 									Type: "boolean",
@@ -1073,6 +1107,17 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 					}
 				}
 
+				confidence, err := OptionalParam[string](fieldMap, "confidence")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				if confidence != "" && confidence != "low" && confidence != "medium" && confidence != "high" {
+					return utils.NewToolResultError("confidence must be one of: low, medium, high"), nil, nil
+				}
+				if confidence != "" {
+					input.Confidence = &confidence
+				}
+
 				isSuggestion, err := OptionalParam[bool](fieldMap, "is_suggestion")
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
@@ -1126,7 +1171,10 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				IssueFields: issueFields,
 			}
 
-			if err := gqlClient.Mutate(ctx, &mutation, mutationInput, nil); err != nil {
+			// The rationale and suggest input fields on IssueFieldCreateOrUpdateInput
+			// are gated behind the update_issue_suggestions GraphQL feature flag.
+			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "update_issue_suggestions")
+			if err := gqlClient.Mutate(ctxWithFeatures, &mutation, mutationInput, nil); err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to set issue field values", err), nil, nil
 			}
 
