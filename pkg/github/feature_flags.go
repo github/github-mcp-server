@@ -36,7 +36,6 @@ var AllowedFeatureFlags = []string{
 var InsidersFeatureFlags = []string{
 	MCPAppsFeatureFlag,
 	FeatureFlagCSVOutput,
-	FeatureFlagIFCLabels,
 	FeatureFlagIssueFields,
 }
 

@@ -45,7 +45,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
   - **MCP App UI**: `ui://github-mcp-server/get-me`
   - No parameters required
 
-- **issue_write** - Create or update issue
+- **issue_write** - Create or update issue/pull request
   - **Required OAuth Scopes**: `repo`
   - **MCP App UI**: `ui://github-mcp-server/issue-write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
@@ -69,7 +69,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
 
 ### `remote_mcp_issue_fields`
 
-- **issue_write** - Create or update issue
+- **issue_write** - Create or update issue/pull request
   - **Required OAuth Scopes**: `repo`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
@@ -98,7 +98,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
 
 - **list_issues** - List issues
   - **Required OAuth Scopes**: `repo`
-  - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
   - `field_filters`: Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date). (object[], optional)
   - `labels`: Filter by labels (string[], optional)

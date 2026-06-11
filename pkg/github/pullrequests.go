@@ -14,6 +14,7 @@ import (
 	"github.com/shurcooL/githubv4"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/sanitize"
@@ -106,19 +107,29 @@ Possible options:
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
+			// attachIFC adds the IFC label to a successful tool result when
+			// IFC labels are enabled. Pull request content (descriptions,
+			// diffs, comments, reviews) is user-authored and therefore
+			// untrusted; confidentiality follows repo visibility. If the
+			// visibility lookup fails the label is omitted rather than
+			// misclassifying the result.
+			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
+				return attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, r, ifc.LabelListIssues)
+			}
+
 			switch method {
 			case "get":
 				result, err := GetPullRequest(ctx, client, deps, owner, repo, pullNumber)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_diff":
 				result, err := GetPullRequestDiff(ctx, client, owner, repo, pullNumber)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_status":
 				result, err := GetPullRequestStatus(ctx, client, owner, repo, pullNumber)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_files":
 				result, err := GetPullRequestFiles(ctx, client, owner, repo, pullNumber, pagination)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_review_comments":
 				gqlClient, err := deps.GetGQLClient(ctx)
 				if err != nil {
@@ -129,16 +140,16 @@ Possible options:
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
 				result, err := GetPullRequestReviewComments(ctx, gqlClient, deps, owner, repo, pullNumber, cursorPagination)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_reviews":
 				result, err := GetPullRequestReviews(ctx, client, deps, owner, repo, pullNumber, pagination)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_comments":
 				result, err := GetIssueComments(ctx, client, deps, owner, repo, pullNumber, pagination)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_check_runs":
 				result, err := GetPullRequestCheckRuns(ctx, client, owner, repo, pullNumber, pagination)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
@@ -1293,7 +1304,11 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Pull request titles/bodies are user-authored (untrusted);
+			// confidentiality follows repo visibility.
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelListIssues)
+			return result, nil, nil
 		})
 }
 
@@ -1463,7 +1478,7 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			result, err := searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests")
+			result, err := searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests", ifcSearchPostProcessOption(ctx, deps))
 			return result, nil, err
 		})
 }
