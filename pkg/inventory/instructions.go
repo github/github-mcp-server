@@ -1,6 +1,7 @@
 package inventory
 
 import (
+	"fmt"
 	"os"
 	"strings"
 )
@@ -29,6 +30,16 @@ Tool usage guidance:
 	1. For 'search_*' tools: Use separate 'sort' and 'order' parameters if available for sorting results - do not include 'sort:' syntax in query strings. Query strings should contain only search criteria (e.g., 'org:google language:python'), not sorting instructions.`
 
 	instructions = append(instructions, baseInstruction)
+
+	if ref := inv.DefaultRepository(); ref != "" {
+		instructions = append(instructions, fmt.Sprintf(
+			"Default repository: %s. Prefer repo-scoped list_* tools with this owner/repo instead of global search or repository discovery tools.",
+			ref,
+		))
+		if inv.FocusRepository() {
+			instructions = append(instructions, "Repository focus mode is enabled: discovery tools such as search_repositories are hidden. Stay scoped to the default repository unless the user explicitly asks about another project.")
+		}
+	}
 
 	// Collect instructions from each enabled toolset
 	for _, toolset := range inv.EnabledToolsets() {

@@ -169,6 +169,7 @@ var (
 func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 	return withCSVOutput([]inventory.ServerTool{
 		// Context tools
+		GetRepositoryContext(t),
 		GetMe(t),
 		GetTeams(t),
 		GetTeamMembers(t),

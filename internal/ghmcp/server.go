@@ -135,6 +135,10 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	if err != nil {
 		return nil, fmt.Errorf("failed to create observability exporters: %w", err)
 	}
+	repositoryContext, err := github.BuildRepositoryContextConfig(cfg.DefaultRepository, cfg.Token, cfg.AllowDiscoveryTools)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse default repository: %w", err)
+	}
 	deps := github.NewBaseDeps(
 		clients.rest,
 		clients.gql,
@@ -146,8 +150,36 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		},
 		cfg.ContentWindowSize,
 		featureChecker,
+		repositoryContext,
 		obs,
 	)
+	if repositoryContext.DefaultRepository != nil {
+		access := github.VerifyRepositoryAccess(
+			ctx,
+			clients.rest,
+			*repositoryContext.DefaultRepository,
+			github.DetectTokenType(cfg.Token),
+		)
+		if access.Accessible {
+			cfg.Logger.Info(
+				"default repository access verified",
+				"repository",
+				repositoryContext.DefaultRepository.FullName,
+				"private",
+				access.Private,
+			)
+		} else {
+			cfg.Logger.Warn(
+				"default repository is not accessible with the current token",
+				"repository",
+				repositoryContext.DefaultRepository.FullName,
+				"error",
+				access.Error,
+				"hint",
+				access.Hint,
+			)
+		}
+	}
 	// Build and register the tool/resource/prompt inventory
 	inventoryBuilder := github.NewInventory(cfg.Translator).
 		WithDeprecatedAliases(github.DeprecatedToolAliases).
@@ -156,7 +188,13 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		WithTools(github.CleanTools(cfg.EnabledTools)).
 		WithExcludeTools(cfg.ExcludeTools).
 		WithServerInstructions().
+		WithDefaultRepository(cfg.DefaultRepository).
+		WithFocusRepository(repositoryContext.FocusMode).
 		WithFeatureChecker(featureChecker)
+
+	if repositoryContext.FocusMode {
+		inventoryBuilder = inventoryBuilder.WithFilter(github.CreateRepositoryFocusFilter(true))
+	}
 
 	// Apply token scope filtering if scopes are known (for PAT filtering)
 	if cfg.TokenScopes != nil {
@@ -229,6 +267,12 @@ type StdioServerConfig struct {
 
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
+
+	// DefaultRepository scopes the server to a single owner/repo (owner/repo format).
+	DefaultRepository string
+
+	// AllowDiscoveryTools keeps open-world discovery tools when DefaultRepository is set.
+	AllowDiscoveryTools bool
 }
 
 // RunStdioServer is not concurrent safe.
@@ -287,6 +331,8 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Logger:            logger,
 		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
 		TokenScopes:       tokenScopes,
+		DefaultRepository: cfg.DefaultRepository,
+		AllowDiscoveryTools: cfg.AllowDiscoveryTools,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)

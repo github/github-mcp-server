@@ -102,6 +102,7 @@ func TestHelloWorld_ConditionalBehavior_Featureflag(t *testing.T) {
 				FeatureFlags{},
 				0,
 				featureCheckerFor(enabledFlags...),
+				RepositoryContextConfig{},
 				stubExporters(),
 			)
 

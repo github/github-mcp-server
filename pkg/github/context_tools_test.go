@@ -162,6 +162,7 @@ func Test_GetMe_IFC_FeatureFlag(t *testing.T) {
 			func(_ context.Context, flagName string) (bool, error) {
 				return flagName == FeatureFlagIFCLabels && enabled, nil
 			},
+			RepositoryContextConfig{},
 			stubExporters(),
 		)
 	}

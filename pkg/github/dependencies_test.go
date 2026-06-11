@@ -36,6 +36,7 @@ func TestIsFeatureEnabled_WithEnabledFlag(t *testing.T) {
 		github.FeatureFlags{},
 		0,       // contentWindowSize
 		checker, // featureChecker
+		github.RepositoryContextConfig{},
 		testExporters(),
 	)
 
@@ -61,6 +62,7 @@ func TestIsFeatureEnabled_WithoutChecker(t *testing.T) {
 		github.FeatureFlags{},
 		0,   // contentWindowSize
 		nil, // featureChecker (nil)
+		github.RepositoryContextConfig{},
 		testExporters(),
 	)
 
@@ -86,6 +88,7 @@ func TestIsFeatureEnabled_EmptyFlagName(t *testing.T) {
 		github.FeatureFlags{},
 		0,       // contentWindowSize
 		checker, // featureChecker
+		github.RepositoryContextConfig{},
 		testExporters(),
 	)
 
@@ -111,6 +114,7 @@ func TestIsFeatureEnabled_CheckerError(t *testing.T) {
 		github.FeatureFlags{},
 		0,       // contentWindowSize
 		checker, // featureChecker
+		github.RepositoryContextConfig{},
 		testExporters(),
 	)
 

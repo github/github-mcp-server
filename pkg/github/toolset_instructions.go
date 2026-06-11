@@ -1,11 +1,26 @@
 package github
 
-import "github.com/github/github-mcp-server/pkg/inventory"
+import (
+	"fmt"
+
+	"github.com/github/github-mcp-server/pkg/inventory"
+)
 
 // Toolset instruction functions - these generate context-aware instructions for each toolset.
 // They are called during inventory build to generate server instructions.
 
-func generateContextToolsetInstructions(_ *inventory.Inventory) string {
+func generateContextToolsetInstructions(inv *inventory.Inventory) string {
+	if ref := inv.DefaultRepository(); ref != "" {
+		parsed, err := ParseRepositoryRef(ref)
+		if err == nil {
+			return fmt.Sprintf(
+				"Project focus is enabled for %s. Call 'get_repository_context' first (not 'search_repositories' or 'get_me') to confirm repository access, then use owner=%q and repo=%q with repo-scoped tools unless the user names another repository.",
+				parsed.FullName,
+				parsed.Owner,
+				parsed.Repo,
+			)
+		}
+	}
 	return "Always call 'get_me' first to understand current user permissions and context."
 }
 
