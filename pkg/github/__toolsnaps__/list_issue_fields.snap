@@ -3,7 +3,7 @@
     "readOnlyHint": true,
     "title": "List issue fields"
   },
-  "description": "List issue fields for a repository or organization. Returns field definitions including name, type (text, number, date, single_select), and for single_select fields the list of valid option names. When repo is omitted, returns org-level fields directly.",
+  "description": "List issue fields for a repository or organization. Returns field definitions including name, type (text, number, date, single_select, multi_select), and for single_select and multi_select fields the list of valid option names. When repo is omitted, returns org-level fields directly.",
   "inputSchema": {
     "properties": {
       "owner": {

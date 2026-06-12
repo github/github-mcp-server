@@ -83,6 +83,21 @@ type issueFieldNode struct {
 			Priority    *int
 		}
 	} `graphql:"... on IssueFieldSingleSelect"`
+	IssueFieldMultiSelect struct {
+		ID             githubv4.ID
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+		Name           githubv4.String
+		Description    githubv4.String
+		DataType       githubv4.String
+		Visibility     githubv4.String
+		Options        []struct {
+			ID          githubv4.ID
+			Name        githubv4.String
+			Description githubv4.String
+			Color       githubv4.String
+			Priority    *int
+		}
+	} `graphql:"... on IssueFieldMultiSelect"`
 }
 
 // issueFieldsRepoQuery is the GraphQL query for listing issue fields on a repository.
@@ -110,7 +125,7 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issue_fields",
-			Description: t("TOOL_LIST_ISSUE_FIELDS_DESCRIPTION", "List issue fields for a repository or organization. Returns field definitions including name, type (text, number, date, single_select), and for single_select fields the list of valid option names. When repo is omitted, returns org-level fields directly."),
+			Description: t("TOOL_LIST_ISSUE_FIELDS_DESCRIPTION", "List issue fields for a repository or organization. Returns field definitions including name, type (text, number, date, single_select, multi_select), and for single_select and multi_select fields the list of valid option names. When repo is omitted, returns org-level fields directly."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_ISSUE_FIELDS_USER_TITLE", "List issue fields"),
 				ReadOnlyHint: true,
@@ -224,6 +239,26 @@ func issueFieldsFromNodes(nodes []issueFieldNode) []IssueField {
 				Description: string(node.IssueFieldSingleSelect.Description),
 				DataType:    string(node.IssueFieldSingleSelect.DataType),
 				Visibility:  string(node.IssueFieldSingleSelect.Visibility),
+				Options:     opts,
+			}
+		case "IssueFieldMultiSelect":
+			opts := make([]IssueSingleSelectFieldOption, 0, len(node.IssueFieldMultiSelect.Options))
+			for _, o := range node.IssueFieldMultiSelect.Options {
+				opts = append(opts, IssueSingleSelectFieldOption{
+					ID:          fmt.Sprintf("%v", o.ID),
+					Name:        string(o.Name),
+					Description: string(o.Description),
+					Color:       string(o.Color),
+					Priority:    o.Priority,
+				})
+			}
+			f = IssueField{
+				ID:          fmt.Sprintf("%v", node.IssueFieldMultiSelect.ID),
+				DatabaseID:  parseFullDatabaseID(string(node.IssueFieldMultiSelect.FullDatabaseID)),
+				Name:        string(node.IssueFieldMultiSelect.Name),
+				Description: string(node.IssueFieldMultiSelect.Description),
+				DataType:    string(node.IssueFieldMultiSelect.DataType),
+				Visibility:  string(node.IssueFieldMultiSelect.Visibility),
 				Options:     opts,
 			}
 		case "IssueFieldText":
