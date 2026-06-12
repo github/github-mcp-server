@@ -2379,6 +2379,14 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		issueRequest.Type = github.Ptr(issueType)
 	}
 
+	closeWithREST := state == "closed" && stateReason != "duplicate"
+	if closeWithREST {
+		issueRequest.State = github.Ptr(state)
+		if stateReason != "" {
+			issueRequest.StateReason = github.Ptr(stateReason)
+		}
+	}
+
 	if len(issueFieldValues) > 0 || len(fieldIDsToDelete) > 0 {
 		// The REST update endpoint uses "set" semantics — it overwrites all existing
 		// field values with whatever is sent. Fetch the current values first, merge in
@@ -2423,7 +2431,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	}
 
 	// Use GraphQL API for state updates
-	if state != "" {
+	if state != "" && !closeWithREST {
 		// Mandate specifying duplicateOf when trying to close as duplicate
 		if state == "closed" && stateReason == "duplicate" && duplicateOf == 0 {
 			return utils.NewToolResultError("duplicate_of must be provided when state_reason is 'duplicate'"), nil

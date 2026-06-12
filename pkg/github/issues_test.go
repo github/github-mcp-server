@@ -3109,6 +3109,38 @@ func Test_UpdateIssue(t *testing.T) {
 			expectedErrMsg: "failed to update issue",
 		},
 		{
+			name: "close issue with labels and completed reason",
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+					"labels":       []any{"infra", "fixed"},
+					"state":        "closed",
+					"state_reason": "completed",
+				}).andThen(
+					mockResponse(t, http.StatusOK, &github.Issue{
+						Number:      github.Ptr(123),
+						State:       github.Ptr("closed"),
+						StateReason: github.Ptr("completed"),
+						HTMLURL:     github.Ptr("https://github.com/owner/repo/issues/123"),
+						Labels:      []*github.Label{{Name: github.Ptr("infra")}, {Name: github.Ptr("fixed")}},
+					}),
+				),
+			}),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"labels":       []any{"infra", "fixed"},
+				"state":        "closed",
+				"state_reason": "completed",
+			},
+			expectError: false,
+			expectedIssue: &github.Issue{
+				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
+			},
+		},
+		{
 			name: "close issue as duplicate",
 			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockBaseIssue),
@@ -3217,25 +3249,12 @@ func Test_UpdateIssue(t *testing.T) {
 		{
 			name: "main issue not found when trying to close it",
 			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockBaseIssue),
+				PatchReposIssuesByOwnerByRepoByIssueNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
 			}),
-			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							Issue struct {
-								ID githubv4.ID
-							} `graphql:"issue(number: $issueNumber)"`
-						} `graphql:"repository(owner: $owner, name: $repo)"`
-					}{},
-					map[string]any{
-						"owner":       githubv4.String("owner"),
-						"repo":        githubv4.String("repo"),
-						"issueNumber": githubv4.Int(999),
-					},
-					githubv4mock.ErrorResponse("Could not resolve to an Issue with the number of 999."),
-				),
-			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"method":       "update",
 				"owner":        "owner",
@@ -3245,7 +3264,7 @@ func Test_UpdateIssue(t *testing.T) {
 				"state_reason": "not_planned",
 			},
 			expectError:    true,
-			expectedErrMsg: "Failed to find issues",
+			expectedErrMsg: "failed to update issue",
 		},
 		{
 			name: "duplicate issue not found when closing as duplicate",
