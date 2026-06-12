@@ -1992,4 +1992,109 @@ func TestGranularSetIssueFields(t *testing.T) {
 		// query does not require the feature flag.
 		assert.Equal(t, "update_issue_suggestions", spy.captured.Get(headers.GraphQLFeaturesHeader))
 	})
+
+	t.Run("sends rationale and confidence as intent object when feature flag enabled", func(t *testing.T) {
+		confidence := "high"
+		suggestTrue := githubv4.Boolean(true)
+		matchers := []githubv4mock.Matcher{
+			githubv4mock.NewQueryMatcher(
+				struct {
+					Repository struct {
+						Issue struct {
+							ID githubv4.ID
+						} `graphql:"issue(number: $issueNumber)"`
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}{},
+				map[string]any{
+					"owner":       githubv4.String("owner"),
+					"repo":        githubv4.String("repo"),
+					"issueNumber": githubv4.Int(5),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"repository": map[string]any{
+						"issue": map[string]any{"id": "ISSUE_123"},
+					},
+				}),
+			),
+			githubv4mock.NewMutationMatcher(
+				struct {
+					SetIssueFieldValue struct {
+						Issue struct {
+							ID     githubv4.ID
+							Number githubv4.Int
+							URL    githubv4.String
+						}
+						IssueFieldValues []struct {
+							TextValue struct {
+								Value string
+							} `graphql:"... on IssueFieldTextValue"`
+							SingleSelectValue struct {
+								Name string
+							} `graphql:"... on IssueFieldSingleSelectValue"`
+							DateValue struct {
+								Value string
+							} `graphql:"... on IssueFieldDateValue"`
+							NumberValue struct {
+								Value float64
+							} `graphql:"... on IssueFieldNumberValue"`
+						}
+					} `graphql:"setIssueFieldValue(input: $input)"`
+				}{},
+				SetIssueFieldValueInput{
+					IssueID: githubv4.ID("ISSUE_123"),
+					IssueFields: []IssueFieldCreateOrUpdateInput{
+						{
+							FieldID:   githubv4.ID("FIELD_1"),
+							TextValue: githubv4.NewString(githubv4.String("hello")),
+							// rationale and confidence are nested under intent,
+							// while suggest stays a flat field.
+							Intent: &IssueUpdateIntentInput{
+								Rationale:  githubv4.NewString(githubv4.String("Reflects the reported severity")),
+								Confidence: &confidence,
+							},
+							Suggest: &suggestTrue,
+						},
+					},
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"setIssueFieldValue": map[string]any{
+						"issue": map[string]any{
+							"id":     "ISSUE_123",
+							"number": 5,
+							"url":    "https://github.com/owner/repo/issues/5",
+						},
+					},
+				}),
+			),
+		}
+
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matchers...))
+		deps := BaseDeps{
+			GQLClient: gqlClient,
+			featureChecker: func(_ context.Context, flag string) (bool, error) {
+				return flag == FeatureFlagIssueUpdateIntent, nil
+			},
+		}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{
+					"field_id":      "FIELD_1",
+					"text_value":    "hello",
+					"rationale":     "Reflects the reported severity",
+					"confidence":    "high",
+					"is_suggestion": true,
+				},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		assert.False(t, result.IsError, getTextResult(t, result).Text)
+	})
 }
