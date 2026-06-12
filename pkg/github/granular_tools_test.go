@@ -2048,7 +2048,7 @@ func TestGranularSetIssueFields(t *testing.T) {
 							TextValue: githubv4.NewString(githubv4.String("hello")),
 							// rationale and confidence are nested under intent,
 							// while suggest stays a flat field.
-							Intent: &IssueUpdateIntentInput{
+							UpdateIntent: &IssueUpdateIntentInput{
 								Rationale:  githubv4.NewString(githubv4.String("Reflects the reported severity")),
 								Confidence: &confidence,
 							},

@@ -917,10 +917,10 @@ type IssueFieldCreateOrUpdateInput struct {
 	Rationale            *githubv4.String  `json:"rationale,omitempty"`
 	Confidence           *string           `json:"confidence,omitempty"`
 	Suggest              *githubv4.Boolean `json:"suggest,omitempty"`
-	// Intent bundles rationale and confidence into a single object. It is the
-	// successor to the flat Rationale/Confidence fields above and is only sent
-	// when the FeatureFlagIssueFieldsUseUpdateIntent feature flag is enabled.
-	Intent *IssueUpdateIntentInput `json:"intent,omitempty"`
+	// UpdateIntent bundles rationale and confidence into a single object. It is
+	// the successor to the flat Rationale/Confidence fields above and is only
+	// sent when the FeatureFlagIssueFieldsUseUpdateIntent feature flag is enabled.
+	UpdateIntent *IssueUpdateIntentInput `json:"intent,omitempty"`
 }
 
 // IssueUpdateIntentInput is the nested input object that carries the rationale
@@ -1145,7 +1145,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				// on the feature flag.
 				if useIntentInput {
 					if rationalePtr != nil || confidencePtr != nil {
-						input.Intent = &IssueUpdateIntentInput{
+						input.UpdateIntent = &IssueUpdateIntentInput{
 							Rationale:  rationalePtr,
 							Confidence: confidencePtr,
 						}
