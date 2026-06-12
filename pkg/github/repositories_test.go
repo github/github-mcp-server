@@ -2795,6 +2795,124 @@ func Test_PushFiles(t *testing.T) {
 			expectError:    false,
 			expectedErrMsg: "failed to initialize repository",
 		},
+		{
+			name: "successful push with executable mode",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatch(
+					GetReposGitRefByOwnerByRepoByRef,
+					mockRef,
+				),
+				WithRequestMatch(
+					GetReposGitCommitsByOwnerByRepoByCommitSHA,
+					mockCommit,
+				),
+				WithRequestMatchHandler(
+					PostReposGitTreesByOwnerByRepo,
+					expectRequestBody(t, map[string]any{
+						"base_tree": "def456",
+						"tree": []any{
+							map[string]any{
+								"path":    "scripts/build.sh",
+								"mode":    "100755",
+								"type":    "blob",
+								"content": "#!/usr/bin/env bash\necho hi\n",
+							},
+							map[string]any{
+								"path":    "README.md",
+								"mode":    "100644",
+								"type":    "blob",
+								"content": "# README\n",
+							},
+						},
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockTree),
+					),
+				),
+				WithRequestMatch(
+					PostReposGitCommitsByOwnerByRepo,
+					mockNewCommit,
+				),
+				WithRequestMatch(
+					PatchReposGitRefsByOwnerByRepoByRef,
+					mockUpdatedRef,
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "main",
+				"files": []any{
+					map[string]any{
+						"path":    "scripts/build.sh",
+						"content": "#!/usr/bin/env bash\necho hi\n",
+						"mode":    "100755",
+					},
+					map[string]any{
+						"path":    "README.md",
+						"content": "# README\n",
+					},
+				},
+				"message": "add build script",
+			},
+			expectError: false,
+			expectedRef: mockUpdatedRef,
+		},
+		{
+			name: "rejects invalid file mode",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatch(
+					GetReposGitRefByOwnerByRepoByRef,
+					mockRef,
+				),
+				WithRequestMatch(
+					GetReposGitCommitsByOwnerByRepoByCommitSHA,
+					mockCommit,
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "main",
+				"files": []any{
+					map[string]any{
+						"path":    "scripts/build.sh",
+						"content": "#!/usr/bin/env bash\n",
+						"mode":    "0755",
+					},
+				},
+				"message": "add build script",
+			},
+			expectError:    false,
+			expectedErrMsg: `mode "0755" is not one of`,
+		},
+		{
+			name: "rejects non-string file mode",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatch(
+					GetReposGitRefByOwnerByRepoByRef,
+					mockRef,
+				),
+				WithRequestMatch(
+					GetReposGitCommitsByOwnerByRepoByCommitSHA,
+					mockCommit,
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "main",
+				"files": []any{
+					map[string]any{
+						"path":    "scripts/build.sh",
+						"content": "#!/usr/bin/env bash\n",
+						"mode":    33261,
+					},
+				},
+				"message": "add build script",
+			},
+			expectError:    false,
+			expectedErrMsg: "mode must be a string",
+		},
 	}
 
 	for _, tc := range tests {

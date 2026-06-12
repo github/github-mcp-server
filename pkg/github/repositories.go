@@ -382,13 +382,15 @@ func CreateOrUpdateFile(t translations.TranslationHelperFunc) inventory.ServerTo
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name: "create_or_update_file",
-			Description: t("TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION", `Create or update a single file in a GitHub repository. 
+			Description: t("TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION", `Create or update a single file in a GitHub repository.
 If updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.
 
 In order to obtain the SHA of original file version before updating, use the following git command:
 git rev-parse <branch>:<path to file>
 
 SHA MUST be provided for existing file updates.
+
+This tool always writes the file with mode 100644 because the Contents API has no way to set the executable bit. If you need to publish an executable file, use push_files with a single-entry files array and mode set to 100755 instead.
 `),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_CREATE_OR_UPDATE_FILE_USER_TITLE", "Create or update file"),
@@ -1296,8 +1298,12 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
-			Name:        "push_files",
-			Description: t("TOOL_PUSH_FILES_DESCRIPTION", "Push multiple files to a GitHub repository in a single commit"),
+			Name: "push_files",
+			Description: t("TOOL_PUSH_FILES_DESCRIPTION", `Push multiple files to a GitHub repository in a single commit.
+
+Each file entry accepts an optional "mode" matching the Git Data API tree-entry modes (100644 regular file, 100755 executable, 120000 symlink, 040000 subtree, 160000 submodule). Omit "mode" for a regular file.
+
+Use this tool with a single-entry files array when you need to land an executable file (mode 100755); create_or_update_file cannot set the executable bit because the Contents API always writes 100644.`),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_PUSH_FILES_USER_TITLE", "Push files to repository"),
 				ReadOnlyHint: false,
@@ -1319,7 +1325,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"files": {
 						Type:        "array",
-						Description: "Array of file objects to push, each object with path (string) and content (string)",
+						Description: "Array of file objects to push. Each object has path (string), content (string), and an optional mode (string) selecting the Git Data API tree-entry mode.",
 						Items: &jsonschema.Schema{
 							Type:                 "object",
 							AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
@@ -1331,6 +1337,11 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 								"content": {
 									Type:        "string",
 									Description: "file content",
+								},
+								"mode": {
+									Type:        "string",
+									Description: "Git tree-entry mode. Defaults to 100644 (regular file) when omitted. Use 100755 for an executable file.",
+									Enum:        []any{"100644", "100755", "120000", "040000", "160000"},
 								},
 							},
 							Required: []string{"path", "content"},
@@ -1445,6 +1456,14 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// Create tree entries for all files (or remaining files if empty repo)
 			var entries []*github.TreeEntry
 
+			allowedModes := map[string]struct{}{
+				"100644": {}, // regular file
+				"100755": {}, // executable file
+				"120000": {}, // symlink
+				"040000": {}, // subtree
+				"160000": {}, // submodule
+			}
+
 			for _, file := range filesObj {
 				fileMap, ok := file.(map[string]any)
 				if !ok {
@@ -1461,10 +1480,21 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					return utils.NewToolResultError("each file must have content"), nil, nil
 				}
 
-				// Create a tree entry for the file
+				mode := "100644"
+				if rawMode, present := fileMap["mode"]; present && rawMode != nil {
+					modeStr, ok := rawMode.(string)
+					if !ok {
+						return utils.NewToolResultError(fmt.Sprintf("file %q: mode must be a string", path)), nil, nil
+					}
+					if _, valid := allowedModes[modeStr]; !valid {
+						return utils.NewToolResultError(fmt.Sprintf("file %q: mode %q is not one of 100644, 100755, 120000, 040000, 160000", path, modeStr)), nil, nil
+					}
+					mode = modeStr
+				}
+
 				entries = append(entries, &github.TreeEntry{
 					Path:    github.Ptr(path),
-					Mode:    github.Ptr("100644"), // Regular file mode
+					Mode:    github.Ptr(mode),
 					Type:    github.Ptr("blob"),
 					Content: github.Ptr(content),
 				})
