@@ -295,7 +295,8 @@ func optionalIssueWriteFields(args map[string]any) ([]issueWriteFieldInput, erro
 		}
 
 		var fieldOptionNames []string
-		if rawNames, hasNames := itemMap["field_option_names"]; hasNames && rawNames != nil {
+		_, hasNamesKey := itemMap["field_option_names"]
+		if rawNames := itemMap["field_option_names"]; hasNamesKey && rawNames != nil {
 			switch v := rawNames.(type) {
 			case []string:
 				fieldOptionNames = v
@@ -341,6 +342,9 @@ func optionalIssueWriteFields(args map[string]any) ([]issueWriteFieldInput, erro
 			setters++
 		}
 		if setters == 0 {
+			if hasNamesKey {
+				return nil, fmt.Errorf("issue field %q has empty field_option_names — use 'delete: true' to clear the field", fieldName)
+			}
 			return nil, fmt.Errorf("issue field %q must specify one of value, field_option_name, or field_option_names", fieldName)
 		}
 		if setters > 1 {
@@ -688,15 +692,14 @@ type ListIssuesQueryTypeWithLabelsWithSince struct {
 
 // IssueFieldValueFilter mirrors the GraphQL IssueFieldValueFilter input. Exactly one typed value
 // field should be set per filter (the monolith resolver rejects multiple). For multi_select fields,
-// MultiSelectOptionValues / MultiSelectOptionIDs use all-of (AND) semantics: an issue matches only
-// if it has every listed option set on the field. To match any-of, send separate filter calls.
+// MultiSelectOptionValues uses all-of (AND) semantics: an issue matches only if it has every listed
+// option set on the field. To match any-of, send separate filter calls.
 type IssueFieldValueFilter struct {
 	FieldName               githubv4.String    `json:"fieldName"`
 	TextValue               *githubv4.String   `json:"textValue,omitempty"`
 	DateValue               *githubv4.String   `json:"dateValue,omitempty"`
 	NumberValue             *githubv4.Float    `json:"numberValue,omitempty"`
 	SingleSelectOptionValue *githubv4.String   `json:"singleSelectOptionValue,omitempty"`
-	MultiSelectOptionIDs    *[]githubv4.ID     `json:"multiSelectOptionIds,omitempty"`
 	MultiSelectOptionValues *[]githubv4.String `json:"multiSelectOptionValues,omitempty"`
 }
 
