@@ -2795,5 +2795,5 @@ func ListRepositoryCollaborators(t translations.TranslationHelperFunc) inventory
 			callResult = attachStaticIFCLabel(ctx, deps, callResult, ifc.LabelCollaboratorRoster())
 			return callResult, nil, nil
 		},
-	).WithPermissions(permissions.Require(permissions.Metadata.Read()))
+	).WithPermissions(permissions.Require(permissions.Administration.Read()))
 }

@@ -96,7 +96,7 @@ The generated table below is produced by `script/generate-docs` and lists every 
 | `repos` | `list_branches` | `contents:read` |
 | `repos` | `list_commits` | `contents:read` |
 | `repos` | `list_releases` | `contents:read` |
-| `repos` | `list_repository_collaborators` | `metadata:read` |
+| `repos` | `list_repository_collaborators` | `administration:read` |
 | `repos` | `list_tags` | `contents:read` |
 | `repos` | `push_files` | `contents:write` |
 | `secret_protection` | `get_secret_scanning_alert` | `secret_scanning_alerts:read` |
