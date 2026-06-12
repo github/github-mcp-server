@@ -2051,8 +2051,8 @@ Options are:
 										Type: "string",
 									},
 									Description: "Option names for multi-select fields. All names are validated " +
-										"against the field's options before the API call. Setting an empty " +
-										"array clears the field — use 'delete: true' for that instead. " +
+										"against the field's options before the API call. An empty array " +
+										"is rejected — use 'delete: true' to clear the field. " +
 										"Cannot be combined with 'value', 'field_option_name', or 'delete'.",
 								},
 								"delete": {
