@@ -10,6 +10,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/permissions"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -169,7 +170,7 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 			return result, nil, nil
 		})
 	st.FeatureFlagEnable = FeatureFlagIssueFields
-	return st
+	return st.WithPermissions(permissions.Require(permissions.Issues.Read()))
 }
 
 // fetchIssueFields returns the issue field definitions for the given owner.
