@@ -12,7 +12,6 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/permissions"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -274,7 +273,7 @@ Use this tool to list projects for a user or organization, or list project field
 				}
 			}
 		},
-	).WithPermissions(permissions.Require(permissions.OrganizationProjects.Read()))
+	)
 	return tool
 }
 
@@ -423,7 +422,7 @@ Use this tool to get details about individual projects, project fields, and proj
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
-	).WithPermissions(permissions.Require(permissions.OrganizationProjects.Read()))
+	)
 	return tool
 }
 
@@ -673,7 +672,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
-	).WithPermissions(permissions.Require(permissions.OrganizationProjects.Write()))
+	)
 	return tool
 }
 

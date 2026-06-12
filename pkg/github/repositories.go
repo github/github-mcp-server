@@ -676,7 +676,7 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
-	).WithPermissions(permissions.Require(permissions.Administration.Write()))
+	)
 }
 
 // FetchRepoIsPrivate returns whether a repository is private. It is a thin
@@ -986,7 +986,7 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
-	).WithPermissions(permissions.Require(permissions.Administration.Write()))
+	)
 }
 
 // DeleteFile creates a tool to delete a file in a GitHub repository.
@@ -2795,5 +2795,5 @@ func ListRepositoryCollaborators(t translations.TranslationHelperFunc) inventory
 			callResult = attachStaticIFCLabel(ctx, deps, callResult, ifc.LabelCollaboratorRoster())
 			return callResult, nil, nil
 		},
-	).WithPermissions(permissions.Require(permissions.Administration.Read()))
+	).WithPermissions(permissions.Require(permissions.Metadata.Read()))
 }

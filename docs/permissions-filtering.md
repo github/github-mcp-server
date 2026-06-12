@@ -76,9 +76,6 @@ The generated table below is produced by `script/generate-docs` and lists every 
 | `labels` | `get_label` | `issues:read` |
 | `labels` | `label_write` | `issues:write` |
 | `labels` | `list_label` | `issues:read` |
-| `projects` | `projects_get` | `organization_projects:read` |
-| `projects` | `projects_list` | `organization_projects:read` |
-| `projects` | `projects_write` | `organization_projects:write` |
 | `pull_requests` | `add_comment_to_pending_review` | `pull_requests:write` |
 | `pull_requests` | `add_reply_to_pull_request_comment` | `pull_requests:write` |
 | `pull_requests` | `create_pull_request` | `pull_requests:write` |
@@ -90,9 +87,7 @@ The generated table below is produced by `script/generate-docs` and lists every 
 | `pull_requests` | `update_pull_request` | `pull_requests:write` |
 | `repos` | `create_branch` | `contents:write` |
 | `repos` | `create_or_update_file` | `contents:write` |
-| `repos` | `create_repository` | `administration:write` |
 | `repos` | `delete_file` | `contents:write` |
-| `repos` | `fork_repository` | `administration:write` |
 | `repos` | `get_commit` | `contents:read` |
 | `repos` | `get_file_contents` | `contents:read` |
 | `repos` | `get_latest_release` | `contents:read` |
@@ -101,7 +96,7 @@ The generated table below is produced by `script/generate-docs` and lists every 
 | `repos` | `list_branches` | `contents:read` |
 | `repos` | `list_commits` | `contents:read` |
 | `repos` | `list_releases` | `contents:read` |
-| `repos` | `list_repository_collaborators` | `administration:read` |
+| `repos` | `list_repository_collaborators` | `metadata:read` |
 | `repos` | `list_tags` | `contents:read` |
 | `repos` | `push_files` | `contents:write` |
 | `secret_protection` | `get_secret_scanning_alert` | `secret_scanning_alerts:read` |
