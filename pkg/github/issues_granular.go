@@ -106,7 +106,7 @@ func issueUpdateTool(
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagIssuesGranular
-	return st
+	return st.WithPermissions(permissions.Require(permissions.Issues.Write()))
 }
 
 // GranularCreateIssue creates a tool to create a new issue.
@@ -458,7 +458,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagIssuesGranular
-	return st
+	return st.WithPermissions(permissions.Require(permissions.Issues.Write()))
 }
 
 // GranularUpdateIssueMilestone creates a tool to update an issue's milestone.
@@ -634,7 +634,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagIssuesGranular
-	return st
+	return st.WithPermissions(permissions.Require(permissions.Issues.Write()))
 }
 
 // GranularUpdateIssueState creates a tool to update an issue's state.
@@ -743,7 +743,7 @@ func GranularAddSubIssue(t translations.TranslationHelperFunc) inventory.ServerT
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagIssuesGranular
-	return st
+	return st.WithPermissions(permissions.Require(permissions.Issues.Write()))
 }
 
 // GranularRemoveSubIssue creates a tool to remove a sub-issue.
@@ -812,7 +812,7 @@ func GranularRemoveSubIssue(t translations.TranslationHelperFunc) inventory.Serv
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagIssuesGranular
-	return st
+	return st.WithPermissions(permissions.Require(permissions.Issues.Write()))
 }
 
 // GranularReprioritizeSubIssue creates a tool to reorder a sub-issue.
@@ -897,7 +897,7 @@ func GranularReprioritizeSubIssue(t translations.TranslationHelperFunc) inventor
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagIssuesGranular
-	return st
+	return st.WithPermissions(permissions.Require(permissions.Issues.Write()))
 }
 
 // SetIssueFieldValueInput represents the input for the setIssueFieldValue GraphQL mutation.
@@ -1190,5 +1190,5 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagIssuesGranular
-	return st
+	return st.WithPermissions(permissions.Require(permissions.Issues.Write()))
 }
