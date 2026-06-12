@@ -1,17 +1,17 @@
 {
   "annotations": {
     "readOnlyHint": true,
-    "title": "Get job logs"
+    "title": "Get GitHub Actions workflow job logs"
   },
-  "description": "Download logs for a specific workflow job or efficiently get all failed job logs for a workflow run",
+  "description": "Get logs for GitHub Actions workflow jobs.\nUse this tool to retrieve logs for a specific job or all jobs in a workflow run.\nProvide job_id for one job, or run_id for all jobs in a run. Set failed_only=true to restrict either mode to failed jobs only.\n",
   "inputSchema": {
     "properties": {
       "failed_only": {
-        "description": "When true, gets logs for all failed jobs in run_id",
+        "description": "When true, only returns logs for failed jobs. With job_id, the job must have failed. With run_id, only failed jobs in the run are included.",
         "type": "boolean"
       },
       "job_id": {
-        "description": "The unique identifier of the workflow job (required for single job logs)",
+        "description": "The unique identifier of the workflow job. Provide either job_id or run_id, not both.",
         "type": "number"
       },
       "owner": {
@@ -27,7 +27,7 @@
         "type": "boolean"
       },
       "run_id": {
-        "description": "Workflow run ID (required when using failed_only)",
+        "description": "The unique identifier of the workflow run. Provide either run_id or job_id, not both.",
         "type": "number"
       },
       "tail_lines": {
