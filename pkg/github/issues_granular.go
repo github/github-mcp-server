@@ -917,6 +917,19 @@ type IssueFieldCreateOrUpdateInput struct {
 	Rationale            *githubv4.String  `json:"rationale,omitempty"`
 	Confidence           *string           `json:"confidence,omitempty"`
 	Suggest              *githubv4.Boolean `json:"suggest,omitempty"`
+	// Intent bundles rationale and confidence into a single object. It is the
+	// successor to the flat Rationale/Confidence fields above and is only sent
+	// when the FeatureFlagIssueUpdateIntent feature flag is enabled.
+	Intent *IssueUpdateIntentInput `json:"intent,omitempty"`
+}
+
+// IssueUpdateIntentInput is the nested input object that carries the rationale
+// and confidence for an issue field mutation. It mirrors the read-path
+// IssueUpdateIntent type and replaces the flat rationale/confidence fields on
+// IssueFieldCreateOrUpdateInput after the backend migration.
+type IssueUpdateIntentInput struct {
+	Rationale  *githubv4.String `json:"rationale,omitempty"`
+	Confidence *string          `json:"confidence,omitempty"`
 }
 
 // GranularSetIssueFields creates a tool to set issue field values on an issue using GraphQL.
@@ -1044,6 +1057,12 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 			}
 
 			issueFields := make([]IssueFieldCreateOrUpdateInput, 0, len(fieldMaps))
+			// The backend is migrating the rationale/confidence pair on
+			// IssueFieldCreateOrUpdateInput from flat fields to a nested
+			// `intent` object (IssueUpdateIntent). While that migration is in
+			// flight, gate the payload shape behind a feature flag so we can
+			// switch over without breaking the un-migrated schema.
+			useIntentInput := deps.IsFeatureEnabled(ctx, FeatureFlagIssueUpdateIntent)
 			for _, fieldMap := range fieldMaps {
 				fieldID, err := RequiredParam[string](fieldMap, "field_id")
 				if err != nil {
@@ -1093,6 +1112,9 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 					return utils.NewToolResultError("each field must have exactly one value (text_value, number_value, date_value, single_select_option_id) or delete: true, but multiple were provided"), nil, nil
 				}
 
+				var rationalePtr *githubv4.String
+				var confidencePtr *string
+
 				if _, exists := fieldMap["rationale"]; exists {
 					rationale, err := OptionalParam[string](fieldMap, "rationale")
 					if err != nil {
@@ -1103,7 +1125,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 						return utils.NewToolResultError("field rationale must be 280 characters or less"), nil, nil
 					}
 					if rationale != "" {
-						input.Rationale = githubv4.NewString(githubv4.String(rationale))
+						rationalePtr = githubv4.NewString(githubv4.String(rationale))
 					}
 				}
 
@@ -1115,7 +1137,22 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 					return utils.NewToolResultError("confidence must be one of: low, medium, high"), nil, nil
 				}
 				if confidence != "" {
-					input.Confidence = &confidence
+					confidencePtr = &confidence
+				}
+
+				// Send rationale and confidence either as the nested `intent`
+				// object (new schema) or as flat fields (old schema), depending
+				// on the feature flag.
+				if useIntentInput {
+					if rationalePtr != nil || confidencePtr != nil {
+						input.Intent = &IssueUpdateIntentInput{
+							Rationale:  rationalePtr,
+							Confidence: confidencePtr,
+						}
+					}
+				} else {
+					input.Rationale = rationalePtr
+					input.Confidence = confidencePtr
 				}
 
 				isSuggestion, err := OptionalParam[bool](fieldMap, "is_suggestion")
