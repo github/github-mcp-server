@@ -250,7 +250,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 							},
 							"branch": {
 								Type:        "string",
-								Description: "Filter workflow runs to a specific Git branch. Use the name of the branch.",
+								Description: "Filter workflow runs by branch name, e.g. main; do not include refs/heads/.",
 							},
 							"event": {
 								Type:        "string",
@@ -566,7 +566,7 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 					},
 					"ref": {
 						Type:        "string",
-						Description: "The git reference for the workflow. The reference can be a branch or tag name. Required for 'run_workflow' method.",
+						Description: "Branch or tag name to run the workflow on. Required for 'run_workflow' method.",
 					},
 					"inputs": {
 						Type:        "object",

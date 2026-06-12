@@ -61,7 +61,7 @@
             "type": "string"
           },
           "branch": {
-            "description": "Filter workflow runs to a specific Git branch. Use the name of the branch.",
+            "description": "Filter workflow runs by branch name, e.g. main; do not include refs/heads/.",
             "type": "string"
           },
           "event": {

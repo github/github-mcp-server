@@ -8,7 +8,7 @@
   "inputSchema": {
     "properties": {
       "body": {
-        "description": "The review body text (optional)",
+        "description": "Review body (optional); Markdown supported",
         "type": "string"
       },
       "commitID": {

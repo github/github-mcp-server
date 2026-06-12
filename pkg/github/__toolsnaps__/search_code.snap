@@ -30,7 +30,10 @@
         "type": "string"
       },
       "sort": {
-        "description": "Sort field ('indexed' only)",
+        "description": "Sort field. Use 'indexed' to sort by recently indexed files.",
+        "enum": [
+          "indexed"
+        ],
         "type": "string"
       }
     },

@@ -17,12 +17,13 @@
       "assignees": {
         "description": "Usernames to assign to this issue",
         "items": {
+          "description": "GitHub username",
           "type": "string"
         },
         "type": "array"
       },
       "body": {
-        "description": "Issue body content",
+        "description": "Issue body; Markdown supported.",
         "type": "string"
       },
       "duplicate_of": {
@@ -36,6 +37,7 @@
       "labels": {
         "description": "Labels to apply to this issue",
         "items": {
+          "description": "Existing label name",
           "type": "string"
         },
         "type": "array"

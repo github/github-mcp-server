@@ -6,11 +6,11 @@
   "inputSchema": {
     "properties": {
       "branch": {
-        "description": "Name for new branch",
+        "description": "New branch name, without refs/heads/",
         "type": "string"
       },
       "from_branch": {
-        "description": "Source branch (defaults to repo default)",
+        "description": "Source branch name; defaults to the repository default branch",
         "type": "string"
       },
       "owner": {

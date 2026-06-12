@@ -8,7 +8,7 @@
   "inputSchema": {
     "properties": {
       "body": {
-        "description": "The review body text (optional)",
+        "description": "Review body; Markdown supported",
         "type": "string"
       },
       "event": {

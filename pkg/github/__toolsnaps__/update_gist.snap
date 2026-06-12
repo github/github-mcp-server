@@ -6,7 +6,7 @@
   "inputSchema": {
     "properties": {
       "content": {
-        "description": "Content for the file",
+        "description": "Raw content for the gist file",
         "type": "string"
       },
       "description": {

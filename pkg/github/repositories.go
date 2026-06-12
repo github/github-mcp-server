@@ -407,19 +407,19 @@ SHA MUST be provided for existing file updates.
 					},
 					"path": {
 						Type:        "string",
-						Description: "Path where to create/update the file",
+						Description: "Repository-relative file path to create or update",
 					},
 					"content": {
 						Type:        "string",
-						Description: "Content of the file",
+						Description: "Raw file content",
 					},
 					"message": {
 						Type:        "string",
-						Description: "Commit message",
+						Description: "Commit message for this change",
 					},
 					"branch": {
 						Type:        "string",
-						Description: "Branch to create/update the file in",
+						Description: "Branch name to create/update the file in",
 					},
 					"sha": {
 						Type:        "string",
@@ -716,7 +716,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					},
 					"path": {
 						Type:        "string",
-						Description: "Path to file/directory",
+						Description: "Repository-relative file or directory path",
 						Default:     json.RawMessage(`"/"`),
 					},
 					"ref": {
@@ -1018,15 +1018,15 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"path": {
 						Type:        "string",
-						Description: "Path to the file to delete",
+						Description: "Repository-relative path to the file to delete",
 					},
 					"message": {
 						Type:        "string",
-						Description: "Commit message",
+						Description: "Commit message for the delete commit",
 					},
 					"branch": {
 						Type:        "string",
-						Description: "Branch to delete the file from",
+						Description: "Branch name to delete the file from",
 					},
 				},
 				Required: []string{"owner", "repo", "path", "message", "branch"},
@@ -1202,11 +1202,11 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"branch": {
 						Type:        "string",
-						Description: "Name for new branch",
+						Description: "New branch name, without refs/heads/",
 					},
 					"from_branch": {
 						Type:        "string",
-						Description: "Source branch (defaults to repo default)",
+						Description: "Source branch name; defaults to the repository default branch",
 					},
 				},
 				Required: []string{"owner", "repo", "branch"},
@@ -1315,7 +1315,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"branch": {
 						Type:        "string",
-						Description: "Branch to push to",
+						Description: "Branch name to push the commit to",
 					},
 					"files": {
 						Type:        "array",
@@ -1326,11 +1326,11 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 							Properties: map[string]*jsonschema.Schema{
 								"path": {
 									Type:        "string",
-									Description: "path to the file",
+									Description: "Repository-relative file path",
 								},
 								"content": {
 									Type:        "string",
-									Description: "file content",
+									Description: "Raw file content",
 								},
 							},
 							Required: []string{"path", "content"},

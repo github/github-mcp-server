@@ -27,7 +27,7 @@
         "type": "string"
       },
       "ref": {
-        "description": "The git reference for the workflow. The reference can be a branch or tag name. Required for 'run_workflow' method.",
+        "description": "Branch or tag name to run the workflow on. Required for 'run_workflow' method.",
         "type": "string"
       },
       "repo": {

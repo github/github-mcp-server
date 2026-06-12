@@ -190,7 +190,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 					},
 					"base_ref": {
 						Type:        "string",
-						Description: "Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch",
+						Description: "Branch or ref the agent starts from; defaults to the repository default branch",
 					},
 					"custom_instructions": {
 						Type:        "string",

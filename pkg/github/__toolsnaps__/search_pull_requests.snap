@@ -30,7 +30,7 @@
         "type": "number"
       },
       "query": {
-        "description": "Search query using GitHub pull request search syntax",
+        "description": "Search query using GitHub pull request search syntax. Qualifiers such as is:pr and repo:owner/repo are applied automatically when appropriate; examples: \"review-requested:@me\", \"author:octocat updated:\u003e=2024-01-01\".",
         "type": "string"
       },
       "repo": {

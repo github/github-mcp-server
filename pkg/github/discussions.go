@@ -640,7 +640,7 @@ Options are:
 					},
 					"body": {
 						Type:        "string",
-						Description: "Comment content (required for 'add', 'reply', and 'update' methods)",
+						Description: "Comment content. Markdown supported. Required for 'add', 'reply', and 'update' methods.",
 					},
 					"commentNodeID": {
 						Type:        "string",
