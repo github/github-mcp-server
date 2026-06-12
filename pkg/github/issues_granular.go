@@ -919,7 +919,7 @@ type IssueFieldCreateOrUpdateInput struct {
 	Suggest              *githubv4.Boolean `json:"suggest,omitempty"`
 	// Intent bundles rationale and confidence into a single object. It is the
 	// successor to the flat Rationale/Confidence fields above and is only sent
-	// when the FeatureFlagIssueUpdateIntent feature flag is enabled.
+	// when the FeatureFlagIssueFieldsUseUpdateIntent feature flag is enabled.
 	Intent *IssueUpdateIntentInput `json:"intent,omitempty"`
 }
 
@@ -1062,7 +1062,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 			// `intent` object (IssueUpdateIntent). While that migration is in
 			// flight, gate the payload shape behind a feature flag so we can
 			// switch over without breaking the un-migrated schema.
-			useIntentInput := deps.IsFeatureEnabled(ctx, FeatureFlagIssueUpdateIntent)
+			useIntentInput := deps.IsFeatureEnabled(ctx, FeatureFlagIssueFieldsUseUpdateIntent)
 			for _, fieldMap := range fieldMaps {
 				fieldID, err := RequiredParam[string](fieldMap, "field_id")
 				if err != nil {

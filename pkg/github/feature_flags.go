@@ -16,12 +16,12 @@ const FeatureFlagIFCLabels = "ifc_labels"
 // and field_values enrichment in list_issues / search_issues output.
 const FeatureFlagIssueFields = "remote_mcp_issue_fields"
 
-// FeatureFlagIssueUpdateIntent is the feature flag name for sending the
+// FeatureFlagIssueFieldsUseUpdateIntent is the feature flag name for sending the
 // rationale and confidence on issue field mutations as a nested `intent`
 // object (IssueUpdateIntent) instead of as flat fields. It exists so the
 // set_issue_fields tool can switch payload shapes while the backend migrates
 // IssueFieldCreateOrUpdateInput from IssueEventRationale to IssueUpdateIntent.
-const FeatureFlagIssueUpdateIntent = "issue_update_intent"
+const FeatureFlagIssueFieldsUseUpdateIntent = "issue_fields_use_update_intent"
 
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag or X-MCP-Features HTTP header.
@@ -32,7 +32,7 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagCSVOutput,
 	FeatureFlagIFCLabels,
 	FeatureFlagIssueFields,
-	FeatureFlagIssueUpdateIntent,
+	FeatureFlagIssueFieldsUseUpdateIntent,
 	FeatureFlagIssuesGranular,
 	FeatureFlagPullRequestsGranular,
 }

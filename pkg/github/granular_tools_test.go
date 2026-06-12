@@ -2073,7 +2073,7 @@ func TestGranularSetIssueFields(t *testing.T) {
 		deps := BaseDeps{
 			GQLClient: gqlClient,
 			featureChecker: func(_ context.Context, flag string) (bool, error) {
-				return flag == FeatureFlagIssueUpdateIntent, nil
+				return flag == FeatureFlagIssueFieldsUseUpdateIntent, nil
 			},
 		}
 		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
