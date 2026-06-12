@@ -917,10 +917,10 @@ type IssueFieldCreateOrUpdateInput struct {
 	Rationale            *githubv4.String  `json:"rationale,omitempty"`
 	Confidence           *string           `json:"confidence,omitempty"`
 	Suggest              *githubv4.Boolean `json:"suggest,omitempty"`
-	// UpdateIntent bundles rationale and confidence into a single object. It is
+	// Intent bundles rationale and confidence into a single object. It is
 	// the successor to the flat Rationale/Confidence fields above and is only
-	// sent when the FeatureFlagIssueFieldsUseUpdateIntent feature flag is enabled.
-	UpdateIntent *IssueUpdateIntentInput `json:"intent,omitempty"`
+	// sent when the FeatureFlagIssueFieldsUseIntent feature flag is enabled.
+	Intent *IssueUpdateIntentInput `json:"intent,omitempty"`
 }
 
 // IssueUpdateIntentInput is the nested input object that carries the rationale
@@ -1062,7 +1062,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 			// `intent` object (IssueUpdateIntent). While that migration is in
 			// flight, gate the payload shape behind a feature flag so we can
 			// switch over without breaking the un-migrated schema.
-			useIntentInput := deps.IsFeatureEnabled(ctx, FeatureFlagIssueFieldsUseUpdateIntent)
+			useIntentInput := deps.IsFeatureEnabled(ctx, FeatureFlagIssueFieldsUseIntent)
 			for _, fieldMap := range fieldMaps {
 				fieldID, err := RequiredParam[string](fieldMap, "field_id")
 				if err != nil {
@@ -1145,7 +1145,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				// on the feature flag.
 				if useIntentInput {
 					if rationalePtr != nil || confidencePtr != nil {
-						input.UpdateIntent = &IssueUpdateIntentInput{
+						input.Intent = &IssueUpdateIntentInput{
 							Rationale:  rationalePtr,
 							Confidence: confidencePtr,
 						}

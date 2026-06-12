@@ -16,12 +16,12 @@ const FeatureFlagIFCLabels = "ifc_labels"
 // and field_values enrichment in list_issues / search_issues output.
 const FeatureFlagIssueFields = "remote_mcp_issue_fields"
 
-// FeatureFlagIssueFieldsUseUpdateIntent is the feature flag name for sending the
-// rationale and confidence on issue field mutations as a nested `update_intent`
+// FeatureFlagIssueFieldsUseIntent is the feature flag name for sending the
+// rationale and confidence on issue field mutations as a nested `intent`
 // object (IssueUpdateIntent) instead of as flat fields. It exists so the
 // set_issue_fields tool can switch payload shapes while the backend migrates
 // IssueFieldCreateOrUpdateInput from IssueEventRationale to IssueUpdateIntent.
-const FeatureFlagIssueFieldsUseUpdateIntent = "issue_fields_use_update_intent"
+const FeatureFlagIssueFieldsUseIntent = "issue_fields_use_intent"
 
 // FeatureFlagFileBlame is the feature flag name for the get_file_blame tool,
 // which exposes git blame information for a file. It is gated so the extra tool

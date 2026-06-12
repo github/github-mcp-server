@@ -2048,7 +2048,7 @@ func TestGranularSetIssueFields(t *testing.T) {
 							TextValue: githubv4.NewString(githubv4.String("hello")),
 							// rationale and confidence are nested under intent,
 							// while suggest stays a flat field.
-							UpdateIntent: &IssueUpdateIntentInput{
+							Intent: &IssueUpdateIntentInput{
 								Rationale:  githubv4.NewString(githubv4.String("Reflects the reported severity")),
 								Confidence: &confidence,
 							},
@@ -2073,7 +2073,7 @@ func TestGranularSetIssueFields(t *testing.T) {
 		deps := BaseDeps{
 			GQLClient: gqlClient,
 			featureChecker: func(_ context.Context, flag string) (bool, error) {
-				return flag == FeatureFlagIssueFieldsUseUpdateIntent, nil
+				return flag == FeatureFlagIssueFieldsUseIntent, nil
 			},
 		}
 		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
