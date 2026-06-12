@@ -32,7 +32,6 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagCSVOutput,
 	FeatureFlagIFCLabels,
 	FeatureFlagIssueFields,
-	FeatureFlagIssueFieldsUseUpdateIntent,
 	FeatureFlagIssuesGranular,
 	FeatureFlagPullRequestsGranular,
 }
