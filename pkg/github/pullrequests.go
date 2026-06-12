@@ -1653,17 +1653,17 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.Serv
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name: "pull_request_review_write",
-			Description: t("TOOL_PULL_REQUEST_REVIEW_WRITE_DESCRIPTION", `Create and/or submit, delete review of a pull request.
+			Description: t("TOOL_PULL_REQUEST_REVIEW_WRITE_DESCRIPTION", `Create pending reviews, submit pending reviews, delete pending reviews, and resolve or unresolve review threads.
 
 Available methods:
-- create: Create a new review of a pull request. If "event" parameter is provided, the review is submitted. If "event" is omitted, a pending review is created.
+- create: Create a new review of a pull request. If "event" parameter is provided, the review is submitted. If "event" is omitted, a pending review is created and is not submitted.
 - submit_pending: Submit an existing pending review of a pull request. This requires that a pending review exists for the current user on the specified pull request. The "body" and "event" parameters are used when submitting the review.
 - delete_pending: Delete an existing pending review of a pull request. This requires that a pending review exists for the current user on the specified pull request.
 - resolve_thread: Resolve a review thread. Requires only "threadId" parameter with the thread's node ID (e.g., PRRT_kwDOxxx). The owner, repo, and pullNumber parameters are not used for this method. Resolving an already-resolved thread is a no-op.
 - unresolve_thread: Unresolve a previously resolved review thread. Requires only "threadId" parameter. The owner, repo, and pullNumber parameters are not used for this method. Unresolving an already-unresolved thread is a no-op.
 `),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews"),
+				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Create pending, submit, delete pull request reviews"),
 				ReadOnlyHint: false,
 			},
 			InputSchema: schema,
