@@ -17,7 +17,7 @@ const FeatureFlagIFCLabels = "ifc_labels"
 const FeatureFlagIssueFields = "remote_mcp_issue_fields"
 
 // FeatureFlagIssueFieldsUseUpdateIntent is the feature flag name for sending the
-// rationale and confidence on issue field mutations as a nested `intent`
+// rationale and confidence on issue field mutations as a nested `update_intent`
 // object (IssueUpdateIntent) instead of as flat fields. It exists so the
 // set_issue_fields tool can switch payload shapes while the backend migrates
 // IssueFieldCreateOrUpdateInput from IssueEventRationale to IssueUpdateIntent.
