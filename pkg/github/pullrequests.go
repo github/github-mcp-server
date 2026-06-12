@@ -1434,7 +1434,7 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		}).WithPermissions(permissions.Require(permissions.PullRequests.Write(), permissions.Contents.Write()))
+		}).WithPermissions(permissions.Require(permissions.Contents.Write()))
 }
 
 // SearchPullRequests creates a tool to search for pull requests.
@@ -1591,7 +1591,7 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		}).WithPermissions(permissions.Require(permissions.PullRequests.Write(), permissions.Contents.Write()))
+		}).WithPermissions(permissions.Require(permissions.PullRequests.Write()))
 }
 
 type PullRequestReviewWriteParams struct {

@@ -80,14 +80,16 @@ The generated table below is produced by `script/generate-docs` and lists every 
 | `pull_requests` | `add_reply_to_pull_request_comment` | `pull_requests:write` |
 | `pull_requests` | `create_pull_request` | `pull_requests:write` |
 | `pull_requests` | `list_pull_requests` | `pull_requests:read` |
-| `pull_requests` | `merge_pull_request` | `contents:write AND pull_requests:write` |
+| `pull_requests` | `merge_pull_request` | `contents:write` |
 | `pull_requests` | `pull_request_read` | `pull_requests:read` |
 | `pull_requests` | `pull_request_review_write` | `pull_requests:write` |
-| `pull_requests` | `update_pull_request_branch` | `contents:write AND pull_requests:write` |
+| `pull_requests` | `update_pull_request_branch` | `pull_requests:write` |
 | `pull_requests` | `update_pull_request` | `pull_requests:write` |
 | `repos` | `create_branch` | `contents:write` |
 | `repos` | `create_or_update_file` | `contents:write` |
+| `repos` | `create_repository` | `administration:write` |
 | `repos` | `delete_file` | `contents:write` |
+| `repos` | `fork_repository` | `administration:write AND contents:read` |
 | `repos` | `get_commit` | `contents:read` |
 | `repos` | `get_file_contents` | `contents:read` |
 | `repos` | `get_latest_release` | `contents:read` |
@@ -96,7 +98,7 @@ The generated table below is produced by `script/generate-docs` and lists every 
 | `repos` | `list_branches` | `contents:read` |
 | `repos` | `list_commits` | `contents:read` |
 | `repos` | `list_releases` | `contents:read` |
-| `repos` | `list_repository_collaborators` | `administration:read` |
+| `repos` | `list_repository_collaborators` | `metadata:read` |
 | `repos` | `list_tags` | `contents:read` |
 | `repos` | `push_files` | `contents:write` |
 | `secret_protection` | `get_secret_scanning_alert` | `secret_scanning_alerts:read` |
