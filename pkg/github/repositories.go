@@ -130,7 +130,7 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelCommitContents)
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Contents.Read()))
 }
 
 // ListCommits creates a tool to get commits of a branch in a repository.
@@ -676,7 +676,7 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Administration.Write()))
 }
 
 // FetchRepoIsPrivate returns whether a repository is private. It is a thin
@@ -986,7 +986,7 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Administration.Write(), permissions.Contents.Read()))
 }
 
 // DeleteFile creates a tool to delete a file in a GitHub repository.
@@ -1176,7 +1176,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Contents.Write()))
 }
 
 // CreateBranch creates a tool to create a new branch.
@@ -1728,7 +1728,7 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Contents.Read()))
 }
 
 // ListReleases creates a tool to list releases in a GitHub repository.
@@ -1827,7 +1827,7 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 				})
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Contents.Read()))
 }
 
 // GetLatestRelease creates a tool to get the latest release in a GitHub repository.
@@ -1902,7 +1902,7 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 				})
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Contents.Read()))
 }
 
 func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -1988,7 +1988,7 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 				})
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Contents.Read()))
 }
 
 // ListStarredRepositories creates a tool to list starred repositories for the authenticated user or a specified user.
@@ -2131,7 +2131,7 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.Ser
 			result = attachJoinedIFCLabel(ctx, deps, result, visibilities, ifc.LabelSearchIssues)
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Starring.Read()))
 }
 
 // StarRepository creates a tool to star a repository.
@@ -2197,7 +2197,7 @@ func StarRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			return utils.NewToolResultText(fmt.Sprintf("Successfully starred repository %s/%s", owner, repo)), nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Starring.Write()))
 }
 
 // UnstarRepository creates a tool to unstar a repository.
@@ -2262,7 +2262,7 @@ func UnstarRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 
 			return utils.NewToolResultText(fmt.Sprintf("Successfully unstarred repository %s/%s", owner, repo)), nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Starring.Write()))
 }
 
 // maxBlameRanges caps the number of matching blame ranges considered for one response.
@@ -2679,7 +2679,7 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			return utils.NewToolResultText(string(payload)), nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Contents.Read()))
 	st.FeatureFlagEnable = FeatureFlagFileBlame
 	return st
 }
@@ -2795,5 +2795,5 @@ func ListRepositoryCollaborators(t translations.TranslationHelperFunc) inventory
 			callResult = attachStaticIFCLabel(ctx, deps, callResult, ifc.LabelCollaboratorRoster())
 			return callResult, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Metadata.Read()))
 }

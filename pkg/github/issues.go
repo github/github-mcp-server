@@ -1216,7 +1216,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		})
+		}).WithPermissions(permissions.Require(permissions.Issues.Write()))
 }
 
 // SubIssueWrite creates a tool to add a sub-issue to a parent issue.
@@ -1330,7 +1330,7 @@ Options are:
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
-		})
+		}).WithPermissions(permissions.Require(permissions.Issues.Write()))
 	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}
 	return st
 }

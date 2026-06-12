@@ -57,23 +57,55 @@ The generated table below is produced by `script/generate-docs` and lists every 
 | `actions` | `get_job_logs` | `actions:read` |
 | `code_security` | `get_code_scanning_alert` | `security_events:read` |
 | `code_security` | `list_code_scanning_alerts` | `security_events:read` |
+| `context` | `get_team_members` | `members:read` |
+| `context` | `get_teams` | `members:read` |
 | `dependabot` | `get_dependabot_alert` | `vulnerability_alerts:read` |
 | `dependabot` | `list_dependabot_alerts` | `vulnerability_alerts:read` |
+| `discussions` | `discussion_comment_write` | `discussions:write` |
+| `discussions` | `get_discussion_comments` | `discussions:read` |
+| `discussions` | `get_discussion` | `discussions:read` |
+| `discussions` | `list_discussion_categories` | `discussions:read` |
+| `discussions` | `list_discussions` | `discussions:read` |
+| `git` | `get_repository_tree` | `contents:read` |
+| `issues` | `add_issue_comment` | `issues:write` |
+| `issues` | `get_label` | `issues:read` |
 | `issues` | `issue_read` | `issues:read` |
 | `issues` | `issue_write` | `issues:write` |
 | `issues` | `list_issues` | `issues:read` |
+| `issues` | `sub_issue_write` | `issues:write` |
+| `labels` | `get_label` | `issues:read` |
+| `labels` | `label_write` | `issues:write` |
+| `labels` | `list_label` | `issues:read` |
+| `pull_requests` | `add_comment_to_pending_review` | `pull_requests:write` |
+| `pull_requests` | `add_reply_to_pull_request_comment` | `pull_requests:write` |
 | `pull_requests` | `create_pull_request` | `pull_requests:write` |
 | `pull_requests` | `list_pull_requests` | `pull_requests:read` |
+| `pull_requests` | `merge_pull_request` | `contents:write` |
 | `pull_requests` | `pull_request_read` | `pull_requests:read` |
+| `pull_requests` | `pull_request_review_write` | `pull_requests:write` |
+| `pull_requests` | `update_pull_request_branch` | `pull_requests:write` |
+| `pull_requests` | `update_pull_request` | `pull_requests:write` |
 | `repos` | `create_branch` | `contents:write` |
 | `repos` | `create_or_update_file` | `contents:write` |
+| `repos` | `create_repository` | `administration:write` |
+| `repos` | `delete_file` | `contents:write` |
+| `repos` | `fork_repository` | `administration:write AND contents:read` |
+| `repos` | `get_commit` | `contents:read` |
 | `repos` | `get_file_contents` | `contents:read` |
+| `repos` | `get_latest_release` | `contents:read` |
+| `repos` | `get_release_by_tag` | `contents:read` |
+| `repos` | `get_tag` | `contents:read` |
 | `repos` | `list_branches` | `contents:read` |
 | `repos` | `list_commits` | `contents:read` |
+| `repos` | `list_releases` | `contents:read` |
+| `repos` | `list_repository_collaborators` | `metadata:read` |
 | `repos` | `list_tags` | `contents:read` |
 | `repos` | `push_files` | `contents:write` |
 | `secret_protection` | `get_secret_scanning_alert` | `secret_scanning_alerts:read` |
 | `secret_protection` | `list_secret_scanning_alerts` | `secret_scanning_alerts:read` |
+| `stargazers` | `list_starred_repositories` | `starring:read` |
+| `stargazers` | `star_repository` | `starring:write` |
+| `stargazers` | `unstar_repository` | `starring:write` |
 <!-- END AUTOMATED PERMISSIONS -->
 
 ## Related Documentation

@@ -30,7 +30,6 @@ The list below is generated from the Go source. It covers tool **inventory and s
 
 - **create_pull_request** - Open new pull request
   - **Required OAuth Scopes**: `repo`
-  - **Required Permissions (fine-grained)**: `pull_requests:write`
   - **MCP App UI**: `ui://github-mcp-server/pr-write`
   - `base`: Branch to merge into (string, required)
   - `body`: PR description (string, optional)
@@ -47,7 +46,6 @@ The list below is generated from the Go source. It covers tool **inventory and s
 
 - **issue_write** - Create or update issue/pull request
   - **Required OAuth Scopes**: `repo`
-  - **Required Permissions (fine-grained)**: `issues:write`
   - **MCP App UI**: `ui://github-mcp-server/issue-write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
@@ -71,7 +69,6 @@ The list below is generated from the Go source. It covers tool **inventory and s
 
 - **issue_write** - Create or update issue/pull request
   - **Required OAuth Scopes**: `repo`
-  - **Required Permissions (fine-grained)**: `issues:write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
@@ -99,7 +96,6 @@ The list below is generated from the Go source. It covers tool **inventory and s
 
 - **list_issues** - List issues
   - **Required OAuth Scopes**: `repo`
-  - **Required Permissions (fine-grained)**: `issues:read`
   - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
   - `field_filters`: Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date). (object[], optional)

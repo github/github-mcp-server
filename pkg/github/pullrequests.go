@@ -1078,7 +1078,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		})
+		}).WithPermissions(permissions.Require(permissions.PullRequests.Write()))
 	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
@@ -1171,7 +1171,7 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		})
+		}).WithPermissions(permissions.Require(permissions.PullRequests.Write()))
 }
 
 // ListPullRequests creates a tool to list and filter repository pull requests.
@@ -1434,7 +1434,7 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		})
+		}).WithPermissions(permissions.Require(permissions.Contents.Write()))
 }
 
 // SearchPullRequests creates a tool to search for pull requests.
@@ -1591,7 +1591,7 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		})
+		}).WithPermissions(permissions.Require(permissions.PullRequests.Write()))
 }
 
 type PullRequestReviewWriteParams struct {
@@ -1701,7 +1701,7 @@ Available methods:
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
 			}
-		})
+		}).WithPermissions(permissions.Require(permissions.PullRequests.Write()))
 	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }
@@ -2198,7 +2198,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 				StartSide:   params.StartSide,
 			})
 			return result, nil, err
-		})
+		}).WithPermissions(permissions.Require(permissions.PullRequests.Write()))
 	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
 	return st
 }

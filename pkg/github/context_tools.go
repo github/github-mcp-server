@@ -8,6 +8,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/permissions"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -223,7 +224,7 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelTeam())
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Members.Read()))
 }
 
 func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -299,5 +300,5 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelTeam())
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Members.Read()))
 }

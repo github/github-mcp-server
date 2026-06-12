@@ -9,6 +9,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/permissions"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -112,7 +113,7 @@ func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
 			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Issues.Read()))
 }
 
 // GetLabelForLabelsToolset returns the same GetLabel tool but registered in the labels toolset.
@@ -215,7 +216,7 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Issues.Read()))
 }
 
 // LabelWrite handles create, update, and delete operations for GitHub labels
@@ -407,7 +408,7 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: create, update, delete", method)), nil, nil
 			}
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Issues.Write()))
 }
 
 // Helper function to get repository ID

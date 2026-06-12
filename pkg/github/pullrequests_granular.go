@@ -9,6 +9,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/permissions"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -104,7 +105,7 @@ func prUpdateTool(
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
-	return st
+	return st.WithPermissions(permissions.Require(permissions.PullRequests.Write()))
 }
 
 // GranularUpdatePullRequestTitle creates a tool to update a PR's title.
@@ -273,7 +274,7 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
-	return st
+	return st.WithPermissions(permissions.Require(permissions.PullRequests.Write()))
 }
 
 // GranularRequestPullRequestReviewers creates a tool to request reviewers.
@@ -352,7 +353,7 @@ func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) i
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
-	return st
+	return st.WithPermissions(permissions.Require(permissions.PullRequests.Write()))
 }
 
 func splitPullRequestReviewers(reviewers []string) ([]string, []string) {
@@ -437,7 +438,7 @@ func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inven
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
-	return st
+	return st.WithPermissions(permissions.Require(permissions.PullRequests.Write()))
 }
 
 // GranularSubmitPendingPullRequestReview creates a tool to submit a pending review.
@@ -501,7 +502,7 @@ func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
-	return st
+	return st.WithPermissions(permissions.Require(permissions.PullRequests.Write()))
 }
 
 // GranularDeletePendingPullRequestReview creates a tool to delete a pending review.
@@ -556,7 +557,7 @@ func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
-	return st
+	return st.WithPermissions(permissions.Require(permissions.PullRequests.Write()))
 }
 
 // GranularAddPullRequestReviewComment creates a tool to add a review comment.
@@ -667,7 +668,7 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
-	return st
+	return st.WithPermissions(permissions.Require(permissions.PullRequests.Write()))
 }
 
 // GranularResolveReviewThread creates a tool to resolve a review thread.
@@ -711,7 +712,7 @@ func GranularResolveReviewThread(t translations.TranslationHelperFunc) inventory
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
-	return st
+	return st.WithPermissions(permissions.Require(permissions.PullRequests.Write()))
 }
 
 // GranularUnresolveReviewThread creates a tool to unresolve a review thread.
@@ -755,5 +756,5 @@ func GranularUnresolveReviewThread(t translations.TranslationHelperFunc) invento
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
-	return st
+	return st.WithPermissions(permissions.Require(permissions.PullRequests.Write()))
 }

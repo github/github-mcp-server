@@ -8,6 +8,7 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/permissions"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -279,7 +280,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelListIssues)
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Discussions.Read()))
 }
 
 func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -387,7 +388,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, params.Owner, params.Repo, result, ifc.LabelListIssues)
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Discussions.Read()))
 }
 
 func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -595,7 +596,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, params.Owner, params.Repo, result, ifc.LabelListIssues)
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Discussions.Read()))
 }
 
 func DiscussionCommentWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -678,7 +679,7 @@ Options are:
 			default:
 				return utils.NewToolResultError("invalid method, must be one of: 'add', 'reply', 'update', 'delete', 'mark_answer', 'unmark_answer'"), nil, nil
 			}
-		})
+		}).WithPermissions(permissions.Require(permissions.Discussions.Write()))
 }
 
 func addDiscussionComment(ctx context.Context, client *githubv4.Client, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -1103,5 +1104,5 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Discussions.Read()))
 }
