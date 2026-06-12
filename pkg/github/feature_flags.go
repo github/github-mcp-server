@@ -23,6 +23,11 @@ const FeatureFlagIssueFields = "remote_mcp_issue_fields"
 // IssueFieldCreateOrUpdateInput from IssueEventRationale to IssueUpdateIntent.
 const FeatureFlagIssueFieldsUseUpdateIntent = "issue_fields_use_update_intent"
 
+// FeatureFlagFileBlame is the feature flag name for the get_file_blame tool,
+// which exposes git blame information for a file. It is gated so the extra tool
+// is not advertised by default, keeping the tool surface small unless opted in.
+const FeatureFlagFileBlame = "file_blame"
+
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag or X-MCP-Features HTTP header.
 // Only flags in this list are accepted; unknown flags are silently ignored.
@@ -34,6 +39,7 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagIssueFields,
 	FeatureFlagIssuesGranular,
 	FeatureFlagPullRequestsGranular,
+	FeatureFlagFileBlame,
 }
 
 // InsidersFeatureFlags is the list of feature flags that insiders mode enables.
@@ -44,6 +50,7 @@ var InsidersFeatureFlags = []string{
 	MCPAppsFeatureFlag,
 	FeatureFlagCSVOutput,
 	FeatureFlagIssueFields,
+	FeatureFlagFileBlame,
 }
 
 // FeatureFlags defines runtime feature toggles that adjust tool behavior.

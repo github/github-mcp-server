@@ -107,6 +107,19 @@ The list below is generated from the Go source. It covers tool **inventory and s
   - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
   - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
 
+### `file_blame`
+
+- **get_file_blame** - Get file blame information
+  - **Required OAuth Scopes**: `repo`
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
+  - `end_line`: Optional 1-based ending line of the window of interest. Must be >= start_line when both are provided. (number, optional)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `path`: Path to the file in the repository, relative to the repository root (string, required)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `ref`: Git reference (branch, tag, or commit SHA). Defaults to the repository's default branch (HEAD). (string, optional)
+  - `repo`: Repository name (string, required)
+  - `start_line`: Optional 1-based starting line of the window of interest. Only ranges overlapping [start_line, end_line] are returned, clamped to the window. (number, optional)
+
 <!-- END AUTOMATED INSIDERS TOOLS -->
 
 ---

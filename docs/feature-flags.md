@@ -287,4 +287,17 @@ runtime behavior (such as output formatting) won't appear here.
   - `repo`: Repository name (string, required)
   - `title`: The new title for the pull request (string, required)
 
+### `file_blame`
+
+- **get_file_blame** - Get file blame information
+  - **Required OAuth Scopes**: `repo`
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
+  - `end_line`: Optional 1-based ending line of the window of interest. Must be >= start_line when both are provided. (number, optional)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `path`: Path to the file in the repository, relative to the repository root (string, required)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `ref`: Git reference (branch, tag, or commit SHA). Defaults to the repository's default branch (HEAD). (string, optional)
+  - `repo`: Repository name (string, required)
+  - `start_line`: Optional 1-based starting line of the window of interest. Only ranges overlapping [start_line, end_line] are returned, clamped to the window. (number, optional)
+
 <!-- END AUTOMATED FEATURE FLAG TOOLS -->
