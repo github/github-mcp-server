@@ -50,7 +50,7 @@ runtime behavior (such as output formatting) won't appear here.
   - **MCP App UI**: `ui://github-mcp-server/get-me`
   - No parameters required
 
-- **issue_write** - Create or update issue
+- **issue_write** - Create or update issue/pull request
   - **Required OAuth Scopes**: `repo`
   - **MCP App UI**: `ui://github-mcp-server/issue-write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
@@ -73,7 +73,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 ### `remote_mcp_issue_fields`
 
-- **issue_write** - Create or update issue
+- **issue_write** - Create or update issue/pull request
   - **Required OAuth Scopes**: `repo`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
@@ -102,7 +102,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **list_issues** - List issues
   - **Required OAuth Scopes**: `repo`
-  - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
   - `field_filters`: Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date). (object[], optional)
   - `labels`: Filter by labels (string[], optional)
@@ -286,5 +286,18 @@ runtime behavior (such as output formatting) won't appear here.
   - `pullNumber`: The pull request number (number, required)
   - `repo`: Repository name (string, required)
   - `title`: The new title for the pull request (string, required)
+
+### `file_blame`
+
+- **get_file_blame** - Get file blame information
+  - **Required OAuth Scopes**: `repo`
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
+  - `end_line`: Optional 1-based ending line of the window of interest. Must be >= start_line when both are provided. (number, optional)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `path`: Path to the file in the repository, relative to the repository root (string, required)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `ref`: Git reference (branch, tag, or commit SHA). Defaults to the repository's default branch (HEAD). (string, optional)
+  - `repo`: Repository name (string, required)
+  - `start_line`: Optional 1-based starting line of the window of interest. Only ranges overlapping [start_line, end_line] are returned, clamped to the window. (number, optional)
 
 <!-- END AUTOMATED FEATURE FLAG TOOLS -->

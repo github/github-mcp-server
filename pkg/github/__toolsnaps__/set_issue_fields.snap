@@ -4,7 +4,7 @@
     "openWorldHint": true,
     "title": "Set Issue Fields"
   },
-  "description": "Set issue field values for an issue. Fields are organization-level custom fields (text, number, date, or single select). Use this to create or update field values on an issue. When setting values, include a confidence level (low, medium, or high) reflecting how certain you are about the choice.",
+  "description": "Set issue field values for an issue. Fields are organization-level custom fields (text, number, date, or single select). Use this to create or update field values on an issue.",
   "inputSchema": {
     "properties": {
       "fields": {

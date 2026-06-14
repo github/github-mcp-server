@@ -69,6 +69,7 @@ const (
 	// Pull request endpoints
 	GetReposPullsByOwnerByRepo                                = "GET /repos/{owner}/{repo}/pulls"
 	GetReposPullsByOwnerByRepoByPullNumber                    = "GET /repos/{owner}/{repo}/pulls/{pull_number}"
+	GetReposPullsCommitsByOwnerByRepoByPullNumber             = "GET /repos/{owner}/{repo}/pulls/{pull_number}/commits"
 	GetReposPullsFilesByOwnerByRepoByPullNumber               = "GET /repos/{owner}/{repo}/pulls/{pull_number}/files"
 	GetReposPullsReviewsByOwnerByRepoByPullNumber             = "GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews"
 	PostReposPullsByOwnerByRepo                               = "POST /repos/{owner}/{repo}/pulls"

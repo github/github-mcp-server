@@ -1,4 +1,4 @@
-FROM node:26-alpine@sha256:7c6af15abe4e3de859690e7db171d0d711bf37d27528eddfe625b2fe89e097f8 AS ui-build
+FROM node:26-alpine@sha256:144769ec3f32e8ee36b3cfde91e82bee25d9367b20f31a151f3f7eea3a2a8541 AS ui-build
 WORKDIR /app
 COPY ui/package*.json ./ui/
 RUN cd ui && npm ci
@@ -7,7 +7,7 @@ COPY ui/ ./ui/
 RUN mkdir -p ./pkg/github/ui_dist && \
     cd ui && npm run build
 
-FROM golang:1.25.10-alpine@sha256:8d22e29d960bc50cd025d93d5b7c7d220b1ee9aa7a239b3c8f55a57e987e8d45 AS build
+FROM golang:1.25.11-alpine@sha256:cd2fb3559df6e13bc93b7f0734a4eabe1d21e7b64eec211ed90784f00a17a56a AS build
 ARG VERSION="dev"
 
 # Set the working directory
