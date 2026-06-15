@@ -180,6 +180,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		SearchCode(t),
 		SearchCommits(t),
 		GetCommit(t),
+		GetFileBlame(t),
 		ListBranches(t),
 		ListTags(t),
 		GetTag(t),
@@ -208,6 +209,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListIssueTypes(t),
 		ListIssueFields(t),
 		IssueWrite(t),
+		LegacyIssueWrite(t),
 		AddIssueComment(t),
 		SubIssueWrite(t),
 

@@ -399,7 +399,7 @@ func (d *RequestDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAcc
 	}
 
 	// Create repo access cache
-	instance := lockdown.GetInstance(gqlClient, restClient, d.RepoAccessOpts...)
+	instance := lockdown.NewRepoAccessCache(gqlClient, restClient, d.RepoAccessOpts...)
 	return instance, nil
 }
 

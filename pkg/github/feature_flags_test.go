@@ -148,7 +148,7 @@ func TestResolveFeatureFlags(t *testing.T) {
 			name:            "no features, no insiders",
 			enabledFeatures: nil,
 			expectedFlags:   nil,
-			unexpectedFlags: []string{MCPAppsFeatureFlag, FeatureFlagIFCLabels},
+			unexpectedFlags: []string{MCPAppsFeatureFlag},
 		},
 		{
 			name:            "explicit feature enabled",
@@ -162,16 +162,15 @@ func TestResolveFeatureFlags(t *testing.T) {
 			expectedFlags:   InsidersFeatureFlags,
 		},
 		{
-			name:            "insiders mode enables internal-only flags",
+			name:            "insiders mode does not auto-enable ifc labels",
 			enabledFeatures: nil,
 			insidersMode:    true,
-			expectedFlags:   []string{FeatureFlagIFCLabels},
+			unexpectedFlags: []string{FeatureFlagIFCLabels},
 		},
 		{
-			name:            "internal-only flags are not directly enabled",
+			name:            "ifc_labels can be directly enabled",
 			enabledFeatures: []string{FeatureFlagIFCLabels},
-			expectedFlags:   nil,
-			unexpectedFlags: []string{FeatureFlagIFCLabels},
+			expectedFlags:   []string{FeatureFlagIFCLabels},
 		},
 		{
 			name:            "unknown flags are filtered out",

@@ -460,16 +460,19 @@ func fetchExistingIssueFieldValues(ctx context.Context, gqlClient *githubv4.Clie
 
 // mergeIssueFieldValues returns a merged slice where incoming values override existing ones
 // for the same field ID, and existing fields not present in incoming are preserved.
+// Ordering is deterministic: incoming entries first in their original order, followed by any
+// existing entries (in their original order) whose field IDs weren't seen in incoming.
 func mergeIssueFieldValues(existing, incoming []*github.IssueRequestFieldValue) []*github.IssueRequestFieldValue {
-	merged := make(map[int64]*github.IssueRequestFieldValue, len(existing)+len(incoming))
-	for _, v := range existing {
-		merged[v.FieldID] = v
-	}
+	seen := make(map[int64]struct{}, len(incoming))
+	result := make([]*github.IssueRequestFieldValue, 0, len(existing)+len(incoming))
 	for _, v := range incoming {
-		merged[v.FieldID] = v
+		seen[v.FieldID] = struct{}{}
+		result = append(result, v)
 	}
-	result := make([]*github.IssueRequestFieldValue, 0, len(merged))
-	for _, v := range merged {
+	for _, v := range existing {
+		if _, ok := seen[v.FieldID]; ok {
+			continue
+		}
 		result = append(result, v)
 	}
 	return result
@@ -801,20 +804,7 @@ Options are:
 			// attachIFC adds the IFC label to a successful tool result when
 			// IFC labels are enabled. If the visibility lookup fails the
 			// label is omitted rather than misclassifying the result.
-			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
-				if r == nil || r.IsError || !deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
-					return r
-				}
-				isPrivate, err := FetchRepoIsPrivate(ctx, client, owner, repo)
-				if err != nil {
-					return r
-				}
-				if r.Meta == nil {
-					r.Meta = mcp.Meta{}
-				}
-				r.Meta["ifc"] = ifc.LabelListIssues(isPrivate)
-				return r
-			}
+			attachIFC := newRepoVisibilityIFCLabeler(ctx, deps, client, owner, repo, ifc.LabelListIssues)
 
 			switch method {
 			case "get":
@@ -884,13 +874,16 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 
 	minimalIssue := convertToMinimalIssue(issue)
 
-	// Enrich with field_values via GraphQL for consistency with list_issues/search_issues
-	if issue != nil && issue.NodeID != nil && *issue.NodeID != "" {
-		gqlClient, err := deps.GetGQLClient(ctx)
-		if err == nil {
-			if fieldValuesByID, err := fetchIssueFieldValuesByNodeID(ctx, gqlClient, []*github.Issue{issue}); err == nil {
-				minimalIssue.FieldValues = fieldValuesByID[*issue.NodeID]
-				minimalIssue.IssueFieldValues = nil // Clear verbose REST format
+	// Always drop the verbose REST IssueFieldValues; only enrich with the GraphQL
+	// field_values view when the issue-fields feature flag is on.
+	minimalIssue.IssueFieldValues = nil
+	if deps.IsFeatureEnabled(ctx, FeatureFlagIssueFields) {
+		if issue != nil && issue.NodeID != nil && *issue.NodeID != "" {
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err == nil {
+				if fieldValuesByID, err := fetchIssueFieldValuesByNodeID(ctx, gqlClient, []*github.Issue{issue}); err == nil {
+					minimalIssue.FieldValues = fieldValuesByID[*issue.NodeID]
+				}
 			}
 		}
 	}
@@ -1126,7 +1119,13 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultErrorFromErr("failed to marshal issue types", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Issue types are org-defined structural metadata (trusted, not
+			// attacker-authored). They are scoped to an organization rather
+			// than a single repo, so confidentiality is conservatively treated
+			// as private (restricted to org members).
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoMetadata(true))
+			return result, nil, nil
 		})
 }
 
@@ -1138,7 +1137,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			Name:        "add_issue_comment",
 			Description: t("TOOL_ADD_ISSUE_COMMENT_DESCRIPTION", "Add a comment to a specific issue in a GitHub repository. Use this tool to add comments to pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add review comments."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ADD_ISSUE_COMMENT_USER_TITLE", "Add comment to issue"),
+				Title:        t("TOOL_ADD_ISSUE_COMMENT_USER_TITLE", "Add comment to issue or pull request"),
 				ReadOnlyHint: false,
 			},
 			InputSchema: &jsonschema.Schema{
@@ -1331,7 +1330,7 @@ Options are:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		})
-	st.FeatureFlagDisable = FeatureFlagIssuesGranular
+	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}
 	return st
 }
 
@@ -1505,11 +1504,7 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			var options []searchOption
-			if deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
-				options = append(options, withSearchPostProcess(searchIssuesIFCPostProcess(deps)))
-			}
-			result, err := searchIssuesHandler(ctx, deps, args, options...)
+			result, err := searchIssuesHandler(ctx, deps, args, ifcSearchPostProcessOption(ctx, deps))
 			return result, nil, err
 		})
 }
@@ -1754,10 +1749,45 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 	return callResult, nil
 }
 
-// IssueWrite creates a tool to create a new or update an existing issue in a GitHub repository.
 // IssueWriteUIResourceURI is the URI for the issue_write tool's MCP App UI resource.
 const IssueWriteUIResourceURI = "ui://github-mcp-server/issue-write"
 
+// issueWriteFormParams are the parameters the issue_write MCP App form collects
+// and re-sends on submit. The form only supports title/body editing (plus the
+// routing/identity fields), so any other parameter present on a call cannot be
+// represented by the form.
+var issueWriteFormParams = map[string]struct{}{
+	"method":        {},
+	"owner":         {},
+	"repo":          {},
+	"title":         {},
+	"body":          {},
+	"issue_number":  {},
+	"_ui_submitted": {},
+}
+
+// issueWriteHasNonFormParams reports whether the call carries any parameter the
+// issue_write MCP App form cannot represent (anything outside issueWriteFormParams,
+// e.g. labels, assignees, issue_fields or a state change). Such calls must bypass
+// the UI form and execute directly so the supplied values aren't silently dropped.
+func issueWriteHasNonFormParams(args map[string]any) bool {
+	for key, value := range args {
+		if value == nil {
+			continue
+		}
+		if _, ok := issueWriteFormParams[key]; !ok {
+			return true
+		}
+	}
+	return false
+}
+
+// IssueWrite is the FeatureFlagIssueFields-enabled variant of issue_write
+// (with the issue_fields parameter). LegacyIssueWrite is served when the flag
+// is off. Both register under the tool name "issue_write"; exactly one is
+// active at a time via mutually exclusive feature-flag annotations. When the
+// flag is removed, delete LegacyIssueWrite outright and drop the feature-flag
+// fields on IssueWrite.
 func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
@@ -1765,7 +1795,7 @@ func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "issue_write",
 			Description: t("TOOL_ISSUE_WRITE_DESCRIPTION", "Create a new or update an existing issue in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ISSUE_WRITE_USER_TITLE", "Create or update issue"),
+				Title:        t("TOOL_ISSUE_WRITE_USER_TITLE", "Create or update issue/pull request"),
 				ReadOnlyHint: false,
 			},
 			Meta: mcp.Meta{
@@ -1897,26 +1927,22 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When MCP Apps are enabled and the client supports UI,
-			// check if this is a UI form submission. The UI sends _ui_submitted=true
-			// to distinguish form submissions from LLM calls.
+			// When MCP Apps are enabled and the client supports UI, route the
+			// call to the interactive form unless it is itself a form submission
+			// (the UI sends _ui_submitted=true) or it carries parameters the form
+			// cannot represent (e.g. labels, assignees or issue_fields). Those
+			// must be applied directly so their values aren't silently dropped.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted {
+			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && !issueWriteHasNonFormParams(args) {
 				if method == "update" {
-					// Skip the UI form when a state change is requested because
-					// the form only handles title/body editing and would lose the
-					// state transition (e.g. closing or reopening the issue).
-					if _, hasState := args["state"]; !hasState {
-						issueNumber, numErr := RequiredInt(args, "issue_number")
-						if numErr != nil {
-							return utils.NewToolResultError("issue_number is required for update method"), nil, nil
-						}
-						return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. IMPORTANT: The issue has NOT been updated yet. Do NOT tell the user the issue was updated. The user MUST click Submit in the form to update it.", issueNumber, owner, repo)), nil, nil
+					issueNumber, numErr := RequiredInt(args, "issue_number")
+					if numErr != nil {
+						return utils.NewToolResultError("issue_number is required for update method"), nil, nil
 					}
-				} else {
-					return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. IMPORTANT: The issue has NOT been created yet. Do NOT tell the user the issue was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
+					return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. IMPORTANT: The issue has NOT been updated yet. Do NOT tell the user the issue was updated. The user MUST click Submit in the form to update it.", issueNumber, owner, repo)), nil, nil
 				}
+				return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. IMPORTANT: The issue has NOT been created yet. Do NOT tell the user the issue was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
 			}
 
 			title, err := OptionalParam[string](args, "title")
@@ -1935,12 +1961,16 @@ Options are:
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			assigneesValue, assigneesProvided := args["assignees"]
+			assigneesProvided = assigneesProvided && assigneesValue != nil
 
 			// Get labels
 			labels, err := OptionalStringArrayParam(args, "labels")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			labelsValue, labelsProvided := args["labels"]
+			labelsProvided = labelsProvided && labelsValue != nil
 
 			// Get optional milestone
 			milestone, err := OptionalIntParam(args, "milestone")
@@ -1978,7 +2008,8 @@ Options are:
 				return utils.NewToolResultError("duplicate_of can only be used when state_reason is 'duplicate'"), nil, nil
 			}
 
-			issueFields, err := optionalIssueWriteFields(args)
+			var issueFields []issueWriteFieldInput
+			issueFields, err = optionalIssueWriteFields(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -1993,9 +2024,13 @@ Options are:
 				return utils.NewToolResultErrorFromErr("failed to get GraphQL client", err), nil, nil
 			}
 
-			issueFieldValues, fieldIDsToDelete, err := resolveIssueRequestFieldValues(ctx, gqlClient, owner, repo, issueFields)
-			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to resolve issue_fields: %v", err)), nil, nil
+			var issueFieldValues []*github.IssueRequestFieldValue
+			var fieldIDsToDelete []int64
+			if len(issueFields) > 0 {
+				issueFieldValues, fieldIDsToDelete, err = resolveIssueRequestFieldValues(ctx, gqlClient, owner, repo, issueFields)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("failed to resolve issue_fields: %v", err)), nil, nil
+				}
 			}
 
 			switch method {
@@ -2007,13 +2042,240 @@ Options are:
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf)
+				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, UpdateIssueOptions{
+					AssigneesProvided: assigneesProvided,
+					LabelsProvided:    labelsProvided,
+				})
 				return result, nil, err
 			default:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
 			}
 		})
-	st.FeatureFlagDisable = FeatureFlagIssuesGranular
+	st.FeatureFlagEnable = FeatureFlagIssueFields
+	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}
+	return st
+}
+
+// LegacyIssueWrite is the FeatureFlagIssueFields-disabled variant of issue_write.
+// It is a near-verbatim copy of IssueWrite minus the issue_fields schema
+// property, the issue_fields handler block, and the related GraphQL field
+// resolution. Kept as a full duplicate so removing the FeatureFlagIssueFields
+// flag is a single-function delete. Hidden whenever the granular toolset or
+// the issue-fields flag is on.
+func LegacyIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "issue_write",
+			Description: t("TOOL_ISSUE_WRITE_DESCRIPTION", "Create a new or update an existing issue in a GitHub repository."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_ISSUE_WRITE_USER_TITLE", "Create or update issue/pull request"),
+				ReadOnlyHint: false,
+			},
+			Meta: mcp.Meta{
+				"ui": map[string]any{
+					"resourceUri": IssueWriteUIResourceURI,
+					"visibility":  []string{"model", "app"},
+				},
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"method": {
+						Type: "string",
+						Description: `Write operation to perform on a single issue.
+Options are:
+- 'create' - creates a new issue.
+- 'update' - updates an existing issue.
+`,
+						Enum: []any{"create", "update"},
+					},
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"issue_number": {
+						Type:        "number",
+						Description: "Issue number to update",
+					},
+					"title": {
+						Type:        "string",
+						Description: "Issue title",
+					},
+					"body": {
+						Type:        "string",
+						Description: "Issue body content",
+					},
+					"assignees": {
+						Type:        "array",
+						Description: "Usernames to assign to this issue",
+						Items: &jsonschema.Schema{
+							Type: "string",
+						},
+					},
+					"labels": {
+						Type:        "array",
+						Description: "Labels to apply to this issue",
+						Items: &jsonschema.Schema{
+							Type: "string",
+						},
+					},
+					"milestone": {
+						Type:        "number",
+						Description: "Milestone number",
+					},
+					"type": {
+						Type:        "string",
+						Description: "Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter.",
+					},
+					"state": {
+						Type:        "string",
+						Description: "New state",
+						Enum:        []any{"open", "closed"},
+					},
+					"state_reason": {
+						Type:        "string",
+						Description: "Reason for the state change. Ignored unless state is changed.",
+						Enum:        []any{"completed", "not_planned", "duplicate"},
+					},
+					"duplicate_of": {
+						Type:        "number",
+						Description: "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
+					},
+				},
+				Required: []string{"method", "owner", "repo"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			method, err := RequiredParam[string](args, "method")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// When MCP Apps are enabled and the client supports UI, route the
+			// call to the interactive form unless it is itself a form submission
+			// (the UI sends _ui_submitted=true) or it carries parameters the form
+			// cannot represent (e.g. labels, assignees or issue_fields). Those
+			// must be applied directly so their values aren't silently dropped.
+			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
+
+			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && !issueWriteHasNonFormParams(args) {
+				if method == "update" {
+					issueNumber, numErr := RequiredInt(args, "issue_number")
+					if numErr != nil {
+						return utils.NewToolResultError("issue_number is required for update method"), nil, nil
+					}
+					return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. IMPORTANT: The issue has NOT been updated yet. Do NOT tell the user the issue was updated. The user MUST click Submit in the form to update it.", issueNumber, owner, repo)), nil, nil
+				}
+				return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. IMPORTANT: The issue has NOT been created yet. Do NOT tell the user the issue was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
+			}
+
+			title, err := OptionalParam[string](args, "title")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Optional parameters
+			body, err := OptionalParam[string](args, "body")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Get assignees
+			assignees, err := OptionalStringArrayParam(args, "assignees")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			assigneesValue, assigneesProvided := args["assignees"]
+			assigneesProvided = assigneesProvided && assigneesValue != nil
+
+			// Get labels
+			labels, err := OptionalStringArrayParam(args, "labels")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			labelsValue, labelsProvided := args["labels"]
+			labelsProvided = labelsProvided && labelsValue != nil
+
+			// Get optional milestone
+			milestone, err := OptionalIntParam(args, "milestone")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			var milestoneNum int
+			if milestone != 0 {
+				milestoneNum = milestone
+			}
+
+			// Get optional type
+			issueType, err := OptionalParam[string](args, "type")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Handle state, state_reason and duplicateOf parameters
+			state, err := OptionalParam[string](args, "state")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			stateReason, err := OptionalParam[string](args, "state_reason")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			duplicateOf, err := OptionalIntParam(args, "duplicate_of")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if duplicateOf != 0 && stateReason != "duplicate" {
+				return utils.NewToolResultError("duplicate_of can only be used when state_reason is 'duplicate'"), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GraphQL client", err), nil, nil
+			}
+
+			switch method {
+			case "create":
+				result, err := CreateIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType, nil)
+				return result, nil, err
+			case "update":
+				issueNumber, err := RequiredInt(args, "issue_number")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, nil, nil, state, stateReason, duplicateOf, UpdateIssueOptions{
+					AssigneesProvided: assigneesProvided,
+					LabelsProvided:    labelsProvided,
+				})
+				return result, nil, err
+			default:
+				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
+			}
+		})
+	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular, FeatureFlagIssueFields}
 	return st
 }
 
@@ -2071,7 +2333,24 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 	return utils.NewToolResultText(string(r)), nil
 }
 
-func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldIDsToDelete []int64, state string, stateReason string, duplicateOf int) (*mcp.CallToolResult, error) {
+// UpdateIssueOptions controls which optional fields are included in an issue update request.
+type UpdateIssueOptions struct {
+	// AssigneesProvided sends the assignees field even when the slice is empty.
+	AssigneesProvided bool
+	// LabelsProvided sends the labels field even when the slice is empty.
+	LabelsProvided bool
+}
+
+func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldIDsToDelete []int64, state string, stateReason string, duplicateOf int, opts ...UpdateIssueOptions) (*mcp.CallToolResult, error) {
+	updateOptions := UpdateIssueOptions{
+		AssigneesProvided: len(assignees) > 0,
+		LabelsProvided:    len(labels) > 0,
+	}
+	for _, opt := range opts {
+		updateOptions.AssigneesProvided = updateOptions.AssigneesProvided || opt.AssigneesProvided
+		updateOptions.LabelsProvided = updateOptions.LabelsProvided || opt.LabelsProvided
+	}
+
 	// Create the issue request with only provided fields
 	issueRequest := &github.IssueRequest{}
 
@@ -2084,11 +2363,11 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		issueRequest.Body = github.Ptr(body)
 	}
 
-	if len(labels) > 0 {
+	if updateOptions.LabelsProvided {
 		issueRequest.Labels = &labels
 	}
 
-	if len(assignees) > 0 {
+	if updateOptions.AssigneesProvided {
 		issueRequest.Assignees = &assignees
 	}
 
@@ -2479,12 +2758,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := MarshalledTextResult(resp)
-			if deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
-				if result.Meta == nil {
-					result.Meta = mcp.Meta{}
-				}
-				result.Meta["ifc"] = ifc.LabelListIssues(isPrivate)
-			}
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelListIssues(isPrivate))
 			return result, nil, nil
 		})
 	st.FeatureFlagEnable = FeatureFlagIssueFields
@@ -2682,15 +2956,10 @@ func LegacyListIssues(t translations.TranslationHelperFunc) inventory.ServerTool
 			}
 
 			result := MarshalledTextResult(resp)
-			if deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
-				if result.Meta == nil {
-					result.Meta = mcp.Meta{}
-				}
-				result.Meta["ifc"] = ifc.LabelListIssues(isPrivate)
-			}
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelListIssues(isPrivate))
 			return result, nil, nil
 		})
-	st.FeatureFlagDisable = FeatureFlagIssueFields
+	st.FeatureFlagDisable = []string{FeatureFlagIssueFields}
 	return st
 }
 
