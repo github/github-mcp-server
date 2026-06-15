@@ -132,8 +132,15 @@ func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset Too
 		// HandlerFunc ignores deps - deps are retrieved from context at call time
 		HandlerFunc: func(_ any) mcp.ToolHandler {
 			return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				argumentsRaw := []byte("{}")
+				if req.Params != nil && len(req.Params.Arguments) > 0 {
+					argumentsRaw = req.Params.Arguments
+				}
+				if string(argumentsRaw) == "null" {
+					argumentsRaw = []byte("{}")
+				}
 				var arguments In
-				if err := json.Unmarshal(req.Params.Arguments, &arguments); err != nil {
+				if err := json.Unmarshal(argumentsRaw, &arguments); err != nil {
 					return &mcp.CallToolResult{
 						Content: []mcp.Content{
 							&mcp.TextContent{Text: fmt.Sprintf("invalid arguments: %s", err)},
