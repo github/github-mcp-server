@@ -3,7 +3,7 @@
     "readOnlyHint": true,
     "title": "Get details for a single pull request"
   },
-  "description": "Read this pull request: its details, diff, changed files, commits, reviews, review comments, or status.",
+  "description": "Read pull request octocat/hello-world#42: its details, diff, changed files, commits, reviews, review comments, or status.",
   "inputSchema": {
     "properties": {
       "after": {

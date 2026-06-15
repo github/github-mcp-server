@@ -3,7 +3,7 @@
     "readOnlyHint": true,
     "title": "List branches"
   },
-  "description": "List the branches in this repository.",
+  "description": "List the branches in octocat/hello-world.",
   "inputSchema": {
     "properties": {
       "page": {

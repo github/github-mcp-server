@@ -3,7 +3,7 @@
     "readOnlyHint": true,
     "title": "List commits"
   },
-  "description": "List commits on a branch of this repository.",
+  "description": "List commits on a branch of octocat/hello-world.",
   "inputSchema": {
     "properties": {
       "author": {

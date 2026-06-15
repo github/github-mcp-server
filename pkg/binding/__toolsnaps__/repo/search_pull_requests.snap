@@ -3,7 +3,7 @@
     "readOnlyHint": true,
     "title": "Search pull requests"
   },
-  "description": "Search pull requests within this repository.",
+  "description": "Search pull requests within octocat/hello-world.",
   "inputSchema": {
     "properties": {
       "order": {

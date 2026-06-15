@@ -2,7 +2,7 @@
   "annotations": {
     "title": "Open new pull request"
   },
-  "description": "Open a new pull request in this repository.",
+  "description": "Open a new pull request in octocat/hello-world.",
   "inputSchema": {
     "properties": {
       "base": {

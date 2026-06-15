@@ -2,7 +2,7 @@
   "annotations": {
     "title": "Request Copilot review"
   },
-  "description": "Request a GitHub Copilot review on this pull request.",
+  "description": "Request a GitHub Copilot review on pull request octocat/hello-world#42.",
   "icons": [
     {
       "mimeType": "image/png",

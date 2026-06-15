@@ -3,7 +3,7 @@
     "readOnlyHint": true,
     "title": "List pull requests"
   },
-  "description": "List pull requests in this repository.",
+  "description": "List pull requests in octocat/hello-world.",
   "inputSchema": {
     "properties": {
       "base": {

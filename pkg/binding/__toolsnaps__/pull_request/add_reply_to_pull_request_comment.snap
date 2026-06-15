@@ -2,7 +2,7 @@
   "annotations": {
     "title": "Add reply to pull request comment"
   },
-  "description": "Reply to an existing review comment on this pull request.",
+  "description": "Reply to an existing review comment on pull request octocat/hello-world#42.",
   "inputSchema": {
     "properties": {
       "body": {

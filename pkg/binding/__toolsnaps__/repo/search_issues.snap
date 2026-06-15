@@ -3,7 +3,7 @@
     "readOnlyHint": true,
     "title": "Search issues"
   },
-  "description": "Search issues within this repository.",
+  "description": "Search issues within octocat/hello-world.",
   "inputSchema": {
     "properties": {
       "order": {

@@ -81,76 +81,76 @@ var repoManifest = Manifest{
 		// Files & contents.
 		"get_file_contents": {
 			Bind:        bindRepo,
-			Description: "Read a file's contents or list a directory in this repository.",
+			Description: "Read a file's contents or list a directory in {{.RepoRef}}.",
 		},
 		"create_or_update_file": {
 			Bind:        bindRepo,
-			Description: "Create a new file or update an existing file in this repository.",
+			Description: "Create a new file or update an existing file in {{.RepoRef}}.",
 		},
 		"delete_file": {
 			Bind:        bindRepo,
-			Description: "Delete a file from this repository.",
+			Description: "Delete a file from {{.RepoRef}}.",
 		},
 		"push_files": {
 			Bind:        bindRepo,
-			Description: "Commit and push multiple file changes to a branch in this repository in a single operation.",
+			Description: "Commit and push multiple file changes to a branch in {{.RepoRef}} in a single operation.",
 		},
 		// Branches & history.
 		"list_branches": {
 			Bind:        bindRepo,
-			Description: "List the branches in this repository.",
+			Description: "List the branches in {{.RepoRef}}.",
 		},
 		"create_branch": {
 			Bind:        bindRepo,
-			Description: "Create a new branch in this repository.",
+			Description: "Create a new branch in {{.RepoRef}}.",
 		},
 		"list_commits": {
 			Bind:        bindRepo,
-			Description: "List commits on a branch of this repository.",
+			Description: "List commits on a branch of {{.RepoRef}}.",
 		},
 		"get_commit": {
 			Bind:        bindRepo,
-			Description: "Get the details and diff of a single commit in this repository.",
+			Description: "Get the details and diff of a single commit in {{.RepoRef}}.",
 		},
 		// Issues.
 		"list_issues": {
 			Bind:        bindRepo,
-			Description: "List issues in this repository.",
+			Description: "List issues in {{.RepoRef}}.",
 		},
 		"issue_read": {
 			Bind:        bindRepo,
-			Description: "Read an issue in this repository: its details, comments, sub-issues, or labels.",
+			Description: "Read an issue in {{.RepoRef}}: its details, comments, sub-issues, or labels.",
 		},
 		"create_issue": {
 			Bind:        bindRepo,
-			Description: "Open a new issue in this repository.",
+			Description: "Open a new issue in {{.RepoRef}}.",
 		},
 		"add_issue_comment": {
 			Bind:        bindRepo,
-			Description: "Add a comment to an issue or pull request in this repository.",
+			Description: "Add a comment to an issue or pull request in {{.RepoRef}}.",
 		},
 		"search_issues": {
 			Bind:        bindRepo,
 			QueryGuard:  true,
-			Description: "Search issues within this repository.",
+			Description: "Search issues within {{.RepoRef}}.",
 		},
 		// Pull requests.
 		"list_pull_requests": {
 			Bind:        bindRepo,
-			Description: "List pull requests in this repository.",
+			Description: "List pull requests in {{.RepoRef}}.",
 		},
 		"pull_request_read": {
 			Bind:        bindRepo,
-			Description: "Read a pull request in this repository: its details, diff, changed files, commits, reviews, comments, or status.",
+			Description: "Read a pull request in {{.RepoRef}}: its details, diff, changed files, commits, reviews, comments, or status.",
 		},
 		"create_pull_request": {
 			Bind:        bindRepo,
-			Description: "Open a new pull request in this repository.",
+			Description: "Open a new pull request in {{.RepoRef}}.",
 		},
 		"search_pull_requests": {
 			Bind:        bindRepo,
 			QueryGuard:  true,
-			Description: "Search pull requests within this repository.",
+			Description: "Search pull requests within {{.RepoRef}}.",
 		},
 	},
 }
@@ -162,63 +162,63 @@ var pullRequestManifest = Manifest{
 	Admit: map[string]ToolBinding{
 		"pull_request_read": {
 			Bind:        bindPull,
-			Description: "Read this pull request: its details, diff, changed files, commits, reviews, review comments, or status.",
+			Description: "Read pull request {{.PullRef}}: its details, diff, changed files, commits, reviews, review comments, or status.",
 		},
 		"update_pull_request_title": {
 			Bind:        bindPull,
-			Description: "Update this pull request's title.",
+			Description: "Update the title of pull request {{.PullRef}}.",
 		},
 		"update_pull_request_body": {
 			Bind:        bindPull,
-			Description: "Update this pull request's description.",
+			Description: "Update the description of pull request {{.PullRef}}.",
 		},
 		"update_pull_request_state": {
 			Bind:        bindPull,
-			Description: "Open or close this pull request.",
+			Description: "Open or close pull request {{.PullRef}}.",
 		},
 		"update_pull_request_draft_state": {
 			Bind:        bindPull,
-			Description: "Mark this pull request as a draft or as ready for review.",
+			Description: "Mark pull request {{.PullRef}} as a draft or as ready for review.",
 		},
 		"update_pull_request_branch": {
 			Bind:        bindPull,
-			Description: "Update this pull request's branch with the latest changes from its base branch.",
+			Description: "Update the branch of pull request {{.PullRef}} with the latest changes from its base branch.",
 		},
 		"merge_pull_request": {
 			Bind:        bindPull,
-			Description: "Merge this pull request.",
+			Description: "Merge pull request {{.PullRef}}.",
 		},
 		"request_pull_request_reviewers": {
 			Bind:        bindPull,
-			Description: "Request reviewers on this pull request.",
+			Description: "Request reviewers on pull request {{.PullRef}}.",
 		},
 		"request_copilot_review": {
 			Bind:        bindPull,
-			Description: "Request a GitHub Copilot review on this pull request.",
+			Description: "Request a GitHub Copilot review on pull request {{.PullRef}}.",
 		},
 		"create_pull_request_review": {
 			Bind:        bindPull,
-			Description: "Create a review on this pull request.",
+			Description: "Create a review on pull request {{.PullRef}}.",
 		},
 		"add_pull_request_review_comment": {
 			Bind:        bindPull,
-			Description: "Add an inline review comment to a line of this pull request's diff.",
+			Description: "Add an inline review comment to a line of the diff of pull request {{.PullRef}}.",
 		},
 		"add_comment_to_pending_review": {
 			Bind:        bindPull,
-			Description: "Add a comment to your pending review on this pull request.",
+			Description: "Add a comment to your pending review on pull request {{.PullRef}}.",
 		},
 		"add_reply_to_pull_request_comment": {
 			Bind:        bindPull,
-			Description: "Reply to an existing review comment on this pull request.",
+			Description: "Reply to an existing review comment on pull request {{.PullRef}}.",
 		},
 		"submit_pending_pull_request_review": {
 			Bind:        bindPull,
-			Description: "Submit your pending review on this pull request.",
+			Description: "Submit your pending review on pull request {{.PullRef}}.",
 		},
 		"delete_pending_pull_request_review": {
 			Bind:        bindPull,
-			Description: "Discard your pending review on this pull request.",
+			Description: "Discard your pending review on pull request {{.PullRef}}.",
 		},
 		"pull_request_review_write": {
 			Bind: bindPull,
@@ -228,16 +228,16 @@ var pullRequestManifest = Manifest{
 			// threadId only feeds those operations, so it is removed too.
 			MethodDeny:  []string{"resolve_thread", "unresolve_thread"},
 			ParamReject: []string{"threadId"},
-			Description: "Create, submit, or discard a pending review on this pull request.",
+			Description: "Create, submit, or discard a pending review on pull request {{.PullRef}}.",
 		},
 		// Repository reads that give a reviewer file and commit context.
 		"get_file_contents": {
 			Bind:        bindRepo,
-			Description: "Read a file's contents or list a directory in this pull request's repository.",
+			Description: "Read a file's contents or list a directory in {{.RepoRef}}, the repository of pull request {{.PullRef}}.",
 		},
 		"get_commit": {
 			Bind:        bindRepo,
-			Description: "Get the details and diff of a single commit in this pull request's repository.",
+			Description: "Get the details and diff of a single commit in {{.RepoRef}}, the repository of pull request {{.PullRef}}.",
 		},
 	},
 }
@@ -255,21 +255,21 @@ var projectManifest = Manifest{
 			// feeds that method, so it is removed from the schema too.
 			MethodAllow: []string{"get_project", "get_project_field", "get_project_item"},
 			ParamReject: []string{"status_update_id"},
-			Description: "Read this project: the project itself, one of its fields, or one of its items.",
+			Description: "Read {{.ProjectRef}}: the project itself, one of its fields, or one of its items.",
 		},
 		"projects_list": {
 			Bind: bindProject,
 			// list_projects enumerates every project owned by the owner,
 			// escaping the single bound project.
 			MethodAllow: []string{"list_project_fields", "list_project_items", "list_project_status_updates"},
-			Description: "List this project's fields, items, or status updates.",
+			Description: "List the fields, items, or status updates of {{.ProjectRef}}.",
 		},
 		"projects_write": {
 			Bind: bindProject,
 			// create_project creates a new project under the owner, outside the
 			// bound project.
 			MethodAllow: []string{"add_project_item", "update_project_item", "delete_project_item", "create_project_status_update", "create_iteration_field"},
-			Description: "Manage this project: add, update, or remove items, post status updates, and create iteration fields.",
+			Description: "Manage {{.ProjectRef}}: add, update, or remove items, post status updates, and create iteration fields.",
 		},
 	},
 }

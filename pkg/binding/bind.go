@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"text/template"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -31,13 +32,38 @@ func bindTool(st inventory.ServerTool, tb ToolBinding, ctx Context) (inventory.S
 	bound := st // shallow struct copy; Tool is a value, so edits below are local
 	bound.Tool.InputSchema = newSchema
 	if tb.Description != "" {
-		bound.Tool.Description = tb.Description
+		desc, err := renderDescription(tb.Description, ctx)
+		if err != nil {
+			return inventory.ServerTool{}, fmt.Errorf("tool %q: %w", st.Tool.Name, err)
+		}
+		bound.Tool.Description = desc
 	}
 	if tb.Title != "" {
 		bound.Tool.Title = tb.Title
 	}
 	bound.HandlerFunc = wrapHandler(st.HandlerFunc, tb, ctx)
 	return bound, nil
+}
+
+// renderDescription expands a manifest description against the bound context so
+// it names the concrete resource (e.g. "octocat/hello-world"). A description is
+// a Go text/template with the Context in scope, exposing the RepoRef/PullRef/
+// ProjectRef helpers and the Context fields. Plain descriptions (no template
+// actions) are returned unchanged. A malformed template is a manifest bug and
+// fails loudly at bind time.
+func renderDescription(tmpl string, ctx Context) (string, error) {
+	if !strings.Contains(tmpl, "{{") {
+		return tmpl, nil
+	}
+	t, err := template.New("description").Option("missingkey=error").Parse(tmpl)
+	if err != nil {
+		return "", fmt.Errorf("invalid description template %q: %w", tmpl, err)
+	}
+	var sb strings.Builder
+	if err := t.Execute(&sb, ctx); err != nil {
+		return "", fmt.Errorf("rendering description %q: %w", tmpl, err)
+	}
+	return sb.String(), nil
 }
 
 // transformSchema returns a deep copy of the tool's input schema with bound and

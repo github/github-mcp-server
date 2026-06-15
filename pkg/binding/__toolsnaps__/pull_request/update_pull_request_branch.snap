@@ -2,7 +2,7 @@
   "annotations": {
     "title": "Update pull request branch"
   },
-  "description": "Update this pull request's branch with the latest changes from its base branch.",
+  "description": "Update the branch of pull request octocat/hello-world#42 with the latest changes from its base branch.",
   "inputSchema": {
     "properties": {
       "expectedHeadSha": {

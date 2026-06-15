@@ -2,7 +2,7 @@
   "annotations": {
     "title": "Create or update file"
   },
-  "description": "Create a new file or update an existing file in this repository.",
+  "description": "Create a new file or update an existing file in octocat/hello-world.",
   "inputSchema": {
     "properties": {
       "branch": {

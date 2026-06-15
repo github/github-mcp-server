@@ -3,7 +3,7 @@
     "readOnlyHint": true,
     "title": "List GitHub Projects resources"
   },
-  "description": "List this project's fields, items, or status updates.",
+  "description": "List the fields, items, or status updates of project #7 owned by octocat.",
   "inputSchema": {
     "properties": {
       "after": {

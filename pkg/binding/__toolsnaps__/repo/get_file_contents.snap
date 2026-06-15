@@ -3,7 +3,7 @@
     "readOnlyHint": true,
     "title": "Get file or directory contents"
   },
-  "description": "Read a file's contents or list a directory in this repository.",
+  "description": "Read a file's contents or list a directory in octocat/hello-world.",
   "inputSchema": {
     "properties": {
       "path": {

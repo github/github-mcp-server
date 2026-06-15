@@ -2,7 +2,7 @@
   "annotations": {
     "title": "Push files to repository"
   },
-  "description": "Commit and push multiple file changes to a branch in this repository in a single operation.",
+  "description": "Commit and push multiple file changes to a branch in octocat/hello-world in a single operation.",
   "inputSchema": {
     "properties": {
       "branch": {

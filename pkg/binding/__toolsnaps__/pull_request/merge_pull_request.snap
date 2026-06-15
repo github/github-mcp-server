@@ -2,7 +2,7 @@
   "annotations": {
     "title": "Merge pull request"
   },
-  "description": "Merge this pull request.",
+  "description": "Merge pull request octocat/hello-world#42.",
   "icons": [
     {
       "mimeType": "image/png",

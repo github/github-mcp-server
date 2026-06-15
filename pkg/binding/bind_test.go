@@ -218,6 +218,24 @@ func TestNarrowEnum(t *testing.T) {
 	require.Error(t, err, "narrowing to an empty enum must fail")
 }
 
+func TestBindToolRendersResourceSpecificDescription(t *testing.T) {
+	var captured map[string]any
+	st := syntheticTool(&captured)
+	tb := ToolBinding{Bind: bindRepo, Description: "Read a file in {{.RepoRef}}."}
+	bound, err := bindTool(st, tb, repoCtx(t))
+	require.NoError(t, err)
+	assert.Equal(t, "Read a file in octocat/hello-world.", bound.Tool.Description,
+		"the bound description must name the concrete resource, not a generic placeholder")
+}
+
+func TestBindToolRejectsMalformedDescriptionTemplate(t *testing.T) {
+	var captured map[string]any
+	st := syntheticTool(&captured)
+	tb := ToolBinding{Bind: bindRepo, Description: "Broken {{.RepoRef"}
+	_, err := bindTool(st, tb, repoCtx(t))
+	require.Error(t, err, "a malformed description template must fail loudly at bind time")
+}
+
 func TestBindToolErrorsOnUnknownBoundParam(t *testing.T) {
 	var captured map[string]any
 	st := syntheticTool(&captured)

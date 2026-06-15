@@ -3,7 +3,7 @@
     "readOnlyHint": true,
     "title": "Get commit details"
   },
-  "description": "Get the details and diff of a single commit in this pull request's repository.",
+  "description": "Get the details and diff of a single commit in octocat/hello-world, the repository of pull request octocat/hello-world#42.",
   "inputSchema": {
     "properties": {
       "detail": {

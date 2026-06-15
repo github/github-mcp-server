@@ -3,7 +3,7 @@
     "destructiveHint": true,
     "title": "Delete file"
   },
-  "description": "Delete a file from this repository.",
+  "description": "Delete a file from octocat/hello-world.",
   "inputSchema": {
     "properties": {
       "branch": {

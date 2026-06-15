@@ -2,7 +2,7 @@
   "annotations": {
     "title": "Add comment to issue or pull request"
   },
-  "description": "Add a comment to an issue or pull request in this repository.",
+  "description": "Add a comment to an issue or pull request in octocat/hello-world.",
   "inputSchema": {
     "properties": {
       "body": {

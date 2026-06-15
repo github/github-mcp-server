@@ -2,7 +2,7 @@
   "annotations": {
     "title": "Create branch"
   },
-  "description": "Create a new branch in this repository.",
+  "description": "Create a new branch in octocat/hello-world.",
   "inputSchema": {
     "properties": {
       "branch": {

@@ -3,7 +3,7 @@
     "readOnlyHint": true,
     "title": "Get details of GitHub Projects resources"
   },
-  "description": "Read this project: the project itself, one of its fields, or one of its items.",
+  "description": "Read project #7 owned by octocat: the project itself, one of its fields, or one of its items.",
   "inputSchema": {
     "properties": {
       "field_id": {

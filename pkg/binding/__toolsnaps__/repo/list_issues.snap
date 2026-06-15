@@ -3,7 +3,7 @@
     "readOnlyHint": true,
     "title": "List issues"
   },
-  "description": "List issues in this repository.",
+  "description": "List issues in octocat/hello-world.",
   "inputSchema": {
     "properties": {
       "after": {

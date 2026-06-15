@@ -57,6 +57,25 @@ type Context struct {
 	ProjectNumber int
 }
 
+// RepoRef returns the "owner/repo" reference for the bound repository. It is
+// used to name the concrete resource in tool descriptions so a scoped surface
+// reads as purpose-built rather than generic ("... in octocat/hello-world"
+// instead of "... in this repository"). Set for repo and pull_request kinds.
+func (c Context) RepoRef() string {
+	return c.Owner + "/" + c.Repo
+}
+
+// PullRef returns the "owner/repo#number" reference for the bound pull request.
+func (c Context) PullRef() string {
+	return fmt.Sprintf("%s/%s#%d", c.Owner, c.Repo, c.PullNumber)
+}
+
+// ProjectRef returns a human reference to the bound project, e.g.
+// "project #7 owned by octocat".
+func (c Context) ProjectRef() string {
+	return fmt.Sprintf("project #%d owned by %s", c.ProjectNumber, c.Owner)
+}
+
 // ctxKey names a single bound value within a Context. Manifest entries map a
 // tool's schema parameter to one of these keys; the binding wrapper then
 // injects the correctly typed value (string vs number) at call time.

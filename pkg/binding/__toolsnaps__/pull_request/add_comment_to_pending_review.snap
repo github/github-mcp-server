@@ -2,7 +2,7 @@
   "annotations": {
     "title": "Add review comment to the requester's latest pending pull request review"
   },
-  "description": "Add a comment to your pending review on this pull request.",
+  "description": "Add a comment to your pending review on pull request octocat/hello-world#42.",
   "inputSchema": {
     "properties": {
       "body": {

@@ -3,7 +3,7 @@
     "readOnlyHint": true,
     "title": "Get issue details"
   },
-  "description": "Read an issue in this repository: its details, comments, sub-issues, or labels.",
+  "description": "Read an issue in octocat/hello-world: its details, comments, sub-issues, or labels.",
   "inputSchema": {
     "properties": {
       "issue_number": {

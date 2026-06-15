@@ -3,7 +3,7 @@
     "destructiveHint": true,
     "title": "Manage GitHub Projects"
   },
-  "description": "Manage this project: add, update, or remove items, post status updates, and create iteration fields.",
+  "description": "Manage project #7 owned by octocat: add, update, or remove items, post status updates, and create iteration fields.",
   "inputSchema": {
     "properties": {
       "body": {
