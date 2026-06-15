@@ -38,6 +38,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
   - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+  - `show_ui`: Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when you have all required values (especially ones the form does not collect, like reviewers) and the user has already confirmed the action. (boolean, optional, conditional — only visible to clients that advertise MCP App UI support)
   - `title`: PR title (string, required)
 
 - **get_me** - Get my user profile
