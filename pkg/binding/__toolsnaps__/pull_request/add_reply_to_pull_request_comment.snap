@@ -1,0 +1,24 @@
+{
+  "annotations": {
+    "title": "Add reply to pull request comment"
+  },
+  "description": "Reply to an existing review comment on this pull request.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "The text of the reply",
+        "type": "string"
+      },
+      "commentId": {
+        "description": "The ID of the comment to reply to",
+        "type": "number"
+      }
+    },
+    "required": [
+      "commentId",
+      "body"
+    ],
+    "type": "object"
+  },
+  "name": "add_reply_to_pull_request_comment"
+}

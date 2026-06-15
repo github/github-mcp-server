@@ -1,0 +1,24 @@
+{
+  "annotations": {
+    "title": "Add comment to issue or pull request"
+  },
+  "description": "Add a comment to an issue or pull request in this repository.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "Comment content",
+        "type": "string"
+      },
+      "issue_number": {
+        "description": "Issue number to comment on",
+        "type": "number"
+      }
+    },
+    "required": [
+      "issue_number",
+      "body"
+    ],
+    "type": "object"
+  },
+  "name": "add_issue_comment"
+}

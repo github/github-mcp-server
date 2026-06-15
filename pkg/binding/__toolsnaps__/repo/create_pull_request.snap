@@ -1,0 +1,41 @@
+{
+  "annotations": {
+    "title": "Open new pull request"
+  },
+  "description": "Open a new pull request in this repository.",
+  "inputSchema": {
+    "properties": {
+      "base": {
+        "description": "Branch to merge into",
+        "type": "string"
+      },
+      "body": {
+        "description": "PR description",
+        "type": "string"
+      },
+      "draft": {
+        "description": "Create as draft PR",
+        "type": "boolean"
+      },
+      "head": {
+        "description": "Branch containing changes",
+        "type": "string"
+      },
+      "maintainer_can_modify": {
+        "description": "Allow maintainer edits",
+        "type": "boolean"
+      },
+      "title": {
+        "description": "PR title",
+        "type": "string"
+      }
+    },
+    "required": [
+      "title",
+      "head",
+      "base"
+    ],
+    "type": "object"
+  },
+  "name": "create_pull_request"
+}

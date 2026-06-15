@@ -1,0 +1,18 @@
+[
+  "add_issue_comment",
+  "create_branch",
+  "create_or_update_file",
+  "create_pull_request",
+  "delete_file",
+  "get_commit",
+  "get_file_contents",
+  "issue_read",
+  "list_branches",
+  "list_commits",
+  "list_issues",
+  "list_pull_requests",
+  "pull_request_read",
+  "push_files",
+  "search_issues",
+  "search_pull_requests"
+]

@@ -1,0 +1,57 @@
+{
+  "annotations": {
+    "title": "Add review comment to the requester's latest pending pull request review"
+  },
+  "description": "Add a comment to your pending review on this pull request.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "The text of the review comment",
+        "type": "string"
+      },
+      "line": {
+        "description": "The line of the blob in the pull request diff that the comment applies to. For multi-line comments, the last line of the range",
+        "type": "number"
+      },
+      "path": {
+        "description": "The relative path to the file that necessitates a comment",
+        "type": "string"
+      },
+      "side": {
+        "description": "The side of the diff to comment on. LEFT indicates the previous state, RIGHT indicates the new state",
+        "enum": [
+          "LEFT",
+          "RIGHT"
+        ],
+        "type": "string"
+      },
+      "startLine": {
+        "description": "For multi-line comments, the first line of the range that the comment applies to",
+        "type": "number"
+      },
+      "startSide": {
+        "description": "For multi-line comments, the starting side of the diff that the comment applies to. LEFT indicates the previous state, RIGHT indicates the new state",
+        "enum": [
+          "LEFT",
+          "RIGHT"
+        ],
+        "type": "string"
+      },
+      "subjectType": {
+        "description": "The level at which the comment is targeted",
+        "enum": [
+          "FILE",
+          "LINE"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "path",
+      "body",
+      "subjectType"
+    ],
+    "type": "object"
+  },
+  "name": "add_comment_to_pending_review"
+}

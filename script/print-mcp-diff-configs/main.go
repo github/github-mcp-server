@@ -64,6 +64,11 @@ type settings struct {
 	readOnly     bool
 	insiders     bool
 	lockdown     bool
+	// scope is a complete scoped-mode CLI fragment (e.g.
+	// "--repository=octocat/hello-world"). Scoped modes are stdio-only and have
+	// no X-MCP-* header equivalent yet, so entries that set it are skipped by
+	// the http-headers transport.
+	scope string
 }
 
 const httpServerURL = "http://localhost:8082/mcp"
@@ -82,6 +87,11 @@ func main() {
 		}
 	case "http-headers":
 		for _, e := range entries {
+			// Scoped modes are stdio-only; there is no header transport for
+			// them yet, so they are not part of the http-headers matrix.
+			if e.settings.scope != "" {
+				continue
+			}
 			h := e.settings.toHeaders()
 			if h == nil {
 				h = map[string]string{}
@@ -139,6 +149,15 @@ func baseEntries() []baseEntry {
 			toolsets: "repos",
 			features: firstFeatureFlag(),
 		}},
+		// Context-scoped server modes (stdio only). These bind the server to a
+		// single repository, pull request, or project and expose the bespoke
+		// scoped tool surface for that context. Including them here ensures any
+		// change to a shared tool's schema is diffed on every scoped surface,
+		// not just the full server.
+		{name: "scope-repository", settings: settings{scope: "--repository=octocat/hello-world"}},
+		{name: "scope-repository+read-only", settings: settings{scope: "--repository=octocat/hello-world", readOnly: true}},
+		{name: "scope-pull-request", settings: settings{scope: "--pull-request=octocat/hello-world#42"}},
+		{name: "scope-project", settings: settings{scope: "--project=orgs/octocat/7"}},
 	}
 
 	flags := append([]string(nil), github.AllowedFeatureFlags...)
@@ -154,6 +173,9 @@ func baseEntries() []baseEntry {
 
 func (s settings) toArgs() string {
 	var parts []string
+	if s.scope != "" {
+		parts = append(parts, s.scope)
+	}
 	if s.toolsets != "" {
 		parts = append(parts, "--toolsets="+s.toolsets)
 	}

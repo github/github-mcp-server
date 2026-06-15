@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/github/github-mcp-server/pkg/binding"
 	gherrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
@@ -68,6 +69,13 @@ type MCPServerConfig struct {
 	// This is used for PAT scope filtering where we can't issue scope challenges.
 	TokenScopes []string
 
+	// Scope, when non-nil, binds the server to a fixed GitHub context (a
+	// repository, pull request, or project). The advertised tool surface is
+	// transformed into the bespoke surface for that context: context
+	// parameters are removed from tool schemas and injected server-side, and
+	// only tools admitted by the context's manifest are exposed.
+	Scope *binding.Context
+
 	// Additional server options to apply
 	ServerOptions []MCPServerOption
 }
@@ -75,9 +83,22 @@ type MCPServerConfig struct {
 type MCPServerOption func(*mcp.ServerOptions)
 
 func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependencies, inv *inventory.Inventory, middleware ...mcp.Middleware) (*mcp.Server, error) {
+	// Present a bespoke identity when the server is bound to a fixed context,
+	// so a scoped server reads as a purpose-built product rather than the full
+	// GitHub server. The context instructions are prepended to the generated
+	// toolset instructions.
+	instructions := inv.Instructions()
+	serverTitle := cfg.Translator("SERVER_TITLE", "GitHub MCP Server")
+	if cfg.Scope != nil {
+		serverTitle = cfg.Scope.ServerTitle()
+		if scopeInstructions := cfg.Scope.ServerInstructions(); scopeInstructions != "" {
+			instructions = strings.TrimSpace(scopeInstructions + "\n\n" + instructions)
+		}
+	}
+
 	// Create the MCP server
 	serverOpts := &mcp.ServerOptions{
-		Instructions:      inv.Instructions(),
+		Instructions:      instructions,
 		Logger:            cfg.Logger,
 		CompletionHandler: CompletionsHandler(deps.GetClient),
 	}
@@ -87,7 +108,7 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 		o(serverOpts)
 	}
 
-	ghServer := NewServer(cfg.Version, cfg.Translator("SERVER_NAME", "github-mcp-server"), cfg.Translator("SERVER_TITLE", "GitHub MCP Server"), serverOpts)
+	ghServer := NewServer(cfg.Version, cfg.Translator("SERVER_NAME", "github-mcp-server"), serverTitle, serverOpts)
 
 	// Add middlewares. Order matters - for example, the error context middleware should be applied last so that it runs FIRST (closest to the handler) to ensure all errors are captured,
 	// and any middleware that needs to read or modify the context should be before it.
