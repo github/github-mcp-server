@@ -183,6 +183,9 @@ func uiGetAssignees(ctx context.Context, deps ToolDependencies, args map[string]
 			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list assignees", resp, err), nil, nil
 		}
 		allAssignees = append(allAssignees, assignees...)
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
 		if resp.NextPage == 0 {
 			break
 		}
@@ -231,6 +234,9 @@ func uiGetMilestones(ctx context.Context, deps ToolDependencies, args map[string
 			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list milestones", resp, err), nil, nil
 		}
 		allMilestones = append(allMilestones, milestones...)
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
 		if resp.NextPage == 0 {
 			break
 		}
@@ -314,6 +320,9 @@ func uiGetBranches(ctx context.Context, deps ToolDependencies, args map[string]a
 			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list branches", resp, err), nil, nil
 		}
 		allBranches = append(allBranches, branches...)
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
 		if resp.NextPage == 0 {
 			break
 		}
@@ -447,6 +456,9 @@ func uiGetReviewers(ctx context.Context, deps ToolDependencies, args map[string]
 			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list reviewers", resp, err), nil, nil
 		}
 		allCollaborators = append(allCollaborators, collaborators...)
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
 		if resp.NextPage == 0 {
 			break
 		}
@@ -461,6 +473,9 @@ func uiGetReviewers(ctx context.Context, deps ToolDependencies, args map[string]
 			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list reviewer teams", resp, err), nil, nil
 		}
 		allTeams = append(allTeams, teams...)
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
 		if resp.NextPage == 0 {
 			break
 		}
