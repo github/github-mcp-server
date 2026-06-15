@@ -2869,6 +2869,33 @@ func Test_UpdateIssue(t *testing.T) {
 			expectedIssue: mockUpdatedIssue,
 		},
 		{
+			name: "partial update clears labels and assignees",
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+					"labels":    []any{},
+					"assignees": []any{},
+				}).andThen(
+					mockResponse(t, http.StatusOK, &github.Issue{
+						Number:  github.Ptr(123),
+						HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
+					}),
+				),
+			}),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"labels":       []any{},
+				"assignees":    []any{},
+			},
+			expectError: false,
+			expectedIssue: &github.Issue{
+				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
+			},
+		},
+		{
 			name: "partial update with issue fields reconciled by names",
 			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
@@ -3285,6 +3312,47 @@ func Test_UpdateIssue(t *testing.T) {
 			assert.Equal(t, tc.expectedIssue.GetHTMLURL(), updateResp.URL)
 		})
 	}
+}
+
+func Test_LegacyUpdateIssueClearsLabelsAndAssignees(t *testing.T) {
+	serverTool := LegacyIssueWrite(translations.NullTranslationHelper)
+	updatedIssue := &github.Issue{
+		Number:  github.Ptr(8),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/8"),
+	}
+
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+			"labels":    []any{},
+			"assignees": []any{},
+		}).andThen(mockResponse(t, http.StatusOK, updatedIssue)),
+	}))
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
+	deps := BaseDeps{
+		Client:    client,
+		GQLClient: gqlClient,
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":       "update",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(8),
+		"labels":       []any{},
+		"assignees":    []any{},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	if result.IsError {
+		t.Fatalf("Unexpected error result: %s", getErrorResult(t, result).Text)
+	}
+	textContent := getTextResult(t, result)
+
+	var updateResp MinimalResponse
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &updateResp))
+	assert.Equal(t, updatedIssue.GetHTMLURL(), updateResp.URL)
 }
 
 func Test_ParseISOTimestamp(t *testing.T) {

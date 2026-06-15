@@ -10,6 +10,7 @@ import (
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -227,9 +228,19 @@ Use this tool to list projects for a user or organization, or list project field
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			// attachIFC adds the IFC label to a successful result when IFC
+			// labels are enabled. Project titles, item content, field
+			// definitions, and status updates are user-authored free text
+			// (untrusted); confidentiality is conservatively private since the
+			// project's public flag is not available across every sub-result.
+			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
+				return attachStaticIFCLabel(ctx, deps, r, ifc.LabelProject(false))
+			}
+
 			switch method {
 			case projectsMethodListProjects:
-				return listProjects(ctx, client, args, owner, ownerType)
+				result, payload, err := listProjects(ctx, client, args, owner, ownerType)
+				return attachIFC(result), payload, err
 			default:
 				// All other methods require project_number and ownerType detection
 				if ownerType == "" {
@@ -245,15 +256,18 @@ Use this tool to list projects for a user or organization, or list project field
 
 				switch method {
 				case projectsMethodListProjectFields:
-					return listProjectFields(ctx, client, args, owner, ownerType)
+					result, payload, err := listProjectFields(ctx, client, args, owner, ownerType)
+					return attachIFC(result), payload, err
 				case projectsMethodListProjectItems:
-					return listProjectItems(ctx, client, args, owner, ownerType)
+					result, payload, err := listProjectItems(ctx, client, args, owner, ownerType)
+					return attachIFC(result), payload, err
 				case projectsMethodListProjectStatusUpdates:
 					gqlClient, err := deps.GetGQLClient(ctx)
 					if err != nil {
 						return utils.NewToolResultError(err.Error()), nil, nil
 					}
-					return listProjectStatusUpdates(ctx, gqlClient, args, owner, ownerType)
+					result, payload, err := listProjectStatusUpdates(ctx, gqlClient, args, owner, ownerType)
+					return attachIFC(result), payload, err
 				default:
 					return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 				}
@@ -332,6 +346,14 @@ Use this tool to get details about individual projects, project fields, and proj
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			// attachIFC adds the IFC label to a successful result when IFC
+			// labels are enabled. Project data is user-authored free text
+			// (untrusted); confidentiality is conservatively private since the
+			// project's public flag is not available across every sub-result.
+			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
+				return attachStaticIFCLabel(ctx, deps, r, ifc.LabelProject(false))
+			}
+
 			// Handle get_project_status_update early — it only needs status_update_id
 			if method == projectsMethodGetProjectStatusUpdate {
 				statusUpdateID, err := RequiredParam[string](args, "status_update_id")
@@ -342,7 +364,8 @@ Use this tool to get details about individual projects, project fields, and proj
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				return getProjectStatusUpdate(ctx, gqlClient, statusUpdateID)
+				result, payload, err := getProjectStatusUpdate(ctx, gqlClient, statusUpdateID)
+				return attachIFC(result), payload, err
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -375,13 +398,15 @@ Use this tool to get details about individual projects, project fields, and proj
 
 			switch method {
 			case projectsMethodGetProject:
-				return getProject(ctx, client, owner, ownerType, projectNumber)
+				result, payload, err := getProject(ctx, client, owner, ownerType, projectNumber)
+				return attachIFC(result), payload, err
 			case projectsMethodGetProjectField:
 				fieldID, err := RequiredBigInt(args, "field_id")
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				return getProjectField(ctx, client, owner, ownerType, projectNumber, fieldID)
+				result, payload, err := getProjectField(ctx, client, owner, ownerType, projectNumber, fieldID)
+				return attachIFC(result), payload, err
 			case projectsMethodGetProjectItem:
 				itemID, err := RequiredBigInt(args, "item_id")
 				if err != nil {
@@ -391,7 +416,8 @@ Use this tool to get details about individual projects, project fields, and proj
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				return getProjectItem(ctx, client, owner, ownerType, projectNumber, itemID, fields)
+				result, payload, err := getProjectItem(ctx, client, owner, ownerType, projectNumber, itemID, fields)
+				return attachIFC(result), payload, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
@@ -1350,13 +1376,6 @@ func getProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, sta
 	return utils.NewToolResultText(string(r)), nil, nil
 }
 
-type pageInfo struct {
-	HasNextPage     bool   `json:"hasNextPage"`
-	HasPreviousPage bool   `json:"hasPreviousPage"`
-	NextCursor      string `json:"nextCursor,omitempty"`
-	PrevCursor      string `json:"prevCursor,omitempty"`
-}
-
 // validateAndConvertToInt64 ensures the value is a number and converts it to int64.
 func validateAndConvertToInt64(value any) (int64, error) {
 	switch v := value.(type) {
@@ -1405,15 +1424,6 @@ func buildUpdateProjectItem(input map[string]any) (*github.UpdateProjectItemOpti
 	}
 
 	return payload, nil
-}
-
-func buildPageInfo(resp *github.Response) pageInfo {
-	return pageInfo{
-		HasNextPage:     resp.After != "",
-		HasPreviousPage: resp.Before != "",
-		NextCursor:      resp.After,
-		PrevCursor:      resp.Before,
-	}
 }
 
 func extractPaginationOptionsFromArgs(args map[string]any) (github.ListProjectsPaginationOptions, error) {
@@ -1583,7 +1593,7 @@ func createIterationField(ctx context.Context, gqlClient *githubv4.Client, owner
 					ID   string
 					Name string
 				} `graphql:"... on ProjectV2IterationField"`
-			}
+			} `graphql:"projectV2Field"`
 		} `graphql:"createProjectV2Field(input: $input)"`
 	}
 
@@ -1616,7 +1626,7 @@ func createIterationField(ctx context.Context, gqlClient *githubv4.Client, owner
 						}
 					}
 				} `graphql:"... on ProjectV2IterationField"`
-			}
+			} `graphql:"projectV2Field"`
 		} `graphql:"updateProjectV2Field(input: $input)"`
 	}
 

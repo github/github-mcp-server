@@ -12,6 +12,7 @@ import (
 	"github.com/github/github-mcp-server/internal/profiler"
 	buffer "github.com/github/github-mcp-server/pkg/buffer"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -354,6 +355,14 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
+			// attachIFC adds the IFC label to a successful Actions result when
+			// IFC labels are enabled. Workflow definitions, runs, jobs,
+			// artifacts and logs echo attacker-influenceable run output, so
+			// integrity is untrusted; confidentiality follows repo visibility.
+			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
+				return attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, r, ifc.LabelActionsResult)
+			}
+
 			var resourceIDInt int64
 			var parseErr error
 			switch method {
@@ -376,13 +385,17 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 
 			switch method {
 			case actionsMethodListWorkflows:
-				return listWorkflows(ctx, client, owner, repo, pagination)
+				result, payload, err := listWorkflows(ctx, client, owner, repo, pagination)
+				return attachIFC(result), payload, err
 			case actionsMethodListWorkflowRuns:
-				return listWorkflowRuns(ctx, client, args, owner, repo, resourceID, pagination)
+				result, payload, err := listWorkflowRuns(ctx, client, args, owner, repo, resourceID, pagination)
+				return attachIFC(result), payload, err
 			case actionsMethodListWorkflowJobs:
-				return listWorkflowJobs(ctx, client, args, owner, repo, resourceIDInt, pagination)
+				result, payload, err := listWorkflowJobs(ctx, client, args, owner, repo, resourceIDInt, pagination)
+				return attachIFC(result), payload, err
 			case actionsMethodListWorkflowArtifacts:
-				return listWorkflowArtifacts(ctx, client, owner, repo, resourceIDInt, pagination)
+				result, payload, err := listWorkflowArtifacts(ctx, client, owner, repo, resourceIDInt, pagination)
+				return attachIFC(result), payload, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
@@ -465,6 +478,14 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
+			// attachIFC adds the IFC label to a successful Actions result when
+			// IFC labels are enabled. Workflow runs, jobs, artifacts, usage,
+			// and log URLs reflect attacker-influenceable run output, so
+			// integrity is untrusted; confidentiality follows repo visibility.
+			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
+				return attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, r, ifc.LabelActionsResult)
+			}
+
 			var resourceIDInt int64
 			var parseErr error
 			switch method {
@@ -480,17 +501,23 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 
 			switch method {
 			case actionsMethodGetWorkflow:
-				return getWorkflow(ctx, client, owner, repo, resourceID)
+				result, payload, err := getWorkflow(ctx, client, owner, repo, resourceID)
+				return attachIFC(result), payload, err
 			case actionsMethodGetWorkflowRun:
-				return getWorkflowRun(ctx, client, owner, repo, resourceIDInt)
+				result, payload, err := getWorkflowRun(ctx, client, owner, repo, resourceIDInt)
+				return attachIFC(result), payload, err
 			case actionsMethodGetWorkflowJob:
-				return getWorkflowJob(ctx, client, owner, repo, resourceIDInt)
+				result, payload, err := getWorkflowJob(ctx, client, owner, repo, resourceIDInt)
+				return attachIFC(result), payload, err
 			case actionsMethodDownloadWorkflowArtifact:
-				return downloadWorkflowArtifact(ctx, client, owner, repo, resourceIDInt)
+				result, payload, err := downloadWorkflowArtifact(ctx, client, owner, repo, resourceIDInt)
+				return attachIFC(result), payload, err
 			case actionsMethodGetWorkflowRunUsage:
-				return getWorkflowRunUsage(ctx, client, owner, repo, resourceIDInt)
+				result, payload, err := getWorkflowRunUsage(ctx, client, owner, repo, resourceIDInt)
+				return attachIFC(result), payload, err
 			case actionsMethodGetWorkflowRunLogsURL:
-				return getWorkflowRunLogsURL(ctx, client, owner, repo, resourceIDInt)
+				result, payload, err := getWorkflowRunLogsURL(ctx, client, owner, repo, resourceIDInt)
+				return attachIFC(result), payload, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
@@ -719,12 +746,22 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 				return utils.NewToolResultError("job_id is required when failed_only is false"), nil, nil
 			}
 
+			// attachIFC adds the IFC label to a successful result when IFC
+			// labels are enabled. Job logs echo attacker-influenceable run
+			// output, so integrity is untrusted; confidentiality follows repo
+			// visibility.
+			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
+				return attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, r, ifc.LabelActionsResult)
+			}
+
 			if failedOnly && runID > 0 {
 				// Handle failed-only mode: get logs for all failed jobs in the workflow run
-				return handleFailedJobLogs(ctx, client, owner, repo, int64(runID), returnContent, tailLines, deps.GetContentWindowSize())
+				result, payload, err := handleFailedJobLogs(ctx, client, owner, repo, int64(runID), returnContent, tailLines, deps.GetContentWindowSize())
+				return attachIFC(result), payload, err
 			} else if jobID > 0 {
 				// Handle single job mode
-				return handleSingleJobLogs(ctx, client, owner, repo, int64(jobID), returnContent, tailLines, deps.GetContentWindowSize())
+				result, payload, err := handleSingleJobLogs(ctx, client, owner, repo, int64(jobID), returnContent, tailLines, deps.GetContentWindowSize())
+				return attachIFC(result), payload, err
 			}
 
 			return utils.NewToolResultError("Either job_id must be provided for single job logs, or run_id with failed_only=true for failed job logs"), nil, nil
