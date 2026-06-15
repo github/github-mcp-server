@@ -95,7 +95,7 @@ runtime behavior (such as output formatting) won't appear here.
   - `type`: Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
 
 - **list_issue_fields** - List issue fields
-  - **Required OAuth Scopes**: `repo`, `read:org`
+  - **Required OAuth Scopes (any of)**: `repo`, `read:org`
   - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `repo`, `write:org`
   - `owner`: The account owner of the repository or organization. The name is not case sensitive. (string, required)
   - `repo`: The name of the repository. When provided, returns fields for this specific repository (inherited from its organization). When omitted, returns org-level fields directly. (string, optional)

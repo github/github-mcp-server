@@ -875,7 +875,7 @@ The following sets of tools are available:
   - `type`: Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
 
 - **list_issue_types** - List available issue types
-  - **Required OAuth Scopes**: `repo`, `read:org`
+  - **Required OAuth Scopes (any of)**: `repo`, `read:org`
   - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `repo`, `write:org`
   - `owner`: The account owner of the repository or organization. (string, required)
   - `repo`: The name of the repository. When provided, returns issue types for this specific repository. When omitted, returns org-level issue types directly. (string, optional)
