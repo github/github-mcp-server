@@ -169,8 +169,9 @@ func (r *Inventory) ToolsetDescriptions() map[ToolsetID]string {
 }
 
 // ToolsForRegistration returns AvailableTools(ctx) post-processed exactly as
-// RegisterTools would expose them: with MCP Apps UI metadata stripped when
-// the client cannot consume it. Useful for documentation generators and
+// RegisterTools would expose them: with MCP Apps UI metadata stripped and
+// UI-capability-gated input-schema properties (e.g. show_ui) removed when
+// the client cannot consume them. Useful for documentation generators and
 // diagnostics that need the same view of the tool surface the server would
 // register.
 //
@@ -186,6 +187,7 @@ func (r *Inventory) ToolsForRegistration(ctx context.Context) []ServerTool {
 	tools := r.AvailableTools(ctx)
 	if shouldStripMCPAppsMetadata(ctx, r.checkFeatureFlag(ctx, mcpAppsFeatureFlag)) {
 		tools = stripMCPAppsMetadata(tools)
+		tools = stripUIOnlySchemaProperties(tools)
 	}
 	return tools
 }
@@ -206,9 +208,10 @@ func shouldStripMCPAppsMetadata(ctx context.Context, featureFlagEnabled bool) bo
 // RegisterTools registers all available tools with the server using the provided dependencies.
 // The context is used for feature flag evaluation and client capability checks.
 //
-// MCP Apps UI metadata (`_meta.ui`) is stripped from the registered tools
-// when either the MCP Apps feature flag is not enabled for this request, or
-// the client did not advertise the io.modelcontextprotocol/ui extension. The
+// MCP Apps UI metadata (`_meta.ui`) and UI-capability-gated input-schema
+// properties (e.g. `show_ui`) are stripped from the registered tools when
+// either the MCP Apps feature flag is not enabled for this request, or the
+// client did not advertise the io.modelcontextprotocol/ui extension. The
 // strip happens here (rather than at Build() time) so the per-request
 // context is in scope — HTTP feature checkers that read insiders mode or
 // user identity from ctx would otherwise see context.Background() and

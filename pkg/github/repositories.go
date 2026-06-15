@@ -600,7 +600,8 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 					},
 					"private": {
 						Type:        "boolean",
-						Description: "Whether repo should be private",
+						Description: "Whether the repository should be private. Defaults to true (private) when omitted.",
+						Default:     json.RawMessage("true"),
 					},
 					"autoInit": {
 						Type:        "boolean",
@@ -624,7 +625,7 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			private, err := OptionalParam[bool](args, "private")
+			private, err := OptionalBoolParamWithDefault(args, "private", true)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
