@@ -123,6 +123,14 @@ type MinimalPRFile struct {
 	PreviousFilename string `json:"previous_filename,omitempty"`
 }
 
+// MinimalPullRequestCommit is the trimmed output type for commits listed on a pull request.
+type MinimalPullRequestCommit struct {
+	SHA     string               `json:"sha"`
+	HTMLURL string               `json:"html_url,omitempty"`
+	Message string               `json:"message,omitempty"`
+	Author  *MinimalCommitAuthor `json:"author,omitempty"`
+}
+
 // MinimalCommit is the trimmed output type for commit objects.
 type MinimalCommit struct {
 	SHA       string              `json:"sha"`
@@ -1607,6 +1615,44 @@ func convertToMinimalPRFiles(files []*github.CommitFile) []MinimalPRFile {
 		})
 	}
 	return result
+}
+
+func convertToMinimalPullRequestCommits(commits []*github.RepositoryCommit) []MinimalPullRequestCommit {
+	result := make([]MinimalPullRequestCommit, 0, len(commits))
+	for _, commit := range commits {
+		if commit == nil {
+			continue
+		}
+
+		minimalCommit := MinimalPullRequestCommit{
+			SHA:     commit.GetSHA(),
+			HTMLURL: commit.GetHTMLURL(),
+		}
+
+		if commit.Commit != nil {
+			minimalCommit.Message = commit.Commit.GetMessage()
+			minimalCommit.Author = convertToMinimalCommitAuthor(commit.Commit.Author)
+		}
+
+		result = append(result, minimalCommit)
+	}
+	return result
+}
+
+func convertToMinimalCommitAuthor(author *github.CommitAuthor) *MinimalCommitAuthor {
+	if author == nil {
+		return nil
+	}
+
+	minimalAuthor := &MinimalCommitAuthor{
+		Name:  author.GetName(),
+		Email: author.GetEmail(),
+	}
+	if author.Date != nil {
+		minimalAuthor.Date = author.Date.Format(time.RFC3339)
+	}
+
+	return minimalAuthor
 }
 
 // convertToMinimalBranch converts a GitHub API Branch to MinimalBranch

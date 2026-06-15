@@ -14,6 +14,7 @@ import (
 	"github.com/shurcooL/githubv4"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/sanitize"
@@ -35,12 +36,13 @@ Possible options:
  2. get_diff - Get the diff of a pull request.
  3. get_status - Get combined commit status of a head commit in a pull request.
  4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
- 5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
- 6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
- 7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
- 8. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
+ 5. get_commits - Get the list of commits on a pull request. Use with pagination parameters to control the number of results returned.
+ 6. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
+ 7. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
+ 8. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
+ 9. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
 `,
-				Enum: []any{"get", "get_diff", "get_status", "get_files", "get_review_comments", "get_reviews", "get_comments", "get_check_runs"},
+				Enum: []any{"get", "get_diff", "get_status", "get_files", "get_commits", "get_review_comments", "get_reviews", "get_comments", "get_check_runs"},
 			},
 			"owner": {
 				Type:        "string",
@@ -106,19 +108,32 @@ Possible options:
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
+			// attachIFC adds the IFC label to a successful tool result when
+			// IFC labels are enabled. Pull request content (descriptions,
+			// diffs, comments, reviews) is user-authored and therefore
+			// untrusted; confidentiality follows repo visibility. If the
+			// visibility lookup fails the label is omitted rather than
+			// misclassifying the result.
+			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
+				return attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, r, ifc.LabelListIssues)
+			}
+
 			switch method {
 			case "get":
 				result, err := GetPullRequest(ctx, client, deps, owner, repo, pullNumber)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_diff":
 				result, err := GetPullRequestDiff(ctx, client, owner, repo, pullNumber)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_status":
 				result, err := GetPullRequestStatus(ctx, client, owner, repo, pullNumber)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_files":
 				result, err := GetPullRequestFiles(ctx, client, owner, repo, pullNumber, pagination)
-				return result, nil, err
+				return attachIFC(result), nil, err
+			case "get_commits":
+				result, err := GetPullRequestCommits(ctx, client, owner, repo, pullNumber, pagination)
+				return attachIFC(result), nil, err
 			case "get_review_comments":
 				gqlClient, err := deps.GetGQLClient(ctx)
 				if err != nil {
@@ -129,16 +144,16 @@ Possible options:
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
 				result, err := GetPullRequestReviewComments(ctx, gqlClient, deps, owner, repo, pullNumber, cursorPagination)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_reviews":
 				result, err := GetPullRequestReviews(ctx, client, deps, owner, repo, pullNumber, pagination)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_comments":
 				result, err := GetIssueComments(ctx, client, deps, owner, repo, pullNumber, pagination)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			case "get_check_runs":
 				result, err := GetPullRequestCheckRuns(ctx, client, owner, repo, pullNumber, pagination)
-				return result, nil, err
+				return attachIFC(result), nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
@@ -369,6 +384,34 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo
 	minimalFiles := convertToMinimalPRFiles(files)
 
 	return MarshalledTextResult(minimalFiles), nil
+}
+
+func GetPullRequestCommits(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	opts := &github.ListOptions{
+		PerPage: pagination.PerPage,
+		Page:    pagination.Page,
+	}
+	commits, resp, err := client.PullRequests.ListCommits(ctx, owner, repo, pullNumber, opts)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get pull request commits",
+			resp,
+			err,
+		), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request commits", resp, body), nil
+	}
+
+	minimalCommits := convertToMinimalPullRequestCommits(commits)
+
+	return MarshalledTextResult(minimalCommits), nil
 }
 
 // GraphQL types for review threads query
@@ -1276,7 +1319,11 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			result := utils.NewToolResultText(string(r))
+			// Pull request titles/bodies are user-authored (untrusted);
+			// confidentiality follows repo visibility.
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelListIssues)
+			return result, nil, nil
 		})
 }
 
@@ -1446,7 +1493,7 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			result, err := searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests")
+			result, err := searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests", ifcSearchPostProcessOption(ctx, deps))
 			return result, nil, err
 		})
 }
