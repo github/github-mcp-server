@@ -2020,7 +2020,28 @@ func Test_CreateRepository(t *testing.T) {
 			expectedRepo: mockRepo,
 		},
 		{
-			name: "successful repository creation with minimal parameters",
+			name: "successful repository creation with minimal parameters defaults to private",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern("POST /user/repos"),
+					expectRequestBody(t, map[string]any{
+						"name":        "test-repo",
+						"auto_init":   false,
+						"description": "",
+						"private":     true,
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockRepo),
+					),
+				),
+			),
+			requestArgs: map[string]any{
+				"name": "test-repo",
+			},
+			expectError:  false,
+			expectedRepo: mockRepo,
+		},
+		{
+			name: "successful public repository creation when private is explicitly false",
 			mockedClient: NewMockedHTTPClient(
 				WithRequestMatchHandler(
 					EndpointPattern("POST /user/repos"),
@@ -2035,7 +2056,8 @@ func Test_CreateRepository(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"name": "test-repo",
+				"name":    "test-repo",
+				"private": false,
 			},
 			expectError:  false,
 			expectedRepo: mockRepo,
