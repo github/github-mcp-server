@@ -1,0 +1,49 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get batch pull request review threads"
+  },
+  "description": "Get review threads for an explicit list of pull requests in a GitHub repository. Returns partial success with per-PR errors and supports per-PR cursors via afterByPullNumber.",
+  "inputSchema": {
+    "properties": {
+      "afterByPullNumber": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Optional per-PR cursor map keyed by stringified pull request number. Each value should be the endCursor returned for that pull request in a previous batch response.",
+        "type": "object"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "perPage": {
+        "description": "Review threads per pull request page (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "pullNumbers": {
+        "description": "Explicit pull request numbers to hydrate. Accepts up to 20 items.",
+        "items": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxItems": 20,
+        "minItems": 1,
+        "type": "array"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pullNumbers"
+    ],
+    "type": "object"
+  },
+  "name": "get_pull_request_review_threads_batch"
+}
