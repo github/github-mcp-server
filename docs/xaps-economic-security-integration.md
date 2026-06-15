@@ -1,26 +1,50 @@
-"""
-Xaps Security Integration Example for GitHub MCP Server
-========================================================
+# Optional: XAPS Pre-Execution Audit for MCP Hosts
 
-This example shows how to add economic security to any MCP server
-using the Xaps cognitive circuit breaker.
+This guide shows how MCP host authors can add an **optional** economic-security layer before agents execute high-stakes actions (payments, contract calls, token transfers).
 
-Before your agent executes a smart contract, transfer, or financial action,
-it calls Xaps for an independent dual-agent audit.
+It is a **community integration pattern**, not a change to the GitHub MCP Server itself. Host applications wrap tool execution with a pre-flight audit and halt on rejection.
 
-Install (from GitHub — not on PyPI yet):
-    pip install "xaps @ git+https://github.com/APMC1/xaps-sdk.git@v0.1.1"
+> **Not affiliated with GitHub.** XAPS is an independent protocol/SDK maintained at [APMC1/xaps-sdk](https://github.com/APMC1/xaps-sdk).
 
-Canonical doc for the github-mcp-server PR lives at:
-    ../docs/xaps-economic-security-integration.md
+---
 
-Usage:
-    Set XAPS_AGENT_KEY environment variable, then import this module
-    in your MCP server setup.
+## When to use this
 
-Docs: https://github.com/APMC1/xaps-sdk
-"""
+Use this pattern when your MCP host or agent runtime can trigger actions with real cost or liability — for example:
 
+- Smart-contract writes from agent tool calls
+- Payment or billing APIs invoked by autonomous workflows
+- Any tool path where prompt injection or goal drift could cause unintended execution
+
+Standard Web3 tooling verifies signatures. XAPS adds an independent pre-execution audit step and returns a receipt your host can log or require downstream.
+
+---
+
+## Install the SDK
+
+The SDK is published from GitHub (not PyPI yet):
+
+```bash
+pip install "xaps @ git+https://github.com/APMC1/xaps-sdk.git@v0.1.1"
+```
+
+Set credentials:
+
+```bash
+export XAPS_AGENT_KEY="your_agent_key"
+# Optional override (default in SDK examples may differ):
+export XAPS_API_URL="https://api.xaps.network"
+```
+
+Docs: https://github.com/APMC1/xaps-sdk#readme
+
+---
+
+## Python wrapper pattern
+
+The snippet below is self-contained. Adapt it to your host's tool-dispatch layer.
+
+```python
 import os
 from typing import Any
 
@@ -28,7 +52,7 @@ from xaps import XapsClient, XapsRejectedError
 
 
 class XapsSecureMCPWrapper:
-    """Wraps MCP tool calls with Xaps economic security audit."""
+    """Wrap MCP tool calls with Xaps economic security audit."""
 
     def __init__(self, agent_key: str | None = None):
         self.client = XapsClient(
@@ -43,12 +67,6 @@ class XapsSecureMCPWrapper:
         amount: float,
         payload_override: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """
-        Audit a financial action before execution.
-
-        Raises XapsRejectedError if the audit rejects the action.
-        Returns the receipt on approval.
-        """
         receipt = self.client.audit(
             action=action,
             contract_address=contract_address,
@@ -66,28 +84,35 @@ class XapsSecureMCPWrapper:
         return receipt
 
     def health_check(self) -> bool:
-        """Check if Xaps API is reachable."""
         return self.client.health()
 
 
-# Example integration with an MCP server tool
 if __name__ == "__main__":
-    # Initialize the security wrapper
     security = XapsSecureMCPWrapper()
-
-    # Example: Before executing a token transfer
     try:
         receipt = security.audit_before_execute(
             action="transfer_tokens",
             contract_address="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
             amount=1000.0,
         )
-        print(f"✅ Approved: {receipt['audit']['alpha_defense']}")
-        print(f"💰 Balance remaining: ${receipt['remaining_balance']:.2f}")
-        # Proceed with actual execution...
+        print(f"Approved: {receipt['audit']['alpha_defense']}")
     except XapsRejectedError as e:
-        print(f"❌ Rejected: {e.reason}")
-        # Halt execution — do not proceed
-    except Exception as e:
-        print(f"⚠️ Audit failed: {e}")
-        # Decide: halt or proceed based on your risk policy
+        print(f"Rejected: {e.reason}")
+```
+
+---
+
+## Integration sketch
+
+1. Intercept the tool call in your MCP host **before** side effects.
+2. Call `audit_before_execute(...)` with action metadata.
+3. On `APPROVED`, proceed and optionally attach the receipt to logs/traces.
+4. On `REJECTED`, return a tool error to the agent — do not execute.
+
+This keeps the GitHub MCP Server unchanged; security lives in the host or a sidecar wrapper.
+
+---
+
+## Maintainer note
+
+Per [CONTRIBUTING.md](../CONTRIBUTING.md), consider opening an issue first if you want this pattern linked from official docs or toolsets. This PR adds a standalone optional guide under `docs/` with no server code changes.
