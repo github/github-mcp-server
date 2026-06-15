@@ -4802,6 +4802,30 @@ func Test_ListIssueTypes(t *testing.T) {
 			expectError:    false, // This should be handled by parameter validation, error returned in result
 			expectedErrMsg: "missing required parameter: owner",
 		},
+		{
+			name: "successful repo issue types retrieval",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/testorg/testrepo/issue-types": mockResponse(t, http.StatusOK, mockIssueTypes),
+			}),
+			requestArgs: map[string]any{
+				"owner": "testorg",
+				"repo":  "testrepo",
+			},
+			expectError:        false,
+			expectedIssueTypes: mockIssueTypes,
+		},
+		{
+			name: "repo not found",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/testorg/nonexistent/issue-types": mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
+			}),
+			requestArgs: map[string]any{
+				"owner": "testorg",
+				"repo":  "nonexistent",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to list issue types",
+		},
 	}
 
 	for _, tc := range tests {
