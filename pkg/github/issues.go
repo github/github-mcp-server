@@ -874,9 +874,8 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 
 	minimalIssue := convertToMinimalIssue(issue)
 
-	// Always drop the verbose REST IssueFieldValues; only enrich with the GraphQL
-	// field_values view when the issue-fields feature flag is on.
-	minimalIssue.IssueFieldValues = nil
+	// Enrich with the GraphQL field_values view only when the issue-fields feature
+	// flag is on. The verbose REST issue field values are not surfaced.
 	if deps.IsFeatureEnabled(ctx, FeatureFlagIssueFields) {
 		if issue != nil && issue.NodeID != nil && *issue.NodeID != "" {
 			gqlClient, err := deps.GetGQLClient(ctx)
