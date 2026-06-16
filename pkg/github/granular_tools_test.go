@@ -476,12 +476,12 @@ func TestGranularUpdateIssueLabelsConfidence(t *testing.T) {
 				"repo":         "repo",
 				"issue_number": float64(1),
 				"labels": []any{
-					map[string]any{"name": "bug", "confidence": "high"},
+					map[string]any{"name": "bug", "confidence": "HIGH"},
 				},
 			},
 			expectedReq: map[string]any{
 				"labels": []any{
-					map[string]any{"name": "bug", "confidence": "high"},
+					map[string]any{"name": "bug", "confidence": "HIGH"},
 				},
 			},
 		},
@@ -492,12 +492,12 @@ func TestGranularUpdateIssueLabelsConfidence(t *testing.T) {
 				"repo":         "repo",
 				"issue_number": float64(1),
 				"labels": []any{
-					map[string]any{"name": "bug", "rationale": "Reports a crash", "confidence": "medium"},
+					map[string]any{"name": "bug", "rationale": "Reports a crash", "confidence": "MEDIUM"},
 				},
 			},
 			expectedReq: map[string]any{
 				"labels": []any{
-					map[string]any{"name": "bug", "rationale": "Reports a crash", "confidence": "medium"},
+					map[string]any{"name": "bug", "rationale": "Reports a crash", "confidence": "MEDIUM"},
 				},
 			},
 		},
@@ -528,7 +528,7 @@ func TestGranularUpdateIssueLabelsConfidence(t *testing.T) {
 				require.NoError(t, err)
 
 				errorContent := getErrorResult(t, result)
-				assert.Contains(t, errorContent.Text, "confidence must be one of: low, medium, high")
+				assert.Contains(t, errorContent.Text, "confidence must be one of: LOW, MEDIUM, HIGH")
 				return
 			}
 
@@ -742,12 +742,12 @@ func TestGranularUpdateIssueTypeConfidence(t *testing.T) {
 				"repo":         "repo",
 				"issue_number": float64(1),
 				"issue_type":   "bug",
-				"confidence":   "high",
+				"confidence":   "HIGH",
 			},
 			expectedReq: map[string]any{
 				"type": map[string]any{
 					"value":      "bug",
-					"confidence": "high",
+					"confidence": "HIGH",
 				},
 			},
 		},
@@ -759,13 +759,13 @@ func TestGranularUpdateIssueTypeConfidence(t *testing.T) {
 				"issue_number": float64(1),
 				"issue_type":   "feature",
 				"rationale":    "Asks for dark mode support",
-				"confidence":   "medium",
+				"confidence":   "MEDIUM",
 			},
 			expectedReq: map[string]any{
 				"type": map[string]any{
 					"value":      "feature",
 					"rationale":  "Asks for dark mode support",
-					"confidence": "medium",
+					"confidence": "MEDIUM",
 				},
 			},
 		},
@@ -776,12 +776,12 @@ func TestGranularUpdateIssueTypeConfidence(t *testing.T) {
 				"repo":         "repo",
 				"issue_number": float64(1),
 				"issue_type":   "bug",
-				"confidence":   "low",
+				"confidence":   "LOW",
 			},
 			expectedReq: map[string]any{
 				"type": map[string]any{
 					"value":      "bug",
-					"confidence": "low",
+					"confidence": "LOW",
 				},
 			},
 		},
@@ -820,7 +820,7 @@ func TestGranularUpdateIssueTypeInvalidConfidence(t *testing.T) {
 				"issue_type":   "bug",
 				"confidence":   "very_high",
 			},
-			expectedErrText: "confidence must be one of: low, medium, high",
+			expectedErrText: "confidence must be one of: LOW, MEDIUM, HIGH",
 		},
 		{
 			name: "confidence wrong type",
@@ -1599,7 +1599,7 @@ func TestGranularSetIssueFields(t *testing.T) {
 	})
 
 	t.Run("successful set with confidence", func(t *testing.T) {
-		confidence := "high"
+		confidence := "HIGH"
 		matchers := []githubv4mock.Matcher{
 			githubv4mock.NewQueryMatcher(
 				struct {
@@ -1680,7 +1680,7 @@ func TestGranularSetIssueFields(t *testing.T) {
 				map[string]any{
 					"field_id":   "FIELD_1",
 					"text_value": "hello",
-					"confidence": "high",
+					"confidence": "HIGH",
 				},
 			},
 		})
@@ -1709,11 +1709,11 @@ func TestGranularSetIssueFields(t *testing.T) {
 		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
 		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "confidence must be one of: low, medium, high")
+		assert.Contains(t, textContent.Text, "confidence must be one of: LOW, MEDIUM, HIGH")
 	})
 
 	t.Run("confidence is sent when supplied", func(t *testing.T) {
-		confidence := "high"
+		confidence := "HIGH"
 		matchers := []githubv4mock.Matcher{
 			githubv4mock.NewQueryMatcher(
 				struct {
@@ -1794,7 +1794,7 @@ func TestGranularSetIssueFields(t *testing.T) {
 				map[string]any{
 					"field_id":   "FIELD_1",
 					"text_value": "hello",
-					"confidence": "high",
+					"confidence": "HIGH",
 				},
 			},
 		})
