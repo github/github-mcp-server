@@ -10,6 +10,22 @@
         "description": "Author username or email address to filter commits by",
         "type": "string"
       },
+      "fields": {
+        "description": "Subset of commit fields to return for each commit. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields.",
+        "items": {
+          "enum": [
+            "sha",
+            "html_url",
+            "commit",
+            "author",
+            "committer",
+            "stats",
+            "files"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
       "owner": {
         "description": "Repository owner",
         "type": "string"

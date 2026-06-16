@@ -1237,6 +1237,7 @@ The following sets of tools are available:
 
 - **list_branches** - List branches
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of branch fields to return for each branch. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1245,6 +1246,7 @@ The following sets of tools are available:
 - **list_commits** - List commits
   - **Required OAuth Scopes**: `repo`
   - `author`: Author username or email address to filter commits by (string, optional)
+  - `fields`: Subset of commit fields to return for each commit. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `path`: Only commits containing this file path will be returned (string, optional)
@@ -1256,6 +1258,7 @@ The following sets of tools are available:
 
 - **list_releases** - List releases
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of release fields to return for each release. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1263,6 +1266,7 @@ The following sets of tools are available:
 
 - **list_tags** - List tags
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of tag fields to return for each tag. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)

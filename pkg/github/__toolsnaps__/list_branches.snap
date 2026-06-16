@@ -6,6 +6,18 @@
   "description": "List branches in a GitHub repository",
   "inputSchema": {
     "properties": {
+      "fields": {
+        "description": "Subset of branch fields to return for each branch. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields.",
+        "items": {
+          "enum": [
+            "name",
+            "sha",
+            "protected"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
       "owner": {
         "description": "Repository owner",
         "type": "string"

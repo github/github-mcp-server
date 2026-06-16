@@ -1,0 +1,8 @@
+# Optional: accurate tokenization. If not installed (or offline), the scripts
+# fall back to a chars/4 approximation. Install with:
+#   python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+tiktoken>=0.7.0
+# Online harness (Phase 2) only. Used by schema_fields_eval.py against any
+# OpenAI-compatible endpoint (GitHub Models with your GitHub token, or a
+# Copilot / internal proxy via --base-url + --api-key-env). No third-party key.
+openai>=1.30.0

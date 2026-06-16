@@ -922,6 +922,22 @@ var issueFieldEnum = []any{"number", "title", "body", "state", "state_reason", "
 // matching the JSON field names of MinimalPullRequest.
 var pullRequestFieldEnum = []any{"number", "title", "body", "state", "draft", "merged", "mergeable_state", "html_url", "user", "labels", "assignees", "requested_reviewers", "merged_by", "head", "base", "additions", "deletions", "changed_files", "commits", "comments", "created_at", "updated_at", "closed_at", "merged_at", "milestone"}
 
+// commitFieldEnum lists the selectable fields for list_commits results,
+// matching the JSON field names of MinimalCommit.
+var commitFieldEnum = []any{"sha", "html_url", "commit", "author", "committer", "stats", "files"}
+
+// branchFieldEnum lists the selectable fields for list_branches results,
+// matching the JSON field names of MinimalBranch.
+var branchFieldEnum = []any{"name", "sha", "protected"}
+
+// tagFieldEnum lists the selectable fields for list_tags results,
+// matching the JSON field names of MinimalTag.
+var tagFieldEnum = []any{"name", "sha"}
+
+// releaseFieldEnum lists the selectable fields for list_releases results,
+// matching the JSON field names of MinimalRelease.
+var releaseFieldEnum = []any{"id", "tag_name", "name", "body", "html_url", "published_at", "prerelease", "draft", "author"}
+
 // filterFields marshals v to a JSON object and returns a map containing only the
 // requested fields. Fields that are unknown or absent from the JSON (for example
 // empty values dropped via omitempty) are skipped.
