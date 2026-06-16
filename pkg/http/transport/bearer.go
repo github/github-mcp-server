@@ -25,7 +25,11 @@ func (t *BearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	if t.TokenProvider != nil {
 		token = t.TokenProvider()
 	}
-	req.Header.Set(headers.AuthorizationHeader, "Bearer "+token)
+	// Before OAuth authorization completes the token is empty; send an
+	// unauthenticated request rather than an empty "Bearer " header.
+	if token != "" {
+		req.Header.Set(headers.AuthorizationHeader, "Bearer "+token)
+	}
 
 	// Check for GraphQL-Features in context and add header if present
 	if features := ghcontext.GetGraphQLFeatures(req.Context()); len(features) > 0 {

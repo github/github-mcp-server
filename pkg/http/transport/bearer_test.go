@@ -41,7 +41,7 @@ func TestBearerAuthTransport(t *testing.T) {
 		{
 			name:          "token provider may return empty before authorization",
 			tokenProvider: func() string { return "" },
-			wantAuth:      "Bearer",
+			wantAuth:      "",
 		},
 	}
 
@@ -103,7 +103,7 @@ func TestBearerAuthTransport_TokenProviderResolvedPerRequest(t *testing.T) {
 	}
 
 	do()
-	assert.Equal(t, "Bearer", gotAuth, "no token yet before authorization")
+	assert.Equal(t, "", gotAuth, "no auth header before authorization")
 
 	current = "first-token"
 	do()

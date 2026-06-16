@@ -261,6 +261,13 @@ type StdioServerConfig struct {
 
 // RunStdioServer is not concurrent safe.
 func RunStdioServer(cfg StdioServerConfig) error {
+	// OAuth login and a static token are mutually exclusive: they would
+	// disagree on how the token is sourced (lazy provider vs. static) and on
+	// scope filtering, so reject the ambiguous combination up front.
+	if cfg.OAuthManager != nil && cfg.Token != "" {
+		return fmt.Errorf("OAuthManager and a static Token are mutually exclusive: provide one or the other")
+	}
+
 	// Create app context
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

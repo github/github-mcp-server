@@ -286,6 +286,22 @@ func TestCreateOAuthMiddleware(t *testing.T) {
 	})
 }
 
+// TestRunStdioServerRejectsTokenAndOAuth verifies the mutually-exclusive guard:
+// supplying both a static token and an OAuth manager is rejected before the
+// server starts, rather than silently preferring one for auth and the other for
+// scope filtering.
+func TestRunStdioServerRejectsTokenAndOAuth(t *testing.T) {
+	t.Parallel()
+
+	mgr := oauth.NewManager(oauth.NewGitHubConfig("client-id", "", nil, "", 0), discardLogger())
+	err := RunStdioServer(StdioServerConfig{
+		Token:        "ghp_static",
+		OAuthManager: mgr,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "mutually exclusive")
+}
+
 // TestCreateGitHubClientsTokenProvider proves the OAuth wiring: when a
 // TokenProvider is configured the REST client authenticates with the provider's
 // current token on every request (and never pins a stale one), which is what the
@@ -317,7 +333,7 @@ func TestCreateGitHubClientsTokenProvider(t *testing.T) {
 	}
 
 	do()
-	assert.Equal(t, "Bearer", gotAuth, "no token before authorization")
+	assert.Equal(t, "", gotAuth, "no auth header before authorization")
 
 	current = "oauth-token"
 	do()
