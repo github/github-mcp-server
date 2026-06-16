@@ -54,7 +54,9 @@ func (m *Manager) beginPKCE(prompter Prompter) (*flowPlan, error) {
 	}
 	verifier := oauth2.GenerateVerifier()
 
-	listener, err := listenCallback(m.config.CallbackPort)
+	// Bind to all interfaces only inside a container, where the published port
+	// is delivered via eth0 rather than loopback. Native runs stay on loopback.
+	listener, err := listenCallback(m.config.CallbackPort, m.inDocker())
 	if err != nil {
 		return nil, err
 	}

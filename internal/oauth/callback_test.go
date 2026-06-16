@@ -71,12 +71,22 @@ func TestCallbackHandlerEscapesError(t *testing.T) {
 }
 
 func TestListenCallbackRandomPortIsLoopback(t *testing.T) {
-	listener, err := listenCallback(0)
+	listener, err := listenCallback(0, false)
 	require.NoError(t, err)
 	defer listener.Close()
 
 	addr, ok := listener.Addr().(*net.TCPAddr)
 	require.True(t, ok)
-	assert.True(t, addr.IP.IsLoopback(), "random port must bind loopback only, got %s", addr.IP)
+	assert.True(t, addr.IP.IsLoopback(), "default bind must be loopback only, got %s", addr.IP)
 	assert.NotZero(t, addr.Port)
+}
+
+func TestListenCallbackBindAllForContainer(t *testing.T) {
+	listener, err := listenCallback(0, true)
+	require.NoError(t, err)
+	defer listener.Close()
+
+	addr, ok := listener.Addr().(*net.TCPAddr)
+	require.True(t, ok)
+	assert.True(t, addr.IP.IsUnspecified(), "bindAll must bind all interfaces, got %s", addr.IP)
 }

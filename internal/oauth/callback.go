@@ -36,14 +36,15 @@ type callbackServer struct {
 
 // listenCallback binds the local callback listener.
 //
-// A random port (port == 0) binds to 127.0.0.1 only: the redirect target is
-// loopback and never reachable off-host. A fixed port binds to all interfaces
-// because Docker's published-port DNAT delivers traffic to the container's eth0
-// rather than to loopback; exposure is still constrained by the host-side
-// publish (e.g. -p 127.0.0.1:8085:8085).
-func listenCallback(port int) (net.Listener, error) {
+// It binds to loopback (127.0.0.1) by default so the callback server is never
+// exposed on other interfaces. bindAll is set only inside a container, where
+// Docker's published-port DNAT delivers traffic to the container's eth0 rather
+// than to loopback; host-side exposure is still constrained by the publish
+// (e.g. -p 127.0.0.1:8085:8085). A native run — even with a fixed port — stays
+// on loopback.
+func listenCallback(port int, bindAll bool) (net.Listener, error) {
 	host := "127.0.0.1"
-	if port > 0 {
+	if bindAll {
 		host = "0.0.0.0"
 	}
 	addr := fmt.Sprintf("%s:%d", host, port)

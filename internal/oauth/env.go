@@ -31,7 +31,14 @@ func openBrowser(url string) error {
 
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
-	return cmd.Start()
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	// The launcher (xdg-open/open/rundll32) exits as soon as it hands off to the
+	// browser. Reap it asynchronously so it does not linger as a zombie for the
+	// lifetime of this long-running server.
+	go func() { _ = cmd.Wait() }()
+	return nil
 }
 
 // isRunningInDocker reports whether the process is running inside a Docker (or
