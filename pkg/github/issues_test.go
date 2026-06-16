@@ -1932,7 +1932,6 @@ func Test_issueWriteSchemaClassification(t *testing.T) {
 		tool inventory.ServerTool
 	}{
 		{name: "IssueWrite", tool: IssueWrite(translations.NullTranslationHelper)},
-		{name: "LegacyIssueWrite", tool: LegacyIssueWrite(translations.NullTranslationHelper)},
 	}
 
 	for _, tc := range cases {
