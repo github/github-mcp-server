@@ -35,6 +35,14 @@ linters:
           - revive
         text: "var-naming: avoid package names that conflict with Go standard library package names"
   settings:
+    modernize:
+      # The newexpr modernizer rewrites pointer-helpers such as github.Ptr(x)
+      # into the Go 1.26 new(expr) builtin. Adopting it touches ~1.2k call sites
+      # across the codebase, which is out of scope for a toolchain bump. Disable
+      # it here so the rest of the modernize suite stays active; adopting
+      # new(expr) can be done as a separate, focused change.
+      disable:
+        - newexpr
     staticcheck:
       checks:
         - "all"
