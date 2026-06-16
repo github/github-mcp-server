@@ -115,7 +115,7 @@ Possible options:
 			// visibility lookup fails the label is omitted rather than
 			// misclassifying the result.
 			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
-				return attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, r, ifc.LabelListIssues)
+				return attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, r, ifc.LabelRepoUserContent)
 			}
 
 			switch method {
@@ -1339,7 +1339,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			result := utils.NewToolResultText(string(r))
 			// Pull request titles/bodies are user-authored (untrusted);
 			// confidentiality follows repo visibility.
-			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelListIssues)
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoUserContent)
 			return result, nil, nil
 		})
 }

@@ -76,10 +76,23 @@ func LabelGetMe() SecurityLabel {
 // LabelListIssues returns the IFC label for a list_issues result.
 // Public repositories are universally readable; private repositories are
 // restricted to their collaborators (resolved client-side from the marker).
-// Issue contents are attacker-controllable, so integrity is always untrusted.
+// Public repository issue contents are attacker-controllable, while private
+// repository issues are treated as trusted collaborator-authored data.
 func LabelListIssues(isPrivate bool) SecurityLabel {
 	if isPrivate {
-		return PrivateUntrusted()
+		return PrivateTrusted()
+	}
+	return PublicUntrusted()
+}
+
+// LabelRepoUserContent returns the IFC label for user-authored content scoped
+// to a repository when that tool has not opted into a more specific integrity
+// policy. Public repository content is untrusted because it may be authored by
+// outside contributors. Private repository content is trusted because users who
+// can read it are trusted collaborators.
+func LabelRepoUserContent(isPrivate bool) SecurityLabel {
+	if isPrivate {
+		return PrivateTrusted()
 	}
 	return PublicUntrusted()
 }
@@ -99,11 +112,12 @@ func LabelGetFileContents(isPrivate bool) SecurityLabel {
 // result, joining per-repository labels across all matched repositories.
 // Used by both search_issues and search_repositories.
 //
-// Integrity is always untrusted because results expose user-authored content.
-//
-// Confidentiality follows the IFC meet (greatest lower bound): if any matched
-// repository is private the joined label is private; otherwise public. The
-// reader set is opaque (the "private" marker); the client engine resolves
+// Public-only results are untrusted and public. All-private results are trusted
+// and private because private repository content is treated as trusted
+// collaborator-authored data. Mixed public/private results are untrusted and
+// private: the public items keep the joined payload's integrity untrusted,
+// while the private items keep the joined payload's confidentiality private.
+// The reader set is opaque (the "private" marker); the client engine resolves
 // concrete readers on demand at egress decision time.
 //
 // An empty result set is treated as public-untrusted (no repository data is
@@ -119,12 +133,22 @@ func LabelGetFileContents(isPrivate bool) SecurityLabel {
 // until then they would invite unsafe declassification of a "public" item that
 // actually arrived alongside private data.
 func LabelSearchIssues(repoVisibilities []bool) SecurityLabel {
+	var anyPrivate, anyPublic bool
 	for _, isPrivate := range repoVisibilities {
 		if isPrivate {
-			return PrivateUntrusted()
+			anyPrivate = true
+		} else {
+			anyPublic = true
 		}
 	}
-	return PublicUntrusted()
+	switch {
+	case anyPrivate && anyPublic:
+		return PrivateUntrusted()
+	case anyPrivate:
+		return PrivateTrusted()
+	default:
+		return PublicUntrusted()
+	}
 }
 
 // LabelRepoMetadata returns the IFC label for structural repository metadata
@@ -261,32 +285,21 @@ func LabelRepositorySecurityAdvisory(isPrivate bool, allPublished bool) Security
 // LabelGist returns the IFC label for gist content.
 //
 // Integrity is untrusted: gist contents are arbitrary user-authored text.
-// Confidentiality derives from the gist's own visibility rather than any
-// repository — public gists are universally readable, while secret gists are
-// restricted to those who hold the gist URL (modeled with the opaque "private"
-// marker).
-func LabelGist(isPublic bool) SecurityLabel {
-	if isPublic {
-		return PublicUntrusted()
-	}
-	return PrivateUntrusted()
+// Confidentiality is public because secret gists are URL-accessible and cannot
+// be modeled as private to a GitHub reader set.
+func LabelGist() SecurityLabel {
+	return PublicUntrusted()
 }
 
 // LabelGistList returns the IFC label for a list of gists belonging to a user,
 // joining the per-gist confidentiality across the result set.
 //
-// Integrity is untrusted (user-authored content). Confidentiality follows the
-// IFC meet: if any gist in the result is secret the joined label is private;
-// otherwise public. An empty result is treated as public-untrusted.
+// Integrity is untrusted (user-authored content). Confidentiality is public
+// because even secret gists are URL-accessible.
 //
 // See LabelSearchIssues for why list results carry a single joined label
 // rather than one label per item.
-func LabelGistList(gistVisibilities []bool) SecurityLabel {
-	for _, isPublic := range gistVisibilities {
-		if !isPublic {
-			return PrivateUntrusted()
-		}
-	}
+func LabelGistList() SecurityLabel {
 	return PublicUntrusted()
 }
 
@@ -295,13 +308,13 @@ func LabelGistList(gistVisibilities []bool) SecurityLabel {
 //
 // Integrity is untrusted: project titles, item content, and status update
 // bodies are user-authored free text. Confidentiality derives from the
-// project's own public flag — public projects are universally readable, while
-// private projects restrict the reader set.
-func LabelProject(isPublic bool) SecurityLabel {
-	if isPublic {
-		return PublicUntrusted()
+// project's own privacy — private projects restrict the reader set, while
+// public projects are universally readable.
+func LabelProject(isPrivate bool) SecurityLabel {
+	if isPrivate {
+		return PrivateUntrusted()
 	}
-	return PrivateUntrusted()
+	return PublicUntrusted()
 }
 
 // LabelTeam returns the IFC label for organization team membership data

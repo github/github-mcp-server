@@ -232,9 +232,9 @@ Use this tool to list projects for a user or organization, or list project field
 			// labels are enabled. Project titles, item content, field
 			// definitions, and status updates are user-authored free text
 			// (untrusted); confidentiality is conservatively private since the
-			// project's public flag is not available across every sub-result.
+			// project's privacy is not available across every sub-result.
 			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
-				return attachStaticIFCLabel(ctx, deps, r, ifc.LabelProject(false))
+				return attachStaticIFCLabel(ctx, deps, r, ifc.LabelProject(true))
 			}
 
 			switch method {
@@ -349,9 +349,9 @@ Use this tool to get details about individual projects, project fields, and proj
 			// attachIFC adds the IFC label to a successful result when IFC
 			// labels are enabled. Project data is user-authored free text
 			// (untrusted); confidentiality is conservatively private since the
-			// project's public flag is not available across every sub-result.
+			// project's privacy is not available across every sub-result.
 			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
-				return attachStaticIFCLabel(ctx, deps, r, ifc.LabelProject(false))
+				return attachStaticIFCLabel(ctx, deps, r, ifc.LabelProject(true))
 			}
 
 			// Handle get_project_status_update early — it only needs status_update_id

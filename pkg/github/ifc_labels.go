@@ -97,12 +97,11 @@ func attachRepoVisibilityIFCLabelLazy(
 }
 
 // attachJoinedIFCLabel attaches an IFC label computed by joining a set of
-// per-item visibilities (true == private for repositories, true == public for
-// gists) when IFC labels are enabled. joinFn is the lattice join for the
-// relevant item kind (e.g. ifc.LabelSearchIssues or ifc.LabelGistList). The
-// visibility slice is cheap to build from an already-fetched response, so
-// callers may construct it unconditionally and let this helper own the
-// feature-flag gate.
+// per-item visibilities (true == private) when IFC labels are enabled. joinFn
+// is the lattice join for the relevant item kind (e.g. ifc.LabelSearchIssues or
+// ifc.LabelGistList). The visibility slice is cheap to build from an
+// already-fetched response, so callers may construct it unconditionally and let
+// this helper own the feature-flag gate.
 func attachJoinedIFCLabel(
 	ctx context.Context,
 	deps ToolDependencies,
