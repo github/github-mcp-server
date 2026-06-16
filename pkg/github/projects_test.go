@@ -366,6 +366,196 @@ func Test_ProjectsList_ListProjectItems(t *testing.T) {
 	})
 }
 
+func Test_detectOwnerType(t *testing.T) {
+	t.Run("uses organization account type", func(t *testing.T) {
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetUsersByUsername: mockResponse(t, http.StatusOK, map[string]any{
+				"login": "github",
+				"type":  "Organization",
+			}),
+		})
+		client := mustNewGHClient(t, mockedClient)
+
+		ownerType, err := detectOwnerType(context.Background(), client, "github", 1)
+
+		require.NoError(t, err)
+		assert.Equal(t, "org", ownerType)
+	})
+
+	t.Run("uses user account type", func(t *testing.T) {
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetUsersByUsername: mockResponse(t, http.StatusOK, map[string]any{
+				"login": "octocat",
+				"type":  "User",
+			}),
+		})
+		client := mustNewGHClient(t, mockedClient)
+
+		ownerType, err := detectOwnerType(context.Background(), client, "octocat", 1)
+
+		require.NoError(t, err)
+		assert.Equal(t, "user", ownerType)
+	})
+
+	t.Run("falls back to project probes", func(t *testing.T) {
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetUsersProjectsV2ByUsernameByProject: mockResponse(t, http.StatusNotFound, nil),
+			GetOrgsProjectsV2ByProject:            mockResponse(t, http.StatusOK, map[string]any{"id": 1}),
+		})
+		client := mustNewGHClient(t, mockedClient)
+
+		ownerType, err := detectOwnerType(context.Background(), client, "octo-org", 1)
+
+		require.NoError(t, err)
+		assert.Equal(t, "org", ownerType)
+	})
+}
+
+func Test_ProjectsList_IFC_InsidersMode(t *testing.T) {
+	toolDef := ProjectsList(translations.NullTranslationHelper)
+
+	t.Run("list_projects joins returned project visibilities", func(t *testing.T) {
+		projects := []map[string]any{
+			{"id": 1, "node_id": "NODE1", "title": "Public Project", "public": true},
+			{"id": 2, "node_id": "NODE2", "title": "Private Project", "public": false},
+		}
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetOrgsProjectsV2: mockResponse(t, http.StatusOK, projects),
+		})
+		client := mustNewGHClient(t, mockedClient)
+		deps := BaseDeps{
+			Client:         client,
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":     "list_projects",
+			"owner":      "octo-org",
+			"owner_type": "org",
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "private", ifcMap["confidentiality"])
+	})
+
+	t.Run("list_project_fields uses project metadata label", func(t *testing.T) {
+		fields := []map[string]any{{"id": 101, "name": "Status", "data_type": "single_select"}}
+		project := map[string]any{"id": 1, "node_id": "NODE1", "title": "Private Project", "public": false}
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetOrgsProjectsV2FieldsByProject: mockResponse(t, http.StatusOK, fields),
+			GetOrgsProjectsV2ByProject:       mockResponse(t, http.StatusOK, project),
+		})
+		client := mustNewGHClient(t, mockedClient)
+		deps := BaseDeps{
+			Client:         client,
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "list_project_fields",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "trusted", ifcMap["integrity"])
+		assert.Equal(t, "private", ifcMap["confidentiality"])
+	})
+
+	t.Run("list_project_items uses project content label", func(t *testing.T) {
+		items := []map[string]any{verbosePullRequestProjectItemFixture()}
+		project := map[string]any{"id": 1, "node_id": "NODE1", "title": "Private Project", "public": false}
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetOrgsProjectsV2ItemsByProject: mockResponse(t, http.StatusOK, items),
+			GetOrgsProjectsV2ByProject:      mockResponse(t, http.StatusOK, project),
+		})
+		client := mustNewGHClient(t, mockedClient)
+		deps := BaseDeps{
+			Client:         client,
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "list_project_items",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "private", ifcMap["confidentiality"])
+	})
+
+	t.Run("list_project_status_updates uses GraphQL project visibility", func(t *testing.T) {
+		gqlMockedClient := githubv4mock.NewMockedHTTPClient(
+			githubv4mock.NewQueryMatcher(
+				statusUpdatesOrgQuery{},
+				map[string]any{
+					"owner":         githubv4.String("octo-org"),
+					"projectNumber": githubv4.Int(1),
+					"first":         githubv4.Int(50),
+					"after":         (*githubv4.String)(nil),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"organization": map[string]any{
+						"projectV2": map[string]any{
+							"public": true,
+							"statusUpdates": map[string]any{
+								"nodes": []map[string]any{},
+								"pageInfo": map[string]any{
+									"hasNextPage":     false,
+									"hasPreviousPage": false,
+									"startCursor":     "",
+									"endCursor":       "",
+								},
+							},
+						},
+					},
+				}),
+			),
+		)
+		deps := BaseDeps{
+			Client:         mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
+			GQLClient:      githubv4.NewClient(gqlMockedClient),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "list_project_status_updates",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
+	})
+}
+
 func Test_ProjectsGet(t *testing.T) {
 	// Verify tool definition once
 	toolDef := ProjectsGet(translations.NullTranslationHelper)
@@ -435,6 +625,79 @@ func Test_ProjectsGet_GetProject(t *testing.T) {
 		require.True(t, result.IsError)
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "unknown method: unknown_method")
+	})
+}
+
+func Test_ProjectsGet_IFC_InsidersMode(t *testing.T) {
+	toolDef := ProjectsGet(translations.NullTranslationHelper)
+
+	t.Run("get_project uses project metadata label", func(t *testing.T) {
+		project := map[string]any{"id": 123, "node_id": "NODE1", "title": "Private Project", "public": false}
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetOrgsProjectsV2ByProject: mockResponse(t, http.StatusOK, project),
+		})
+		client := mustNewGHClient(t, mockedClient)
+		deps := BaseDeps{
+			Client:         client,
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "get_project",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "trusted", ifcMap["integrity"])
+		assert.Equal(t, "private", ifcMap["confidentiality"])
+	})
+
+	t.Run("get_project_status_update uses GraphQL project visibility", func(t *testing.T) {
+		gqlMockedClient := githubv4mock.NewMockedHTTPClient(
+			githubv4mock.NewQueryMatcher(
+				statusUpdateNodeQuery{},
+				map[string]any{
+					"id": githubv4.ID("SU_abc123"),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"node": map[string]any{
+						"id":         "SU_abc123",
+						"body":       "On track",
+						"status":     "ON_TRACK",
+						"createdAt":  "2026-01-15T10:00:00Z",
+						"startDate":  "2026-01-01",
+						"targetDate": "2026-03-01",
+						"creator":    map[string]any{"login": "octocat"},
+						"project":    map[string]any{"public": true},
+					},
+				}),
+			),
+		)
+		deps := BaseDeps{
+			GQLClient:      githubv4.NewClient(gqlMockedClient),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":           "get_project_status_update",
+			"status_update_id": "SU_abc123",
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 }
 
@@ -1091,6 +1354,7 @@ func Test_ProjectsList_ListProjectStatusUpdates(t *testing.T) {
 				githubv4mock.DataResponse(map[string]any{
 					"user": map[string]any{
 						"projectV2": map[string]any{
+							"public": false,
 							"statusUpdates": map[string]any{
 								"nodes": []map[string]any{
 									{
@@ -1161,6 +1425,7 @@ func Test_ProjectsGet_GetProjectStatusUpdate(t *testing.T) {
 						"startDate":  "2026-01-01",
 						"targetDate": "2026-03-01",
 						"creator":    map[string]any{"login": "octocat"},
+						"project":    map[string]any{"public": false},
 					},
 				}),
 			),

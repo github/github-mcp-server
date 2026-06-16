@@ -22,6 +22,7 @@ import (
 const (
 	// User endpoints
 	GetUser                        = "GET /user"
+	GetUsersByUsername             = "GET /users/{username}"
 	GetUserStarred                 = "GET /user/starred"
 	GetUsersGistsByUsername        = "GET /users/{username}/gists"
 	GetUsersStarredByUsername      = "GET /users/{username}/starred"

@@ -303,14 +303,53 @@ func LabelGistList() SecurityLabel {
 	return PublicUntrusted()
 }
 
-// LabelProject returns the IFC label for a GitHub Project (Projects v2) and its
-// items, status updates, and field definitions.
+// LabelProject returns the IFC label for GitHub Project metadata (Projects v2),
+// such as get_project results and project field definitions.
 //
-// Integrity is untrusted: project titles, item content, and status update
-// bodies are user-authored free text. Confidentiality derives from the
-// project's own privacy — private projects restrict the reader set, while
-// public projects are universally readable.
+// Public project metadata can contain public user-authored text, so it is
+// untrusted. Private project metadata is treated as trusted
+// collaborator-controlled data.
+//
+// Confidentiality derives from the project's own privacy — private projects
+// restrict the reader set, while public projects are universally readable.
 func LabelProject(isPrivate bool) SecurityLabel {
+	if isPrivate {
+		return PrivateTrusted()
+	}
+	return PublicUntrusted()
+}
+
+// LabelProjectList returns the IFC label for a list_projects result, joining
+// the per-project labels across every returned project.
+//
+// Public-only results are untrusted and public. All-private results are trusted
+// and private. Mixed public/private results are untrusted and private: public
+// items keep the joined payload's integrity untrusted, while private items keep
+// the joined payload's confidentiality private.
+func LabelProjectList(projectVisibilities []bool) SecurityLabel {
+	var anyPrivate, anyPublic bool
+	for _, isPrivate := range projectVisibilities {
+		if isPrivate {
+			anyPrivate = true
+		} else {
+			anyPublic = true
+		}
+	}
+	switch {
+	case anyPrivate && anyPublic:
+		return PrivateUntrusted()
+	case anyPrivate:
+		return PrivateTrusted()
+	default:
+		return PublicUntrusted()
+	}
+}
+
+// LabelProjectContent returns the IFC label for project results that can include
+// item content, field values, or status update bodies. These can aggregate
+// content from a variety of sources, so integrity remains untrusted even when
+// the project is private.
+func LabelProjectContent(isPrivate bool) SecurityLabel {
 	if isPrivate {
 		return PrivateUntrusted()
 	}

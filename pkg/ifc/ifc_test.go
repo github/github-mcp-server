@@ -281,9 +281,71 @@ func TestLabelProject(t *testing.T) {
 		assert.Equal(t, ConfidentialityPublic, label.Confidentiality)
 	})
 
-	t.Run("private project is untrusted and private", func(t *testing.T) {
+	t.Run("private project metadata is trusted and private", func(t *testing.T) {
 		t.Parallel()
 		label := LabelProject(true)
+		assert.Equal(t, IntegrityTrusted, label.Integrity)
+		assert.Equal(t, ConfidentialityPrivate, label.Confidentiality)
+	})
+}
+
+func TestLabelProjectList(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		visibilities     []bool // true == private
+		wantIntegrity    Integrity
+		wantConfidential Confidentiality
+	}{
+		{
+			name:             "empty result is treated as public",
+			wantIntegrity:    IntegrityUntrusted,
+			wantConfidential: ConfidentialityPublic,
+		},
+		{
+			name:             "all public projects stay public",
+			visibilities:     []bool{false, false},
+			wantIntegrity:    IntegrityUntrusted,
+			wantConfidential: ConfidentialityPublic,
+		},
+		{
+			name:             "mixed public and private projects become untrusted private",
+			visibilities:     []bool{false, true},
+			wantIntegrity:    IntegrityUntrusted,
+			wantConfidential: ConfidentialityPrivate,
+		},
+		{
+			name:             "all private projects stay trusted private",
+			visibilities:     []bool{true, true},
+			wantIntegrity:    IntegrityTrusted,
+			wantConfidential: ConfidentialityPrivate,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			label := LabelProjectList(tc.visibilities)
+			assert.Equal(t, tc.wantIntegrity, label.Integrity)
+			assert.Equal(t, tc.wantConfidential, label.Confidentiality)
+		})
+	}
+}
+
+func TestLabelProjectContent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("public project content is untrusted and public", func(t *testing.T) {
+		t.Parallel()
+		label := LabelProjectContent(false)
+		assert.Equal(t, IntegrityUntrusted, label.Integrity)
+		assert.Equal(t, ConfidentialityPublic, label.Confidentiality)
+	})
+
+	t.Run("private project content is untrusted and private", func(t *testing.T) {
+		t.Parallel()
+		label := LabelProjectContent(true)
 		assert.Equal(t, IntegrityUntrusted, label.Integrity)
 		assert.Equal(t, ConfidentialityPrivate, label.Confidentiality)
 	})
