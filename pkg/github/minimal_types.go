@@ -293,23 +293,6 @@ type MinimalReactions struct {
 	Eyes       int `json:"eyes"`
 }
 
-// MinimalIssueFieldValueSingleSelectOption is the trimmed output type for a single-select option of an issue field value.
-type MinimalIssueFieldValueSingleSelectOption struct {
-	ID    int64  `json:"id"`
-	Name  string `json:"name"`
-	Color string `json:"color"`
-}
-
-// MinimalIssueFieldValue is the trimmed output type for a custom field value attached to an issue,
-// populated from REST API responses (e.g. get_issue). For GraphQL-sourced field values see MinimalFieldValue.
-type MinimalIssueFieldValue struct {
-	IssueFieldID       int64                                     `json:"issue_field_id,omitempty"`
-	NodeID             string                                    `json:"node_id,omitempty"`
-	DataType           string                                    `json:"data_type,omitempty"`
-	Value              any                                       `json:"value,omitempty"`
-	SingleSelectOption *MinimalIssueFieldValueSingleSelectOption `json:"single_select_option,omitempty"`
-}
-
 // MinimalFieldValue is the trimmed output type for a custom field value resolved via GraphQL
 // (e.g. list_issues, search_issues). Single-value variants populate Value; Values is reserved for multi-select.
 type MinimalFieldValue struct {
@@ -320,28 +303,27 @@ type MinimalFieldValue struct {
 
 // MinimalIssue is the trimmed output type for issue objects to reduce verbosity.
 type MinimalIssue struct {
-	Number            int                      `json:"number"`
-	Title             string                   `json:"title"`
-	Body              string                   `json:"body,omitempty"`
-	State             string                   `json:"state"`
-	StateReason       string                   `json:"state_reason,omitempty"`
-	Draft             bool                     `json:"draft,omitempty"`
-	Locked            bool                     `json:"locked,omitempty"`
-	HTMLURL           string                   `json:"html_url,omitempty"`
-	User              *MinimalUser             `json:"user,omitempty"`
-	AuthorAssociation string                   `json:"author_association,omitempty"`
-	Labels            []string                 `json:"labels,omitempty"`
-	Assignees         []string                 `json:"assignees,omitempty"`
-	Milestone         string                   `json:"milestone,omitempty"`
-	Comments          int                      `json:"comments,omitempty"`
-	Reactions         *MinimalReactions        `json:"reactions,omitempty"`
-	CreatedAt         string                   `json:"created_at,omitempty"`
-	UpdatedAt         string                   `json:"updated_at,omitempty"`
-	ClosedAt          string                   `json:"closed_at,omitempty"`
-	ClosedBy          string                   `json:"closed_by,omitempty"`
-	IssueType         string                   `json:"issue_type,omitempty"`
-	IssueFieldValues  []MinimalIssueFieldValue `json:"issue_field_values,omitempty"`
-	FieldValues       []MinimalFieldValue      `json:"field_values,omitempty"`
+	Number            int                 `json:"number"`
+	Title             string              `json:"title"`
+	Body              string              `json:"body,omitempty"`
+	State             string              `json:"state"`
+	StateReason       string              `json:"state_reason,omitempty"`
+	Draft             bool                `json:"draft,omitempty"`
+	Locked            bool                `json:"locked,omitempty"`
+	HTMLURL           string              `json:"html_url,omitempty"`
+	User              *MinimalUser        `json:"user,omitempty"`
+	AuthorAssociation string              `json:"author_association,omitempty"`
+	Labels            []string            `json:"labels,omitempty"`
+	Assignees         []string            `json:"assignees,omitempty"`
+	Milestone         string              `json:"milestone,omitempty"`
+	Comments          int                 `json:"comments,omitempty"`
+	Reactions         *MinimalReactions   `json:"reactions,omitempty"`
+	CreatedAt         string              `json:"created_at,omitempty"`
+	UpdatedAt         string              `json:"updated_at,omitempty"`
+	ClosedAt          string              `json:"closed_at,omitempty"`
+	ClosedBy          string              `json:"closed_by,omitempty"`
+	IssueType         string              `json:"issue_type,omitempty"`
+	FieldValues       []MinimalFieldValue `json:"field_values,omitempty"`
 }
 
 // MinimalIssuesResponse is the trimmed output for a paginated list of issues.
@@ -524,26 +506,6 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 
 	if issueType := issue.GetType(); issueType != nil {
 		m.IssueType = issueType.GetName()
-	}
-
-	for _, fv := range issue.IssueFieldValues {
-		if fv == nil {
-			continue
-		}
-		mfv := MinimalIssueFieldValue{
-			IssueFieldID: fv.IssueFieldID,
-			NodeID:       fv.NodeID,
-			DataType:     fv.DataType,
-			Value:        fv.Value,
-		}
-		if opt := fv.SingleSelectOption; opt != nil {
-			mfv.SingleSelectOption = &MinimalIssueFieldValueSingleSelectOption{
-				ID:    opt.ID,
-				Name:  opt.Name,
-				Color: opt.Color,
-			}
-		}
-		m.IssueFieldValues = append(m.IssueFieldValues, mfv)
 	}
 
 	if r := issue.Reactions; r != nil {

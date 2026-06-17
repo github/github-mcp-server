@@ -459,8 +459,7 @@ func Test_GetIssue_FieldValues(t *testing.T) {
 	err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 	require.NoError(t, err)
 
-	// Flag is off: raw REST IssueFieldValues must be cleared, enriched FieldValues absent.
-	assert.Empty(t, returnedIssue.IssueFieldValues, "raw REST issue_field_values should not be exposed when flag is off")
+	// Flag is off: enriched field_values absent.
 	assert.Empty(t, returnedIssue.FieldValues, "enriched field_values should not be present when flag is off")
 }
 
@@ -548,9 +547,6 @@ func Test_GetIssue_FieldValues_FlagOn(t *testing.T) {
 	var returnedIssue MinimalIssue
 	err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 	require.NoError(t, err)
-
-	// Raw REST IssueFieldValues is always cleared, even when flag is on.
-	assert.Empty(t, returnedIssue.IssueFieldValues, "raw REST issue_field_values should not be exposed even when flag is on")
 
 	// Enriched FieldValues comes from the GraphQL nodes() round-trip.
 	require.Len(t, returnedIssue.FieldValues, 2, "field_values should be populated from GraphQL when flag is on")
