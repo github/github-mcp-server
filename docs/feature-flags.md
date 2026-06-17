@@ -75,7 +75,7 @@ runtime behavior (such as output formatting) won't appear here.
   - `type`: Type of this issue. Only use if issue types are enabled for this repository. Use list_issue_types tool to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
 
 - **ui_get** - Get UI data
-  - **Required OAuth Scopes**: `repo`, `read:org`
+  - **Required OAuth Scopes (any of)**: `repo`, `read:org`
   - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `repo`, `write:org`
   - `method`: The type of data to fetch (string, required)
   - `owner`: Repository owner (required for all methods) (string, required)
@@ -323,5 +323,37 @@ runtime behavior (such as output formatting) won't appear here.
   - `ref`: Git reference (branch, tag, or commit SHA). Defaults to the repository's default branch (HEAD). (string, optional)
   - `repo`: Repository name (string, required)
   - `start_line`: Optional 1-based starting line of the window of interest. Only ranges overlapping [start_line, end_line] are returned, clamped to the window. (number, optional)
+
+### `issue_dependencies`
+
+- **issue_dependency_read** - Read issue dependencies
+  - **Required OAuth Scopes**: `repo`
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
+  - `issue_number`: The number of the issue (number, required)
+  - `method`: The read operation to perform on a single issue's dependencies.
+    Options are:
+    1. get_blocked_by - List the issues that block this issue (this issue is blocked by them).
+    2. get_blocking - List the issues that this issue blocks.
+     (string, required)
+  - `owner`: The owner of the repository (string, required)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: The name of the repository (string, required)
+
+- **issue_dependency_write** - Change issue dependency
+  - **Required OAuth Scopes**: `repo`
+  - `issue_number`: The number of the subject issue (number, required)
+  - `method`: The action to perform.
+    Options are:
+    - 'add' - create the dependency relationship.
+    - 'remove' - delete the dependency relationship. (string, required)
+  - `owner`: The owner of the subject issue's repository (string, required)
+  - `related_issue_number`: The number of the related issue to link or unlink (number, required)
+  - `related_owner`: The owner of the related issue's repository. Defaults to 'owner' when omitted. (string, optional)
+  - `related_repo`: The name of the related issue's repository. Defaults to 'repo' when omitted. (string, optional)
+  - `repo`: The name of the subject issue's repository (string, required)
+  - `type`: The relationship direction relative to the subject issue.
+    Options are:
+    - 'blocked_by' - the subject issue is blocked by the related issue.
+    - 'blocking' - the subject issue blocks the related issue. (string, required)
 
 <!-- END AUTOMATED FEATURE FLAG TOOLS -->
