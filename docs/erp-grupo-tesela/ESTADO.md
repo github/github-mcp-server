@@ -34,6 +34,7 @@
 | Registrar obra/certificaciones | ✅ Hecho | Botón "+ Cert." por contrato en el detalle → suma al coste real y baja el margen en vivo; RLS para rol obra |
 | Pantalla de Contactos | ✅ Hecho | Navegación Promociones/Contactos; tablas de clientes y proveedores (incluye los 47 reales de Holded) |
 | Facturas reales de Holded | ✅ Hecho | Tabla `factura_holded`: 56 facturas reales importadas (30 ventas + 26 compras) de la sociedad conectada |
+| Pantalla de Facturas | ✅ Hecho | Navegación "Facturas"; KPIs (ventas/compras/pendientes) + tabla filtrable. Solo Dirección |
 
 **Roles:** `direccion` (ve y gestiona todo) · `obra` (sus promociones: presupuestos, contratos de obra) · `comercial` (sus promociones: reservas, compraventas). `NULL` = pendiente de asignar (sin acceso).
 

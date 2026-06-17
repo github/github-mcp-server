@@ -26,15 +26,51 @@ async function showApp(user) {
   mostrarLista();
   cargar();
 }
+function ocultarTodo() {
+  ["vistaLista", "vistaDetalle", "vistaContactos", "vistaFacturas"].forEach((v) => $(v).classList.add("hidden"));
+}
 function mostrarLista() {
-  $("vistaDetalle").classList.add("hidden");
-  $("vistaContactos").classList.add("hidden");
+  ocultarTodo();
   $("vistaLista").classList.remove("hidden");
 }
 
+async function mostrarFacturas() {
+  ocultarTodo();
+  const v = $("vistaFacturas");
+  v.classList.remove("hidden");
+  v.innerHTML = `<h1>Facturas (Holded)</h1><div id="facKpis" class="resumen"></div>
+    <div class="section"><h2>Detalle</h2><div class="sub" id="facSub">Cargando…</div><div id="tblFacturas"></div></div>`;
+  const { data, error } = await sb.from("factura_holded")
+    .select("tipo,doc_numero,fecha,contacto_nombre,total,pagada").order("fecha", { ascending: false });
+  if (error) { $("facSub").textContent = "Error: " + error.message; return; }
+  const f = data || [];
+  if (!f.length) {
+    $("facSub").textContent = "";
+    $("tblFacturas").innerHTML = `<div class="empty">No hay facturas visibles (solo Dirección puede verlas).</div>`;
+    return;
+  }
+  const sum = (t, pag) => f.filter((x) => x.tipo === t && (pag === undefined || x.pagada === pag))
+    .reduce((s, x) => s + (Number(x.total) || 0), 0);
+  $("facKpis").innerHTML =
+    kpiCard("Ventas", eur(sum("invoice")), "var(--green)") +
+    kpiCard("Compras", eur(sum("purchase")), "var(--red)") +
+    kpiCard("Pendiente cobro", eur(sum("invoice", false)), "var(--amber)") +
+    kpiCard("Pendiente pago", eur(sum("purchase", false)), "var(--amber)");
+  $("facSub").textContent = `${f.length} facturas`;
+  $("tblFacturas").innerHTML = `<table>
+    <tr><th>Tipo</th><th>Nº</th><th>Fecha</th><th>Contacto</th><th class="rt">Total</th><th class="rt">Estado</th></tr>
+    ${f.map((x) => `<tr>
+      <td>${x.tipo === "invoice" ? "Venta" : "Compra"}</td>
+      <td>${x.doc_numero || "—"}</td>
+      <td>${x.fecha || "—"}</td>
+      <td>${x.contacto_nombre || "—"}</td>
+      <td class="rt">${eur(x.total)}</td>
+      <td class="rt" style="color:${x.pagada ? "var(--green)" : "var(--amber)"}">${x.pagada ? "Pagada" : "Pendiente"}</td>
+    </tr>`).join("")}</table>`;
+}
+
 async function mostrarContactos() {
-  $("vistaLista").classList.add("hidden");
-  $("vistaDetalle").classList.add("hidden");
+  ocultarTodo();
   const v = $("vistaContactos");
   v.classList.remove("hidden");
   v.innerHTML = `<h1>Contactos</h1><div class="sub" id="contSub">Cargando…</div>
@@ -121,7 +157,7 @@ function abrirDetalle(id) {
   const p = PROMOS[id];
   if (!p) return;
   DETALLE_ID = id;
-  $("vistaLista").classList.add("hidden");
+  ocultarTodo();
   const d = $("vistaDetalle");
   d.classList.remove("hidden");
   d.innerHTML = `
@@ -284,5 +320,6 @@ $("loginForm").addEventListener("submit", async (e) => {
 $("logout").addEventListener("click", async () => { await sb.auth.signOut(); showLogin(); });
 $("navPromos").addEventListener("click", mostrarLista);
 $("navContactos").addEventListener("click", mostrarContactos);
+$("navFacturas").addEventListener("click", mostrarFacturas);
 
 init();
