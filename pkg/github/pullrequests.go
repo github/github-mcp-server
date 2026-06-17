@@ -2293,6 +2293,20 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			// WeakDecode leaves an omitted field as its zero value, so without an
+			// explicit check a missing required argument (e.g. owner) would be
+			// sent to the GraphQL API and surface as a confusing downstream error
+			// ("Could not resolve to a Repository ...") instead of a clear
+			// missing-parameter message. Validate the required arguments up front.
+			for _, p := range []string{"owner", "repo", "path", "body", "subjectType"} {
+				if _, err := RequiredParam[string](args, p); err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+			}
+			if _, err := RequiredInt(args, "pullNumber"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
