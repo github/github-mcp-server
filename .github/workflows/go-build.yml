@@ -17,7 +17,7 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v6
       with:
         go-version: ${{ matrix.go-version }}
     
@@ -39,10 +39,4 @@ jobs:
       run: go test -v ./...
     
     - name: Run tests with coverage
-      shell: bash
-      run: |
-        # Only cover packages that have tests. Passing packages without test
-        # files to `go test -coverprofile` triggers `go tool covdata`, which
-        # fails ("no such tool covdata") for those packages and fails the job.
-        pkgs=$(go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./...)
-        go test -v -coverprofile=coverage.out $pkgs
+      run: go test -v -coverprofile=coverage.out ./...
