@@ -4,7 +4,7 @@
     "openWorldHint": true,
     "title": "Update Issue Labels"
   },
-  "description": "Update the labels of an existing issue. This replaces the current labels with the provided list. When setting values, include a confidence level (low, medium, or high) reflecting how certain you are about the choice.",
+  "description": "Update the labels of an existing issue. This replaces the current labels with the provided list. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice.",
   "inputSchema": {
     "properties": {
       "issue_number": {
@@ -23,11 +23,11 @@
             {
               "properties": {
                 "confidence": {
-                  "description": "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
+                  "description": "How confident you are in this choice. Use 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal.",
                   "enum": [
-                    "low",
-                    "medium",
-                    "high"
+                    "LOW",
+                    "MEDIUM",
+                    "HIGH"
                   ],
                   "type": "string"
                 },
