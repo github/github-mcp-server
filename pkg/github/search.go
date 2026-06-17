@@ -173,8 +173,9 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 // every matched repository and attaches the result to callResult when IFC
 // labels are enabled. Visibility is read directly from the search response —
 // no extra API call. The join math is shared with search_issues via
-// ifc.LabelSearchIssues: integrity is always untrusted; confidentiality is
-// private if any matched repository is private, otherwise public. The
+// ifc.LabelSearchIssues: public-only results stay public-untrusted,
+// mixed-visibility results become private-untrusted, and all-private results
+// become private-trusted. The
 // feature-flag check is centralized here (mirroring the attach* helpers in
 // ifc_labels.go) so the handler can call this unconditionally.
 func attachSearchRepositoriesIFCLabel(ctx context.Context, deps ToolDependencies, repos []*github.Repository, callResult *mcp.CallToolResult) {
@@ -302,9 +303,9 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			callResult := utils.NewToolResultText(string(r))
-			// Code search spans repositories and exposes file contents
-			// (untrusted). Confidentiality is the IFC join across every matched
-			// repository's visibility, read directly from the search response.
+			// Code search spans repositories; the IFC label is the conservative
+			// join across every matched repository's visibility, read directly
+			// from the search response.
 			visibilities := make([]bool, 0, len(result.CodeResults))
 			for _, code := range result.CodeResults {
 				if code.Repository != nil {
@@ -593,9 +594,9 @@ func SearchCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			callResult := utils.NewToolResultText(string(r))
-			// Commit search spans repositories and exposes commit content
-			// (untrusted). Confidentiality is the IFC join across every matched
-			// repository's visibility, read directly from the search response.
+			// Commit search spans repositories; the IFC label is the conservative
+			// join across every matched repository's visibility, read directly
+			// from the search response.
 			visibilities := make([]bool, 0, len(result.Commits))
 			for _, commit := range result.Commits {
 				if commit.Repository != nil {

@@ -101,13 +101,7 @@ func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := utils.NewToolResultText(string(r))
-			// Gist contents are user-authored (untrusted); confidentiality is
-			// the IFC join of each gist's own public/secret flag.
-			visibilities := make([]bool, 0, len(gists))
-			for _, g := range gists {
-				visibilities = append(visibilities, g.GetPublic())
-			}
-			result = attachJoinedIFCLabel(ctx, deps, result, visibilities, ifc.LabelGistList)
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGistList())
 			return result, nil, nil
 		},
 	)
@@ -167,9 +161,7 @@ func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := utils.NewToolResultText(string(r))
-			// Gist contents are user-authored (untrusted); confidentiality
-			// derives from the gist's own public/secret flag.
-			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGist(gist.GetPublic()))
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGist())
 			return result, nil, nil
 		},
 	)

@@ -55,6 +55,7 @@ func TestRegisterUIResources_ReadableViaClient(t *testing.T) {
 		GetMeUIResourceURI,
 		IssueWriteUIResourceURI,
 		PullRequestWriteUIResourceURI,
+		PullRequestEditUIResourceURI,
 	}
 	for _, uri := range uris {
 		t.Run(uri, func(t *testing.T) {

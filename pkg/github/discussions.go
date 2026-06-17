@@ -276,7 +276,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 			result := utils.NewToolResultText(string(out))
 			// Discussion content is user-authored (untrusted); confidentiality
 			// follows repo visibility.
-			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelListIssues)
+			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoUserContent)
 			return result, nil, nil
 		},
 	)
@@ -384,7 +384,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 			result := utils.NewToolResultText(string(out))
 			// Discussion content is user-authored (untrusted); confidentiality
 			// follows repo visibility.
-			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, params.Owner, params.Repo, result, ifc.LabelListIssues)
+			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, params.Owner, params.Repo, result, ifc.LabelRepoUserContent)
 			return result, nil, nil
 		},
 	)
@@ -592,7 +592,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 			result := utils.NewToolResultText(string(out))
 			// Discussion comments are user-authored (untrusted); confidentiality
 			// follows repo visibility.
-			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, params.Owner, params.Repo, result, ifc.LabelListIssues)
+			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, params.Owner, params.Repo, result, ifc.LabelRepoUserContent)
 			return result, nil, nil
 		},
 	)
