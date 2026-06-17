@@ -36,6 +36,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **create_pull_request** - Open new pull request
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `pull_requests:write`
   - **MCP App UI**: `ui://github-mcp-server/pr-write`
   - `base`: Branch to merge into (string, required)
   - `body`: PR description (string, optional)
@@ -54,6 +55,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **issue_write** - Create or update issue/pull request
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `issues:write`
   - **MCP App UI**: `ui://github-mcp-server/issue-write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
@@ -99,6 +101,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **issue_write** - Create or update issue/pull request
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `issues:write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
@@ -126,6 +129,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **list_issues** - List issues
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `issues:read`
   - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
   - `field_filters`: Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date). (object[], optional)
@@ -149,6 +153,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **create_issue** - Create Issue
   - **Required OAuth Scopes**: `repo`
+  - **Required Permissions (fine-grained)**: `issues:write`
   - `body`: Issue body content (optional) (string, optional)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/github/github-mcp-server/pkg/octicons"
+	"github.com/github/github-mcp-server/pkg/permissions"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -83,6 +84,20 @@ type ServerTool struct {
 	// This includes the required scopes plus any higher-level scopes that provide
 	// the necessary permissions due to scope hierarchy.
 	AcceptedScopes []string
+
+	// RequiredPermissions specifies the fine-grained permissions this tool needs.
+	// The zero value is an empty requirement, meaning the tool has no fine-grained
+	// permission gate and is always shown. Set it with WithPermissions at the tool
+	// definition site, mirroring how RequiredScopes is set.
+	RequiredPermissions permissions.Requirement
+}
+
+// WithPermissions returns a copy of the tool with its fine-grained permission
+// requirement set. It is chainable so it can be applied at the tool definition
+// site, e.g. NewTool(...).WithPermissions(permissions.Require(permissions.Issues.Write())).
+func (st ServerTool) WithPermissions(r permissions.Requirement) ServerTool {
+	st.RequiredPermissions = r
+	return st
 }
 
 // IsReadOnly returns true if this tool is marked as read-only via annotations.

@@ -17,6 +17,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
+	"github.com/github/github-mcp-server/pkg/permissions"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -157,7 +158,7 @@ Possible options:
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
-		})
+		}).WithPermissions(permissions.Require(permissions.PullRequests.Read()))
 }
 
 func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
@@ -877,7 +878,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		})
+		}).WithPermissions(permissions.Require(permissions.PullRequests.Write()))
 }
 
 // UpdatePullRequest creates a tool to update an existing pull request.
@@ -1438,7 +1439,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			// confidentiality follows repo visibility.
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoUserContent)
 			return result, nil, nil
-		})
+		}).WithPermissions(permissions.Require(permissions.PullRequests.Read()))
 }
 
 // MergePullRequest creates a tool to merge a pull request.

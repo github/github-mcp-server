@@ -14,6 +14,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/permissions"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -822,7 +823,7 @@ Options are:
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
-		})
+		}).WithPermissions(permissions.Require(permissions.Issues.Read()))
 }
 
 func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
@@ -2102,7 +2103,7 @@ Options are:
 			default:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
 			}
-		})
+		}).WithPermissions(permissions.Require(permissions.Issues.Write()))
 	st.FeatureFlagEnable = FeatureFlagIssueFields
 	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}
 	return st
@@ -2344,7 +2345,7 @@ Options are:
 			default:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
 			}
-		})
+		}).WithPermissions(permissions.Require(permissions.Issues.Write()))
 	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular, FeatureFlagIssueFields}
 	return st
 }
@@ -2830,7 +2831,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			result := MarshalledTextResult(resp)
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelListIssues(isPrivate))
 			return result, nil, nil
-		})
+		}).WithPermissions(permissions.Require(permissions.Issues.Read()))
 	st.FeatureFlagEnable = FeatureFlagIssueFields
 	return st
 }
@@ -3028,7 +3029,7 @@ func LegacyListIssues(t translations.TranslationHelperFunc) inventory.ServerTool
 			result := MarshalledTextResult(resp)
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelListIssues(isPrivate))
 			return result, nil, nil
-		})
+		}).WithPermissions(permissions.Require(permissions.Issues.Read()))
 	st.FeatureFlagDisable = []string{FeatureFlagIssueFields}
 	return st
 }

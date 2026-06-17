@@ -9,6 +9,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/permissions"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -96,7 +97,7 @@ func GetCodeScanningAlert(t translations.TranslationHelperFunc) inventory.Server
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.SecurityEvents.Read()))
 }
 
 func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -221,5 +222,5 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.SecurityEvents.Read()))
 }

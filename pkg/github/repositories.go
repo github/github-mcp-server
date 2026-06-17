@@ -15,6 +15,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
+	"github.com/github/github-mcp-server/pkg/permissions"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -281,7 +282,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelCommitContents)
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Contents.Read()))
 }
 
 // ListBranches creates a tool to list branches in a GitHub repository.
@@ -373,7 +374,7 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Contents.Read()))
 }
 
 // CreateOrUpdateFile creates a tool to create or update a file in a GitHub repository.
@@ -569,7 +570,7 @@ SHA MUST be provided for existing file updates.
 
 			return MarshalledTextResult(minimalResponse), nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Contents.Write()))
 }
 
 // CreateRepository creates a tool to create a new GitHub repository.
@@ -892,7 +893,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			return utils.NewToolResultError("failed to get file contents"), nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Contents.Read()))
 }
 
 // ForkRepository creates a tool to fork a repository.
@@ -1289,7 +1290,7 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Contents.Write()))
 }
 
 // PushFiles creates a tool to push multiple files in a single commit to a GitHub repository.
@@ -1524,7 +1525,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Contents.Write()))
 }
 
 // ListTags creates a tool to list tags in a GitHub repository.
@@ -1615,7 +1616,7 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
 			return result, nil, nil
 		},
-	)
+	).WithPermissions(permissions.Require(permissions.Contents.Read()))
 }
 
 // GetTag creates a tool to get details about a specific tag in a GitHub repository.
