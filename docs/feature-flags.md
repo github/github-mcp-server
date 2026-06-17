@@ -75,7 +75,7 @@ runtime behavior (such as output formatting) won't appear here.
   - `type`: Type of this issue. Only use if issue types are enabled for this repository. Use list_issue_types tool to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
 
 - **ui_get** - Get UI data
-  - **Required OAuth Scopes**: `repo`, `read:org`
+  - **Required OAuth Scopes (any of)**: `repo`, `read:org`
   - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `repo`, `write:org`
   - `method`: The type of data to fetch (string, required)
   - `owner`: Repository owner (required for all methods) (string, required)
@@ -179,7 +179,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **update_issue_assignees** - Update Issue Assignees
   - **Required OAuth Scopes**: `repo`
-  - `assignees`: GitHub usernames to assign to this issue (string[], required)
+  - `assignees`: GitHub usernames to assign to this issue. ([], required)
   - `issue_number`: The issue number to update (number, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)
