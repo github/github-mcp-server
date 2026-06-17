@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -32,8 +34,12 @@ type ServerConfig struct {
 	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
 	Host string
 
-	// Port to listen on (default: 8082)
+	// Port to listen on (default: 8082).
 	Port int
+
+	// ListenHost is the host the HTTP server binds to (e.g. "127.0.0.1").
+	// When empty, the server binds to all interfaces. Combined with Port.
+	ListenHost string
 
 	// BaseURL is the publicly accessible URL of this server for OAuth resource metadata.
 	// If not set, the server will derive the URL from incoming request headers.
@@ -192,7 +198,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 	})
 	logger.Info("OAuth protected resource endpoints registered", "baseURL", cfg.BaseURL)
 
-	addr := fmt.Sprintf(":%d", cfg.Port)
+	addr := resolveListenAddress(cfg.ListenHost, cfg.Port)
 	httpSvr := http.Server{
 		Addr:              addr,
 		Handler:           r,
@@ -221,6 +227,16 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	logger.Info("server stopped gracefully")
 	return nil
+}
+
+// resolveListenAddress returns the address string passed to http.Server.
+// When host is empty the server binds to all interfaces on the given port;
+// otherwise host and port are joined into a single address.
+func resolveListenAddress(host string, port int) string {
+	if host == "" {
+		return fmt.Sprintf(":%d", port)
+	}
+	return net.JoinHostPort(host, strconv.Itoa(port))
 }
 
 func initGlobalToolScopeMap(t translations.TranslationHelperFunc) error {

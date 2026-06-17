@@ -804,7 +804,7 @@ Options are:
 			// attachIFC adds the IFC label to a successful tool result when
 			// IFC labels are enabled. If the visibility lookup fails the
 			// label is omitted rather than misclassifying the result.
-			attachIFC := newRepoVisibilityIFCLabeler(ctx, deps, client, owner, repo, ifc.LabelListIssues)
+			attachIFC := newRepoVisibilityIFCLabeler(ctx, deps, client, owner, repo, ifc.LabelRepoUserContent)
 
 			switch method {
 			case "get":
@@ -1794,8 +1794,7 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 const IssueWriteUIResourceURI = "ui://github-mcp-server/issue-write"
 
 // issueWriteFormParams are the parameters the issue_write MCP App form collects
-// and re-sends on submit. The form only supports title/body editing (plus the
-// routing/identity fields), so any other parameter present on a call cannot be
+// and re-sends on submit. Any other parameter present on a call cannot be
 // represented by the form.
 var issueWriteFormParams = map[string]struct{}{
 	"method":        {},
@@ -1804,12 +1803,17 @@ var issueWriteFormParams = map[string]struct{}{
 	"title":         {},
 	"body":          {},
 	"issue_number":  {},
+	"issue_fields":  {},
+	"state":         {},
+	"state_reason":  {},
+	"duplicate_of":  {},
+	"show_ui":       {},
 	"_ui_submitted": {},
 }
 
 // issueWriteHasNonFormParams reports whether the call carries any parameter the
 // issue_write MCP App form cannot represent (anything outside issueWriteFormParams,
-// e.g. labels, assignees, issue_fields or a state change). Such calls must bypass
+// e.g. labels, assignees, milestones or issue types). Such calls must bypass
 // the UI form and execute directly so the supplied values aren't silently dropped.
 func issueWriteHasNonFormParams(args map[string]any) bool {
 	for key, value := range args {
@@ -1821,6 +1825,36 @@ func issueWriteHasNonFormParams(args map[string]any) bool {
 		}
 	}
 	return false
+}
+
+// issueWriteAwaitingFormResult builds the "awaiting form submission" stub
+// returned when issue_write hands off to the MCP App form. The body is shared
+// by IssueWrite and LegacyIssueWrite. The result is marked IsError=true so
+// agents that bail on error don't claim success or chain dependent tool calls
+// while the user is still interacting with the form; the host renders the UI
+// regardless because rendering is keyed off the tool's _meta.ui resourceUri.
+func issueWriteAwaitingFormResult(method, owner, repo string, issueNumber int) *mcp.CallToolResult {
+	var msg string
+	if method == "update" {
+		msg = fmt.Sprintf(
+			"An interactive form has been shown to the user for editing issue #%d in %s/%s. "+
+				"STOP — do not call any other tools, do not respond as if the issue was updated, "+
+				"and do not claim the operation succeeded. The issue has NOT been updated yet; "+
+				"only the form was rendered. Wait silently for the user to review and click Submit. "+
+				"When they do, the real result will be delivered to your context automatically.",
+			issueNumber, owner, repo,
+		)
+	} else {
+		msg = fmt.Sprintf(
+			"An interactive form has been shown to the user for creating a new issue in %s/%s. "+
+				"STOP — do not call any other tools, do not respond as if the issue was created, "+
+				"and do not claim the operation succeeded. The issue has NOT been created yet; "+
+				"only the form was rendered. Wait silently for the user to review and click Submit. "+
+				"When they do, the real result will be delivered to your context automatically.",
+			owner, repo,
+		)
+	}
+	return utils.NewToolResultAwaitingFormSubmission(msg)
 }
 
 // IssueWrite is the FeatureFlagIssueFields-enabled variant of issue_write
@@ -1948,6 +1982,17 @@ Options are:
 							Required: []string{"field_name"},
 						},
 					},
+					// show_ui is hidden from clients that do not advertise MCP App
+					// UI support. The strip happens per-request in
+					// inventory.ToolsForRegistration; it is present in the static
+					// schema (and therefore in toolsnaps and the feature-flag /
+					// insiders docs) so the UI-capable surface is fully
+					// documented. It is intentionally not in the main README,
+					// which renders the stripped (non-UI) schema.
+					"show_ui": {
+						Type:        "boolean",
+						Description: "Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when you have all required values (especially ones the form does not collect, like labels, assignees, milestone, type, issue_fields, or state changes) and the user has already confirmed the action.",
+					},
 				},
 				Required: []string{"method", "owner", "repo"},
 			},
@@ -1969,21 +2014,28 @@ Options are:
 			}
 
 			// When MCP Apps are enabled and the client supports UI, route the
-			// call to the interactive form unless it is itself a form submission
-			// (the UI sends _ui_submitted=true) or it carries parameters the form
-			// cannot represent (e.g. labels, assignees or issue_fields). Those
-			// must be applied directly so their values aren't silently dropped.
+			// call to the interactive form unless:
+			//   - it is itself a form submission (the UI sends _ui_submitted=true),
+			//   - the caller explicitly asked to skip the UI (show_ui=false), or
+			//   - it carries parameters the form cannot represent (e.g. labels,
+			//     assignees or issue_fields). Those must be applied directly so
+			//     their values aren't silently dropped.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
+			showUI, err := OptionalBoolParamWithDefault(args, "show_ui", true)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
-			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && !issueWriteHasNonFormParams(args) {
+			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && showUI && !issueWriteHasNonFormParams(args) {
+				issueNumber := 0
 				if method == "update" {
-					issueNumber, numErr := RequiredInt(args, "issue_number")
+					n, numErr := RequiredInt(args, "issue_number")
 					if numErr != nil {
 						return utils.NewToolResultError("issue_number is required for update method"), nil, nil
 					}
-					return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. IMPORTANT: The issue has NOT been updated yet. Do NOT tell the user the issue was updated. The user MUST click Submit in the form to update it.", issueNumber, owner, repo)), nil, nil
+					issueNumber = n
 				}
-				return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. IMPORTANT: The issue has NOT been created yet. Do NOT tell the user the issue was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
+				return issueWriteAwaitingFormResult(method, owner, repo, issueNumber), nil, nil
 			}
 
 			title, err := OptionalParam[string](args, "title")
@@ -2187,6 +2239,17 @@ Options are:
 						Type:        "number",
 						Description: "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
 					},
+					// show_ui is hidden from clients that do not advertise MCP App
+					// UI support. The strip happens per-request in
+					// inventory.ToolsForRegistration; it is present in the static
+					// schema (and therefore in toolsnaps and the feature-flag /
+					// insiders docs) so the UI-capable surface is fully
+					// documented. It is intentionally not in the main README,
+					// which renders the stripped (non-UI) schema.
+					"show_ui": {
+						Type:        "boolean",
+						Description: "Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when you have all required values (especially ones the form does not collect, like labels, assignees, milestone, type, or state changes) and the user has already confirmed the action.",
+					},
 				},
 				Required: []string{"method", "owner", "repo"},
 			},
@@ -2208,21 +2271,28 @@ Options are:
 			}
 
 			// When MCP Apps are enabled and the client supports UI, route the
-			// call to the interactive form unless it is itself a form submission
-			// (the UI sends _ui_submitted=true) or it carries parameters the form
-			// cannot represent (e.g. labels, assignees or issue_fields). Those
-			// must be applied directly so their values aren't silently dropped.
+			// call to the interactive form unless:
+			//   - it is itself a form submission (the UI sends _ui_submitted=true),
+			//   - the caller explicitly asked to skip the UI (show_ui=false), or
+			//   - it carries parameters the form cannot represent (e.g. labels,
+			//     assignees or issue_fields). Those must be applied directly so
+			//     their values aren't silently dropped.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
+			showUI, err := OptionalBoolParamWithDefault(args, "show_ui", true)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
-			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && !issueWriteHasNonFormParams(args) {
+			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && showUI && !issueWriteHasNonFormParams(args) {
+				issueNumber := 0
 				if method == "update" {
-					issueNumber, numErr := RequiredInt(args, "issue_number")
+					n, numErr := RequiredInt(args, "issue_number")
 					if numErr != nil {
 						return utils.NewToolResultError("issue_number is required for update method"), nil, nil
 					}
-					return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. IMPORTANT: The issue has NOT been updated yet. Do NOT tell the user the issue was updated. The user MUST click Submit in the form to update it.", issueNumber, owner, repo)), nil, nil
+					issueNumber = n
 				}
-				return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. IMPORTANT: The issue has NOT been created yet. Do NOT tell the user the issue was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
+				return issueWriteAwaitingFormResult(method, owner, repo, issueNumber), nil, nil
 			}
 
 			title, err := OptionalParam[string](args, "title")

@@ -600,7 +600,8 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 					},
 					"private": {
 						Type:        "boolean",
-						Description: "Whether repo should be private",
+						Description: "Whether the repository should be private. Defaults to true (private) when omitted.",
+						Default:     json.RawMessage("true"),
 					},
 					"autoInit": {
 						Type:        "boolean",
@@ -624,7 +625,7 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			private, err := OptionalParam[bool](args, "private")
+			private, err := OptionalBoolParamWithDefault(args, "private", true)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -2120,9 +2121,10 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.Ser
 			result := utils.NewToolResultText(string(r))
 			// A starred-repository listing exposes repository data across many
 			// repos; reuse the multi-repo join shared with search_repositories
-			// (untrusted integrity; confidentiality private if any matched repo
-			// is private). Visibility is read directly from the response, so no
-			// extra API call is needed.
+			// (public-only results stay public-untrusted, mixed-visibility
+			// results become private-untrusted, all-private results become
+			// private-trusted). Visibility is read directly from the response,
+			// so no extra API call is needed.
 			visibilities := make([]bool, 0, len(minimalRepos))
 			for _, mr := range minimalRepos {
 				visibilities = append(visibilities, mr.Private)

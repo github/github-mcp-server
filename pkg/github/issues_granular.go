@@ -19,6 +19,10 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+func normalizeConfidence(confidence string) string {
+	return strings.ToUpper(strings.TrimSpace(confidence))
+}
+
 // issueUpdateTool is a helper to create single-field issue update tools.
 func issueUpdateTool(
 	t translations.TranslationHelperFunc,
@@ -281,7 +285,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_labels",
-			Description: t("TOOL_UPDATE_ISSUE_LABELS_DESCRIPTION", "Update the labels of an existing issue. This replaces the current labels with the provided list. When setting values, include a confidence level (low, medium, or high) reflecting how certain you are about the choice."),
+			Description: t("TOOL_UPDATE_ISSUE_LABELS_DESCRIPTION", "Update the labels of an existing issue. This replaces the current labels with the provided list. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_LABELS_USER_TITLE", "Update Issue Labels"),
 				ReadOnlyHint:    false,
@@ -325,8 +329,8 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 										},
 										"confidence": {
 											Type:        "string",
-											Description: "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
-											Enum:        []any{"low", "medium", "high"},
+											Description: "How confident you are in this choice. Use 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal.",
+											Enum:        []any{"LOW", "MEDIUM", "HIGH"},
 										},
 										"is_suggestion": {
 											Type: "boolean",
@@ -398,8 +402,9 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 					if err != nil {
 						return utils.NewToolResultError(err.Error()), nil, nil
 					}
-					if confidence != "" && confidence != "low" && confidence != "medium" && confidence != "high" {
-						return utils.NewToolResultError("confidence must be one of: low, medium, high"), nil, nil
+					confidence = normalizeConfidence(confidence)
+					if confidence != "" && confidence != "LOW" && confidence != "MEDIUM" && confidence != "HIGH" {
+						return utils.NewToolResultError("confidence must be one of: LOW, MEDIUM, HIGH"), nil, nil
 					}
 					isSuggestion, err := OptionalParam[bool](v, "is_suggestion")
 					if err != nil {
@@ -505,7 +510,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_type",
-			Description: t("TOOL_UPDATE_ISSUE_TYPE_DESCRIPTION", "Update the type of an existing issue (e.g. 'bug', 'feature'). When setting values, include a confidence level (low, medium, or high) reflecting how certain you are about the choice."),
+			Description: t("TOOL_UPDATE_ISSUE_TYPE_DESCRIPTION", "Update the type of an existing issue (e.g. 'bug', 'feature'). When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_TYPE_USER_TITLE", "Update Issue Type"),
 				ReadOnlyHint:    false,
@@ -540,8 +545,8 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 					},
 					"confidence": {
 						Type:        "string",
-						Description: "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
-						Enum:        []any{"low", "medium", "high"},
+						Description: "How confident you are in this choice. Use 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal.",
+						Enum:        []any{"LOW", "MEDIUM", "HIGH"},
 					},
 					"is_suggestion": {
 						Type: "boolean",
@@ -582,8 +587,9 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			if confidence != "" && confidence != "low" && confidence != "medium" && confidence != "high" {
-				return utils.NewToolResultError("confidence must be one of: low, medium, high"), nil, nil
+			confidence = normalizeConfidence(confidence)
+			if confidence != "" && confidence != "LOW" && confidence != "MEDIUM" && confidence != "HIGH" {
+				return utils.NewToolResultError("confidence must be one of: LOW, MEDIUM, HIGH"), nil, nil
 			}
 			isSuggestion, err := OptionalParam[bool](args, "is_suggestion")
 			if err != nil {
@@ -987,8 +993,8 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 								},
 								"confidence": {
 									Type:        "string",
-									Description: "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
-									Enum:        []any{"low", "medium", "high"},
+									Description: "How confident you are in this choice. Use 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal.",
+									Enum:        []any{"LOW", "MEDIUM", "HIGH"},
 								},
 								"is_suggestion": {
 									Type: "boolean",
@@ -1111,8 +1117,9 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				if confidence != "" && confidence != "low" && confidence != "medium" && confidence != "high" {
-					return utils.NewToolResultError("confidence must be one of: low, medium, high"), nil, nil
+				confidence = normalizeConfidence(confidence)
+				if confidence != "" && confidence != "LOW" && confidence != "MEDIUM" && confidence != "HIGH" {
+					return utils.NewToolResultError("confidence must be one of: LOW, MEDIUM, HIGH"), nil, nil
 				}
 				if confidence != "" {
 					input.Confidence = &confidence
