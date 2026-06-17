@@ -33,6 +33,7 @@
 | Dashboard global del grupo | ✅ Hecho | Vista `v_resumen_grupo` + banda de KPIs del grupo (cartera, vendido, margen, caja) y ranking de promociones por margen |
 | Registrar obra/certificaciones | ✅ Hecho | Botón "+ Cert." por contrato en el detalle → suma al coste real y baja el margen en vivo; RLS para rol obra |
 | Pantalla de Contactos | ✅ Hecho | Navegación Promociones/Contactos; tablas de clientes y proveedores (incluye los 47 reales de Holded) |
+| Facturas reales de Holded | ✅ Hecho | Tabla `factura_holded`: 56 facturas reales importadas (30 ventas + 26 compras) de la sociedad conectada |
 
 **Roles:** `direccion` (ve y gestiona todo) · `obra` (sus promociones: presupuestos, contratos de obra) · `comercial` (sus promociones: reservas, compraventas). `NULL` = pendiente de asignar (sin acceso).
 
