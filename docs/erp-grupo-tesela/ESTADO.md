@@ -31,6 +31,7 @@
 | ERP publicado (URL pública) | ✅ Hecho | Edge Function `app` (verify_jwt=false): https://jpojckqnhepiuwefyvdr.supabase.co/functions/v1/app · usuario demo de dirección creado |
 | Detalle de promoción + registrar venta | ✅ Hecho | Detalle con unidades/tesorería/obra/documentos; botón "Vender" → crea contrato, marca unidad vendida y encola factura (todo por triggers) |
 | Dashboard global del grupo | ✅ Hecho | Vista `v_resumen_grupo` + banda de KPIs del grupo (cartera, vendido, margen, caja) y ranking de promociones por margen |
+| Registrar obra/certificaciones | ✅ Hecho | Botón "+ Cert." por contrato en el detalle → suma al coste real y baja el margen en vivo; RLS para rol obra |
 
 **Roles:** `direccion` (ve y gestiona todo) · `obra` (sus promociones: presupuestos, contratos de obra) · `comercial` (sus promociones: reservas, compraventas). `NULL` = pendiente de asignar (sin acceso).
 

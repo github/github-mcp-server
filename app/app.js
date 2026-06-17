@@ -154,15 +154,19 @@ async function cargarDetalle(id) {
 
   // Obra
   const obra = await sb.from("contrato_obra")
-    .select("descripcion,importe_adjudicado,estado,certificacion(importe)").eq("promocion_id", id);
+    .select("id,descripcion,importe_adjudicado,estado,certificacion(importe)").eq("promocion_id", id);
   const od = obra.data || [];
+  const puedeCert = ROL === "direccion" || ROL === "obra";
   $("detObra").innerHTML = od.length ? `<table>
-    <tr><th>Contrato</th><th class="rt">Adjudicado</th><th class="rt">Certificado</th><th class="rt">%</th></tr>
+    <tr><th>Contrato</th><th class="rt">Adjudicado</th><th class="rt">Certificado</th><th class="rt">%</th><th></th></tr>
     ${od.map((o) => {
       const cert = (o.certificacion || []).reduce((s, c) => s + (Number(c.importe) || 0), 0);
       const pct = o.importe_adjudicado ? Math.round(1000 * cert / o.importe_adjudicado) / 10 : 0;
-      return `<tr><td>${o.descripcion}</td><td class="rt">${eur(o.importe_adjudicado)}</td><td class="rt">${eur(cert)}</td><td class="rt">${pct}%</td></tr>`;
+      const accion = puedeCert ? `<button class="mini" data-co="${o.id}">+ Cert.</button>` : "";
+      return `<tr><td>${o.descripcion}</td><td class="rt">${eur(o.importe_adjudicado)}</td><td class="rt">${eur(cert)}</td><td class="rt">${pct}%</td><td class="rt">${accion}</td></tr>`;
     }).join("")}</table>` : `<div class="sub">Sin contratos de obra.</div>`;
+  $("detObra").querySelectorAll("button.mini").forEach((b) =>
+    b.addEventListener("click", () => registrarCertificacion(b.getAttribute("data-co"))));
 
   // Documentos
   const docs = await sb.from("documento").select("tipo,nombre").eq("promocion_id", id);
@@ -207,6 +211,35 @@ window.confirmarVenta = async function (unidadId) {
   // La unidad pasa a 'vendida' por trigger; la factura se encola por trigger.
   closeModal();
   abrirDetalle(DETALLE_ID); // recargar el detalle con los datos actualizados
+};
+
+let CO = null;
+window.registrarCertificacion = async function (coId) {
+  CO = coId;
+  openModal(`
+    <h2>Nueva certificación de obra</h2>
+    <div class="field"><label>Nº de certificación</label><input id="cNum" type="number" value="1"></div>
+    <div class="field"><label>Importe (€)</label><input id="cImp" type="number" placeholder="0"></div>
+    <div class="field"><label>Fecha</label><input id="cFecha" type="date" value="${new Date().toISOString().slice(0, 10)}"></div>
+    <div id="cMsg" class="msg"></div>
+    <div class="modal-actions">
+      <button class="linkbtn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-sm" onclick="confirmarCert()">Guardar</button>
+    </div>`);
+};
+window.confirmarCert = async function () {
+  const importe = Number($("cImp").value);
+  const msg = $("cMsg");
+  msg.className = "msg";
+  if (!importe) { msg.className = "msg err"; msg.textContent = "Indica un importe."; return; }
+  msg.textContent = "Guardando…";
+  const ins = await sb.from("certificacion").insert({
+    contrato_obra_id: CO, numero: Number($("cNum").value) || null,
+    importe, fecha: $("cFecha").value,
+  });
+  if (ins.error) { msg.className = "msg err"; msg.textContent = ins.error.message; return; }
+  closeModal();
+  abrirDetalle(DETALLE_ID);
 };
 
 // Eventos de login
