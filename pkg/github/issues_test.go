@@ -3484,6 +3484,158 @@ func Test_LegacyUpdateIssueClearsLabelsAndAssignees(t *testing.T) {
 	assert.Equal(t, updatedIssue.GetHTMLURL(), updateResp.URL)
 }
 
+func Test_IssueWrite_UpdateLabelsWithIntent(t *testing.T) {
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+	updatedIssue := &github.Issue{
+		Number:  github.Ptr(1),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/1"),
+	}
+
+	tests := []struct {
+		name        string
+		labels      any
+		expectedReq map[string]any
+	}{
+		{
+			name:   "plain label names sent as strings",
+			labels: []any{"bug", "triage"},
+			expectedReq: map[string]any{
+				"labels": []any{"bug", "triage"},
+			},
+		},
+		{
+			name: "suggested label without rationale",
+			labels: []any{
+				map[string]any{"name": "bug", "is_suggestion": true},
+			},
+			expectedReq: map[string]any{
+				"labels": []any{
+					map[string]any{"name": "bug", "suggest": true},
+				},
+			},
+		},
+		{
+			name: "applied label with rationale",
+			labels: []any{
+				map[string]any{"name": "bug", "rationale": "Reports a crash when saving"},
+			},
+			expectedReq: map[string]any{
+				"labels": []any{
+					map[string]any{"name": "bug", "rationale": "Reports a crash when saving"},
+				},
+			},
+		},
+		{
+			name: "suggested label with rationale and confidence",
+			labels: []any{
+				map[string]any{"name": "bug", "rationale": "Reports a crash when saving", "confidence": "high", "is_suggestion": true},
+			},
+			expectedReq: map[string]any{
+				"labels": []any{
+					map[string]any{"name": "bug", "rationale": "Reports a crash when saving", "confidence": "high", "suggest": true},
+				},
+			},
+		},
+		{
+			name: "mix of plain, applied-with-rationale, and suggested labels",
+			labels: []any{
+				"triage",
+				map[string]any{"name": "bug", "rationale": "Reports a crash when saving"},
+				map[string]any{"name": "needs-design", "is_suggestion": true},
+			},
+			expectedReq: map[string]any{
+				"labels": []any{
+					"triage",
+					map[string]any{"name": "bug", "rationale": "Reports a crash when saving"},
+					map[string]any{"name": "needs-design", "suggest": true},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
+					andThen(mockResponse(t, http.StatusOK, updatedIssue)),
+			}))
+			deps := BaseDeps{
+				Client:    client,
+				GQLClient: githubv4.NewClient(githubv4mock.NewMockedHTTPClient()),
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"labels":       tc.labels,
+			})
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			if result.IsError {
+				t.Fatalf("unexpected error result: %s", getErrorResult(t, result).Text)
+			}
+		})
+	}
+}
+
+func Test_IssueWrite_UpdateLabelsWithIntentErrors(t *testing.T) {
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+
+	tests := []struct {
+		name            string
+		labels          any
+		expectedErrText string
+	}{
+		{
+			name: "rationale too long",
+			labels: []any{
+				map[string]any{"name": "bug", "rationale": strings.Repeat("a", 281)},
+			},
+			expectedErrText: "rationale must be 280 characters or less",
+		},
+		{
+			name: "invalid confidence value",
+			labels: []any{
+				map[string]any{"name": "bug", "confidence": "very_high"},
+			},
+			expectedErrText: "confidence must be one of: low, medium, high",
+		},
+		{
+			name: "label object missing name",
+			labels: []any{
+				map[string]any{"rationale": "no name provided"},
+			},
+			expectedErrText: "each labels object must have a 'name' string",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			deps := BaseDeps{
+				Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(nil)),
+				GQLClient: githubv4.NewClient(githubv4mock.NewMockedHTTPClient()),
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"labels":       tc.labels,
+			})
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			errorContent := getErrorResult(t, result)
+			assert.Contains(t, errorContent.Text, tc.expectedErrText)
+		})
+	}
+}
+
 func Test_ParseISOTimestamp(t *testing.T) {
 	tests := []struct {
 		name         string
