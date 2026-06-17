@@ -3484,6 +3484,242 @@ func Test_LegacyUpdateIssueClearsLabelsAndAssignees(t *testing.T) {
 	assert.Equal(t, updatedIssue.GetHTMLURL(), updateResp.URL)
 }
 
+func Test_UpdateIssueWithAssigneeRationale(t *testing.T) {
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+
+	mockIssue := &github.Issue{
+		Number:  github.Ptr(42),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+	}
+
+	tests := []struct {
+		name             string
+		mockedRESTClient *http.Client
+		requestArgs      map[string]any
+		expectError      bool
+		expectedErrMsg   string
+	}{
+		{
+			name: "update with object-form assignees sends intent metadata",
+			mockedRESTClient: func() *http.Client {
+				callCount := 0
+				return MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+					PatchReposIssuesByOwnerByRepoByIssueNumber: func(w http.ResponseWriter, r *http.Request) {
+						callCount++
+						var body map[string]any
+						require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+						if callCount == 1 {
+							// First call: UpdateIssue without assignees
+							require.NotContains(t, body, "assignees", "first PATCH should not contain assignees")
+							require.Equal(t, "Updated Title", body["title"])
+						} else {
+							// Second call: patchAssigneesWithIntent
+							assignees, ok := body["assignees"].([]any)
+							require.True(t, ok, "second PATCH should contain assignees array")
+							require.Len(t, assignees, 2)
+
+							a0, ok := assignees[0].(map[string]any)
+							require.True(t, ok)
+							assert.Equal(t, "octocat", a0["login"])
+							assert.Equal(t, "Owns the auth module", a0["rationale"])
+							assert.Equal(t, true, a0["suggest"])
+
+							a1, ok := assignees[1].(string)
+							require.True(t, ok)
+							assert.Equal(t, "user2", a1)
+						}
+						w.WriteHeader(http.StatusOK)
+						respBytes, _ := json.Marshal(mockIssue)
+						_, _ = w.Write(respBytes)
+					},
+				})
+			}(),
+			requestArgs: map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"title":        "Updated Title",
+				"assignees": []any{
+					map[string]any{
+						"login":         "octocat",
+						"rationale":     "Owns the auth module",
+						"is_suggestion": true,
+					},
+					"user2",
+				},
+			},
+		},
+		{
+			name: "update with plain string assignees uses standard path",
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+					"assignees": []any{"user1", "user2"},
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockIssue),
+				),
+			}),
+			requestArgs: map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"assignees":    []any{"user1", "user2"},
+			},
+		},
+		{
+			name: "update with object-form assignees including confidence",
+			mockedRESTClient: func() *http.Client {
+				callCount := 0
+				return MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+					PatchReposIssuesByOwnerByRepoByIssueNumber: func(w http.ResponseWriter, r *http.Request) {
+						callCount++
+						var body map[string]any
+						require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+						if callCount == 2 {
+							assignees, ok := body["assignees"].([]any)
+							require.True(t, ok)
+							require.Len(t, assignees, 1)
+							a0, ok := assignees[0].(map[string]any)
+							require.True(t, ok)
+							assert.Equal(t, "octocat", a0["login"])
+							assert.Equal(t, "HIGH", a0["confidence"])
+							assert.Equal(t, "Expert in this area", a0["rationale"])
+						}
+						w.WriteHeader(http.StatusOK)
+						respBytes, _ := json.Marshal(mockIssue)
+						_, _ = w.Write(respBytes)
+					},
+				})
+			}(),
+			requestArgs: map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"assignees": []any{
+					map[string]any{
+						"login":      "octocat",
+						"rationale":  "Expert in this area",
+						"confidence": "HIGH",
+					},
+				},
+			},
+		},
+		{
+			name:             "object-form assignee without login field fails",
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"assignees": []any{
+					map[string]any{
+						"rationale": "Missing login",
+					},
+				},
+			},
+			expectError:    true,
+			expectedErrMsg: "each assignee object must have a 'login' string",
+		},
+		{
+			name:             "object-form assignee with invalid confidence fails",
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"assignees": []any{
+					map[string]any{
+						"login":      "octocat",
+						"confidence": "VERY_HIGH",
+					},
+				},
+			},
+			expectError:    true,
+			expectedErrMsg: "confidence must be one of: LOW, MEDIUM, HIGH",
+		},
+		{
+			name:             "object-form assignee with rationale exceeding 280 chars fails",
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"assignees": []any{
+					map[string]any{
+						"login":     "octocat",
+						"rationale": strings.Repeat("a", 281),
+					},
+				},
+			},
+			expectError:    true,
+			expectedErrMsg: "assignee rationale must be 280 characters or less",
+		},
+		{
+			name: "object-form assignee with only login falls back to string form",
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+					"assignees": []any{"octocat"},
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockIssue),
+				),
+			}),
+			requestArgs: map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"assignees": []any{
+					map[string]any{
+						"login": "octocat",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			restClient := mustNewGHClient(t, tc.mockedRESTClient)
+			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
+			deps := BaseDeps{
+				Client:         restClient,
+				GQLClient:      gqlClient,
+				featureChecker: featureCheckerFor(FeatureFlagIssueFields),
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			if tc.expectError || tc.expectedErrMsg != "" {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				if tc.expectedErrMsg != "" {
+					assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			if result.IsError {
+				t.Fatalf("Unexpected error result: %s", getErrorResult(t, result).Text)
+			}
+			require.False(t, result.IsError)
+
+			textContent := getTextResult(t, result)
+			var resp MinimalResponse
+			require.NoError(t, json.Unmarshal([]byte(textContent.Text), &resp))
+			assert.Equal(t, "https://github.com/owner/repo/issues/42", resp.URL)
+		})
+	}
+}
+
 func Test_ParseISOTimestamp(t *testing.T) {
 	tests := []struct {
 		name         string

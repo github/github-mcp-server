@@ -1913,9 +1913,37 @@ Options are:
 					},
 					"assignees": {
 						Type:        "array",
-						Description: "Usernames to assign to this issue",
+						Description: "Usernames to assign to this issue.",
 						Items: &jsonschema.Schema{
-							Type: "string",
+							OneOf: []*jsonschema.Schema{
+								{Type: "string", Description: "GitHub username"},
+								{
+									Type: "object",
+									Properties: map[string]*jsonschema.Schema{
+										"login": {
+											Type:        "string",
+											Description: "GitHub username",
+										},
+										"rationale": {
+											Type: "string",
+											Description: "One concise sentence explaining why this person is the right assignee. " +
+												"State the concrete signal (e.g. 'Owns the auth module where the bug was reported').",
+											MaxLength: jsonschema.Ptr(280),
+										},
+										"confidence": {
+											Type:        "string",
+											Description: "How confident you are in this choice. Use 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal.",
+											Enum:        []any{"LOW", "MEDIUM", "HIGH"},
+										},
+										"is_suggestion": {
+											Type: "boolean",
+											Description: "If true, this assignee is sent to the API as a suggestion (suggest:true) rather than a direct assignment. " +
+												"Whether the assignee is applied or recorded as a proposal is determined by the API.",
+										},
+									},
+									Required: []string{"login"},
+								},
+							},
 						},
 					},
 					"labels": {
@@ -2049,8 +2077,8 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Get assignees
-			assignees, err := OptionalStringArrayParam(args, "assignees")
+			// Get assignees (polymorphic: string or object with login/rationale/confidence/is_suggestion)
+			assignees, assigneesPayload, useAssigneeObjectForm, err := parsePolymorphicAssignees(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -2129,16 +2157,45 @@ Options are:
 			switch method {
 			case "create":
 				result, err := CreateIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues)
+				if err != nil || result.IsError {
+					return result, nil, err
+				}
+				// If object-form assignees were used on create, apply them via a follow-up PATCH
+				if useAssigneeObjectForm {
+					textContent, ok := result.Content[0].(*mcp.TextContent)
+					if ok {
+						var created MinimalResponse
+						if jsonErr := json.Unmarshal([]byte(textContent.Text), &created); jsonErr == nil {
+							if issueNum, parseErr := parseIssueNumberFromURL(created.URL); parseErr == nil {
+								return patchAssigneesWithIntent(ctx, client, owner, repo, issueNum, assigneesPayload)
+							}
+						}
+					}
+				}
 				return result, nil, err
 			case "update":
 				issueNumber, err := RequiredInt(args, "issue_number")
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, UpdateIssueOptions{
-					AssigneesProvided: assigneesProvided,
+				// When object-form assignees are used, skip assignees in the standard
+				// UpdateIssue call and apply them via a separate PATCH with intent metadata.
+				updateAssignees := assignees
+				updateAssigneesProvided := assigneesProvided
+				if useAssigneeObjectForm {
+					updateAssignees = nil
+					updateAssigneesProvided = false
+				}
+				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, updateAssignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, UpdateIssueOptions{
+					AssigneesProvided: updateAssigneesProvided,
 					LabelsProvided:    labelsProvided,
 				})
+				if err != nil || result.IsError {
+					return result, nil, err
+				}
+				if useAssigneeObjectForm {
+					return patchAssigneesWithIntent(ctx, client, owner, repo, issueNumber, assigneesPayload)
+				}
 				return result, nil, err
 			default:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
@@ -2450,6 +2507,125 @@ type UpdateIssueOptions struct {
 	AssigneesProvided bool
 	// LabelsProvided sends the labels field even when the slice is empty.
 	LabelsProvided bool
+}
+
+// assigneeWithIntent represents the object form of an assignee entry, allowing a
+// rationale, confidence level, and/or suggest flag to be sent alongside the login.
+type assigneeWithIntent struct {
+	Login      string `json:"login"`
+	Rationale  string `json:"rationale,omitempty"`
+	Confidence string `json:"confidence,omitempty"`
+	Suggest    bool   `json:"suggest,omitempty"`
+}
+
+// assigneesUpdateRequest is a custom request body for updating an issue's assignees
+// where individual assignees may optionally include a rationale. Each element of
+// Assignees is either a string (login) or an assigneeWithIntent object.
+type assigneesUpdateRequest struct {
+	Assignees []any `json:"assignees"`
+}
+
+// parsePolymorphicAssignees parses the assignees parameter, which may be an array
+// of strings or an array of objects with login, rationale, confidence, is_suggestion.
+// Returns the plain login strings, the polymorphic payload, and whether object form is used.
+func parsePolymorphicAssignees(args map[string]any) ([]string, []any, bool, error) {
+	assigneesRaw, ok := args["assignees"]
+	if !ok || assigneesRaw == nil {
+		return []string{}, nil, false, nil
+	}
+	assigneesSlice, ok := assigneesRaw.([]any)
+	if !ok {
+		if strs, ok := assigneesRaw.([]string); ok {
+			assigneesSlice = make([]any, len(strs))
+			for i, s := range strs {
+				assigneesSlice[i] = s
+			}
+		} else {
+			return nil, nil, false, fmt.Errorf("parameter assignees must be an array")
+		}
+	}
+
+	useObjectForm := false
+	logins := make([]string, 0, len(assigneesSlice))
+	payload := make([]any, 0, len(assigneesSlice))
+	for _, item := range assigneesSlice {
+		switch v := item.(type) {
+		case string:
+			logins = append(logins, v)
+			payload = append(payload, v)
+		case map[string]any:
+			login, err := RequiredParam[string](v, "login")
+			if err != nil {
+				return nil, nil, false, fmt.Errorf("each assignee object must have a 'login' string")
+			}
+			logins = append(logins, login)
+			rationale, err := OptionalParam[string](v, "rationale")
+			if err != nil {
+				return nil, nil, false, err
+			}
+			rationale = strings.TrimSpace(rationale)
+			if len([]rune(rationale)) > 280 {
+				return nil, nil, false, fmt.Errorf("assignee rationale must be 280 characters or less")
+			}
+			confidence, err := OptionalParam[string](v, "confidence")
+			if err != nil {
+				return nil, nil, false, err
+			}
+			confidence = normalizeConfidence(confidence)
+			if confidence != "" && confidence != "LOW" && confidence != "MEDIUM" && confidence != "HIGH" {
+				return nil, nil, false, fmt.Errorf("confidence must be one of: LOW, MEDIUM, HIGH")
+			}
+			isSuggestion, err := OptionalParam[bool](v, "is_suggestion")
+			if err != nil {
+				return nil, nil, false, err
+			}
+			if rationale == "" && !isSuggestion && confidence == "" {
+				payload = append(payload, login)
+			} else {
+				useObjectForm = true
+				payload = append(payload, assigneeWithIntent{Login: login, Rationale: rationale, Confidence: confidence, Suggest: isSuggestion})
+			}
+		default:
+			return nil, nil, false, fmt.Errorf("each assignee must be a string or an object with 'login' and optional 'rationale', 'confidence', and/or 'is_suggestion'")
+		}
+	}
+	return logins, payload, useObjectForm, nil
+}
+
+// patchAssigneesWithIntent sends a PATCH request with object-form assignees
+// that include rationale, confidence, and/or suggest metadata.
+func patchAssigneesWithIntent(ctx context.Context, client *github.Client, owner, repo string, issueNumber int, assigneesPayload []any) (*mcp.CallToolResult, any, error) {
+	body := &assigneesUpdateRequest{Assignees: assigneesPayload}
+	apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
+	req, err := client.NewRequest(ctx, "PATCH", apiURL, body)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to create request", err), nil, nil
+	}
+
+	issue := &github.Issue{}
+	resp, err := client.Do(req, issue)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue assignees", resp, err), nil, nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	r, err := json.Marshal(MinimalResponse{
+		ID:  fmt.Sprintf("%d", issue.GetID()),
+		URL: issue.GetHTMLURL(),
+	})
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+	}
+	return utils.NewToolResultText(string(r)), nil, nil
+}
+
+// parseIssueNumberFromURL extracts the issue number from a GitHub issue URL.
+func parseIssueNumberFromURL(url string) (int, error) {
+	parts := strings.Split(url, "/")
+	if len(parts) == 0 {
+		return 0, fmt.Errorf("invalid issue URL: %s", url)
+	}
+	return strconv.Atoi(parts[len(parts)-1])
 }
 
 func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldIDsToDelete []int64, state string, stateReason string, duplicateOf int, opts ...UpdateIssueOptions) (*mcp.CallToolResult, error) {
