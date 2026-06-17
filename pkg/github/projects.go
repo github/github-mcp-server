@@ -6,1023 +6,136 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
+	"strconv"
+	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
 
 const (
-	ProjectUpdateFailedError = "failed to update a project item"
-	ProjectAddFailedError    = "failed to add a project item"
-	ProjectDeleteFailedError = "failed to delete a project item"
-	ProjectListFailedError   = "failed to list project items"
-	MaxProjectsPerPage       = 50
+	ProjectUpdateFailedError             = "failed to update a project item"
+	ProjectAddFailedError                = "failed to add a project item"
+	ProjectDeleteFailedError             = "failed to delete a project item"
+	ProjectListFailedError               = "failed to list project items"
+	ProjectStatusUpdateListFailedError   = "failed to list project status updates"
+	ProjectStatusUpdateGetFailedError    = "failed to get project status update"
+	ProjectStatusUpdateCreateFailedError = "failed to create project status update"
+	ProjectResolveIDFailedError          = "failed to resolve project ID"
+	MaxProjectsPerPage                   = 50
 )
-
-// FeatureFlagHoldbackConsolidatedProjects is the feature flag that, when enabled, reverts to
-// individual project tools instead of the consolidated project tools.
-const FeatureFlagHoldbackConsolidatedProjects = "mcp_holdback_consolidated_projects"
 
 // Method constants for consolidated project tools
 const (
-	projectsMethodListProjects      = "list_projects"
-	projectsMethodListProjectFields = "list_project_fields"
-	projectsMethodListProjectItems  = "list_project_items"
-	projectsMethodGetProject        = "get_project"
-	projectsMethodGetProjectField   = "get_project_field"
-	projectsMethodGetProjectItem    = "get_project_item"
-	projectsMethodAddProjectItem    = "add_project_item"
-	projectsMethodUpdateProjectItem = "update_project_item"
-	projectsMethodDeleteProjectItem = "delete_project_item"
+	projectsMethodListProjects              = "list_projects"
+	projectsMethodListProjectFields         = "list_project_fields"
+	projectsMethodListProjectItems          = "list_project_items"
+	projectsMethodGetProject                = "get_project"
+	projectsMethodGetProjectField           = "get_project_field"
+	projectsMethodGetProjectItem            = "get_project_item"
+	projectsMethodAddProjectItem            = "add_project_item"
+	projectsMethodUpdateProjectItem         = "update_project_item"
+	projectsMethodDeleteProjectItem         = "delete_project_item"
+	projectsMethodListProjectStatusUpdates  = "list_project_status_updates"
+	projectsMethodGetProjectStatusUpdate    = "get_project_status_update"
+	projectsMethodCreateProjectStatusUpdate = "create_project_status_update"
+	projectsMethodCreateProject             = "create_project"
+	projectsMethodCreateIterationField      = "create_iteration_field"
 )
 
-func ListProjects(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
-		ToolsetMetadataProjects,
-		mcp.Tool{
-			Name:        "list_projects",
-			Description: t("TOOL_LIST_PROJECTS_DESCRIPTION", `List Projects for a user or organization`),
-			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_PROJECTS_USER_TITLE", "List projects"),
-				ReadOnlyHint: true,
-			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner_type": {
-						Type:        "string",
-						Description: "Owner type",
-						Enum:        []any{"user", "org"},
-					},
-					"owner": {
-						Type:        "string",
-						Description: "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
-					},
-					"query": {
-						Type:        "string",
-						Description: `Filter projects by title text and open/closed state; permitted qualifiers: is:open, is:closed; examples: "roadmap is:open", "is:open feature planning".`,
-					},
-					"per_page": {
-						Type:        "number",
-						Description: fmt.Sprintf("Results per page (max %d)", MaxProjectsPerPage),
-					},
-					"after": {
-						Type:        "string",
-						Description: "Forward pagination cursor from previous pageInfo.nextCursor.",
-					},
-					"before": {
-						Type:        "string",
-						Description: "Backward pagination cursor from previous pageInfo.prevCursor (rare).",
-					},
-				},
-				Required: []string{"owner_type", "owner"},
-			},
-		},
-		[]scopes.Scope{scopes.ReadProject},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+// GraphQL types for ProjectV2 status updates
 
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			ownerType, err := RequiredParam[string](args, "owner_type")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			queryStr, err := OptionalParam[string](args, "query")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			pagination, err := extractPaginationOptionsFromArgs(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			client, err := deps.GetClient(ctx)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			var resp *github.Response
-			var projects []*github.ProjectV2
-			var queryPtr *string
-
-			if queryStr != "" {
-				queryPtr = &queryStr
-			}
-
-			minimalProjects := []MinimalProject{}
-			opts := &github.ListProjectsOptions{
-				ListProjectsPaginationOptions: pagination,
-				Query:                         queryPtr,
-			}
-
-			if ownerType == "org" {
-				projects, resp, err = client.Projects.ListOrganizationProjects(ctx, owner, opts)
-			} else {
-				projects, resp, err = client.Projects.ListUserProjects(ctx, owner, opts)
-			}
-
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to list projects",
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			for _, project := range projects {
-				minimalProjects = append(minimalProjects, *convertToMinimalProject(project))
-			}
-
-			response := map[string]any{
-				"projects": minimalProjects,
-				"pageInfo": buildPageInfo(resp),
-			}
-
-			r, err := json.Marshal(response)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return utils.NewToolResultText(string(r)), nil, nil
-		},
-	)
-	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
-	return tool
+type statusUpdateNode struct {
+	ID         githubv4.ID
+	Body       *githubv4.String
+	Status     *githubv4.String
+	CreatedAt  githubv4.DateTime
+	StartDate  *githubv4.String
+	TargetDate *githubv4.String
+	Creator    struct {
+		Login githubv4.String
+	}
 }
 
-func GetProject(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
-		ToolsetMetadataProjects,
-		mcp.Tool{
-			Name:        "get_project",
-			Description: t("TOOL_GET_PROJECT_DESCRIPTION", "Get Project for a user or org"),
-			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_PROJECT_USER_TITLE", "Get project"),
-				ReadOnlyHint: true,
-			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"project_number": {
-						Type:        "number",
-						Description: "The project's number",
-					},
-					"owner_type": {
-						Type:        "string",
-						Description: "Owner type",
-						Enum:        []any{"user", "org"},
-					},
-					"owner": {
-						Type:        "string",
-						Description: "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
-					},
-				},
-				Required: []string{"project_number", "owner_type", "owner"},
-			},
-		},
-		[]scopes.Scope{scopes.ReadProject},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-
-			projectNumber, err := RequiredInt(args, "project_number")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			ownerType, err := RequiredParam[string](args, "owner_type")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			client, err := deps.GetClient(ctx)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			var resp *github.Response
-			var project *github.ProjectV2
-
-			if ownerType == "org" {
-				project, resp, err = client.Projects.GetOrganizationProject(ctx, owner, projectNumber)
-			} else {
-				project, resp, err = client.Projects.GetUserProject(ctx, owner, projectNumber)
-			}
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get project",
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get project", resp, body), nil, nil
-			}
-
-			minimalProject := convertToMinimalProject(project)
-			r, err := json.Marshal(minimalProject)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return utils.NewToolResultText(string(r)), nil, nil
-		},
-	)
-	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
-	return tool
+type statusUpdateConnection struct {
+	Nodes    []statusUpdateNode
+	PageInfo PageInfoFragment
 }
 
-func ListProjectFields(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
-		ToolsetMetadataProjects,
-		mcp.Tool{
-			Name:        "list_project_fields",
-			Description: t("TOOL_LIST_PROJECT_FIELDS_DESCRIPTION", "List Project fields for a user or org"),
-			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_PROJECT_FIELDS_USER_TITLE", "List project fields"),
-				ReadOnlyHint: true,
-			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner_type": {
-						Type:        "string",
-						Description: "Owner type",
-						Enum:        []any{"user", "org"},
-					},
-					"owner": {
-						Type:        "string",
-						Description: "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
-					},
-					"project_number": {
-						Type:        "number",
-						Description: "The project's number.",
-					},
-					"per_page": {
-						Type:        "number",
-						Description: fmt.Sprintf("Results per page (max %d)", MaxProjectsPerPage),
-					},
-					"after": {
-						Type:        "string",
-						Description: "Forward pagination cursor from previous pageInfo.nextCursor.",
-					},
-					"before": {
-						Type:        "string",
-						Description: "Backward pagination cursor from previous pageInfo.prevCursor (rare).",
-					},
-				},
-				Required: []string{"owner_type", "owner", "project_number"},
-			},
-		},
-		[]scopes.Scope{scopes.ReadProject},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			ownerType, err := RequiredParam[string](args, "owner_type")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			projectNumber, err := RequiredInt(args, "project_number")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			pagination, err := extractPaginationOptionsFromArgs(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			client, err := deps.GetClient(ctx)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			var resp *github.Response
-			var projectFields []*github.ProjectV2Field
-
-			opts := &github.ListProjectsOptions{
-				ListProjectsPaginationOptions: pagination,
-			}
-
-			if ownerType == "org" {
-				projectFields, resp, err = client.Projects.ListOrganizationProjectFields(ctx, owner, projectNumber, opts)
-			} else {
-				projectFields, resp, err = client.Projects.ListUserProjectFields(ctx, owner, projectNumber, opts)
-			}
-
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to list project fields",
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			response := map[string]any{
-				"fields":   projectFields,
-				"pageInfo": buildPageInfo(resp),
-			}
-
-			r, err := json.Marshal(response)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return utils.NewToolResultText(string(r)), nil, nil
-		},
-	)
-	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
-	return tool
+// statusUpdatesUserQuery is the GraphQL query for listing status updates on a user-owned project.
+type statusUpdatesUserQuery struct {
+	User struct {
+		ProjectV2 struct {
+			StatusUpdates statusUpdateConnection `graphql:"statusUpdates(first: $first, after: $after, orderBy: {field: CREATED_AT, direction: DESC})"`
+		} `graphql:"projectV2(number: $projectNumber)"`
+	} `graphql:"user(login: $owner)"`
 }
 
-func GetProjectField(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
-		ToolsetMetadataProjects,
-		mcp.Tool{
-			Name:        "get_project_field",
-			Description: t("TOOL_GET_PROJECT_FIELD_DESCRIPTION", "Get Project field for a user or org"),
-			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_PROJECT_FIELD_USER_TITLE", "Get project field"),
-				ReadOnlyHint: true,
-			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner_type": {
-						Type:        "string",
-						Description: "Owner type",
-						Enum:        []any{"user", "org"},
-					},
-					"owner": {
-						Type:        "string",
-						Description: "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
-					},
-					"project_number": {
-						Type:        "number",
-						Description: "The project's number.",
-					},
-					"field_id": {
-						Type:        "number",
-						Description: "The field's id.",
-					},
-				},
-				Required: []string{"owner_type", "owner", "project_number", "field_id"},
-			},
-		},
-		[]scopes.Scope{scopes.ReadProject},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			ownerType, err := RequiredParam[string](args, "owner_type")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			projectNumber, err := RequiredInt(args, "project_number")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			fieldID, err := RequiredBigInt(args, "field_id")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			client, err := deps.GetClient(ctx)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			var resp *github.Response
-			var projectField *github.ProjectV2Field
-
-			if ownerType == "org" {
-				projectField, resp, err = client.Projects.GetOrganizationProjectField(ctx, owner, projectNumber, fieldID)
-			} else {
-				projectField, resp, err = client.Projects.GetUserProjectField(ctx, owner, projectNumber, fieldID)
-			}
-
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get project field",
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get project field", resp, body), nil, nil
-			}
-			r, err := json.Marshal(projectField)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return utils.NewToolResultText(string(r)), nil, nil
-		},
-	)
-	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
-	return tool
+// statusUpdatesOrgQuery is the GraphQL query for listing status updates on an org-owned project.
+type statusUpdatesOrgQuery struct {
+	Organization struct {
+		ProjectV2 struct {
+			StatusUpdates statusUpdateConnection `graphql:"statusUpdates(first: $first, after: $after, orderBy: {field: CREATED_AT, direction: DESC})"`
+		} `graphql:"projectV2(number: $projectNumber)"`
+	} `graphql:"organization(login: $owner)"`
 }
 
-func ListProjectItems(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
-		ToolsetMetadataProjects,
-		mcp.Tool{
-			Name:        "list_project_items",
-			Description: t("TOOL_LIST_PROJECT_ITEMS_DESCRIPTION", `Search project items with advanced filtering`),
-			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_PROJECT_ITEMS_USER_TITLE", "List project items"),
-				ReadOnlyHint: true,
-			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner_type": {
-						Type:        "string",
-						Description: "Owner type",
-						Enum:        []any{"user", "org"},
-					},
-					"owner": {
-						Type:        "string",
-						Description: "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
-					},
-					"project_number": {
-						Type:        "number",
-						Description: "The project's number.",
-					},
-					"query": {
-						Type:        "string",
-						Description: `Query string for advanced filtering of project items using GitHub's project filtering syntax.`,
-					},
-					"per_page": {
-						Type:        "number",
-						Description: fmt.Sprintf("Results per page (max %d)", MaxProjectsPerPage),
-					},
-					"after": {
-						Type:        "string",
-						Description: "Forward pagination cursor from previous pageInfo.nextCursor.",
-					},
-					"before": {
-						Type:        "string",
-						Description: "Backward pagination cursor from previous pageInfo.prevCursor (rare).",
-					},
-					"fields": {
-						Type:        "array",
-						Description: "Field IDs to include (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this, only titles returned.",
-						Items: &jsonschema.Schema{
-							Type: "string",
-						},
-					},
-				},
-				Required: []string{"owner_type", "owner", "project_number"},
-			},
-		},
-		[]scopes.Scope{scopes.ReadProject},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			ownerType, err := RequiredParam[string](args, "owner_type")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			projectNumber, err := RequiredInt(args, "project_number")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			queryStr, err := OptionalParam[string](args, "query")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			fields, err := OptionalBigIntArrayParam(args, "fields")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			pagination, err := extractPaginationOptionsFromArgs(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			client, err := deps.GetClient(ctx)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			var resp *github.Response
-			var projectItems []*github.ProjectV2Item
-			var queryPtr *string
-
-			if queryStr != "" {
-				queryPtr = &queryStr
-			}
-
-			opts := &github.ListProjectItemsOptions{
-				Fields: fields,
-				ListProjectsOptions: github.ListProjectsOptions{
-					ListProjectsPaginationOptions: pagination,
-					Query:                         queryPtr,
-				},
-			}
-
-			if ownerType == "org" {
-				projectItems, resp, err = client.Projects.ListOrganizationProjectItems(ctx, owner, projectNumber, opts)
-			} else {
-				projectItems, resp, err = client.Projects.ListUserProjectItems(ctx, owner, projectNumber, opts)
-			}
-
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					ProjectListFailedError,
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			response := map[string]any{
-				"items":    projectItems,
-				"pageInfo": buildPageInfo(resp),
-			}
-
-			r, err := json.Marshal(response)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return utils.NewToolResultText(string(r)), nil, nil
-		},
-	)
-	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
-	return tool
+// statusUpdateNodeQuery is the GraphQL query for fetching a single status update by node ID.
+type statusUpdateNodeQuery struct {
+	Node struct {
+		StatusUpdate statusUpdateNode `graphql:"... on ProjectV2StatusUpdate"`
+	} `graphql:"node(id: $id)"`
 }
 
-func GetProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
-		ToolsetMetadataProjects,
-		mcp.Tool{
-			Name:        "get_project_item",
-			Description: t("TOOL_GET_PROJECT_ITEM_DESCRIPTION", "Get a specific Project item for a user or org"),
-			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_PROJECT_ITEM_USER_TITLE", "Get project item"),
-				ReadOnlyHint: true,
-			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner_type": {
-						Type:        "string",
-						Description: "Owner type",
-						Enum:        []any{"user", "org"},
-					},
-					"owner": {
-						Type:        "string",
-						Description: "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
-					},
-					"project_number": {
-						Type:        "number",
-						Description: "The project's number.",
-					},
-					"item_id": {
-						Type:        "number",
-						Description: "The item's ID.",
-					},
-					"fields": {
-						Type:        "array",
-						Description: "Specific list of field IDs to include in the response (e.g. [\"102589\", \"985201\", \"169875\"]). If not provided, only the title field is included.",
-						Items: &jsonschema.Schema{
-							Type: "string",
-						},
-					},
-				},
-				Required: []string{"owner_type", "owner", "project_number", "item_id"},
-			},
-		},
-		[]scopes.Scope{scopes.ReadProject},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			ownerType, err := RequiredParam[string](args, "owner_type")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			projectNumber, err := RequiredInt(args, "project_number")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			itemID, err := RequiredBigInt(args, "item_id")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			fields, err := OptionalBigIntArrayParam(args, "fields")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			client, err := deps.GetClient(ctx)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			var resp *github.Response
-			var projectItem *github.ProjectV2Item
-			var opts *github.GetProjectItemOptions
-
-			if len(fields) > 0 {
-				opts = &github.GetProjectItemOptions{
-					Fields: fields,
-				}
-			}
-
-			if ownerType == "org" {
-				projectItem, resp, err = client.Projects.GetOrganizationProjectItem(ctx, owner, projectNumber, itemID, opts)
-			} else {
-				projectItem, resp, err = client.Projects.GetUserProjectItem(ctx, owner, projectNumber, itemID, opts)
-			}
-
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get project item",
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			r, err := json.Marshal(projectItem)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return utils.NewToolResultText(string(r)), nil, nil
-		},
-	)
-	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
-	return tool
+// CreateProjectV2StatusUpdateInput is the input for the createProjectV2StatusUpdate mutation.
+// Defined locally because the shurcooL/githubv4 library does not include this type.
+type CreateProjectV2StatusUpdateInput struct {
+	ProjectID        githubv4.ID      `json:"projectId"`
+	Body             *githubv4.String `json:"body,omitempty"`
+	Status           *githubv4.String `json:"status,omitempty"`
+	StartDate        *githubv4.String `json:"startDate,omitempty"`
+	TargetDate       *githubv4.String `json:"targetDate,omitempty"`
+	ClientMutationID *githubv4.String `json:"clientMutationId,omitempty"`
 }
 
-func AddProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
-		ToolsetMetadataProjects,
-		mcp.Tool{
-			Name:        "add_project_item",
-			Description: t("TOOL_ADD_PROJECT_ITEM_DESCRIPTION", "Add a specific Project item for a user or org"),
-			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ADD_PROJECT_ITEM_USER_TITLE", "Add project item"),
-				ReadOnlyHint: false,
-			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner_type": {
-						Type:        "string",
-						Description: "Owner type",
-						Enum:        []any{"user", "org"},
-					},
-					"owner": {
-						Type:        "string",
-						Description: "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
-					},
-					"project_number": {
-						Type:        "number",
-						Description: "The project's number.",
-					},
-					"item_type": {
-						Type:        "string",
-						Description: "The item's type, either issue or pull_request.",
-						Enum:        []any{"issue", "pull_request"},
-					},
-					"item_id": {
-						Type:        "number",
-						Description: "The numeric ID of the issue or pull request to add to the project.",
-					},
-				},
-				Required: []string{"owner_type", "owner", "project_number", "item_type", "item_id"},
-			},
-		},
-		[]scopes.Scope{scopes.Project},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			ownerType, err := RequiredParam[string](args, "owner_type")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			projectNumber, err := RequiredInt(args, "project_number")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			itemID, err := RequiredBigInt(args, "item_id")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			itemType, err := RequiredParam[string](args, "item_type")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			if itemType != "issue" && itemType != "pull_request" {
-				return utils.NewToolResultError("item_type must be either 'issue' or 'pull_request'"), nil, nil
-			}
-
-			client, err := deps.GetClient(ctx)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			newItem := &github.AddProjectItemOptions{
-				ID:   itemID,
-				Type: toNewProjectType(itemType),
-			}
-
-			var resp *github.Response
-			var addedItem *github.ProjectV2Item
-
-			if ownerType == "org" {
-				addedItem, resp, err = client.Projects.AddOrganizationProjectItem(ctx, owner, projectNumber, newItem)
-			} else {
-				addedItem, resp, err = client.Projects.AddUserProjectItem(ctx, owner, projectNumber, newItem)
-			}
-
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					ProjectAddFailedError,
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusCreated {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectAddFailedError, resp, body), nil, nil
-			}
-			r, err := json.Marshal(addedItem)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return utils.NewToolResultText(string(r)), nil, nil
-		},
-	)
-	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
-	return tool
+// validProjectV2StatusUpdateStatuses is the set of valid status values for the createProjectV2StatusUpdate mutation.
+var validProjectV2StatusUpdateStatuses = map[string]bool{
+	"INACTIVE":  true,
+	"ON_TRACK":  true,
+	"AT_RISK":   true,
+	"OFF_TRACK": true,
+	"COMPLETE":  true,
 }
 
-func UpdateProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
-		ToolsetMetadataProjects,
-		mcp.Tool{
-			Name:        "update_project_item",
-			Description: t("TOOL_UPDATE_PROJECT_ITEM_DESCRIPTION", "Update a specific Project item for a user or org"),
-			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_UPDATE_PROJECT_ITEM_USER_TITLE", "Update project item"),
-				ReadOnlyHint: false,
-			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner_type": {
-						Type:        "string",
-						Description: "Owner type",
-						Enum:        []any{"user", "org"},
-					},
-					"owner": {
-						Type:        "string",
-						Description: "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
-					},
-					"project_number": {
-						Type:        "number",
-						Description: "The project's number.",
-					},
-					"item_id": {
-						Type:        "number",
-						Description: "The unique identifier of the project item. This is not the issue or pull request ID.",
-					},
-					"updated_field": {
-						Type:        "object",
-						Description: "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}",
-					},
-				},
-				Required: []string{"owner_type", "owner", "project_number", "item_id", "updated_field"},
-			},
-		},
-		[]scopes.Scope{scopes.Project},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+func convertToMinimalStatusUpdate(node statusUpdateNode) MinimalProjectStatusUpdate {
+	var creator *MinimalUser
+	if login := string(node.Creator.Login); login != "" {
+		creator = &MinimalUser{Login: login}
+	}
 
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			ownerType, err := RequiredParam[string](args, "owner_type")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			projectNumber, err := RequiredInt(args, "project_number")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			itemID, err := RequiredBigInt(args, "item_id")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			rawUpdatedField, exists := args["updated_field"]
-			if !exists {
-				return utils.NewToolResultError("missing required parameter: updated_field"), nil, nil
-			}
-
-			fieldValue, ok := rawUpdatedField.(map[string]any)
-			if !ok || fieldValue == nil {
-				return utils.NewToolResultError("field_value must be an object"), nil, nil
-			}
-
-			updatePayload, err := buildUpdateProjectItem(fieldValue)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			client, err := deps.GetClient(ctx)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			var resp *github.Response
-			var updatedItem *github.ProjectV2Item
-
-			if ownerType == "org" {
-				updatedItem, resp, err = client.Projects.UpdateOrganizationProjectItem(ctx, owner, projectNumber, itemID, updatePayload)
-			} else {
-				updatedItem, resp, err = client.Projects.UpdateUserProjectItem(ctx, owner, projectNumber, itemID, updatePayload)
-			}
-
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					ProjectUpdateFailedError,
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectUpdateFailedError, resp, body), nil, nil
-			}
-			r, err := json.Marshal(updatedItem)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return utils.NewToolResultText(string(r)), nil, nil
-		},
-	)
-	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
-	return tool
+	return MinimalProjectStatusUpdate{
+		ID:         fmt.Sprintf("%v", node.ID),
+		Body:       derefString(node.Body),
+		Status:     derefString(node.Status),
+		CreatedAt:  node.CreatedAt.Time.Format(time.RFC3339),
+		StartDate:  derefString(node.StartDate),
+		TargetDate: derefString(node.TargetDate),
+		Creator:    creator,
+	}
 }
 
-func DeleteProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewTool(
-		ToolsetMetadataProjects,
-		mcp.Tool{
-			Name:        "delete_project_item",
-			Description: t("TOOL_DELETE_PROJECT_ITEM_DESCRIPTION", "Delete a specific Project item for a user or org"),
-			Annotations: &mcp.ToolAnnotations{
-				Title:           t("TOOL_DELETE_PROJECT_ITEM_USER_TITLE", "Delete project item"),
-				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(true),
-			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner_type": {
-						Type:        "string",
-						Description: "Owner type",
-						Enum:        []any{"user", "org"},
-					},
-					"owner": {
-						Type:        "string",
-						Description: "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
-					},
-					"project_number": {
-						Type:        "number",
-						Description: "The project's number.",
-					},
-					"item_id": {
-						Type:        "number",
-						Description: "The internal project item ID to delete from the project (not the issue or pull request ID).",
-					},
-				},
-				Required: []string{"owner_type", "owner", "project_number", "item_id"},
-			},
-		},
-		[]scopes.Scope{scopes.Project},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			ownerType, err := RequiredParam[string](args, "owner_type")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			projectNumber, err := RequiredInt(args, "project_number")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			itemID, err := RequiredBigInt(args, "item_id")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			client, err := deps.GetClient(ctx)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			var resp *github.Response
-			if ownerType == "org" {
-				resp, err = client.Projects.DeleteOrganizationProjectItem(ctx, owner, projectNumber, itemID)
-			} else {
-				resp, err = client.Projects.DeleteUserProjectItem(ctx, owner, projectNumber, itemID)
-			}
-
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					ProjectDeleteFailedError,
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusNoContent {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectDeleteFailedError, resp, body), nil, nil
-			}
-			return utils.NewToolResultText("project item successfully deleted"), nil, nil
-		},
-	)
-	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
-	return tool
+func derefString(s *githubv4.String) string {
+	if s == nil {
+		return ""
+	}
+	return string(*s)
 }
 
 // ProjectsList returns the tool and handler for listing GitHub Projects resources.
@@ -1049,6 +162,7 @@ Use this tool to list projects for a user or organization, or list project field
 							projectsMethodListProjects,
 							projectsMethodListProjectFields,
 							projectsMethodListProjectItems,
+							projectsMethodListProjectStatusUpdates,
 						},
 					},
 					"owner_type": {
@@ -1062,7 +176,7 @@ Use this tool to list projects for a user or organization, or list project field
 					},
 					"project_number": {
 						Type:        "number",
-						Description: "The project's number. Required for 'list_project_fields' and 'list_project_items' methods.",
+						Description: "The project's number. Required for 'list_project_fields', 'list_project_items', and 'list_project_status_updates' methods.",
 					},
 					"query": {
 						Type:        "string",
@@ -1116,38 +230,36 @@ Use this tool to list projects for a user or organization, or list project field
 			switch method {
 			case projectsMethodListProjects:
 				return listProjects(ctx, client, args, owner, ownerType)
-			case projectsMethodListProjectFields:
-				// Detect owner type if not provided and project_number is available
-				if ownerType == "" {
-					projectNumber, err := RequiredInt(args, "project_number")
-					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
-					}
-					ownerType, err = detectOwnerType(ctx, client, owner, projectNumber)
-					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
-					}
-				}
-				return listProjectFields(ctx, client, args, owner, ownerType)
-			case projectsMethodListProjectItems:
-				// Detect owner type if not provided and project_number is available
-				if ownerType == "" {
-					projectNumber, err := RequiredInt(args, "project_number")
-					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
-					}
-					ownerType, err = detectOwnerType(ctx, client, owner, projectNumber)
-					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
-					}
-				}
-				return listProjectItems(ctx, client, args, owner, ownerType)
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				// All other methods require project_number and ownerType detection
+				if ownerType == "" {
+					projectNumber, err := RequiredInt(args, "project_number")
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+					ownerType, err = detectOwnerType(ctx, client, owner, projectNumber)
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+				}
+
+				switch method {
+				case projectsMethodListProjectFields:
+					return listProjectFields(ctx, client, args, owner, ownerType)
+				case projectsMethodListProjectItems:
+					return listProjectItems(ctx, client, args, owner, ownerType)
+				case projectsMethodListProjectStatusUpdates:
+					gqlClient, err := deps.GetGQLClient(ctx)
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+					return listProjectStatusUpdates(ctx, gqlClient, args, owner, ownerType)
+				default:
+					return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				}
 			}
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagHoldbackConsolidatedProjects
 	return tool
 }
 
@@ -1174,6 +286,7 @@ Use this tool to get details about individual projects, project fields, and proj
 							projectsMethodGetProject,
 							projectsMethodGetProjectField,
 							projectsMethodGetProjectItem,
+							projectsMethodGetProjectStatusUpdate,
 						},
 					},
 					"owner_type": {
@@ -1204,8 +317,12 @@ Use this tool to get details about individual projects, project fields, and proj
 							Type: "string",
 						},
 					},
+					"status_update_id": {
+						Type:        "string",
+						Description: "The node ID of the project status update. Required for 'get_project_status_update' method.",
+					},
 				},
-				Required: []string{"method", "owner", "project_number"},
+				Required: []string{"method"},
 			},
 		},
 		[]scopes.Scope{scopes.ReadProject},
@@ -1213,6 +330,19 @@ Use this tool to get details about individual projects, project fields, and proj
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Handle get_project_status_update early — it only needs status_update_id
+			if method == projectsMethodGetProjectStatusUpdate {
+				statusUpdateID, err := RequiredParam[string](args, "status_update_id")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				gqlClient, err := deps.GetGQLClient(ctx)
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				return getProjectStatusUpdate(ctx, gqlClient, statusUpdateID)
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -1267,7 +397,6 @@ Use this tool to get details about individual projects, project fields, and proj
 			}
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagHoldbackConsolidatedProjects
 	return tool
 }
 
@@ -1277,9 +406,9 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "projects_write",
-			Description: t("TOOL_PROJECTS_WRITE_DESCRIPTION", "Add, update, or delete project items in a GitHub Project."),
+			Description: t("TOOL_PROJECTS_WRITE_DESCRIPTION", "Create and manage GitHub Projects: create projects, add/update/delete items, create status updates, and add iteration fields."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:           t("TOOL_PROJECTS_WRITE_USER_TITLE", "Modify GitHub Project items"),
+				Title:           t("TOOL_PROJECTS_WRITE_USER_TITLE", "Manage GitHub Projects"),
 				ReadOnlyHint:    false,
 				DestructiveHint: jsonschema.Ptr(true),
 			},
@@ -1293,11 +422,14 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 							projectsMethodAddProjectItem,
 							projectsMethodUpdateProjectItem,
 							projectsMethodDeleteProjectItem,
+							projectsMethodCreateProjectStatusUpdate,
+							projectsMethodCreateProject,
+							projectsMethodCreateIterationField,
 						},
 					},
 					"owner_type": {
 						Type:        "string",
-						Description: "Owner type (user or org). If not provided, will be automatically detected.",
+						Description: "Owner type (user or org). Required for 'create_project' method. If not provided for other methods, will be automatically detected.",
 						Enum:        []any{"user", "org"},
 					},
 					"owner": {
@@ -1306,7 +438,11 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"project_number": {
 						Type:        "number",
-						Description: "The project's number.",
+						Description: "The project's number. Required for all methods except 'create_project'.",
+					},
+					"title": {
+						Type:        "string",
+						Description: "The project title. Required for 'create_project' method.",
 					},
 					"item_id": {
 						Type:        "number",
@@ -1337,8 +473,56 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Type:        "object",
 						Description: "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}. Required for 'update_project_item' method.",
 					},
+					"body": {
+						Type:        "string",
+						Description: "The body of the status update (markdown). Used for 'create_project_status_update' method.",
+					},
+					"status": {
+						Type:        "string",
+						Description: "The status of the project. Used for 'create_project_status_update' method.",
+						Enum:        []any{"INACTIVE", "ON_TRACK", "AT_RISK", "OFF_TRACK", "COMPLETE"},
+					},
+					"start_date": {
+						Type:        "string",
+						Description: "Start date in YYYY-MM-DD format. Used for 'create_project_status_update' and 'create_iteration_field' methods.",
+					},
+					"target_date": {
+						Type:        "string",
+						Description: "The target date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method.",
+					},
+					"field_name": {
+						Type:        "string",
+						Description: "The name of the iteration field (e.g. 'Sprint'). Required for 'create_iteration_field' method.",
+					},
+					"iteration_duration": {
+						Type:        "number",
+						Description: "Duration in days for iterations of the field (e.g. 7 for weekly, 14 for bi-weekly). Required for 'create_iteration_field' method.",
+					},
+					"iterations": {
+						Type:        "array",
+						Description: "Custom iterations for 'create_iteration_field' method. Only set this when you need iterations with varying durations, breaks between them, or specific titles. Otherwise omit it: GitHub auto-creates three iterations of 'iteration_duration' days starting on 'start_date', which is the right choice for most cases.",
+						Items: &jsonschema.Schema{
+							Type:                 "object",
+							AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+							Properties: map[string]*jsonschema.Schema{
+								"title": {
+									Type:        "string",
+									Description: "Iteration title (e.g. 'Sprint 1')",
+								},
+								"start_date": {
+									Type:        "string",
+									Description: "Start date in YYYY-MM-DD format",
+								},
+								"duration": {
+									Type:        "number",
+									Description: "Duration in days",
+								},
+							},
+							Required: []string{"title", "start_date", "duration"},
+						},
+					},
 				},
-				Required: []string{"method", "owner", "project_number"},
+				Required: []string{"method", "owner"},
 			},
 		},
 		[]scopes.Scope{scopes.Project},
@@ -1358,17 +542,22 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// create_project does not require project_number or a REST client
+			if method == projectsMethodCreateProject {
+				return createProject(ctx, gqlClient, owner, ownerType, args)
+			}
+
 			projectNumber, err := RequiredInt(args, "project_number")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -1433,12 +622,31 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
 				return deleteProjectItem(ctx, client, owner, ownerType, projectNumber, itemID)
+			case projectsMethodCreateProjectStatusUpdate:
+				body, err := OptionalParam[string](args, "body")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				status, err := OptionalParam[string](args, "status")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				startDate, err := OptionalParam[string](args, "start_date")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				targetDate, err := OptionalParam[string](args, "target_date")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				return createProjectStatusUpdate(ctx, gqlClient, owner, ownerType, projectNumber, body, status, startDate, targetDate)
+			case projectsMethodCreateIterationField:
+				return createIterationField(ctx, gqlClient, owner, ownerType, projectNumber, args)
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagHoldbackConsolidatedProjects
 	return tool
 }
 
@@ -1457,16 +665,11 @@ func listProjects(ctx context.Context, client *github.Client, args map[string]an
 
 	var resp *github.Response
 	var projects []*github.ProjectV2
-	var queryPtr *string
-
-	if queryStr != "" {
-		queryPtr = &queryStr
-	}
 
 	minimalProjects := []MinimalProject{}
 	opts := &github.ListProjectsOptions{
 		ListProjectsPaginationOptions: pagination,
-		Query:                         queryPtr,
+		Query:                         queryStr,
 	}
 
 	// If owner_type not provided, fetch from both user and org
@@ -1640,17 +843,12 @@ func listProjectItems(ctx context.Context, client *github.Client, args map[strin
 
 	var resp *github.Response
 	var projectItems []*github.ProjectV2Item
-	var queryPtr *string
-
-	if queryStr != "" {
-		queryPtr = &queryStr
-	}
 
 	opts := &github.ListProjectItemsOptions{
 		Fields: fields,
 		ListProjectsOptions: github.ListProjectsOptions{
 			ListProjectsPaginationOptions: pagination,
-			Query:                         queryPtr,
+			Query:                         queryStr,
 		},
 	}
 
@@ -1669,8 +867,13 @@ func listProjectItems(ctx context.Context, client *github.Client, args map[strin
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	minimalItems := make([]MinimalProjectItem, 0, len(projectItems))
+	for _, item := range projectItems {
+		minimalItems = append(minimalItems, convertToMinimalProjectItem(item))
+	}
+
 	response := map[string]any{
-		"items":    projectItems,
+		"items":    minimalItems,
 		"pageInfo": buildPageInfo(resp),
 	}
 
@@ -1788,7 +991,7 @@ func getProjectItem(ctx context.Context, client *github.Client, owner, ownerType
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get project item", resp, body), nil, nil
 	}
 
-	r, err := json.Marshal(projectItem)
+	r, err := json.Marshal(convertToMinimalProjectItem(projectItem))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
@@ -1827,7 +1030,7 @@ func updateProjectItem(ctx context.Context, client *github.Client, owner, ownerT
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectUpdateFailedError, resp, body), nil, nil
 	}
-	r, err := json.Marshal(updatedItem)
+	r, err := json.Marshal(convertToMinimalProjectItem(updatedItem))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
@@ -1864,6 +1067,43 @@ func deleteProjectItem(ctx context.Context, client *github.Client, owner, ownerT
 	return utils.NewToolResultText("project item successfully deleted"), nil, nil
 }
 
+// resolveProjectNodeID resolves (owner, ownerType, projectNumber) to a project node ID via GraphQL.
+func resolveProjectNodeID(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int) (githubv4.ID, error) {
+	var projectIDQueryUser struct {
+		User struct {
+			ProjectV2 struct {
+				ID githubv4.ID
+			} `graphql:"projectV2(number: $projectNumber)"`
+		} `graphql:"user(login: $owner)"`
+	}
+	var projectIDQueryOrg struct {
+		Organization struct {
+			ProjectV2 struct {
+				ID githubv4.ID
+			} `graphql:"projectV2(number: $projectNumber)"`
+		} `graphql:"organization(login: $owner)"`
+	}
+
+	queryVars := map[string]any{
+		"owner":         githubv4.String(owner),
+		"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are small integers
+	}
+
+	if ownerType == "org" {
+		err := gqlClient.Query(ctx, &projectIDQueryOrg, queryVars)
+		if err != nil {
+			return "", fmt.Errorf("%s: %w", ProjectResolveIDFailedError, err)
+		}
+		return projectIDQueryOrg.Organization.ProjectV2.ID, nil
+	}
+
+	err := gqlClient.Query(ctx, &projectIDQueryUser, queryVars)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", ProjectResolveIDFailedError, err)
+	}
+	return projectIDQueryUser.User.ProjectV2.ID, nil
+}
+
 // addProjectItem adds an item to a project by resolving the issue/PR number to a node ID
 func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, itemOwner, itemRepo string, itemNumber int, itemType string) (*mcp.CallToolResult, any, error) {
 	if itemType != "issue" && itemType != "pull_request" {
@@ -1886,46 +1126,16 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 	var mutation struct {
 		AddProjectV2ItemByID struct {
 			Item struct {
-				ID githubv4.ID
+				ID             githubv4.ID
+				FullDatabaseID string `graphql:"fullDatabaseId"`
 			}
 		} `graphql:"addProjectV2ItemById(input: $input)"`
 	}
 
-	// First, get the project ID
-	var projectIDQuery struct {
-		User struct {
-			ProjectV2 struct {
-				ID githubv4.ID
-			} `graphql:"projectV2(number: $projectNumber)"`
-		} `graphql:"user(login: $owner)"`
-	}
-	var projectIDQueryOrg struct {
-		Organization struct {
-			ProjectV2 struct {
-				ID githubv4.ID
-			} `graphql:"projectV2(number: $projectNumber)"`
-		} `graphql:"organization(login: $owner)"`
-	}
-
-	var projectID githubv4.ID
-	if ownerType == "org" {
-		err = gqlClient.Query(ctx, &projectIDQueryOrg, map[string]any{
-			"owner":         githubv4.String(owner),
-			"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are small integers
-		})
-		if err != nil {
-			return utils.NewToolResultError(fmt.Sprintf("failed to get project ID: %v", err)), nil, nil
-		}
-		projectID = projectIDQueryOrg.Organization.ProjectV2.ID
-	} else {
-		err = gqlClient.Query(ctx, &projectIDQuery, map[string]any{
-			"owner":         githubv4.String(owner),
-			"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are small integers
-		})
-		if err != nil {
-			return utils.NewToolResultError(fmt.Sprintf("failed to get project ID: %v", err)), nil, nil
-		}
-		projectID = projectIDQuery.User.ProjectV2.ID
+	// Resolve the project number to a node ID
+	projectID, err := resolveProjectNodeID(ctx, gqlClient, owner, ownerType, projectNumber)
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
 	// Add the item to the project
@@ -1943,6 +1153,12 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 		"id":      mutation.AddProjectV2ItemByID.Item.ID,
 		"message": fmt.Sprintf("Successfully added %s %s/%s#%d to project %s/%d", itemType, itemOwner, itemRepo, itemNumber, owner, projectNumber),
 	}
+	if fullDatabaseID := mutation.AddProjectV2ItemByID.Item.FullDatabaseID; fullDatabaseID != "" {
+		result["full_database_id"] = fullDatabaseID
+		if itemID, err := strconv.ParseInt(fullDatabaseID, 10, 64); err == nil {
+			result["item_id"] = itemID
+		}
+	}
 
 	r, err := json.Marshal(result)
 	if err != nil {
@@ -1952,22 +1168,193 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 	return utils.NewToolResultText(string(r)), nil, nil
 }
 
+// validateDateFormat checks that a date string is in YYYY-MM-DD format.
+func validateDateFormat(value, fieldName string) error {
+	if _, err := time.Parse("2006-01-02", value); err != nil {
+		return fmt.Errorf("invalid %s %q: must be YYYY-MM-DD format", fieldName, value)
+	}
+	return nil
+}
+
+// createProjectStatusUpdate creates a new status update for a project via GraphQL.
+func createProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, body, status, startDate, targetDate string) (*mcp.CallToolResult, any, error) {
+	// Validate inputs
+	if ownerType != "user" && ownerType != "org" {
+		return utils.NewToolResultError(fmt.Sprintf("invalid owner_type %q: must be \"user\" or \"org\"", ownerType)), nil, nil
+	}
+	if status != "" && !validProjectV2StatusUpdateStatuses[status] {
+		return utils.NewToolResultError(fmt.Sprintf("invalid status %q: must be one of INACTIVE, ON_TRACK, AT_RISK, OFF_TRACK, COMPLETE", status)), nil, nil
+	}
+	if startDate != "" {
+		if err := validateDateFormat(startDate, "start_date"); err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+	}
+	if targetDate != "" {
+		if err := validateDateFormat(targetDate, "target_date"); err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+	}
+
+	// Resolve project number to project node ID
+	projectID, err := resolveProjectNodeID(ctx, gqlClient, owner, ownerType, projectNumber)
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+
+	// Build mutation input
+	input := CreateProjectV2StatusUpdateInput{
+		ProjectID: projectID,
+	}
+
+	if body != "" {
+		s := githubv4.String(body)
+		input.Body = &s
+	}
+	if status != "" {
+		s := githubv4.String(status)
+		input.Status = &s
+	}
+	if startDate != "" {
+		s := githubv4.String(startDate)
+		input.StartDate = &s
+	}
+	if targetDate != "" {
+		s := githubv4.String(targetDate)
+		input.TargetDate = &s
+	}
+
+	// Execute mutation
+	var mutation struct {
+		CreateProjectV2StatusUpdate struct {
+			StatusUpdate statusUpdateNode
+		} `graphql:"createProjectV2StatusUpdate(input: $input)"`
+	}
+
+	err = gqlClient.Mutate(ctx, &mutation, input, nil)
+	if err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectStatusUpdateCreateFailedError, err)), nil, nil
+	}
+
+	// Convert and return
+	result := convertToMinimalStatusUpdate(mutation.CreateProjectV2StatusUpdate.StatusUpdate)
+
+	r, err := json.Marshal(result)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(r)), nil, nil
+}
+
+// listProjectStatusUpdates lists status updates for a project via GraphQL.
+func listProjectStatusUpdates(ctx context.Context, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, any, error) {
+	if ownerType != "user" && ownerType != "org" {
+		return utils.NewToolResultError(fmt.Sprintf("invalid owner_type %q: must be \"user\" or \"org\"", ownerType)), nil, nil
+	}
+
+	projectNumber, err := RequiredInt(args, "project_number")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+
+	perPage, err := OptionalIntParamWithDefault(args, "per_page", MaxProjectsPerPage)
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	if perPage > MaxProjectsPerPage {
+		perPage = MaxProjectsPerPage
+	}
+	if perPage < 1 {
+		perPage = MaxProjectsPerPage
+	}
+
+	afterCursor, err := OptionalParam[string](args, "after")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+
+	vars := map[string]any{
+		"owner":         githubv4.String(owner),
+		"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are small integers
+		"first":         githubv4.Int(int32(perPage)),       //nolint:gosec // perPage is bounded by MaxProjectsPerPage
+	}
+	if afterCursor != "" {
+		vars["after"] = githubv4.String(afterCursor)
+	} else {
+		vars["after"] = (*githubv4.String)(nil)
+	}
+
+	var nodes []statusUpdateNode
+	var pi PageInfoFragment
+
+	if ownerType == "org" {
+		var q statusUpdatesOrgQuery
+		if err := gqlClient.Query(ctx, &q, vars); err != nil {
+			return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectStatusUpdateListFailedError, err)), nil, nil
+		}
+		nodes = q.Organization.ProjectV2.StatusUpdates.Nodes
+		pi = q.Organization.ProjectV2.StatusUpdates.PageInfo
+	} else {
+		var q statusUpdatesUserQuery
+		if err := gqlClient.Query(ctx, &q, vars); err != nil {
+			return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectStatusUpdateListFailedError, err)), nil, nil
+		}
+		nodes = q.User.ProjectV2.StatusUpdates.Nodes
+		pi = q.User.ProjectV2.StatusUpdates.PageInfo
+	}
+
+	updates := make([]MinimalProjectStatusUpdate, 0, len(nodes))
+	for _, n := range nodes {
+		updates = append(updates, convertToMinimalStatusUpdate(n))
+	}
+
+	response := map[string]any{
+		"statusUpdates": updates,
+		"pageInfo": map[string]any{
+			"hasNextPage":     pi.HasNextPage,
+			"hasPreviousPage": pi.HasPreviousPage,
+			"nextCursor":      string(pi.EndCursor),
+			"prevCursor":      string(pi.StartCursor),
+		},
+	}
+
+	r, err := json.Marshal(response)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+	return utils.NewToolResultText(string(r)), nil, nil
+}
+
+// getProjectStatusUpdate fetches a single status update by its node ID via GraphQL.
+func getProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, statusUpdateID string) (*mcp.CallToolResult, any, error) {
+	var q statusUpdateNodeQuery
+	vars := map[string]any{
+		"id": githubv4.ID(statusUpdateID),
+	}
+
+	if err := gqlClient.Query(ctx, &q, vars); err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectStatusUpdateGetFailedError, err)), nil, nil
+	}
+
+	if q.Node.StatusUpdate.ID == nil || q.Node.StatusUpdate.ID == "" {
+		return utils.NewToolResultError(fmt.Sprintf("%s: node is not a ProjectV2StatusUpdate or was not found", ProjectStatusUpdateGetFailedError)), nil, nil
+	}
+
+	update := convertToMinimalStatusUpdate(q.Node.StatusUpdate)
+
+	r, err := json.Marshal(update)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+	return utils.NewToolResultText(string(r)), nil, nil
+}
+
 type pageInfo struct {
 	HasNextPage     bool   `json:"hasNextPage"`
 	HasPreviousPage bool   `json:"hasPreviousPage"`
 	NextCursor      string `json:"nextCursor,omitempty"`
 	PrevCursor      string `json:"prevCursor,omitempty"`
-}
-
-func toNewProjectType(projType string) string {
-	switch strings.ToLower(projType) {
-	case "issue":
-		return "Issue"
-	case "pull_request":
-		return "PullRequest"
-	default:
-		return ""
-	}
 }
 
 // validateAndConvertToInt64 ensures the value is a number and converts it to int64.
@@ -2049,16 +1436,9 @@ func extractPaginationOptionsFromArgs(args map[string]any) (github.ListProjectsP
 	}
 
 	opts := github.ListProjectsPaginationOptions{
-		PerPage: &perPage,
-	}
-
-	// Only set After/Before if they have non-empty values
-	if after != "" {
-		opts.After = &after
-	}
-
-	if before != "" {
-		opts.Before = &before
+		PerPage: perPage,
+		After:   after,
+		Before:  before,
 	}
 
 	return opts, nil
@@ -2110,6 +1490,265 @@ func resolvePullRequestNodeID(ctx context.Context, gqlClient *githubv4.Client, o
 	}
 
 	return query.Repository.PullRequest.ID, nil
+}
+
+// createProject handles the create_project method for ProjectsWrite.
+func createProject(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, args map[string]any) (*mcp.CallToolResult, any, error) {
+	if ownerType == "" {
+		return utils.NewToolResultError("owner_type is required for create_project"), nil, nil
+	}
+	if ownerType != "user" && ownerType != "org" {
+		return utils.NewToolResultError(fmt.Sprintf("invalid owner_type %q: must be \"user\" or \"org\"", ownerType)), nil, nil
+	}
+
+	title, err := RequiredParam[string](args, "title")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+
+	ownerID, err := getOwnerNodeID(ctx, gqlClient, owner, ownerType)
+	if err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("failed to get owner ID: %v", err)), nil, nil
+	}
+
+	var mutation struct {
+		CreateProjectV2 struct {
+			ProjectV2 struct {
+				ID     string
+				Number int
+				Title  string
+				URL    string
+			}
+		} `graphql:"createProjectV2(input: $input)"`
+	}
+
+	input := githubv4.CreateProjectV2Input{
+		OwnerID: githubv4.ID(ownerID),
+		Title:   githubv4.String(title),
+	}
+
+	err = gqlClient.Mutate(ctx, &mutation, input, nil)
+	if err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("failed to create project: %v", err)), nil, nil
+	}
+
+	result := struct {
+		ID     string `json:"id"`
+		Number int    `json:"number"`
+		Title  string `json:"title"`
+		URL    string `json:"url"`
+	}{
+		ID:     mutation.CreateProjectV2.ProjectV2.ID,
+		Number: mutation.CreateProjectV2.ProjectV2.Number,
+		Title:  mutation.CreateProjectV2.ProjectV2.Title,
+		URL:    mutation.CreateProjectV2.ProjectV2.URL,
+	}
+
+	return MarshalledTextResult(result), nil, nil
+}
+
+// createIterationField handles the create_iteration_field method for ProjectsWrite.
+//
+// GitHub's GraphQL API requires two mutations to fully configure an iteration field:
+//  1. createProjectV2Field creates the field with DataType=ITERATION (no schedule yet).
+//  2. updateProjectV2Field sets the start date, duration, and optional named iterations.
+//
+// If step 2 fails, the field already exists with default settings and can be reconfigured
+// by calling this method again (the create will fail with a duplicate-name error, which
+// surfaces clearly) or by deleting the field via the GitHub UI.
+func createIterationField(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, args map[string]any) (*mcp.CallToolResult, any, error) {
+	fieldName, err := RequiredParam[string](args, "field_name")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	duration, err := RequiredInt(args, "iteration_duration")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	startDateStr, err := RequiredParam[string](args, "start_date")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+
+	projectID, err := resolveProjectNodeID(ctx, gqlClient, owner, ownerType, projectNumber)
+	if err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("failed to get project ID: %v", err)), nil, nil
+	}
+
+	// Step 1: Create the iteration field.
+	var createMutation struct {
+		CreateProjectV2Field struct {
+			ProjectV2Field struct {
+				ProjectV2IterationField struct {
+					ID   string
+					Name string
+				} `graphql:"... on ProjectV2IterationField"`
+			}
+		} `graphql:"createProjectV2Field(input: $input)"`
+	}
+
+	createInput := githubv4.CreateProjectV2FieldInput{
+		ProjectID: githubv4.ID(projectID),
+		DataType:  githubv4.ProjectV2CustomFieldType("ITERATION"),
+		Name:      githubv4.String(fieldName),
+	}
+
+	err = gqlClient.Mutate(ctx, &createMutation, createInput, nil)
+	if err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("failed to create iteration field: %v", err)), nil, nil
+	}
+
+	fieldID := createMutation.CreateProjectV2Field.ProjectV2Field.ProjectV2IterationField.ID
+
+	// Step 2: Configure the iteration field with start date and duration.
+	var updateMutation struct {
+		UpdateProjectV2Field struct {
+			ProjectV2Field struct {
+				ProjectV2IterationField struct {
+					ID            string
+					Name          string
+					Configuration struct {
+						Iterations []struct {
+							ID        string
+							Title     string
+							StartDate string
+							Duration  int
+						}
+					}
+				} `graphql:"... on ProjectV2IterationField"`
+			}
+		} `graphql:"updateProjectV2Field(input: $input)"`
+	}
+
+	parsedStartDate, err := time.Parse("2006-01-02", startDateStr)
+	if err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("failed to parse start_date %s: %v", startDateStr, err)), nil, nil
+	}
+
+	// GitHub's ProjectV2IterationFieldConfigurationInput requires `iterations` as a
+	// non-null array, so we always send at least an empty slice. When omitted, GitHub
+	// generates a default set of iterations from start_date and duration.
+	iterationsInput := []ProjectV2IterationFieldIterationInput{}
+
+	if rawIterations, ok := args["iterations"].([]any); ok && len(rawIterations) > 0 {
+		for i, item := range rawIterations {
+			iterMap, ok := item.(map[string]any)
+			if !ok {
+				return utils.NewToolResultError(fmt.Sprintf("iterations[%d] must be an object", i)), nil, nil
+			}
+			iterTitle, ok := iterMap["title"].(string)
+			if !ok || iterTitle == "" {
+				return utils.NewToolResultError(fmt.Sprintf("iterations[%d]: title is required and must be a non-empty string", i)), nil, nil
+			}
+			iterStartDate, ok := iterMap["start_date"].(string)
+			if !ok || iterStartDate == "" {
+				return utils.NewToolResultError(fmt.Sprintf("iterations[%d]: start_date is required and must be a non-empty string", i)), nil, nil
+			}
+			iterDuration, ok := iterMap["duration"].(float64)
+			if !ok || iterDuration <= 0 {
+				return utils.NewToolResultError(fmt.Sprintf("iterations[%d]: duration is required and must be a positive number", i)), nil, nil
+			}
+
+			parsedIterStartDate, err := time.Parse("2006-01-02", iterStartDate)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("iterations[%d]: failed to parse start_date %q: %v", i, iterStartDate, err)), nil, nil
+			}
+
+			iterationsInput = append(iterationsInput, ProjectV2IterationFieldIterationInput{
+				Title:     githubv4.String(iterTitle),
+				StartDate: githubv4.Date{Time: parsedIterStartDate},
+				Duration:  githubv4.Int(int32(iterDuration)), //nolint:gosec // Iteration durations are small day counts
+			})
+		}
+	}
+
+	configInput := ProjectV2IterationFieldConfigurationInput{
+		Duration:   githubv4.Int(int32(duration)), //nolint:gosec // Iteration durations are small day counts
+		StartDate:  githubv4.Date{Time: parsedStartDate},
+		Iterations: iterationsInput,
+	}
+
+	updateInput := UpdateProjectV2FieldInput{
+		FieldID:                githubv4.ID(fieldID),
+		IterationConfiguration: &configInput,
+	}
+
+	err = gqlClient.Mutate(ctx, &updateMutation, updateInput, nil)
+	if err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("failed to update iteration configuration: %v", err)), nil, nil
+	}
+
+	field := updateMutation.UpdateProjectV2Field.ProjectV2Field.ProjectV2IterationField
+	iterResults := make([]map[string]any, 0, len(field.Configuration.Iterations))
+	for _, iter := range field.Configuration.Iterations {
+		iterResults = append(iterResults, map[string]any{
+			"id":         iter.ID,
+			"title":      iter.Title,
+			"start_date": iter.StartDate,
+			"duration":   iter.Duration,
+		})
+	}
+
+	result := map[string]any{
+		"id":   field.ID,
+		"name": field.Name,
+		"configuration": map[string]any{
+			"iterations": iterResults,
+		},
+	}
+
+	return MarshalledTextResult(result), nil, nil
+}
+
+// getOwnerNodeID resolves a GitHub user or organization login to its GraphQL node ID.
+func getOwnerNodeID(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string) (string, error) {
+	if ownerType == "org" {
+		var query struct {
+			Organization struct {
+				ID string
+			} `graphql:"organization(login: $login)"`
+		}
+		variables := map[string]any{
+			"login": githubv4.String(owner),
+		}
+		err := gqlClient.Query(ctx, &query, variables)
+		return query.Organization.ID, err
+	}
+
+	var query struct {
+		User struct {
+			ID string
+		} `graphql:"user(login: $login)"`
+	}
+	variables := map[string]any{
+		"login": githubv4.String(owner),
+	}
+	err := gqlClient.Query(ctx, &query, variables)
+	return query.User.ID, err
+}
+
+// UpdateProjectV2FieldInput is the GraphQL input for the updateProjectV2Field mutation.
+// These types are defined locally because the pinned shurcooL/githubv4 release
+// (v0.0.0-20240727222349) does not yet expose them. Upstream master now generates
+// equivalent types, so this block can be removed when the dependency is next bumped.
+type UpdateProjectV2FieldInput struct {
+	FieldID                githubv4.ID                                `json:"fieldId"`
+	IterationConfiguration *ProjectV2IterationFieldConfigurationInput `json:"iterationConfiguration,omitempty"`
+}
+
+// ProjectV2IterationFieldConfigurationInput is the GraphQL input for configuring an iteration field.
+// GitHub's schema marks iterations as a required non-null list, so the field is not omitempty.
+type ProjectV2IterationFieldConfigurationInput struct {
+	Duration   githubv4.Int                            `json:"duration"`
+	StartDate  githubv4.Date                           `json:"startDate"`
+	Iterations []ProjectV2IterationFieldIterationInput `json:"iterations"`
+}
+
+// ProjectV2IterationFieldIterationInput is the GraphQL input for a single iteration definition.
+type ProjectV2IterationFieldIterationInput struct {
+	StartDate githubv4.Date   `json:"startDate"`
+	Duration  githubv4.Int    `json:"duration"`
+	Title     githubv4.String `json:"title"`
 }
 
 // detectOwnerType attempts to detect the owner type by trying both user and org

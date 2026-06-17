@@ -7,10 +7,11 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -37,16 +38,30 @@ func hasTypeFilter(query string) bool {
 	return hasFilter(query, "type")
 }
 
-func searchHandler(
-	ctx context.Context,
-	getClient GetClientFn,
-	args map[string]any,
-	searchType string,
-	errorPrefix string,
-) (*mcp.CallToolResult, error) {
+// searchPostProcessFn is invoked after a successful search response, before
+// the call result is returned. It may attach additional metadata (such as IFC
+// labels) to the call result based on the search payload.
+type searchPostProcessFn func(ctx context.Context, result *github.IssuesSearchResult, callResult *mcp.CallToolResult)
+
+type searchConfig struct {
+	postProcess searchPostProcessFn
+}
+
+type searchOption func(*searchConfig)
+
+// withSearchPostProcess registers a callback invoked after a successful search
+// response. The callback may mutate the call result (e.g. to attach _meta.ifc).
+func withSearchPostProcess(fn searchPostProcessFn) searchOption {
+	return func(c *searchConfig) { c.postProcess = fn }
+}
+
+// prepareSearchArgs resolves the search query string and REST search options from the tool args,
+// applying the standard is:<type> / repo:<owner>/<repo> munging shared by search_issues and
+// search_pull_requests.
+func prepareSearchArgs(args map[string]any, searchType string) (string, *github.SearchOptions, error) {
 	query, err := RequiredParam[string](args, "query")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return "", nil, err
 	}
 
 	if !hasSpecificFilter(query, "is", searchType) {
@@ -55,12 +70,12 @@ func searchHandler(
 
 	owner, err := OptionalParam[string](args, "owner")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return "", nil, err
 	}
 
 	repo, err := OptionalParam[string](args, "repo")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return "", nil, err
 	}
 
 	if owner != "" && repo != "" && !hasRepoFilter(query) {
@@ -69,25 +84,49 @@ func searchHandler(
 
 	sort, err := OptionalParam[string](args, "sort")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return "", nil, err
 	}
 	order, err := OptionalParam[string](args, "order")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return "", nil, err
 	}
 	pagination, err := OptionalPaginationParams(args)
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return "", nil, err
 	}
 
 	opts := &github.SearchOptions{
-		// Default to "created" if no sort is provided, as it's a common use case.
 		Sort:  sort,
 		Order: order,
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
 			PerPage: pagination.PerPage,
 		},
+	}
+
+	// field.<name>:<value> qualifiers require the advanced search API.
+	if strings.Contains(query, "field.") {
+		opts.AdvancedSearch = github.Ptr(true)
+	}
+
+	return query, opts, nil
+}
+
+func searchHandler(
+	ctx context.Context,
+	getClient GetClientFn,
+	args map[string]any,
+	searchType string,
+	errorPrefix string,
+	options ...searchOption,
+) (*mcp.CallToolResult, error) {
+	cfg := searchConfig{}
+	for _, opt := range options {
+		opt(&cfg)
+	}
+	query, opts, err := prepareSearchArgs(args, searchType)
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil
 	}
 
 	client, err := getClient(ctx)
@@ -113,5 +152,9 @@ func searchHandler(
 		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), nil
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	callResult := utils.NewToolResultText(string(r))
+	if cfg.postProcess != nil {
+		cfg.postProcess(ctx, result, callResult)
+	}
+	return callResult, nil
 }

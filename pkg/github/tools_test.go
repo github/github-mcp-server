@@ -23,6 +23,7 @@ func TestAddDefaultToolset(t *testing.T) {
 			input: []string{"default"},
 			expected: []string{
 				"context",
+				"copilot",
 				"repos",
 				"issues",
 				"pull_requests",
@@ -36,6 +37,7 @@ func TestAddDefaultToolset(t *testing.T) {
 				"actions",
 				"gists",
 				"context",
+				"copilot",
 				"repos",
 				"issues",
 				"pull_requests",
@@ -47,6 +49,7 @@ func TestAddDefaultToolset(t *testing.T) {
 			input: []string{"default", "context", "repos"},
 			expected: []string{
 				"context",
+				"copilot",
 				"repos",
 				"issues",
 				"pull_requests",

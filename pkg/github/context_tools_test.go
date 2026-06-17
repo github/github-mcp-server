@@ -10,7 +10,7 @@ import (
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -96,9 +96,10 @@ func Test_GetMe(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var deps ToolDependencies
 			if tc.clientErr != "" {
-				deps = stubDeps{clientFn: stubClientFnErr(tc.clientErr)}
+				deps = stubDeps{clientFn: stubClientFnErr(tc.clientErr), obsv: stubExporters()}
 			} else {
-				deps = BaseDeps{Client: github.NewClient(tc.mockedClient)}
+				obs := stubExporters()
+				deps = BaseDeps{Client: mustNewGHClient(t, tc.mockedClient), Obsv: obs}
 			}
 			handler := serverTool.Handler(deps)
 
@@ -136,6 +137,70 @@ func Test_GetMe(t *testing.T) {
 			assert.Equal(t, *tc.expectedUser.TwitterUsername, returnedUser.Details.TwitterUsername)
 		})
 	}
+}
+
+func Test_GetMe_IFC_FeatureFlag(t *testing.T) {
+	t.Parallel()
+
+	serverTool := GetMe(translations.NullTranslationHelper)
+
+	mockUser := &github.User{
+		Login:     github.Ptr("testuser"),
+		HTMLURL:   github.Ptr("https://github.com/testuser"),
+		CreatedAt: &github.Timestamp{Time: time.Now()},
+	}
+	mockedHTTPClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetUser: mockResponse(t, http.StatusOK, mockUser),
+	})
+
+	depsWithIFCFeature := func(enabled bool) *BaseDeps {
+		return NewBaseDeps(
+			mustNewGHClient(t, mockedHTTPClient), nil, nil, nil,
+			translations.NullTranslationHelper,
+			FeatureFlags{},
+			0,
+			func(_ context.Context, flagName string) (bool, error) {
+				return flagName == FeatureFlagIFCLabels && enabled, nil
+			},
+			stubExporters(),
+		)
+	}
+
+	t.Run("feature disabled omits ifc label from result meta", func(t *testing.T) {
+		deps := depsWithIFCFeature(false)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		assert.Nil(t, result.Meta, "result meta should be nil when IFC labels are disabled")
+	})
+
+	t.Run("feature enabled includes ifc label in result meta", func(t *testing.T) {
+		deps := depsWithIFCFeature(true)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta, "result meta should be set when IFC labels are enabled")
+		ifcLabel, ok := result.Meta["ifc"]
+		require.True(t, ok, "result meta should contain ifc key")
+
+		ifcJSON, err := json.Marshal(ifcLabel)
+		require.NoError(t, err)
+
+		var ifcMap map[string]any
+		err = json.Unmarshal(ifcJSON, &ifcMap)
+		require.NoError(t, err)
+
+		assert.Equal(t, "trusted", ifcMap["integrity"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
+	})
 }
 
 func Test_GetTeams(t *testing.T) {
@@ -215,7 +280,7 @@ func Test_GetTeams(t *testing.T) {
 	// to ensure each test gets a fresh client
 	gqlClientForTestuser := func() *githubv4.Client {
 		queryStr := "query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}"
-		vars := map[string]interface{}{
+		vars := map[string]any{
 			"login": "testuser",
 		}
 		matcher := githubv4mock.NewQueryMatcher(queryStr, vars, mockTeamsResponse)
@@ -225,7 +290,7 @@ func Test_GetTeams(t *testing.T) {
 
 	gqlClientForSpecificuser := func() *githubv4.Client {
 		queryStr := "query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}"
-		vars := map[string]interface{}{
+		vars := map[string]any{
 			"login": "specificuser",
 		}
 		matcher := githubv4mock.NewQueryMatcher(queryStr, vars, mockTeamsResponse)
@@ -235,7 +300,7 @@ func Test_GetTeams(t *testing.T) {
 
 	gqlClientNoTeams := func() *githubv4.Client {
 		queryStr := "query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}"
-		vars := map[string]interface{}{
+		vars := map[string]any{
 			"login": "testuser",
 		}
 		matcher := githubv4mock.NewQueryMatcher(queryStr, vars, mockNoTeamsResponse)
@@ -268,7 +333,7 @@ func Test_GetTeams(t *testing.T) {
 			name: "successful get teams",
 			makeDeps: func() ToolDependencies {
 				return BaseDeps{
-					Client:    github.NewClient(httpClientWithUser()),
+					Client:    mustNewGHClient(t, httpClientWithUser()),
 					GQLClient: gqlClientForTestuser(),
 				}
 			},
@@ -293,7 +358,7 @@ func Test_GetTeams(t *testing.T) {
 			name: "no teams found",
 			makeDeps: func() ToolDependencies {
 				return BaseDeps{
-					Client:    github.NewClient(httpClientWithUser()),
+					Client:    mustNewGHClient(t, httpClientWithUser()),
 					GQLClient: gqlClientNoTeams(),
 				}
 			},
@@ -304,7 +369,7 @@ func Test_GetTeams(t *testing.T) {
 		{
 			name: "getting client fails",
 			makeDeps: func() ToolDependencies {
-				return stubDeps{clientFn: stubClientFnErr("expected test error")}
+				return stubDeps{clientFn: stubClientFnErr("expected test error"), obsv: stubExporters()}
 			},
 			requestArgs:        map[string]any{},
 			expectToolError:    true,
@@ -314,7 +379,8 @@ func Test_GetTeams(t *testing.T) {
 			name: "get user fails",
 			makeDeps: func() ToolDependencies {
 				return BaseDeps{
-					Client: github.NewClient(httpClientUserFails()),
+					Client: mustNewGHClient(t, httpClientUserFails()),
+					Obsv:   stubExporters(),
 				}
 			},
 			requestArgs:        map[string]any{},
@@ -325,8 +391,9 @@ func Test_GetTeams(t *testing.T) {
 			name: "getting GraphQL client fails",
 			makeDeps: func() ToolDependencies {
 				return stubDeps{
-					clientFn:    stubClientFnFromHTTP(httpClientWithUser()),
+					clientFn:    stubClientFnFromHTTP(t, httpClientWithUser()),
 					gqlClientFn: stubGQLClientFnErr("GraphQL client error"),
+					obsv:        stubExporters(),
 				}
 			},
 			requestArgs:        map[string]any{},
@@ -419,7 +486,7 @@ func Test_GetTeamMembers(t *testing.T) {
 	// Create GQL clients for different test scenarios
 	gqlClientWithMembers := func() *githubv4.Client {
 		queryStr := "query($org:String!$teamSlug:String!){organization(login: $org){team(slug: $teamSlug){members(first: 100){nodes{login}}}}}"
-		vars := map[string]interface{}{
+		vars := map[string]any{
 			"org":      "testorg",
 			"teamSlug": "testteam",
 		}
@@ -430,7 +497,7 @@ func Test_GetTeamMembers(t *testing.T) {
 
 	gqlClientNoMembers := func() *githubv4.Client {
 		queryStr := "query($org:String!$teamSlug:String!){organization(login: $org){team(slug: $teamSlug){members(first: 100){nodes{login}}}}}"
-		vars := map[string]interface{}{
+		vars := map[string]any{
 			"org":      "testorg",
 			"teamSlug": "emptyteam",
 		}
@@ -469,7 +536,7 @@ func Test_GetTeamMembers(t *testing.T) {
 		},
 		{
 			name: "getting GraphQL client fails",
-			deps: stubDeps{gqlClientFn: stubGQLClientFnErr("GraphQL client error")},
+			deps: stubDeps{gqlClientFn: stubGQLClientFnErr("GraphQL client error"), obsv: stubExporters()},
 			requestArgs: map[string]any{
 				"org":       "testorg",
 				"team_slug": "testteam",

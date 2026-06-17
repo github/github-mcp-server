@@ -18,10 +18,14 @@ import (
 // RemoteMCPEnthusiasticGreeting is a dummy test feature flag .
 const RemoteMCPEnthusiasticGreeting = "remote_mcp_enthusiastic_greeting"
 
-// FeatureChecker is an interface for checking if a feature flag is enabled.
-type FeatureChecker interface {
-	// IsFeatureEnabled checks if a feature flag is enabled.
-	IsFeatureEnabled(ctx context.Context, flagName string) bool
+func featureCheckerFor(enabledFlags ...string) func(context.Context, string) (bool, error) {
+	enabled := make(map[string]bool, len(enabledFlags))
+	for _, flag := range enabledFlags {
+		enabled[flag] = true
+	}
+	return func(_ context.Context, flagName string) (bool, error) {
+		return enabled[flagName], nil
+	}
 }
 
 // HelloWorld returns a simple greeting tool that demonstrates feature flag conditional behavior.
@@ -44,9 +48,6 @@ func HelloWorldTool(t translations.TranslationHelperFunc) inventory.ServerTool {
 			greeting := "Hello, world!"
 			if deps.IsFeatureEnabled(ctx, RemoteMCPEnthusiasticGreeting) {
 				greeting += " Welcome to the future of MCP! 🎉"
-			}
-			if deps.GetFlags().InsidersMode {
-				greeting += " Experimental features are enabled! 🚀"
 			}
 
 			// Build response
@@ -89,12 +90,9 @@ func TestHelloWorld_ConditionalBehavior_Featureflag(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Create feature checker based on test case
-			checker := func(_ context.Context, flagName string) (bool, error) {
-				if flagName == RemoteMCPEnthusiasticGreeting {
-					return tt.featureFlagEnabled, nil
-				}
-				return false, nil
+			var enabledFlags []string
+			if tt.featureFlagEnabled {
+				enabledFlags = append(enabledFlags, RemoteMCPEnthusiasticGreeting)
 			}
 
 			// Create deps with the checker
@@ -103,7 +101,8 @@ func TestHelloWorld_ConditionalBehavior_Featureflag(t *testing.T) {
 				translations.NullTranslationHelper,
 				FeatureFlags{},
 				0,
-				checker,
+				featureCheckerFor(enabledFlags...),
+				stubExporters(),
 			)
 
 			// Get the tool and its handler
@@ -135,64 +134,85 @@ func TestHelloWorld_ConditionalBehavior_Featureflag(t *testing.T) {
 	}
 }
 
-func TestHelloWorld_ConditionalBehavior_Config(t *testing.T) {
+func TestResolveFeatureFlags(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name             string
-		insidersMode     bool
-		expectedGreeting string
+		name            string
+		enabledFeatures []string
+		insidersMode    bool
+		expectedFlags   []string
+		unexpectedFlags []string
 	}{
 		{
-			name:             "Experimental disabled - default greeting",
-			insidersMode:     false,
-			expectedGreeting: "Hello, world!",
+			name:            "no features, no insiders",
+			enabledFeatures: nil,
+			expectedFlags:   nil,
+			unexpectedFlags: []string{MCPAppsFeatureFlag},
 		},
 		{
-			name:             "Experimental enabled - experimental greeting",
-			insidersMode:     true,
-			expectedGreeting: "Hello, world! Experimental features are enabled! 🚀",
+			name:            "explicit feature enabled",
+			enabledFeatures: []string{MCPAppsFeatureFlag},
+			expectedFlags:   []string{MCPAppsFeatureFlag},
+		},
+		{
+			name:            "insiders mode enables insiders flags",
+			enabledFeatures: nil,
+			insidersMode:    true,
+			expectedFlags:   InsidersFeatureFlags,
+		},
+		{
+			name:            "insiders mode enables internal-only flags",
+			enabledFeatures: nil,
+			insidersMode:    true,
+			expectedFlags:   []string{FeatureFlagIFCLabels},
+		},
+		{
+			name:            "ifc_labels can be directly enabled",
+			enabledFeatures: []string{FeatureFlagIFCLabels},
+			expectedFlags:   []string{FeatureFlagIFCLabels},
+		},
+		{
+			name:            "unknown flags are filtered out",
+			enabledFeatures: []string{"unknown_flag", "another_unknown"},
+			unexpectedFlags: []string{"unknown_flag", "another_unknown"},
+		},
+		{
+			name:            "mix of known and unknown flags",
+			enabledFeatures: []string{MCPAppsFeatureFlag, "unknown_flag"},
+			expectedFlags:   []string{MCPAppsFeatureFlag},
+			unexpectedFlags: []string{"unknown_flag"},
+		},
+		{
+			name:            "user-only flags can be enabled but are not turned on by insiders",
+			enabledFeatures: []string{FeatureFlagIssuesGranular},
+			insidersMode:    false,
+			expectedFlags:   []string{FeatureFlagIssuesGranular},
+		},
+		{
+			name:            "insiders does not enable user-only allowed flags",
+			enabledFeatures: nil,
+			insidersMode:    true,
+			unexpectedFlags: []string{FeatureFlagIssuesGranular, FeatureFlagPullRequestsGranular},
+		},
+		{
+			name:            "explicit plus insiders deduplicates",
+			enabledFeatures: []string{MCPAppsFeatureFlag},
+			insidersMode:    true,
+			expectedFlags:   InsidersFeatureFlags,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
-			// Create deps with the checker
-			deps := NewBaseDeps(
-				nil, nil, nil, nil,
-				translations.NullTranslationHelper,
-				FeatureFlags{InsidersMode: tt.insidersMode},
-				0,
-				nil,
-			)
-
-			// Get the tool and its handler
-			tool := HelloWorldTool(translations.NullTranslationHelper)
-			handler := tool.Handler(deps)
-
-			// Call the handler with deps in context
-			ctx := ContextWithDeps(context.Background(), deps)
-			result, err := handler(ctx, &mcp.CallToolRequest{
-				Params: &mcp.CallToolParamsRaw{
-					Arguments: json.RawMessage(`{}`),
-				},
-			})
-			require.NoError(t, err)
-			require.NotNil(t, result)
-			require.Len(t, result.Content, 1)
-
-			// Parse the response - should be TextContent
-			textContent, ok := result.Content[0].(*mcp.TextContent)
-			require.True(t, ok, "expected content to be TextContent")
-
-			var response map[string]any
-			err = json.Unmarshal([]byte(textContent.Text), &response)
-			require.NoError(t, err)
-
-			// Verify the greeting matches expected based on feature flag
-			assert.Equal(t, tt.expectedGreeting, response["greeting"])
+			result := ResolveFeatureFlags(tt.enabledFeatures, tt.insidersMode)
+			for _, flag := range tt.expectedFlags {
+				assert.True(t, result[flag], "expected flag %q to be enabled", flag)
+			}
+			for _, flag := range tt.unexpectedFlags {
+				assert.False(t, result[flag], "expected flag %q to not be enabled", flag)
+			}
 		})
 	}
 }

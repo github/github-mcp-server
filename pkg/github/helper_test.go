@@ -2,6 +2,7 @@ package github
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	gogithub "github.com/google/go-github/v87/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	testifymock "github.com/stretchr/testify/mock"
@@ -38,6 +40,7 @@ const (
 	GetReposSubscriptionByOwnerByRepo    = "GET /repos/{owner}/{repo}/subscription"
 	PutReposSubscriptionByOwnerByRepo    = "PUT /repos/{owner}/{repo}/subscription"
 	DeleteReposSubscriptionByOwnerByRepo = "DELETE /repos/{owner}/{repo}/subscription"
+	ListCollaborators                    = "GET /repos/{owner}/{repo}/collaborators"
 
 	// Git endpoints
 	GetReposGitTreesByOwnerByRepoByTree        = "GET /repos/{owner}/{repo}/git/trees/{tree}"
@@ -50,6 +53,7 @@ const (
 	PostReposGitTreesByOwnerByRepo             = "POST /repos/{owner}/{repo}/git/trees"
 	GetReposCommitsStatusByOwnerByRepoByRef    = "GET /repos/{owner}/{repo}/commits/{ref}/status"
 	GetReposCommitsStatusesByOwnerByRepoByRef  = "GET /repos/{owner}/{repo}/commits/{ref}/statuses"
+	GetReposCommitsCheckRunsByOwnerByRepoByRef = "GET /repos/{owner}/{repo}/commits/{ref}/check-runs"
 
 	// Issues endpoints
 	GetReposIssuesByOwnerByRepoByIssueNumber                    = "GET /repos/{owner}/{repo}/issues/{issue_number}"
@@ -72,6 +76,7 @@ const (
 	PutReposPullsMergeByOwnerByRepoByPullNumber               = "PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge"
 	PutReposPullsUpdateBranchByOwnerByRepoByPullNumber        = "PUT /repos/{owner}/{repo}/pulls/{pull_number}/update-branch"
 	PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber = "POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers"
+	PostReposPullsCommentsByOwnerByRepoByPullNumber           = "POST /repos/{owner}/{repo}/pulls/{pull_number}/comments"
 
 	// Notifications endpoints
 	GetNotifications                                 = "GET /notifications"
@@ -135,6 +140,7 @@ const (
 	GetSearchIssues       = "GET /search/issues"
 	GetSearchUsers        = "GET /search/users"
 	GetSearchRepositories = "GET /search/repositories"
+	GetSearchCommits      = "GET /search/commits"
 
 	// Raw content endpoints (used for GitHub raw content API, not standard API)
 	// These are used with the raw content client that interacts with raw.githubusercontent.com
@@ -173,6 +179,22 @@ type expectations struct {
 	path        string
 	queryParams map[string]string
 	requestBody any
+}
+
+// mustNewGHClient creates a new GitHub client for testing.
+// If httpClient is nil, a client with no options is created.
+// The test fails immediately if client creation fails.
+func mustNewGHClient(t *testing.T, httpClient *http.Client) *gogithub.Client {
+	t.Helper()
+	var client *gogithub.Client
+	var err error
+	if httpClient == nil {
+		client, err = gogithub.NewClient()
+	} else {
+		client, err = gogithub.NewClient(gogithub.WithHTTPClient(httpClient))
+	}
+	require.NoError(t, err)
+	return client
 }
 
 // expect is a helper function to create a partial mock that expects various
@@ -216,9 +238,15 @@ func expectRequestBody(t *testing.T, expectedRequestBody any) *partialMock {
 type partialMock struct {
 	t *testing.T
 
-	expectedPath        string
-	expectedQueryParams map[string]string
-	expectedRequestBody any
+	expectedPath           string
+	expectedQueryParams    map[string]string
+	expectedRequestBody    any
+	expectedHeaderContains map[string]string
+}
+
+func (p *partialMock) withHeaders(headers map[string]string) *partialMock {
+	p.expectedHeaderContains = headers
+	return p
 }
 
 func (p *partialMock) andThen(responseHandler http.HandlerFunc) http.HandlerFunc {
@@ -243,13 +271,19 @@ func (p *partialMock) andThen(responseHandler http.HandlerFunc) http.HandlerFunc
 			require.Equal(p.t, p.expectedRequestBody, unmarshaledRequestBody)
 		}
 
+		if p.expectedHeaderContains != nil {
+			for k, v := range p.expectedHeaderContains {
+				require.Contains(p.t, r.Header.Get(k), v, "expected header %q to contain %q", k, v)
+			}
+		}
+
 		responseHandler(w, r)
 	}
 }
 
 // mockResponse is a helper function to create a mock HTTP response handler
 // that returns a specified status code and marshaled body.
-func mockResponse(t *testing.T, code int, body interface{}) http.HandlerFunc {
+func mockResponse(t *testing.T, code int, body any) http.HandlerFunc {
 	t.Helper()
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(code)
@@ -270,9 +304,9 @@ func mockResponse(t *testing.T, code int, body interface{}) http.HandlerFunc {
 // createMCPRequest is a helper function to create a MCP request with the given arguments.
 func createMCPRequest(args any) mcp.CallToolRequest {
 	// convert args to map[string]interface{} and serialize to JSON
-	argsMap, ok := args.(map[string]interface{})
+	argsMap, ok := args.(map[string]any)
 	if !ok {
-		argsMap = make(map[string]interface{})
+		argsMap = make(map[string]any)
 	}
 
 	argsJSON, err := json.Marshal(argsMap)
@@ -285,6 +319,58 @@ func createMCPRequest(args any) mcp.CallToolRequest {
 	return mcp.CallToolRequest{
 		Params: &mcp.CallToolParamsRaw{
 			Arguments: jsonRawMessage,
+		},
+	}
+}
+
+// Well-known MCP client names used in tests.
+const (
+	ClientNameVSCodeInsiders = "Visual Studio Code - Insiders"
+	ClientNameVSCode         = "Visual Studio Code"
+)
+
+// createMCPRequestWithSession creates a CallToolRequest with a ServerSession
+// that has the given client name in its InitializeParams. When withUI is true
+// the session advertises MCP Apps UI support via the capability extension.
+func createMCPRequestWithSession(t *testing.T, clientName string, withUI bool, args any) mcp.CallToolRequest {
+	t.Helper()
+
+	argsMap, ok := args.(map[string]any)
+	if !ok {
+		argsMap = make(map[string]any)
+	}
+	argsJSON, err := json.Marshal(argsMap)
+	require.NoError(t, err)
+
+	srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, nil)
+
+	caps := &mcp.ClientCapabilities{}
+	if withUI {
+		caps.AddExtension("io.modelcontextprotocol/ui", map[string]any{
+			"mimeTypes": []string{"text/html;profile=mcp-app"},
+		})
+	}
+
+	st, _ := mcp.NewInMemoryTransports()
+	session, err := srv.Connect(context.Background(), st, &mcp.ServerSessionOptions{
+		State: &mcp.ServerSessionState{
+			InitializeParams: &mcp.InitializeParams{
+				ClientInfo:   &mcp.Implementation{Name: clientName},
+				Capabilities: caps,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Close the unused client-side transport and session
+	t.Cleanup(func() {
+		_ = session.Close()
+	})
+
+	return mcp.CallToolRequest{
+		Session: session,
+		Params: &mcp.CallToolParamsRaw{
+			Arguments: json.RawMessage(argsJSON),
 		},
 	}
 }
@@ -312,16 +398,16 @@ func getErrorResult(t *testing.T, result *mcp.CallToolResult) *mcp.TextContent {
 func TestOptionalParamOK(t *testing.T) {
 	tests := []struct {
 		name        string
-		args        map[string]interface{}
+		args        map[string]any
 		paramName   string
-		expectedVal interface{}
+		expectedVal any
 		expectedOk  bool
 		expectError bool
 		errorMsg    string
 	}{
 		{
 			name:        "present and correct type (string)",
-			args:        map[string]interface{}{"myParam": "hello"},
+			args:        map[string]any{"myParam": "hello"},
 			paramName:   "myParam",
 			expectedVal: "hello",
 			expectedOk:  true,
@@ -329,7 +415,7 @@ func TestOptionalParamOK(t *testing.T) {
 		},
 		{
 			name:        "present and correct type (bool)",
-			args:        map[string]interface{}{"myParam": true},
+			args:        map[string]any{"myParam": true},
 			paramName:   "myParam",
 			expectedVal: true,
 			expectedOk:  true,
@@ -337,7 +423,7 @@ func TestOptionalParamOK(t *testing.T) {
 		},
 		{
 			name:        "present and correct type (number)",
-			args:        map[string]interface{}{"myParam": float64(123)},
+			args:        map[string]any{"myParam": float64(123)},
 			paramName:   "myParam",
 			expectedVal: float64(123),
 			expectedOk:  true,
@@ -345,7 +431,7 @@ func TestOptionalParamOK(t *testing.T) {
 		},
 		{
 			name:        "present but wrong type (string expected, got bool)",
-			args:        map[string]interface{}{"myParam": true},
+			args:        map[string]any{"myParam": true},
 			paramName:   "myParam",
 			expectedVal: "",   // Zero value for string
 			expectedOk:  true, // ok is true because param exists
@@ -354,7 +440,7 @@ func TestOptionalParamOK(t *testing.T) {
 		},
 		{
 			name:        "present but wrong type (bool expected, got string)",
-			args:        map[string]interface{}{"myParam": "true"},
+			args:        map[string]any{"myParam": "true"},
 			paramName:   "myParam",
 			expectedVal: false, // Zero value for bool
 			expectedOk:  true,  // ok is true because param exists
@@ -363,7 +449,7 @@ func TestOptionalParamOK(t *testing.T) {
 		},
 		{
 			name:        "parameter not present",
-			args:        map[string]interface{}{"anotherParam": "value"},
+			args:        map[string]any{"anotherParam": "value"},
 			paramName:   "myParam",
 			expectedVal: "", // Zero value for string
 			expectedOk:  false,
@@ -531,7 +617,7 @@ func matchPath(pattern, path string) bool {
 			if len(pathParts) < len(patternParts)-1 {
 				return false
 			}
-			for i := 0; i < len(patternParts)-1; i++ {
+			for i := range len(patternParts) - 1 {
 				if strings.HasPrefix(patternParts[i], "{") && strings.HasSuffix(patternParts[i], "}") {
 					continue // Path parameter matches anything
 				}

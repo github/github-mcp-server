@@ -14,10 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Build UI
+        uses: ./.github/actions/build-ui
       - uses: actions/setup-go@v6
         with:
-          go-version: stable
+          go-version: '1.25'
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.5
+          # sync with script/lint
+          version: v2.9

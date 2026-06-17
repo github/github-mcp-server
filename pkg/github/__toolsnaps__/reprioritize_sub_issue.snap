@@ -1,0 +1,45 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Reprioritize Sub-Issue"
+  },
+  "description": "Reprioritize (reorder) a sub-issue relative to other sub-issues.",
+  "inputSchema": {
+    "properties": {
+      "after_id": {
+        "description": "The ID of the sub-issue to place this after (either after_id OR before_id should be specified)",
+        "type": "number"
+      },
+      "before_id": {
+        "description": "The ID of the sub-issue to place this before (either after_id OR before_id should be specified)",
+        "type": "number"
+      },
+      "issue_number": {
+        "description": "The parent issue number",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "sub_issue_id": {
+        "description": "The ID of the sub-issue to reorder. ID is not the same as issue number",
+        "type": "number"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "issue_number",
+      "sub_issue_id"
+    ],
+    "type": "object"
+  },
+  "name": "reprioritize_sub_issue"
+}

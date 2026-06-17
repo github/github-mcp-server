@@ -161,7 +161,6 @@ icons := octicons.Icons("repo")
 | Labels | `tag` |
 | Stargazers | `star` |
 | Notifications | `bell` |
-| Dynamic | `tools` |
 | Copilot | `copilot` |
 | Support Search | `book` |
 

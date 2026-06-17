@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Update Issue Title"
+  },
+  "description": "Update the title of an existing issue.",
+  "inputSchema": {
+    "properties": {
+      "issue_number": {
+        "description": "The issue number to update",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "title": {
+        "description": "The new title for the issue",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "issue_number",
+      "title"
+    ],
+    "type": "object"
+  },
+  "name": "update_issue_title"
+}
