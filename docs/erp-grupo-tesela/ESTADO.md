@@ -35,6 +35,7 @@
 | Pantalla de Contactos | ✅ Hecho | Navegación Promociones/Contactos; tablas de clientes y proveedores (incluye los 47 reales de Holded) |
 | Facturas reales de Holded | ✅ Hecho | Tabla `factura_holded`: 56 facturas reales importadas (30 ventas + 26 compras) de la sociedad conectada |
 | Pantalla de Facturas | ✅ Hecho | Navegación "Facturas"; KPIs (ventas/compras/pendientes) + tabla filtrable. Solo Dirección |
+| Sincronización automática de Holded | ✅ Hecho | Key cifrada en Vault + función `sync-holded` (contactos+facturas) + **cron diario 06:00**. Probada: 28 clientes, 19 proveedores, 56 facturas |
 
 **Roles:** `direccion` (ve y gestiona todo) · `obra` (sus promociones: presupuestos, contratos de obra) · `comercial` (sus promociones: reservas, compraventas). `NULL` = pendiente de asignar (sin acceso).
 
