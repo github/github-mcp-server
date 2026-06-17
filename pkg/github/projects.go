@@ -259,11 +259,21 @@ Use this tool to list projects for a user or organization, or list project field
 				switch method {
 				case projectsMethodListProjectFields:
 					result, payload, err := listProjectFields(ctx, client, args, owner, ownerType)
-					result = attachProjectVisibilityIFCLabel(ctx, deps, client, owner, ownerType, projectNumber, result, ifc.LabelProject)
+					if shouldAttachIFCLabel(ctx, deps, result) {
+						isPrivate, visibilityErr := FetchProjectIsPrivate(ctx, client, owner, ownerType, projectNumber)
+						if visibilityErr == nil {
+							result = attachProjectVisibilityIFCLabel(ctx, deps, result, isPrivate, ifc.LabelProject)
+						}
+					}
 					return result, payload, err
 				case projectsMethodListProjectItems:
 					result, payload, err := listProjectItems(ctx, client, args, owner, ownerType)
-					result = attachProjectVisibilityIFCLabel(ctx, deps, client, owner, ownerType, projectNumber, result, ifc.LabelProjectContent)
+					if shouldAttachIFCLabel(ctx, deps, result) {
+						isPrivate, visibilityErr := FetchProjectIsPrivate(ctx, client, owner, ownerType, projectNumber)
+						if visibilityErr == nil {
+							result = attachProjectVisibilityIFCLabel(ctx, deps, result, isPrivate, ifc.LabelProjectContent)
+						}
+					}
 					return result, payload, err
 				case projectsMethodListProjectStatusUpdates:
 					gqlClient, err := deps.GetGQLClient(ctx)
@@ -407,7 +417,12 @@ Use this tool to get details about individual projects, project fields, and proj
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
 				result, payload, err := getProjectField(ctx, client, owner, ownerType, projectNumber, fieldID)
-				result = attachProjectVisibilityIFCLabel(ctx, deps, client, owner, ownerType, projectNumber, result, ifc.LabelProject)
+				if shouldAttachIFCLabel(ctx, deps, result) {
+					isPrivate, visibilityErr := FetchProjectIsPrivate(ctx, client, owner, ownerType, projectNumber)
+					if visibilityErr == nil {
+						result = attachProjectVisibilityIFCLabel(ctx, deps, result, isPrivate, ifc.LabelProject)
+					}
+				}
 				return result, payload, err
 			case projectsMethodGetProjectItem:
 				itemID, err := RequiredBigInt(args, "item_id")
@@ -419,7 +434,12 @@ Use this tool to get details about individual projects, project fields, and proj
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
 				result, payload, err := getProjectItem(ctx, client, owner, ownerType, projectNumber, itemID, fields)
-				result = attachProjectVisibilityIFCLabel(ctx, deps, client, owner, ownerType, projectNumber, result, ifc.LabelProjectContent)
+				if shouldAttachIFCLabel(ctx, deps, result) {
+					isPrivate, visibilityErr := FetchProjectIsPrivate(ctx, client, owner, ownerType, projectNumber)
+					if visibilityErr == nil {
+						result = attachProjectVisibilityIFCLabel(ctx, deps, result, isPrivate, ifc.LabelProjectContent)
+					}
+				}
 				return result, payload, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -813,26 +833,6 @@ func projectVisibilities(projects []MinimalProject) []bool {
 		visibilities = append(visibilities, isPrivate)
 	}
 	return visibilities
-}
-
-func attachProjectVisibilityIFCLabel(
-	ctx context.Context,
-	deps ToolDependencies,
-	client *github.Client,
-	owner, ownerType string,
-	projectNumber int,
-	r *mcp.CallToolResult,
-	labelFn func(isPrivate bool) ifc.SecurityLabel,
-) *mcp.CallToolResult {
-	if r == nil || r.IsError || !deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
-		return r
-	}
-	isPrivate, err := FetchProjectIsPrivate(ctx, client, owner, ownerType, projectNumber)
-	if err != nil {
-		return r
-	}
-	setIFCLabel(r, labelFn(isPrivate))
-	return r
 }
 
 func listProjectFields(ctx context.Context, client *github.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, any, error) {
