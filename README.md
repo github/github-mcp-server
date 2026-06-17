@@ -555,6 +555,7 @@ The following sets of tools are available:
 | --- | ----------------------- | ------------------------------------------------------------- |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/person-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/person-light.png"><img src="pkg/octicons/icons/person-light.png" width="20" height="20" alt="person"></picture> | `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/workflow-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/workflow-light.png"><img src="pkg/octicons/icons/workflow-light.png" width="20" height="20" alt="workflow"></picture> | `actions` | GitHub Actions workflows and CI/CD operations |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/code-square-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/code-square-light.png"><img src="pkg/octicons/icons/code-square-light.png" width="20" height="20" alt="code-square"></picture> | `code_quality` | GitHub Code Quality related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/codescan-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/codescan-light.png"><img src="pkg/octicons/icons/codescan-light.png" width="20" height="20" alt="codescan"></picture> | `code_security` | Code security related tools, such as GitHub Code Scanning |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/copilot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/copilot-light.png"><img src="pkg/octicons/icons/copilot-light.png" width="20" height="20" alt="copilot"></picture> | `copilot` | Copilot related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/dependabot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/dependabot-light.png"><img src="pkg/octicons/icons/dependabot-light.png" width="20" height="20" alt="dependabot"></picture> | `dependabot` | Dependabot tools |
@@ -635,6 +636,18 @@ The following sets of tools are available:
   - `return_content`: Returns actual log content instead of URLs (boolean, optional)
   - `run_id`: The unique identifier of the workflow run. Required when failed_only is true to get logs for all failed jobs in the run. (number, optional)
   - `tail_lines`: Number of lines to return from the end of the log (number, optional)
+
+</details>
+
+<details>
+
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/code-square-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/code-square-light.png"><img src="pkg/octicons/icons/code-square-light.png" width="20" height="20" alt="code-square"></picture> Code Quality</summary>
+
+- **get_code_quality_finding** - Get code quality finding
+  - **Required OAuth Scopes**: `repo`
+  - `findingNumber`: The number of the finding. (number, required)
+  - `owner`: The owner of the repository. (string, required)
+  - `repo`: The name of the repository. (string, required)
 
 </details>
 
@@ -1090,6 +1103,7 @@ The following sets of tools are available:
   - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], optional)
   - `title`: PR title (string, required)
 
 - **list_pull_requests** - List pull requests
