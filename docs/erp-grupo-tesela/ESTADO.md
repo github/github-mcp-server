@@ -11,7 +11,7 @@
 | Esquema inicial (14 tablas) | ✅ Hecho | Migración `esquema_inicial_erp` |
 | RLS base (bloqueo de acceso anónimo) | ✅ Hecho | Migración `rls_base_autenticados` |
 | Prueba end-to-end del modelo | ✅ Superada | Promoción demo creada, consultada y eliminada correctamente |
-| Integración Holded (lectura) | 🟡 Habilitada en Zapier, falta autorizar | 19 acciones activas (find_contact, create_invoice, etc.). Pendiente: el usuario autoriza su cuenta en el enlace OAuth |
+| Integración Holded (lectura) | 🟢 1 de 5 sociedades conectada | Vía API directa de Holded (pg_net): 47 contactos reales sincronizados (28 clientes + 19 proveedores). 4 de las 5 keys daban "Invalid key" (rotadas). Faltan las keys vigentes de las otras 4 sociedades |
 | Auth + RLS fino por rol | ✅ Hecho (Fase 1) | Ver sección Fase 1 |
 
 ## ✅ Fase 1 — Usuarios y roles (hecho)
