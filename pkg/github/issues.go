@@ -1868,7 +1868,7 @@ Options are:
 					},
 					"body": {
 						Type:        "string",
-						Description: "Issue body content",
+						Description: "Issue body content (Markdown). On `method=\"update\"`, this REPLACES the entire issue body; use `add_issue_comment` to add a comment without modifying the body.",
 					},
 					"assignees": {
 						Type:        "array",
@@ -2160,7 +2160,7 @@ Options are:
 					},
 					"body": {
 						Type:        "string",
-						Description: "Issue body content",
+						Description: "Issue body content (Markdown). On `method=\"update\"`, this REPLACES the entire issue body; use `add_issue_comment` to add a comment without modifying the body.",
 					},
 					"assignees": {
 						Type:        "array",
