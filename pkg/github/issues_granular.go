@@ -19,6 +19,10 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+func normalizeConfidence(confidence string) string {
+	return strings.ToUpper(strings.TrimSpace(confidence))
+}
+
 // issueUpdateTool is a helper to create single-field issue update tools.
 func issueUpdateTool(
 	t translations.TranslationHelperFunc,
@@ -398,6 +402,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 					if err != nil {
 						return utils.NewToolResultError(err.Error()), nil, nil
 					}
+					confidence = normalizeConfidence(confidence)
 					if confidence != "" && confidence != "LOW" && confidence != "MEDIUM" && confidence != "HIGH" {
 						return utils.NewToolResultError("confidence must be one of: LOW, MEDIUM, HIGH"), nil, nil
 					}
@@ -582,6 +587,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			confidence = normalizeConfidence(confidence)
 			if confidence != "" && confidence != "LOW" && confidence != "MEDIUM" && confidence != "HIGH" {
 				return utils.NewToolResultError("confidence must be one of: LOW, MEDIUM, HIGH"), nil, nil
 			}
@@ -1111,6 +1117,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
+				confidence = normalizeConfidence(confidence)
 				if confidence != "" && confidence != "LOW" && confidence != "MEDIUM" && confidence != "HIGH" {
 					return utils.NewToolResultError("confidence must be one of: LOW, MEDIUM, HIGH"), nil, nil
 				}

@@ -502,6 +502,22 @@ func TestGranularUpdateIssueLabelsConfidence(t *testing.T) {
 			},
 		},
 		{
+			name: "label confidence is normalized",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"labels": []any{
+					map[string]any{"name": "bug", "confidence": " high\t"},
+				},
+			},
+			expectedReq: map[string]any{
+				"labels": []any{
+					map[string]any{"name": "bug", "confidence": "HIGH"},
+				},
+			},
+		},
+		{
 			name: "invalid confidence value",
 			requestArgs: map[string]any{
 				"owner":        "owner",
@@ -782,6 +798,22 @@ func TestGranularUpdateIssueTypeConfidence(t *testing.T) {
 				"type": map[string]any{
 					"value":      "bug",
 					"confidence": "LOW",
+				},
+			},
+		},
+		{
+			name: "type confidence is normalized",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   "bug",
+				"confidence":   " medium ",
+			},
+			expectedReq: map[string]any{
+				"type": map[string]any{
+					"value":      "bug",
+					"confidence": "MEDIUM",
 				},
 			},
 		},
@@ -1680,7 +1712,7 @@ func TestGranularSetIssueFields(t *testing.T) {
 				map[string]any{
 					"field_id":   "FIELD_1",
 					"text_value": "hello",
-					"confidence": "HIGH",
+					"confidence": " high ",
 				},
 			},
 		})
