@@ -37,6 +37,14 @@ func (m *Manager) begin(prompter Prompter) (*flowPlan, error) {
 		if err == nil {
 			return plan, nil
 		}
+		// A fixed callback port that won't bind is fatal, not a cue to downgrade.
+		// The port was chosen deliberately (and registered with the OAuth app), so
+		// a bind failure means another process holds it — possibly one positioned
+		// to intercept the authorization redirect. Silently switching to device
+		// flow would mask that, so stop and make the user resolve it.
+		if m.config.CallbackPort != 0 {
+			return nil, fmt.Errorf("OAuth callback port %d is not available; another process may be using it — free the port or set a different --oauth-callback-port: %w", m.config.CallbackPort, err)
+		}
 		m.logger.Info("PKCE flow unavailable, falling back to device flow", "reason", err)
 	} else {
 		m.logger.Info("no callback port inside container; using device flow")
@@ -59,6 +67,13 @@ func (m *Manager) beginPKCE(prompter Prompter) (*flowPlan, error) {
 	listener, err := listenCallback(m.config.CallbackPort, m.inDocker())
 	if err != nil {
 		return nil, err
+	}
+	if m.inDocker() {
+		// Inside a container the callback binds all interfaces so the published
+		// port is reachable, which also exposes it to the container network.
+		// Publishing to loopback only (e.g. -p 127.0.0.1:%d:%d) keeps the
+		// authorization code off the network.
+		m.logger.Warn(fmt.Sprintf("OAuth callback is listening on all container interfaces; publish it to loopback only (e.g. -p 127.0.0.1:%d:%d) so the authorization code is not exposed on your network", m.config.CallbackPort, m.config.CallbackPort))
 	}
 	cs := newCallbackServer(listener, state)
 

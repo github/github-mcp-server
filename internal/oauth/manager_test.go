@@ -3,6 +3,8 @@ package oauth
 import (
 	"context"
 	"errors"
+	"net"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -181,6 +183,36 @@ func TestAuthenticateDevicePollingPending(t *testing.T) {
 	_, err := m.Authenticate(ctx, &fakePrompter{urlCapable: true})
 	require.NoError(t, err)
 	assert.Equal(t, "gho_device_token", m.AccessToken())
+}
+
+func TestAuthenticateFixedCallbackPortUnavailableIsFatal(t *testing.T) {
+	f := newFakeGitHub(t)
+	m := newManager(t, f)
+
+	// Occupy the fixed callback port so the OAuth listener cannot bind it. A held
+	// port could belong to another user's process that would receive the redirect,
+	// so the flow must fail loudly rather than quietly downgrade to device flow.
+	squatter, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer squatter.Close()
+	port := squatter.Addr().(*net.TCPAddr).Port
+	m.config.CallbackPort = port
+
+	// A browser that would have completed PKCE, proving the abort is caused by the
+	// unavailable port and not by a missing display channel.
+	m.openURL = browserGet
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	out, err := m.Authenticate(ctx, &fakePrompter{urlCapable: true})
+	require.Error(t, err)
+	assert.Nil(t, out)
+	assert.Contains(t, err.Error(), strconv.Itoa(port))
+	assert.Empty(t, m.AccessToken())
+	// The decisive check: no device-code grant was attempted, so the flow did not
+	// silently fall back when the deliberately chosen port was unavailable.
+	assert.Empty(t, f.recordedGrants(), "fixed-port bind failure must not fall back to device flow")
 }
 
 func TestAuthenticateNoTokenInitially(t *testing.T) {
