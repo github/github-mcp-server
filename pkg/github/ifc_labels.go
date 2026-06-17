@@ -17,6 +17,10 @@ func setIFCLabel(r *mcp.CallToolResult, label ifc.SecurityLabel) {
 	r.Meta["ifc"] = label
 }
 
+func shouldAttachIFCLabel(ctx context.Context, deps ToolDependencies, r *mcp.CallToolResult) bool {
+	return r != nil && !r.IsError && deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels)
+}
+
 // attachStaticIFCLabel attaches a fixed IFC label to a successful tool result
 // when IFC labels are enabled. It is used by tools whose label does not depend
 // on any repository visibility lookup (e.g. security alerts, global
@@ -25,7 +29,7 @@ func setIFCLabel(r *mcp.CallToolResult, label ifc.SecurityLabel) {
 // Error results are left untouched, and the label is omitted entirely when the
 // IFC feature flag is disabled.
 func attachStaticIFCLabel(ctx context.Context, deps ToolDependencies, r *mcp.CallToolResult, label ifc.SecurityLabel) *mcp.CallToolResult {
-	if r == nil || r.IsError || !deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
+	if !shouldAttachIFCLabel(ctx, deps, r) {
 		return r
 	}
 	setIFCLabel(r, label)
@@ -49,7 +53,7 @@ func attachRepoVisibilityIFCLabel(
 	r *mcp.CallToolResult,
 	labelFn func(isPrivate bool) ifc.SecurityLabel,
 ) *mcp.CallToolResult {
-	if r == nil || r.IsError || !deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
+	if !shouldAttachIFCLabel(ctx, deps, r) {
 		return r
 	}
 	isPrivate, err := FetchRepoIsPrivate(ctx, client, owner, repo)
@@ -86,7 +90,7 @@ func attachRepoVisibilityIFCLabelLazy(
 	r *mcp.CallToolResult,
 	labelFn func(isPrivate bool) ifc.SecurityLabel,
 ) *mcp.CallToolResult {
-	if r == nil || r.IsError || !deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
+	if !shouldAttachIFCLabel(ctx, deps, r) {
 		return r
 	}
 	client, err := deps.GetClient(ctx)
@@ -97,12 +101,11 @@ func attachRepoVisibilityIFCLabelLazy(
 }
 
 // attachJoinedIFCLabel attaches an IFC label computed by joining a set of
-// per-item visibilities (true == private for repositories, true == public for
-// gists) when IFC labels are enabled. joinFn is the lattice join for the
-// relevant item kind (e.g. ifc.LabelSearchIssues or ifc.LabelGistList). The
-// visibility slice is cheap to build from an already-fetched response, so
-// callers may construct it unconditionally and let this helper own the
-// feature-flag gate.
+// per-item visibilities (true == private) when IFC labels are enabled. joinFn
+// is the lattice join for the relevant item kind (e.g. ifc.LabelSearchIssues or
+// ifc.LabelProjectList). The visibility slice is cheap to build from an
+// already-fetched response, so callers may construct it unconditionally and let
+// this helper own the feature-flag gate.
 func attachJoinedIFCLabel(
 	ctx context.Context,
 	deps ToolDependencies,
@@ -110,10 +113,24 @@ func attachJoinedIFCLabel(
 	visibilities []bool,
 	joinFn func([]bool) ifc.SecurityLabel,
 ) *mcp.CallToolResult {
-	if r == nil || r.IsError || !deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
+	if !shouldAttachIFCLabel(ctx, deps, r) {
 		return r
 	}
 	setIFCLabel(r, joinFn(visibilities))
+	return r
+}
+
+func attachProjectVisibilityIFCLabel(
+	ctx context.Context,
+	deps ToolDependencies,
+	r *mcp.CallToolResult,
+	isPrivate bool,
+	labelFn func(isPrivate bool) ifc.SecurityLabel,
+) *mcp.CallToolResult {
+	if !shouldAttachIFCLabel(ctx, deps, r) {
+		return r
+	}
+	setIFCLabel(r, labelFn(isPrivate))
 	return r
 }
 
