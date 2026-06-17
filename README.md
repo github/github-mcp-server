@@ -859,8 +859,9 @@ The following sets of tools are available:
     Options are:
     1. get - Get details of a specific issue.
     2. get_comments - Get issue comments.
-    3. get_sub_issues - Get sub-issues of the issue.
-    4. get_labels - Get labels assigned to the issue.
+    3. get_sub_issues - Get sub-issues (children) of the issue.
+    4. get_parent - Get the parent issue, if this issue is a sub-issue of another.
+    5. get_labels - Get labels assigned to the issue.
      (string, required)
   - `owner`: The owner of the repository (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)

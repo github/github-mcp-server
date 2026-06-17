@@ -3712,6 +3712,128 @@ func Test_GetIssueLabels(t *testing.T) {
 	}
 }
 
+func Test_GetIssueParent(t *testing.T) {
+	t.Parallel()
+
+	serverTool := IssueRead(translations.NullTranslationHelper)
+
+	parentMatcherStruct := struct {
+		Repository struct {
+			Issue struct {
+				Parent *struct {
+					Number     githubv4.Int
+					Title      githubv4.String
+					State      githubv4.String
+					URL        githubv4.String
+					Repository struct {
+						NameWithOwner githubv4.String
+					}
+				}
+			} `graphql:"issue(number: $issueNumber)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}{}
+
+	vars := map[string]any{
+		"owner":       githubv4.String("owner"),
+		"repo":        githubv4.String("repo"),
+		"issueNumber": githubv4.Int(123),
+	}
+
+	tests := []struct {
+		name            string
+		mockedClient    *http.Client
+		expectToolError bool
+		expectedText    string
+	}{
+		{
+			name: "issue has a parent",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					parentMatcherStruct,
+					vars,
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"issue": map[string]any{
+								"parent": map[string]any{
+									"number": githubv4.Int(42),
+									"title":  githubv4.String("Parent issue"),
+									"state":  githubv4.String("OPEN"),
+									"url":    githubv4.String("https://github.com/owner/repo/issues/42"),
+									"repository": map[string]any{
+										"nameWithOwner": githubv4.String("owner/repo"),
+									},
+								},
+							},
+						},
+					}),
+				),
+			),
+			expectedText: `"number":42`,
+		},
+		{
+			name: "issue has no parent",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					parentMatcherStruct,
+					vars,
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"issue": map[string]any{
+								"parent": nil,
+							},
+						},
+					}),
+				),
+			),
+			expectedText: `"parent":null`,
+		},
+		{
+			name: "graphql error",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					parentMatcherStruct,
+					vars,
+					githubv4mock.ErrorResponse("issue not found"),
+				),
+			),
+			expectToolError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gqlClient := githubv4.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, nil)
+			deps := BaseDeps{
+				Client:          client,
+				GQLClient:       gqlClient,
+				RepoAccessCache: stubRepoAccessCache(nil, 15*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(map[string]any{
+				"method":       "get_parent",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+			})
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			if tc.expectToolError {
+				assert.True(t, result.IsError)
+				return
+			}
+			assert.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+			assert.Contains(t, textContent.Text, tc.expectedText)
+		})
+	}
+}
+
 func Test_AddSubIssue(t *testing.T) {
 	// Verify tool definition once
 	serverTool := SubIssueWrite(translations.NullTranslationHelper)
