@@ -13,8 +13,9 @@ select
   round(100.0 * count(*) filter (where u.estado in ('vendida','reservada'))
         / nullif(count(u.*), 0), 1)                     as pct_colocado,
   coalesce(sum(u.precio_venta) filter (where u.estado = 'vendida'), 0) as importe_vendido,
-  coalesce(sum(u.precio_venta), 0)                      as valor_total
+  coalesce(sum(u.precio_venta), 0)                      as valor_total,
+  pr.estado                                             as estado
 from public.promocion pr
 join public.fase f   on f.promocion_id = pr.id
 join public.unidad u on u.fase_id = f.id
-group by pr.id, pr.nombre, pr.municipio;
+group by pr.id, pr.nombre, pr.municipio, pr.estado;

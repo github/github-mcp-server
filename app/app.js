@@ -3,6 +3,8 @@ const sb = supabase.createClient(window.SUPABASE_CONFIG.url, window.SUPABASE_CON
 
 const $ = (id) => document.getElementById(id);
 const eur = (n) => (n == null ? "—" : Number(n).toLocaleString("es-ES") + " €");
+// Escapa HTML: los datos importados de Holded (nombres, NIF, nº doc…) no son de confianza.
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const PROMOS = {};
 let ROL = null;
 let DETALLE_ID = null;
@@ -61,9 +63,9 @@ async function mostrarFacturas() {
     <tr><th>Tipo</th><th>Nº</th><th>Fecha</th><th>Contacto</th><th class="rt">Total</th><th class="rt">Estado</th></tr>
     ${f.map((x) => `<tr>
       <td>${x.tipo === "invoice" ? "Venta" : "Compra"}</td>
-      <td>${x.doc_numero || "—"}</td>
-      <td>${x.fecha || "—"}</td>
-      <td>${x.contacto_nombre || "—"}</td>
+      <td>${esc(x.doc_numero) || "—"}</td>
+      <td>${esc(x.fecha) || "—"}</td>
+      <td>${esc(x.contacto_nombre) || "—"}</td>
       <td class="rt">${eur(x.total)}</td>
       <td class="rt" style="color:${x.pagada ? "var(--green)" : "var(--amber)"}">${x.pagada ? "Pagada" : "Pendiente"}</td>
     </tr>`).join("")}</table>`;
@@ -84,11 +86,11 @@ async function mostrarContactos() {
   $("contSub").textContent = `${cd.length} clientes · ${pd.length} proveedores`;
   $("tblClientes").innerHTML = cd.length ? `<table>
     <tr><th>Nombre</th><th>NIF</th><th>Email</th><th>Teléfono</th></tr>
-    ${cd.map((c) => `<tr><td>${c.nombre || "—"}</td><td>${c.nif || "—"}</td><td>${c.email || "—"}</td><td>${c.telefono || "—"}</td></tr>`).join("")}</table>`
+    ${cd.map((c) => `<tr><td>${esc(c.nombre) || "—"}</td><td>${esc(c.nif) || "—"}</td><td>${esc(c.email) || "—"}</td><td>${esc(c.telefono) || "—"}</td></tr>`).join("")}</table>`
     : `<div class="sub">Sin clientes.</div>`;
   $("tblProveedores").innerHTML = pd.length ? `<table>
     <tr><th>Nombre</th><th>CIF</th><th>Oficio</th></tr>
-    ${pd.map((p) => `<tr><td>${p.nombre || "—"}</td><td>${p.cif || "—"}</td><td>${p.oficio || "—"}</td></tr>`).join("")}</table>`
+    ${pd.map((p) => `<tr><td>${esc(p.nombre) || "—"}</td><td>${esc(p.cif) || "—"}</td><td>${esc(p.oficio) || "—"}</td></tr>`).join("")}</table>`
     : `<div class="sub">Sin proveedores.</div>`;
 }
 
@@ -136,8 +138,8 @@ async function cargar() {
     const card = document.createElement("div");
     card.className = "promo";
     card.innerHTML = `
-      <h3>${p.nombre}</h3>
-      <div class="loc">${p.municipio || ""} <span class="estado ${eClass}">${estado}</span></div>
+      <h3>${esc(p.nombre)}</h3>
+      <div class="loc">${esc(p.municipio) || ""} <span class="estado ${eClass}">${estado}</span></div>
       <div class="kpis">
         <div class="kpi"><div class="l">% Colocado</div><div class="v">${pct}%</div></div>
         <div class="kpi"><div class="l">Vendidas</div><div class="v">${p.vendidas}/${p.total_unidades}</div></div>
@@ -162,8 +164,8 @@ function abrirDetalle(id) {
   d.classList.remove("hidden");
   d.innerHTML = `
     <button class="back" id="volver">← Volver a promociones</button>
-    <h1>${p.nombre}</h1>
-    <div class="sub">${p.municipio || ""} · ${p.estado || ""}</div>
+    <h1>${esc(p.nombre)}</h1>
+    <div class="sub">${esc(p.municipio) || ""} · ${esc(p.estado) || ""}</div>
     <div id="detKpis" class="kpis" style="grid-template-columns:repeat(4,1fr)"></div>
     <div class="section"><h2>Unidades</h2><div id="detUnidades">Cargando…</div></div>
     <div class="section"><h2>Tesorería</h2><div id="detTeso">Cargando…</div></div>
@@ -200,11 +202,11 @@ async function cargarDetalle(id) {
   $("detUnidades").innerHTML = ud.length ? `<table>
     <tr><th>Ref.</th><th>Tipo</th><th>Estado</th><th class="rt">Precio</th><th>Comprador</th><th></th></tr>
     ${ud.map((u) => {
-      const comp = u.contrato_venta?.[0]?.cliente?.nombre || "—";
+      const comp = esc(u.contrato_venta?.[0]?.cliente?.nombre) || "—";
       const accion = (puedeVender && u.estado !== "vendida")
-        ? `<button class="mini" onclick="registrarVenta('${u.id}',${u.precio_venta || 0},'${u.referencia}')">Vender</button>`
+        ? `<button class="mini" onclick="registrarVenta('${u.id}',${u.precio_venta || 0},'${esc(u.referencia)}')">Vender</button>`
         : "";
-      return `<tr><td>${u.referencia}</td><td>${u.tipo}</td><td>${u.estado}</td><td class="rt">${eur(u.precio_venta)}</td><td>${comp}</td><td class="rt">${accion}</td></tr>`;
+      return `<tr><td>${esc(u.referencia)}</td><td>${esc(u.tipo)}</td><td>${u.estado}</td><td class="rt">${eur(u.precio_venta)}</td><td>${comp}</td><td class="rt">${accion}</td></tr>`;
     }).join("")}</table>` : `<div class="sub">Sin unidades.</div>`;
 
   // Tesorería
@@ -224,7 +226,7 @@ async function cargarDetalle(id) {
       const cert = (o.certificacion || []).reduce((s, c) => s + (Number(c.importe) || 0), 0);
       const pct = o.importe_adjudicado ? Math.round(1000 * cert / o.importe_adjudicado) / 10 : 0;
       const accion = puedeCert ? `<button class="mini" data-co="${o.id}">+ Cert.</button>` : "";
-      return `<tr><td>${o.descripcion}</td><td class="rt">${eur(o.importe_adjudicado)}</td><td class="rt">${eur(cert)}</td><td class="rt">${pct}%</td><td class="rt">${accion}</td></tr>`;
+      return `<tr><td>${esc(o.descripcion)}</td><td class="rt">${eur(o.importe_adjudicado)}</td><td class="rt">${eur(cert)}</td><td class="rt">${pct}%</td><td class="rt">${accion}</td></tr>`;
     }).join("")}</table>` : `<div class="sub">Sin contratos de obra.</div>`;
   $("detObra").querySelectorAll("button.mini").forEach((b) =>
     b.addEventListener("click", () => registrarCertificacion(b.getAttribute("data-co"))));
@@ -234,7 +236,7 @@ async function cargarDetalle(id) {
   const dd = docs.data || [];
   $("detDocs").innerHTML = dd.length ? `<table>
     <tr><th>Tipo</th><th>Nombre</th></tr>
-    ${dd.map((x) => `<tr><td>${x.tipo}</td><td>${x.nombre}</td></tr>`).join("")}</table>`
+    ${dd.map((x) => `<tr><td>${esc(x.tipo)}</td><td>${esc(x.nombre)}</td></tr>`).join("")}</table>`
     : `<div class="sub">Sin documentos.</div>`;
 }
 
@@ -245,7 +247,7 @@ window.closeModal = closeModal;
 
 window.registrarVenta = async function (unidadId, precio, ref) {
   const { data: clientes } = await sb.from("cliente").select("id,nombre").order("nombre");
-  const opts = (clientes || []).map((c) => `<option value="${c.id}">${c.nombre}</option>`).join("");
+  const opts = (clientes || []).map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join("");
   openModal(`
     <h2>Registrar venta · ${ref}</h2>
     <div class="field"><label>Cliente</label><select id="mCliente">${opts}</select></div>

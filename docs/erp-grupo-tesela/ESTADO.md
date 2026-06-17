@@ -71,31 +71,30 @@ Pendiente: el usuario autoriza su cuenta en el enlace OAuth que devuelve `enable
   buscar/crear contacto, registrar pago).
 - Limitación: Zapier no ofrece "listar todos los contactos"; solo búsqueda individual.
 
-**Vía B (lista, falta el secret): Edge Function `sync-holded` v2 (multi-sociedad).**
-Desplegada y activa. Sincroniza varias empresas de Holded a la vez (carga masiva inicial).
-Cada contacto se asocia a su `sociedad` (columna `sociedad_id` en `cliente`/`proveedor`).
-Pendiente: configurar el secret `HOLDED_SOCIEDADES` en Supabase.
+**Vía B (EN PRODUCCIÓN): Edge Function `sync-holded` + API directa de Holded.**
+Sincroniza contactos y facturas de todas las sociedades configuradas. Cada contacto se
+asocia a su `sociedad` (`sociedad_id`). Ejecutada por el **cron diario** (06:00 UTC).
 
-### Cómo poner el secret (lo haces tú, las keys NO van al repo)
-En **Supabase → proyecto `erp-grupo-tesela` → Edge Functions → Secrets**, crea:
+### Dónde viven las keys (cifradas, NO en el repo)
+Las API keys de Holded se guardan **cifradas en Supabase Vault**, en un único secreto
+llamado **`holded_sociedades`** (minúsculas), con este formato JSON:
 
 ```
-Nombre:  HOLDED_SOCIEDADES
-Valor:   [
-  {"nombre":"<Nombre Sociedad 1>","key":"<api_key_1>"},
-  {"nombre":"<Nombre Sociedad 2>","key":"<api_key_2>"},
-  {"nombre":"<Nombre Sociedad 3>","key":"<api_key_3>"},
-  {"nombre":"<Nombre Sociedad 4>","key":"<api_key_4>"},
-  {"nombre":"<Nombre Sociedad 5>","key":"<api_key_5>"}
+[
+  {"nombre":"Nombre Sociedad 1","key":"<api_key_1>"},
+  {"nombre":"Nombre Sociedad 2","key":"<api_key_2>"}
 ]
 ```
 
-Cuando esté, avísame y lanzo la sincronización + verifico los contactos importados.
+La función `sync-holded` lo lee con la RPC `get_holded_keys()` (solo `service_role`).
+Para **añadir o actualizar** sociedades, se reemplaza ese secreto del Vault:
+`select vault.update_secret(id, '<nuevo_json>')` (o `vault.create_secret` la primera vez).
+NO es un secreto de Edge Functions; es un secreto de Vault en la base de datos.
 
 ## Próximos pasos
 
-1. **Holded (tú):** autorizar Zapier (enlace OAuth) y poner el secret `HOLDED_SOCIEDADES`
-   en Supabase → luego lanzo la sincronización.
+1. **Holded (tú):** conseguir las 4 API keys vigentes restantes → se añaden al secreto
+   `holded_sociedades` del Vault y entran solas en el cron diario.
 2. **Tu usuario:** registrarte en la app para marcarte como `direccion`.
 3. **Diseño UI:**
    - Prototipo HTML del dashboard ya disponible en `docs/erp-grupo-tesela/prototipo/dashboard.html`.

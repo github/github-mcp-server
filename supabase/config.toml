@@ -1,0 +1,13 @@
+# Configuración de Supabase para el ERP Grupo Tesela.
+project_id = "erp-grupo-tesela"
+
+# La web pública del ERP: servida sin JWT (el login lo hace supabase-js; los datos
+# quedan protegidos por RLS).
+[functions.app]
+verify_jwt = false
+
+# Sincronización de Holded: invocada por el cron (pg_cron + pg_net) sin Authorization,
+# por eso se despliega con verify_jwt = false. La función no expone datos por GET:
+# lee las keys del Vault y solo escribe en las tablas del ERP.
+[functions.sync-holded]
+verify_jwt = false
