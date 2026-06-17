@@ -27,6 +27,8 @@ body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;backgr
 .topbar .who b{color:var(--dark);}
 .rolepill{display:inline-block;background:var(--prim);color:#fff;font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;margin-left:6px;text-transform:capitalize;}
 .linkbtn{background:none;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer;color:var(--dark);}
+.navlink{color:var(--mut);font-size:14px;font-weight:600;cursor:pointer;margin-left:8px;}
+.navlink:hover{color:var(--prim);}
 .content{padding:32px;max-width:1200px;margin:0 auto;}
 h1{font-size:26px;font-weight:800;margin-bottom:4px;}
 .sub{color:var(--mut);font-size:14px;margin-bottom:24px;}

@@ -28,7 +28,32 @@ async function showApp(user) {
 }
 function mostrarLista() {
   $("vistaDetalle").classList.add("hidden");
+  $("vistaContactos").classList.add("hidden");
   $("vistaLista").classList.remove("hidden");
+}
+
+async function mostrarContactos() {
+  $("vistaLista").classList.add("hidden");
+  $("vistaDetalle").classList.add("hidden");
+  const v = $("vistaContactos");
+  v.classList.remove("hidden");
+  v.innerHTML = `<h1>Contactos</h1><div class="sub" id="contSub">Cargando…</div>
+    <div class="section"><h2>Clientes</h2><div id="tblClientes"></div></div>
+    <div class="section"><h2>Proveedores</h2><div id="tblProveedores"></div></div>`;
+  const [cli, prov] = await Promise.all([
+    sb.from("cliente").select("nombre,nif,email,telefono").order("nombre"),
+    sb.from("proveedor").select("nombre,cif,oficio").order("nombre"),
+  ]);
+  const cd = cli.data || [], pd = prov.data || [];
+  $("contSub").textContent = `${cd.length} clientes · ${pd.length} proveedores`;
+  $("tblClientes").innerHTML = cd.length ? `<table>
+    <tr><th>Nombre</th><th>NIF</th><th>Email</th><th>Teléfono</th></tr>
+    ${cd.map((c) => `<tr><td>${c.nombre || "—"}</td><td>${c.nif || "—"}</td><td>${c.email || "—"}</td><td>${c.telefono || "—"}</td></tr>`).join("")}</table>`
+    : `<div class="sub">Sin clientes.</div>`;
+  $("tblProveedores").innerHTML = pd.length ? `<table>
+    <tr><th>Nombre</th><th>CIF</th><th>Oficio</th></tr>
+    ${pd.map((p) => `<tr><td>${p.nombre || "—"}</td><td>${p.cif || "—"}</td><td>${p.oficio || "—"}</td></tr>`).join("")}</table>`
+    : `<div class="sub">Sin proveedores.</div>`;
 }
 
 async function cargar() {
@@ -257,5 +282,7 @@ $("loginForm").addEventListener("submit", async (e) => {
   showApp(data.user);
 });
 $("logout").addEventListener("click", async () => { await sb.auth.signOut(); showLogin(); });
+$("navPromos").addEventListener("click", mostrarLista);
+$("navContactos").addEventListener("click", mostrarContactos);
 
 init();
