@@ -1090,6 +1090,7 @@ The following sets of tools are available:
   - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], optional)
   - `title`: PR title (string, required)
 
 - **list_pull_requests** - List pull requests
@@ -1204,7 +1205,7 @@ The following sets of tools are available:
   - `description`: Repository description (string, optional)
   - `name`: Repository name (string, required)
   - `organization`: Organization to create the repository in (omit to create in your personal account) (string, optional)
-  - `private`: Whether repo should be private (boolean, optional)
+  - `private`: Whether the repository should be private. Defaults to true (private) when omitted. (boolean, optional)
 
 - **delete_file** - Delete file
   - **Required OAuth Scopes**: `repo`
