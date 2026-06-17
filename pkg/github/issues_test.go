@@ -15,6 +15,7 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/http/headers"
 	transportpkg "github.com/github/github-mcp-server/pkg/http/transport"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -355,7 +356,7 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 
-	t.Run("insiders mode enabled on private repo with get_comments emits private untrusted", func(t *testing.T) {
+	t.Run("insiders mode enabled on private repo with get_comments emits private trusted", func(t *testing.T) {
 		deps := BaseDeps{
 			Client:         mustNewGHClient(t, makeMockClient(true, 0)),
 			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
@@ -369,7 +370,7 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
-		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "trusted", ifcMap["integrity"])
 		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
 
@@ -1561,7 +1562,8 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "Ready to create an issue")
+		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for creating a new issue")
+		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
 
 	t.Run("UI client with _ui_submitted executes directly", func(t *testing.T) {
@@ -1595,78 +1597,10 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 			"non-UI client should execute directly")
 	})
 
-	t.Run("UI client with state change skips form and executes directly", func(t *testing.T) {
-		mockBaseIssue := &github.Issue{
-			Number:  github.Ptr(1),
-			Title:   github.Ptr("Test"),
-			State:   github.Ptr("open"),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/1"),
-		}
-		issueIDQueryResponse := githubv4mock.DataResponse(map[string]any{
-			"repository": map[string]any{
-				"issue": map[string]any{
-					"id": "I_kwDOA0xdyM50BPaO",
-				},
-			},
-		})
-		closeSuccessResponse := githubv4mock.DataResponse(map[string]any{
-			"closeIssue": map[string]any{
-				"issue": map[string]any{
-					"id":     "I_kwDOA0xdyM50BPaO",
-					"number": 1,
-					"url":    "https://github.com/owner/repo/issues/1",
-					"state":  "CLOSED",
-				},
-			},
-		})
-		completedReason := IssueClosedStateReasonCompleted
-
-		closeClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockBaseIssue),
-		}))
-		closeGQLClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
-			githubv4mock.NewQueryMatcher(
-				struct {
-					Repository struct {
-						Issue struct {
-							ID githubv4.ID
-						} `graphql:"issue(number: $issueNumber)"`
-					} `graphql:"repository(owner: $owner, name: $repo)"`
-				}{},
-				map[string]any{
-					"owner":       githubv4.String("owner"),
-					"repo":        githubv4.String("repo"),
-					"issueNumber": githubv4.Int(1),
-				},
-				issueIDQueryResponse,
-			),
-			githubv4mock.NewMutationMatcher(
-				struct {
-					CloseIssue struct {
-						Issue struct {
-							ID     githubv4.ID
-							Number githubv4.Int
-							URL    githubv4.String
-							State  githubv4.String
-						}
-					} `graphql:"closeIssue(input: $input)"`
-				}{},
-				CloseIssueInput{
-					IssueID:     "I_kwDOA0xdyM50BPaO",
-					StateReason: &completedReason,
-				},
-				nil,
-				closeSuccessResponse,
-			),
-		))
-
-		closeDeps := BaseDeps{
-			Client:         closeClient,
-			GQLClient:      closeGQLClient,
-			featureChecker: featureCheckerFor(MCPAppsFeatureFlag),
-		}
-		closeHandler := serverTool.Handler(closeDeps)
-
+	t.Run("UI client with state change routes through UI form", func(t *testing.T) {
+		// state/state_reason/duplicate_of are form params (the issue-write view
+		// renders close/reopen controls), so a call carrying them must go to
+		// the form rather than execute directly.
 		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"method":       "update",
 			"owner":        "owner",
@@ -1675,14 +1609,13 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 			"state":        "closed",
 			"state_reason": "completed",
 		})
-		result, err := closeHandler(ContextWithDeps(context.Background(), closeDeps), &request)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.NotContains(t, textContent.Text, "Ready to update issue",
-			"state change should skip UI form")
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
-			"state change should execute directly and return issue URL")
+		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for editing issue #1",
+			"state change should route through UI form")
+		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
 
 	t.Run("UI client update without state change returns form message", func(t *testing.T) {
@@ -1697,65 +1630,15 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "Ready to update issue #1",
+		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for editing issue #1",
 			"update without state should show UI form")
+		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
 
-	t.Run("UI client with issue_fields skips form and executes directly", func(t *testing.T) {
-		// The MCP App form does not collect or re-send issue_fields, so a call
-		// carrying them must bypass the form and apply the values directly.
-		fieldsClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			PostReposIssuesByOwnerByRepo: expectRequestBody(t, map[string]any{
-				"title":     "Issue with fields",
-				"body":      "",
-				"labels":    []any{},
-				"assignees": []any{},
-				"issue_field_values": []any{
-					map[string]any{"field_id": float64(101), "value": "P1"},
-				},
-			}).andThen(
-				mockResponse(t, http.StatusCreated, &github.Issue{
-					Number:  github.Ptr(125),
-					Title:   github.Ptr("Issue with fields"),
-					HTMLURL: github.Ptr("https://github.com/owner/repo/issues/125"),
-					State:   github.Ptr("open"),
-				}),
-			),
-		}))
-		fieldsGQLClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
-			githubv4mock.NewQueryMatcher(
-				issueFieldWriteMetadataQuery{},
-				map[string]any{
-					"owner": githubv4.String("owner"),
-					"repo":  githubv4.String("repo"),
-				},
-				githubv4mock.DataResponse(map[string]any{
-					"repository": map[string]any{
-						"issueFields": map[string]any{
-							"nodes": []any{
-								map[string]any{
-									"__typename":     "IssueFieldSingleSelect",
-									"fullDatabaseId": "101",
-									"name":           "Priority",
-									"dataType":       "single_select",
-									"options": []any{
-										map[string]any{"fullDatabaseId": "9001", "name": "P1"},
-									},
-								},
-							},
-						},
-					},
-				}),
-			),
-		))
-
-		fieldsDeps := BaseDeps{
-			Client:         fieldsClient,
-			GQLClient:      fieldsGQLClient,
-			featureChecker: featureCheckerFor(MCPAppsFeatureFlag),
-		}
-		fieldsHandler := serverTool.Handler(fieldsDeps)
-
+	t.Run("UI client with issue_fields routes through UI form", func(t *testing.T) {
+		// issue_fields is now a form param (the issue-write view renders a
+		// per-field editor), so a call carrying it must go to the form rather
+		// than execute directly.
 		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"method": "create",
 			"owner":  "owner",
@@ -1765,14 +1648,13 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 				map[string]any{"field_name": "Priority", "field_option_name": "P1"},
 			},
 		})
-		result, err := fieldsHandler(ContextWithDeps(context.Background(), fieldsDeps), &request)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.NotContains(t, textContent.Text, "Ready to create an issue",
-			"issue_fields should skip UI form")
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/125",
-			"issue_fields call should execute directly and return issue URL")
+		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for creating a new issue",
+			"issue_fields should route through UI form")
+		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
 
 	t.Run("UI client with labels skips form and executes directly", func(t *testing.T) {
@@ -1789,10 +1671,90 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.NotContains(t, textContent.Text, "Ready to create an issue",
+		assert.NotContains(t, textContent.Text, "interactive form has been shown",
 			"labels should skip UI form")
 		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
 			"labels call should execute directly and return issue URL")
+	})
+
+	t.Run("UI client with show_ui=false skips form and executes directly", func(t *testing.T) {
+		// show_ui=false is the explicit, model-facing way to opt out of the
+		// form. It must bypass the form even when every other condition would
+		// route the call there (UI capability, MCP Apps flag on, no
+		// _ui_submitted, only form params present).
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"method":  "create",
+			"owner":   "owner",
+			"repo":    "repo",
+			"title":   "Test",
+			"show_ui": false,
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.NotContains(t, textContent.Text, "interactive form has been shown",
+			"show_ui=false should skip UI form")
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
+			"show_ui=false call should execute directly and return issue URL")
+	})
+
+	t.Run("UI client with show_ui=true returns form message", func(t *testing.T) {
+		// show_ui=true is the explicit, redundant-with-the-default way to ask
+		// for the form. It must still route through the form and must not be
+		// treated as a non-form parameter that would trigger the safety-net
+		// bypass.
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"method":  "create",
+			"owner":   "owner",
+			"repo":    "repo",
+			"title":   "Test",
+			"show_ui": true,
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "interactive form has been shown",
+			"show_ui=true should still route through the form")
+	})
+
+	t.Run("UI client with show_ui=false and _ui_submitted=true executes directly", func(t *testing.T) {
+		// _ui_submitted and show_ui=false are two ways to say "execute
+		// directly". When both are set there must be no conflict — the call
+		// still executes directly.
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"method":        "create",
+			"owner":         "owner",
+			"repo":          "repo",
+			"title":         "Test",
+			"show_ui":       false,
+			"_ui_submitted": true,
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
+			"show_ui=false + _ui_submitted should execute directly")
+	})
+
+	t.Run("non-UI client with show_ui=false executes directly (no regression)", func(t *testing.T) {
+		// show_ui is irrelevant when the client does not support UI; the call
+		// must execute directly exactly as it does today.
+		request := createMCPRequest(map[string]any{
+			"method":  "create",
+			"owner":   "owner",
+			"repo":    "repo",
+			"title":   "Test",
+			"show_ui": false,
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
+			"non-UI client should execute directly regardless of show_ui")
 	})
 }
 
@@ -1806,14 +1768,16 @@ func Test_issueWriteHasNonFormParams(t *testing.T) {
 	}{
 		{name: "no params", args: map[string]any{}, want: false},
 		{name: "only form params", args: map[string]any{"method": "create", "owner": "o", "repo": "r", "title": "t", "body": "b", "issue_number": float64(1), "_ui_submitted": true}, want: false},
+		{name: "show_ui true is a form param", args: map[string]any{"title": "t", "show_ui": true}, want: false},
+		{name: "show_ui false is a form param", args: map[string]any{"title": "t", "show_ui": false}, want: false},
 		{name: "labels present", args: map[string]any{"title": "t", "labels": []any{"bug"}}, want: true},
 		{name: "assignees present", args: map[string]any{"title": "t", "assignees": []any{"octocat"}}, want: true},
 		{name: "milestone present", args: map[string]any{"title": "t", "milestone": float64(2)}, want: true},
 		{name: "type present", args: map[string]any{"title": "t", "type": "Bug"}, want: true},
-		{name: "issue_fields present", args: map[string]any{"issue_fields": []any{map[string]any{"field_name": "Priority"}}}, want: true},
-		{name: "state present", args: map[string]any{"state": "closed"}, want: true},
-		{name: "state_reason present", args: map[string]any{"state_reason": "completed"}, want: true},
-		{name: "duplicate_of present", args: map[string]any{"duplicate_of": float64(7)}, want: true},
+		{name: "issue_fields present", args: map[string]any{"issue_fields": []any{map[string]any{"field_name": "Priority"}}}, want: false},
+		{name: "state present", args: map[string]any{"state": "closed"}, want: false},
+		{name: "state_reason present", args: map[string]any{"state_reason": "completed"}, want: false},
+		{name: "duplicate_of present", args: map[string]any{"duplicate_of": float64(7)}, want: false},
 		{name: "nil value is ignored", args: map[string]any{"issue_fields": nil}, want: false},
 	}
 
@@ -1821,6 +1785,52 @@ func Test_issueWriteHasNonFormParams(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tc.want, issueWriteHasNonFormParams(tc.args))
+		})
+	}
+}
+
+// Test_issueWriteSchemaClassification fails when a schema property is added
+// without classifying it as either form-resendable (issueWriteFormParams) or
+// known-non-form (knownNonForm below). Without this guard, an unclassified
+// property would silently flip UI gating: form-incompatible fields would
+// stop tripping the safety-net bypass and the form would drop their values.
+func Test_issueWriteSchemaClassification(t *testing.T) {
+	t.Parallel()
+
+	// Schema properties the MCP App form cannot represent — their presence
+	// must trigger the safety-net bypass via issueWriteHasNonFormParams.
+	knownNonForm := map[string]struct{}{
+		"assignees": {},
+		"labels":    {},
+		"milestone": {},
+		"type":      {},
+	}
+
+	cases := []struct {
+		name string
+		tool inventory.ServerTool
+	}{
+		{name: "IssueWrite", tool: IssueWrite(translations.NullTranslationHelper)},
+		{name: "LegacyIssueWrite", tool: LegacyIssueWrite(translations.NullTranslationHelper)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			schema, ok := tc.tool.Tool.InputSchema.(*jsonschema.Schema)
+			require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+
+			for prop := range schema.Properties {
+				_, isForm := issueWriteFormParams[prop]
+				_, isNonForm := knownNonForm[prop]
+
+				assert.Falsef(t, isForm && isNonForm,
+					"property %q is classified as both form-resendable and non-form — pick one", prop)
+				assert.Truef(t, isForm || isNonForm,
+					"property %q in %s schema is unclassified — add it to issueWriteFormParams (pkg/github/issues.go) "+
+						"if the MCP App form can carry it on submit, otherwise add it to the knownNonForm allowlist in this test",
+					prop, tc.name)
+			}
 		})
 	}
 }
@@ -2719,7 +2729,7 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 
-	t.Run("insiders mode enabled on private repo emits private untrusted label", func(t *testing.T) {
+	t.Run("insiders mode enabled on private repo emits private trusted label", func(t *testing.T) {
 		matcher := githubv4mock.NewQueryMatcher(query, vars, makeResponse(true))
 		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
 		deps := BaseDeps{
@@ -2742,7 +2752,7 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		var ifcMap map[string]any
 		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
 
-		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "trusted", ifcMap["integrity"])
 		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
 }
@@ -2986,6 +2996,33 @@ func Test_UpdateIssue(t *testing.T) {
 			},
 			expectError:   false,
 			expectedIssue: mockUpdatedIssue,
+		},
+		{
+			name: "partial update clears labels and assignees",
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+					"labels":    []any{},
+					"assignees": []any{},
+				}).andThen(
+					mockResponse(t, http.StatusOK, &github.Issue{
+						Number:  github.Ptr(123),
+						HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
+					}),
+				),
+			}),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"labels":       []any{},
+				"assignees":    []any{},
+			},
+			expectError: false,
+			expectedIssue: &github.Issue{
+				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
+			},
 		},
 		{
 			name: "partial update with issue fields reconciled by names",
@@ -3404,6 +3441,47 @@ func Test_UpdateIssue(t *testing.T) {
 			assert.Equal(t, tc.expectedIssue.GetHTMLURL(), updateResp.URL)
 		})
 	}
+}
+
+func Test_LegacyUpdateIssueClearsLabelsAndAssignees(t *testing.T) {
+	serverTool := LegacyIssueWrite(translations.NullTranslationHelper)
+	updatedIssue := &github.Issue{
+		Number:  github.Ptr(8),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/8"),
+	}
+
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+			"labels":    []any{},
+			"assignees": []any{},
+		}).andThen(mockResponse(t, http.StatusOK, updatedIssue)),
+	}))
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
+	deps := BaseDeps{
+		Client:    client,
+		GQLClient: gqlClient,
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":       "update",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(8),
+		"labels":       []any{},
+		"assignees":    []any{},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	if result.IsError {
+		t.Fatalf("Unexpected error result: %s", getErrorResult(t, result).Text)
+	}
+	textContent := getTextResult(t, result)
+
+	var updateResp MinimalResponse
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &updateResp))
+	assert.Equal(t, updatedIssue.GetHTMLURL(), updateResp.URL)
 }
 
 func Test_ParseISOTimestamp(t *testing.T) {

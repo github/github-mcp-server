@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -26,7 +27,7 @@ func TestRegisterUIResources_ReadableViaClient(t *testing.T) {
 	}
 
 	srv := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
-	RegisterUIResources(srv)
+	RegisterUIResources(srv, false)
 
 	// Connect an in-memory client/server pair and read each advertised URI.
 	st, ct := mcp.NewInMemoryTransports()
@@ -54,6 +55,7 @@ func TestRegisterUIResources_ReadableViaClient(t *testing.T) {
 		GetMeUIResourceURI,
 		IssueWriteUIResourceURI,
 		PullRequestWriteUIResourceURI,
+		PullRequestEditUIResourceURI,
 	}
 	for _, uri := range uris {
 		t.Run(uri, func(t *testing.T) {
@@ -111,6 +113,49 @@ func TestNewMCPServer_RegistersUIResources(t *testing.T) {
 	require.NotNil(t, res)
 	require.NotEmpty(t, res.Contents)
 	assert.Equal(t, MCPAppMIMEType, res.Contents[0].MIMEType)
+}
+
+func TestRegisterUIResources_ReadOnlySkipsWriteResources(t *testing.T) {
+	t.Parallel()
+
+	srv := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
+	RegisterUIResources(srv, true)
+
+	st, ct := mcp.NewInMemoryTransports()
+
+	type clientResult struct {
+		res *mcp.ListResourcesResult
+		err error
+	}
+	clientCh := make(chan clientResult, 1)
+	go func() {
+		client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
+		cs, err := client.Connect(context.Background(), ct, nil)
+		if err != nil {
+			clientCh <- clientResult{err: err}
+			return
+		}
+		defer func() { _ = cs.Close() }()
+
+		res, err := cs.ListResources(context.Background(), nil)
+		clientCh <- clientResult{res: res, err: err}
+	}()
+
+	ss, err := srv.Connect(context.Background(), st, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ss.Close() })
+
+	got := <-clientCh
+	require.NoError(t, got.err)
+	require.NotNil(t, got.res)
+
+	names := make([]string, 0, len(got.res.Resources))
+	for _, res := range got.res.Resources {
+		names = append(names, res.Name)
+	}
+	slices.Sort(names)
+
+	assert.Equal(t, []string{"get_me_ui"}, names)
 }
 
 // mustEmptyInventory builds an empty inventory for tests that only care about

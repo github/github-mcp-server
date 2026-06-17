@@ -13,7 +13,7 @@ import (
 //
 // Resource metadata follows the stable 2026-01-26 MCP Apps spec:
 // https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx
-func RegisterUIResources(s *mcp.Server) {
+func RegisterUIResources(s *mcp.Server, readOnly bool) {
 	// Register the get_me UI resource
 	s.AddResource(
 		&mcp.Resource{
@@ -45,6 +45,10 @@ func RegisterUIResources(s *mcp.Server) {
 			}, nil
 		},
 	)
+
+	if readOnly {
+		return
+	}
 
 	// Register the issue_write UI resource
 	s.AddResource(
@@ -90,6 +94,33 @@ func RegisterUIResources(s *mcp.Server) {
 				Contents: []*mcp.ResourceContents{
 					{
 						URI:      PullRequestWriteUIResourceURI,
+						MIMEType: MCPAppMIMEType,
+						Text:     html,
+						Meta: mcp.Meta{
+							"ui": map[string]any{
+								"csp":           map[string]any{},
+								"prefersBorder": true,
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	)
+
+	s.AddResource(
+		&mcp.Resource{
+			URI:         PullRequestEditUIResourceURI,
+			Name:        "pr_edit_ui",
+			Description: "MCP App UI for editing GitHub pull requests",
+			MIMEType:    MCPAppMIMEType,
+		},
+		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			html := MustGetUIAsset("pr-edit.html")
+			return &mcp.ReadResourceResult{
+				Contents: []*mcp.ResourceContents{
+					{
+						URI:      PullRequestEditUIResourceURI,
 						MIMEType: MCPAppMIMEType,
 						Text:     html,
 						Meta: mcp.Meta{
