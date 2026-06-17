@@ -23,6 +23,13 @@ import (
 	"github.com/github/github-mcp-server/pkg/utils"
 )
 
+// Method sets for the consolidated pull request tools (single source for the
+// schema enum via methodEnum and the unknown-method error via unknownMethodError).
+var (
+	pullRequestReadMethods        = []string{"get", "get_diff", "get_status", "get_files", "get_commits", "get_review_comments", "get_reviews", "get_comments", "get_check_runs"}
+	pullRequestReviewWriteMethods = []string{"create", "submit_pending", "delete_pending", "resolve_thread", "unresolve_thread"}
+)
+
 // PullRequestRead creates a tool to get details of a specific pull request.
 func PullRequestRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
@@ -42,7 +49,7 @@ Possible options:
  8. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
  9. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
 `,
-				Enum: []any{"get", "get_diff", "get_status", "get_files", "get_commits", "get_review_comments", "get_reviews", "get_comments", "get_check_runs"},
+				Enum: methodEnum(pullRequestReadMethods),
 			},
 			"owner": {
 				Type:        "string",
@@ -155,7 +162,7 @@ Possible options:
 				result, err := GetPullRequestCheckRuns(ctx, client, owner, repo, pullNumber, pagination)
 				return attachIFC(result), nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return unknownMethodError(method, pullRequestReadMethods), nil, nil
 			}
 		})
 }
@@ -1728,7 +1735,7 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.Serv
 			"method": {
 				Type:        "string",
 				Description: `The write operation to perform on pull request review.`,
-				Enum:        []any{"create", "submit_pending", "delete_pending", "resolve_thread", "unresolve_thread"},
+				Enum:        methodEnum(pullRequestReviewWriteMethods),
 			},
 			"owner": {
 				Type:        "string",
@@ -1789,6 +1796,15 @@ Available methods:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			// Unlike the other method-dispatch tools, this handler decodes args
+			// with WeakDecode rather than RequiredParam, so an omitted method
+			// would otherwise reach the switch default as an empty value. Enforce
+			// it explicitly so a missing method is reported the same way as every
+			// other missing required parameter.
+			if _, err := RequiredParam[string](args, "method"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
 			// Given our owner, repo and PR number, lookup the GQL ID of the PR.
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
@@ -1812,7 +1828,7 @@ Available methods:
 				result, err := ResolveReviewThread(ctx, client, params.ThreadID, false)
 				return result, nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
+				return unknownMethodError(params.Method, pullRequestReviewWriteMethods), nil, nil
 			}
 		})
 	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}

@@ -46,6 +46,15 @@ const (
 	actionsMethodDeleteWorkflowRunLogs    = "delete_workflow_run_logs"
 )
 
+// Method sets for the consolidated actions tools. Each slice is the single
+// source for its tool: it feeds both the schema enum (methodEnum) and the
+// unknown-method error (unknownMethodError). Order matches the advertised enum.
+var (
+	actionsWorkflowListMethods = []string{actionsMethodListWorkflows, actionsMethodListWorkflowRuns, actionsMethodListWorkflowJobs, actionsMethodListWorkflowArtifacts}
+	actionsWorkflowGetMethods  = []string{actionsMethodGetWorkflow, actionsMethodGetWorkflowRun, actionsMethodGetWorkflowJob, actionsMethodDownloadWorkflowArtifact, actionsMethodGetWorkflowRunUsage, actionsMethodGetWorkflowRunLogsURL}
+	actionsWorkflowRunMethods  = []string{actionsMethodRunWorkflow, actionsMethodRerunWorkflowRun, actionsMethodRerunFailedJobs, actionsMethodCancelWorkflowRun, actionsMethodDeleteWorkflowRunLogs}
+)
+
 // handleFailedJobLogs gets logs for all failed jobs in a workflow run
 func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, any, error) {
 	// First, get all jobs for the workflow run
@@ -217,12 +226,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 					"method": {
 						Type:        "string",
 						Description: "The action to perform",
-						Enum: []any{
-							actionsMethodListWorkflows,
-							actionsMethodListWorkflowRuns,
-							actionsMethodListWorkflowJobs,
-							actionsMethodListWorkflowArtifacts,
-						},
+						Enum:        methodEnum(actionsWorkflowListMethods),
 					},
 					"owner": {
 						Type:        "string",
@@ -397,7 +401,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 				result, payload, err := listWorkflowArtifacts(ctx, client, owner, repo, resourceIDInt, pagination)
 				return attachIFC(result), payload, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return unknownMethodError(method, actionsWorkflowListMethods), nil, nil
 			}
 		},
 	)
@@ -423,14 +427,7 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 					"method": {
 						Type:        "string",
 						Description: "The method to execute",
-						Enum: []any{
-							actionsMethodGetWorkflow,
-							actionsMethodGetWorkflowRun,
-							actionsMethodGetWorkflowJob,
-							actionsMethodDownloadWorkflowArtifact,
-							actionsMethodGetWorkflowRunUsage,
-							actionsMethodGetWorkflowRunLogsURL,
-						},
+						Enum:        methodEnum(actionsWorkflowGetMethods),
 					},
 					"owner": {
 						Type:        "string",
@@ -519,7 +516,7 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				result, payload, err := getWorkflowRunLogsURL(ctx, client, owner, repo, resourceIDInt)
 				return attachIFC(result), payload, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return unknownMethodError(method, actionsWorkflowGetMethods), nil, nil
 			}
 		},
 	)
@@ -544,13 +541,7 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 					"method": {
 						Type:        "string",
 						Description: "The method to execute",
-						Enum: []any{
-							actionsMethodRunWorkflow,
-							actionsMethodRerunWorkflowRun,
-							actionsMethodRerunFailedJobs,
-							actionsMethodCancelWorkflowRun,
-							actionsMethodDeleteWorkflowRunLogs,
-						},
+						Enum:        methodEnum(actionsWorkflowRunMethods),
 					},
 					"owner": {
 						Type:        "string",
@@ -636,7 +627,7 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 			case actionsMethodDeleteWorkflowRunLogs:
 				return deleteWorkflowRunLogs(ctx, client, owner, repo, int64(runID))
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return unknownMethodError(method, actionsWorkflowRunMethods), nil, nil
 			}
 		},
 	)

@@ -51,6 +51,15 @@ const (
 	projectsMethodCreateIterationField      = "create_iteration_field"
 )
 
+// Method sets for the consolidated project tools. Single source per tool: feeds
+// both the schema enum (methodEnum) and the unknown-method error
+// (unknownMethodError). Order matches the advertised enum.
+var (
+	projectsListMethods  = []string{projectsMethodListProjects, projectsMethodListProjectFields, projectsMethodListProjectItems, projectsMethodListProjectStatusUpdates}
+	projectsGetMethods   = []string{projectsMethodGetProject, projectsMethodGetProjectField, projectsMethodGetProjectItem, projectsMethodGetProjectStatusUpdate}
+	projectsWriteMethods = []string{projectsMethodAddProjectItem, projectsMethodUpdateProjectItem, projectsMethodDeleteProjectItem, projectsMethodCreateProjectStatusUpdate, projectsMethodCreateProject, projectsMethodCreateIterationField}
+)
+
 // GraphQL types for ProjectV2 status updates
 
 type statusUpdateNode struct {
@@ -159,12 +168,7 @@ Use this tool to list projects for a user or organization, or list project field
 					"method": {
 						Type:        "string",
 						Description: "The action to perform",
-						Enum: []any{
-							projectsMethodListProjects,
-							projectsMethodListProjectFields,
-							projectsMethodListProjectItems,
-							projectsMethodListProjectStatusUpdates,
-						},
+						Enum:        methodEnum(projectsListMethods),
 					},
 					"owner_type": {
 						Type:        "string",
@@ -269,7 +273,7 @@ Use this tool to list projects for a user or organization, or list project field
 					result, payload, err := listProjectStatusUpdates(ctx, gqlClient, args, owner, ownerType)
 					return attachIFC(result), payload, err
 				default:
-					return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+					return unknownMethodError(method, projectsListMethods), nil, nil
 				}
 			}
 		},
@@ -296,12 +300,7 @@ Use this tool to get details about individual projects, project fields, and proj
 					"method": {
 						Type:        "string",
 						Description: "The method to execute",
-						Enum: []any{
-							projectsMethodGetProject,
-							projectsMethodGetProjectField,
-							projectsMethodGetProjectItem,
-							projectsMethodGetProjectStatusUpdate,
-						},
+						Enum:        methodEnum(projectsGetMethods),
 					},
 					"owner_type": {
 						Type:        "string",
@@ -419,7 +418,7 @@ Use this tool to get details about individual projects, project fields, and proj
 				result, payload, err := getProjectItem(ctx, client, owner, ownerType, projectNumber, itemID, fields)
 				return attachIFC(result), payload, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return unknownMethodError(method, projectsGetMethods), nil, nil
 			}
 		},
 	)
@@ -444,14 +443,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					"method": {
 						Type:        "string",
 						Description: "The method to execute",
-						Enum: []any{
-							projectsMethodAddProjectItem,
-							projectsMethodUpdateProjectItem,
-							projectsMethodDeleteProjectItem,
-							projectsMethodCreateProjectStatusUpdate,
-							projectsMethodCreateProject,
-							projectsMethodCreateIterationField,
-						},
+						Enum:        methodEnum(projectsWriteMethods),
 					},
 					"owner_type": {
 						Type:        "string",
@@ -669,7 +661,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			case projectsMethodCreateIterationField:
 				return createIterationField(ctx, gqlClient, owner, ownerType, projectNumber, args)
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return unknownMethodError(method, projectsWriteMethods), nil, nil
 			}
 		},
 	)

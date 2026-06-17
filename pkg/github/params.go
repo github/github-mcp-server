@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // OptionalParamOK is a helper function that can be used to fetch a requested parameter from the request.
@@ -487,4 +490,24 @@ func (p PaginationParams) ToGraphQLParams() (*GraphQLPaginationParams, error) {
 		After:   p.After,
 	}
 	return cursor.ToGraphQLParams()
+}
+
+// methodEnum renders a tool's supported method list as the []any value the
+// input-schema Enum field expects. Declaring the enum from the same []string
+// the handler validates against keeps the advertised methods and the runtime
+// check from drifting apart.
+func methodEnum(methods []string) []any {
+	out := make([]any, len(methods))
+	for i, m := range methods {
+		out[i] = m
+	}
+	return out
+}
+
+// unknownMethodError is the tool-result error returned when a method-dispatch
+// tool is called with a value outside its advertised method enum. Listing the
+// supported methods lets the caller (often an LLM) self-correct. supported must
+// be the same list advertised in the tool's input-schema enum.
+func unknownMethodError(method string, supported []string) *mcp.CallToolResult {
+	return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: %s", method, strings.Join(supported, ", ")))
 }
