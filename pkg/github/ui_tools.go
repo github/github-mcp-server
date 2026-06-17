@@ -351,10 +351,6 @@ func uiGetIssueFields(ctx context.Context, deps ToolDependencies, args map[strin
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
-	if !deps.IsFeatureEnabled(ctx, FeatureFlagIssueFields) {
-		return marshalUIGetIssueFields(nil)
-	}
-
 	gqlClient, err := deps.GetGQLClient(ctx)
 	if err != nil {
 		return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
