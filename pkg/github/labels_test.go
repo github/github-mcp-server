@@ -247,6 +247,8 @@ func TestWriteLabel(t *testing.T) {
 	assert.Equal(t, "label_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.False(t, tool.Annotations.ReadOnlyHint, "label_write tool should not be read-only")
+	require.NotNil(t, tool.Annotations.DestructiveHint, "label_write tool should have DestructiveHint set")
+	assert.True(t, *tool.Annotations.DestructiveHint, "label_write tool should be marked as destructive")
 
 	tests := []struct {
 		name               string
