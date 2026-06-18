@@ -42,9 +42,11 @@ var (
 			// Fall back to the build-time baked-in client (official releases) when none is
 			// configured explicitly. The baked-in app is registered on github.com, so it is
 			// only applied to the default host; GHES/ghe.com users must bring their own
-			// --oauth-client-id. The secret tracks the id, so an explicitly provided id with
-			// no secret never picks up the baked-in secret.
-			if oauthClientID == "" && viper.GetString("host") == "" {
+			// --oauth-client-id. Recognizing the host via NormalizeHost means an explicit
+			// GITHUB_HOST=github.com (or api.github.com) still counts as the default and keeps
+			// zero-config login working. The secret tracks the id, so an explicitly provided
+			// id with no secret never picks up the baked-in secret.
+			if oauthClientID == "" && oauth.NormalizeHost(viper.GetString("host")) == "https://github.com" {
 				oauthClientID = buildinfo.OAuthClientID
 				oauthClientSecret = buildinfo.OAuthClientSecret
 			}
