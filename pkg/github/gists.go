@@ -191,7 +191,7 @@ func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"content": {
 						Type:        "string",
-						Description: "Content for simple single-file gist creation",
+						Description: "Raw content for the single gist file",
 					},
 					"public": {
 						Type:        "boolean",
@@ -298,7 +298,7 @@ func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"content": {
 						Type:        "string",
-						Description: "Content for the file",
+						Description: "Raw content for the gist file",
 					},
 				},
 				Required: []string{"gist_id", "filename", "content"},

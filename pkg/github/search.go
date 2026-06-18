@@ -202,7 +202,8 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			"sort": {
 				Type:        "string",
-				Description: "Sort field ('indexed' only)",
+				Description: "Sort field. Use 'indexed' to sort by recently indexed files.",
+				Enum:        []any{"indexed"},
 			},
 			"order": {
 				Type:        "string",

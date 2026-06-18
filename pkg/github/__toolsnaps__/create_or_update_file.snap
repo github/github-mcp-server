@@ -6,15 +6,15 @@
   "inputSchema": {
     "properties": {
       "branch": {
-        "description": "Branch to create/update the file in",
+        "description": "Branch name to create/update the file in",
         "type": "string"
       },
       "content": {
-        "description": "Content of the file",
+        "description": "Raw file content",
         "type": "string"
       },
       "message": {
-        "description": "Commit message",
+        "description": "Commit message for this change",
         "type": "string"
       },
       "owner": {
@@ -22,7 +22,7 @@
         "type": "string"
       },
       "path": {
-        "description": "Path where to create/update the file",
+        "description": "Repository-relative file path to create or update",
         "type": "string"
       },
       "repo": {

@@ -8,7 +8,7 @@
   "inputSchema": {
     "properties": {
       "body": {
-        "description": "The comment body",
+        "description": "Review comment body; Markdown supported",
         "type": "string"
       },
       "line": {

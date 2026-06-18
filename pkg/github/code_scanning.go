@@ -119,7 +119,7 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 			},
 			"ref": {
 				Type:        "string",
-				Description: "The Git reference for the results you want to list.",
+				Description: "Git ref to filter by, e.g. refs/heads/main or refs/pull/123/merge.",
 			},
 			"severity": {
 				Type:        "string",

@@ -7,11 +7,11 @@
   "inputSchema": {
     "properties": {
       "branch": {
-        "description": "Branch to delete the file from",
+        "description": "Branch name to delete the file from",
         "type": "string"
       },
       "message": {
-        "description": "Commit message",
+        "description": "Commit message for the delete commit",
         "type": "string"
       },
       "owner": {
@@ -19,7 +19,7 @@
         "type": "string"
       },
       "path": {
-        "description": "Path to the file to delete",
+        "description": "Repository-relative path to the file to delete",
         "type": "string"
       },
       "repo": {

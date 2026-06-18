@@ -15,11 +15,11 @@
   "inputSchema": {
     "properties": {
       "base": {
-        "description": "Branch to merge into",
+        "description": "Base branch name to merge into, e.g. main",
         "type": "string"
       },
       "body": {
-        "description": "PR description",
+        "description": "PR description; Markdown supported",
         "type": "string"
       },
       "draft": {
@@ -27,7 +27,7 @@
         "type": "boolean"
       },
       "head": {
-        "description": "Branch containing changes",
+        "description": "Branch containing changes, or owner:branch for a fork",
         "type": "string"
       },
       "maintainer_can_modify": {

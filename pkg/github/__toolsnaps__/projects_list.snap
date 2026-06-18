@@ -17,6 +17,7 @@
       "fields": {
         "description": "Field IDs to include when listing project items (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this, only titles returned. Only used for 'list_project_items' method.",
         "items": {
+          "description": "Project field ID to include in each item's field values, e.g. \"102589\".",
           "type": "string"
         },
         "type": "array"

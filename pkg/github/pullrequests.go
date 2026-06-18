@@ -683,15 +683,15 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 					},
 					"body": {
 						Type:        "string",
-						Description: "PR description",
+						Description: "PR description; Markdown supported",
 					},
 					"head": {
 						Type:        "string",
-						Description: "Branch containing changes",
+						Description: "Branch containing changes, or owner:branch for a fork",
 					},
 					"base": {
 						Type:        "string",
-						Description: "Branch to merge into",
+						Description: "Base branch name to merge into, e.g. main",
 					},
 					"draft": {
 						Type:        "boolean",
@@ -916,7 +916,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			},
 			"base": {
 				Type:        "string",
-				Description: "New base branch name",
+				Description: "New base branch name, e.g. main.",
 			},
 			"maintainer_can_modify": {
 				Type:        "boolean",
@@ -926,7 +926,8 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				Type:        "array",
 				Description: "GitHub usernames or ORG/team-slug team reviewers to request reviews from",
 				Items: &jsonschema.Schema{
-					Type: "string",
+					Type:        "string",
+					Description: "GitHub username or ORG/team-slug team",
 				},
 			},
 		},
@@ -1219,7 +1220,7 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 			},
 			"body": {
 				Type:        "string",
-				Description: "The text of the reply",
+				Description: "Reply body; Markdown supported",
 			},
 		},
 		Required: []string{"owner", "repo", "pullNumber", "commentId", "body"},
@@ -1307,11 +1308,11 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			},
 			"head": {
 				Type:        "string",
-				Description: "Filter by head user/org and branch",
+				Description: "Filter by head user/org and branch, in user:branch format.",
 			},
 			"base": {
 				Type:        "string",
-				Description: "Filter by base branch",
+				Description: "Filter by base branch name.",
 			},
 			"sort": {
 				Type:        "string",
@@ -1557,7 +1558,7 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 		Properties: map[string]*jsonschema.Schema{
 			"query": {
 				Type:        "string",
-				Description: "Search query using GitHub pull request search syntax",
+				Description: "Search query using GitHub pull request search syntax. Qualifiers such as is:pr and repo:owner/repo are applied automatically when appropriate; examples: \"review-requested:@me\", \"author:octocat updated:>=2024-01-01\".",
 			},
 			"owner": {
 				Type:        "string",
@@ -2235,7 +2236,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			},
 			"body": {
 				Type:        "string",
-				Description: "The text of the review comment",
+				Description: "Review comment body; Markdown supported",
 			},
 			"subjectType": {
 				Type:        "string",

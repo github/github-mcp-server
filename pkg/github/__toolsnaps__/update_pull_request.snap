@@ -15,7 +15,7 @@
   "inputSchema": {
     "properties": {
       "base": {
-        "description": "New base branch name",
+        "description": "New base branch name, e.g. main.",
         "type": "string"
       },
       "body": {
@@ -45,6 +45,7 @@
       "reviewers": {
         "description": "GitHub usernames or ORG/team-slug team reviewers to request reviews from",
         "items": {
+          "description": "GitHub username or ORG/team-slug team",
           "type": "string"
         },
         "type": "array"

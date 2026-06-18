@@ -12,7 +12,7 @@
       },
       "path": {
         "default": "/",
-        "description": "Path to file/directory",
+        "description": "Repository-relative file or directory path",
         "type": "string"
       },
       "ref": {

@@ -31,10 +31,10 @@ The list below is generated from the Go source. It covers tool **inventory and s
 - **create_pull_request** - Open new pull request
   - **Required OAuth Scopes**: `repo`
   - **MCP App UI**: `ui://github-mcp-server/pr-write`
-  - `base`: Branch to merge into (string, required)
-  - `body`: PR description (string, optional)
+  - `base`: Base branch name to merge into, e.g. main (string, required)
+  - `body`: PR description; Markdown supported (string, optional)
   - `draft`: Create as draft PR (boolean, optional)
-  - `head`: Branch containing changes (string, required)
+  - `head`: Branch containing changes, or owner:branch for a fork (string, required)
   - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
@@ -50,7 +50,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
   - **Required OAuth Scopes**: `repo`
   - **MCP App UI**: `ui://github-mcp-server/issue-write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
-  - `body`: Issue body content (string, optional)
+  - `body`: Issue body; Markdown supported. (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
@@ -94,7 +94,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
 - **issue_write** - Create or update issue/pull request
   - **Required OAuth Scopes**: `repo`
   - `assignees`: Usernames to assign to this issue (string[], optional)
-  - `body`: Issue body content (string, optional)
+  - `body`: Issue body; Markdown supported. (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
   - `issue_fields`: Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', or 'delete: true'. (object[], optional)
   - `issue_number`: Issue number to update (number, optional)

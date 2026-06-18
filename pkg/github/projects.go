@@ -197,7 +197,8 @@ Use this tool to list projects for a user or organization, or list project field
 						Type:        "array",
 						Description: "Field IDs to include when listing project items (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this, only titles returned. Only used for 'list_project_items' method.",
 						Items: &jsonschema.Schema{
-							Type: "string",
+							Type:        "string",
+							Description: "Project field ID to include in each item's field values, e.g. \"102589\".",
 						},
 					},
 					"per_page": {
@@ -345,7 +346,8 @@ Use this tool to get details about individual projects, project fields, and proj
 						Type:        "array",
 						Description: "Specific list of field IDs to include in the response when getting a project item (e.g. [\"102589\", \"985201\", \"169875\"]). If not provided, only the title field is included. Only used for 'get_project_item' method.",
 						Items: &jsonschema.Schema{
-							Type: "string",
+							Type:        "string",
+							Description: "Project field ID to include in the project item response, e.g. \"102589\".",
 						},
 					},
 					"status_update_id": {

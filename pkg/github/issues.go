@@ -1198,7 +1198,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 					},
 					"body": {
 						Type:        "string",
-						Description: "Comment content",
+						Description: "Comment body; Markdown supported.",
 					},
 				},
 				Required: []string{"owner", "repo", "issue_number", "body"},
@@ -1281,6 +1281,11 @@ Options are:
 - 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
 - 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
 				`,
+						Enum: []any{
+							"add",
+							"remove",
+							"reprioritize",
+						},
 					},
 					"owner": {
 						Type:        "string",
@@ -1495,7 +1500,7 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 		Properties: map[string]*jsonschema.Schema{
 			"query": {
 				Type:        "string",
-				Description: "Search query using GitHub issues search syntax",
+				Description: "Search query using GitHub issues search syntax. The tool adds is:issue and, when owner/repo are provided, repo:owner/repo; examples: \"crash label:bug\", \"author:octocat updated:>=2024-01-01\".",
 			},
 			"owner": {
 				Type:        "string",
@@ -1909,20 +1914,22 @@ Options are:
 					},
 					"body": {
 						Type:        "string",
-						Description: "Issue body content",
+						Description: "Issue body; Markdown supported.",
 					},
 					"assignees": {
 						Type:        "array",
 						Description: "Usernames to assign to this issue",
 						Items: &jsonschema.Schema{
-							Type: "string",
+							Type:        "string",
+							Description: "GitHub username",
 						},
 					},
 					"labels": {
 						Type:        "array",
 						Description: "Labels to apply to this issue",
 						Items: &jsonschema.Schema{
-							Type: "string",
+							Type:        "string",
+							Description: "Existing label name",
 						},
 					},
 					"milestone": {
@@ -2201,20 +2208,22 @@ Options are:
 					},
 					"body": {
 						Type:        "string",
-						Description: "Issue body content",
+						Description: "Issue body; Markdown supported.",
 					},
 					"assignees": {
 						Type:        "array",
 						Description: "Usernames to assign to this issue",
 						Items: &jsonschema.Schema{
-							Type: "string",
+							Type:        "string",
+							Description: "GitHub username",
 						},
 					},
 					"labels": {
 						Type:        "array",
 						Description: "Labels to apply to this issue",
 						Items: &jsonschema.Schema{
-							Type: "string",
+							Type:        "string",
+							Description: "Existing label name",
 						},
 					},
 					"milestone": {
@@ -2637,7 +2646,8 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Type:        "array",
 				Description: "Filter by labels",
 				Items: &jsonschema.Schema{
-					Type: "string",
+					Type:        "string",
+					Description: "Label name",
 				},
 			},
 			"orderBy": {

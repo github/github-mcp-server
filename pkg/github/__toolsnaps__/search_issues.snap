@@ -30,7 +30,7 @@
         "type": "number"
       },
       "query": {
-        "description": "Search query using GitHub issues search syntax",
+        "description": "Search query using GitHub issues search syntax. The tool adds is:issue and, when owner/repo are provided, repo:owner/repo; examples: \"crash label:bug\", \"author:octocat updated:\u003e=2024-01-01\".",
         "type": "string"
       },
       "repo": {
