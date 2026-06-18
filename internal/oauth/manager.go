@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -14,6 +15,10 @@ import (
 // DefaultAuthTimeout bounds how long a single authorization attempt waits for
 // the user to complete the browser or device flow.
 const DefaultAuthTimeout = 5 * time.Minute
+
+// tokenRefreshTimeout bounds each background refresh of an expiring token so a
+// stalled GitHub token endpoint cannot block a tool call indefinitely.
+const tokenRefreshTimeout = 30 * time.Second
 
 // flowStatus tracks the manager's single-flight authorization state.
 type flowStatus int
@@ -58,12 +63,13 @@ type Manager struct {
 	openURL  func(string) error
 	inDocker func() bool
 
-	mu      sync.Mutex
-	source  oauth2.TokenSource // refreshing source, set once authorized
-	status  flowStatus
-	pending *UserAction
-	done    chan struct{}
-	lastErr error
+	mu               sync.Mutex
+	source           oauth2.TokenSource // refreshing source, set once authorized
+	status           flowStatus
+	pending          *UserAction
+	done             chan struct{}
+	lastErr          error
+	refreshErrLogged bool // true once a refresh failure has been logged, reset on re-auth
 }
 
 // NewManager builds a Manager for the given configuration. A nil logger logs to
@@ -93,8 +99,24 @@ func (m *Manager) AccessToken() string {
 	if src == nil {
 		return ""
 	}
+	// Refresh (if needed) happens here, off the lock, because ReuseTokenSource may
+	// make a blocking network call and holding m.mu would serialize every tool call.
 	tok, err := src.Token()
-	if err != nil || !tok.Valid() {
+	if err != nil {
+		// A refresh failure (expired GitHub App refresh token, revoked grant, or a
+		// network blip) leaves the session unauthorized and forces a re-login.
+		// Surface it once, otherwise it only manifests as a surprise re-authorization
+		// prompt. The oauth2 error carries the token endpoint's response, not the
+		// access or refresh token.
+		m.mu.Lock()
+		if !m.refreshErrLogged {
+			m.refreshErrLogged = true
+			m.logger.Warn("OAuth token refresh failed; re-authorization required", "error", err)
+		}
+		m.mu.Unlock()
+		return ""
+	}
+	if !tok.Valid() {
 		return ""
 	}
 	return tok.AccessToken
@@ -201,8 +223,11 @@ func (m *Manager) complete(tok *oauth2.Token, err error) {
 		m.lastErr = nil
 		// Config.TokenSource returns a ReuseTokenSource that refreshes expired
 		// tokens using the refresh token — this is what makes GitHub App
-		// (expiring) tokens work transparently.
-		m.source = m.refreshConfig.TokenSource(context.Background(), tok)
+		// (expiring) tokens work transparently. The refresh uses a bounded HTTP
+		// client so a stalled token endpoint can't block a tool call forever.
+		refreshCtx := context.WithValue(context.Background(), oauth2.HTTPClient, &http.Client{Timeout: tokenRefreshTimeout})
+		m.source = m.refreshConfig.TokenSource(refreshCtx, tok)
+		m.refreshErrLogged = false
 		m.logger.Info("github authorization complete")
 	}
 	if m.done != nil {

@@ -2,6 +2,7 @@ package oauth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,6 +12,11 @@ import (
 // deviceAuthTimeout bounds the synchronous device-code request made while
 // preparing the device flow (before any waiting on the user).
 const deviceAuthTimeout = 30 * time.Second
+
+// errCallbackBind marks a failure to bind the local OAuth callback listener, so
+// begin can treat a busy fixed port as fatal without mislabeling unrelated
+// errors (e.g. a failure to generate the state parameter) as a port conflict.
+var errCallbackBind = errors.New("OAuth callback listener could not bind")
 
 // flowPlan is a prepared authorization flow ready to run in the background.
 type flowPlan struct {
@@ -41,8 +47,9 @@ func (m *Manager) begin(prompter Prompter) (*flowPlan, error) {
 		// The port was chosen deliberately (and registered with the OAuth app), so
 		// a bind failure means another process holds it — possibly one positioned
 		// to intercept the authorization redirect. Silently switching to device
-		// flow would mask that, so stop and make the user resolve it.
-		if m.config.CallbackPort != 0 {
+		// flow would mask that, so stop and make the user resolve it. Only genuine
+		// bind failures qualify; other errors fall through to device flow.
+		if m.config.CallbackPort != 0 && errors.Is(err, errCallbackBind) {
 			return nil, fmt.Errorf("OAuth callback port %d is not available; another process may be using it — free the port or set a different --oauth-callback-port: %w", m.config.CallbackPort, err)
 		}
 		m.logger.Info("PKCE flow unavailable, falling back to device flow", "reason", err)
@@ -53,8 +60,10 @@ func (m *Manager) begin(prompter Prompter) (*flowPlan, error) {
 }
 
 // beginPKCE prepares the authorization-code + PKCE flow. It binds the callback
-// server and selects the most secure available display channel:
-// browser auto-open, then URL elicitation, then a tool-response message.
+// server and selects the most secure available display channel: browser
+// auto-open, then URL elicitation, then a tool-response message. On a headless
+// host with a random callback port it diverts to device flow, whose redirect
+// does not depend on reaching this machine's localhost.
 func (m *Manager) beginPKCE(prompter Prompter) (*flowPlan, error) {
 	state, err := randomState()
 	if err != nil {
@@ -66,7 +75,7 @@ func (m *Manager) beginPKCE(prompter Prompter) (*flowPlan, error) {
 	// is delivered via eth0 rather than loopback. Native runs stay on loopback.
 	listener, err := listenCallback(m.config.CallbackPort, m.inDocker())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", errCallbackBind, err)
 	}
 	if m.inDocker() {
 		// Inside a container the callback binds all interfaces so the published
@@ -92,11 +101,27 @@ func (m *Manager) beginPKCE(prompter Prompter) (*flowPlan, error) {
 		return tok, nil
 	}
 
-	if browserErr := m.openURL(authURL); browserErr != nil {
-		m.logger.Debug("browser auto-open unavailable", "reason", browserErr)
-	} else {
+	browserErr := m.openURL(authURL)
+	switch {
+	case browserErr == nil:
 		m.logger.Info("opened browser for GitHub authorization")
 		return &flowPlan{run: run}, nil
+	case errors.Is(browserErr, errNoDisplay) && m.config.CallbackPort == 0:
+		// Headless host with a random callback port: every PKCE channel ends in a
+		// redirect to this machine's localhost, which a browser on another machine
+		// (e.g. a remote SSH client) cannot reach — so even URL elicitation would
+		// dead-end. Device flow is the only channel reachable from elsewhere, so
+		// prefer it when the app supports it; otherwise fall through to the manual
+		// authorization URL below for a same-machine browser.
+		plan, deviceErr := m.beginDevice(prompter)
+		if deviceErr == nil {
+			cs.close()
+			m.logger.Info("no display server; using device flow")
+			return plan, nil
+		}
+		m.logger.Debug("device flow unavailable on headless host; offering manual authorization URL", "reason", deviceErr)
+	default:
+		m.logger.Debug("browser auto-open unavailable", "reason", browserErr)
 	}
 
 	if canPromptURL(prompter) {

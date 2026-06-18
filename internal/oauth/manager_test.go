@@ -185,6 +185,29 @@ func TestAuthenticateDevicePollingPending(t *testing.T) {
 	assert.Equal(t, "gho_device_token", m.AccessToken())
 }
 
+func TestAuthenticateHeadlessPrefersDeviceFlow(t *testing.T) {
+	f := newFakeGitHub(t)
+	f.deviceToken = "gho_device_token"
+	m := newManager(t, f)
+	// A headless host (no display server) with a random callback port: a PKCE
+	// redirect to this machine's localhost is unreachable from a browser on
+	// another machine, so device flow must be chosen even though the client can
+	// elicit a URL (which would otherwise win over device flow).
+	m.openURL = func(string) error { return errNoDisplay }
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	out, err := m.Authenticate(ctx, &fakePrompter{urlCapable: true})
+	require.NoError(t, err)
+	assert.Nil(t, out)
+	assert.Equal(t, "gho_device_token", m.AccessToken())
+	grants := f.recordedGrants()
+	assert.Contains(t, grants, "urn:ietf:params:oauth:grant-type:device_code")
+	assert.NotContains(t, grants, "authorization_code",
+		"headless host must skip the unreachable PKCE authorization-code flow")
+}
+
 func TestAuthenticateFixedCallbackPortUnavailableIsFatal(t *testing.T) {
 	f := newFakeGitHub(t)
 	m := newManager(t, f)

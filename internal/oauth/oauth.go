@@ -53,7 +53,7 @@ func NewGitHubConfig(clientID, clientSecret string, scopes []string, host string
 // GitHubEndpoint returns the OAuth authorization, token, and device endpoints
 // for a GitHub host. An empty host targets github.com.
 func GitHubEndpoint(host string) oauth2.Endpoint {
-	base := normalizeHost(host)
+	base := NormalizeHost(host)
 	return oauth2.Endpoint{
 		AuthURL:       base + "/login/oauth/authorize",
 		TokenURL:      base + "/login/oauth/access_token",
@@ -61,10 +61,12 @@ func GitHubEndpoint(host string) oauth2.Endpoint {
 	}
 }
 
-// normalizeHost turns a user-supplied host into a scheme+host base URL with no
+// NormalizeHost turns a user-supplied host into a scheme+host base URL with no
 // trailing slash. The API subdomain is stripped because OAuth endpoints live on
-// the web host, not the API host (api.github.com -> github.com).
-func normalizeHost(host string) string {
+// the web host, not the API host (api.github.com -> github.com). An empty host
+// yields the github.com default, so callers can also use it to recognize the
+// default host (NormalizeHost(host) == "https://github.com").
+func NormalizeHost(host string) string {
 	host = strings.TrimSpace(host)
 	if host == "" {
 		return "https://github.com"

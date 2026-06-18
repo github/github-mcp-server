@@ -1,6 +1,7 @@
 package oauth
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -8,6 +9,12 @@ import (
 	"runtime"
 	"strings"
 )
+
+// errNoDisplay reports that the host has no display server, so no browser can be
+// launched. It is a definitive headless signal (unlike a generic launch error),
+// which lets the flow prefer device authorization — the only channel reachable
+// from a browser on another machine (e.g. a remote SSH session).
+var errNoDisplay = errors.New("no display server detected")
 
 // openBrowser tries to open url in the user's default browser. It returns an
 // error when no browser can plausibly be launched so the caller can fall back
@@ -18,7 +25,7 @@ func openBrowser(url string) error {
 	switch runtime.GOOS {
 	case "linux":
 		if os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
-			return fmt.Errorf("no display server detected")
+			return errNoDisplay
 		}
 		cmd = exec.Command("xdg-open", url)
 	case "darwin":
