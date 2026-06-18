@@ -1,6 +1,8 @@
 {
   "annotations": {
+    "destructiveHint": true,
     "idempotentHint": false,
+    "openWorldHint": true,
     "readOnlyHint": false,
     "title": "Write operations on repository labels"
   },

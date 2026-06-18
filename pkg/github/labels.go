@@ -226,8 +226,10 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "label_write",
 			Description: t("TOOL_LABEL_WRITE_DESCRIPTION", "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LABEL_WRITE_TITLE", "Write operations on repository labels"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_LABEL_WRITE_TITLE", "Write operations on repository labels"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(true),
+				OpenWorldHint:   jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
