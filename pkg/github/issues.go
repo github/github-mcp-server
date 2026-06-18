@@ -948,13 +948,14 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 	return utils.NewToolResultText(string(out)), nil
 }
 
-// ListIssueTypes creates a tool to list defined issue types for an organization. This can be used to understand supported issue type values for creating or updating issues.
+// ListIssueTypes creates a tool to list defined issue types for an organization or repository.
+// This can be used to understand supported issue type values for creating or updating issues.
 func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issue_types",
-			Description: t("TOOL_LIST_ISSUE_TYPES_FOR_ORG", "List supported issue types for repository owner (organization)."),
+			Description: t("TOOL_LIST_ISSUE_TYPES_FOR_ORG", "List supported issue types for a repository or its owner organization. When repo is omitted, returns org-level issue types directly."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_ISSUE_TYPES_USER_TITLE", "List available issue types"),
 				ReadOnlyHint: true,
@@ -964,15 +965,23 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Properties: map[string]*jsonschema.Schema{
 					"owner": {
 						Type:        "string",
-						Description: "The organization owner of the repository",
+						Description: "The account owner of the repository or organization.",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "The name of the repository. When provided, returns issue types for this specific repository. When omitted, returns org-level issue types directly.",
 					},
 				},
 				Required: []string{"owner"},
 			},
 		},
-		[]scopes.Scope{scopes.ReadOrg},
+		[]scopes.Scope{scopes.Repo, scopes.ReadOrg},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := OptionalParam[string](args, "repo")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -981,6 +990,38 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
+
+			if repo != "" {
+				apiURL := fmt.Sprintf("repos/%s/%s/issue-types", owner, repo)
+				req, err := client.NewRequest(ctx, "GET", apiURL, nil)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to create request", err), nil, nil
+				}
+				var issueTypes []*github.IssueType
+				resp, err := client.Do(req, &issueTypes)
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list issue types", resp, err), nil, nil
+				}
+				defer func() { _ = resp.Body.Close() }()
+
+				if resp.StatusCode != http.StatusOK {
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					}
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list issue types", resp, body), nil, nil
+				}
+
+				r, err := json.Marshal(issueTypes)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to marshal issue types", err), nil, nil
+				}
+
+				result := utils.NewToolResultText(string(r))
+				result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
+				return result, nil, nil
+			}
+
 			issueTypes, resp, err := client.Organizations.ListIssueTypes(ctx, owner)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to list issue types", err), nil, nil
@@ -1771,7 +1812,7 @@ Options are:
 					},
 					"type": {
 						Type:        "string",
-						Description: "Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter.",
+						Description: "Type of this issue. Only use if issue types are enabled for this repository. Use list_issue_types tool to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter.",
 					},
 					"state": {
 						Type:        "string",

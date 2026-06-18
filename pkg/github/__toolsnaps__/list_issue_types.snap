@@ -3,11 +3,15 @@
     "readOnlyHint": true,
     "title": "List available issue types"
   },
-  "description": "List supported issue types for repository owner (organization).",
+  "description": "List supported issue types for a repository or its owner organization. When repo is omitted, returns org-level issue types directly.",
   "inputSchema": {
     "properties": {
       "owner": {
-        "description": "The organization owner of the repository",
+        "description": "The account owner of the repository or organization.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "The name of the repository. When provided, returns issue types for this specific repository. When omitted, returns org-level issue types directly.",
         "type": "string"
       }
     },
