@@ -8,7 +8,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +34,7 @@ func Test_GetDependabotAlert(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]any
+		requestArgs    map[string]interface{}
 		expectError    bool
 		expectedAlert  *github.DependabotAlert
 		expectedErrMsg string
@@ -44,7 +44,7 @@ func Test_GetDependabotAlert(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposDependabotAlertsByOwnerByRepoByAlertNumber: mockResponse(t, http.StatusOK, mockAlert),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"owner":       "owner",
 				"repo":        "repo",
 				"alertNumber": float64(42),
@@ -60,36 +60,20 @@ func Test_GetDependabotAlert(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 				}),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"owner":       "owner",
 				"repo":        "repo",
 				"alertNumber": float64(9999),
 			},
 			expectError:    true,
-			expectedErrMsg: "Your token may not have access to Dependabot alerts on owner/repo",
-		},
-		{
-			name: "alert fetch forbidden",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposDependabotAlertsByOwnerByRepoByAlertNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusForbidden)
-					_, _ = w.Write([]byte(`{"message": "Resource not accessible by integration"}`))
-				}),
-			}),
-			requestArgs: map[string]any{
-				"owner":       "owner",
-				"repo":        "repo",
-				"alertNumber": float64(42),
-			},
-			expectError:    true,
-			expectedErrMsg: "Your token may not have access to Dependabot alerts on owner/repo",
+			expectedErrMsg: "failed to get alert",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := mustNewGHClient(t, tc.mockedClient)
+			client := github.NewClient(tc.mockedClient)
 			deps := BaseDeps{Client: client}
 			handler := toolDef.Handler(deps)
 
@@ -156,7 +140,7 @@ func Test_ListDependabotAlerts(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]any
+		requestArgs    map[string]interface{}
 		expectError    bool
 		expectedAlerts []*github.DependabotAlert
 		expectedErrMsg string
@@ -165,14 +149,12 @@ func Test_ListDependabotAlerts(t *testing.T) {
 			name: "successful open alerts listing",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
-					"state":    "open",
-					"page":     "1",
-					"per_page": "30",
+					"state": "open",
 				}).andThen(
 					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert}),
 				),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
 				"state": "open",
@@ -185,13 +167,11 @@ func Test_ListDependabotAlerts(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
 					"severity": "high",
-					"page":     "1",
-					"per_page": "30",
 				}).andThen(
 					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&highSeverityAlert}),
 				),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"owner":    "owner",
 				"repo":     "repo",
 				"severity": "high",
@@ -202,38 +182,16 @@ func Test_ListDependabotAlerts(t *testing.T) {
 		{
 			name: "successful all alerts listing",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
-					"page":     "1",
-					"per_page": "30",
-				}).andThen(
+				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{}).andThen(
 					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert, &highSeverityAlert}),
 				),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
 			},
 			expectError:    false,
 			expectedAlerts: []*github.DependabotAlert{&criticalAlert, &highSeverityAlert},
-		},
-		{
-			name: "successful alerts listing with custom pagination",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
-					"page":     "3",
-					"per_page": "100",
-				}).andThen(
-					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert}),
-				),
-			}),
-			requestArgs: map[string]any{
-				"owner":   "owner",
-				"repo":    "repo",
-				"page":    float64(3),
-				"perPage": float64(100),
-			},
-			expectError:    false,
-			expectedAlerts: []*github.DependabotAlert{&criticalAlert},
 		},
 		{
 			name: "alerts listing fails",
@@ -243,33 +201,18 @@ func Test_ListDependabotAlerts(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Unauthorized access"}`))
 				}),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to list alerts",
 		},
-		{
-			name: "alerts listing forbidden includes token hint",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposDependabotAlertsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusForbidden)
-					_, _ = w.Write([]byte(`{"message": "Resource not accessible by integration"}`))
-				}),
-			}),
-			requestArgs: map[string]any{
-				"owner": "owner",
-				"repo":  "repo",
-			},
-			expectError:    true,
-			expectedErrMsg: "Your token may not have access to Dependabot alerts on owner/repo",
-		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := mustNewGHClient(t, tc.mockedClient)
+			client := github.NewClient(tc.mockedClient)
 			deps := BaseDeps{Client: client}
 			handler := toolDef.Handler(deps)
 

@@ -26,8 +26,7 @@
         "enum": [
           "list_projects",
           "list_project_fields",
-          "list_project_items",
-          "list_project_status_updates"
+          "list_project_items"
         ],
         "type": "string"
       },
@@ -48,7 +47,7 @@
         "type": "number"
       },
       "project_number": {
-        "description": "The project's number. Required for 'list_project_fields', 'list_project_items', and 'list_project_status_updates' methods.",
+        "description": "The project's number. Required for 'list_project_fields' and 'list_project_items' methods.",
         "type": "number"
       },
       "query": {

@@ -1,0 +1,38 @@
+{
+  "annotations": {
+    "title": "Run workflow"
+  },
+  "description": "Run an Actions workflow by workflow ID or filename",
+  "inputSchema": {
+    "properties": {
+      "inputs": {
+        "description": "Inputs the workflow accepts",
+        "type": "object"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "ref": {
+        "description": "The git reference for the workflow. The reference can be a branch or tag name.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "workflow_id": {
+        "description": "The workflow ID (numeric) or workflow file name (e.g., main.yml, ci.yaml)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "workflow_id",
+      "ref"
+    ],
+    "type": "object"
+  },
+  "name": "run_workflow"
+}

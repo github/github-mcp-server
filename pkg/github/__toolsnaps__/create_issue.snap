@@ -1,18 +1,35 @@
 {
   "annotations": {
-    "destructiveHint": false,
-    "openWorldHint": true,
-    "title": "Create Issue"
+    "title": "Open new issue",
+    "readOnlyHint": false
   },
-  "description": "Create a new issue in a GitHub repository with a title and optional body.",
+  "description": "Create a new issue in a GitHub repository.",
   "inputSchema": {
     "properties": {
+      "assignees": {
+        "description": "Usernames to assign to this issue",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
       "body": {
-        "description": "Issue body content (optional)",
+        "description": "Issue body content",
         "type": "string"
       },
+      "labels": {
+        "description": "Labels to apply to this issue",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "milestone": {
+        "description": "Milestone number",
+        "type": "number"
+      },
       "owner": {
-        "description": "Repository owner (username or organization)",
+        "description": "Repository owner",
         "type": "string"
       },
       "repo": {
@@ -21,6 +38,10 @@
       },
       "title": {
         "description": "Issue title",
+        "type": "string"
+      },
+      "type": {
+        "description": "Type of this issue",
         "type": "string"
       }
     },

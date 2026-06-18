@@ -19,9 +19,9 @@ type ServerResourceTemplate struct {
 	// FeatureFlagEnable specifies a feature flag that must be enabled for this resource
 	// to be available. If set and the flag is not enabled, the resource is omitted.
 	FeatureFlagEnable string
-	// FeatureFlagDisable specifies feature flags that, when any is enabled, cause this
-	// resource to be omitted. Used to disable resources when a feature flag is on.
-	FeatureFlagDisable []string
+	// FeatureFlagDisable specifies a feature flag that, when enabled, causes this resource
+	// to be omitted. Used to disable resources when a feature flag is on.
+	FeatureFlagDisable string
 }
 
 // HasHandler returns true if this resource has a handler function.

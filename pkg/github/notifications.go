@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -13,7 +14,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -208,7 +209,13 @@ func DismissNotification(t translations.TranslationHelperFunc) inventory.ServerT
 			var resp *github.Response
 			switch state {
 			case "done":
-				resp, err = client.Activity.MarkThreadDone(ctx, threadID)
+				// for some inexplicable reason, the API seems to have threadID as int64 and string depending on the endpoint
+				var threadIDInt int64
+				threadIDInt, err = strconv.ParseInt(threadID, 10, 64)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("invalid threadID format: %v", err)), nil, nil
+				}
+				resp, err = client.Activity.MarkThreadDone(ctx, threadIDInt)
 			case "read":
 				resp, err = client.Activity.MarkThreadRead(ctx, threadID)
 			default:

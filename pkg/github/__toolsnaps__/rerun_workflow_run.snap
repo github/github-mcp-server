@@ -1,0 +1,29 @@
+{
+  "annotations": {
+    "title": "Rerun workflow run"
+  },
+  "description": "Re-run an entire workflow run",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "run_id": {
+        "description": "The unique identifier of the workflow run",
+        "type": "number"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "run_id"
+    ],
+    "type": "object"
+  },
+  "name": "rerun_workflow_run"
+}

@@ -9,7 +9,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,7 +63,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]any
+		requestArgs    map[string]interface{}
 		expectError    bool
 		expectedErrMsg string
 	}{
@@ -73,7 +73,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 				GetReposByOwnerByRepo:               mockResponse(t, http.StatusOK, mockRepo),
 				GetReposGitTreesByOwnerByRepoByTree: mockResponse(t, http.StatusOK, mockTree),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
 			},
@@ -84,7 +84,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 				GetReposByOwnerByRepo:               mockResponse(t, http.StatusOK, mockRepo),
 				GetReposGitTreesByOwnerByRepoByTree: mockResponse(t, http.StatusOK, mockTree),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"owner":       "owner",
 				"repo":        "repo",
 				"path_filter": "src/",
@@ -98,7 +98,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 				}),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "nonexistent",
 			},
@@ -114,7 +114,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 				}),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
 			},
@@ -125,7 +125,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := mustNewGHClient(t, tc.mockedClient)
+			client := github.NewClient(tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -149,7 +149,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 				textContent := getTextResult(t, result)
 
 				// Parse the JSON response
-				var treeResponse map[string]any
+				var treeResponse map[string]interface{}
 				err := json.Unmarshal([]byte(textContent.Text), &treeResponse)
 				require.NoError(t, err)
 
@@ -163,9 +163,9 @@ func Test_GetRepositoryTree(t *testing.T) {
 
 				// Check filtering if path_filter was provided
 				if pathFilter, exists := tc.requestArgs["path_filter"]; exists {
-					tree := treeResponse["tree"].([]any)
+					tree := treeResponse["tree"].([]interface{})
 					for _, entry := range tree {
-						entryMap := entry.(map[string]any)
+						entryMap := entry.(map[string]interface{})
 						path := entryMap["path"].(string)
 						assert.True(t, strings.HasPrefix(path, pathFilter.(string)),
 							"Path %s should start with filter %s", path, pathFilter)

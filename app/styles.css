@@ -35,6 +35,8 @@ h1{font-size:26px;font-weight:800;margin-bottom:4px;}
 .resumen{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;}
 .resumen .card{padding:18px;}
 .seccion{font-size:20px;font-weight:700;margin:28px 0 6px;}
+.seccion-head{display:flex;align-items:center;gap:14px;margin:28px 0 6px;}
+.seccion-head .seccion{margin:0;}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:20px;}
 .promo{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;cursor:pointer;transition:box-shadow .15s;}
 .promo:hover{box-shadow:0 6px 20px rgba(0,0,0,.09);}

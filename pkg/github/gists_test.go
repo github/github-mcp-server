@@ -9,7 +9,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -69,7 +69,7 @@ func Test_ListGists(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]any
+		requestArgs    map[string]interface{}
 		expectError    bool
 		expectedGists  []*github.Gist
 		expectedErrMsg string
@@ -79,7 +79,7 @@ func Test_ListGists(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetGists: mockResponse(t, http.StatusOK, mockGists),
 			}),
-			requestArgs:   map[string]any{},
+			requestArgs:   map[string]interface{}{},
 			expectError:   false,
 			expectedGists: mockGists,
 		},
@@ -88,7 +88,7 @@ func Test_ListGists(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetUsersGistsByUsername: mockResponse(t, http.StatusOK, mockGists),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"username": "testuser",
 			},
 			expectError:   false,
@@ -105,7 +105,7 @@ func Test_ListGists(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockGists),
 				),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"since":   "2023-01-01T00:00:00Z",
 				"page":    float64(2),
 				"perPage": float64(5),
@@ -118,7 +118,7 @@ func Test_ListGists(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetGists: mockResponse(t, http.StatusOK, mockGists),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"since": "invalid-date",
 			},
 			expectError:    true,
@@ -132,7 +132,7 @@ func Test_ListGists(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Requires authentication"}`))
 				}),
 			}),
-			requestArgs:    map[string]any{},
+			requestArgs:    map[string]interface{}{},
 			expectError:    true,
 			expectedErrMsg: "failed to list gists",
 		},
@@ -141,7 +141,7 @@ func Test_ListGists(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := mustNewGHClient(t, tc.mockedClient)
+			client := github.NewClient(tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -219,7 +219,7 @@ func Test_GetGist(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]any
+		requestArgs    map[string]interface{}
 		expectError    bool
 		expectedGists  github.Gist
 		expectedErrMsg string
@@ -229,7 +229,7 @@ func Test_GetGist(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetGistsByGistID: mockResponse(t, http.StatusOK, mockGist),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"gist_id": "gist1",
 			},
 			expectError:   false,
@@ -243,7 +243,7 @@ func Test_GetGist(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Invalid Request"}`))
 				}),
 			}),
-			requestArgs:    map[string]any{},
+			requestArgs:    map[string]interface{}{},
 			expectError:    true,
 			expectedErrMsg: "missing required parameter: gist_id",
 		},
@@ -252,7 +252,7 @@ func Test_GetGist(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := mustNewGHClient(t, tc.mockedClient)
+			client := github.NewClient(tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -332,7 +332,7 @@ func Test_CreateGist(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]any
+		requestArgs    map[string]interface{}
 		expectError    bool
 		expectedErrMsg string
 		expectedGist   *github.Gist
@@ -342,7 +342,7 @@ func Test_CreateGist(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostGists: mockResponse(t, http.StatusCreated, createdGist),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"filename":    "test.go",
 				"content":     "package main\n\nfunc main() {\n\tfmt.Println(\"Hello, Gist!\")\n}",
 				"description": "Test Gist",
@@ -354,7 +354,7 @@ func Test_CreateGist(t *testing.T) {
 		{
 			name:         "missing required filename",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"content":     "test content",
 				"description": "Test Gist",
 			},
@@ -364,7 +364,7 @@ func Test_CreateGist(t *testing.T) {
 		{
 			name:         "missing required content",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"filename":    "test.go",
 				"description": "Test Gist",
 			},
@@ -379,7 +379,7 @@ func Test_CreateGist(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Requires authentication"}`))
 				}),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"filename":    "test.go",
 				"content":     "package main",
 				"description": "Test Gist",
@@ -392,7 +392,7 @@ func Test_CreateGist(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := mustNewGHClient(t, tc.mockedClient)
+			client := github.NewClient(tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -471,7 +471,7 @@ func Test_UpdateGist(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]any
+		requestArgs    map[string]interface{}
 		expectError    bool
 		expectedErrMsg string
 		expectedGist   *github.Gist
@@ -481,7 +481,7 @@ func Test_UpdateGist(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchGistsByGistID: mockResponse(t, http.StatusOK, updatedGist),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"gist_id":     "existing-gist-id",
 				"filename":    "updated.go",
 				"content":     "package main\n\nfunc main() {\n\tfmt.Println(\"Updated Gist!\")\n}",
@@ -493,7 +493,7 @@ func Test_UpdateGist(t *testing.T) {
 		{
 			name:         "missing required gist_id",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"filename":    "updated.go",
 				"content":     "updated content",
 				"description": "Updated Test Gist",
@@ -504,7 +504,7 @@ func Test_UpdateGist(t *testing.T) {
 		{
 			name:         "missing required filename",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"gist_id":     "existing-gist-id",
 				"content":     "updated content",
 				"description": "Updated Test Gist",
@@ -515,7 +515,7 @@ func Test_UpdateGist(t *testing.T) {
 		{
 			name:         "missing required content",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"gist_id":     "existing-gist-id",
 				"filename":    "updated.go",
 				"description": "Updated Test Gist",
@@ -531,7 +531,7 @@ func Test_UpdateGist(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 				}),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"gist_id":     "nonexistent-gist-id",
 				"filename":    "updated.go",
 				"content":     "package main",
@@ -545,7 +545,7 @@ func Test_UpdateGist(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := mustNewGHClient(t, tc.mockedClient)
+			client := github.NewClient(tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}

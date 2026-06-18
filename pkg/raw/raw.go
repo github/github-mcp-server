@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
-	gogithub "github.com/google/go-github/v87/github"
+	gogithub "github.com/google/go-github/v79/github"
 )
 
 // GetRawClientFn is a function type that returns a RawClient instance.
@@ -19,19 +19,19 @@ type Client struct {
 }
 
 // NewClient creates a new instance of the raw API Client with the provided GitHub client and provided URL.
-func NewClient(client *gogithub.Client, rawURL *url.URL) (*Client, error) {
-	newClient, err := gogithub.NewClient(
-		gogithub.WithHTTPClient(client.Client()),
-		gogithub.WithEnterpriseURLs(rawURL.String(), rawURL.String()),
-	)
+func NewClient(client *gogithub.Client, rawURL *url.URL) *Client {
+	client = gogithub.NewClient(client.Client())
+	client.BaseURL = rawURL
+	return &Client{client: client, url: rawURL}
+}
+
+func (c *Client) newRequest(ctx context.Context, method string, urlStr string, body interface{}, opts ...gogithub.RequestOption) (*http.Request, error) {
+	req, err := c.client.NewRequest(method, urlStr, body, opts...)
 	if err != nil {
 		return nil, err
 	}
-	return &Client{client: newClient, url: rawURL}, nil
-}
-
-func (c *Client) newRequest(ctx context.Context, method string, urlStr string, body any, opts ...gogithub.RequestOption) (*http.Request, error) {
-	return c.client.NewRequest(ctx, method, urlStr, body, opts...)
+	req = req.WithContext(ctx)
+	return req, nil
 }
 
 func (c *Client) refURL(owner, repo, ref, path string) string {

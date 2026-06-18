@@ -1,9 +1,6 @@
 package scopes
 
-import (
-	"slices"
-	"sort"
-)
+import "sort"
 
 // Scope represents a GitHub OAuth scope.
 // These constants define all OAuth scopes used by the GitHub MCP server tools.
@@ -91,7 +88,9 @@ func (s ScopeSet) ToSlice() []Scope {
 		scopes = append(scopes, scope)
 	}
 	// Sort for deterministic output
-	slices.Sort(scopes)
+	sort.Slice(scopes, func(i, j int) bool {
+		return scopes[i] < scopes[j]
+	})
 	return scopes
 }
 

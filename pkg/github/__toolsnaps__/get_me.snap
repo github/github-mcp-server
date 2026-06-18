@@ -1,13 +1,4 @@
 {
-  "_meta": {
-    "ui": {
-      "resourceUri": "ui://github-mcp-server/get-me",
-      "visibility": [
-        "model",
-        "app"
-      ]
-    }
-  },
   "annotations": {
     "readOnlyHint": true,
     "title": "Get my user profile"

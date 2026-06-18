@@ -1,11 +1,6 @@
 package github
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -116,7 +111,7 @@ func TestNoDuplicateToolNames(t *testing.T) {
 
 	// First pass: identify tools that have feature flags (mutually exclusive at runtime)
 	for _, tool := range tools {
-		if tool.FeatureFlagEnable != "" || len(tool.FeatureFlagDisable) > 0 {
+		if tool.FeatureFlagEnable != "" || tool.FeatureFlagDisable != "" {
 			featureFlagged[tool.Tool.Name] = true
 		}
 	}
@@ -187,31 +182,5 @@ func TestToolsetMetadataConsistency(t *testing.T) {
 		} else {
 			toolsetDescriptions[id] = desc
 		}
-	}
-}
-
-func TestGitHubPackageDoesNotReadInsidersMode(t *testing.T) {
-	files, err := filepath.Glob("*.go")
-	require.NoError(t, err)
-
-	for _, file := range files {
-		if strings.HasSuffix(file, "_test.go") {
-			continue
-		}
-
-		fset := token.NewFileSet()
-		node, err := parser.ParseFile(fset, file, nil, 0)
-		require.NoError(t, err, "failed to parse %s", file)
-
-		ast.Inspect(node, func(n ast.Node) bool {
-			selector, ok := n.(*ast.SelectorExpr)
-			if !ok || selector.Sel.Name != "InsidersMode" {
-				return true
-			}
-
-			position := fset.Position(selector.Sel.Pos())
-			t.Errorf("%s reads InsidersMode directly; gate behavior on concrete feature flags instead", position)
-			return true
-		})
 	}
 }

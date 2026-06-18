@@ -25,9 +25,6 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v6
 
-      - name: Build UI
-        uses: ./.github/actions/build-ui
-
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -37,7 +34,6 @@ jobs:
         run: go mod tidy -diff
 
       - name: Run unit tests
-        shell: bash
         run: script/test
 
       - name: Build

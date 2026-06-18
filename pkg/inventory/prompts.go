@@ -11,9 +11,9 @@ type ServerPrompt struct {
 	// FeatureFlagEnable specifies a feature flag that must be enabled for this prompt
 	// to be available. If set and the flag is not enabled, the prompt is omitted.
 	FeatureFlagEnable string
-	// FeatureFlagDisable specifies feature flags that, when any is enabled, cause this
-	// prompt to be omitted. Used to disable prompts when a feature flag is on.
-	FeatureFlagDisable []string
+	// FeatureFlagDisable specifies a feature flag that, when enabled, causes this prompt
+	// to be omitted. Used to disable prompts when a feature flag is on.
+	FeatureFlagDisable string
 }
 
 // NewServerPrompt creates a new ServerPrompt with toolset metadata.

@@ -8,7 +8,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,7 +42,7 @@ func Test_ListNotifications(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]any
+		requestArgs    map[string]interface{}
 		expectError    bool
 		expectedResult []*github.Notification
 		expectedErrMsg string
@@ -52,7 +52,7 @@ func Test_ListNotifications(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetNotifications: mockResponse(t, http.StatusOK, []*github.Notification{mockNotification}),
 			}),
-			requestArgs:    map[string]any{},
+			requestArgs:    map[string]interface{}{},
 			expectError:    false,
 			expectedResult: []*github.Notification{mockNotification},
 		},
@@ -61,7 +61,7 @@ func Test_ListNotifications(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetNotifications: mockResponse(t, http.StatusOK, []*github.Notification{mockNotification}),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"filter": "include_read_notifications",
 			},
 			expectError:    false,
@@ -72,7 +72,7 @@ func Test_ListNotifications(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetNotifications: mockResponse(t, http.StatusOK, []*github.Notification{mockNotification}),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"filter": "only_participating",
 			},
 			expectError:    false,
@@ -83,7 +83,7 @@ func Test_ListNotifications(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposNotificationsByOwnerByRepo: mockResponse(t, http.StatusOK, []*github.Notification{mockNotification}),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"filter":  "default",
 				"since":   "2024-01-01T00:00:00Z",
 				"before":  "2024-01-02T00:00:00Z",
@@ -100,7 +100,7 @@ func Test_ListNotifications(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetNotifications: mockResponse(t, http.StatusInternalServerError, `{"message": "error"}`),
 			}),
-			requestArgs:    map[string]any{},
+			requestArgs:    map[string]interface{}{},
 			expectError:    true,
 			expectedErrMsg: "error",
 		},
@@ -108,7 +108,7 @@ func Test_ListNotifications(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := mustNewGHClient(t, tc.mockedClient)
+			client := github.NewClient(tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -159,7 +159,7 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]any
+		requestArgs    map[string]interface{}
 		expectError    bool
 		expectIgnored  *bool
 		expectDeleted  bool
@@ -171,7 +171,7 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PutNotificationsThreadsSubscriptionByThreadID: mockResponse(t, http.StatusOK, mockSub),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"notificationID": "123",
 				"action":         "ignore",
 			},
@@ -183,7 +183,7 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PutNotificationsThreadsSubscriptionByThreadID: mockResponse(t, http.StatusOK, mockSubWatch),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"notificationID": "123",
 				"action":         "watch",
 			},
@@ -195,7 +195,7 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				DeleteNotificationsThreadsSubscriptionByThreadID: mockResponse(t, http.StatusOK, nil),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"notificationID": "123",
 				"action":         "delete",
 			},
@@ -205,7 +205,7 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 		{
 			name:         "invalid action",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"notificationID": "123",
 				"action":         "invalid",
 			},
@@ -215,7 +215,7 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 		{
 			name:         "missing required notificationID",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"action": "ignore",
 			},
 			expectError: true,
@@ -223,7 +223,7 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 		{
 			name:         "missing required action",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"notificationID": "123",
 			},
 			expectError: true,
@@ -232,7 +232,7 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := mustNewGHClient(t, tc.mockedClient)
+			client := github.NewClient(tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -296,7 +296,7 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 	tests := []struct {
 		name             string
 		mockedClient     *http.Client
-		requestArgs      map[string]any
+		requestArgs      map[string]interface{}
 		expectError      bool
 		expectIgnored    *bool
 		expectSubscribed *bool
@@ -309,7 +309,7 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PutReposSubscriptionByOwnerByRepo: mockResponse(t, http.StatusOK, mockSub),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"owner":  "owner",
 				"repo":   "repo",
 				"action": "ignore",
@@ -322,7 +322,7 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PutReposSubscriptionByOwnerByRepo: mockResponse(t, http.StatusOK, mockWatchSub),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"owner":  "owner",
 				"repo":   "repo",
 				"action": "watch",
@@ -336,7 +336,7 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				DeleteReposSubscriptionByOwnerByRepo: mockResponse(t, http.StatusOK, nil),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"owner":  "owner",
 				"repo":   "repo",
 				"action": "delete",
@@ -347,7 +347,7 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 		{
 			name:         "invalid action",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"owner":  "owner",
 				"repo":   "repo",
 				"action": "invalid",
@@ -358,7 +358,7 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 		{
 			name:         "missing required owner",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"repo":   "repo",
 				"action": "ignore",
 			},
@@ -367,7 +367,7 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 		{
 			name:         "missing required repo",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"owner":  "owner",
 				"action": "ignore",
 			},
@@ -376,7 +376,7 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 		{
 			name:         "missing required action",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
 			},
@@ -386,7 +386,7 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := mustNewGHClient(t, tc.mockedClient)
+			client := github.NewClient(tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -452,10 +452,11 @@ func Test_DismissNotification(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]any
+		requestArgs    map[string]interface{}
 		expectError    bool
 		expectRead     bool
 		expectDone     bool
+		expectInvalid  bool
 		expectedErrMsg string
 	}{
 		{
@@ -463,7 +464,7 @@ func Test_DismissNotification(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchNotificationsThreadsByThreadID: mockResponse(t, http.StatusOK, nil),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"threadID": "123",
 				"state":    "read",
 			},
@@ -475,7 +476,7 @@ func Test_DismissNotification(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				DeleteNotificationsThreadsByThreadID: mockResponse(t, http.StatusNoContent, nil),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"threadID": "123",
 				"state":    "done",
 			},
@@ -487,7 +488,7 @@ func Test_DismissNotification(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				DeleteNotificationsThreadsByThreadID: mockResponse(t, http.StatusOK, nil),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"threadID": "123",
 				"state":    "done",
 			},
@@ -495,9 +496,19 @@ func Test_DismissNotification(t *testing.T) {
 			expectDone:  true,
 		},
 		{
+			name:         "invalid threadID format",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]interface{}{
+				"threadID": "notanumber",
+				"state":    "done",
+			},
+			expectError:   false,
+			expectInvalid: true,
+		},
+		{
 			name:         "missing required threadID",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"state": "read",
 			},
 			expectError: true,
@@ -505,7 +516,7 @@ func Test_DismissNotification(t *testing.T) {
 		{
 			name:         "missing required state",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"threadID": "123",
 			},
 			expectError: true,
@@ -513,7 +524,7 @@ func Test_DismissNotification(t *testing.T) {
 		{
 			name:         "invalid state value",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"threadID": "123",
 				"state":    "invalid",
 			},
@@ -523,7 +534,7 @@ func Test_DismissNotification(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := mustNewGHClient(t, tc.mockedClient)
+			client := github.NewClient(tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -541,6 +552,8 @@ func Test_DismissNotification(t *testing.T) {
 					assert.Contains(t, text, "missing required parameter: threadID")
 				case tc.requestArgs["state"] == nil:
 					assert.Contains(t, text, "missing required parameter: state")
+				case tc.name == "invalid threadID format":
+					assert.Contains(t, text, "invalid threadID format")
 				case tc.name == "invalid state value":
 					assert.Contains(t, text, "Invalid state. Must be one of: read, done.")
 				default:
@@ -557,6 +570,9 @@ func Test_DismissNotification(t *testing.T) {
 			}
 			if tc.expectDone {
 				assert.Contains(t, textContent.Text, "Notification marked as done")
+			}
+			if tc.expectInvalid {
+				assert.Contains(t, textContent.Text, "invalid threadID format")
 			}
 		})
 	}
@@ -581,7 +597,7 @@ func Test_MarkAllNotificationsRead(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]any
+		requestArgs    map[string]interface{}
 		expectError    bool
 		expectMarked   bool
 		expectedErrMsg string
@@ -591,7 +607,7 @@ func Test_MarkAllNotificationsRead(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PutNotifications: mockResponse(t, http.StatusOK, nil),
 			}),
-			requestArgs:  map[string]any{},
+			requestArgs:  map[string]interface{}{},
 			expectError:  false,
 			expectMarked: true,
 		},
@@ -600,7 +616,7 @@ func Test_MarkAllNotificationsRead(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PutNotifications: mockResponse(t, http.StatusOK, nil),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"lastReadAt": "2024-01-01T00:00:00Z",
 			},
 			expectError:  false,
@@ -611,7 +627,7 @@ func Test_MarkAllNotificationsRead(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PutReposNotificationsByOwnerByRepo: mockResponse(t, http.StatusOK, nil),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"owner": "octocat",
 				"repo":  "hello-world",
 			},
@@ -623,7 +639,7 @@ func Test_MarkAllNotificationsRead(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PutNotifications: mockResponse(t, http.StatusInternalServerError, `{"message": "error"}`),
 			}),
-			requestArgs:    map[string]any{},
+			requestArgs:    map[string]interface{}{},
 			expectError:    true,
 			expectedErrMsg: "error",
 		},
@@ -631,7 +647,7 @@ func Test_MarkAllNotificationsRead(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := mustNewGHClient(t, tc.mockedClient)
+			client := github.NewClient(tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -678,7 +694,7 @@ func Test_GetNotificationDetails(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]any
+		requestArgs    map[string]interface{}
 		expectError    bool
 		expectResult   *github.Notification
 		expectedErrMsg string
@@ -688,7 +704,7 @@ func Test_GetNotificationDetails(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetNotificationsThreadsByThreadID: mockResponse(t, http.StatusOK, mockThread),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"notificationID": "123",
 			},
 			expectError:  false,
@@ -699,7 +715,7 @@ func Test_GetNotificationDetails(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetNotificationsThreadsByThreadID: mockResponse(t, http.StatusNotFound, `{"message": "not found"}`),
 			}),
-			requestArgs: map[string]any{
+			requestArgs: map[string]interface{}{
 				"notificationID": "123",
 			},
 			expectError:    true,
@@ -709,7 +725,7 @@ func Test_GetNotificationDetails(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := mustNewGHClient(t, tc.mockedClient)
+			client := github.NewClient(tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}

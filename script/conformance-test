@@ -68,6 +68,12 @@ LIST_TOOLS_MSG='{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
 LIST_RESOURCES_MSG='{"jsonrpc":"2.0","id":3,"method":"resources/listTemplates","params":{}}'
 LIST_PROMPTS_MSG='{"jsonrpc":"2.0","id":4,"method":"prompts/list","params":{}}'
 
+# Dynamic toolset management tool calls (for dynamic mode testing)
+LIST_TOOLSETS_MSG='{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"list_available_toolsets","arguments":{}}}'
+GET_TOOLSET_TOOLS_MSG='{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"get_toolset_tools","arguments":{"toolset":"repos"}}}'
+ENABLE_TOOLSET_MSG='{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"enable_toolset","arguments":{"toolset":"repos"}}}'
+LIST_TOOLSETS_AFTER_MSG='{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"list_available_toolsets","arguments":{}}}'
+
 # Function to normalize JSON for comparison
 # Sorts all arrays (including nested ones) and formats consistently
 # Also handles embedded JSON strings in "text" fields (from tool call responses)
@@ -148,18 +154,84 @@ run_mcp_test() {
     echo "$duration"
 }
 
-# Test configurations - array of "name|flags"
+# Function to run MCP server with dynamic tool calls (for dynamic mode testing)
+run_mcp_dynamic_test() {
+    local binary="$1"
+    local name="$2"
+    local flags="$3"
+    local output_prefix="$4"
+    
+    local start_time end_time duration
+    start_time=$(date +%s.%N)
+    
+    # Run the server with dynamic tool calls in sequence:
+    # 1. Initialize
+    # 2. List available toolsets (before enable)
+    # 3. Get tools for repos toolset
+    # 4. Enable repos toolset
+    # 5. List available toolsets (after enable - should show repos as enabled)
+    output=$(
+        (
+            echo "$INIT_MSG"
+            echo "$INITIALIZED_MSG"
+            echo "$LIST_TOOLSETS_MSG"
+            sleep 0.1
+            echo "$GET_TOOLSET_TOOLS_MSG"
+            sleep 0.1
+            echo "$ENABLE_TOOLSET_MSG"
+            sleep 0.1
+            echo "$LIST_TOOLSETS_AFTER_MSG"
+            sleep 0.3
+        ) | GITHUB_PERSONAL_ACCESS_TOKEN=1 $binary stdio $flags 2>/dev/null
+    )
+    
+    end_time=$(date +%s.%N)
+    duration=$(echo "$end_time - $start_time" | bc)
+    
+    # Parse and save each response by matching JSON-RPC id
+    echo "$output" | while IFS= read -r line; do
+        id=$(echo "$line" | jq -r '.id // empty' 2>/dev/null)
+        case "$id" in
+            1) echo "$line" | jq -S '.' > "${output_prefix}_initialize.json" 2>/dev/null ;;
+            10) echo "$line" | jq -S '.' > "${output_prefix}_list_toolsets_before.json" 2>/dev/null ;;
+            11) echo "$line" | jq -S '.' > "${output_prefix}_get_toolset_tools.json" 2>/dev/null ;;
+            12) echo "$line" | jq -S '.' > "${output_prefix}_enable_toolset.json" 2>/dev/null ;;
+            13) echo "$line" | jq -S '.' > "${output_prefix}_list_toolsets_after.json" 2>/dev/null ;;
+        esac
+    done
+    
+    # Create empty files if not created
+    touch "${output_prefix}_initialize.json" "${output_prefix}_list_toolsets_before.json" \
+          "${output_prefix}_get_toolset_tools.json" "${output_prefix}_enable_toolset.json" \
+          "${output_prefix}_list_toolsets_after.json"
+    
+    # Normalize all JSON files
+    for endpoint in initialize list_toolsets_before get_toolset_tools enable_toolset list_toolsets_after; do
+        normalize_json "${output_prefix}_${endpoint}.json"
+    done
+    
+    echo "$duration"
+}
+
+# Test configurations - array of "name|flags|type"
+# type can be "standard" or "dynamic" (for dynamic tool call testing)
 declare -a TEST_CONFIGS=(
-    "default|"
-    "read-only|--read-only"
-    "toolsets-repos|--toolsets=repos"
-    "toolsets-issues|--toolsets=issues"
-    "toolsets-pull_requests|--toolsets=pull_requests"
-    "toolsets-repos,issues|--toolsets=repos,issues"
-    "toolsets-all|--toolsets=all"
-    "tools-get_me|--tools=get_me"
-    "tools-get_me,list_issues|--tools=get_me,list_issues"
-    "toolsets-repos+read-only|--toolsets=repos --read-only"
+    "default||standard"
+    "read-only|--read-only|standard"
+    "dynamic-toolsets|--dynamic-toolsets|standard"
+    "read-only+dynamic|--read-only --dynamic-toolsets|standard"
+    "toolsets-repos|--toolsets=repos|standard"
+    "toolsets-issues|--toolsets=issues|standard"
+    "toolsets-pull_requests|--toolsets=pull_requests|standard"
+    "toolsets-repos,issues|--toolsets=repos,issues|standard"
+    "toolsets-all|--toolsets=all|standard"
+    "tools-get_me|--tools=get_me|standard"
+    "tools-get_me,list_issues|--tools=get_me,list_issues|standard"
+    "toolsets-repos+read-only|--toolsets=repos --read-only|standard"
+    "toolsets-all+dynamic|--toolsets=all --dynamic-toolsets|standard"
+    "toolsets-repos+dynamic|--toolsets=repos --dynamic-toolsets|standard"
+    "toolsets-repos,issues+dynamic|--toolsets=repos,issues --dynamic-toolsets|standard"
+    "dynamic-tool-calls|--dynamic-toolsets|dynamic"
 )
 
 # Summary arrays
@@ -172,24 +244,36 @@ log "${YELLOW}Running conformance tests...${NC}"
 log ""
 
 for config in "${TEST_CONFIGS[@]}"; do
-    IFS='|' read -r test_name flags <<< "$config"
-
+    IFS='|' read -r test_name flags test_type <<< "$config"
+    
     log "${BLUE}Test: ${test_name}${NC}"
     log "  Flags: ${flags:-<none>}"
+    log "  Type: ${test_type}"
     
     # Create output directories
     mkdir -p "$REPORT_DIR/main/$test_name"
     mkdir -p "$REPORT_DIR/branch/$test_name"
     mkdir -p "$REPORT_DIR/diffs/$test_name"
     
-    # Run standard test
-    main_time=$(run_mcp_test "$REPORT_DIR/main/github-mcp-server" "main" "$flags" "$REPORT_DIR/main/$test_name/output")
-    log "  Main:   ${main_time}s"
-
-    branch_time=$(run_mcp_test "$REPORT_DIR/branch/github-mcp-server" "branch" "$flags" "$REPORT_DIR/branch/$test_name/output")
-    log "  Branch: ${branch_time}s"
-
-    endpoints="initialize tools resources prompts"
+    if [ "$test_type" = "dynamic" ]; then
+        # Run dynamic tool call test
+        main_time=$(run_mcp_dynamic_test "$REPORT_DIR/main/github-mcp-server" "main" "$flags" "$REPORT_DIR/main/$test_name/output")
+        log "  Main:   ${main_time}s"
+        
+        branch_time=$(run_mcp_dynamic_test "$REPORT_DIR/branch/github-mcp-server" "branch" "$flags" "$REPORT_DIR/branch/$test_name/output")
+        log "  Branch: ${branch_time}s"
+        
+        endpoints="initialize list_toolsets_before get_toolset_tools enable_toolset list_toolsets_after"
+    else
+        # Run standard test
+        main_time=$(run_mcp_test "$REPORT_DIR/main/github-mcp-server" "main" "$flags" "$REPORT_DIR/main/$test_name/output")
+        log "  Main:   ${main_time}s"
+        
+        branch_time=$(run_mcp_test "$REPORT_DIR/branch/github-mcp-server" "branch" "$flags" "$REPORT_DIR/branch/$test_name/output")
+        log "  Branch: ${branch_time}s"
+        
+        endpoints="initialize tools resources prompts"
+    fi
     
     # Calculate time difference
     time_diff=$(echo "$branch_time - $main_time" | bc)
@@ -309,7 +393,7 @@ for i in "${!TEST_NAMES[@]}"; do
         echo "" >> "$REPORT_FILE"
         
         # Check all possible endpoints
-        for endpoint in initialize tools resources prompts; do
+        for endpoint in initialize tools resources prompts list_toolsets_before get_toolset_tools enable_toolset list_toolsets_after; do
             diff_file="$REPORT_DIR/diffs/$name/${endpoint}.diff"
             if [ -f "$diff_file" ] && [ -s "$diff_file" ]; then
                 echo "#### ${endpoint}" >> "$REPORT_FILE"

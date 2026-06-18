@@ -7,7 +7,6 @@ import (
 	"slices"
 	"sort"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -24,6 +23,7 @@ import (
 //   - Filtered access to tools/resources/prompts via Available* methods
 //   - Deterministic ordering for documentation generation
 //   - Lazy dependency injection during registration via RegisterAll()
+//   - Runtime toolset enabling for dynamic toolsets mode
 type Inventory struct {
 	// tools holds all tools in this group (ordered for iteration)
 	tools []ServerTool
@@ -168,54 +168,10 @@ func (r *Inventory) ToolsetDescriptions() map[ToolsetID]string {
 	return r.toolsetDescriptions
 }
 
-// ToolsForRegistration returns AvailableTools(ctx) post-processed exactly as
-// RegisterTools would expose them: with MCP Apps UI metadata stripped when
-// the client cannot consume it. Useful for documentation generators and
-// diagnostics that need the same view of the tool surface the server would
-// register.
-//
-// The strip applies when EITHER of the following is true:
-//
-//   - The remote_mcp_ui_apps feature flag is not enabled in ctx (server-side gate).
-//   - The client explicitly did not advertise the io.modelcontextprotocol/ui
-//     extension capability (per the 2026-01-26 MCP Apps spec, servers SHOULD
-//     check client capabilities before exposing UI-enabled tools). When the
-//     capability is unknown (e.g. stdio paths that do not populate the
-//     context flag) the feature-flag gate is the sole source of truth.
-func (r *Inventory) ToolsForRegistration(ctx context.Context) []ServerTool {
-	tools := r.AvailableTools(ctx)
-	if shouldStripMCPAppsMetadata(ctx, r.checkFeatureFlag(ctx, mcpAppsFeatureFlag)) {
-		tools = stripMCPAppsMetadata(tools)
-	}
-	return tools
-}
-
-// shouldStripMCPAppsMetadata centralises the strip decision so the same logic
-// is exercised by tests and by RegisterTools.
-func shouldStripMCPAppsMetadata(ctx context.Context, featureFlagEnabled bool) bool {
-	if !featureFlagEnabled {
-		return true
-	}
-	// Feature flag is on. Respect the client capability if it is known.
-	if supported, ok := ghcontext.HasUISupport(ctx); ok && !supported {
-		return true
-	}
-	return false
-}
-
 // RegisterTools registers all available tools with the server using the provided dependencies.
-// The context is used for feature flag evaluation and client capability checks.
-//
-// MCP Apps UI metadata (`_meta.ui`) is stripped from the registered tools
-// when either the MCP Apps feature flag is not enabled for this request, or
-// the client did not advertise the io.modelcontextprotocol/ui extension. The
-// strip happens here (rather than at Build() time) so the per-request
-// context is in scope — HTTP feature checkers that read insiders mode or
-// user identity from ctx would otherwise see context.Background() and
-// falsely report the flag off, even when the actual request arrived on the
-// /insiders route.
+// The context is used for feature flag evaluation.
 func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any) {
-	for _, tool := range r.ToolsForRegistration(ctx) {
+	for _, tool := range r.AvailableTools(ctx) {
 		tool.RegisterFunc(s, deps)
 	}
 }

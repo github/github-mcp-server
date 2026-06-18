@@ -1,0 +1,30 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Download workflow artifact"
+  },
+  "description": "Get download URL for a workflow run artifact",
+  "inputSchema": {
+    "properties": {
+      "artifact_id": {
+        "description": "The unique identifier of the artifact",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "artifact_id"
+    ],
+    "type": "object"
+  },
+  "name": "download_workflow_run_artifact"
+}

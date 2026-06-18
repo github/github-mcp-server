@@ -25,6 +25,7 @@ async function showApp(user) {
   if (perfil && perfil.rol) rol = perfil.rol;
   ROL = rol;
   $("who").innerHTML = `<b>${user.email}</b><span class="rolepill">${rol}</span>`;
+  if (ROL === "direccion") { const b = $("btnNuevaPromo"); b.classList.remove("hidden"); b.onclick = nuevaPromocion; }
   mostrarLista();
   cargar();
 }
@@ -303,6 +304,45 @@ window.confirmarCert = async function () {
   if (ins.error) { msg.className = "msg err"; msg.textContent = ins.error.message; return; }
   closeModal();
   abrirDetalle(DETALLE_ID);
+};
+
+// ---- Alta de promoción (solo dirección) ----
+const TIPOS = ["residencial", "terciario", "mixto"];
+const ESTADOS = ["suelo", "proyecto", "licencia", "obra", "entregada"];
+window.nuevaPromocion = async function () {
+  const { data: socs } = await sb.from("sociedad").select("id,nombre").order("nombre");
+  const socOpts = (socs || []).map((s) => `<option value="${s.id}">${esc(s.nombre)}</option>`).join("");
+  openModal(`
+    <h2>Nueva promoción</h2>
+    <div class="field"><label>Nombre</label><input id="pNombre"></div>
+    <div class="field"><label>Municipio</label><input id="pMun"></div>
+    <div class="field"><label>Tipo</label><select id="pTipo">${TIPOS.map((t) => `<option>${t}</option>`).join("")}</select></div>
+    <div class="field"><label>Estado</label><select id="pEstado">${ESTADOS.map((e) => `<option>${e}</option>`).join("")}</select></div>
+    <div class="field"><label>Presupuesto (€)</label><input id="pPres" type="number"></div>
+    <div class="field"><label>Sociedad</label><select id="pSoc"><option value="">— crear nueva —</option>${socOpts}</select></div>
+    <div class="field"><label>Nueva sociedad (si no eliges una)</label><input id="pSocNueva"></div>
+    <div id="pMsg" class="msg"></div>
+    <div class="modal-actions"><button class="linkbtn" onclick="closeModal()">Cancelar</button><button class="btn btn-sm" onclick="confirmarPromocion()">Crear</button></div>`);
+};
+window.confirmarPromocion = async function () {
+  const nombre = $("pNombre").value.trim();
+  const msg = $("pMsg"); msg.className = "msg";
+  if (!nombre) { msg.className = "msg err"; msg.textContent = "Indica el nombre."; return; }
+  msg.textContent = "Guardando…";
+  let socId = $("pSoc").value;
+  const nuevaSoc = $("pSocNueva").value.trim();
+  if (nuevaSoc) {
+    const { data: s, error: e } = await sb.from("sociedad").upsert({ nombre: nuevaSoc }, { onConflict: "nombre" }).select("id").single();
+    if (e) { msg.className = "msg err"; msg.textContent = e.message; return; }
+    socId = s.id;
+  }
+  if (!socId) { msg.className = "msg err"; msg.textContent = "Elige o crea una sociedad."; return; }
+  const { error } = await sb.from("promocion").insert({
+    sociedad_id: socId, nombre, municipio: $("pMun").value.trim() || null,
+    tipo: $("pTipo").value, estado: $("pEstado").value, presupuesto_total: Number($("pPres").value) || null,
+  });
+  if (error) { msg.className = "msg err"; msg.textContent = error.message; return; }
+  closeModal(); mostrarLista(); cargar();
 };
 
 // Eventos de login

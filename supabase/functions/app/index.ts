@@ -22,6 +22,7 @@ const HTML = String.raw`<!DOCTYPE html>
 .linkbtn{background:none;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer;}
 .content{padding:32px;max-width:1100px;margin:0 auto;}h1{font-size:26px;font-weight:800;margin-bottom:14px;}.sub{color:var(--mut);font-size:14px;margin-bottom:20px;}
 .resumen{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;}.resumen .card{padding:18px;}.seccion{font-size:20px;font-weight:700;margin:28px 0 6px;}
+.seccion-head{display:flex;align-items:center;gap:14px;margin:28px 0 6px;}.seccion-head .seccion{margin:0;}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:20px;}
 .promo{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;cursor:pointer;transition:box-shadow .15s;}.promo:hover{box-shadow:0 6px 20px rgba(0,0,0,.09);}
 .promo h3{font-size:18px;font-weight:700;}.promo .loc{color:var(--mut);font-size:13px;margin-bottom:14px;}
@@ -43,12 +44,13 @@ table{width:100%;border-collapse:collapse;margin-top:6px;}th{font-size:11px;colo
 <button class="btn" type="submit">Entrar</button><div id="loginMsg" class="msg"></div></form>
 <div class="foot">Acceso restringido - Grupo Tesela</div></div></div>
 <div id="app" class="hidden"><div class="topbar"><span class="logo">Grupo Tesela ERP</span><a class="navlink" id="navPromos">Promociones</a><a class="navlink" id="navContactos">Contactos</a><a class="navlink" id="navFacturas">Facturas</a><span class="spacer"></span><span class="who" id="who"></span><button class="linkbtn" id="logout">Salir</button></div>
-<div class="content"><div id="vistaLista"><h1>Resumen del grupo</h1><div id="resumenGrupo" class="resumen"></div><h2 class="seccion">Promociones</h2><div class="sub" id="appSub">Cargando...</div><div id="grid" class="grid"></div></div><div id="vistaDetalle" class="hidden"></div><div id="vistaContactos" class="hidden"></div><div id="vistaFacturas" class="hidden"></div></div>
+<div class="content"><div id="vistaLista"><h1>Resumen del grupo</h1><div id="resumenGrupo" class="resumen"></div><div class="seccion-head"><h2 class="seccion">Promociones</h2><button id="btnNuevaPromo" class="btn-sm hidden">+ Nueva promocion</button></div><div class="sub" id="appSub">Cargando...</div><div id="grid" class="grid"></div></div><div id="vistaDetalle" class="hidden"></div><div id="vistaContactos" class="hidden"></div><div id="vistaFacturas" class="hidden"></div></div>
 <div id="modal" class="modal-bg hidden"><div class="modal-box" id="modalBody"></div></div></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 var CFG={url:"https://jpojckqnhepiuwefyvdr.supabase.co",anonKey:"sb_publishable_EbxhofgF-N88vMSzPIuVNw_eSVdgV8j"};
 var sb=supabase.createClient(CFG.url,CFG.anonKey);var PROMOS={};var ROL=null;var DETALLE_ID=null;var VU=null;var CO=null;
+var TIPOS=["residencial","terciario","mixto"];var ESTADOS=["suelo","proyecto","licencia","obra","entregada"];
 function $(id){return document.getElementById(id);}
 function eur(n){return n==null?"-":Number(n).toLocaleString("es-ES")+" EUR";}
 function esc(s){s=String(s==null?"":s);return s.split("&").join("&amp;").split("<").join("&lt;").split(">").join("&gt;").split(String.fromCharCode(34)).join("&quot;");}
@@ -59,7 +61,7 @@ async function init(){var r=await sb.auth.getSession();if(r.data.session){showAp
 function showLogin(){$("login").classList.remove("hidden");$("app").classList.add("hidden");}
 async function showApp(user){$("login").classList.add("hidden");$("app").classList.remove("hidden");
 var rol="sin rol";var p=await sb.from("perfil").select("rol").eq("id",user.id).maybeSingle();if(p.data&&p.data.rol){rol=p.data.rol;}ROL=rol;
-$("who").innerHTML="<b>"+esc(user.email)+"</b><span class='rolepill'>"+esc(rol)+"</span>";mostrarLista();cargar();}
+$("who").innerHTML="<b>"+esc(user.email)+"</b><span class='rolepill'>"+esc(rol)+"</span>";if(ROL=="direccion"){var b=$("btnNuevaPromo");b.classList.remove("hidden");b.onclick=nuevaPromocion;}mostrarLista();cargar();}
 function mostrarLista(){ocultarTodo();$("vistaLista").classList.remove("hidden");}
 async function mostrarContactos(){ocultarTodo();var v=$("vistaContactos");v.classList.remove("hidden");v.innerHTML="<h1>Contactos</h1><div class='sub' id='contSub'>Cargando...</div><div class='section'><h2>Clientes</h2><div id='tblClientes'></div></div><div class='section'><h2>Proveedores</h2><div id='tblProveedores'></div></div>";
 var cli=await sb.from("cliente").select("nombre,nif,email,telefono").order("nombre");var prov=await sb.from("proveedor").select("nombre,cif,oficio").order("nombre");
@@ -105,6 +107,15 @@ var docs=await sb.from("documento").select("tipo,nombre").eq("promocion_id",id);
 if(!dd.length){$("detDocs").innerHTML="<div class='sub'>Sin documentos.</div>";}else{var hx="<table><tr><th>Tipo</th><th>Nombre</th></tr>";dd.forEach(function(x){hx+="<tr><td>"+esc(x.tipo)+"</td><td>"+esc(x.nombre)+"</td></tr>";});$("detDocs").innerHTML=hx+"</table>";}}
 function openModal(h){$("modalBody").innerHTML=h;$("modal").classList.remove("hidden");}
 function closeModal(){$("modal").classList.add("hidden");$("modalBody").innerHTML="";}
+async function nuevaPromocion(){var s=await sb.from("sociedad").select("id,nombre").order("nombre");var so="";(s.data||[]).forEach(function(x){so+="<option value='"+x.id+"'>"+esc(x.nombre)+"</option>";});var to="";TIPOS.forEach(function(t){to+="<option>"+t+"</option>";});var eo="";ESTADOS.forEach(function(e){eo+="<option>"+e+"</option>";});
+openModal("<h2>Nueva promocion</h2><div class='field'><label>Nombre</label><input id='pNombre'></div><div class='field'><label>Municipio</label><input id='pMun'></div><div class='field'><label>Tipo</label><select id='pTipo'>"+to+"</select></div><div class='field'><label>Estado</label><select id='pEstado'>"+eo+"</select></div><div class='field'><label>Presupuesto (EUR)</label><input id='pPres' type='number'></div><div class='field'><label>Sociedad</label><select id='pSoc'><option value=''>- crear nueva -</option>"+so+"</select></div><div class='field'><label>Nueva sociedad (si no eliges una)</label><input id='pSocNueva'></div><div id='pMsg' class='msg'></div><div class='modal-actions'><button class='linkbtn' id='pCancel'>Cancelar</button><button class='btn btn-sm' id='pOk'>Crear</button></div>");
+$("pCancel").addEventListener("click",closeModal);$("pOk").addEventListener("click",confirmarPromocion);}
+async function confirmarPromocion(){var nombre=$("pNombre").value.trim();var m=$("pMsg");m.className="msg";if(!nombre){m.className="msg err";m.textContent="Indica el nombre.";return;}m.textContent="Guardando...";
+var socId=$("pSoc").value;var nueva=$("pSocNueva").value.trim();
+if(nueva){var r=await sb.from("sociedad").upsert({nombre:nueva},{onConflict:"nombre"}).select("id").single();if(r.error){m.className="msg err";m.textContent=r.error.message;return;}socId=r.data.id;}
+if(!socId){m.className="msg err";m.textContent="Elige o crea una sociedad.";return;}
+var ins=await sb.from("promocion").insert({sociedad_id:socId,nombre:nombre,municipio:$("pMun").value.trim()||null,tipo:$("pTipo").value,estado:$("pEstado").value,presupuesto_total:Number($("pPres").value)||null});
+if(ins.error){m.className="msg err";m.textContent=ins.error.message;return;}closeModal();mostrarLista();cargar();}
 async function registrarVenta(unidadId,precio,ref){VU=unidadId;var cl=await sb.from("cliente").select("id,nombre").order("nombre");var opts="";(cl.data||[]).forEach(function(c){opts+="<option value='"+c.id+"'>"+esc(c.nombre)+"</option>";});
 openModal("<h2>Registrar venta - "+esc(ref)+"</h2><div class='field'><label>Cliente</label><select id='mCliente'>"+opts+"</select></div><div class='field'><label>Precio (EUR)</label><input id='mPrecio' type='number' value='"+precio+"'></div><div id='mMsg' class='msg'></div><div class='modal-actions'><button class='linkbtn' id='mCancel'>Cancelar</button><button class='btn btn-sm' id='mOk'>Confirmar venta</button></div>");
 $("mCancel").addEventListener("click",closeModal);$("mOk").addEventListener("click",confirmarVenta);}

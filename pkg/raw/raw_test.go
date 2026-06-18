@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/stretchr/testify/require"
 )
 
@@ -108,10 +108,8 @@ func TestGetRawContent(t *testing.T) {
 					body:        tc.body,
 				},
 			}
-			ghClient, err := github.NewClient(github.WithHTTPClient(mockedClient))
-			require.NoError(t, err)
-			client, err := NewClient(ghClient, base)
-			require.NoError(t, err)
+			ghClient := github.NewClient(mockedClient)
+			client := NewClient(ghClient, base)
 			resp, err := client.GetRawContent(context.Background(), tc.owner, tc.repo, tc.path, tc.opts)
 			defer func() {
 				_ = resp.Body.Close()
@@ -135,10 +133,8 @@ func TestGetRawContent(t *testing.T) {
 
 func TestUrlFromOpts(t *testing.T) {
 	base, _ := url.Parse("https://raw.example.com/")
-	ghClient, err := github.NewClient(github.WithHTTPClient(&http.Client{}))
-	require.NoError(t, err)
-	client, err := NewClient(ghClient, base)
-	require.NoError(t, err)
+	ghClient := github.NewClient(nil)
+	client := NewClient(ghClient, base)
 
 	tests := []struct {
 		name  string

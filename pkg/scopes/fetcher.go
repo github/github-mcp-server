@@ -7,9 +7,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
-	"github.com/github/github-mcp-server/pkg/http/headers"
-	"github.com/github/github-mcp-server/pkg/utils"
 )
 
 // OAuthScopesHeader is the HTTP response header containing the token's OAuth scopes.
@@ -26,25 +23,26 @@ type FetcherOptions struct {
 
 	// APIHost is the GitHub API host (e.g., "https://api.github.com").
 	// Defaults to "https://api.github.com" if empty.
-	APIHost utils.APIHostResolver
-}
-
-type FetcherInterface interface {
-	FetchTokenScopes(ctx context.Context, token string) ([]string, error)
+	APIHost string
 }
 
 // Fetcher retrieves token scopes from GitHub's API.
 // It uses an HTTP HEAD request to minimize bandwidth since we only need headers.
 type Fetcher struct {
 	client  *http.Client
-	apiHost utils.APIHostResolver
+	apiHost string
 }
 
 // NewFetcher creates a new scope fetcher with the given options.
-func NewFetcher(apiHost utils.APIHostResolver, opts FetcherOptions) *Fetcher {
+func NewFetcher(opts FetcherOptions) *Fetcher {
 	client := opts.HTTPClient
 	if client == nil {
 		client = &http.Client{Timeout: DefaultFetchTimeout}
+	}
+
+	apiHost := opts.APIHost
+	if apiHost == "" {
+		apiHost = "https://api.github.com"
 	}
 
 	return &Fetcher{
@@ -63,13 +61,8 @@ func NewFetcher(apiHost utils.APIHostResolver, opts FetcherOptions) *Fetcher {
 // Note: Fine-grained PATs don't return the X-OAuth-Scopes header, so an empty
 // slice is returned for those tokens.
 func (f *Fetcher) FetchTokenScopes(ctx context.Context, token string) ([]string, error) {
-	apiHostURL, err := f.apiHost.BaseRESTURL(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get API host URL: %w", err)
-	}
-
 	// Use a lightweight endpoint that requires authentication
-	endpoint, err := url.JoinPath(apiHostURL.String(), "/")
+	endpoint, err := url.JoinPath(f.apiHost, "/")
 	if err != nil {
 		return nil, fmt.Errorf("failed to construct API URL: %w", err)
 	}
@@ -79,9 +72,9 @@ func (f *Fetcher) FetchTokenScopes(ctx context.Context, token string) ([]string,
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set(headers.AuthorizationHeader, "Bearer "+token)
-	req.Header.Set(headers.AcceptHeader, "application/vnd.github+json")
-	req.Header.Set(headers.GitHubAPIVersionHeader, "2022-11-28")
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
 	resp, err := f.client.Do(req)
 	if err != nil {
@@ -122,16 +115,11 @@ func ParseScopeHeader(header string) []string {
 // FetchTokenScopes is a convenience function that creates a default fetcher
 // and fetches the token scopes.
 func FetchTokenScopes(ctx context.Context, token string) ([]string, error) {
-	apiHost, err := utils.NewAPIHost("https://api.github.com/")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create default API host: %w", err)
-	}
-
-	return NewFetcher(apiHost, FetcherOptions{}).FetchTokenScopes(ctx, token)
+	return NewFetcher(FetcherOptions{}).FetchTokenScopes(ctx, token)
 }
 
 // FetchTokenScopesWithHost is a convenience function that creates a fetcher
 // for a specific API host and fetches the token scopes.
-func FetchTokenScopesWithHost(ctx context.Context, token string, apiHost utils.APIHostResolver) ([]string, error) {
-	return NewFetcher(apiHost, FetcherOptions{}).FetchTokenScopes(ctx, token)
+func FetchTokenScopesWithHost(ctx context.Context, token, apiHost string) ([]string, error) {
+	return NewFetcher(FetcherOptions{APIHost: apiHost}).FetchTokenScopes(ctx, token)
 }

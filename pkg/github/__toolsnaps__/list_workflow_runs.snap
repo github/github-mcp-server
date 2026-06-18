@@ -1,0 +1,98 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List workflow runs"
+  },
+  "description": "List workflow runs for a specific workflow",
+  "inputSchema": {
+    "properties": {
+      "actor": {
+        "description": "Returns someone's workflow runs. Use the login for the user who created the workflow run.",
+        "type": "string"
+      },
+      "branch": {
+        "description": "Returns workflow runs associated with a branch. Use the name of the branch.",
+        "type": "string"
+      },
+      "event": {
+        "description": "Returns workflow runs for a specific event type",
+        "enum": [
+          "branch_protection_rule",
+          "check_run",
+          "check_suite",
+          "create",
+          "delete",
+          "deployment",
+          "deployment_status",
+          "discussion",
+          "discussion_comment",
+          "fork",
+          "gollum",
+          "issue_comment",
+          "issues",
+          "label",
+          "merge_group",
+          "milestone",
+          "page_build",
+          "public",
+          "pull_request",
+          "pull_request_review",
+          "pull_request_review_comment",
+          "pull_request_target",
+          "push",
+          "registry_package",
+          "release",
+          "repository_dispatch",
+          "schedule",
+          "status",
+          "watch",
+          "workflow_call",
+          "workflow_dispatch",
+          "workflow_run"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page": {
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "status": {
+        "description": "Returns workflow runs with the check run status",
+        "enum": [
+          "queued",
+          "in_progress",
+          "completed",
+          "requested",
+          "waiting"
+        ],
+        "type": "string"
+      },
+      "workflow_id": {
+        "description": "The workflow ID or workflow file name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "workflow_id"
+    ],
+    "type": "object"
+  },
+  "name": "list_workflow_runs"
+}

@@ -2,24 +2,15 @@ package github
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/url"
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/google/go-github/v79/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 )
-
-// errorTransport is a http.RoundTripper that always returns an error.
-type errorTransport struct {
-	err error
-}
-
-func (t *errorTransport) RoundTrip(*http.Request) (*http.Response, error) {
-	return nil, t.err
-}
 
 type resourceResponseType int
 
@@ -245,9 +236,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := mustNewGHClient(t, tc.mockedClient)
-			mockRawClient, err := raw.NewClient(client, base)
-			require.NoError(t, err)
+			client := github.NewClient(tc.mockedClient)
+			mockRawClient := raw.NewClient(client, base)
 			deps := BaseDeps{
 				Client:    client,
 				RawClient: mockRawClient,
@@ -281,35 +271,4 @@ func Test_repositoryResourceContents(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Test_repositoryResourceContentsHandler_NetworkError tests that a network error
-// during raw content fetch does not cause a panic (nil response body dereference).
-func Test_repositoryResourceContentsHandler_NetworkError(t *testing.T) {
-	base, _ := url.Parse("https://raw.example.com/")
-	networkErr := errors.New("network error: connection refused")
-
-	httpClient := &http.Client{Transport: &errorTransport{err: networkErr}}
-	client := mustNewGHClient(t, httpClient)
-	mockRawClient, err := raw.NewClient(client, base)
-	require.NoError(t, err)
-	deps := BaseDeps{
-		Client:    client,
-		RawClient: mockRawClient,
-	}
-	ctx := ContextWithDeps(context.Background(), deps)
-
-	handler := RepositoryResourceContentsHandler(repositoryResourceContentURITemplate)
-
-	request := &mcp.ReadResourceRequest{
-		Params: &mcp.ReadResourceParams{
-			URI: "repo://owner/repo/contents/README.md",
-		},
-	}
-
-	// This should not panic, even though the HTTP client returns an error
-	resp, err := handler(ctx, request)
-	require.Error(t, err)
-	require.Nil(t, resp)
-	require.ErrorContains(t, err, "failed to get raw content")
 }

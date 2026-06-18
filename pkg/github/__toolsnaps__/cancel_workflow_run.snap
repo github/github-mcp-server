@@ -1,0 +1,29 @@
+{
+  "annotations": {
+    "title": "Cancel workflow run"
+  },
+  "description": "Cancel a workflow run",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "run_id": {
+        "description": "The unique identifier of the workflow run",
+        "type": "number"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "run_id"
+    ],
+    "type": "object"
+  },
+  "name": "cancel_workflow_run"
+}
