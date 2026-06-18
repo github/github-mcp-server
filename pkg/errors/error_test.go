@@ -3,13 +3,13 @@ package errors
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"testing"
-	"time"
 	"github.com/google/go-github/v87/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"net/http"
+	"testing"
+	"time"
 )
 
 func TestGitHubErrorContext(t *testing.T) {
@@ -687,4 +687,3 @@ func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 		assert.Contains(t, text, "validation failed")
 	})
 }
-

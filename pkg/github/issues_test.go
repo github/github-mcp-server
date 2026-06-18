@@ -356,7 +356,7 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 
-	t.Run("insiders mode enabled on private repo with get_comments emits private untrusted", func(t *testing.T) {
+	t.Run("insiders mode enabled on private repo with get_comments emits private trusted", func(t *testing.T) {
 		deps := BaseDeps{
 			Client:         mustNewGHClient(t, makeMockClient(true, 0)),
 			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
@@ -370,7 +370,7 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
-		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "trusted", ifcMap["integrity"])
 		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
 
@@ -2729,7 +2729,7 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 
-	t.Run("insiders mode enabled on private repo emits private untrusted label", func(t *testing.T) {
+	t.Run("insiders mode enabled on private repo emits private trusted label", func(t *testing.T) {
 		matcher := githubv4mock.NewQueryMatcher(query, vars, makeResponse(true))
 		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
 		deps := BaseDeps{
@@ -2752,7 +2752,7 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		var ifcMap map[string]any
 		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
 
-		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "trusted", ifcMap["integrity"])
 		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
 }
@@ -4811,6 +4811,30 @@ func Test_ListIssueTypes(t *testing.T) {
 			requestArgs:    map[string]any{},
 			expectError:    false, // This should be handled by parameter validation, error returned in result
 			expectedErrMsg: "missing required parameter: owner",
+		},
+		{
+			name: "successful repo issue types retrieval",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/testorg/testrepo/issue-types": mockResponse(t, http.StatusOK, mockIssueTypes),
+			}),
+			requestArgs: map[string]any{
+				"owner": "testorg",
+				"repo":  "testrepo",
+			},
+			expectError:        false,
+			expectedIssueTypes: mockIssueTypes,
+		},
+		{
+			name: "repo not found",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/testorg/nonexistent/issue-types": mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
+			}),
+			requestArgs: map[string]any{
+				"owner": "testorg",
+				"repo":  "nonexistent",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to list issue types",
 		},
 	}
 

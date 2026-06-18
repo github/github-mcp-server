@@ -12,11 +12,11 @@
         "items": {
           "properties": {
             "confidence": {
-              "description": "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
+              "description": "How confident you are in this choice. Use 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal.",
               "enum": [
-                "low",
-                "medium",
-                "high"
+                "LOW",
+                "MEDIUM",
+                "HIGH"
               ],
               "type": "string"
             },

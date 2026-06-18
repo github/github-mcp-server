@@ -238,7 +238,7 @@ func Test_SearchRepositories_IFC_InsidersMode(t *testing.T) {
 		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 
-	t.Run("insiders mode any private match emits private untrusted", func(t *testing.T) {
+	t.Run("insiders mode mixed public and private emits private untrusted", func(t *testing.T) {
 		deps := BaseDeps{
 			Client: mustNewGHClient(t, makeMockClient([]repoFixture{
 				{owner: "octocat", name: "private-repo", isPrivate: true},
