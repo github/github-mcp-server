@@ -343,6 +343,10 @@ Options are:
 				return utils.NewToolResultError(fmt.Sprintf("unknown type: %s", relationshipType)), nil, nil
 			}
 
+			if owner == relatedOwner && repo == relatedRepo && issueNumber == relatedIssueNumber {
+				return utils.NewToolResultError("an issue cannot block or depend on itself"), nil, nil
+			}
+
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil

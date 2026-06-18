@@ -358,6 +358,28 @@ func Test_IssueDependencyWrite(t *testing.T) {
 			assert.Equal(t, tc.expectedMessage, payload.Message)
 		})
 	}
+
+	t.Run("self dependency fails before any API call", func(t *testing.T) {
+		// Register no matchers: the handler must return before resolving node IDs or mutating.
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
+		deps := BaseDeps{GQLClient: gqlClient}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"method":               "add",
+			"type":                 "blocked_by",
+			"owner":                "owner",
+			"repo":                 "repo",
+			"issue_number":         float64(1),
+			"related_issue_number": float64(1),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.True(t, result.IsError, "expected result to be an error")
+
+		text := getTextResult(t, result)
+		assert.Contains(t, text.Text, "itself")
+	})
 }
 
 func Test_IssueDependencyWrite_Validation(t *testing.T) {
