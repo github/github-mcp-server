@@ -1276,7 +1276,6 @@ func AddIssueReaction(t translations.TranslationHelperFunc) inventory.ServerTool
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
 	return st
 }
 
@@ -1357,6 +1356,5 @@ func AddIssueCommentReaction(t translations.TranslationHelperFunc) inventory.Ser
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
 	return st
 }

@@ -846,6 +846,20 @@ The following sets of tools are available:
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
+- **add_issue_comment_reaction** - Add Issue Comment Reaction
+  - **Required OAuth Scopes**: `repo`
+  - `comment_id`: The issue comment ID (number, required)
+  - `content`: The emoji reaction type (string, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `repo`: Repository name (string, required)
+
+- **add_issue_reaction** - Add Issue Reaction
+  - **Required OAuth Scopes**: `repo`
+  - `content`: The emoji reaction type (string, required)
+  - `issue_number`: The issue number (number, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `repo`: Repository name (string, required)
+
 - **get_label** - Get a specific label from a repository
   - **Required OAuth Scopes**: `repo`
   - `name`: Label name. (string, required)
@@ -1094,6 +1108,13 @@ The following sets of tools are available:
   - `startLine`: For multi-line comments, the first line of the range that the comment applies to (number, optional)
   - `startSide`: For multi-line comments, the starting side of the diff that the comment applies to. LEFT indicates the previous state, RIGHT indicates the new state (string, optional)
   - `subjectType`: The level at which the comment is targeted (string, required)
+
+- **add_pull_request_review_comment_reaction** - Add Pull Request Review Comment Reaction
+  - **Required OAuth Scopes**: `repo`
+  - `comment_id`: The pull request review comment ID (number, required)
+  - `content`: The emoji reaction type (string, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `repo`: Repository name (string, required)
 
 - **add_reply_to_pull_request_comment** - Add reply to pull request comment
   - **Required OAuth Scopes**: `repo`
