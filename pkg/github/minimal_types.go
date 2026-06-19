@@ -938,6 +938,22 @@ var tagFieldEnum = []any{"name", "sha"}
 // matching the JSON field names of MinimalRelease.
 var releaseFieldEnum = []any{"id", "tag_name", "name", "body", "html_url", "published_at", "prerelease", "draft", "author"}
 
+// codeSearchItemFieldEnum lists the selectable fields for search_code result
+// items, matching the JSON field names of MinimalCodeSearchItem. The nested
+// repository object is the heaviest field, so omitting it is the main lever for
+// shrinking large result sets.
+var codeSearchItemFieldEnum = []any{"name", "path", "sha", "html_url", "repository"}
+
+// userSearchFieldEnum lists the selectable fields for search_users and
+// search_orgs result items, matching the JSON field names of MinimalUser.
+var userSearchFieldEnum = []any{"login", "id", "profile_url", "avatar_url", "details"}
+
+// fileContentFieldEnum lists the selectable fields for get_file_contents
+// directory listings, matching the JSON field names of
+// github.RepositoryContent that appear for directory entries. Only applied when
+// the requested path is a directory; ignored for single files.
+var fileContentFieldEnum = []any{"type", "name", "path", "size", "sha", "url", "git_url", "html_url", "download_url"}
+
 // filterFields marshals v to a JSON object and returns a map containing only the
 // requested fields. Fields that are unknown or absent from the JSON (for example
 // empty values dropped via omitempty) are skipped.

@@ -64,6 +64,7 @@ import copy
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 from _mcp_client import MCPServer, text_content
@@ -104,6 +105,15 @@ TASK_TEMPLATES: list[tuple[str, str]] = [
     ("neutral", "Give me an overview of recent activity in {repo}'s open issues."),
     ("neutral", "Search for open pull requests about tests in {repo} and tell me what they do."),
     ("neutral", "Give me an overview of recent commit activity in {repo}."),
+    # Copilot CLI-kept tools (search_code, search_users, get_file_contents). These
+    # are the tools the Copilot CLI hooks up to, so we cover them explicitly to
+    # measure context savings from the new `fields` param on them.
+    ("narrow", "Search {repo} for where the symbol 'NewCommand' is defined and list just the file paths."),
+    ("narrow", "List the names of the files and subdirectories in the top-level directory of {repo}."),
+    ("narrow", "Search GitHub for users named 'octocat' and give me just their usernames."),
+    ("full", "Search the code in {repo} for 'http.Client' usages and explain how the HTTP client is configured."),
+    ("full", "Read the README in {repo} and summarize what the project does."),
+    ("neutral", "Find users who contribute to {org} and tell me what you can about them."),
 ]
 
 
@@ -113,7 +123,9 @@ def build_tasks(repo: str, org: str) -> list[tuple[str, str]]:
 
 SYSTEM_PROMPT = (
     "You are an assistant with access to GitHub tools. Use the tools to answer the "
-    "user's request, then stop when you can answer."
+    "user's request, then stop when you can answer. Call the appropriate tool "
+    "directly to gather information -- do not narrate what you are about to do "
+    "before calling it."
 )
 
 # The three shippable configurations under test, each defined by two independent
@@ -170,15 +182,64 @@ def build_toolset(tools: list[dict], *, arm: str) -> list[dict]:
     ]
 
 
-def run_task(client, server: MCPServer, openai_tools: list[dict], task: str, *, model: str, max_turns: int, allow_fields: bool) -> dict:
+def _is_rate_limited(text: str) -> bool:
+    """Heuristic: does a tool result/error look like a GitHub (secondary) rate limit?
+
+    GitHub's code-search API has a strict secondary limit (~10 req/min) that returns
+    403s; bursts of search_code calls across arms/repeats trip it. We retry these
+    rather than discarding the whole task-run.
+    """
+    low = (text or "").lower()
+    return "rate limit" in low or "secondary rate" in low or "403" in low
+
+
+def _call_tool_with_retry(server: MCPServer, name: str, args: dict, *, retries: int, backoff: float):
+    """Call an MCP tool, retrying rate-limited results with exponential backoff.
+
+    Returns (result, content). The caller still inspects result.get("isError").
+    Only rate-limit-looking failures are retried; other errors return immediately.
+    """
+    attempt = 0
+    while True:
+        result = server.call_tool(name, args)
+        content = text_content(result) or json.dumps(result)
+        if not result.get("isError") or attempt >= retries or not _is_rate_limited(content):
+            return result, content
+        # Secondary rate limits are per-minute; back off and retry.
+        sleep_s = backoff * (2 ** attempt)
+        print(
+            f"    [rate-limited] {name}: sleeping {sleep_s:.0f}s then retrying "
+            f"(attempt {attempt + 1}/{retries})",
+            file=sys.stderr,
+        )
+        time.sleep(sleep_s)
+        attempt += 1
+
+
+def run_task(
+    client,
+    server: MCPServer,
+    openai_tools: list[dict],
+    task: str,
+    *,
+    model: str,
+    max_turns: int,
+    allow_fields: bool,
+    rate_limit_retries: int = 0,
+    rate_limit_backoff: float = 20.0,
+) -> dict:
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": task},
     ]
     prompt_tokens = completion_tokens = turns = tool_calls = fields_calls = 0
+    cached_tokens = 0
     tool_errors = 0
     final_text = ""
     error = ""
+    saw_tool_call = False
+    preamble_nudges = 0
+    max_preamble_nudges = 2
 
     for _ in range(max_turns):
         try:
@@ -195,12 +256,38 @@ def run_task(client, server: MCPServer, openai_tools: list[dict], task: str, *, 
         if resp.usage:
             prompt_tokens += resp.usage.prompt_tokens
             completion_tokens += resp.usage.completion_tokens
+            # Cached prompt tokens (when the endpoint reports them) are billed at a
+            # large discount, so tracking them separately matters for true cost:
+            # the same prompt-token count can cost very differently depending on how
+            # much was cache-read. Not all endpoints populate this; default to 0.
+            details = getattr(resp.usage, "prompt_tokens_details", None)
+            if details is not None:
+                cached_tokens += getattr(details, "cached_tokens", 0) or 0
 
         msg = resp.choices[0].message
         if not msg.tool_calls:
+            # A text-only assistant message. Models like Claude often emit a
+            # "preamble" ("I'll search the repo...") as a complete turn BEFORE
+            # making any tool call, intending to continue next turn. If we treat
+            # that as the final answer we end the session before the task ever
+            # runs -- so the whole point of the eval (exercise the tools) is lost
+            # and the token comparison is biased toward whichever arm preambles
+            # more. So: only accept text as the final answer once a tool has
+            # actually been called; otherwise nudge the model to proceed.
+            messages.append({"role": "assistant", "content": msg.content or ""})
+            if not saw_tool_call and preamble_nudges < max_preamble_nudges:
+                preamble_nudges += 1
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "Use the available tools now to do this, then give your answer.",
+                    }
+                )
+                continue
             final_text = msg.content or ""
             break
 
+        saw_tool_call = True
         messages.append(
             {
                 "role": "assistant",
@@ -230,8 +317,13 @@ def run_task(client, server: MCPServer, openai_tools: list[dict], task: str, *, 
             elif "fields" in args:
                 fields_calls += 1
             try:
-                result = server.call_tool(tc.function.name, args)
-                content = text_content(result) or json.dumps(result)
+                result, content = _call_tool_with_retry(
+                    server,
+                    tc.function.name,
+                    args,
+                    retries=rate_limit_retries,
+                    backoff=rate_limit_backoff,
+                )
                 # An `isError` result (e.g. 403/SAML, not-found, rate limit) means
                 # the model never saw a real payload to filter. Record it so this
                 # task-run is excluded from the apples-to-apples token comparison
@@ -249,6 +341,7 @@ def run_task(client, server: MCPServer, openai_tools: list[dict], task: str, *, 
 
     return {
         "prompt_tokens": prompt_tokens,
+        "cached_prompt_tokens": cached_tokens,
         "completion_tokens": completion_tokens,
         "turns": turns,
         "tool_calls": tool_calls,
@@ -259,11 +352,23 @@ def run_task(client, server: MCPServer, openai_tools: list[dict], task: str, *, 
     }
 
 
-def summarize(records: list[dict], *, model: str, base_url: str, out_path: Path) -> None:
+def summarize(
+    records: list[dict],
+    *,
+    model: str,
+    base_url: str,
+    out_path: Path,
+    price_prompt: float = 3.0,
+    price_cached: float = 0.30,
+    price_completion: float = 15.0,
+) -> None:
     """Print a 3-scenario comparison plus a per-task-type breakdown.
 
     A task-run only counts toward the token comparison if ALL three arms
     succeeded for it, so every comparison is apples-to-apples.
+
+    Token types are billed differently, so we report prompt vs completion
+    separately and apply per-type prices (per 1M tokens) for a true cost view.
     """
     from collections import defaultdict
 
@@ -317,6 +422,73 @@ def summarize(records: list[dict], *, model: str, base_url: str, out_path: Path)
             f"{sign + f'{pct:.1f}':>8}{f'{cheaper}/{len(valid)}':>10}{f'{fc}/{tc}':>12}"
         )
 
+    # ---- Token-type breakdown + cost ----------------------------------------
+    # Different token types are billed differently: completion (output) tokens are
+    # the most expensive, uncached prompt (input) tokens are cheaper, and CACHED
+    # prompt tokens are cheapest of all. So saving overall tokens is NOT automatically
+    # a proportional cost win -- WHICH tokens you save matters. The `fields` lever
+    # mostly shrinks the tool RESPONSES the model reads back, i.e. PROMPT tokens on
+    # later turns; it barely changes completion tokens (the model was going to call
+    # the tool either way). We surface prompt vs completion, how much prompt was
+    # cache-read, and a price-weighted cost so the real COGS impact is visible.
+    def arm_sum(arm: str, field: str) -> int:
+        return sum(by_key[k][arm].get(field, 0) for k in valid)
+
+    def record_cost(r: dict) -> float:
+        # Per-run USD cost from the three token types. OpenAI-style usage reports
+        # cached tokens as a SUBSET of prompt_tokens, so bill the uncached remainder
+        # at the input price and the cached part at the cheaper cache-read price.
+        prompt = r.get("prompt_tokens", 0)
+        cached = r.get("cached_prompt_tokens", 0)
+        uncached = max(prompt - cached, 0)
+        completion = r.get("completion_tokens", 0)
+        return (
+            uncached * price_prompt + cached * price_cached + completion * price_completion
+        ) / 1_000_000.0
+
+    def arm_cost(arm: str) -> float:
+        return sum(record_cost(by_key[k][arm]) for k in valid)
+
+    any_cached = any(arm_sum(a, "cached_prompt_tokens") for a in ARM_ORDER)
+    base_completion = arm_sum("baseline", "completion_tokens")
+    print("\nPROMPT vs COMPLETION (cumulative over valid runs):")
+    print(f"  {'scenario':<24}{'prompt':>11}{'cached':>10}{'completion':>12}{'comp Δ% vs S1':>15}")
+    for arm in ARM_ORDER:
+        prompt = arm_sum(arm, "prompt_tokens")
+        cached = arm_sum(arm, "cached_prompt_tokens")
+        completion = arm_sum(arm, "completion_tokens")
+        cpct = (100.0 * (completion - base_completion) / base_completion) if base_completion else 0.0
+        print(
+            f"  {SCENARIO_LABEL[arm]:<24}{prompt:>11}{cached:>10}{completion:>12}{cpct:>+15.1f}"
+        )
+    if not any_cached:
+        print(
+            "  NOTE: endpoint reported 0 cached prompt tokens (no cache-read info), so "
+            "'cached'\n        is 0 everywhere and the cost split treats all prompt "
+            "tokens as uncached."
+        )
+
+    base_cost = arm_cost("baseline")
+    print(
+        f"\nESTIMATED COST (USD; prices per 1M tok -- prompt={price_prompt}, "
+        f"cached={price_cached}, completion={price_completion}):"
+    )
+    print(f"  {'scenario':<24}{'cost($)':>11}{'Δ vs S1':>12}{'Δ%':>9}")
+    for arm in ARM_ORDER:
+        cost = arm_cost(arm)
+        delta = cost - base_cost
+        cpct = (100.0 * delta / base_cost) if base_cost else 0.0
+        sign = "+" if delta >= 0 else ""
+        print(
+            f"  {SCENARIO_LABEL[arm]:<24}{cost:>11.4f}{sign + f'{delta:.4f}':>12}{sign + f'{cpct:.1f}':>9}"
+        )
+    print(
+        "  (Input/prompt tokens are far cheaper than output/completion tokens, and\n"
+        "   cached prompt tokens cheaper still. `fields` saves mostly PROMPT tokens,\n"
+        "   so the COST win is real but smaller than the raw token-count delta. Pass\n"
+        "   your model's real prices via --price-prompt/--price-cached/--price-completion.)"
+    )
+
     # Where does the benefit live? Mean prompt tokens per task-run, by task type.
     tags = sorted({by_key[k]["baseline"]["tag"] for k in valid})
     print("\nBY TASK TYPE (mean prompt tokens per task-run):")
@@ -349,6 +521,10 @@ def summarize(records: list[dict], *, model: str, base_url: str, out_path: Path)
         ks = per_task[task]
         return sum(by_key[k][arm]["prompt_tokens"] for k in ks) / len(ks)
 
+    def task_arm_cost(task: str, arm: str) -> float:
+        ks = per_task[task]
+        return sum(record_cost(by_key[k][arm]) for k in ks) / len(ks)
+
     print("\nPER-TASK (mean prompt tokens per run; Δ% vs S1, negative = cheaper):")
     print(f"  {'tag':<8}{'S1':>9}{'S3':>9}{'S2':>9}{'S3 Δ%':>8}{'S2 Δ%':>8}  task")
     # Heaviest S1 tasks first, so big and small tasks are both visible.
@@ -380,6 +556,41 @@ def summarize(records: list[dict], *, model: str, base_url: str, out_path: Path)
     print(
         "  (Unlike the cumulative table, here every task -- including cheap,\n"
         "   frequently-run ones -- counts equally, better reflecting a typical mix.)"
+    )
+
+    # ---- Cost views (USD) ----------------------------------------------------
+    # The cumulative ESTIMATED COST table above is dominated by a few heavy tasks.
+    # These per-task and equal-weight cost views mirror the token views but in
+    # dollars, so a small frequently-run task carries the same weight as a giant one.
+    print("\nPER-TASK COST (mean USD per run; Δ% vs S1, negative = cheaper):")
+    print(f"  {'tag':<8}{'S1$':>9}{'S3$':>9}{'S2$':>9}{'S3 Δ%':>8}{'S2 Δ%':>8}  task")
+    for task in sorted(per_task, key=lambda t: task_arm_cost(t, "baseline"), reverse=True):
+        c1 = task_arm_cost(task, "baseline")
+        c3 = task_arm_cost(task, "fields_only")
+        c2 = task_arm_cost(task, "schema_fields")
+        c3p = 100.0 * (c3 - c1) / c1 if c1 else 0.0
+        c2p = 100.0 * (c2 - c1) / c1 if c1 else 0.0
+        print(
+            f"  {task_tag[task]:<8}{c1:>9.4f}{c3:>9.4f}{c2:>9.4f}"
+            f"{c3p:>+8.1f}{c2p:>+8.1f}  {task[:60]}"
+        )
+
+    print("\nEQUAL-WEIGHT COST ACROSS TASKS (each task counts once, USD):")
+    print(f"  {'scenario':<24}{'mean$/task':>11}{'median$/task':>14}{'mean Δ% vs S1':>15}")
+    for arm in ARM_ORDER:
+        per_task_costs = [task_arm_cost(t, arm) for t in per_task]
+        eq_mean = mean(per_task_costs)
+        eq_med = median(per_task_costs)
+        pct = [
+            100.0 * (task_arm_cost(t, arm) - task_arm_cost(t, "baseline")) / task_arm_cost(t, "baseline")
+            for t in per_task
+            if task_arm_cost(t, "baseline")
+        ]
+        eq_pct = mean(pct) if pct else 0.0
+        print(f"  {SCENARIO_LABEL[arm]:<24}{eq_mean:>11.4f}{eq_med:>14.4f}{eq_pct:>+15.1f}")
+    print(
+        "  (Dollar view of the equal-weight table: every task counts once, so the\n"
+        "   figure reflects a typical task mix rather than the few heaviest tasks.)"
     )
 
     print(f"\nper-run JSONL: {out_path}")
@@ -582,7 +793,7 @@ def main() -> int:
         "GITHUB_MODELS_TOKEN, GITHUB_COPILOT_TOKEN, OPENAI_API_KEY, GITHUB_TOKEN, "
         "then GITHUB_PERSONAL_ACCESS_TOKEN.",
     )
-    parser.add_argument("--toolsets", default="issues,pull_requests,repos")
+    parser.add_argument("--toolsets", default="issues,pull_requests,repos,users")
     parser.add_argument("--max-turns", type=int, default=8)
     parser.add_argument(
         "--repo",
@@ -626,6 +837,41 @@ def main() -> int:
         "--editor-version",
         default="GitHubMCPServerEvals/1.0",
         help="Editor-Version header; only sent to the Copilot endpoint.",
+    )
+    parser.add_argument(
+        "--price-prompt",
+        type=float,
+        default=3.0,
+        help="USD per 1M uncached prompt (input) tokens, for the cost estimate. "
+        "Default is a Claude-class placeholder; pass your model's real input price.",
+    )
+    parser.add_argument(
+        "--price-cached",
+        type=float,
+        default=0.30,
+        help="USD per 1M cached prompt tokens (cache reads are billed at a discount). "
+        "Default ~10%% of the input price; only matters if the endpoint reports cached tokens.",
+    )
+    parser.add_argument(
+        "--price-completion",
+        type=float,
+        default=15.0,
+        help="USD per 1M completion (output) tokens. Default is a Claude-class "
+        "placeholder (~5x input); pass your model's real output price.",
+    )
+    parser.add_argument(
+        "--rate-limit-retries",
+        type=int,
+        default=3,
+        help="Retry a tool call this many times when it returns a rate-limit error "
+        "(GitHub code search has a ~10 req/min secondary limit). 0 disables retries.",
+    )
+    parser.add_argument(
+        "--rate-limit-backoff",
+        type=float,
+        default=20.0,
+        help="Base seconds for exponential backoff between rate-limit retries "
+        "(20 -> 20s, 40s, 80s). Secondary limits are per-minute, so keep this generous.",
     )
     args = parser.parse_args()
 
@@ -733,6 +979,8 @@ def main() -> int:
                             model=args.model,
                             max_turns=args.max_turns,
                             allow_fields=ARMS[arm]["keep_fields"],
+                            rate_limit_retries=args.rate_limit_retries,
+                            rate_limit_backoff=args.rate_limit_backoff,
                         )
                         m.update({"arm": arm, "tag": tag, "task": task, "run": run_idx})
                         records.append(m)
@@ -745,7 +993,15 @@ def main() -> int:
                             file=sys.stderr,
                         )
 
-    summarize(records, model=args.model, base_url=args.base_url, out_path=out_path)
+    summarize(
+        records,
+        model=args.model,
+        base_url=args.base_url,
+        out_path=out_path,
+        price_prompt=args.price_prompt,
+        price_cached=args.price_cached,
+        price_completion=args.price_completion,
+    )
     return 0
 
 

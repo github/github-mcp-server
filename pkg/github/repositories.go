@@ -762,6 +762,14 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						Type:        "string",
 						Description: "Accepts optional commit SHA. If specified, it will be used instead of ref",
 					},
+					"fields": {
+						Type:        "array",
+						Description: "Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'.",
+						Items: &jsonschema.Schema{
+							Type: "string",
+							Enum: fileContentFieldEnum,
+						},
+					},
 				},
 				Required: []string{"owner", "repo"},
 			},
@@ -790,6 +798,11 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			originalRef := ref
 
 			sha, err := OptionalParam[string](args, "sha")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			fields, err := OptionalStringArrayParam(args, "fields")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -907,7 +920,15 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote), result), nil, nil
 			} else if dirContent != nil {
 				// file content or file SHA is nil which means it's a directory
-				r, err := json.Marshal(dirContent)
+				var payload any = dirContent
+				if len(fields) > 0 {
+					filtered, err := filterEachField(dirContent, fields)
+					if err != nil {
+						return utils.NewToolResultErrorFromErr("failed to filter directory contents", err), nil, nil
+					}
+					payload = filtered
+				}
+				r, err := json.Marshal(payload)
 				if err != nil {
 					return utils.NewToolResultError("failed to marshal response"), nil, nil
 				}

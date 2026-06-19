@@ -380,6 +380,57 @@ func Test_SearchCode(t *testing.T) {
 	}
 }
 
+func Test_SearchCode_FieldFiltering(t *testing.T) {
+	mockSearchResult := &github.CodeSearchResult{
+		Total:             github.Ptr(1),
+		IncompleteResults: github.Ptr(false),
+		CodeResults: []*github.CodeResult{
+			{
+				Name:       github.Ptr("file1.go"),
+				Path:       github.Ptr("path/to/file1.go"),
+				SHA:        github.Ptr("abc123def456"),
+				HTMLURL:    github.Ptr("https://github.com/owner/repo/blob/main/path/to/file1.go"),
+				Repository: &github.Repository{Name: github.Ptr("repo"), FullName: github.Ptr("owner/repo")},
+			},
+		},
+	}
+
+	serverTool := SearchCode(translations.NullTranslationHelper)
+	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetSearchCode: mockResponse(t, http.StatusOK, mockSearchResult),
+	}))
+	deps := BaseDeps{Client: client}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"query":  "fmt.Println language:go",
+		"fields": []any{"name", "path"},
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+
+	// The wrapper metadata is preserved while each item is reduced to the
+	// requested fields only; the heavy nested repository object is dropped.
+	var returned struct {
+		TotalCount        int              `json:"total_count"`
+		IncompleteResults bool             `json:"incomplete_results"`
+		Items             []map[string]any `json:"items"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &returned))
+	assert.Equal(t, 1, returned.TotalCount)
+	require.Len(t, returned.Items, 1)
+	require.Len(t, returned.Items[0], 2)
+	assert.Contains(t, returned.Items[0], "name")
+	assert.Contains(t, returned.Items[0], "path")
+
+	assert.NotContains(t, textContent.Text, "repository")
+	assert.NotContains(t, textContent.Text, "html_url")
+}
+
 func Test_SearchUsers(t *testing.T) {
 	// Verify tool definition once
 	serverTool := SearchUsers(translations.NullTranslationHelper)
@@ -564,6 +615,55 @@ func Test_SearchUsers(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_SearchUsers_FieldFiltering(t *testing.T) {
+	mockSearchResult := &github.UsersSearchResult{
+		Total:             github.Ptr(1),
+		IncompleteResults: github.Ptr(false),
+		Users: []*github.User{
+			{
+				Login:     github.Ptr("user1"),
+				ID:        github.Ptr(int64(1001)),
+				HTMLURL:   github.Ptr("https://github.com/user1"),
+				AvatarURL: github.Ptr("https://avatars.githubusercontent.com/u/1001"),
+			},
+		},
+	}
+
+	serverTool := SearchUsers(translations.NullTranslationHelper)
+	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetSearchUsers: mockResponse(t, http.StatusOK, mockSearchResult),
+	}))
+	deps := BaseDeps{Client: client}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"query":  "location:seattle",
+		"fields": []any{"login"},
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+
+	// The wrapper metadata is preserved while each item is reduced to the
+	// requested fields only.
+	var returned struct {
+		TotalCount        int              `json:"total_count"`
+		IncompleteResults bool             `json:"incomplete_results"`
+		Items             []map[string]any `json:"items"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &returned))
+	assert.Equal(t, 1, returned.TotalCount)
+	require.Len(t, returned.Items, 1)
+	require.Len(t, returned.Items[0], 1)
+	assert.Contains(t, returned.Items[0], "login")
+
+	assert.NotContains(t, textContent.Text, "avatar_url")
+	assert.NotContains(t, textContent.Text, "profile_url")
 }
 
 func Test_SearchOrgs(t *testing.T) {

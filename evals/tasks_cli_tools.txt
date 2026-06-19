@@ -1,0 +1,20 @@
+# Focused task set for the Copilot CLI-kept tools that just gained a `fields`
+# param: search_code, get_file_contents (repos toolset) and search_users (users).
+# Run with: --toolsets repos,users --tasks-file tasks_cli_tools.txt
+# Format: tag<TAB>task text. {repo}/{org} are substituted from --repo/--org.
+# Tags (per-type breakdown only, never sent to the model):
+#   narrow  -> faithful answer needs a field or two (filtering should help)
+#   full    -> faithful answer needs rich fields/bodies (filtering shouldn't help)
+#   neutral -> ambiguous; the model decides
+
+# --- search_code ---
+narrow	Search {repo} for where the symbol 'NewCommand' is defined and list just the file paths.
+full	Search the code in {repo} for 'http.Client' usages and explain how the HTTP client is configured.
+
+# --- get_file_contents ---
+narrow	List the names of the files and subdirectories in the top-level directory of {repo}.
+full	Read the README in {repo} and summarize what the project does.
+
+# --- search_users ---
+narrow	Search GitHub for users named 'octocat' and give me just their usernames.
+neutral	Find users who contribute to {org} and tell me what you can about them.

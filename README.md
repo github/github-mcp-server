@@ -980,6 +980,7 @@ The following sets of tools are available:
 - **search_orgs** - Search organizations
   - **Required OAuth Scopes**: `read:org`
   - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
+  - `fields`: Subset of fields to return for each organization. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields, e.g. just 'login'. (string[], optional)
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1212,6 +1213,7 @@ The following sets of tools are available:
 
 - **get_file_contents** - Get file or directory contents
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'. (string[], optional)
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: Path to file/directory (string, optional)
   - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)
@@ -1282,6 +1284,7 @@ The following sets of tools are available:
 
 - **search_code** - Search code
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of fields to return for each code search result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'repository' in particular drops the largest per-result object. (string[], optional)
   - `order`: Sort order for results (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1394,6 +1397,7 @@ The following sets of tools are available:
 
 - **search_users** - Search users
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of fields to return for each user. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields, e.g. just 'login'. (string[], optional)
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)

@@ -6,6 +6,20 @@
   "description": "Find GitHub organizations by name, location, or other organization metadata. Ideal for discovering companies, open source foundations, or teams.",
   "inputSchema": {
     "properties": {
+      "fields": {
+        "description": "Subset of fields to return for each organization. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields, e.g. just 'login'.",
+        "items": {
+          "enum": [
+            "login",
+            "id",
+            "profile_url",
+            "avatar_url",
+            "details"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
       "order": {
         "description": "Sort order",
         "enum": [

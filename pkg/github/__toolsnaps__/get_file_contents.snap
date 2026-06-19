@@ -6,6 +6,24 @@
   "description": "Get the contents of a file or directory from a GitHub repository",
   "inputSchema": {
     "properties": {
+      "fields": {
+        "description": "Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'.",
+        "items": {
+          "enum": [
+            "type",
+            "name",
+            "path",
+            "size",
+            "sha",
+            "url",
+            "git_url",
+            "html_url",
+            "download_url"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
       "owner": {
         "description": "Repository owner (username or organization)",
         "type": "string"
