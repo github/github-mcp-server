@@ -1,0 +1,47 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Add Issue Reaction"
+  },
+  "description": "Add an emoji reaction to a GitHub issue",
+  "inputSchema": {
+    "properties": {
+      "content": {
+        "description": "The emoji reaction type",
+        "enum": [
+          "+1",
+          "-1",
+          "laugh",
+          "confused",
+          "heart",
+          "hooray",
+          "rocket",
+          "eyes"
+        ],
+        "type": "string"
+      },
+      "issue_number": {
+        "description": "The issue number",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "issue_number",
+      "content"
+    ],
+    "type": "object"
+  },
+  "name": "add_issue_reaction"
+}

@@ -215,6 +215,8 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListIssueFields(t),
 		IssueWrite(t),
 		AddIssueComment(t),
+		AddIssueReaction(t),
+		AddIssueCommentReaction(t),
 		SubIssueWrite(t),
 
 		// User tools
@@ -234,6 +236,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		PullRequestReviewWrite(t),
 		AddCommentToPendingReview(t),
 		AddReplyToPullRequestComment(t),
+		AddPullRequestReviewCommentReaction(t),
 
 		// Copilot tools
 		AssignCopilotToIssue(t),
