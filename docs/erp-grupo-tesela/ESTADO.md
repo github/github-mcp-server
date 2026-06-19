@@ -25,7 +25,7 @@
 | Endurecimiento de funciones | ✅ Hecho | Funciones helper retiradas del API REST público |
 | Almacenamiento documental | ✅ Hecho | Bucket privado `documentos` + RLS por promoción (ruta `<promocion_id>/...`); borrado solo dirección |
 | Cuadro de rentabilidad por promoción | ✅ Hecho | Vista `v_rentabilidad_promocion` (ingresos vs coste real; respeta RLS) |
-| Facturación automática (cola → Holded) | ✅ Hecho | Tabla `factura_pendiente` + trigger: al escriturar una compraventa se encola su factura. Make/Zapier la emite en Holded (`create_invoice`) |
+| Facturación automática (cola → Holded) | ✅ Hecho | Tabla `factura_pendiente` + trigger: al escriturar una compraventa se encola su factura. La emite la Edge Function `emit-facturas` (consumidor propio, API directa de Holded) — ya no depende de Make/Zapier |
 | Tesorería por promoción | ✅ Hecho | Vista `v_tesoreria_promocion` (contratado en hitos / cobrado / pendiente de cobro) |
 | App web real (frontend) | ✅ Hecho | `app/` — login con Supabase + dashboard de promociones en vivo (RLS por rol) |
 | ERP publicado (URL pública) | ✅ Hecho | Edge Function `app` (verify_jwt=false): https://jpojckqnhepiuwefyvdr.supabase.co/functions/v1/app · usuario demo de dirección creado |
@@ -37,6 +37,9 @@
 | Pantalla de Facturas | ✅ Hecho | Navegación "Facturas"; KPIs (ventas/compras/pendientes) + tabla filtrable. Solo Dirección |
 | Sincronización automática de Holded | ✅ Hecho | Key cifrada en Vault + función `sync-holded` (contactos+facturas) + **cron diario 06:00**. Probada: 28 clientes, 19 proveedores, 56 facturas |
 | Alta de promociones desde la app | ✅ Hecho | Botón "+ Nueva promoción" (solo dirección): crea promoción y, si hace falta, la sociedad. Sin SQL |
+| Emisión de facturas → Holded (consumidor) | ✅ Hecho | Edge Function `emit-facturas`: consume la cola `factura_pendiente` y emite en Holded vía API directa. **Seguro:** exige service-role key, `dryRun=true` por defecto, solo clientes con `holded_id`. Pendiente afinar IVA/serie antes de uso real |
+| Timeout del cron de sync | ✅ Arreglado | `timeout_milliseconds=90000` (la sync tarda ~31 s; antes pg_net abandonaba a los 5 s y marcaba timeout ciego) |
+| Purga de datos demo | ✅ Hecho (2026-06-19) | Eliminados promoción/sociedad/clientes/proveedores/ventas/cola DEMO. Conservados los 47 contactos + 56 facturas reales de Holded. Base lista para datos reales |
 
 **Roles:** `direccion` (ve y gestiona todo) · `obra` (sus promociones: presupuestos, contratos de obra) · `comercial` (sus promociones: reservas, compraventas). `NULL` = pendiente de asignar (sin acceso).
 

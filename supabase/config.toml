@@ -11,3 +11,9 @@ verify_jwt = false
 # lee las keys del Vault y solo escribe en las tablas del ERP.
 [functions.sync-holded]
 verify_jwt = false
+
+# Emisión de facturas del ERP hacia Holded (consumidor de la cola factura_pendiente).
+# verify_jwt = false porque implementa su PROPIA autenticación: exige la service-role key
+# en Authorization (no es invocable por usuarios normales ni desde el navegador).
+[functions.emit-facturas]
+verify_jwt = false
