@@ -4,7 +4,7 @@
     "openWorldHint": true,
     "title": "Add Pull Request Review Comment Reaction"
   },
-  "description": "Add an emoji reaction to a GitHub pull request review comment",
+  "description": "Add a reaction to a pull request review comment.",
   "inputSchema": {
     "properties": {
       "comment_id": {

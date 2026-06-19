@@ -4,7 +4,7 @@
     "openWorldHint": true,
     "title": "Add Issue Comment Reaction"
   },
-  "description": "Add an emoji reaction to a GitHub issue comment",
+  "description": "Add a reaction to an issue comment.",
   "inputSchema": {
     "properties": {
       "comment_id": {
