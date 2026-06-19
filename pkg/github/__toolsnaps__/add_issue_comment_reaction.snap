@@ -2,9 +2,9 @@
   "annotations": {
     "destructiveHint": false,
     "openWorldHint": true,
-    "title": "Add Issue Comment Reaction"
+    "title": "Add Reaction to Issue or Pull Request Comment"
   },
-  "description": "Add a reaction to an issue comment.",
+  "description": "Add a reaction to an issue or pull request comment.",
   "inputSchema": {
     "properties": {
       "comment_id": {

@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -2091,6 +2092,11 @@ func TestAddIssueReaction(t *testing.T) {
 				assert.True(t, result.IsError)
 			} else {
 				assert.False(t, result.IsError)
+				textContent := getTextResult(t, result)
+				var response MinimalResponse
+				require.NoError(t, json.Unmarshal([]byte(textContent.Text), &response))
+				assert.Equal(t, "12345", response.ID)
+				assert.Equal(t, "https://api.github.com/repos/owner/repo/issues/42/reactions/12345", response.URL)
 			}
 		})
 	}
@@ -2146,6 +2152,11 @@ func TestAddIssueCommentReaction(t *testing.T) {
 				assert.True(t, result.IsError)
 			} else {
 				assert.False(t, result.IsError)
+				textContent := getTextResult(t, result)
+				var response MinimalResponse
+				require.NoError(t, json.Unmarshal([]byte(textContent.Text), &response))
+				assert.Equal(t, "67890", response.ID)
+				assert.Equal(t, "https://api.github.com/repos/owner/repo/issues/comments/999/reactions/67890", response.URL)
 			}
 		})
 	}
@@ -2201,6 +2212,11 @@ func TestAddPullRequestReviewCommentReaction(t *testing.T) {
 				assert.True(t, result.IsError)
 			} else {
 				assert.False(t, result.IsError)
+				textContent := getTextResult(t, result)
+				var response MinimalResponse
+				require.NoError(t, json.Unmarshal([]byte(textContent.Text), &response))
+				assert.Equal(t, "54321", response.ID)
+				assert.Equal(t, "https://api.github.com/repos/owner/repo/pulls/comments/888/reactions/54321", response.URL)
 			}
 		})
 	}

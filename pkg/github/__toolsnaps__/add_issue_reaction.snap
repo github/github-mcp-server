@@ -2,9 +2,9 @@
   "annotations": {
     "destructiveHint": false,
     "openWorldHint": true,
-    "title": "Add Issue Reaction"
+    "title": "Add Reaction to Issue or Pull Request"
   },
-  "description": "Add a reaction to an issue.",
+  "description": "Add a reaction to an issue or pull request.",
   "inputSchema": {
     "properties": {
       "content": {

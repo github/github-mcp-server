@@ -827,7 +827,8 @@ func AddPullRequestReviewCommentReaction(t translations.TranslationHelperFunc) i
 			defer func() { _ = resp.Body.Close() }()
 
 			r, err := json.Marshal(MinimalResponse{
-				ID: fmt.Sprintf("%d", reaction.GetID()),
+				ID:  fmt.Sprintf("%d", reaction.GetID()),
+				URL: fmt.Sprintf("%srepos/%s/%s/pulls/comments/%d/reactions/%d", client.BaseURL(), owner, repo, commentID, reaction.GetID()),
 			})
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil

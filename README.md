@@ -846,14 +846,14 @@ The following sets of tools are available:
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **add_issue_comment_reaction** - Add Issue Comment Reaction
+- **add_issue_comment_reaction** - Add Reaction to Issue or Pull Request Comment
   - **Required OAuth Scopes**: `repo`
   - `comment_id`: The issue comment ID (number, required)
   - `content`: The emoji reaction type (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)
 
-- **add_issue_reaction** - Add Issue Reaction
+- **add_issue_reaction** - Add Reaction to Issue or Pull Request
   - **Required OAuth Scopes**: `repo`
   - `content`: The emoji reaction type (string, required)
   - `issue_number`: The issue number (number, required)

@@ -1199,15 +1199,15 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 	return st
 }
 
-// AddIssueReaction adds a reaction to an issue.
+// AddIssueReaction adds a reaction to an issue or pull request.
 func AddIssueReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "add_issue_reaction",
-			Description: t("TOOL_ADD_ISSUE_REACTION_DESCRIPTION", "Add a reaction to an issue."),
+			Description: t("TOOL_ADD_ISSUE_REACTION_DESCRIPTION", "Add a reaction to an issue or pull request."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:           t("TOOL_ADD_ISSUE_REACTION_USER_TITLE", "Add Issue Reaction"),
+				Title:           t("TOOL_ADD_ISSUE_REACTION_USER_TITLE", "Add Reaction to Issue or Pull Request"),
 				ReadOnlyHint:    false,
 				DestructiveHint: jsonschema.Ptr(false),
 				OpenWorldHint:   jsonschema.Ptr(true),
@@ -1268,7 +1268,8 @@ func AddIssueReaction(t translations.TranslationHelperFunc) inventory.ServerTool
 			defer func() { _ = resp.Body.Close() }()
 
 			r, err := json.Marshal(MinimalResponse{
-				ID: fmt.Sprintf("%d", reaction.GetID()),
+				ID:  fmt.Sprintf("%d", reaction.GetID()),
+				URL: fmt.Sprintf("%srepos/%s/%s/issues/%d/reactions/%d", client.BaseURL(), owner, repo, issueNumber, reaction.GetID()),
 			})
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
@@ -1279,15 +1280,15 @@ func AddIssueReaction(t translations.TranslationHelperFunc) inventory.ServerTool
 	return st
 }
 
-// AddIssueCommentReaction adds a reaction to an issue comment.
+// AddIssueCommentReaction adds a reaction to an issue or pull request comment.
 func AddIssueCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "add_issue_comment_reaction",
-			Description: t("TOOL_ADD_ISSUE_COMMENT_REACTION_DESCRIPTION", "Add a reaction to an issue comment."),
+			Description: t("TOOL_ADD_ISSUE_COMMENT_REACTION_DESCRIPTION", "Add a reaction to an issue or pull request comment."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:           t("TOOL_ADD_ISSUE_COMMENT_REACTION_USER_TITLE", "Add Issue Comment Reaction"),
+				Title:           t("TOOL_ADD_ISSUE_COMMENT_REACTION_USER_TITLE", "Add Reaction to Issue or Pull Request Comment"),
 				ReadOnlyHint:    false,
 				DestructiveHint: jsonschema.Ptr(false),
 				OpenWorldHint:   jsonschema.Ptr(true),
@@ -1348,7 +1349,8 @@ func AddIssueCommentReaction(t translations.TranslationHelperFunc) inventory.Ser
 			defer func() { _ = resp.Body.Close() }()
 
 			r, err := json.Marshal(MinimalResponse{
-				ID: fmt.Sprintf("%d", reaction.GetID()),
+				ID:  fmt.Sprintf("%d", reaction.GetID()),
+				URL: fmt.Sprintf("%srepos/%s/%s/issues/comments/%d/reactions/%d", client.BaseURL(), owner, repo, commentID, reaction.GetID()),
 			})
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
