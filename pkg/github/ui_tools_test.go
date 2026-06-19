@@ -231,7 +231,33 @@ func Test_UIGet(t *testing.T) {
 			},
 		},
 		{
-			name: "issue_fields feature disabled returns empty list",
+			name: "successful issue_fields fetch",
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					issueFieldsRepoQuery{},
+					map[string]any{
+						"owner": githubv4.String("owner"),
+						"name":  githubv4.String("repo"),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"issueFields": map[string]any{
+								"nodes": []any{
+									map[string]any{
+										"__typename":     "IssueFieldText",
+										"id":             "IFT_1",
+										"fullDatabaseId": "42",
+										"name":           "DRI",
+										"description":    "Directly responsible individual",
+										"dataType":       "text",
+										"visibility":     "ORG_ONLY",
+									},
+								},
+							},
+						},
+					}),
+				),
+			),
 			requestArgs: map[string]any{
 				"method": "issue_fields",
 				"owner":  "owner",
@@ -243,8 +269,10 @@ func Test_UIGet(t *testing.T) {
 				require.NoError(t, json.Unmarshal([]byte(responseText), &response))
 				fields, ok := response["fields"].([]any)
 				require.True(t, ok, "fields should be a list")
-				assert.Empty(t, fields)
-				assert.Equal(t, float64(0), response["totalCount"])
+				require.Len(t, fields, 1)
+				assert.Equal(t, "DRI", fields[0].(map[string]any)["name"])
+				assert.Equal(t, "text", fields[0].(map[string]any)["data_type"])
+				assert.Equal(t, float64(1), response["totalCount"])
 			},
 		},
 		{

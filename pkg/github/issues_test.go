@@ -394,9 +394,9 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 }
 
 func Test_GetIssue_FieldValues(t *testing.T) {
-	// Verify that issue_field_values from the REST API are NOT exposed when the
-	// remote_mcp_issue_fields flag is off. The raw REST format is always cleared;
-	// enriched field_values are only populated when the flag is on.
+	// The raw REST issue_field_values are always cleared. Enriched field_values are
+	// only populated via GraphQL when the issue has a node ID; this issue has none,
+	// so field_values stays empty.
 	serverTool := IssueRead(translations.NullTranslationHelper)
 
 	mockIssueWithFields := &github.Issue{
@@ -459,15 +459,15 @@ func Test_GetIssue_FieldValues(t *testing.T) {
 	err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 	require.NoError(t, err)
 
-	// Flag is off: raw REST IssueFieldValues must be cleared, enriched FieldValues absent.
-	assert.Empty(t, returnedIssue.IssueFieldValues, "raw REST issue_field_values should not be exposed when flag is off")
-	assert.Empty(t, returnedIssue.FieldValues, "enriched field_values should not be present when flag is off")
+	// Raw REST IssueFieldValues must be cleared, and no enriched field_values are
+	// present because this issue has no node ID.
+	assert.Empty(t, returnedIssue.IssueFieldValues, "raw REST issue_field_values should not be exposed")
+	assert.Empty(t, returnedIssue.FieldValues, "enriched field_values should not be present without a node ID")
 }
 
-func Test_GetIssue_FieldValues_FlagOn(t *testing.T) {
-	// Verify the enriched field_values are populated via GraphQL when the
-	// remote_mcp_issue_fields flag is on, and the raw REST issue_field_values
-	// stays cleared.
+func Test_GetIssue_FieldValues_Enriched(t *testing.T) {
+	// Verify the enriched field_values are populated via GraphQL when the issue has
+	// a node ID, and the raw REST issue_field_values stays cleared.
 	serverTool := IssueRead(translations.NullTranslationHelper)
 
 	mockIssueWithFields := &github.Issue{
@@ -528,7 +528,6 @@ func Test_GetIssue_FieldValues_FlagOn(t *testing.T) {
 		Client:          mustNewGHClient(t, restClient),
 		GQLClient:       gqlClient,
 		RepoAccessCache: cache,
-		featureChecker:  featureCheckerFor(FeatureFlagIssueFields),
 	}
 	handler := serverTool.Handler(deps)
 
@@ -549,11 +548,11 @@ func Test_GetIssue_FieldValues_FlagOn(t *testing.T) {
 	err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 	require.NoError(t, err)
 
-	// Raw REST IssueFieldValues is always cleared, even when flag is on.
-	assert.Empty(t, returnedIssue.IssueFieldValues, "raw REST issue_field_values should not be exposed even when flag is on")
+	// Raw REST IssueFieldValues is always cleared.
+	assert.Empty(t, returnedIssue.IssueFieldValues, "raw REST issue_field_values should not be exposed")
 
 	// Enriched FieldValues comes from the GraphQL nodes() round-trip.
-	require.Len(t, returnedIssue.FieldValues, 2, "field_values should be populated from GraphQL when flag is on")
+	require.Len(t, returnedIssue.FieldValues, 2, "field_values should be populated from GraphQL")
 	assert.Equal(t, "priority", returnedIssue.FieldValues[0].Field)
 	assert.Equal(t, "P1", returnedIssue.FieldValues[0].Value)
 	assert.Equal(t, "estimate", returnedIssue.FieldValues[1].Field)
@@ -1249,9 +1248,8 @@ func Test_SearchIssues_FieldValuesEnrichment(t *testing.T) {
 	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
 
 	deps := BaseDeps{
-		Client:         mustNewGHClient(t, restClient),
-		GQLClient:      gqlClient,
-		featureChecker: featureCheckerFor(FeatureFlagIssueFields),
+		Client:    mustNewGHClient(t, restClient),
+		GQLClient: gqlClient,
 	}
 	handler := serverTool.Handler(deps)
 
@@ -1279,11 +1277,11 @@ func Test_SearchIssues_FieldValuesEnrichment(t *testing.T) {
 }
 
 func Test_CreateIssue(t *testing.T) {
-	// Verify tool definition once (flag-enabled variant snap)
+	// Verify tool definition once
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueFields, tool))
-	require.Equal(t, FeatureFlagIssueFields, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.Empty(t, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -1811,7 +1809,6 @@ func Test_issueWriteSchemaClassification(t *testing.T) {
 		tool inventory.ServerTool
 	}{
 		{name: "IssueWrite", tool: IssueWrite(translations.NullTranslationHelper)},
-		{name: "LegacyIssueWrite", tool: LegacyIssueWrite(translations.NullTranslationHelper)},
 	}
 
 	for _, tc := range cases {
@@ -1839,8 +1836,8 @@ func Test_ListIssues(t *testing.T) {
 	// Verify tool definition
 	serverTool := ListIssues(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueFields, tool))
-	require.Equal(t, FeatureFlagIssueFields, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.Empty(t, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "list_issues", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -2757,118 +2754,11 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 	})
 }
 
-func Test_LegacyListIssues_Definition(t *testing.T) {
-	serverTool := LegacyListIssues(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-
-	// LegacyListIssues claims the base tool name "list_issues" and produces the
-	// FeatureFlagIssueFields-disabled schema (no field_filters). It owns the
-	// canonical list_issues.snap; the FeatureFlagIssueFields-enabled variant
-	// owns list_issues_ff_<flag>.snap.
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Equal(t, "list_issues", tool.Name)
-	require.Equal(t, []string{FeatureFlagIssueFields}, serverTool.FeatureFlagDisable)
-	require.Empty(t, serverTool.FeatureFlagEnable)
-
-	props := tool.InputSchema.(*jsonschema.Schema).Properties
-	assert.Contains(t, props, "owner")
-	assert.Contains(t, props, "repo")
-	assert.Contains(t, props, "state")
-	assert.Contains(t, props, "labels")
-	assert.Contains(t, props, "since")
-	assert.NotContains(t, props, "field_filters", "legacy list_issues must not advertise field_filters")
-}
-
-func Test_LegacyIssueWrite_Definition(t *testing.T) {
-	serverTool := LegacyIssueWrite(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-
-	// LegacyIssueWrite owns the canonical issue_write.snap; the
-	// FeatureFlagIssueFields-enabled variant owns issue_write_ff_<flag>.snap.
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Equal(t, "issue_write", tool.Name)
-	require.Equal(t, []string{FeatureFlagIssuesGranular, FeatureFlagIssueFields}, serverTool.FeatureFlagDisable)
-	require.Empty(t, serverTool.FeatureFlagEnable)
-
-	props := tool.InputSchema.(*jsonschema.Schema).Properties
-	assert.Contains(t, props, "method")
-	assert.Contains(t, props, "owner")
-	assert.Contains(t, props, "repo")
-	assert.NotContains(t, props, "issue_fields", "legacy issue_write must not advertise issue_fields")
-}
-
-func Test_LegacyListIssues_OmitsFieldValuesAndFilters(t *testing.T) {
-	t.Parallel()
-
-	serverTool := LegacyListIssues(translations.NullTranslationHelper)
-
-	mockIssues := []map[string]any{
-		{
-			"number":     7,
-			"title":      "Legacy issue",
-			"body":       "body",
-			"state":      "OPEN",
-			"databaseId": 7,
-			"createdAt":  "2026-01-01T00:00:00Z",
-			"updatedAt":  "2026-01-01T00:00:00Z",
-			"author":     map[string]any{"login": "octocat"},
-			"labels":     map[string]any{"nodes": []map[string]any{}},
-			"comments":   map[string]any{"totalCount": 0},
-		},
-	}
-	pageInfo := map[string]any{
-		"hasNextPage":     false,
-		"hasPreviousPage": false,
-		"startCursor":     "c1",
-		"endCursor":       "c1",
-	}
-
-	// The legacy query must NOT reference issueFieldValues (neither in the selection
-	// set nor in filterBy). The matcher's query string therefore omits both.
-	const legacyQuery = "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
-	vars := map[string]any{
-		"owner":     "owner",
-		"repo":      "repo",
-		"states":    []any{"OPEN", "CLOSED"},
-		"orderBy":   "CREATED_AT",
-		"direction": "DESC",
-		"first":     float64(30),
-		"after":     nil,
-	}
-	response := githubv4mock.DataResponse(map[string]any{
-		"repository": map[string]any{
-			"isPrivate": false,
-			"issues": map[string]any{
-				"nodes":      mockIssues,
-				"pageInfo":   pageInfo,
-				"totalCount": 1,
-			},
-		},
-	})
-	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(githubv4mock.NewQueryMatcher(legacyQuery, vars, response)))
-
-	deps := BaseDeps{GQLClient: gqlClient}
-	handler := serverTool.Handler(deps)
-	request := createMCPRequest(map[string]any{
-		"owner": "owner",
-		"repo":  "repo",
-	})
-	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-	require.NoError(t, err)
-	require.False(t, result.IsError, "expected non-error result; got: %v", getTextResult(t, result).Text)
-
-	var resp MinimalIssuesResponse
-	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &resp))
-	require.Len(t, resp.Issues, 1)
-	assert.Equal(t, 7, resp.Issues[0].Number)
-	assert.Nil(t, resp.Issues[0].FieldValues, "legacy list_issues must not return field_values")
-}
-
 func Test_UpdateIssue(t *testing.T) {
-	// Verify tool definition (flag-enabled variant snap)
+	// Verify tool definition
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueFields, tool))
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -3443,8 +3333,8 @@ func Test_UpdateIssue(t *testing.T) {
 	}
 }
 
-func Test_LegacyUpdateIssueClearsLabelsAndAssignees(t *testing.T) {
-	serverTool := LegacyIssueWrite(translations.NullTranslationHelper)
+func Test_UpdateIssueClearsLabelsAndAssignees(t *testing.T) {
+	serverTool := IssueWrite(translations.NullTranslationHelper)
 	updatedIssue := &github.Issue{
 		Number:  github.Ptr(8),
 		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/8"),
