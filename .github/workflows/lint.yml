@@ -18,7 +18,7 @@ jobs:
         uses: ./.github/actions/build-ui
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: '1.26'
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
