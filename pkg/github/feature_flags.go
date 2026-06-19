@@ -11,10 +11,10 @@ const FeatureFlagCSVOutput = "csv_output"
 // FeatureFlagIFCLabels is the feature flag name for IFC security labels in tool results.
 const FeatureFlagIFCLabels = "ifc_labels"
 
-// FeatureFlagIssueFields is the feature flag name for Issues 2.0 custom field
-// support: the list_issue_fields tool, the field_filters input on list_issues,
-// and field_values enrichment in list_issues / search_issues output.
-const FeatureFlagIssueFields = "remote_mcp_issue_fields"
+// FeatureFlagFileBlame is the feature flag name for the get_file_blame tool,
+// which exposes git blame information for a file. It is gated so the extra tool
+// is not advertised by default, keeping the tool surface small unless opted in.
+const FeatureFlagFileBlame = "file_blame"
 
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag or X-MCP-Features HTTP header.
@@ -24,9 +24,9 @@ var AllowedFeatureFlags = []string{
 	MCPAppsFeatureFlag,
 	FeatureFlagCSVOutput,
 	FeatureFlagIFCLabels,
-	FeatureFlagIssueFields,
 	FeatureFlagIssuesGranular,
 	FeatureFlagPullRequestsGranular,
+	FeatureFlagFileBlame,
 }
 
 // InsidersFeatureFlags is the list of feature flags that insiders mode enables.
@@ -36,8 +36,7 @@ var AllowedFeatureFlags = []string{
 var InsidersFeatureFlags = []string{
 	MCPAppsFeatureFlag,
 	FeatureFlagCSVOutput,
-	FeatureFlagIFCLabels,
-	FeatureFlagIssueFields,
+	FeatureFlagFileBlame,
 }
 
 // FeatureFlags defines runtime feature toggles that adjust tool behavior.

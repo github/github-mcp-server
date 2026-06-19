@@ -18,7 +18,7 @@ Built for developers who want to connect their AI tools to GitHub context and ca
 
 ## Remote GitHub MCP Server
 
-[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D) [![Install in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D&quality=insiders)
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D) [![Install in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D&quality=insiders) [![Install in Visual Studio](https://img.shields.io/badge/Visual_Studio-Install_Server-C16FDE?style=flat-square&logo=visualstudio&logoColor=white)](https://aka.ms/vs/mcp-install?%7B%22name%22%3A%22github%22%2C%22gallery%22%3Atrue%2C%22url%22%3A%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D)
 
 The remote GitHub MCP Server is hosted by GitHub and provides the easiest method for getting up and running. If your MCP host does not support remote MCP servers, don't worry! You can use the [local version of the GitHub MCP Server](https://github.com/github/github-mcp-server?tab=readme-ov-file#local-github-mcp-server) instead.
 
@@ -176,7 +176,7 @@ GitHub Enterprise Server does not support remote server hosting. Please refer to
 
 ## Local GitHub MCP Server
 
-[![Install with Docker in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&inputs=%5B%7B%22id%22%3A%22github_token%22%2C%22type%22%3A%22promptString%22%2C%22description%22%3A%22GitHub%20Personal%20Access%20Token%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-e%22%2C%22GITHUB_PERSONAL_ACCESS_TOKEN%22%2C%22ghcr.io%2Fgithub%2Fgithub-mcp-server%22%5D%2C%22env%22%3A%7B%22GITHUB_PERSONAL_ACCESS_TOKEN%22%3A%22%24%7Binput%3Agithub_token%7D%22%7D%7D) [![Install with Docker in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&inputs=%5B%7B%22id%22%3A%22github_token%22%2C%22type%22%3A%22promptString%22%2C%22description%22%3A%22GitHub%20Personal%20Access%20Token%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-e%22%2C%22GITHUB_PERSONAL_ACCESS_TOKEN%22%2C%22ghcr.io%2Fgithub%2Fgithub-mcp-server%22%5D%2C%22env%22%3A%7B%22GITHUB_PERSONAL_ACCESS_TOKEN%22%3A%22%24%7Binput%3Agithub_token%7D%22%7D%7D&quality=insiders)
+[![Install with Docker in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&inputs=%5B%7B%22id%22%3A%22github_token%22%2C%22type%22%3A%22promptString%22%2C%22description%22%3A%22GitHub%20Personal%20Access%20Token%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-e%22%2C%22GITHUB_PERSONAL_ACCESS_TOKEN%22%2C%22ghcr.io%2Fgithub%2Fgithub-mcp-server%22%5D%2C%22env%22%3A%7B%22GITHUB_PERSONAL_ACCESS_TOKEN%22%3A%22%24%7Binput%3Agithub_token%7D%22%7D%7D) [![Install with Docker in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&inputs=%5B%7B%22id%22%3A%22github_token%22%2C%22type%22%3A%22promptString%22%2C%22description%22%3A%22GitHub%20Personal%20Access%20Token%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-e%22%2C%22GITHUB_PERSONAL_ACCESS_TOKEN%22%2C%22ghcr.io%2Fgithub%2Fgithub-mcp-server%22%5D%2C%22env%22%3A%7B%22GITHUB_PERSONAL_ACCESS_TOKEN%22%3A%22%24%7Binput%3Agithub_token%7D%22%7D%7D&quality=insiders) [![Install with Docker in Visual Studio](https://img.shields.io/badge/Visual_Studio-Install_Server-C16FDE?style=flat-square&logo=visualstudio&logoColor=white)](https://aka.ms/vs/mcp-install?%7B%22name%22%3A%22github%22%2C%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-e%22%2C%22GITHUB_PERSONAL_ACCESS_TOKEN%22%2C%22ghcr.io%2Fgithub%2Fgithub-mcp-server%22%5D%7D)
 
 ### Prerequisites
 
@@ -555,6 +555,7 @@ The following sets of tools are available:
 | --- | ----------------------- | ------------------------------------------------------------- |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/person-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/person-light.png"><img src="pkg/octicons/icons/person-light.png" width="20" height="20" alt="person"></picture> | `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/workflow-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/workflow-light.png"><img src="pkg/octicons/icons/workflow-light.png" width="20" height="20" alt="workflow"></picture> | `actions` | GitHub Actions workflows and CI/CD operations |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/code-square-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/code-square-light.png"><img src="pkg/octicons/icons/code-square-light.png" width="20" height="20" alt="code-square"></picture> | `code_quality` | GitHub Code Quality related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/codescan-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/codescan-light.png"><img src="pkg/octicons/icons/codescan-light.png" width="20" height="20" alt="codescan"></picture> | `code_security` | Code security related tools, such as GitHub Code Scanning |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/copilot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/copilot-light.png"><img src="pkg/octicons/icons/copilot-light.png" width="20" height="20" alt="copilot"></picture> | `copilot` | Copilot related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/dependabot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/dependabot-light.png"><img src="pkg/octicons/icons/dependabot-light.png" width="20" height="20" alt="dependabot"></picture> | `dependabot` | Dependabot tools |
@@ -640,6 +641,18 @@ The following sets of tools are available:
 
 <details>
 
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/code-square-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/code-square-light.png"><img src="pkg/octicons/icons/code-square-light.png" width="20" height="20" alt="code-square"></picture> Code Quality</summary>
+
+- **get_code_quality_finding** - Get code quality finding
+  - **Required OAuth Scopes**: `repo`
+  - `findingNumber`: The number of the finding. (number, required)
+  - `owner`: The owner of the repository. (string, required)
+  - `repo`: The name of the repository. (string, required)
+
+</details>
+
+<details>
+
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/codescan-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/codescan-light.png"><img src="pkg/octicons/icons/codescan-light.png" width="20" height="20" alt="codescan"></picture> Code Security</summary>
 
 - **get_code_scanning_alert** - Get code scanning alert
@@ -717,8 +730,8 @@ The following sets of tools are available:
 - **list_dependabot_alerts** - List dependabot alerts
   - **Required OAuth Scopes**: `security_events`
   - **Accepted OAuth Scopes**: `repo`, `security_events`
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `owner`: The owner of the repository. (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: The name of the repository. (string, required)
   - `severity`: Filter dependabot alerts by severity (string, optional)
@@ -755,7 +768,7 @@ The following sets of tools are available:
 
 - **get_discussion_comments** - Get discussion comments
   - **Required OAuth Scopes**: `repo`
-  - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `discussionNumber`: Discussion Number (number, required)
   - `includeReplies`: When true, each top-level comment will include its replies nested within it (up to 100 replies per comment, which is the GitHub API maximum). Defaults to false. (boolean, optional)
   - `owner`: Repository owner (string, required)
@@ -769,7 +782,7 @@ The following sets of tools are available:
 
 - **list_discussions** - List discussions
   - **Required OAuth Scopes**: `repo`
-  - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `category`: Optional filter by discussion category ID. If provided, only discussions with this category are listed. (string, optional)
   - `direction`: Order direction. (string, optional)
   - `orderBy`: Order discussions by field. If provided, the 'direction' also needs to be provided. (string, optional)
@@ -826,7 +839,7 @@ The following sets of tools are available:
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/issue-opened-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/issue-opened-light.png"><img src="pkg/octicons/icons/issue-opened-light.png" width="20" height="20" alt="issue-opened"></picture> Issues</summary>
 
-- **add_issue_comment** - Add comment to issue
+- **add_issue_comment** - Add comment to issue or pull request
   - **Required OAuth Scopes**: `repo`
   - `body`: Comment content (string, required)
   - `issue_number`: Issue number to comment on (number, required)
@@ -878,11 +891,12 @@ The following sets of tools are available:
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: The name of the repository (string, required)
 
-- **issue_write** - Create or update issue
+- **issue_write** - Create or update issue/pull request
   - **Required OAuth Scopes**: `repo`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
+  - `issue_fields`: Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', or 'delete: true'. (object[], optional)
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
   - `method`: Write operation to perform on a single issue.
@@ -896,17 +910,25 @@ The following sets of tools are available:
   - `state`: New state (string, optional)
   - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
   - `title`: Issue title (string, optional)
-  - `type`: Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
+  - `type`: Type of this issue. Only use if issue types are enabled for this repository. Use list_issue_types tool to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
+
+- **list_issue_fields** - List issue fields
+  - **Required OAuth Scopes (any of)**: `repo`, `read:org`
+  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `repo`, `write:org`
+  - `owner`: The account owner of the repository or organization. The name is not case sensitive. (string, required)
+  - `repo`: The name of the repository. When provided, returns fields for this specific repository (inherited from its organization). When omitted, returns org-level fields directly. (string, optional)
 
 - **list_issue_types** - List available issue types
-  - **Required OAuth Scopes**: `read:org`
-  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
-  - `owner`: The organization owner of the repository (string, required)
+  - **Required OAuth Scopes (any of)**: `repo`, `read:org`
+  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `repo`, `write:org`
+  - `owner`: The account owner of the repository or organization. (string, required)
+  - `repo`: The name of the repository. When provided, returns issue types for this specific repository. When omitted, returns org-level issue types directly. (string, optional)
 
 - **list_issues** - List issues
   - **Required OAuth Scopes**: `repo`
-  - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
+  - `field_filters`: Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date). (object[], optional)
   - `labels`: Filter by labels (string[], optional)
   - `orderBy`: Order issues by field. If provided, the 'direction' also needs to be provided. (string, optional)
   - `owner`: Repository owner (string, required)
@@ -1114,6 +1136,7 @@ The following sets of tools are available:
   - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], optional)
   - `title`: PR title (string, required)
 
 - **list_pull_requests** - List pull requests
@@ -1146,10 +1169,11 @@ The following sets of tools are available:
      2. get_diff - Get the diff of a pull request.
      3. get_status - Get combined commit status of a head commit in a pull request.
      4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
-     5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
-     6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
-     7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
-     8. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
+     5. get_commits - Get the list of commits on a pull request. Use with pagination parameters to control the number of results returned.
+     6. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
+     7. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
+     8. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
+     9. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
      (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1227,7 +1251,7 @@ The following sets of tools are available:
   - `description`: Repository description (string, optional)
   - `name`: Repository name (string, required)
   - `organization`: Organization to create the repository in (omit to create in your personal account) (string, optional)
-  - `private`: Whether repo should be private (boolean, optional)
+  - `private`: Whether the repository should be private. Defaults to true (private) when omitted. (boolean, optional)
 
 - **delete_file** - Delete file
   - **Required OAuth Scopes**: `repo`

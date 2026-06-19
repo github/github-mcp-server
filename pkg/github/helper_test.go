@@ -22,6 +22,7 @@ import (
 const (
 	// User endpoints
 	GetUser                        = "GET /user"
+	GetUsersByUsername             = "GET /users/{username}"
 	GetUserStarred                 = "GET /user/starred"
 	GetUsersGistsByUsername        = "GET /users/{username}/gists"
 	GetUsersStarredByUsername      = "GET /users/{username}/starred"
@@ -74,6 +75,7 @@ const (
 	// Pull request endpoints
 	GetReposPullsByOwnerByRepo                                = "GET /repos/{owner}/{repo}/pulls"
 	GetReposPullsByOwnerByRepoByPullNumber                    = "GET /repos/{owner}/{repo}/pulls/{pull_number}"
+	GetReposPullsCommitsByOwnerByRepoByPullNumber             = "GET /repos/{owner}/{repo}/pulls/{pull_number}/commits"
 	GetReposPullsFilesByOwnerByRepoByPullNumber               = "GET /repos/{owner}/{repo}/pulls/{pull_number}/files"
 	GetReposPullsReviewsByOwnerByRepoByPullNumber             = "GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews"
 	PostReposPullsByOwnerByRepo                               = "POST /repos/{owner}/{repo}/pulls"
@@ -104,6 +106,9 @@ const (
 	GetReposReleasesByOwnerByRepo          = "GET /repos/{owner}/{repo}/releases"
 	GetReposReleasesLatestByOwnerByRepo    = "GET /repos/{owner}/{repo}/releases/latest"
 	GetReposReleasesTagsByOwnerByRepoByTag = "GET /repos/{owner}/{repo}/releases/tags/{tag}"
+
+	// Code quality endpoints
+	GetReposCodeQualityFindingsByOwnerByRepoByFindingNumber = "GET /repos/{owner}/{repo}/code-quality/findings/{finding_number}"
 
 	// Code scanning endpoints
 	GetReposCodeScanningAlertsByOwnerByRepo              = "GET /repos/{owner}/{repo}/code-scanning/alerts"

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -105,7 +106,11 @@ func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal label: %w", err)
 			}
 
-			return utils.NewToolResultText(string(out)), nil, nil
+			result := utils.NewToolResultText(string(out))
+			// Labels are structural repo metadata defined by collaborators
+			// (trusted); confidentiality follows repo visibility.
+			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
+			return result, nil, nil
 		},
 	)
 }
@@ -204,7 +209,11 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal labels: %w", err)
 			}
 
-			return utils.NewToolResultText(string(out)), nil, nil
+			result := utils.NewToolResultText(string(out))
+			// Labels are structural repo metadata defined by collaborators
+			// (trusted); confidentiality follows repo visibility.
+			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
+			return result, nil, nil
 		},
 	)
 }

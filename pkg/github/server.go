@@ -111,7 +111,7 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	// remote/HTTP server also serves them, fixing the "-32002 Resource not
 	// found" error clients hit after the tool returns a ui:// URI.
 	if UIAssetsAvailable() {
-		RegisterUIResources(ghServer)
+		RegisterUIResources(ghServer, cfg.ReadOnly)
 	}
 
 	return ghServer, nil

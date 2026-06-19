@@ -123,6 +123,14 @@ type MinimalPRFile struct {
 	PreviousFilename string `json:"previous_filename,omitempty"`
 }
 
+// MinimalPullRequestCommit is the trimmed output type for commits listed on a pull request.
+type MinimalPullRequestCommit struct {
+	SHA     string               `json:"sha"`
+	HTMLURL string               `json:"html_url,omitempty"`
+	Message string               `json:"message,omitempty"`
+	Author  *MinimalCommitAuthor `json:"author,omitempty"`
+}
+
 // MinimalCommit is the trimmed output type for commit objects.
 type MinimalCommit struct {
 	SHA       string              `json:"sha"`
@@ -614,51 +622,6 @@ func convertToMinimalIssuesResponse(fragment IssueQueryFragment) MinimalIssuesRe
 	minimalIssues := make([]MinimalIssue, 0, len(fragment.Nodes))
 	for _, issue := range fragment.Nodes {
 		minimalIssues = append(minimalIssues, fragmentToMinimalIssue(issue))
-	}
-
-	return MinimalIssuesResponse{
-		Issues:     minimalIssues,
-		TotalCount: fragment.TotalCount,
-		PageInfo: MinimalPageInfo{
-			HasNextPage:     bool(fragment.PageInfo.HasNextPage),
-			HasPreviousPage: bool(fragment.PageInfo.HasPreviousPage),
-			StartCursor:     string(fragment.PageInfo.StartCursor),
-			EndCursor:       string(fragment.PageInfo.EndCursor),
-		},
-	}
-}
-
-// legacyFragmentToMinimalIssue converts the FeatureFlagIssueFields-disabled
-// LegacyIssueFragment into a MinimalIssue. MinimalIssue.FieldValues is left
-// nil so omitempty drops it from JSON output. Delete with the rest of the
-// Legacy* block when the flag is removed.
-func legacyFragmentToMinimalIssue(fragment LegacyIssueFragment) MinimalIssue {
-	m := MinimalIssue{
-		Number:    int(fragment.Number),
-		Title:     sanitize.Sanitize(string(fragment.Title)),
-		Body:      sanitize.Sanitize(string(fragment.Body)),
-		State:     string(fragment.State),
-		Comments:  int(fragment.Comments.TotalCount),
-		CreatedAt: fragment.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: fragment.UpdatedAt.Format(time.RFC3339),
-		User: &MinimalUser{
-			Login: string(fragment.Author.Login),
-		},
-	}
-
-	for _, label := range fragment.Labels.Nodes {
-		m.Labels = append(m.Labels, string(label.Name))
-	}
-
-	return m
-}
-
-// convertLegacyToMinimalIssuesResponse mirrors convertToMinimalIssuesResponse for
-// the FeatureFlagIssueFields-disabled list_issues variant.
-func convertLegacyToMinimalIssuesResponse(fragment LegacyIssueQueryFragment) MinimalIssuesResponse {
-	minimalIssues := make([]MinimalIssue, 0, len(fragment.Nodes))
-	for _, issue := range fragment.Nodes {
-		minimalIssues = append(minimalIssues, legacyFragmentToMinimalIssue(issue))
 	}
 
 	return MinimalIssuesResponse{
@@ -1607,6 +1570,44 @@ func convertToMinimalPRFiles(files []*github.CommitFile) []MinimalPRFile {
 		})
 	}
 	return result
+}
+
+func convertToMinimalPullRequestCommits(commits []*github.RepositoryCommit) []MinimalPullRequestCommit {
+	result := make([]MinimalPullRequestCommit, 0, len(commits))
+	for _, commit := range commits {
+		if commit == nil {
+			continue
+		}
+
+		minimalCommit := MinimalPullRequestCommit{
+			SHA:     commit.GetSHA(),
+			HTMLURL: commit.GetHTMLURL(),
+		}
+
+		if commit.Commit != nil {
+			minimalCommit.Message = commit.Commit.GetMessage()
+			minimalCommit.Author = convertToMinimalCommitAuthor(commit.Commit.Author)
+		}
+
+		result = append(result, minimalCommit)
+	}
+	return result
+}
+
+func convertToMinimalCommitAuthor(author *github.CommitAuthor) *MinimalCommitAuthor {
+	if author == nil {
+		return nil
+	}
+
+	minimalAuthor := &MinimalCommitAuthor{
+		Name:  author.GetName(),
+		Email: author.GetEmail(),
+	}
+	if author.Date != nil {
+		minimalAuthor.Date = author.Date.Format(time.RFC3339)
+	}
+
+	return minimalAuthor
 }
 
 // convertToMinimalBranch converts a GitHub API Branch to MinimalBranch

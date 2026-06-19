@@ -174,7 +174,7 @@ func createFieldMatcher() githubv4mock.Matcher {
 						ID   string
 						Name string
 					} `graphql:"... on ProjectV2IterationField"`
-				}
+				} `graphql:"projectV2Field"`
 			} `graphql:"createProjectV2Field(input: $input)"`
 		}{},
 		githubv4.CreateProjectV2FieldInput{
@@ -242,7 +242,7 @@ func Test_ProjectsWrite_CreateIterationField(t *testing.T) {
 									}
 								}
 							} `graphql:"... on ProjectV2IterationField"`
-						}
+						} `graphql:"projectV2Field"`
 					} `graphql:"updateProjectV2Field(input: $input)"`
 				}{},
 				UpdateProjectV2FieldInput{
@@ -319,7 +319,7 @@ func Test_ProjectsWrite_CreateIterationField(t *testing.T) {
 									}
 								}
 							} `graphql:"... on ProjectV2IterationField"`
-						}
+						} `graphql:"projectV2Field"`
 					} `graphql:"updateProjectV2Field(input: $input)"`
 				}{},
 				UpdateProjectV2FieldInput{
@@ -403,7 +403,7 @@ func Test_ProjectsWrite_CreateIterationField(t *testing.T) {
 									}
 								}
 							} `graphql:"... on ProjectV2IterationField"`
-						}
+						} `graphql:"projectV2Field"`
 					} `graphql:"updateProjectV2Field(input: $input)"`
 				}{},
 				UpdateProjectV2FieldInput{
