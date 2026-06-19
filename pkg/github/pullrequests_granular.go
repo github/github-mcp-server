@@ -764,7 +764,7 @@ func AddPullRequestReviewCommentReaction(t translations.TranslationHelperFunc) i
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "add_pull_request_review_comment_reaction",
-			Description: t("TOOL_ADD_PULL_REQUEST_REVIEW_COMMENT_REACTION_DESCRIPTION", "Add an emoji reaction to a GitHub pull request review comment"),
+			Description: t("TOOL_ADD_PULL_REQUEST_REVIEW_COMMENT_REACTION_DESCRIPTION", "Add a reaction to a pull request review comment."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_ADD_PULL_REQUEST_REVIEW_COMMENT_REACTION_USER_TITLE", "Add Pull Request Review Comment Reaction"),
 				ReadOnlyHint:    false,

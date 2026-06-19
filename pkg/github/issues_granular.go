@@ -1205,7 +1205,7 @@ func AddIssueReaction(t translations.TranslationHelperFunc) inventory.ServerTool
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "add_issue_reaction",
-			Description: t("TOOL_ADD_ISSUE_REACTION_DESCRIPTION", "Add an emoji reaction to a GitHub issue"),
+			Description: t("TOOL_ADD_ISSUE_REACTION_DESCRIPTION", "Add a reaction to an issue."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_ADD_ISSUE_REACTION_USER_TITLE", "Add Issue Reaction"),
 				ReadOnlyHint:    false,
@@ -1285,7 +1285,7 @@ func AddIssueCommentReaction(t translations.TranslationHelperFunc) inventory.Ser
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "add_issue_comment_reaction",
-			Description: t("TOOL_ADD_ISSUE_COMMENT_REACTION_DESCRIPTION", "Add an emoji reaction to a GitHub issue comment"),
+			Description: t("TOOL_ADD_ISSUE_COMMENT_REACTION_DESCRIPTION", "Add a reaction to an issue comment."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_ADD_ISSUE_COMMENT_REACTION_USER_TITLE", "Add Issue Comment Reaction"),
 				ReadOnlyHint:    false,
