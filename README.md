@@ -1,4 +1,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/github/github-mcp-server)](https://goreportcard.com/report/github.com/github/github-mcp-server)
+[![mcp-customs](https://img.shields.io/badge/mcp--customs-CLEARED_97%2F100-brightgreen)](https://github.com/mcpcustoms/mcp-customs)
+
+# GitHub MCP Server
 
 # GitHub MCP Server
 
