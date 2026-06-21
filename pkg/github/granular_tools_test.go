@@ -317,6 +317,21 @@ func TestGranularUpdateIssueLabels(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "label names are trimmed for the replace operation",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"labels": []any{
+					"  bug  ",
+					map[string]any{"name": "  enhancement  "},
+				},
+			},
+			expectedReq: map[string]any{
+				"labels": []any{"bug", "enhancement"},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -445,6 +460,28 @@ func TestGranularUpdateIssueLabelsInvalidRationale(t *testing.T) {
 			},
 			expectedErrText: "each label object must have a 'name' string",
 		},
+		{
+			name: "whitespace-only string label rejected",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"labels":       []any{"   "},
+			},
+			expectedErrText: "label name cannot be empty",
+		},
+		{
+			name: "whitespace-only object name rejected",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"labels": []any{
+					map[string]any{"name": "   "},
+				},
+			},
+			expectedErrText: "label name cannot be empty",
+		},
 	}
 
 	for _, tc := range tests {
@@ -562,6 +599,366 @@ func TestGranularUpdateIssueLabelsConfidence(t *testing.T) {
 			assert.False(t, result.IsError)
 		})
 	}
+}
+
+func TestGranularUpdateIssueLabelsAddOperation(t *testing.T) {
+	mockLabels := []*gogithub.Label{
+		{Name: gogithub.Ptr("bug")},
+		{Name: gogithub.Ptr("enhancement")},
+	}
+
+	t.Run("adds labels without replacing existing ones", func(t *testing.T) {
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PostReposIssuesLabelsByOwnerByRepoByIssueNumber: expectRequestBody(t, []any{"enhancement"}).
+				andThen(mockResponse(t, http.StatusOK, mockLabels)),
+		}))
+		deps := BaseDeps{Client: client}
+		serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"method":       "add",
+			"labels":       []any{"enhancement"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "bug")
+		assert.Contains(t, textContent.Text, "enhancement")
+	})
+
+	t.Run("accepts label objects and uses their names", func(t *testing.T) {
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PostReposIssuesLabelsByOwnerByRepoByIssueNumber: expectRequestBody(t, []any{"enhancement"}).
+				andThen(mockResponse(t, http.StatusOK, mockLabels)),
+		}))
+		deps := BaseDeps{Client: client}
+		serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"method":       "add",
+			"labels":       []any{map[string]any{"name": "enhancement", "rationale": "ignored for add"}},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+	})
+
+	t.Run("de-duplicates labels before sending the request", func(t *testing.T) {
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PostReposIssuesLabelsByOwnerByRepoByIssueNumber: expectRequestBody(t, []any{"enhancement"}).
+				andThen(mockResponse(t, http.StatusOK, mockLabels)),
+		}))
+		deps := BaseDeps{Client: client}
+		serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"method":       "add",
+			"labels":       []any{"enhancement", "enhancement", " enhancement "},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+	})
+
+	t.Run("requires at least one label", func(t *testing.T) {
+		deps := BaseDeps{Client: mustNewGHClient(t, MockHTTPClientWithHandlers(nil))}
+		serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"method":       "add",
+			"labels":       []any{},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		errorContent := getErrorResult(t, result)
+		assert.Contains(t, errorContent.Text, "at least one label is required")
+	})
+}
+
+func TestGranularUpdateIssueLabelsRemoveOperation(t *testing.T) {
+	t.Run("removes a single label and returns remaining labels", func(t *testing.T) {
+		remaining := []*gogithub.Label{{Name: gogithub.Ptr("enhancement")}}
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			DeleteReposIssuesLabelsByOwnerByRepoByIssueNumberByName: mockResponse(t, http.StatusOK, remaining),
+		}))
+		deps := BaseDeps{Client: client}
+		serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"method":       "remove",
+			"labels":       []any{"bug"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "enhancement")
+		assert.NotContains(t, textContent.Text, "bug")
+	})
+
+	t.Run("requires at least one label", func(t *testing.T) {
+		deps := BaseDeps{Client: mustNewGHClient(t, MockHTTPClientWithHandlers(nil))}
+		serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"method":       "remove",
+			"labels":       []any{},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		errorContent := getErrorResult(t, result)
+		assert.Contains(t, errorContent.Text, "at least one label is required")
+	})
+
+	t.Run("surfaces API error when label is not present", func(t *testing.T) {
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			DeleteReposIssuesLabelsByOwnerByRepoByIssueNumberByName: mockResponse(t, http.StatusNotFound, map[string]any{
+				"message": "Label does not exist",
+			}),
+		}))
+		deps := BaseDeps{Client: client}
+		serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"method":       "remove",
+			"labels":       []any{"nonexistent"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		errorContent := getErrorResult(t, result)
+		assert.Contains(t, errorContent.Text, "failed to remove label from issue")
+	})
+
+	t.Run("rejects whitespace-only label names", func(t *testing.T) {
+		deps := BaseDeps{Client: mustNewGHClient(t, MockHTTPClientWithHandlers(nil))}
+		serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"method":       "remove",
+			"labels":       []any{"   "},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		errorContent := getErrorResult(t, result)
+		assert.Contains(t, errorContent.Text, "label name cannot be empty")
+	})
+
+	t.Run("de-duplicates labels before issuing deletes", func(t *testing.T) {
+		var deleteCount int
+		remaining := []*gogithub.Label{{Name: gogithub.Ptr("enhancement")}}
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			DeleteReposIssuesLabelsByOwnerByRepoByIssueNumberByName: func(w http.ResponseWriter, r *http.Request) {
+				deleteCount++
+				mockResponse(t, http.StatusOK, remaining)(w, r)
+			},
+		}))
+		deps := BaseDeps{Client: client}
+		serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"method":       "remove",
+			"labels":       []any{"bug", "bug", " bug "},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		assert.Equal(t, 1, deleteCount, "duplicate labels should collapse to a single DELETE")
+	})
+
+	t.Run("escapes multi-word label names in the request path", func(t *testing.T) {
+		var capturedPath string
+		remaining := []*gogithub.Label{{Name: gogithub.Ptr("enhancement")}}
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			DeleteReposIssuesLabelsByOwnerByRepoByIssueNumberByName: func(w http.ResponseWriter, r *http.Request) {
+				capturedPath = r.URL.EscapedPath()
+				mockResponse(t, http.StatusOK, remaining)(w, r)
+			},
+		}))
+		deps := BaseDeps{Client: client}
+		serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"method":       "remove",
+			"labels":       []any{"good first issue"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		assert.Contains(t, capturedPath, "labels/good%20first%20issue")
+	})
+
+	t.Run("escapes slashes in label names in the request path", func(t *testing.T) {
+		// A label like "status/blocked" must stay a single, escaped path
+		// segment so the slash is not interpreted as a path separator. A
+		// catch-all handler is used here (rather than the keyed router used
+		// above) because the mock routes on the decoded path, where %2F would
+		// look like an extra segment.
+		var capturedPath string
+		remaining := []*gogithub.Label{{Name: gogithub.Ptr("enhancement")}}
+		client := mustNewGHClient(t, MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+			capturedPath = r.URL.EscapedPath()
+			mockResponse(t, http.StatusOK, remaining)(w, r)
+		}))
+		deps := BaseDeps{Client: client}
+		serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"method":       "remove",
+			"labels":       []any{"status/blocked"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		assert.Contains(t, capturedPath, "labels/status%2Fblocked")
+	})
+}
+
+func TestGranularUpdateIssueLabelsInvalidOperation(t *testing.T) {
+	deps := BaseDeps{Client: mustNewGHClient(t, MockHTTPClientWithHandlers(nil))}
+	serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(1),
+		"method":       "toggle",
+		"labels":       []any{"bug"},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+
+	errorContent := getErrorResult(t, result)
+	assert.Contains(t, errorContent.Text, "method must be one of: replace, add, remove")
+}
+
+func TestGranularUpdateIssueLabelsReplaceReturnsLabels(t *testing.T) {
+	issue := &gogithub.Issue{
+		Number: gogithub.Ptr(1),
+		Labels: []*gogithub.Label{
+			{Name: gogithub.Ptr("bug")},
+			{Name: gogithub.Ptr("enhancement")},
+		},
+	}
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, issue),
+	}))
+	deps := BaseDeps{Client: client}
+	serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(1),
+		"method":       "replace",
+		"labels":       []any{"bug", "enhancement"},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	// All methods return the resulting label set for a consistent response shape.
+	textContent := getTextResult(t, result)
+	assert.Contains(t, textContent.Text, "bug")
+	assert.Contains(t, textContent.Text, "enhancement")
+}
+
+func TestGranularUpdateIssueLabelsOperationNormalization(t *testing.T) {
+	t.Run("operation is trimmed and case-folded to add", func(t *testing.T) {
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PostReposIssuesLabelsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, []*gogithub.Label{
+				{Name: gogithub.Ptr("bug")},
+			}),
+		}))
+		deps := BaseDeps{Client: client}
+		serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"method":       "  ADD  ",
+			"labels":       []any{"bug"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+	})
+
+	t.Run("omitted operation defaults to replace", func(t *testing.T) {
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)}),
+		}))
+		deps := BaseDeps{Client: client}
+		serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"labels":       []any{"bug"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+	})
 }
 
 func TestGranularUpdateIssueMilestone(t *testing.T) {

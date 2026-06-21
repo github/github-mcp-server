@@ -4,7 +4,7 @@
     "openWorldHint": true,
     "title": "Update Issue Labels"
   },
-  "description": "Update the labels of an existing issue. This replaces the current labels with the provided list. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice.",
+  "description": "Manage the labels on an existing issue. Use method 'replace' (default) to set the issue's labels to exactly the provided list, 'add' to add labels without removing existing ones, or 'remove' to remove specific labels without touching the rest. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice.",
   "inputSchema": {
     "properties": {
       "issue_number": {
@@ -13,7 +13,7 @@
         "type": "number"
       },
       "labels": {
-        "description": "Labels to apply to this issue.",
+        "description": "Labels to apply to this issue. For 'remove', only each label's name is used. The 'rationale', 'confidence', and 'is_suggestion' fields are only honored when method is 'replace'.",
         "items": {
           "oneOf": [
             {
@@ -53,6 +53,16 @@
           ]
         },
         "type": "array"
+      },
+      "method": {
+        "default": "replace",
+        "description": "How to apply the labels: 'replace' (default) sets the issue's labels to exactly the provided list, 'add' adds them while keeping the existing labels, and 'remove' removes the named labels without affecting the others.",
+        "enum": [
+          "replace",
+          "add",
+          "remove"
+        ],
+        "type": "string"
       },
       "owner": {
         "description": "Repository owner (username or organization)",
