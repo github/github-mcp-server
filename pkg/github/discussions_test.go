@@ -601,6 +601,11 @@ func Test_GetDiscussion(t *testing.T) {
 			errParam: "owner",
 		},
 		{
+			name:     "missing repo",
+			params:   map[string]any{"owner": "owner", "discussionNumber": int32(1)},
+			errParam: "repo",
+		},
+		{
 			name:     "missing discussionNumber",
 			params:   map[string]any{"owner": "owner", "repo": "repo"},
 			errParam: "discussionNumber",
@@ -720,6 +725,11 @@ func Test_GetDiscussionComments(t *testing.T) {
 			name:     "missing owner",
 			params:   map[string]any{"repo": "repo", "discussionNumber": int32(1)},
 			errParam: "owner",
+		},
+		{
+			name:     "missing repo",
+			params:   map[string]any{"owner": "owner", "discussionNumber": int32(1)},
+			errParam: "repo",
 		},
 		{
 			name:     "missing discussionNumber",
