@@ -859,12 +859,14 @@ The following sets of tools are available:
 - **list_issue_types** - List available issue types
   - **Required OAuth Scopes**: `read:org`
   - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
+  - `fields`: Subset of issue type fields to return for each issue type. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `owner`: The organization owner of the repository (string, required)
 
 - **list_issues** - List issues
   - **Required OAuth Scopes**: `repo`
   - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
   - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
+  - `fields`: Subset of issue fields to return for each issue. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `labels`: Filter by labels (string[], optional)
   - `orderBy`: Order issues by field. If provided, the 'direction' also needs to be provided. (string, optional)
   - `owner`: Repository owner (string, required)
@@ -875,6 +877,7 @@ The following sets of tools are available:
 
 - **search_issues** - Search issues
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of issue fields to return for each result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only issues for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -977,6 +980,7 @@ The following sets of tools are available:
 - **search_orgs** - Search organizations
   - **Required OAuth Scopes**: `read:org`
   - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
+  - `fields`: Subset of fields to return for each organization. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields, e.g. just 'login'. (string[], optional)
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1074,6 +1078,7 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `repo`
   - `base`: Filter by base branch (string, optional)
   - `direction`: Sort direction (string, optional)
+  - `fields`: Subset of pull request fields to return for each pull request. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `head`: Filter by head user/org and branch (string, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1123,6 +1128,7 @@ The following sets of tools are available:
 
 - **search_pull_requests** - Search pull requests
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of pull request fields to return for each result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only pull requests for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1207,6 +1213,7 @@ The following sets of tools are available:
 
 - **get_file_contents** - Get file or directory contents
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'. (string[], optional)
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: Path to file/directory (string, optional)
   - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)
@@ -1232,6 +1239,7 @@ The following sets of tools are available:
 
 - **list_branches** - List branches
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of branch fields to return for each branch. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1240,6 +1248,7 @@ The following sets of tools are available:
 - **list_commits** - List commits
   - **Required OAuth Scopes**: `repo`
   - `author`: Author username or email address to filter commits by (string, optional)
+  - `fields`: Subset of commit fields to return for each commit. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `path`: Only commits containing this file path will be returned (string, optional)
@@ -1251,6 +1260,7 @@ The following sets of tools are available:
 
 - **list_releases** - List releases
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of release fields to return for each release. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1258,6 +1268,7 @@ The following sets of tools are available:
 
 - **list_tags** - List tags
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of tag fields to return for each tag. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields. (string[], optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1273,6 +1284,7 @@ The following sets of tools are available:
 
 - **search_code** - Search code
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of fields to return for each code search result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'repository' in particular drops the largest per-result object. (string[], optional)
   - `order`: Sort order for results (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1385,6 +1397,7 @@ The following sets of tools are available:
 
 - **search_users** - Search users
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of fields to return for each user. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields, e.g. just 'login'. (string[], optional)
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)

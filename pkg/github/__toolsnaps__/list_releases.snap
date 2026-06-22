@@ -6,6 +6,24 @@
   "description": "List releases in a GitHub repository",
   "inputSchema": {
     "properties": {
+      "fields": {
+        "description": "Subset of release fields to return for each release. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields.",
+        "items": {
+          "enum": [
+            "id",
+            "tag_name",
+            "name",
+            "body",
+            "html_url",
+            "published_at",
+            "prerelease",
+            "draft",
+            "author"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
       "owner": {
         "description": "Repository owner",
         "type": "string"

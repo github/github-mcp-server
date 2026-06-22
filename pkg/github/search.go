@@ -155,6 +155,14 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Description: "Sort order for results",
 				Enum:        []any{"asc", "desc"},
 			},
+			"fields": {
+				Type:        "array",
+				Description: "Subset of fields to return for each code search result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'repository' in particular drops the largest per-result object.",
+				Items: &jsonschema.Schema{
+					Type: "string",
+					Enum: codeSearchItemFieldEnum,
+				},
+			},
 		},
 		Required: []string{"query"},
 	}
@@ -182,6 +190,10 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			order, err := OptionalParam[string](args, "order")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			fields, err := OptionalStringArrayParam(args, "fields")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -222,7 +234,25 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search code", resp, body), nil, nil
 			}
 
-			toolResult, err := structuredTextResult(ctx, deps, result, convertToMinimalCodeSearchResult(result))
+			minimalResult := convertToMinimalCodeSearchResult(result)
+			if len(fields) > 0 {
+				filteredItems, err := filterEachField(minimalResult.Items, fields)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to filter code search results", err), nil, nil
+				}
+				filtered := map[string]any{
+					"total_count":        minimalResult.TotalCount,
+					"incomplete_results": minimalResult.IncompleteResults,
+					"items":              filteredItems,
+				}
+				toolResult, err := structuredTextResult(ctx, deps, filtered, filtered)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				}
+				return toolResult, nil, nil
+			}
+
+			toolResult, err := structuredTextResult(ctx, deps, result, minimalResult)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
@@ -242,6 +272,10 @@ func userOrOrgHandler(ctx context.Context, accountType string, deps ToolDependen
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 	order, err := OptionalParam[string](args, "order")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	fields, err := OptionalStringArrayParam(args, "fields")
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
@@ -311,6 +345,23 @@ func userOrOrgHandler(ctx context.Context, accountType string, deps ToolDependen
 		minimalResp.IncompleteResults = *result.IncompleteResults
 	}
 
+	if len(fields) > 0 {
+		filteredItems, err := filterEachField(minimalResp.Items, fields)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr(fmt.Sprintf("failed to filter %s search results", accountType), err), nil, nil
+		}
+		filtered := map[string]any{
+			"total_count":        minimalResp.TotalCount,
+			"incomplete_results": minimalResp.IncompleteResults,
+			"items":              filteredItems,
+		}
+		toolResult, err := structuredTextResult(ctx, deps, filtered, filtered)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+		}
+		return toolResult, nil, nil
+	}
+
 	toolResult, err := structuredTextResult(ctx, deps, minimalResp, minimalResp)
 	if err != nil {
 		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
@@ -336,6 +387,14 @@ func SearchUsers(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Type:        "string",
 				Description: "Sort order",
 				Enum:        []any{"asc", "desc"},
+			},
+			"fields": {
+				Type:        "array",
+				Description: "Subset of fields to return for each user. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields, e.g. just 'login'.",
+				Items: &jsonschema.Schema{
+					Type: "string",
+					Enum: userSearchFieldEnum,
+				},
 			},
 		},
 		Required: []string{"query"},
@@ -378,6 +437,14 @@ func SearchOrgs(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Type:        "string",
 				Description: "Sort order",
 				Enum:        []any{"asc", "desc"},
+			},
+			"fields": {
+				Type:        "array",
+				Description: "Subset of fields to return for each organization. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields, e.g. just 'login'.",
+				Items: &jsonschema.Schema{
+					Type: "string",
+					Enum: userSearchFieldEnum,
+				},
 			},
 		},
 		Required: []string{"query"},

@@ -684,6 +684,48 @@ func Test_ListPullRequests(t *testing.T) {
 	}
 }
 
+func Test_ListPullRequests_FieldFiltering(t *testing.T) {
+	mockPRs := []*github.PullRequest{
+		{
+			Number:  github.Ptr(42),
+			Title:   github.Ptr("First PR"),
+			State:   github.Ptr("open"),
+			Body:    github.Ptr("Body of the first PR"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
+		},
+	}
+
+	serverTool := ListPullRequests(translations.NullTranslationHelper)
+	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposPullsByOwnerByRepo: mockResponse(t, http.StatusOK, mockPRs),
+	}))
+	deps := BaseDeps{Client: client}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":  "owner",
+		"repo":   "repo",
+		"fields": []any{"number", "title"},
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+
+	var returned []map[string]any
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &returned))
+	require.Len(t, returned, 1)
+	require.Len(t, returned[0], 2)
+	assert.Contains(t, returned[0], "number")
+	assert.Contains(t, returned[0], "title")
+
+	// Fields that were not requested must be absent from the payload.
+	assert.NotContains(t, textContent.Text, "html_url")
+	assert.NotContains(t, textContent.Text, "Body of the first PR")
+}
+
 func Test_MergePullRequest(t *testing.T) {
 	// Verify tool definition once
 	serverTool := MergePullRequest(translations.NullTranslationHelper)
@@ -1083,6 +1125,54 @@ func Test_SearchPullRequests(t *testing.T) {
 		})
 	}
 
+}
+
+func Test_SearchPullRequests_FieldFiltering(t *testing.T) {
+	mockSearchResult := &github.IssuesSearchResult{
+		Total:             github.Ptr(1),
+		IncompleteResults: github.Ptr(false),
+		Issues: []*github.Issue{
+			{
+				Number:  github.Ptr(42),
+				Title:   github.Ptr("Add new feature"),
+				Body:    github.Ptr("This is a pull request body"),
+				State:   github.Ptr("open"),
+				HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
+			},
+		},
+	}
+
+	serverTool := SearchPullRequests(translations.NullTranslationHelper)
+	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetSearchIssues: mockResponse(t, http.StatusOK, mockSearchResult),
+	}))
+	deps := BaseDeps{Client: client}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"query":  "repo:owner/repo is:open",
+		"fields": []any{"number", "title"},
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+
+	var returned struct {
+		TotalCount int              `json:"total_count"`
+		Items      []map[string]any `json:"items"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &returned))
+	assert.Equal(t, 1, returned.TotalCount)
+	require.Len(t, returned.Items, 1)
+	require.Len(t, returned.Items[0], 2)
+	assert.Contains(t, returned.Items[0], "number")
+	assert.Contains(t, returned.Items[0], "title")
+
+	assert.NotContains(t, textContent.Text, "html_url")
+	assert.NotContains(t, textContent.Text, "This is a pull request body")
 }
 
 func Test_GetPullRequestFiles(t *testing.T) {

@@ -18,6 +18,40 @@
         ],
         "type": "string"
       },
+      "fields": {
+        "description": "Subset of pull request fields to return for each pull request. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields.",
+        "items": {
+          "enum": [
+            "number",
+            "title",
+            "body",
+            "state",
+            "draft",
+            "merged",
+            "mergeable_state",
+            "html_url",
+            "user",
+            "labels",
+            "assignees",
+            "requested_reviewers",
+            "merged_by",
+            "head",
+            "base",
+            "additions",
+            "deletions",
+            "changed_files",
+            "commits",
+            "comments",
+            "created_at",
+            "updated_at",
+            "closed_at",
+            "merged_at",
+            "milestone"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
       "head": {
         "description": "Filter by head user/org and branch",
         "type": "string"

@@ -1,6 +1,8 @@
 package github
 
 import (
+	"bytes"
+	"encoding/json"
 	"time"
 
 	"github.com/google/go-github/v82/github"
@@ -906,6 +908,89 @@ func convertToMinimalIssueType(issueType *github.IssueType) MinimalIssueType {
 	}
 
 	return m
+}
+
+// issueTypeFieldEnum lists the selectable fields for the list_issue_types tool,
+// matching the JSON field names of MinimalIssueType.
+var issueTypeFieldEnum = []any{"id", "node_id", "name", "description", "color", "created_at", "updated_at"}
+
+// issueFieldEnum lists the selectable fields for issue list and search results,
+// matching the JSON field names of MinimalIssue.
+var issueFieldEnum = []any{"number", "title", "body", "state", "state_reason", "draft", "locked", "html_url", "user", "author_association", "labels", "assignees", "milestone", "comments", "reactions", "created_at", "updated_at", "closed_at", "closed_by", "issue_type"}
+
+// pullRequestFieldEnum lists the selectable fields for pull request list results,
+// matching the JSON field names of MinimalPullRequest.
+var pullRequestFieldEnum = []any{"number", "title", "body", "state", "draft", "merged", "mergeable_state", "html_url", "user", "labels", "assignees", "requested_reviewers", "merged_by", "head", "base", "additions", "deletions", "changed_files", "commits", "comments", "created_at", "updated_at", "closed_at", "merged_at", "milestone"}
+
+// commitFieldEnum lists the selectable fields for list_commits results,
+// matching the JSON field names of MinimalCommit.
+var commitFieldEnum = []any{"sha", "html_url", "commit", "author", "committer", "stats", "files"}
+
+// branchFieldEnum lists the selectable fields for list_branches results,
+// matching the JSON field names of MinimalBranch.
+var branchFieldEnum = []any{"name", "sha", "protected"}
+
+// tagFieldEnum lists the selectable fields for list_tags results,
+// matching the JSON field names of MinimalTag.
+var tagFieldEnum = []any{"name", "sha"}
+
+// releaseFieldEnum lists the selectable fields for list_releases results,
+// matching the JSON field names of MinimalRelease.
+var releaseFieldEnum = []any{"id", "tag_name", "name", "body", "html_url", "published_at", "prerelease", "draft", "author"}
+
+// codeSearchItemFieldEnum lists the selectable fields for search_code result
+// items, matching the JSON field names of MinimalCodeSearchItem. The nested
+// repository object is the heaviest field, so omitting it is the main lever for
+// shrinking large result sets.
+var codeSearchItemFieldEnum = []any{"name", "path", "sha", "html_url", "repository"}
+
+// userSearchFieldEnum lists the selectable fields for search_users and
+// search_orgs result items, matching the JSON field names of MinimalUser.
+var userSearchFieldEnum = []any{"login", "id", "profile_url", "avatar_url", "details"}
+
+// fileContentFieldEnum lists the selectable fields for get_file_contents
+// directory listings, matching the JSON field names of
+// github.RepositoryContent that appear for directory entries. Only applied when
+// the requested path is a directory; ignored for single files.
+var fileContentFieldEnum = []any{"type", "name", "path", "size", "sha", "url", "git_url", "html_url", "download_url"}
+
+// filterFields marshals v to a JSON object and returns a map containing only the
+// requested fields. Fields that are unknown or absent from the JSON (for example
+// empty values dropped via omitempty) are skipped.
+func filterFields(v any, fields []string) (map[string]any, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber() // preserve integer precision for fields such as IDs
+	var object map[string]any
+	if err := decoder.Decode(&object); err != nil {
+		return nil, err
+	}
+
+	picked := make(map[string]any, len(fields))
+	for _, field := range fields {
+		if value, ok := object[field]; ok {
+			picked[field] = value
+		}
+	}
+	return picked, nil
+}
+
+// filterEachField applies filterFields to every item, returning a slice in which
+// each element contains only the requested fields.
+func filterEachField[T any](items []T, fields []string) ([]map[string]any, error) {
+	filtered := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		picked, err := filterFields(item, fields)
+		if err != nil {
+			return nil, err
+		}
+		filtered = append(filtered, picked)
+	}
+	return filtered, nil
 }
 
 func convertToMinimalCodeSearchResult(result *github.CodeSearchResult) MinimalCodeSearchResult {

@@ -159,6 +159,14 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Type:        "string",
 						Description: "Only commits before this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)",
 					},
+					"fields": {
+						Type:        "array",
+						Description: "Subset of commit fields to return for each commit. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields.",
+						Items: &jsonschema.Schema{
+							Type: "string",
+							Enum: commitFieldEnum,
+						},
+					},
 				},
 				Required: []string{"owner", "repo"},
 			}),
@@ -190,6 +198,10 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			untilStr, err := OptionalParam[string](args, "until")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			fields, err := OptionalStringArrayParam(args, "fields")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -254,7 +266,18 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 				minimalCommits[i] = convertToMinimalCommit(commit, false)
 			}
 
-			result, err := structuredTextResult(ctx, deps, minimalCommits, MinimalCommitsResponse{Commits: minimalCommits})
+			var textPayload any = minimalCommits
+			var structuredPayload any = MinimalCommitsResponse{Commits: minimalCommits}
+			if len(fields) > 0 {
+				filtered, err := filterEachField(minimalCommits, fields)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to filter commits", err), nil, nil
+				}
+				textPayload = filtered
+				structuredPayload = map[string]any{"commits": filtered}
+			}
+
+			result, err := structuredTextResult(ctx, deps, textPayload, structuredPayload)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -286,6 +309,14 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Type:        "string",
 						Description: "Repository name",
 					},
+					"fields": {
+						Type:        "array",
+						Description: "Subset of branch fields to return for each branch. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields.",
+						Items: &jsonschema.Schema{
+							Type: "string",
+							Enum: branchFieldEnum,
+						},
+					},
 				},
 				Required: []string{"owner", "repo"},
 			}),
@@ -297,6 +328,10 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			fields, err := OptionalStringArrayParam(args, "fields")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -341,7 +376,18 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 				minimalBranches = append(minimalBranches, convertToMinimalBranch(branch))
 			}
 
-			result, err := structuredTextResult(ctx, deps, minimalBranches, MinimalBranchesResponse{Branches: minimalBranches})
+			var textPayload any = minimalBranches
+			var structuredPayload any = MinimalBranchesResponse{Branches: minimalBranches}
+			if len(fields) > 0 {
+				filtered, err := filterEachField(minimalBranches, fields)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to filter branches", err), nil, nil
+				}
+				textPayload = filtered
+				structuredPayload = map[string]any{"branches": filtered}
+			}
+
+			result, err := structuredTextResult(ctx, deps, textPayload, structuredPayload)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -716,6 +762,14 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						Type:        "string",
 						Description: "Accepts optional commit SHA. If specified, it will be used instead of ref",
 					},
+					"fields": {
+						Type:        "array",
+						Description: "Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'.",
+						Items: &jsonschema.Schema{
+							Type: "string",
+							Enum: fileContentFieldEnum,
+						},
+					},
 				},
 				Required: []string{"owner", "repo"},
 			},
@@ -744,6 +798,11 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			originalRef := ref
 
 			sha, err := OptionalParam[string](args, "sha")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			fields, err := OptionalStringArrayParam(args, "fields")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -861,7 +920,15 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote), result), nil, nil
 			} else if dirContent != nil {
 				// file content or file SHA is nil which means it's a directory
-				r, err := json.Marshal(dirContent)
+				var payload any = dirContent
+				if len(fields) > 0 {
+					filtered, err := filterEachField(dirContent, fields)
+					if err != nil {
+						return utils.NewToolResultErrorFromErr("failed to filter directory contents", err), nil, nil
+					}
+					payload = filtered
+				}
+				r, err := json.Marshal(payload)
 				if err != nil {
 					return utils.NewToolResultError("failed to marshal response"), nil, nil
 				}
@@ -1527,6 +1594,14 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Type:        "string",
 						Description: "Repository name",
 					},
+					"fields": {
+						Type:        "array",
+						Description: "Subset of tag fields to return for each tag. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields.",
+						Items: &jsonschema.Schema{
+							Type: "string",
+							Enum: tagFieldEnum,
+						},
+					},
 				},
 				Required: []string{"owner", "repo"},
 			}),
@@ -1538,6 +1613,10 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			fields, err := OptionalStringArrayParam(args, "fields")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -1581,7 +1660,18 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 				}
 			}
 
-			result, err := structuredTextResult(ctx, deps, minimalTags, MinimalTagsResponse{Tags: minimalTags})
+			var textPayload any = minimalTags
+			var structuredPayload any = MinimalTagsResponse{Tags: minimalTags}
+			if len(fields) > 0 {
+				filtered, err := filterEachField(minimalTags, fields)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to filter tags", err), nil, nil
+				}
+				textPayload = filtered
+				structuredPayload = map[string]any{"tags": filtered}
+			}
+
+			result, err := structuredTextResult(ctx, deps, textPayload, structuredPayload)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -1719,6 +1809,14 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Type:        "string",
 						Description: "Repository name",
 					},
+					"fields": {
+						Type:        "array",
+						Description: "Subset of release fields to return for each release. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields.",
+						Items: &jsonschema.Schema{
+							Type: "string",
+							Enum: releaseFieldEnum,
+						},
+					},
 				},
 				Required: []string{"owner", "repo"},
 			}),
@@ -1730,6 +1828,10 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			fields, err := OptionalStringArrayParam(args, "fields")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -1769,7 +1871,18 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 				}
 			}
 
-			result, err := structuredTextResult(ctx, deps, minimalReleases, MinimalReleasesResponse{Releases: minimalReleases})
+			var textPayload any = minimalReleases
+			var structuredPayload any = MinimalReleasesResponse{Releases: minimalReleases}
+			if len(fields) > 0 {
+				filtered, err := filterEachField(minimalReleases, fields)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to filter releases", err), nil, nil
+				}
+				textPayload = filtered
+				structuredPayload = map[string]any{"releases": filtered}
+			}
+
+			result, err := structuredTextResult(ctx, deps, textPayload, structuredPayload)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}

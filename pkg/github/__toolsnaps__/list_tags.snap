@@ -6,6 +6,17 @@
   "description": "List git tags in a GitHub repository",
   "inputSchema": {
     "properties": {
+      "fields": {
+        "description": "Subset of tag fields to return for each tag. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields.",
+        "items": {
+          "enum": [
+            "name",
+            "sha"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
       "owner": {
         "description": "Repository owner",
         "type": "string"
