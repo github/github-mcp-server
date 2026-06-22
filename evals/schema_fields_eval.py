@@ -234,6 +234,9 @@ def run_task(
     ]
     prompt_tokens = completion_tokens = turns = tool_calls = fields_calls = 0
     cached_tokens = 0
+    cache_write_tokens = 0
+    billed_aiu_nano = 0.0
+    saw_billing = False
     tool_errors = 0
     final_text = ""
     error = ""
@@ -263,6 +266,35 @@ def run_task(
             details = getattr(resp.usage, "prompt_tokens_details", None)
             if details is not None:
                 cached_tokens += getattr(details, "cached_tokens", 0) or 0
+
+        # AUTHORITATIVE billed cost (Copilot API only). The Copilot endpoint returns
+        # a vendor `copilot_usage` block alongside the standard usage. The OpenAI SDK
+        # drops unknown fields from the typed object but preserves them on
+        # `model_extra`, so we read it there (it lives at the response root, not under
+        # `usage`). `token_details` carries the real per-type prices the billing
+        # system uses -- input / cache_read / cache_write / output -- as
+        # cost_per_batch nano-AIU per batch_size tokens, plus a pre-summed
+        # `total_nano_aiu`. Using these gives the exact billed cost (no hand-typed
+        # prices) AND the cache_write bucket that OpenAI-style usage never reports.
+        copilot_usage = (getattr(resp, "model_extra", None) or {}).get("copilot_usage")
+        if isinstance(copilot_usage, dict):
+            details_list = copilot_usage.get("token_details") or []
+            for d in details_list:
+                if d.get("token_type") == "cache_write":
+                    cache_write_tokens += d.get("token_count", 0) or 0
+            total = copilot_usage.get("total_nano_aiu")
+            if total is not None:
+                billed_aiu_nano += total
+                saw_billing = True
+            elif details_list:
+                # Fall back to summing per-type cost if the endpoint omits the total.
+                for d in details_list:
+                    batch = d.get("batch_size", 0) or 0
+                    if batch:
+                        billed_aiu_nano += (d.get("token_count", 0) or 0) * (
+                            d.get("cost_per_batch", 0) or 0
+                        ) / batch
+                saw_billing = True
 
         msg = resp.choices[0].message
         if not msg.tool_calls:
@@ -342,7 +374,9 @@ def run_task(
     return {
         "prompt_tokens": prompt_tokens,
         "cached_prompt_tokens": cached_tokens,
+        "cache_write_tokens": cache_write_tokens,
         "completion_tokens": completion_tokens,
+        "billed_aiu_nano": billed_aiu_nano if saw_billing else None,
         "turns": turns,
         "tool_calls": tool_calls,
         "fields_calls": fields_calls,
@@ -361,6 +395,7 @@ def summarize(
     price_prompt: float = 3.0,
     price_cached: float = 0.30,
     price_completion: float = 15.0,
+    aiu_to_usd: float | None = None,
 ) -> None:
     """Print a 3-scenario comparison plus a per-task-type breakdown.
 
@@ -368,7 +403,10 @@ def summarize(
     succeeded for it, so every comparison is apples-to-apples.
 
     Token types are billed differently, so we report prompt vs completion
-    separately and apply per-type prices (per 1M tokens) for a true cost view.
+    separately. When the endpoint is the Copilot API it returns the real per-type
+    prices on every response (`copilot_usage.token_details`); we use those for an
+    AUTHORITATIVE billed cost (in AIU, the actual billing unit). For other
+    endpoints we fall back to the flat per-1M `--price-*` estimate.
     """
     from collections import defaultdict
 
@@ -434,10 +472,24 @@ def summarize(
     def arm_sum(arm: str, field: str) -> int:
         return sum(by_key[k][arm].get(field, 0) for k in valid)
 
-    def record_cost(r: dict) -> float:
-        # Per-run USD cost from the three token types. OpenAI-style usage reports
-        # cached tokens as a SUBSET of prompt_tokens, so bill the uncached remainder
-        # at the input price and the cached part at the cheaper cache-read price.
+    # AUTHORITATIVE vs ESTIMATED cost. If any run carries `billed_aiu_nano`, the
+    # Copilot API gave us the real per-type billed cost, so we report that (in AIU,
+    # the actual billing unit -- or USD if a credit rate is supplied). Otherwise we
+    # fall back to the flat per-1M `--price-*` estimate for endpoints (GitHub Models,
+    # OpenAI) that don't return `copilot_usage`.
+    billing_mode = any(
+        by_key[k][a].get("billed_aiu_nano") is not None for k in valid for a in ARM_ORDER
+    )
+    cost_unit = ("$" if aiu_to_usd else "AIU") if billing_mode else "$"
+    cdp = 4 if cost_unit == "$" else 6  # cost decimal places
+
+    def cost_of(r: dict) -> float:
+        if billing_mode:
+            aiu = (r.get("billed_aiu_nano") or 0.0) / 1e9  # nano-AIU -> AIU
+            return aiu * aiu_to_usd if aiu_to_usd else aiu
+        # Flat-price fallback. OpenAI-style usage reports cached tokens as a SUBSET
+        # of prompt_tokens, so bill the uncached remainder at the input price and the
+        # cached part at the cheaper cache-read price.
         prompt = r.get("prompt_tokens", 0)
         cached = r.get("cached_prompt_tokens", 0)
         uncached = max(prompt - cached, 0)
@@ -447,19 +499,26 @@ def summarize(
         ) / 1_000_000.0
 
     def arm_cost(arm: str) -> float:
-        return sum(record_cost(by_key[k][arm]) for k in valid)
+        return sum(cost_of(by_key[k][arm]) for k in valid)
 
     any_cached = any(arm_sum(a, "cached_prompt_tokens") for a in ARM_ORDER)
+    any_cache_write = any(arm_sum(a, "cache_write_tokens") for a in ARM_ORDER)
     base_completion = arm_sum("baseline", "completion_tokens")
     print("\nPROMPT vs COMPLETION (cumulative over valid runs):")
-    print(f"  {'scenario':<24}{'prompt':>11}{'cached':>10}{'completion':>12}{'comp Δ% vs S1':>15}")
+    cw_head = f"{'cache_wr':>10}" if any_cache_write else ""
+    print(
+        f"  {'scenario':<24}{'prompt':>11}{'cached':>10}{cw_head}"
+        f"{'completion':>12}{'comp Δ% vs S1':>15}"
+    )
     for arm in ARM_ORDER:
         prompt = arm_sum(arm, "prompt_tokens")
         cached = arm_sum(arm, "cached_prompt_tokens")
         completion = arm_sum(arm, "completion_tokens")
         cpct = (100.0 * (completion - base_completion) / base_completion) if base_completion else 0.0
+        cw_cell = f"{arm_sum(arm, 'cache_write_tokens'):>10}" if any_cache_write else ""
         print(
-            f"  {SCENARIO_LABEL[arm]:<24}{prompt:>11}{cached:>10}{completion:>12}{cpct:>+15.1f}"
+            f"  {SCENARIO_LABEL[arm]:<24}{prompt:>11}{cached:>10}{cw_cell}"
+            f"{completion:>12}{cpct:>+15.1f}"
         )
     if not any_cached:
         print(
@@ -469,25 +528,43 @@ def summarize(
         )
 
     base_cost = arm_cost("baseline")
-    print(
-        f"\nESTIMATED COST (USD; prices per 1M tok -- prompt={price_prompt}, "
-        f"cached={price_cached}, completion={price_completion}):"
-    )
-    print(f"  {'scenario':<24}{'cost($)':>11}{'Δ vs S1':>12}{'Δ%':>9}")
+    if billing_mode:
+        unit_note = (
+            f"USD via --aiu-to-usd={aiu_to_usd}"
+            if aiu_to_usd
+            else "AIU = AI credits; pass --aiu-to-usd to convert"
+        )
+        print(f"\nBILLED COST (authoritative, from Copilot token_details; {unit_note}):")
+    else:
+        print(
+            f"\nESTIMATED COST (USD; prices per 1M tok -- prompt={price_prompt}, "
+            f"cached={price_cached}, completion={price_completion}):"
+        )
+    print(f"  {'scenario':<24}{'cost(' + cost_unit + ')':>11}{'Δ vs S1':>12}{'Δ%':>9}")
     for arm in ARM_ORDER:
         cost = arm_cost(arm)
         delta = cost - base_cost
         cpct = (100.0 * delta / base_cost) if base_cost else 0.0
         sign = "+" if delta >= 0 else ""
         print(
-            f"  {SCENARIO_LABEL[arm]:<24}{cost:>11.4f}{sign + f'{delta:.4f}':>12}{sign + f'{cpct:.1f}':>9}"
+            f"  {SCENARIO_LABEL[arm]:<24}{cost:>11.{cdp}f}"
+            f"{sign + f'{delta:.{cdp}f}':>12}{sign + f'{cpct:.1f}':>9}"
         )
-    print(
-        "  (Input/prompt tokens are far cheaper than output/completion tokens, and\n"
-        "   cached prompt tokens cheaper still. `fields` saves mostly PROMPT tokens,\n"
-        "   so the COST win is real but smaller than the raw token-count delta. Pass\n"
-        "   your model's real prices via --price-prompt/--price-cached/--price-completion.)"
-    )
+    if billing_mode:
+        print(
+            "  (Real per-type prices the billing system used -- input, cache_read,\n"
+            "   cache_write, output -- summed straight from each response's\n"
+            "   copilot_usage.token_details. AIU is the native unit (1 AIU = 1e9\n"
+            "   nano-AIU); a credit->USD rate is account-specific, so pass --aiu-to-usd\n"
+            "   only if you know yours.)"
+        )
+    else:
+        print(
+            "  (Input/prompt tokens are far cheaper than output/completion tokens, and\n"
+            "   cached prompt tokens cheaper still. `fields` saves mostly PROMPT tokens,\n"
+            "   so the COST win is real but smaller than the raw token-count delta. Pass\n"
+            "   your model's real prices via --price-prompt/--price-cached/--price-completion.)"
+        )
 
     # Where does the benefit live? Mean prompt tokens per task-run, by task type.
     tags = sorted({by_key[k]["baseline"]["tag"] for k in valid})
@@ -523,7 +600,7 @@ def summarize(
 
     def task_arm_cost(task: str, arm: str) -> float:
         ks = per_task[task]
-        return sum(record_cost(by_key[k][arm]) for k in ks) / len(ks)
+        return sum(cost_of(by_key[k][arm]) for k in ks) / len(ks)
 
     print("\nPER-TASK (mean prompt tokens per run; Δ% vs S1, negative = cheaper):")
     print(f"  {'tag':<8}{'S1':>9}{'S3':>9}{'S2':>9}{'S3 Δ%':>8}{'S2 Δ%':>8}  task")
@@ -558,12 +635,16 @@ def summarize(
         "   frequently-run ones -- counts equally, better reflecting a typical mix.)"
     )
 
-    # ---- Cost views (USD) ----------------------------------------------------
-    # The cumulative ESTIMATED COST table above is dominated by a few heavy tasks.
-    # These per-task and equal-weight cost views mirror the token views but in
-    # dollars, so a small frequently-run task carries the same weight as a giant one.
-    print("\nPER-TASK COST (mean USD per run; Δ% vs S1, negative = cheaper):")
-    print(f"  {'tag':<8}{'S1$':>9}{'S3$':>9}{'S2$':>9}{'S3 Δ%':>8}{'S2 Δ%':>8}  task")
+    # ---- Cost views ----------------------------------------------------------
+    # The cumulative cost table above is dominated by a few heavy tasks. These
+    # per-task and equal-weight cost views mirror the token views but in money
+    # (authoritative AIU/USD when available, else the flat estimate), so a small
+    # frequently-run task carries the same weight as a giant one.
+    print(f"\nPER-TASK COST (mean {cost_unit} per run; Δ% vs S1, negative = cheaper):")
+    print(
+        f"  {'tag':<8}{'S1' + cost_unit:>11}{'S3' + cost_unit:>11}{'S2' + cost_unit:>11}"
+        f"{'S3 Δ%':>8}{'S2 Δ%':>8}  task"
+    )
     for task in sorted(per_task, key=lambda t: task_arm_cost(t, "baseline"), reverse=True):
         c1 = task_arm_cost(task, "baseline")
         c3 = task_arm_cost(task, "fields_only")
@@ -571,12 +652,15 @@ def summarize(
         c3p = 100.0 * (c3 - c1) / c1 if c1 else 0.0
         c2p = 100.0 * (c2 - c1) / c1 if c1 else 0.0
         print(
-            f"  {task_tag[task]:<8}{c1:>9.4f}{c3:>9.4f}{c2:>9.4f}"
+            f"  {task_tag[task]:<8}{c1:>11.{cdp}f}{c3:>11.{cdp}f}{c2:>11.{cdp}f}"
             f"{c3p:>+8.1f}{c2p:>+8.1f}  {task[:60]}"
         )
 
-    print("\nEQUAL-WEIGHT COST ACROSS TASKS (each task counts once, USD):")
-    print(f"  {'scenario':<24}{'mean$/task':>11}{'median$/task':>14}{'mean Δ% vs S1':>15}")
+    print(f"\nEQUAL-WEIGHT COST ACROSS TASKS (each task counts once, {cost_unit}):")
+    print(
+        f"  {'scenario':<24}{'mean ' + cost_unit + '/task':>14}"
+        f"{'median ' + cost_unit + '/task':>16}{'mean Δ% vs S1':>15}"
+    )
     for arm in ARM_ORDER:
         per_task_costs = [task_arm_cost(t, arm) for t in per_task]
         eq_mean = mean(per_task_costs)
@@ -587,9 +671,9 @@ def summarize(
             if task_arm_cost(t, "baseline")
         ]
         eq_pct = mean(pct) if pct else 0.0
-        print(f"  {SCENARIO_LABEL[arm]:<24}{eq_mean:>11.4f}{eq_med:>14.4f}{eq_pct:>+15.1f}")
+        print(f"  {SCENARIO_LABEL[arm]:<24}{eq_mean:>14.{cdp}f}{eq_med:>16.{cdp}f}{eq_pct:>+15.1f}")
     print(
-        "  (Dollar view of the equal-weight table: every task counts once, so the\n"
+        "  (Cost view of the equal-weight table: every task counts once, so the\n"
         "   figure reflects a typical task mix rather than the few heaviest tasks.)"
     )
 
@@ -860,6 +944,16 @@ def main() -> int:
         "placeholder (~5x input); pass your model's real output price.",
     )
     parser.add_argument(
+        "--aiu-to-usd",
+        type=float,
+        default=None,
+        help="Optional AIU->USD rate. The Copilot endpoint returns the real billed "
+        "cost in AIU (AI credits); the eval reports that authoritative cost directly. "
+        "Pass this only if you know your account's credit->USD rate and want the "
+        "billed-cost tables converted to dollars. Ignored for non-Copilot endpoints, "
+        "which use the flat --price-* estimate instead.",
+    )
+    parser.add_argument(
         "--rate-limit-retries",
         type=int,
         default=3,
@@ -1001,6 +1095,7 @@ def main() -> int:
         price_prompt=args.price_prompt,
         price_cached=args.price_cached,
         price_completion=args.price_completion,
+        aiu_to_usd=args.aiu_to_usd,
     )
     return 0
 

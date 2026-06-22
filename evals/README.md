@@ -162,6 +162,21 @@ table; another reason to use a large-context endpoint). Use `--repeat >= 3` to
 average out model nondeterminism. Per-run detail is written to
 `out/schema_fields_eval.jsonl`.
 
+> Authoritative billed cost: when `--base-url` is the Copilot API
+> (`https://api.githubcopilot.com`), every response carries a vendor
+> `copilot_usage.token_details` block with the **real per-type prices** the
+> billing system uses (input / cache_read / cache_write / output) plus a summed
+> `total_nano_aiu`. The harness reads it straight off each response and reports an
+> **authoritative billed cost in AIU** (AI credits — the native billing unit),
+> including the `cache_write` bucket that OpenAI-style usage never exposes. This is
+> the same source the Copilot agent runtime benchmarks use, so no hand-typed
+> prices are involved. For other endpoints (GitHub Models, OpenAI) that don't
+> return `copilot_usage`, it falls back to a flat per-1M estimate from
+> `--price-prompt` / `--price-cached` / `--price-completion`. A credit→USD rate is
+> account-specific and non-public, so the cost is reported in AIU by default; pass
+> `--aiu-to-usd <rate>` only if you know yours and want the billed-cost tables in
+> dollars.
+
 > Task design matters: the default tasks are intentionally **neutral** (they do
 > not tell the model to "return only X"). Biasing prompts toward terse answers
 > would inflate the filtering arms. Keep a balanced mix of narrow/full/neutral.
