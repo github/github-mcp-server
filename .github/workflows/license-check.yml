@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # Check out the actual PR branch so we can push changes back if needed
       - name: Check out PR branch
