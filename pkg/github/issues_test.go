@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -4322,6 +4323,7 @@ func TestAddIssueComment(t *testing.T) {
 		ID:      github.Ptr(int64(789)),
 		Content: github.Ptr("heart"),
 	}
+	commentCreatedAfterReactionFailure := &atomic.Bool{}
 
 	tests := []struct {
 		name               string
@@ -4329,6 +4331,7 @@ func TestAddIssueComment(t *testing.T) {
 		requestArgs        map[string]any
 		expectToolError    bool
 		expectedToolErrMsg string
+		unexpectedCall     *atomic.Bool
 	}{
 		{
 			name: "successful comment on issue",
@@ -4410,6 +4413,43 @@ func TestAddIssueComment(t *testing.T) {
 			expectToolError:    true,
 			expectedToolErrMsg: "issue_number is required when body is provided",
 		},
+		{
+			name: "comment_id without reaction",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(999),
+				"body":         "This is a comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "comment_id can only be provided when reaction is provided",
+		},
+		{
+			name: "does not create comment when reaction fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesReactionsByOwnerByRepoByIssueNumber: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+					_, _ = w.Write([]byte(`{"message": "server error"}`))
+				},
+				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: func(w http.ResponseWriter, _ *http.Request) {
+					commentCreatedAfterReactionFailure.Store(true)
+					w.WriteHeader(http.StatusCreated)
+					responseData, _ := json.Marshal(mockComment)
+					_, _ = w.Write(responseData)
+				},
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"body":         "This is a comment",
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to add reaction to issue",
+			unexpectedCall:     commentCreatedAfterReactionFailure,
+		},
 	}
 
 	for _, tc := range tests {
@@ -4428,6 +4468,9 @@ func TestAddIssueComment(t *testing.T) {
 				require.True(t, result.IsError)
 				errorContent := getErrorResult(t, result)
 				assert.Contains(t, errorContent.Text, tc.expectedToolErrMsg)
+				if tc.unexpectedCall != nil {
+					assert.False(t, tc.unexpectedCall.Load())
+				}
 				return
 			}
 

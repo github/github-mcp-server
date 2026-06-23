@@ -1190,6 +1190,9 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			if hasReaction && !hasIssueNumber && !hasCommentID {
 				return utils.NewToolResultError("issue_number or comment_id is required when reaction is provided"), nil, nil
 			}
+			if hasCommentID && !hasReaction {
+				return utils.NewToolResultError("comment_id can only be provided when reaction is provided"), nil, nil
+			}
 			if hasBody && body == "" {
 				return utils.NewToolResultError("body cannot be empty when provided"), nil, nil
 			}
@@ -1200,31 +1203,6 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
-			}
-
-			var commentResponse *MinimalResponse
-			if hasBody {
-				comment := &github.IssueComment{
-					Body: github.Ptr(body),
-				}
-				createdComment, resp, err := client.Issues.CreateComment(ctx, owner, repo, issueNumber, comment)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to create comment", err), nil, nil
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				if resp.StatusCode != http.StatusCreated {
-					bodyBytes, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
-					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create comment", resp, bodyBytes), nil, nil
-				}
-
-				commentResponse = &MinimalResponse{
-					ID:  fmt.Sprintf("%d", createdComment.GetID()),
-					URL: createdComment.GetHTMLURL(),
-				}
 			}
 
 			var reactionResponse *MinimalResponse
@@ -1251,6 +1229,31 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 						ID:  fmt.Sprintf("%d", reaction.GetID()),
 						URL: fmt.Sprintf("%srepos/%s/%s/issues/%d/reactions/%d", client.BaseURL(), owner, repo, issueNumber, reaction.GetID()),
 					}
+				}
+			}
+
+			var commentResponse *MinimalResponse
+			if hasBody {
+				comment := &github.IssueComment{
+					Body: github.Ptr(body),
+				}
+				createdComment, resp, err := client.Issues.CreateComment(ctx, owner, repo, issueNumber, comment)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to create comment", err), nil, nil
+				}
+				defer func() { _ = resp.Body.Close() }()
+
+				if resp.StatusCode != http.StatusCreated {
+					bodyBytes, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					}
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create comment", resp, bodyBytes), nil, nil
+				}
+
+				commentResponse = &MinimalResponse{
+					ID:  fmt.Sprintf("%d", createdComment.GetID()),
+					URL: createdComment.GetHTMLURL(),
 				}
 			}
 

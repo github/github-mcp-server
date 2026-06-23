@@ -1272,33 +1272,17 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 			if hasReaction && reactionContent == "" {
 				return utils.NewToolResultError("reaction cannot be empty when provided"), nil, nil
 			}
+			var pullNumber int
+			if hasBody {
+				pullNumber, err = RequiredInt(args, "pullNumber")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
-			}
-
-			var comment *github.PullRequestComment
-			if hasBody {
-				pullNumber, err := RequiredInt(args, "pullNumber")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				var resp *github.Response
-				comment, resp, err = client.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, pullNumber, body, commentID)
-				if err != nil {
-					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reply to pull request comment", resp, err), nil, nil
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				if resp.StatusCode != http.StatusCreated {
-					bodyBytes, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
-					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add reply to pull request comment", resp, bodyBytes), nil, nil
-				}
 			}
 
 			var reactionResponse *MinimalResponse
@@ -1312,6 +1296,24 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 				reactionResponse = &MinimalResponse{
 					ID:  fmt.Sprintf("%d", reaction.GetID()),
 					URL: fmt.Sprintf("%srepos/%s/%s/pulls/comments/%d/reactions/%d", client.BaseURL(), owner, repo, commentID, reaction.GetID()),
+				}
+			}
+
+			var comment *github.PullRequestComment
+			if hasBody {
+				var resp *github.Response
+				comment, resp, err = client.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, pullNumber, body, commentID)
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reply to pull request comment", resp, err), nil, nil
+				}
+				defer func() { _ = resp.Body.Close() }()
+
+				if resp.StatusCode != http.StatusCreated {
+					bodyBytes, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					}
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add reply to pull request comment", resp, bodyBytes), nil, nil
 				}
 			}
 

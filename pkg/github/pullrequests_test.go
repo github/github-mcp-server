@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -4010,6 +4011,7 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 		ID:      github.Ptr(int64(789)),
 		Content: github.Ptr("rocket"),
 	}
+	replyCreatedAfterReactionFailure := &atomic.Bool{}
 
 	tests := []struct {
 		name               string
@@ -4017,6 +4019,7 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 		requestArgs        map[string]any
 		expectToolError    bool
 		expectedToolErrMsg string
+		unexpectedCall     *atomic.Bool
 	}{
 		{
 			name: "successful reply to pull request comment",
@@ -4064,6 +4067,18 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 				"repo":      "repo",
 				"commentId": float64(123),
 				"body":      "This is a reply to the comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: pullNumber",
+		},
+		{
+			name: "missing required parameter pullNumber when replying with reaction",
+			requestArgs: map[string]any{
+				"owner":     "owner",
+				"repo":      "repo",
+				"commentId": float64(123),
+				"body":      "This is a reply to the comment",
+				"reaction":  "rocket",
 			},
 			expectToolError:    true,
 			expectedToolErrMsg: "missing required parameter: pullNumber",
@@ -4139,6 +4154,32 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 			expectToolError:    true,
 			expectedToolErrMsg: "failed to add reply to pull request comment",
 		},
+		{
+			name: "does not create reply when reaction fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsCommentsReactionsByOwnerByRepoByCommentID: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+					_, _ = w.Write([]byte(`{"message": "server error"}`))
+				},
+				PostReposPullsCommentsByOwnerByRepoByPullNumber: func(w http.ResponseWriter, _ *http.Request) {
+					replyCreatedAfterReactionFailure.Store(true)
+					w.WriteHeader(http.StatusCreated)
+					responseData, _ := json.Marshal(mockReplyComment)
+					_, _ = w.Write(responseData)
+				},
+			}),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"commentId":  float64(123),
+				"body":       "This is a reply to the comment",
+				"reaction":   "rocket",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to add reaction to pull request review comment",
+			unexpectedCall:     replyCreatedAfterReactionFailure,
+		},
 	}
 
 	for _, tc := range tests {
@@ -4164,6 +4205,9 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 				require.True(t, result.IsError)
 				errorContent := getErrorResult(t, result)
 				assert.Contains(t, errorContent.Text, tc.expectedToolErrMsg)
+				if tc.unexpectedCall != nil {
+					assert.False(t, tc.unexpectedCall.Load())
+				}
 				return
 			}
 
