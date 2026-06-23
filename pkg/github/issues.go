@@ -2179,6 +2179,17 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		issueRequest.Type = github.Ptr(issueType)
 	}
 
+	// fallbackDeleteFieldIDs holds field IDs we need to clear via the dedicated
+	// REST DELETE endpoint after the PATCH lands. This is the omitempty-trap
+	// fallback: when the merged list is empty AND we have deletions to make,
+	// `go-github`'s `omitempty` tag on IssueRequest.IssueFieldValues strips the
+	// empty slice from the JSON body, the dotcom REST handler's top-level
+	// `if data.include?(ISSUE_FIELD_VALUES)` guard short-circuits, and nothing
+	// gets cleared. When the merged list is non-empty the PATCH's set semantics
+	// handle the deletes implicitly (current - new), so no DELETE follow-up is
+	// needed in that path.
+	var fallbackDeleteFieldIDs []int64
+
 	if len(issueFieldValues) > 0 || len(fieldIDsToDelete) > 0 {
 		// The REST update endpoint uses "set" semantics — it overwrites all existing
 		// field values with whatever is sent. Fetch the current values first, merge in
@@ -2201,7 +2212,15 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 			}
 			merged = kept
 		}
-		issueRequest.IssueFieldValues = merged
+		if len(merged) == 0 && len(fieldIDsToDelete) > 0 {
+			// Omitempty trap: skip the IssueFieldValues assignment so we don't
+			// rely on a value that's about to be stripped from the JSON anyway,
+			// and clear each field via the dedicated DELETE endpoint after the
+			// PATCH lands.
+			fallbackDeleteFieldIDs = fieldIDsToDelete
+		} else {
+			issueRequest.IssueFieldValues = merged
+		}
 	}
 
 	updatedIssue, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)
@@ -2220,6 +2239,26 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update issue", resp, body), nil
+	}
+
+	// Clear any fields whose deletion the PATCH couldn't carry. See the
+	// fallbackDeleteFieldIDs declaration above for the omitempty trap details.
+	// We hit the dedicated DELETE endpoint per field — it's idempotent, takes
+	// the integer field ID, and the URL is the standard `/repos/{owner}/{repo}`
+	// pattern (no need for the numeric repository ID despite what the internal
+	// route in app/api/issue_field_values.rb suggests; the public API rewrites
+	// to it).
+	for _, fieldID := range fallbackDeleteFieldIDs {
+		path := fmt.Sprintf("repos/%s/%s/issues/%d/issue-field-values/%d", owner, repo, issueNumber, fieldID)
+		req, err := client.NewRequest(ctx, http.MethodDelete, path, nil)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to build DELETE request for issue field value", nil, err), nil
+		}
+		delResp, err := client.Do(req, nil)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to clear issue field value", delResp, err), nil
+		}
+		_ = delResp.Body.Close()
 	}
 
 	// Use GraphQL API for state updates
