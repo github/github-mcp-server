@@ -699,19 +699,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					itemID = id
 				} else {
 					// Resolve the item by (item_owner, item_repo, issue_number).
-					issueOwner, ownerErr := RequiredParam[string](args, "item_owner")
-					if ownerErr != nil {
-						return utils.NewToolResultError("update_project_item requires either item_id, or item_owner + item_repo + issue_number to resolve the item by issue"), nil, nil
-					}
-					issueRepo, repoErr := RequiredParam[string](args, "item_repo")
-					if repoErr != nil {
-						return utils.NewToolResultError("update_project_item requires either item_id, or item_owner + item_repo + issue_number to resolve the item by issue"), nil, nil
-					}
-					issueNumber, numErr := RequiredInt(args, "issue_number")
-					if numErr != nil {
-						return utils.NewToolResultError("update_project_item requires either item_id, or item_owner + item_repo + issue_number to resolve the item by issue"), nil, nil
-					}
-					resolvedItemID, resolveErr := resolveProjectItemIDByIssueNumber(ctx, gqlClient, owner, ownerType, projectNumber, issueOwner, issueRepo, issueNumber)
+					resolvedItemID, resolveErr := resolveItemIDFromIssueArgs(ctx, gqlClient, owner, ownerType, projectNumber, args)
 					if resolveErr != nil {
 						var structured *ghErrors.StructuredResolutionError
 						if errors.As(resolveErr, &structured) {

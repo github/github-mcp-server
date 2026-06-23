@@ -310,6 +310,18 @@ func resolveProjectItemIDByIssueNumber(ctx context.Context, gqlClient *githubv4.
 	)
 }
 
+// resolveItemIDFromIssueArgs reads (item_owner, item_repo, issue_number) from args
+// and resolves them to a project item ID. Returns a single friendly error if any input is missing.
+func resolveItemIDFromIssueArgs(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, args map[string]any) (int64, error) {
+	issueOwner, ownerErr := RequiredParam[string](args, "item_owner")
+	issueRepo, repoErr := RequiredParam[string](args, "item_repo")
+	issueNumber, numErr := RequiredInt(args, "issue_number")
+	if ownerErr != nil || repoErr != nil || numErr != nil {
+		return 0, fmt.Errorf("update_project_item requires either item_id, or item_owner + item_repo + issue_number to resolve the item by issue")
+	}
+	return resolveProjectItemIDByIssueNumber(ctx, gqlClient, owner, ownerType, projectNumber, issueOwner, issueRepo, issueNumber)
+}
+
 // parseInt64 parses a decimal string into int64.
 func parseInt64(s string) (int64, error) {
 	var n int64
