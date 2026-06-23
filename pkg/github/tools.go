@@ -215,8 +215,6 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListIssueFields(t),
 		IssueWrite(t),
 		AddIssueComment(t),
-		AddIssueReaction(t),
-		AddIssueCommentReaction(t),
 		SubIssueWrite(t),
 
 		// User tools
@@ -236,7 +234,6 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		PullRequestReviewWrite(t),
 		AddCommentToPendingReview(t),
 		AddReplyToPullRequestComment(t),
-		AddPullRequestReviewCommentReaction(t),
 
 		// Copilot tools
 		AssignCopilotToIssue(t),
@@ -317,6 +314,8 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GranularRemoveSubIssue(t),
 		GranularReprioritizeSubIssue(t),
 		GranularSetIssueFields(t),
+		AddIssueReaction(t),
+		AddIssueCommentReaction(t),
 
 		// Granular pull request tools (feature-flagged, replace consolidated update_pull_request/pull_request_review_write)
 		GranularUpdatePullRequestTitle(t),
@@ -330,6 +329,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GranularAddPullRequestReviewComment(t),
 		GranularResolveReviewThread(t),
 		GranularUnresolveReviewThread(t),
+		AddPullRequestReviewCommentReaction(t),
 	})
 }
 
