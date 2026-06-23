@@ -1196,7 +1196,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 	return st
 }
 
-// AddReplyToPullRequestComment creates a tool to add a reply to an existing pull request comment.
+// AddReplyToPullRequestComment creates a tool to add a reply or reaction to an existing pull request comment.
 func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -1211,25 +1211,30 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 			},
 			"pullNumber": {
 				Type:        "number",
-				Description: "Pull request number",
+				Description: "Pull request number. Required when body is provided.",
 			},
 			"commentId": {
 				Type:        "number",
-				Description: "The ID of the comment to reply to",
+				Description: "The ID of the comment to reply or react to",
 			},
 			"body": {
 				Type:        "string",
-				Description: "The text of the reply",
+				Description: "The text of the reply. Required unless reaction is provided.",
+			},
+			"reaction": {
+				Type:        "string",
+				Description: "Emoji reaction to add. Required unless body is provided.",
+				Enum:        []any{"+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes"},
 			},
 		},
-		Required: []string{"owner", "repo", "pullNumber", "commentId", "body"},
+		Required: []string{"owner", "repo", "commentId"},
 	}
 
 	return NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "add_reply_to_pull_request_comment",
-			Description: t("TOOL_ADD_REPLY_TO_PULL_REQUEST_COMMENT_DESCRIPTION", "Add a reply to an existing pull request comment. This creates a new comment that is linked as a reply to the specified comment."),
+			Description: t("TOOL_ADD_REPLY_TO_PULL_REQUEST_COMMENT_DESCRIPTION", "Add a reply and/or reaction to an existing pull request comment. This can create a new comment linked as a reply to the specified comment, add an emoji reaction to the specified comment, or do both. At least one of body or reaction is required."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ADD_REPLY_TO_PULL_REQUEST_COMMENT_USER_TITLE", "Add reply to pull request comment"),
 				ReadOnlyHint: false,
@@ -1246,17 +1251,26 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			pullNumber, err := RequiredInt(args, "pullNumber")
+			commentID, err := RequiredBigInt(args, "commentId")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			commentID, err := RequiredInt(args, "commentId")
+			body, hasBody, err := OptionalParamOK[string](args, "body")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			body, err := RequiredParam[string](args, "body")
+			reactionContent, hasReaction, err := OptionalParamOK[string](args, "reaction")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if !hasBody && !hasReaction {
+				return utils.NewToolResultError("at least one of body or reaction is required"), nil, nil
+			}
+			if hasBody && body == "" {
+				return utils.NewToolResultError("body cannot be empty when provided"), nil, nil
+			}
+			if hasReaction && reactionContent == "" {
+				return utils.NewToolResultError("reaction cannot be empty when provided"), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -1264,21 +1278,57 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			comment, resp, err := client.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, pullNumber, body, int64(commentID))
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reply to pull request comment", resp, err), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusCreated {
-				bodyBytes, err := io.ReadAll(resp.Body)
+			var comment *github.PullRequestComment
+			if hasBody {
+				pullNumber, err := RequiredInt(args, "pullNumber")
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add reply to pull request comment", resp, bodyBytes), nil, nil
+
+				var resp *github.Response
+				comment, resp, err = client.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, pullNumber, body, commentID)
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reply to pull request comment", resp, err), nil, nil
+				}
+				defer func() { _ = resp.Body.Close() }()
+
+				if resp.StatusCode != http.StatusCreated {
+					bodyBytes, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					}
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add reply to pull request comment", resp, bodyBytes), nil, nil
+				}
 			}
 
-			r, err := json.Marshal(comment)
+			var reactionResponse *MinimalResponse
+			if hasReaction {
+				reaction, resp, err := client.Reactions.CreatePullRequestCommentReaction(ctx, owner, repo, commentID, reactionContent)
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reaction to pull request review comment", resp, err), nil, nil
+				}
+				defer func() { _ = resp.Body.Close() }()
+
+				reactionResponse = &MinimalResponse{
+					ID:  fmt.Sprintf("%d", reaction.GetID()),
+					URL: fmt.Sprintf("%srepos/%s/%s/pulls/comments/%d/reactions/%d", client.BaseURL(), owner, repo, commentID, reaction.GetID()),
+				}
+			}
+
+			var result any
+			switch {
+			case hasBody && hasReaction:
+				result = map[string]any{
+					"comment":  comment,
+					"reaction": reactionResponse,
+				}
+			case hasReaction:
+				result = reactionResponse
+			default:
+				result = comment
+			}
+
+			r, err := json.Marshal(result)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}

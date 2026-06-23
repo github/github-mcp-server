@@ -2,15 +2,15 @@
   "annotations": {
     "title": "Add reply to pull request comment"
   },
-  "description": "Add a reply to an existing pull request comment. This creates a new comment that is linked as a reply to the specified comment.",
+  "description": "Add a reply and/or reaction to an existing pull request comment. This can create a new comment linked as a reply to the specified comment, add an emoji reaction to the specified comment, or do both. At least one of body or reaction is required.",
   "inputSchema": {
     "properties": {
       "body": {
-        "description": "The text of the reply",
+        "description": "The text of the reply. Required unless reaction is provided.",
         "type": "string"
       },
       "commentId": {
-        "description": "The ID of the comment to reply to",
+        "description": "The ID of the comment to reply or react to",
         "type": "number"
       },
       "owner": {
@@ -18,8 +18,22 @@
         "type": "string"
       },
       "pullNumber": {
-        "description": "Pull request number",
+        "description": "Pull request number. Required when body is provided.",
         "type": "number"
+      },
+      "reaction": {
+        "description": "Emoji reaction to add. Required unless body is provided.",
+        "enum": [
+          "+1",
+          "-1",
+          "laugh",
+          "confused",
+          "heart",
+          "hooray",
+          "rocket",
+          "eyes"
+        ],
+        "type": "string"
       },
       "repo": {
         "description": "Repository name",
@@ -29,9 +43,7 @@
     "required": [
       "owner",
       "repo",
-      "pullNumber",
-      "commentId",
-      "body"
+      "commentId"
     ],
     "type": "object"
   },

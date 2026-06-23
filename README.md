@@ -841,23 +841,10 @@ The following sets of tools are available:
 
 - **add_issue_comment** - Add comment to issue or pull request
   - **Required OAuth Scopes**: `repo`
-  - `body`: Comment content (string, required)
-  - `issue_number`: Issue number to comment on (number, required)
+  - `body`: Comment content. Required unless reaction is provided. (string, optional)
+  - `issue_number`: Issue number to comment on or react to (number, required)
   - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-
-- **add_issue_comment_reaction** - Add Reaction to Issue or Pull Request Comment
-  - **Required OAuth Scopes**: `repo`
-  - `comment_id`: The issue comment ID (number, required)
-  - `content`: The emoji reaction type (string, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-
-- **add_issue_reaction** - Add Reaction to Issue or Pull Request
-  - **Required OAuth Scopes**: `repo`
-  - `content`: The emoji reaction type (string, required)
-  - `issue_number`: The issue number (number, required)
-  - `owner`: Repository owner (username or organization) (string, required)
+  - `reaction`: Emoji reaction to add. Required unless body is provided. (string, optional)
   - `repo`: Repository name (string, required)
 
 - **get_label** - Get a specific label from a repository
@@ -1109,19 +1096,13 @@ The following sets of tools are available:
   - `startSide`: For multi-line comments, the starting side of the diff that the comment applies to. LEFT indicates the previous state, RIGHT indicates the new state (string, optional)
   - `subjectType`: The level at which the comment is targeted (string, required)
 
-- **add_pull_request_review_comment_reaction** - Add Pull Request Review Comment Reaction
-  - **Required OAuth Scopes**: `repo`
-  - `comment_id`: The pull request review comment ID (number, required)
-  - `content`: The emoji reaction type (string, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `repo`: Repository name (string, required)
-
 - **add_reply_to_pull_request_comment** - Add reply to pull request comment
   - **Required OAuth Scopes**: `repo`
-  - `body`: The text of the reply (string, required)
-  - `commentId`: The ID of the comment to reply to (number, required)
+  - `body`: The text of the reply. Required unless reaction is provided. (string, optional)
+  - `commentId`: The ID of the comment to reply or react to (number, required)
   - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
+  - `pullNumber`: Pull request number. Required when body is provided. (number, optional)
+  - `reaction`: Emoji reaction to add. Required unless body is provided. (string, optional)
   - `repo`: Repository name (string, required)
 
 - **create_pull_request** - Open new pull request

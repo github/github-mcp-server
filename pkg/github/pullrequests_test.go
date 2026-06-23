@@ -3991,7 +3991,8 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 	assert.Contains(t, schema.Properties, "pullNumber")
 	assert.Contains(t, schema.Properties, "commentId")
 	assert.Contains(t, schema.Properties, "body")
-	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "pullNumber", "commentId", "body"})
+	assert.Contains(t, schema.Properties, "reaction")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "commentId"})
 
 	// Setup mock reply comment for success case
 	mockReplyComment := &github.PullRequestComment{
@@ -4004,6 +4005,10 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 		},
 		CreatedAt: &github.Timestamp{Time: time.Now()},
 		UpdatedAt: &github.Timestamp{Time: time.Now()},
+	}
+	mockReaction := &github.Reaction{
+		ID:      github.Ptr(int64(789)),
+		Content: github.Ptr("rocket"),
 	}
 
 	tests := []struct {
@@ -4053,7 +4058,7 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 			expectedToolErrMsg: "missing required parameter: repo",
 		},
 		{
-			name: "missing required parameter pullNumber",
+			name: "missing required parameter pullNumber when replying",
 			requestArgs: map[string]any{
 				"owner":     "owner",
 				"repo":      "repo",
@@ -4075,7 +4080,7 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 			expectedToolErrMsg: "missing required parameter: commentId",
 		},
 		{
-			name: "missing required parameter body",
+			name: "missing body and reaction",
 			requestArgs: map[string]any{
 				"owner":      "owner",
 				"repo":       "repo",
@@ -4083,7 +4088,38 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 				"commentId":  float64(123),
 			},
 			expectToolError:    true,
-			expectedToolErrMsg: "missing required parameter: body",
+			expectedToolErrMsg: "at least one of body or reaction is required",
+		},
+		{
+			name: "successful reaction to pull request comment",
+			requestArgs: map[string]any{
+				"owner":     "owner",
+				"repo":      "repo",
+				"commentId": float64(123),
+				"reaction":  "rocket",
+			},
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusCreated, mockReaction),
+			}),
+		},
+		{
+			name: "successful reply and reaction to pull request comment",
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"commentId":  float64(123),
+				"body":       "This is a reply to the comment",
+				"reaction":   "rocket",
+			},
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsCommentsByOwnerByRepoByPullNumber: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusCreated)
+					responseData, _ := json.Marshal(mockReplyComment)
+					_, _ = w.Write(responseData)
+				},
+				PostReposPullsCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusCreated, mockReaction),
+			}),
 		},
 		{
 			name: "API error when adding reply",
@@ -4134,7 +4170,12 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 			// Parse the result and verify it's not an error
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
-			assert.Contains(t, textContent.Text, "This is a reply to the comment")
+			if _, ok := tc.requestArgs["body"]; ok {
+				assert.Contains(t, textContent.Text, "This is a reply to the comment")
+			}
+			if _, ok := tc.requestArgs["reaction"]; ok {
+				assert.Contains(t, textContent.Text, "789")
+			}
 		})
 	}
 }

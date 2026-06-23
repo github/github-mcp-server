@@ -90,6 +90,8 @@ func TestIssuesGranularToolset(t *testing.T) {
 			"remove_sub_issue",
 			"reprioritize_sub_issue",
 			"set_issue_fields",
+			"add_issue_reaction",
+			"add_issue_comment_reaction",
 		}
 		for _, name := range expected {
 			assert.Contains(t, toolNames, name)
@@ -125,6 +127,7 @@ func TestPullRequestsGranularToolset(t *testing.T) {
 			"add_pull_request_review_comment",
 			"resolve_review_thread",
 			"unresolve_review_thread",
+			"add_pull_request_review_comment_reaction",
 		}
 		for _, name := range expected {
 			assert.Contains(t, toolNames, name)

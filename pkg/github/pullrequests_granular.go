@@ -836,5 +836,6 @@ func AddPullRequestReviewCommentReaction(t translations.TranslationHelperFunc) i
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
 	return st
 }
