@@ -1215,7 +1215,7 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 			},
 			"commentId": {
 				Type:        "number",
-				Description: "The ID of the comment to reply or react to",
+				Description: "The numeric ID of the pull request review comment to reply or react to. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
 			},
 			"body": {
 				Type:        "string",

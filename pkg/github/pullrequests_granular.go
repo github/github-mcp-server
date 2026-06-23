@@ -784,7 +784,7 @@ func AddPullRequestReviewCommentReaction(t translations.TranslationHelperFunc) i
 					},
 					"comment_id": {
 						Type:        "number",
-						Description: "The pull request review comment ID",
+						Description: "The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
 						Minimum:     jsonschema.Ptr(1.0),
 					},
 					"content": {

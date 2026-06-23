@@ -1099,7 +1099,7 @@ The following sets of tools are available:
 - **add_reply_to_pull_request_comment** - Add reply to pull request comment
   - **Required OAuth Scopes**: `repo`
   - `body`: The text of the reply. Required unless reaction is provided. (string, optional)
-  - `commentId`: The ID of the comment to reply or react to (number, required)
+  - `commentId`: The numeric ID of the pull request review comment to reply or react to. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...). (number, required)
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number. Required when body is provided. (number, optional)
   - `reaction`: Emoji reaction to add. Required unless body is provided. (string, optional)

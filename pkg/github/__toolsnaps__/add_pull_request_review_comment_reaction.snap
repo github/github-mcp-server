@@ -8,7 +8,7 @@
   "inputSchema": {
     "properties": {
       "comment_id": {
-        "description": "The pull request review comment ID",
+        "description": "The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
         "minimum": 1,
         "type": "number"
       },

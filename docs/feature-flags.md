@@ -220,7 +220,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **add_pull_request_review_comment_reaction** - Add Pull Request Review Comment Reaction
   - **Required OAuth Scopes**: `repo`
-  - `comment_id`: The pull request review comment ID (number, required)
+  - `comment_id`: The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...). (number, required)
   - `content`: The emoji reaction type (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)
