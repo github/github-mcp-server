@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -195,7 +196,14 @@ Use this tool to list projects for a user or organization, or list project field
 					},
 					"fields": {
 						Type:        "array",
-						Description: "Field IDs to include when listing project items (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this, only titles returned. Only used for 'list_project_items' method.",
+						Description: "Field IDs to include when listing project items (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this (and without 'field_names'), only titles returned. Only used for 'list_project_items' method.",
+						Items: &jsonschema.Schema{
+							Type: "string",
+						},
+					},
+					"field_names": {
+						Type:        "array",
+						Description: "Field names to include when listing project items (e.g. [\"Status\", \"Priority\"]). Resolved server-side to field IDs — pass this instead of 'fields' when you only know the human-readable names. Names that fail to resolve return a structured error. Only used for 'list_project_items' method.",
 						Items: &jsonschema.Schema{
 							Type: "string",
 						},
@@ -267,7 +275,11 @@ Use this tool to list projects for a user or organization, or list project field
 					}
 					return result, payload, err
 				case projectsMethodListProjectItems:
-					result, payload, err := listProjectItems(ctx, client, args, owner, ownerType)
+					gqlClient, gqlErr := deps.GetGQLClient(ctx)
+					if gqlErr != nil {
+						return utils.NewToolResultError(gqlErr.Error()), nil, nil
+					}
+					result, payload, err := listProjectItems(ctx, client, gqlClient, args, owner, ownerType)
 					if shouldAttachIFCLabel(ctx, deps, result) {
 						isPrivate, visibilityErr := FetchProjectIsPrivate(ctx, client, owner, ownerType, projectNumber)
 						if visibilityErr == nil {
@@ -343,7 +355,14 @@ Use this tool to get details about individual projects, project fields, and proj
 					},
 					"fields": {
 						Type:        "array",
-						Description: "Specific list of field IDs to include in the response when getting a project item (e.g. [\"102589\", \"985201\", \"169875\"]). If not provided, only the title field is included. Only used for 'get_project_item' method.",
+						Description: "Specific list of field IDs to include in the response when getting a project item (e.g. [\"102589\", \"985201\", \"169875\"]). If neither 'fields' nor 'field_names' is provided, only the title field is included. Only used for 'get_project_item' method.",
+						Items: &jsonschema.Schema{
+							Type: "string",
+						},
+					},
+					"field_names": {
+						Type:        "array",
+						Description: "Specific list of field names to include in the response when getting a project item (e.g. [\"Status\", \"Priority\"]). Resolved server-side to field IDs — pass this instead of 'fields' when you only know the human-readable names. Only used for 'get_project_item' method.",
 						Items: &jsonschema.Schema{
 							Type: "string",
 						},
@@ -433,6 +452,25 @@ Use this tool to get details about individual projects, project fields, and proj
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
+				fieldNames, err := OptionalStringArrayParam(args, "field_names")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				if len(fieldNames) > 0 {
+					gqlClient, gqlErr := deps.GetGQLClient(ctx)
+					if gqlErr != nil {
+						return utils.NewToolResultError(gqlErr.Error()), nil, nil
+					}
+					resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, fieldNames)
+					if resolveErr != nil {
+						var structured *ghErrors.StructuredResolutionError
+						if errors.As(resolveErr, &structured) {
+							return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
+						}
+						return utils.NewToolResultError(resolveErr.Error()), nil, nil
+					}
+					fields = append(fields, resolvedIDs...)
+				}
 				result, payload, err := getProjectItem(ctx, client, owner, ownerType, projectNumber, itemID, fields)
 				if shouldAttachIFCLabel(ctx, deps, result) {
 					isPrivate, visibilityErr := FetchProjectIsPrivate(ctx, client, owner, ownerType, projectNumber)
@@ -495,7 +533,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"item_id": {
 						Type:        "number",
-						Description: "The project item ID. Required for 'update_project_item' and 'delete_project_item' methods.",
+						Description: "The project item ID. Required for 'delete_project_item'. For 'update_project_item', provide either item_id, or (item_owner + item_repo + issue_number) to resolve the item by issue.",
 					},
 					"item_type": {
 						Type:        "string",
@@ -504,15 +542,15 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"item_owner": {
 						Type:        "string",
-						Description: "The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method.",
+						Description: "The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method. Also accepted by 'update_project_item' when resolving the item by issue number.",
 					},
 					"item_repo": {
 						Type:        "string",
-						Description: "The name of the repository containing the issue or pull request. Required for 'add_project_item' method.",
+						Description: "The name of the repository containing the issue or pull request. Required for 'add_project_item' method. Also accepted by 'update_project_item' when resolving the item by issue number.",
 					},
 					"issue_number": {
 						Type:        "number",
-						Description: "The issue number (use when item_type is 'issue' for 'add_project_item' method). Provide either issue_number or pull_request_number.",
+						Description: "The issue number. Required for 'add_project_item' when item_type is 'issue'. Also accepted by 'update_project_item' to resolve the item by issue number (combine with item_owner and item_repo).",
 					},
 					"pull_request_number": {
 						Type:        "number",
@@ -520,7 +558,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"updated_field": {
 						Type:        "object",
-						Description: "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}. Required for 'update_project_item' method.",
+						Description: "Object describing the field to update and its new value. Required for 'update_project_item'. Two shapes are accepted: (1) by ID — {\"id\": 123456, \"value\": \"...\"}; (2) by name — {\"name\": \"Status\", \"value\": \"In Progress\"}. For single-select fields, the value may be the option name (resolved server-side) or the option ID. Set value to null to clear the field.",
 					},
 					"body": {
 						Type:        "string",
@@ -652,10 +690,38 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 				return addProjectItem(ctx, gqlClient, owner, ownerType, projectNumber, itemOwner, itemRepo, itemNumber, itemType)
 			case projectsMethodUpdateProjectItem:
-				itemID, err := RequiredBigInt(args, "item_id")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+				var itemID int64
+				if _, hasItemID := args["item_id"]; hasItemID {
+					id, err := RequiredBigInt(args, "item_id")
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+					itemID = id
+				} else {
+					// Resolve the item by (item_owner, item_repo, issue_number).
+					issueOwner, ownerErr := RequiredParam[string](args, "item_owner")
+					if ownerErr != nil {
+						return utils.NewToolResultError("update_project_item requires either item_id, or item_owner + item_repo + issue_number to resolve the item by issue"), nil, nil
+					}
+					issueRepo, repoErr := RequiredParam[string](args, "item_repo")
+					if repoErr != nil {
+						return utils.NewToolResultError("update_project_item requires either item_id, or item_owner + item_repo + issue_number to resolve the item by issue"), nil, nil
+					}
+					issueNumber, numErr := RequiredInt(args, "issue_number")
+					if numErr != nil {
+						return utils.NewToolResultError("update_project_item requires either item_id, or item_owner + item_repo + issue_number to resolve the item by issue"), nil, nil
+					}
+					resolvedItemID, resolveErr := resolveProjectItemIDByIssueNumber(ctx, gqlClient, owner, ownerType, projectNumber, issueOwner, issueRepo, issueNumber)
+					if resolveErr != nil {
+						var structured *ghErrors.StructuredResolutionError
+						if errors.As(resolveErr, &structured) {
+							return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
+						}
+						return utils.NewToolResultError(resolveErr.Error()), nil, nil
+					}
+					itemID = resolvedItemID
 				}
+
 				rawUpdatedField, exists := args["updated_field"]
 				if !exists {
 					return utils.NewToolResultError("missing required parameter: updated_field"), nil, nil
@@ -664,7 +730,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				if !ok || fieldValue == nil {
 					return utils.NewToolResultError("updated_field must be an object"), nil, nil
 				}
-				return updateProjectItem(ctx, client, owner, ownerType, projectNumber, itemID, fieldValue)
+				return updateProjectItem(ctx, client, gqlClient, owner, ownerType, projectNumber, itemID, fieldValue)
 			case projectsMethodDeleteProjectItem:
 				itemID, err := RequiredBigInt(args, "item_id")
 				if err != nil {
@@ -881,7 +947,7 @@ func listProjectFields(ctx context.Context, client *github.Client, args map[stri
 	return utils.NewToolResultText(string(r)), nil, nil
 }
 
-func listProjectItems(ctx context.Context, client *github.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, any, error) {
+func listProjectItems(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, any, error) {
 	projectNumber, err := RequiredInt(args, "project_number")
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
@@ -895,6 +961,22 @@ func listProjectItems(ctx context.Context, client *github.Client, args map[strin
 	fields, err := OptionalBigIntArrayParam(args, "fields")
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+
+	fieldNames, err := OptionalStringArrayParam(args, "field_names")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	if len(fieldNames) > 0 {
+		resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, fieldNames)
+		if resolveErr != nil {
+			var structured *ghErrors.StructuredResolutionError
+			if errors.As(resolveErr, &structured) {
+				return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
+			}
+			return utils.NewToolResultError(resolveErr.Error()), nil, nil
+		}
+		fields = append(fields, resolvedIDs...)
 	}
 
 	pagination, err := extractPaginationOptionsFromArgs(args)
@@ -1074,9 +1156,13 @@ func getProjectItem(ctx context.Context, client *github.Client, owner, ownerType
 	return utils.NewToolResultText(string(r)), nil, nil
 }
 
-func updateProjectItem(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, itemID int64, fieldValue map[string]any) (*mcp.CallToolResult, any, error) {
-	updatePayload, err := buildUpdateProjectItem(fieldValue)
+func updateProjectItem(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, itemID int64, fieldValue map[string]any) (*mcp.CallToolResult, any, error) {
+	updatePayload, err := buildUpdateProjectItem(ctx, gqlClient, owner, ownerType, projectNumber, fieldValue)
 	if err != nil {
+		var structured *ghErrors.StructuredResolutionError
+		if errors.As(err, &structured) {
+			return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
+		}
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
@@ -1450,25 +1536,77 @@ func validateAndConvertToInt64(value any) (int64, error) {
 	}
 }
 
-// buildUpdateProjectItem constructs UpdateProjectItemOptions from the input map.
-func buildUpdateProjectItem(input map[string]any) (*github.UpdateProjectItemOptions, error) {
+// buildUpdateProjectItem builds UpdateProjectItemOptions, resolving field names and SINGLE_SELECT option names server-side.
+func buildUpdateProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, input map[string]any) (*github.UpdateProjectItemOptions, error) {
 	if input == nil {
 		return nil, fmt.Errorf("updated_field must be an object")
 	}
 
-	idField, ok := input["id"]
-	if !ok {
-		return nil, fmt.Errorf("updated_field.id is required")
-	}
-
-	fieldID, err := validateAndConvertToInt64(idField)
-	if err != nil {
-		return nil, fmt.Errorf("updated_field.id: %w", err)
-	}
-
-	valueField, ok := input["value"]
-	if !ok {
+	valueField, hasValue := input["value"]
+	if !hasValue {
 		return nil, fmt.Errorf("updated_field.value is required")
+	}
+
+	idField, hasID := input["id"]
+	nameField, hasName := input["name"]
+
+	switch {
+	case hasID && hasName:
+		return nil, fmt.Errorf("updated_field must set either id or name, not both")
+	case !hasID && !hasName:
+		return nil, fmt.Errorf("updated_field requires either id or name")
+	}
+
+	var (
+		fieldID  int64
+		resolved *ResolvedField
+	)
+
+	if hasID {
+		var err error
+		fieldID, err = validateAndConvertToInt64(idField)
+		if err != nil {
+			return nil, fmt.Errorf("updated_field.id: %w", err)
+		}
+	} else {
+		fieldName, ok := nameField.(string)
+		if !ok || fieldName == "" {
+			return nil, fmt.Errorf("updated_field.name must be a non-empty string")
+		}
+		if gqlClient == nil {
+			return nil, fmt.Errorf("internal error: gqlClient is required to resolve updated_field.name")
+		}
+		var err error
+		resolved, err = resolveProjectFieldByName(ctx, gqlClient, owner, ownerType, projectNumber, fieldName, "")
+		if err != nil {
+			return nil, err
+		}
+		parsedID, parseErr := parseInt64(resolved.ID)
+		if parseErr != nil {
+			return nil, fmt.Errorf("resolved field %q has non-numeric ID %q; pass updated_field.id directly", resolved.Name, resolved.ID)
+		}
+		fieldID = parsedID
+	}
+
+	// SINGLE_SELECT: resolve option name to ID; pass through if it's already a known option ID.
+	if resolved != nil && resolved.DataType == "SINGLE_SELECT" {
+		if str, ok := valueField.(string); ok && str != "" {
+			if optID, optErr := resolveSingleSelectOptionByName(resolved, str); optErr == nil {
+				valueField = optID
+			} else {
+				// Fall back: if the string is already a known option ID, accept it.
+				known := false
+				for _, opt := range resolved.Options {
+					if opt.ID == str {
+						known = true
+						break
+					}
+				}
+				if !known {
+					return nil, optErr
+				}
+			}
+		}
 	}
 
 	payload := &github.UpdateProjectItemOptions{

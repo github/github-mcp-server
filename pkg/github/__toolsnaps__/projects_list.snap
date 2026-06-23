@@ -14,8 +14,15 @@
         "description": "Backward pagination cursor from previous pageInfo.prevCursor (rare).",
         "type": "string"
       },
+      "field_names": {
+        "description": "Field names to include when listing project items (e.g. [\"Status\", \"Priority\"]). Resolved server-side to field IDs — pass this instead of 'fields' when you only know the human-readable names. Names that fail to resolve return a structured error. Only used for 'list_project_items' method.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
       "fields": {
-        "description": "Field IDs to include when listing project items (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this, only titles returned. Only used for 'list_project_items' method.",
+        "description": "Field IDs to include when listing project items (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this (and without 'field_names'), only titles returned. Only used for 'list_project_items' method.",
         "items": {
           "type": "string"
         },
