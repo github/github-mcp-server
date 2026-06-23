@@ -40,10 +40,11 @@ type IssueClosedStateReason string
 // issueWriteFieldInput is a user-friendly issue field input for issue_write.
 // Field IDs and option IDs are resolved internally before calling the REST API.
 type issueWriteFieldInput struct {
-	FieldName       string
-	Value           any
-	FieldOptionName string
-	Delete          bool
+	FieldName        string
+	Value            any
+	FieldOptionName  string
+	FieldOptionNames []string
+	Delete           bool
 }
 
 const (
@@ -144,6 +145,15 @@ type issueFieldWriteMetadataNode struct {
 			Name           githubv4.String
 		}
 	} `graphql:"... on IssueFieldSingleSelect"`
+	IssueFieldMultiSelect struct {
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+		Name           githubv4.String
+		DataType       githubv4.String
+		Options        []struct {
+			FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+			Name           githubv4.String
+		}
+	} `graphql:"... on IssueFieldMultiSelect"`
 }
 
 type issueFieldWriteMetadataQuery struct {
@@ -155,8 +165,8 @@ type issueFieldWriteMetadataQuery struct {
 }
 
 // IssueFieldRef resolves the name of an issue field across its concrete types.
-// IssueFields is a union of IssueFieldDate, IssueFieldNumber, IssueFieldSingleSelect, IssueFieldText,
-// so we have to ask for `name` on each member.
+// IssueFields is a union of IssueFieldDate, IssueFieldNumber, IssueFieldSingleSelect,
+// IssueFieldMultiSelect, IssueFieldText, so we have to ask for `name` on each member.
 type IssueFieldRef struct {
 	Date struct {
 		Name           githubv4.String
@@ -170,6 +180,10 @@ type IssueFieldRef struct {
 		Name           githubv4.String
 		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
 	} `graphql:"... on IssueFieldSingleSelect"`
+	MultiSelect struct {
+		Name           githubv4.String
+		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+	} `graphql:"... on IssueFieldMultiSelect"`
 	Text struct {
 		Name           githubv4.String
 		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
@@ -185,6 +199,8 @@ func (r IssueFieldRef) Name() string {
 		return string(r.Number.Name)
 	case r.SingleSelect.Name != "":
 		return string(r.SingleSelect.Name)
+	case r.MultiSelect.Name != "":
+		return string(r.MultiSelect.Name)
 	case r.Text.Name != "":
 		return string(r.Text.Name)
 	}
@@ -201,6 +217,8 @@ func (r IssueFieldRef) FullDatabaseIDStr() string {
 		return string(r.Number.FullDatabaseID)
 	case r.SingleSelect.FullDatabaseID != "":
 		return string(r.SingleSelect.FullDatabaseID)
+	case r.MultiSelect.FullDatabaseID != "":
+		return string(r.MultiSelect.FullDatabaseID)
 	case r.Text.FullDatabaseID != "":
 		return string(r.Text.FullDatabaseID)
 	}
@@ -208,8 +226,9 @@ func (r IssueFieldRef) FullDatabaseIDStr() string {
 }
 
 // IssueFieldValueFragment captures the value of a custom issue field. IssueFieldValue is a union
-// of 4 concrete value types; each carries its own value scalar and a reference to its parent field.
+// of concrete value types; each carries its own value scalar and a reference to its parent field.
 // The Number variant's `value` is aliased to `valueNumber` to avoid a Float vs String type clash on decode.
+// The MultiSelect variant exposes selected options as a plain list (not a connection).
 type IssueFieldValueFragment struct {
 	TypeName  string `graphql:"__typename"`
 	DateValue struct {
@@ -224,13 +243,23 @@ type IssueFieldValueFragment struct {
 		Field IssueFieldRef
 		Value githubv4.String
 	} `graphql:"... on IssueFieldSingleSelectValue"`
+	MultiSelectValue struct {
+		Field   IssueFieldRef
+		Options []struct {
+			Name githubv4.String
+		}
+	} `graphql:"... on IssueFieldMultiSelectValue"`
 	TextValue struct {
 		Field IssueFieldRef
 		Value githubv4.String
 	} `graphql:"... on IssueFieldTextValue"`
 }
 
-func optionalIssueWriteFields(args map[string]any) ([]issueWriteFieldInput, error) {
+// optionalIssueWriteFields parses the `issue_fields` parameter. When
+// multiSelectEnabled is false, the `field_option_names` slot is rejected (the
+// legacy variant of the tool does not advertise it in its schema; this guards
+// against callers passing it anyway through some out-of-band path).
+func optionalIssueWriteFields(args map[string]any, multiSelectEnabled bool) ([]issueWriteFieldInput, error) {
 	issueFieldsRaw, exists := args["issue_fields"]
 	if !exists {
 		return nil, nil
@@ -264,6 +293,24 @@ func optionalIssueWriteFields(args map[string]any) ([]issueWriteFieldInput, erro
 			return nil, err
 		}
 
+		var fieldOptionNames []string
+		_, hasNamesKey := itemMap["field_option_names"]
+		if hasNamesKey && !multiSelectEnabled {
+			// Legacy variant doesn't advertise field_option_names at all.
+			// Reject any presence of the key — even with an empty value or
+			// null — so the error message stays neutral instead of leaking
+			// multi-select wording (e.g. "use 'delete: true' to clear the
+			// field") into the legacy surface.
+			return nil, fmt.Errorf("field_option_names is not supported in this build")
+		}
+		if rawNames := itemMap["field_option_names"]; hasNamesKey && rawNames != nil {
+			parsed, err := parseStringSlice(rawNames)
+			if err != nil {
+				return nil, fmt.Errorf("field_option_names for field %q must be an array of strings", fieldName)
+			}
+			fieldOptionNames = parsed
+		}
+
 		deleteField, _ := OptionalParam[bool](itemMap, "delete")
 		value, hasValue := itemMap["value"]
 		if hasValue && value == nil {
@@ -271,8 +318,8 @@ func optionalIssueWriteFields(args map[string]any) ([]issueWriteFieldInput, erro
 		}
 
 		if deleteField {
-			if hasValue || fieldOptionName != "" {
-				return nil, fmt.Errorf("issue field %q cannot specify 'delete' together with 'value' or 'field_option_name'", fieldName)
+			if hasValue || fieldOptionName != "" || len(fieldOptionNames) > 0 {
+				return nil, fmt.Errorf("issue field %q cannot specify 'delete' together with 'value', 'field_option_name', or 'field_option_names'", fieldName)
 			}
 			issueFields = append(issueFields, issueWriteFieldInput{
 				FieldName: fieldName,
@@ -281,25 +328,46 @@ func optionalIssueWriteFields(args map[string]any) ([]issueWriteFieldInput, erro
 			continue
 		}
 
-		if hasValue && fieldOptionName != "" {
-			return nil, fmt.Errorf("issue field %q cannot specify both value and field_option_name", fieldName)
+		setters := 0
+		if hasValue {
+			setters++
 		}
-
-		if !hasValue && fieldOptionName == "" {
-			return nil, fmt.Errorf("issue field %q must specify either value or field_option_name", fieldName)
+		if fieldOptionName != "" {
+			setters++
+		}
+		if len(fieldOptionNames) > 0 {
+			setters++
+		}
+		if setters == 0 {
+			if hasNamesKey {
+				return nil, fmt.Errorf("issue field %q has empty field_option_names — use 'delete: true' to clear the field", fieldName)
+			}
+			return nil, fmt.Errorf("issue field %q must specify one of value, field_option_name, or field_option_names", fieldName)
+		}
+		if setters > 1 {
+			return nil, fmt.Errorf("issue field %q cannot specify more than one of value, field_option_name, or field_option_names", fieldName)
 		}
 
 		issueFields = append(issueFields, issueWriteFieldInput{
-			FieldName:       fieldName,
-			Value:           value,
-			FieldOptionName: fieldOptionName,
+			FieldName:        fieldName,
+			Value:            value,
+			FieldOptionName:  fieldOptionName,
+			FieldOptionNames: fieldOptionNames,
 		})
 	}
 
 	return issueFields, nil
 }
 
-func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueFields []issueWriteFieldInput) ([]*github.IssueRequestFieldValue, []int64, error) {
+// resolveIssueRequestFieldValues looks up field metadata via GraphQL and turns
+// the user-supplied issueWriteFieldInputs into the REST-shaped values + the
+// list of field IDs the caller should clear via the dedicated REST DELETE
+// endpoint after the PATCH.
+//
+// When multiSelectEnabled is false, any field whose dataType is multi_select is
+// rejected at this entry point. The legacy tool variant's schema doesn't allow
+// multi-select inputs in the first place, so this is defence-in-depth.
+func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueFields []issueWriteFieldInput, multiSelectEnabled bool) ([]*github.IssueRequestFieldValue, []int64, error) {
 	if len(issueFields) == 0 {
 		return nil, nil, nil
 	}
@@ -327,6 +395,8 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 			name = string(node.IssueFieldDate.Name)
 		case "IssueFieldSingleSelect":
 			name = string(node.IssueFieldSingleSelect.Name)
+		case "IssueFieldMultiSelect":
+			name = string(node.IssueFieldMultiSelect.Name)
 		default:
 			continue
 		}
@@ -355,11 +425,18 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 		case "IssueFieldSingleSelect":
 			fullDatabaseIDStr = string(node.IssueFieldSingleSelect.FullDatabaseID)
 			dataType = string(node.IssueFieldSingleSelect.DataType)
+		case "IssueFieldMultiSelect":
+			fullDatabaseIDStr = string(node.IssueFieldMultiSelect.FullDatabaseID)
+			dataType = string(node.IssueFieldMultiSelect.DataType)
 		}
 
 		fieldID := parseFullDatabaseID(fullDatabaseIDStr)
 		if fieldID == 0 {
 			return nil, nil, fmt.Errorf("issue field %q is missing fullDatabaseId", fieldInput.FieldName)
+		}
+
+		if !multiSelectEnabled && strings.EqualFold(dataType, "multi_select") {
+			return nil, nil, fmt.Errorf("issue field %q is multi_select, which is not supported in this build", fieldInput.FieldName)
 		}
 
 		if fieldInput.Delete {
@@ -368,9 +445,10 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 		}
 
 		resolvedValue := fieldInput.Value
-		if fieldInput.FieldOptionName != "" {
+		switch {
+		case fieldInput.FieldOptionName != "":
 			if !strings.EqualFold(dataType, "single_select") {
-				return nil, nil, fmt.Errorf("issue field %q is %q, so field_option_name cannot be used", fieldInput.FieldName, dataType)
+				return nil, nil, fmt.Errorf("issue field %q is %q, so field_option_name cannot be used (use %s)", fieldInput.FieldName, dataType, fieldOptionInputHint(dataType))
 			}
 
 			optionFound := false
@@ -386,6 +464,33 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 			if !optionFound {
 				return nil, nil, fmt.Errorf("issue field option %q was not found for field %q", fieldInput.FieldOptionName, fieldInput.FieldName)
 			}
+		case len(fieldInput.FieldOptionNames) > 0:
+			if !strings.EqualFold(dataType, "multi_select") {
+				return nil, nil, fmt.Errorf("issue field %q is %q, so field_option_names cannot be used (use %s)", fieldInput.FieldName, dataType, fieldOptionInputHint(dataType))
+			}
+
+			resolvedNames := make([]string, 0, len(fieldInput.FieldOptionNames))
+			for _, requested := range fieldInput.FieldOptionNames {
+				matched := ""
+				for _, option := range node.IssueFieldMultiSelect.Options {
+					if strings.EqualFold(strings.TrimSpace(string(option.Name)), strings.TrimSpace(requested)) {
+						matched = string(option.Name)
+						break
+					}
+				}
+				if matched == "" {
+					return nil, nil, fmt.Errorf("issue field option %q was not found for field %q", requested, fieldInput.FieldName)
+				}
+				resolvedNames = append(resolvedNames, matched)
+			}
+			// REST IssueField#build_value_attributes for multi_select expects an array of option names.
+			resolvedValue = resolvedNames
+		default:
+			// multi_select must go through field_option_names (which validates options);
+			// reject a raw value here so callers get a clear error instead of a REST 422.
+			if strings.EqualFold(dataType, "multi_select") {
+				return nil, nil, fmt.Errorf("issue field %q is multi_select, use field_option_names to set its value", fieldInput.FieldName)
+			}
 		}
 
 		resolved = append(resolved, &github.IssueRequestFieldValue{
@@ -395,6 +500,19 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 	}
 
 	return resolved, fieldIDsToDelete, nil
+}
+
+// fieldOptionInputHint returns the user-facing input slot name that matches a select field's data type.
+// Used in error messages so callers know which slot to switch to.
+func fieldOptionInputHint(dataType string) string {
+	switch {
+	case strings.EqualFold(dataType, "single_select"):
+		return "field_option_name"
+	case strings.EqualFold(dataType, "multi_select"):
+		return "field_option_names"
+	default:
+		return "value"
+	}
 }
 
 // fetchExistingIssueFieldValues retrieves the current field values for an issue
@@ -437,6 +555,13 @@ func fetchExistingIssueFieldValues(ctx context.Context, gqlClient *githubv4.Clie
 		case "IssueFieldSingleSelectValue":
 			fieldIDStr = node.SingleSelectValue.Field.FullDatabaseIDStr()
 			value = string(node.SingleSelectValue.Value)
+		case "IssueFieldMultiSelectValue":
+			fieldIDStr = node.MultiSelectValue.Field.FullDatabaseIDStr()
+			names := make([]string, 0, len(node.MultiSelectValue.Options))
+			for _, opt := range node.MultiSelectValue.Options {
+				names = append(names, string(opt.Name))
+			}
+			value = names
 		case "IssueFieldTextValue":
 			fieldIDStr = node.TextValue.Field.FullDatabaseIDStr()
 			value = string(node.TextValue.Value)
@@ -556,13 +681,16 @@ type ListIssuesQueryTypeWithLabelsWithSince struct {
 }
 
 // IssueFieldValueFilter mirrors the GraphQL IssueFieldValueFilter input. Exactly one typed value
-// field should be set per filter (the monolith resolver rejects multiple).
+// field should be set per filter (the monolith resolver rejects multiple). For multi_select fields,
+// MultiSelectOptionValues uses all-of (AND) semantics: an issue matches only if it has every listed
+// option set on the field. To match any-of, send separate filter calls.
 type IssueFieldValueFilter struct {
-	FieldName               githubv4.String  `json:"fieldName"`
-	TextValue               *githubv4.String `json:"textValue,omitempty"`
-	DateValue               *githubv4.String `json:"dateValue,omitempty"`
-	NumberValue             *githubv4.Float  `json:"numberValue,omitempty"`
-	SingleSelectOptionValue *githubv4.String `json:"singleSelectOptionValue,omitempty"`
+	FieldName               githubv4.String    `json:"fieldName"`
+	TextValue               *githubv4.String   `json:"textValue,omitempty"`
+	DateValue               *githubv4.String   `json:"dateValue,omitempty"`
+	NumberValue             *githubv4.Float    `json:"numberValue,omitempty"`
+	SingleSelectOptionValue *githubv4.String   `json:"singleSelectOptionValue,omitempty"`
+	MultiSelectOptionValues *[]githubv4.String `json:"multiSelectOptionValues,omitempty"`
 }
 
 // Implement the interface for all query types
@@ -1628,7 +1756,8 @@ func fetchIssueFieldValuesByNodeID(ctx context.Context, gqlClient *githubv4.Clie
 	}
 
 	var q searchIssuesNodesQuery
-	if err := gqlClient.Query(ctx, &q, map[string]any{"ids": ids}); err != nil {
+	ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
+	if err := gqlClient.Query(ctxWithFeatures, &q, map[string]any{"ids": ids}); err != nil {
 		return nil, err
 	}
 
@@ -1788,12 +1917,14 @@ func issueWriteAwaitingFormResult(method, owner, repo string, issueNumber int) *
 	return utils.NewToolResultAwaitingFormSubmission(msg)
 }
 
-// IssueWrite is the FeatureFlagIssueFields-enabled variant of issue_write
-// (with the issue_fields parameter). LegacyIssueWrite is served when the flag
-// is off. Both register under the tool name "issue_write"; exactly one is
-// active at a time via mutually exclusive feature-flag annotations. When the
-// flag is removed, delete LegacyIssueWrite outright and drop the feature-flag
-// fields on IssueWrite.
+// IssueWrite is the multi-select-aware variant of issue_write — its schema
+// advertises the `field_option_names` slot on `issue_fields[]` items and its
+// resolver accepts multi-select fields. IssueWriteLegacy is served when
+// FeatureFlagIssueFieldsMultiSelect is off; it has no `field_option_names`
+// slot and rejects multi-select fields at the resolver. Both register under
+// the tool name "issue_write" with mutually exclusive feature-flag annotations
+// so exactly one is active at a time. When the flag is removed, delete
+// IssueWriteLegacy outright and drop the feature-flag fields on IssueWrite.
 func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
@@ -1880,7 +2011,7 @@ Options are:
 					},
 					"issue_fields": {
 						Type:        "array",
-						Description: "Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', or 'delete: true'.",
+						Description: "Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', 'field_option_names', or 'delete: true'.",
 						Items: &jsonschema.Schema{
 							Type:                 "object",
 							AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
@@ -1895,19 +2026,31 @@ Options are:
 									Description: "Value to set. Use for text, number, and date fields " +
 										"(date as YYYY-MM-DD). For single-select fields, prefer " +
 										"'field_option_name' so the option is validated before the API " +
-										"call. Cannot be combined with 'field_option_name' or 'delete'.",
+										"call. Cannot be combined with 'field_option_name', " +
+										"'field_option_names', or 'delete'.",
 								},
 								"field_option_name": {
 									Type: "string",
 									Description: "Option name for single-select fields. Validated against " +
 										"the field's options before the API call. Cannot be combined with " +
-										"'value' or 'delete'.",
+										"'value', 'field_option_names', or 'delete'.",
+								},
+								"field_option_names": {
+									Type: "array",
+									Items: &jsonschema.Schema{
+										Type: "string",
+									},
+									Description: "Option names for multi-select fields. All names are validated " +
+										"against the field's options before the API call. An empty array " +
+										"is rejected — use 'delete: true' to clear the field. " +
+										"Cannot be combined with 'value', 'field_option_name', or 'delete'.",
 								},
 								"delete": {
 									Type: "boolean",
 									Enum: []any{true},
 									Description: "Set to true to clear this field's current value on the " +
-										"issue. Cannot be combined with 'value' or 'field_option_name'.",
+										"issue. Cannot be combined with 'value', 'field_option_name', " +
+										"or 'field_option_names'.",
 								},
 							},
 							Required: []string{"field_name"},
@@ -2033,7 +2176,7 @@ Options are:
 			}
 
 			var issueFields []issueWriteFieldInput
-			issueFields, err = optionalIssueWriteFields(args)
+			issueFields, err = optionalIssueWriteFields(args, true)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -2051,7 +2194,7 @@ Options are:
 			var issueFieldValues []*github.IssueRequestFieldValue
 			var fieldIDsToDelete []int64
 			if len(issueFields) > 0 {
-				issueFieldValues, fieldIDsToDelete, err = resolveIssueRequestFieldValues(ctx, gqlClient, owner, repo, issueFields)
+				issueFieldValues, fieldIDsToDelete, err = resolveIssueRequestFieldValues(ctx, gqlClient, owner, repo, issueFields, true)
 				if err != nil {
 					return utils.NewToolResultError(fmt.Sprintf("failed to resolve issue_fields: %v", err)), nil, nil
 				}
@@ -2076,6 +2219,7 @@ Options are:
 			}
 		})
 	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}
+	st.FeatureFlagEnable = FeatureFlagIssueFieldsMultiSelect
 	return st
 }
 
@@ -2355,9 +2499,61 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	return utils.NewToolResultText(string(r)), nil
 }
 
-// ListIssues creates a tool to list and filter repository issues. It exposes the
-// Issues 2.0 field_filters input plus field_values output enrichment.
+// ListIssues is the multi-select-aware variant — its `field_filters` schema
+// includes the `values` slot for multi-select option filters and the
+// description text advertises multi-select filtering. ListIssuesLegacy is
+// served when FeatureFlagIssueFieldsMultiSelect is off; it has no `values`
+// slot and its description does not mention multi-select. The underlying
+// handler is shared and accepts either schema shape.
 func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := buildListIssues(t, true)
+	st.FeatureFlagEnable = FeatureFlagIssueFieldsMultiSelect
+	return st
+}
+
+// ListIssuesLegacy is the FF-off variant of list_issues.
+func ListIssuesLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := buildListIssues(t, false)
+	st.FeatureFlagDisable = []string{FeatureFlagIssueFieldsMultiSelect}
+	return st
+}
+
+func buildListIssues(t translations.TranslationHelperFunc, multiSelectEnabled bool) inventory.ServerTool {
+	fieldFiltersDescription := "Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date)."
+	valueDescription := "Value to filter on. For single-select fields, the option name (e.g. \"P1\"). For dates, YYYY-MM-DD. For numbers, the numeric value as a string. For text, the text value."
+	if multiSelectEnabled {
+		fieldFiltersDescription = "Filter by custom issue field values. Each entry takes a field_name and either 'value' (text, number, YYYY-MM-DD date, or single-select option name) or 'values' (multi-select option names). For multi-select fields, all listed values must be set on an issue for it to match (AND semantics) — to match any-of, make multiple list_issues calls and union the results."
+		valueDescription = "Value to filter on for text, number, date, or single-select fields. For single-select, the option name (e.g. \"P1\"). For dates, YYYY-MM-DD. For numbers, the numeric value as a string. For text, the text value. Cannot be combined with 'values'."
+	}
+
+	fieldFilterItemProps := map[string]*jsonschema.Schema{
+		"field_name": {
+			Type:        "string",
+			Description: "Name of the custom field (e.g. \"Priority\"). Case-insensitive.",
+		},
+		"value": {
+			Type:        "string",
+			Description: valueDescription,
+		},
+	}
+	if multiSelectEnabled {
+		fieldFilterItemProps["values"] = &jsonschema.Schema{
+			Type:        "array",
+			Description: "Option names to filter on for multi-select fields. Matches issues that have ALL of these options set (AND semantics). To match any-of, make multiple list_issues calls. Cannot be combined with 'value'.",
+			Items: &jsonschema.Schema{
+				Type: "string",
+			},
+		}
+	}
+
+	// Legacy variant requires `value` outright (its schema has no `values` slot).
+	// MS-aware variant only requires `field_name` because either `value` or
+	// `values` is acceptable; the parser enforces exactly-one-of at runtime.
+	fieldFilterRequired := []string{"field_name", "value"}
+	if multiSelectEnabled {
+		fieldFilterRequired = []string{"field_name"}
+	}
+
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -2397,20 +2593,15 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			"field_filters": {
 				Type:        "array",
-				Description: "Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date).",
+				Description: fieldFiltersDescription,
 				Items: &jsonschema.Schema{
-					Type: "object",
-					Properties: map[string]*jsonschema.Schema{
-						"field_name": {
-							Type:        "string",
-							Description: "Name of the custom field (e.g. \"Priority\"). Case-insensitive.",
-						},
-						"value": {
-							Type:        "string",
-							Description: "Value to filter on. For single-select fields, the option name (e.g. \"P1\"). For dates, YYYY-MM-DD. For numbers, the numeric value as a string. For text, the text value.",
-						},
-					},
-					Required: []string{"field_name", "value"},
+					Type:       "object",
+					Properties: fieldFilterItemProps,
+					// Legacy keeps the historical strict shape (field_name + value).
+					// MS-aware loosens to just field_name because either `value` or
+					// `values` is acceptable — the parser enforces "exactly one of"
+					// at runtime.
+					Required: fieldFilterRequired,
 				},
 			},
 		},
@@ -2508,7 +2699,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 			hasLabels := len(labels) > 0
 
-			rawFilters, err := parseRawFieldFilters(args)
+			rawFilters, err := parseRawFieldFilters(args, multiSelectEnabled)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -2616,16 +2807,25 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return st
 }
 
-// rawFieldFilter is the user-supplied {field_name, value} pair before type resolution.
+// rawFieldFilter is the user-supplied {field_name, value|values} entry before type resolution.
+// Exactly one of Value or Values is set per entry.
 type rawFieldFilter struct {
-	Name  string
-	Value string
+	Name      string
+	Value     string
+	Values    []string
+	HasValue  bool
+	HasValues bool
 }
 
 // parseRawFieldFilters extracts the optional field_filters parameter into a list of
-// {name, value} pairs. The value is always a string here; type-aware coercion happens
-// later in resolveFieldFilters once we know each field's data_type.
-func parseRawFieldFilters(args map[string]any) ([]rawFieldFilter, error) {
+// {name, value|values} entries. The scalar value is always a string here; type-aware
+// coercion happens later in resolveFieldFilters once we know each field's data_type.
+// Each entry must supply exactly one of `value` (scalar — text/number/date/single_select)
+// or `values` (array — multi_select).
+// parseRawFieldFilters parses the field_filters argument. When
+// multiSelectEnabled is false, any `values` slot is rejected at the entry
+// point (the legacy ListIssues schema does not advertise it).
+func parseRawFieldFilters(args map[string]any, multiSelectEnabled bool) ([]rawFieldFilter, error) {
 	raw, ok := args["field_filters"]
 	if !ok {
 		return nil, nil
@@ -2653,19 +2853,69 @@ func parseRawFieldFilters(args map[string]any) ([]rawFieldFilter, error) {
 		if err != nil {
 			return nil, fmt.Errorf("field_filters entry: %s", err.Error())
 		}
-		value, err := RequiredParam[string](entry, "value")
-		if err != nil {
-			return nil, fmt.Errorf("field_filters entry %q: %s", fieldName, err.Error())
+
+		filter := rawFieldFilter{Name: fieldName}
+
+		if rawValue, present := entry["value"]; present {
+			value, ok := rawValue.(string)
+			if !ok {
+				return nil, fmt.Errorf("field_filters entry %q: value must be a string", fieldName)
+			}
+			filter.Value = value
+			filter.HasValue = true
 		}
-		filters = append(filters, rawFieldFilter{Name: fieldName, Value: value})
+
+		if rawValues, present := entry["values"]; present {
+			if !multiSelectEnabled {
+				return nil, fmt.Errorf("field_filters entry %q: 'values' is not supported in this build", fieldName)
+			}
+			values, err := parseStringSlice(rawValues)
+			if err != nil {
+				return nil, fmt.Errorf("field_filters entry %q: values must be an array of strings: %s", fieldName, err.Error())
+			}
+			filter.Values = values
+			filter.HasValues = true
+		}
+
+		switch {
+		case filter.HasValue && filter.HasValues:
+			return nil, fmt.Errorf("field_filters entry %q: provide either 'value' or 'values', not both", fieldName)
+		case !filter.HasValue && !filter.HasValues:
+			if multiSelectEnabled {
+				return nil, fmt.Errorf("field_filters entry %q: missing 'value' (for text/number/date/single_select) or 'values' (for multi_select)", fieldName)
+			}
+			return nil, fmt.Errorf("field_filters entry %q: missing 'value'", fieldName)
+		}
+
+		filters = append(filters, filter)
 	}
 	return filters, nil
+}
+
+// parseStringSlice coerces a JSON-decoded value into a []string, accepting either []string or []any.
+func parseStringSlice(raw any) ([]string, error) {
+	switch v := raw.(type) {
+	case []string:
+		return v, nil
+	case []any:
+		out := make([]string, 0, len(v))
+		for i, item := range v {
+			s, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("index %d is not a string", i)
+			}
+			out = append(out, s)
+		}
+		return out, nil
+	default:
+		return nil, fmt.Errorf("expected array, got %T", raw)
+	}
 }
 
 // resolveFieldFilters matches each raw filter against a known field definition and
 // coerces the value into the right typed slot on IssueFieldValueFilter. Matching is
 // case-insensitive on field name; option names are also matched case-insensitively for
-// single-select fields.
+// single-select and multi-select fields. Multi-select filters use all-of (AND) semantics.
 func resolveFieldFilters(rawFilters []rawFieldFilter, fields []IssueField) ([]IssueFieldValueFilter, error) {
 	byName := make(map[string]IssueField, len(fields))
 	knownNames := make([]string, 0, len(fields))
@@ -2684,34 +2934,50 @@ func resolveFieldFilters(rawFilters []rawFieldFilter, fields []IssueField) ([]Is
 		filter := IssueFieldValueFilter{FieldName: githubv4.String(field.Name)}
 		switch field.DataType {
 		case "SINGLE_SELECT":
-			// Validate the option name against the field's options so we fail fast
-			// with a useful error instead of an opaque GraphQL one.
-			var matched string
-			for _, o := range field.Options {
-				if strings.EqualFold(o.Name, rf.Value) {
-					matched = o.Name
-					break
-				}
+			if !rf.HasValue {
+				return nil, fmt.Errorf("field_filters: field %q is single_select, use 'value' (single option name)", field.Name)
 			}
-			if matched == "" {
-				optionNames := make([]string, 0, len(field.Options))
-				for _, o := range field.Options {
-					optionNames = append(optionNames, o.Name)
-				}
-				return nil, fmt.Errorf("field_filters: %q is not a valid option for %q. Valid options: %s", rf.Value, field.Name, strings.Join(optionNames, ", "))
+			matched, err := matchOption(field, rf.Value)
+			if err != nil {
+				return nil, err
 			}
 			v := githubv4.String(matched)
 			filter.SingleSelectOptionValue = &v
+		case "MULTI_SELECT":
+			if !rf.HasValues {
+				return nil, fmt.Errorf("field_filters: field %q is multi_select, use 'values' (array of option names)", field.Name)
+			}
+			if len(rf.Values) == 0 {
+				return nil, fmt.Errorf("field_filters: field %q is multi_select and requires at least one value", field.Name)
+			}
+			matched := make([]githubv4.String, 0, len(rf.Values))
+			for _, raw := range rf.Values {
+				m, err := matchOption(field, raw)
+				if err != nil {
+					return nil, err
+				}
+				matched = append(matched, githubv4.String(m))
+			}
+			filter.MultiSelectOptionValues = &matched
 		case "TEXT":
+			if !rf.HasValue {
+				return nil, fmt.Errorf("field_filters: field %q is text, use 'value'", field.Name)
+			}
 			v := githubv4.String(rf.Value)
 			filter.TextValue = &v
 		case "DATE":
+			if !rf.HasValue {
+				return nil, fmt.Errorf("field_filters: field %q is date, use 'value' (YYYY-MM-DD)", field.Name)
+			}
 			if _, err := time.Parse("2006-01-02", rf.Value); err != nil {
 				return nil, fmt.Errorf("field_filters: %q is not a valid date for %q (expected YYYY-MM-DD): %s", rf.Value, field.Name, err.Error())
 			}
 			v := githubv4.String(rf.Value)
 			filter.DateValue = &v
 		case "NUMBER":
+			if !rf.HasValue {
+				return nil, fmt.Errorf("field_filters: field %q is number, use 'value'", field.Name)
+			}
 			n, err := strconv.ParseFloat(rf.Value, 64)
 			if err != nil {
 				return nil, fmt.Errorf("field_filters: %q is not a valid number for %q: %s", rf.Value, field.Name, err.Error())
@@ -2724,6 +2990,21 @@ func resolveFieldFilters(rawFilters []rawFieldFilter, fields []IssueField) ([]Is
 		out = append(out, filter)
 	}
 	return out, nil
+}
+
+// matchOption returns the canonical option name from field.Options matching value case-insensitively,
+// or an error listing the valid options.
+func matchOption(field IssueField, value string) (string, error) {
+	for _, o := range field.Options {
+		if strings.EqualFold(strings.TrimSpace(o.Name), strings.TrimSpace(value)) {
+			return o.Name, nil
+		}
+	}
+	optionNames := make([]string, 0, len(field.Options))
+	for _, o := range field.Options {
+		optionNames = append(optionNames, o.Name)
+	}
+	return "", fmt.Errorf("field_filters: %q is not a valid option for %q. Valid options: %s", value, field.Name, strings.Join(optionNames, ", "))
 }
 
 // parseISOTimestamp parses an ISO 8601 timestamp string into a time.Time object.
