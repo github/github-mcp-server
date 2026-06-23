@@ -44,8 +44,8 @@ func TestGranularToolSnaps(t *testing.T) {
 		GranularRemoveSubIssue,
 		GranularReprioritizeSubIssue,
 		GranularSetIssueFields,
-		AddIssueReaction,
-		AddIssueCommentReaction,
+		GranularAddIssueReaction,
+		GranularAddIssueCommentReaction,
 		GranularUpdatePullRequestTitle,
 		GranularUpdatePullRequestBody,
 		GranularUpdatePullRequestState,
@@ -57,7 +57,7 @@ func TestGranularToolSnaps(t *testing.T) {
 		GranularAddPullRequestReviewComment,
 		GranularResolveReviewThread,
 		GranularUnresolveReviewThread,
-		AddPullRequestReviewCommentReaction,
+		GranularAddPullRequestReviewCommentReaction,
 	}
 
 	for _, constructor := range toolConstructors {
@@ -2035,7 +2035,7 @@ func TestGranularSetIssueFields(t *testing.T) {
 
 // --- Reaction granular tool handler tests ---
 
-func TestAddIssueReaction(t *testing.T) {
+func TestGranularAddIssueReaction(t *testing.T) {
 	mockReaction := &gogithub.Reaction{
 		ID:      gogithub.Ptr(int64(12345)),
 		Content: gogithub.Ptr("+1"),
@@ -2086,7 +2086,7 @@ func TestAddIssueReaction(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{Client: client}
-			serverTool := AddIssueReaction(translations.NullTranslationHelper)
+			serverTool := GranularAddIssueReaction(translations.NullTranslationHelper)
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.args)
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
@@ -2105,7 +2105,7 @@ func TestAddIssueReaction(t *testing.T) {
 	}
 }
 
-func TestAddIssueCommentReaction(t *testing.T) {
+func TestGranularAddIssueCommentReaction(t *testing.T) {
 	mockReaction := &gogithub.Reaction{
 		ID:      gogithub.Ptr(int64(67890)),
 		Content: gogithub.Ptr("heart"),
@@ -2146,7 +2146,7 @@ func TestAddIssueCommentReaction(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{Client: client}
-			serverTool := AddIssueCommentReaction(translations.NullTranslationHelper)
+			serverTool := GranularAddIssueCommentReaction(translations.NullTranslationHelper)
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.args)
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
@@ -2165,7 +2165,7 @@ func TestAddIssueCommentReaction(t *testing.T) {
 	}
 }
 
-func TestAddPullRequestReviewCommentReaction(t *testing.T) {
+func TestGranularAddPullRequestReviewCommentReaction(t *testing.T) {
 	mockReaction := &gogithub.Reaction{
 		ID:      gogithub.Ptr(int64(54321)),
 		Content: gogithub.Ptr("rocket"),
@@ -2206,7 +2206,7 @@ func TestAddPullRequestReviewCommentReaction(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{Client: client}
-			serverTool := AddPullRequestReviewCommentReaction(translations.NullTranslationHelper)
+			serverTool := GranularAddPullRequestReviewCommentReaction(translations.NullTranslationHelper)
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.args)
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)

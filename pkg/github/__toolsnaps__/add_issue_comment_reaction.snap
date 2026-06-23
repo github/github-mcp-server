@@ -8,7 +8,7 @@
   "inputSchema": {
     "properties": {
       "comment_id": {
-        "description": "The issue comment ID",
+        "description": "The issue or pull request comment ID",
         "minimum": 1,
         "type": "number"
       },

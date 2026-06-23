@@ -1199,8 +1199,8 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 	return st
 }
 
-// AddIssueReaction adds a reaction to an issue or pull request.
-func AddIssueReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
+// GranularAddIssueReaction adds a reaction to an issue or pull request.
+func GranularAddIssueReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
@@ -1281,8 +1281,8 @@ func AddIssueReaction(t translations.TranslationHelperFunc) inventory.ServerTool
 	return st
 }
 
-// AddIssueCommentReaction adds a reaction to an issue or pull request comment.
-func AddIssueCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
+// GranularAddIssueCommentReaction adds a reaction to an issue or pull request comment.
+func GranularAddIssueCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
@@ -1307,7 +1307,7 @@ func AddIssueCommentReaction(t translations.TranslationHelperFunc) inventory.Ser
 					},
 					"comment_id": {
 						Type:        "number",
-						Description: "The issue comment ID",
+						Description: "The issue or pull request comment ID",
 						Minimum:     jsonschema.Ptr(1.0),
 					},
 					"content": {

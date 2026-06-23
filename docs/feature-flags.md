@@ -100,7 +100,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **add_issue_comment_reaction** - Add Reaction to Issue or Pull Request Comment
   - **Required OAuth Scopes**: `repo`
-  - `comment_id`: The issue comment ID (number, required)
+  - `comment_id`: The issue or pull request comment ID (number, required)
   - `content`: The emoji reaction type (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)

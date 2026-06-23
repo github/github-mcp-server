@@ -758,8 +758,8 @@ func GranularUnresolveReviewThread(t translations.TranslationHelperFunc) invento
 	return st
 }
 
-// AddPullRequestReviewCommentReaction adds a reaction to a pull request review comment.
-func AddPullRequestReviewCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
+// GranularAddPullRequestReviewCommentReaction adds a reaction to a pull request review comment.
+func GranularAddPullRequestReviewCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
