@@ -19,6 +19,11 @@
       },
       "method": {
         "description": "The action to perform on a single sub-issue\nOptions are:\n- 'add' - add a sub-issue to a parent issue in a GitHub repository.\n- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.\n- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.\n\t\t\t\t",
+        "enum": [
+          "add",
+          "remove",
+          "reprioritize"
+        ],
         "type": "string"
       },
       "owner": {

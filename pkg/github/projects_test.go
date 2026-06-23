@@ -93,7 +93,7 @@ func Test_ProjectsList_ListProjects(t *testing.T) {
 				"owner_type": "org",
 			},
 			expectError:    true,
-			expectedErrMsg: "unknown method: unknown_method",
+			expectedErrMsg: "unknown method: unknown_method. Supported methods are:",
 		},
 	}
 
@@ -625,6 +625,7 @@ func Test_ProjectsGet_GetProject(t *testing.T) {
 		require.True(t, result.IsError)
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "unknown method: unknown_method")
+		assert.Contains(t, textContent.Text, "Supported methods are:")
 	})
 }
 
@@ -1113,6 +1114,7 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 		require.True(t, result.IsError)
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "unknown method: unknown_method")
+		assert.Contains(t, textContent.Text, "Supported methods are:")
 	})
 }
 

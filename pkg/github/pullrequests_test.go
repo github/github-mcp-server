@@ -3333,6 +3333,20 @@ func TestCreatePendingPullRequestReview(t *testing.T) {
 			expectToolError:    true,
 			expectedToolErrMsg: "expected test failure",
 		},
+		{
+			name:               "missing method is reported as a required parameter",
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			requestArgs:        map[string]any{"owner": "owner", "repo": "repo", "pullNumber": float64(42)},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: method",
+		},
+		{
+			name:               "unknown method lists the supported methods",
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			requestArgs:        map[string]any{"method": "bogus", "owner": "owner", "repo": "repo", "pullNumber": float64(42)},
+			expectToolError:    true,
+			expectedToolErrMsg: "unknown method: bogus. Supported methods are: create, submit_pending, delete_pending, resolve_thread, unresolve_thread",
+		},
 	}
 
 	for _, tc := range tests {

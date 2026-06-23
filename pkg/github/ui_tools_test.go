@@ -341,7 +341,7 @@ func Test_UIGet(t *testing.T) {
 				"repo":   "repo",
 			},
 			expectError:    true,
-			expectedErrMsg: "unknown method: unknown",
+			expectedErrMsg: "unknown method: unknown. Supported methods are:",
 		},
 	}
 

@@ -20,6 +20,10 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// uiGetMethods is the single source for ui_get's schema enum (methodEnum) and its
+// unknown-method error (unknownMethodError).
+var uiGetMethods = []string{"labels", "assignees", "milestones", "issue_types", "branches", "issue_fields", "reviewers"}
+
 // UIGet creates a tool to fetch UI data for MCP Apps.
 func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
@@ -44,7 +48,7 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Properties: map[string]*jsonschema.Schema{
 					"method": {
 						Type:        "string",
-						Enum:        []any{"labels", "assignees", "milestones", "issue_types", "branches", "issue_fields", "reviewers"},
+						Enum:        methodEnum(uiGetMethods),
 						Description: "The type of data to fetch",
 					},
 					"owner": {
@@ -87,7 +91,7 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 			case "reviewers":
 				return uiGetReviewers(ctx, deps, args, owner)
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return unknownMethodError(method, uiGetMethods), nil, nil
 			}
 		})
 	st.FeatureFlagEnable = MCPAppsFeatureFlag
