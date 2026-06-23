@@ -1057,7 +1057,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "add_issue_comment",
-			Description: t("TOOL_ADD_ISSUE_COMMENT_DESCRIPTION", "Add a comment and/or reaction to a specific issue in a GitHub repository. Use this tool with pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add or react to review comments. At least one of body or reaction is required."),
+			Description: t("TOOL_ADD_ISSUE_COMMENT_DESCRIPTION", "Add a comment and/or reaction to a specific issue or issue comment in a GitHub repository. Use this tool with pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add or react to review comments. At least one of body or reaction is required."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ADD_ISSUE_COMMENT_USER_TITLE", "Add comment to issue or pull request"),
 				ReadOnlyHint: false,
@@ -1075,7 +1075,12 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 					},
 					"issue_number": {
 						Type:        "number",
-						Description: "Issue number to comment on or react to",
+						Description: "Issue or pull request number to comment on or react to. Required when body is provided, or when reaction targets an issue or pull request.",
+					},
+					"comment_id": {
+						Type:        "number",
+						Description: "The numeric ID of the issue or pull request comment to react to. Use this for reactions to comments; omit it to react to the issue or pull request itself.",
+						Minimum:     jsonschema.Ptr(1.0),
 					},
 					"body": {
 						Type:        "string",
@@ -1087,7 +1092,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 						Enum:        []any{"+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes"},
 					},
 				},
-				Required: []string{"owner", "repo", "issue_number"},
+				Required: []string{"owner", "repo"},
 			},
 		},
 		[]scopes.Scope{scopes.Repo},
@@ -1100,9 +1105,23 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			issueNumber, err := RequiredInt(args, "issue_number")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			var issueNumber int
+			hasIssueNumber := false
+			if _, ok := args["issue_number"]; ok {
+				issueNumber, err = RequiredInt(args, "issue_number")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				hasIssueNumber = true
+			}
+			var commentID int64
+			hasCommentID := false
+			if _, ok := args["comment_id"]; ok {
+				commentID, err = RequiredBigInt(args, "comment_id")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				hasCommentID = true
 			}
 			body, hasBody, err := OptionalParamOK[string](args, "body")
 			if err != nil {
@@ -1114,6 +1133,12 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 			if !hasBody && !hasReaction {
 				return utils.NewToolResultError("at least one of body or reaction is required"), nil, nil
+			}
+			if hasBody && !hasIssueNumber {
+				return utils.NewToolResultError("issue_number is required when body is provided"), nil, nil
+			}
+			if hasReaction && !hasIssueNumber && !hasCommentID {
+				return utils.NewToolResultError("issue_number or comment_id is required when reaction is provided"), nil, nil
 			}
 			if hasBody && body == "" {
 				return utils.NewToolResultError("body cannot be empty when provided"), nil, nil
@@ -1154,15 +1179,28 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			var reactionResponse *MinimalResponse
 			if hasReaction {
-				reaction, resp, err := client.Reactions.CreateIssueReaction(ctx, owner, repo, issueNumber, reactionContent)
-				if err != nil {
-					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reaction to issue", resp, err), nil, nil
-				}
-				defer func() { _ = resp.Body.Close() }()
+				if hasCommentID {
+					reaction, resp, err := client.Reactions.CreateIssueCommentReaction(ctx, owner, repo, commentID, reactionContent)
+					if err != nil {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reaction to issue comment", resp, err), nil, nil
+					}
+					defer func() { _ = resp.Body.Close() }()
 
-				reactionResponse = &MinimalResponse{
-					ID:  fmt.Sprintf("%d", reaction.GetID()),
-					URL: fmt.Sprintf("%srepos/%s/%s/issues/%d/reactions/%d", client.BaseURL(), owner, repo, issueNumber, reaction.GetID()),
+					reactionResponse = &MinimalResponse{
+						ID:  fmt.Sprintf("%d", reaction.GetID()),
+						URL: fmt.Sprintf("%srepos/%s/%s/issues/comments/%d/reactions/%d", client.BaseURL(), owner, repo, commentID, reaction.GetID()),
+					}
+				} else {
+					reaction, resp, err := client.Reactions.CreateIssueReaction(ctx, owner, repo, issueNumber, reactionContent)
+					if err != nil {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reaction to issue", resp, err), nil, nil
+					}
+					defer func() { _ = resp.Body.Close() }()
+
+					reactionResponse = &MinimalResponse{
+						ID:  fmt.Sprintf("%d", reaction.GetID()),
+						URL: fmt.Sprintf("%srepos/%s/%s/issues/%d/reactions/%d", client.BaseURL(), owner, repo, issueNumber, reaction.GetID()),
+					}
 				}
 			}
 

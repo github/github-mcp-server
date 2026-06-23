@@ -2,15 +2,20 @@
   "annotations": {
     "title": "Add comment to issue or pull request"
   },
-  "description": "Add a comment and/or reaction to a specific issue in a GitHub repository. Use this tool with pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add or react to review comments. At least one of body or reaction is required.",
+  "description": "Add a comment and/or reaction to a specific issue or issue comment in a GitHub repository. Use this tool with pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add or react to review comments. At least one of body or reaction is required.",
   "inputSchema": {
     "properties": {
       "body": {
         "description": "Comment content. Required unless reaction is provided.",
         "type": "string"
       },
+      "comment_id": {
+        "description": "The numeric ID of the issue or pull request comment to react to. Use this for reactions to comments; omit it to react to the issue or pull request itself.",
+        "minimum": 1,
+        "type": "number"
+      },
       "issue_number": {
-        "description": "Issue number to comment on or react to",
+        "description": "Issue or pull request number to comment on or react to. Required when body is provided, or when reaction targets an issue or pull request.",
         "type": "number"
       },
       "owner": {
@@ -38,8 +43,7 @@
     },
     "required": [
       "owner",
-      "repo",
-      "issue_number"
+      "repo"
     ],
     "type": "object"
   },

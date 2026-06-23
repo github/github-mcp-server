@@ -571,9 +571,10 @@ func Test_AddIssueComment(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "comment_id")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "body")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "reaction")
-	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "issue_number"})
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo"})
 
 	// Setup mock comment for success case
 	mockComment := &github.IssueComment{
@@ -4185,9 +4186,10 @@ func TestAddIssueComment(t *testing.T) {
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
 	assert.Contains(t, schema.Properties, "issue_number")
+	assert.Contains(t, schema.Properties, "comment_id")
 	assert.Contains(t, schema.Properties, "body")
 	assert.Contains(t, schema.Properties, "reaction")
-	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "issue_number"})
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	mockComment := &github.IssueComment{
 		ID:      github.Ptr(int64(456)),
@@ -4231,6 +4233,18 @@ func TestAddIssueComment(t *testing.T) {
 			},
 		},
 		{
+			name: "successful reaction to issue comment",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusCreated, mockReaction),
+			}),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(999),
+				"reaction":   "heart",
+			},
+		},
+		{
 			name: "successful comment and reaction to issue",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesCommentsByOwnerByRepoByIssueNumber:  mockResponse(t, http.StatusCreated, mockComment),
@@ -4255,14 +4269,24 @@ func TestAddIssueComment(t *testing.T) {
 			expectedToolErrMsg: "at least one of body or reaction is required",
 		},
 		{
-			name: "missing required parameter issue_number",
+			name: "missing target for reaction",
 			requestArgs: map[string]any{
 				"owner":    "owner",
 				"repo":     "repo",
 				"reaction": "heart",
 			},
 			expectToolError:    true,
-			expectedToolErrMsg: "missing required parameter: issue_number",
+			expectedToolErrMsg: "issue_number or comment_id is required when reaction is provided",
+		},
+		{
+			name: "missing issue_number for body",
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"body":  "This is a comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "issue_number is required when body is provided",
 		},
 	}
 
