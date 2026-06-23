@@ -919,6 +919,7 @@ type IssueFieldCreateOrUpdateInput struct {
 	NumberValue          *githubv4.Float   `json:"numberValue,omitempty"`
 	DateValue            *githubv4.String  `json:"dateValue,omitempty"`
 	SingleSelectOptionID *githubv4.ID      `json:"singleSelectOptionId,omitempty"`
+	MultiSelectOptionIDs *[]githubv4.ID    `json:"multiSelectOptionIds,omitempty"`
 	Delete               *githubv4.Boolean `json:"delete,omitempty"`
 	Rationale            *githubv4.String  `json:"rationale,omitempty"`
 	Confidence           *string           `json:"confidence,omitempty"`
@@ -956,7 +957,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 					},
 					"fields": {
 						Type:        "array",
-						Description: "Array of issue field values to set. Each element must have a 'field_id' (string, the GraphQL node ID of the field) and exactly one value field: 'text_value' for text fields, 'number_value' for number fields, 'date_value' (ISO 8601 date string) for date fields, or 'single_select_option_id' (the GraphQL node ID of the option) for single select fields. Set 'delete' to true to remove a field value.",
+						Description: "Array of issue field values to set. Each element must have a 'field_id' (string, the GraphQL node ID of the field) and exactly one value field: 'text_value' for text fields, 'number_value' for number fields, 'date_value' (ISO 8601 date string) for date fields, 'single_select_option_id' (the GraphQL node ID of the option) for single select fields, or 'multi_select_option_ids' (an array of GraphQL node IDs) for multi select fields. Set 'delete' to true to remove a field value.",
 						MinItems:    jsonschema.Ptr(1),
 						Items: &jsonschema.Schema{
 							Type: "object",
@@ -980,6 +981,13 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 								"single_select_option_id": {
 									Type:        "string",
 									Description: "The GraphQL node ID of the option to set for a single select field",
+								},
+								"multi_select_option_ids": {
+									Type:        "array",
+									Description: "The GraphQL node IDs of the options to set for a multi select field",
+									Items: &jsonschema.Schema{
+										Type: "string",
+									},
 								},
 								"delete": {
 									Type:        "boolean",
@@ -1083,6 +1091,20 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 					input.SingleSelectOptionID = &optionID
 					valueCount++
 				}
+				if rawIDs, exists := fieldMap["multi_select_option_ids"]; exists && rawIDs != nil {
+					ids, err := parseStringSlice(rawIDs)
+					if err != nil {
+						return utils.NewToolResultError("multi_select_option_ids must be an array of strings"), nil, nil
+					}
+					if len(ids) > 0 {
+						optionIDs := make([]githubv4.ID, 0, len(ids))
+						for _, s := range ids {
+							optionIDs = append(optionIDs, githubv4.ID(s))
+						}
+						input.MultiSelectOptionIDs = &optionIDs
+						valueCount++
+					}
+				}
 				if _, exists := fieldMap["delete"]; exists {
 					del, err := OptionalParam[bool](fieldMap, "delete")
 					if err == nil && del {
@@ -1093,10 +1115,10 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				}
 
 				if valueCount == 0 {
-					return utils.NewToolResultError("each field must have a value (text_value, number_value, date_value, single_select_option_id) or delete: true"), nil, nil
+					return utils.NewToolResultError("each field must have a value (text_value, number_value, date_value, single_select_option_id, multi_select_option_ids) or delete: true"), nil, nil
 				}
 				if valueCount > 1 {
-					return utils.NewToolResultError("each field must have exactly one value (text_value, number_value, date_value, single_select_option_id) or delete: true, but multiple were provided"), nil, nil
+					return utils.NewToolResultError("each field must have exactly one value (text_value, number_value, date_value, single_select_option_id, multi_select_option_ids) or delete: true, but multiple were provided"), nil, nil
 				}
 
 				if _, exists := fieldMap["rationale"]; exists {
@@ -1163,6 +1185,11 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 						SingleSelectValue struct {
 							Name string
 						} `graphql:"... on IssueFieldSingleSelectValue"`
+						MultiSelectValue struct {
+							Options []struct {
+								Name string
+							}
+						} `graphql:"... on IssueFieldMultiSelectValue"`
 						DateValue struct {
 							Value string
 						} `graphql:"... on IssueFieldDateValue"`

@@ -143,7 +143,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **set_issue_fields** - Set Issue Fields
   - **Required OAuth Scopes**: `repo`
-  - `fields`: Array of issue field values to set. Each element must have a 'field_id' (string, the GraphQL node ID of the field) and exactly one value field: 'text_value' for text fields, 'number_value' for number fields, 'date_value' (ISO 8601 date string) for date fields, or 'single_select_option_id' (the GraphQL node ID of the option) for single select fields. Set 'delete' to true to remove a field value. (object[], required)
+  - `fields`: Array of issue field values to set. Each element must have a 'field_id' (string, the GraphQL node ID of the field) and exactly one value field: 'text_value' for text fields, 'number_value' for number fields, 'date_value' (ISO 8601 date string) for date fields, 'single_select_option_id' (the GraphQL node ID of the option) for single select fields, or 'multi_select_option_ids' (an array of GraphQL node IDs) for multi select fields. Set 'delete' to true to remove a field value. (object[], required)
   - `issue_number`: The issue number to update (number, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)
@@ -333,5 +333,41 @@ runtime behavior (such as output formatting) won't appear here.
     Options are:
     - 'blocked_by' - the subject issue is blocked by the related issue.
     - 'blocking' - the subject issue blocks the related issue. (string, required)
+
+### `remote_mcp_issue_fields_multiselect`
+
+- **issue_write** - Create or update issue/pull request
+  - **Required OAuth Scopes**: `repo`
+  - `assignees`: Usernames to assign to this issue (string[], optional)
+  - `body`: Issue body content (string, optional)
+  - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
+  - `issue_fields`: Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', 'field_option_names', or 'delete: true'. (object[], optional)
+  - `issue_number`: Issue number to update (number, optional)
+  - `labels`: Labels to apply to this issue (string[], optional)
+  - `method`: Write operation to perform on a single issue.
+    Options are:
+    - 'create' - creates a new issue.
+    - 'update' - updates an existing issue.
+     (string, required)
+  - `milestone`: Milestone number (number, optional)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `state`: New state (string, optional)
+  - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
+  - `title`: Issue title (string, optional)
+  - `type`: Type of this issue. Only use if issue types are enabled for this repository. Use list_issue_types tool to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
+
+- **list_issues** - List issues
+  - **Required OAuth Scopes**: `repo`
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
+  - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
+  - `field_filters`: Filter by custom issue field values. Each entry takes a field_name and either 'value' (text, number, YYYY-MM-DD date, or single-select option name) or 'values' (multi-select option names). For multi-select fields, all listed values must be set on an issue for it to match (AND semantics) — to match any-of, make multiple list_issues calls and union the results. (object[], optional)
+  - `labels`: Filter by labels (string[], optional)
+  - `orderBy`: Order issues by field. If provided, the 'direction' also needs to be provided. (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+  - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
+  - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
 
 <!-- END AUTOMATED FEATURE FLAG TOOLS -->
