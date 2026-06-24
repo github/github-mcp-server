@@ -575,7 +575,7 @@ func Test_AddIssueComment(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "comment_id")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "body")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "reaction")
-	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo"})
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "issue_number"})
 
 	// Setup mock comment for success case
 	mockComment := &github.IssueComment{
@@ -4312,7 +4312,7 @@ func TestAddIssueComment(t *testing.T) {
 	assert.Contains(t, schema.Properties, "comment_id")
 	assert.Contains(t, schema.Properties, "body")
 	assert.Contains(t, schema.Properties, "reaction")
-	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "issue_number"})
 
 	mockComment := &github.IssueComment{
 		ID:      github.Ptr(int64(456)),
@@ -4363,10 +4363,11 @@ func TestAddIssueComment(t *testing.T) {
 				PostReposIssuesCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusCreated, mockReaction),
 			}),
 			requestArgs: map[string]any{
-				"owner":      "owner",
-				"repo":       "repo",
-				"comment_id": float64(999),
-				"reaction":   "heart",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(999),
+				"reaction":     "heart",
 			},
 		},
 		{
@@ -4394,14 +4395,14 @@ func TestAddIssueComment(t *testing.T) {
 			expectedToolErrMsg: "at least one of body or reaction is required",
 		},
 		{
-			name: "missing target for reaction",
+			name: "missing issue_number for reaction",
 			requestArgs: map[string]any{
 				"owner":    "owner",
 				"repo":     "repo",
 				"reaction": "heart",
 			},
 			expectToolError:    true,
-			expectedToolErrMsg: "issue_number or comment_id is required when reaction is provided",
+			expectedToolErrMsg: "missing required parameter: issue_number",
 		},
 		{
 			name: "missing issue_number for body",
@@ -4411,7 +4412,7 @@ func TestAddIssueComment(t *testing.T) {
 				"body":  "This is a comment",
 			},
 			expectToolError:    true,
-			expectedToolErrMsg: "issue_number is required when body is provided",
+			expectedToolErrMsg: "missing required parameter: issue_number",
 		},
 		{
 			name: "comment_id without reaction",

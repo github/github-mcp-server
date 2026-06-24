@@ -1125,7 +1125,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 					},
 					"issue_number": {
 						Type:        "number",
-						Description: "Issue or pull request number to comment on or react to. Required when body is provided, or when reaction targets an issue or pull request.",
+						Description: "Issue or pull request number to comment on or react to.",
 					},
 					"comment_id": {
 						Type:        "number",
@@ -1142,7 +1142,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 						Enum:        []any{"+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes"},
 					},
 				},
-				Required: []string{"owner", "repo"},
+				Required: []string{"owner", "repo", "issue_number"},
 			},
 		},
 		[]scopes.Scope{scopes.Repo},
@@ -1155,14 +1155,9 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			var issueNumber int
-			hasIssueNumber := false
-			if _, ok := args["issue_number"]; ok {
-				issueNumber, err = RequiredInt(args, "issue_number")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				hasIssueNumber = true
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			var commentID int64
 			hasCommentID := false
@@ -1183,12 +1178,6 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 			if !hasBody && !hasReaction {
 				return utils.NewToolResultError("at least one of body or reaction is required"), nil, nil
-			}
-			if hasBody && !hasIssueNumber {
-				return utils.NewToolResultError("issue_number is required when body is provided"), nil, nil
-			}
-			if hasReaction && !hasIssueNumber && !hasCommentID {
-				return utils.NewToolResultError("issue_number or comment_id is required when reaction is provided"), nil, nil
 			}
 			if hasCommentID && !hasReaction {
 				return utils.NewToolResultError("comment_id can only be provided when reaction is provided"), nil, nil

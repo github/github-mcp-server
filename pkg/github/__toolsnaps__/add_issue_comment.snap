@@ -15,7 +15,7 @@
         "type": "number"
       },
       "issue_number": {
-        "description": "Issue or pull request number to comment on or react to. Required when body is provided, or when reaction targets an issue or pull request.",
+        "description": "Issue or pull request number to comment on or react to.",
         "type": "number"
       },
       "owner": {
@@ -43,7 +43,8 @@
     },
     "required": [
       "owner",
-      "repo"
+      "repo",
+      "issue_number"
     ],
     "type": "object"
   },
