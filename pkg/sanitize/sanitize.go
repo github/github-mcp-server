@@ -1,22 +1,52 @@
+// Package sanitize provides functions to sanitize untrusted user content from
+// GitHub (issue titles, PR bodies, search results, etc.) before display.
+//
+// Threat model:
+// - Input source: untrusted GitHub content that may contain malicious HTML/JS
+// - Goal: strip HTML tags from prose without corrupting code samples
+// - Defense: bluemonday HTML sanitizer + angle bracket protection in code blocks
+//
+// The sanitizer preserves angle brackets inside code (fenced blocks, inline spans,
+// and indented blocks) because bluemonday treats <int>, <T>, etc. as unknown HTML
+// tags and removes them. This would corrupt generic type syntax and other code.
 package sanitize
 
 import (
+	"bytes"
 	"strings"
 	"sync"
 	"unicode"
 
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/text"
 )
 
 var policy *bluemonday.Policy
 var policyOnce sync.Once
 
+// Sanitize removes HTML tags and invisible characters from untrusted input.
+//
+// Ordering invariant: FilterInvisibleCharacters must run before
+// protectCodeAngleBrackets to prevent sentinel collision attacks.
+// FilterInvisibleCharacters strips NUL bytes (0x00), so an attacker cannot
+// inject literal "\x00LT\x00script\x00GT\x00" strings that would bypass
+// FilterHTMLTags and get restored to <script> by restoreCodeAngleBrackets.
 func Sanitize(input string) string {
-	return FilterHTMLTags(FilterCodeFenceMetadata(FilterInvisibleCharacters(input)))
+	cleaned := FilterCodeFenceMetadata(FilterInvisibleCharacters(input))
+	// Protect angle brackets inside code blocks and inline code spans
+	// from being stripped by the HTML sanitizer. bluemonday treats <int>,
+	// <T>, etc. as unknown HTML tags and removes them.
+	// See https://github.com/github/github-mcp-server/issues/2202
+	protected := protectCodeAngleBrackets(cleaned)
+	sanitized := FilterHTMLTags(protected)
+	return restoreCodeAngleBrackets(sanitized)
 }
 
 // FilterInvisibleCharacters removes invisible or control characters that should not appear
 // in user-facing titles or bodies. This includes:
+// - NUL bytes: U+0000 (prevents sentinel collision in protectCodeAngleBrackets)
 // - Unicode tag characters: U+E0001, U+E0020–U+E007F
 // - BiDi control characters: U+202A–U+202E, U+2066–U+2069
 // - Hidden modifier characters: U+200B, U+200C, U+200E, U+200F, U+00AD, U+FEFF, U+180E, U+2060–U+2064
@@ -145,6 +175,84 @@ func isSafeCodeFenceToken(token string) bool {
 	return true
 }
 
+// Sentinels used to protect angle brackets inside code from HTML sanitization.
+// NUL bytes are stripped by FilterInvisibleCharacters before protectCodeAngleBrackets
+// runs, preventing sentinel collision attacks where an attacker injects literal
+// "\x00LT\x00" strings to bypass FilterHTMLTags.
+const (
+	ltSentinel = "\x00LT\x00"
+	gtSentinel = "\x00GT\x00"
+)
+
+// protectCodeAngleBrackets replaces < and > inside code blocks and inline code
+// spans with sentinels so bluemonday does not strip them as HTML.
+//
+// Uses goldmark's CommonMark parser to identify code regions. This correctly
+// handles fenced blocks (```), inline spans (`), and indented (4-space) blocks.
+func protectCodeAngleBrackets(input string) string {
+	src := []byte(input)
+	doc := goldmark.DefaultParser().Parse(text.NewReader(src))
+
+	type span struct{ start, stop int }
+	var spans []span
+
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch n.Kind() {
+		case ast.KindFencedCodeBlock, ast.KindCodeBlock:
+			// Fenced (```) and indented (4-space) code blocks
+			lines := n.Lines()
+			for i := range lines.Len() {
+				seg := lines.At(i)
+				spans = append(spans, span{seg.Start, seg.Stop})
+			}
+		case ast.KindCodeSpan:
+			// Inline code: `...`
+			for c := n.FirstChild(); c != nil; c = c.NextSibling() {
+				if t, ok := c.(*ast.Text); ok {
+					seg := t.Segment
+					spans = append(spans, span{seg.Start, seg.Stop})
+				}
+			}
+		}
+		return ast.WalkContinue, nil
+	})
+
+	if len(spans) == 0 {
+		return input
+	}
+
+	var out bytes.Buffer
+	out.Grow(len(src))
+	cursor := 0
+	for _, s := range spans {
+		// Write text before this code span
+		out.Write(src[cursor:s.start])
+		// Protect angle brackets in the code span
+		for _, b := range src[s.start:s.stop] {
+			switch b {
+			case '<':
+				out.WriteString(ltSentinel)
+			case '>':
+				out.WriteString(gtSentinel)
+			default:
+				out.WriteByte(b)
+			}
+		}
+		cursor = s.stop
+	}
+	out.Write(src[cursor:])
+	return out.String()
+}
+
+// restoreCodeAngleBrackets converts sentinels back to angle brackets.
+func restoreCodeAngleBrackets(input string) string {
+	s := strings.ReplaceAll(input, ltSentinel, "<")
+	return strings.ReplaceAll(s, gtSentinel, ">")
+}
+
 func getPolicy() *bluemonday.Policy {
 	policyOnce.Do(func() {
 		p := bluemonday.StrictPolicy()
@@ -175,7 +283,8 @@ func getPolicy() *bluemonday.Policy {
 
 func shouldRemoveRune(r rune) bool {
 	switch r {
-	case 0x200B, // ZERO WIDTH SPACE
+	case 0x0000, // NUL — stripped to prevent sentinel collision in protectCodeAngleBrackets
+		0x200B, // ZERO WIDTH SPACE
 		0x200C, // ZERO WIDTH NON-JOINER
 		0x200E, // LEFT-TO-RIGHT MARK
 		0x200F, // RIGHT-TO-LEFT MARK
