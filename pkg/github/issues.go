@@ -2216,8 +2216,20 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 			// Omitempty trap: skip the IssueFieldValues assignment so we don't
 			// rely on a value that's about to be stripped from the JSON anyway,
 			// and clear each field via the dedicated DELETE endpoint after the
-			// PATCH lands.
-			fallbackDeleteFieldIDs = fieldIDsToDelete
+			// PATCH lands. Only queue a DELETE for fields actually present on
+			// the issue — the dotcom DELETE endpoint returns 404 for absent
+			// values, and we want to preserve the pre-fix behaviour of treating
+			// "delete a field that isn't set" as a silent no-op (which is what
+			// happens when the user idempotently re-runs the same call).
+			existingIDs := make(map[int64]bool, len(existing))
+			for _, e := range existing {
+				existingIDs[e.FieldID] = true
+			}
+			for _, id := range fieldIDsToDelete {
+				if existingIDs[id] {
+					fallbackDeleteFieldIDs = append(fallbackDeleteFieldIDs, id)
+				}
+			}
 		} else {
 			issueRequest.IssueFieldValues = merged
 		}
@@ -2243,22 +2255,45 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 
 	// Clear any fields whose deletion the PATCH couldn't carry. See the
 	// fallbackDeleteFieldIDs declaration above for the omitempty trap details.
-	// We hit the dedicated DELETE endpoint per field — it's idempotent, takes
-	// the integer field ID, and the URL is the standard `/repos/{owner}/{repo}`
-	// pattern (no need for the numeric repository ID despite what the internal
-	// route in app/api/issue_field_values.rb suggests; the public API rewrites
-	// to it).
-	for _, fieldID := range fallbackDeleteFieldIDs {
-		path := fmt.Sprintf("repos/%s/%s/issues/%d/issue-field-values/%d", owner, repo, issueNumber, fieldID)
-		req, err := client.NewRequest(ctx, http.MethodDelete, path, nil)
-		if err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to build DELETE request for issue field value", nil, err), nil
+	// We hit the dedicated DELETE endpoint per field — it takes the integer
+	// field ID, and the URL is the standard `/repos/{owner}/{repo}` pattern.
+	//
+	// Per-field errors don't short-circuit: each DELETE is attempted, and any
+	// failures are aggregated into a single error response that names the
+	// successful and failed field IDs. This avoids leaving the caller blind
+	// to which deletions landed when one of several fails (e.g. transient
+	// 5xx on field 2 of 3 — without aggregation, field 1 is already gone and
+	// field 3 was never attempted, but the caller only sees a generic error).
+	if len(fallbackDeleteFieldIDs) > 0 {
+		var failedIDs, succeededIDs []int64
+		var firstFailureErr error
+		var firstFailureResp *github.Response
+		for _, fieldID := range fallbackDeleteFieldIDs {
+			path := fmt.Sprintf("repos/%s/%s/issues/%d/issue-field-values/%d", owner, repo, issueNumber, fieldID)
+			req, err := client.NewRequest(ctx, http.MethodDelete, path, nil)
+			if err != nil {
+				failedIDs = append(failedIDs, fieldID)
+				if firstFailureErr == nil {
+					firstFailureErr = err
+				}
+				continue
+			}
+			delResp, err := client.Do(req, nil)
+			if err != nil {
+				failedIDs = append(failedIDs, fieldID)
+				if firstFailureErr == nil {
+					firstFailureErr = err
+					firstFailureResp = delResp
+				}
+				continue
+			}
+			succeededIDs = append(succeededIDs, fieldID)
+			_ = delResp.Body.Close()
 		}
-		delResp, err := client.Do(req, nil)
-		if err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to clear issue field value", delResp, err), nil
+		if len(failedIDs) > 0 {
+			msg := fmt.Sprintf("failed to clear issue field values: failed=%v, cleared=%v", failedIDs, succeededIDs)
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, msg, firstFailureResp, firstFailureErr), nil
 		}
-		_ = delResp.Body.Close()
 	}
 
 	// Use GraphQL API for state updates
