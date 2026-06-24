@@ -1,8 +1,12 @@
 package github
 
 import (
+	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
+	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,4 +85,114 @@ func TestRegisterSkillResources(t *testing.T) {
 	// Verify the expected number of skills were registered by counting definitions
 	skills := allSkills()
 	assert.Equal(t, 29, len(skills), "expected 29 workflow-oriented skills")
+}
+
+func TestBuildSkillIndex(t *testing.T) {
+	doc := buildSkillIndex()
+
+	assert.Equal(t, skillIndexSchema, doc.Schema)
+	assert.True(t, strings.HasPrefix(doc.Schema, "https://schemas.agentskills.io/discovery/"),
+		"schema must use the Agent Skills discovery prefix the runtime gates on")
+
+	skills := allSkills()
+	require.Len(t, doc.Skills, len(skills), "index must contain one entry per skill")
+
+	byName := make(map[string]skillIndexEntry, len(doc.Skills))
+	for _, entry := range doc.Skills {
+		assert.Equal(t, "skill-md", entry.Type, "entry %q must be type skill-md", entry.Name)
+		assert.Equal(t, "skill://github/"+entry.Name+"/SKILL.md", entry.URL,
+			"entry %q url must point at its registered SKILL.md resource", entry.Name)
+		assert.NotEmpty(t, entry.Description, "entry %q must carry a description", entry.Name)
+		assert.NotEmpty(t, entry.AllowedTools, "entry %q must advertise its allowed tools", entry.Name)
+		byName[entry.Name] = entry
+	}
+
+	// Every skill's allow-list must round-trip into the index so clients can defer those tools
+	// without first fetching SKILL.md.
+	for _, skill := range skills {
+		entry, ok := byName[skill.name]
+		require.True(t, ok, "skill %q missing from index", skill.name)
+		assert.Equal(t, skill.allowedTools, entry.AllowedTools)
+	}
+}
+
+func TestBuildSkillIndexJSON_IsValid(t *testing.T) {
+	body, err := buildSkillIndexJSON()
+	require.NoError(t, err)
+
+	var parsed skillIndexDocument
+	require.NoError(t, json.Unmarshal([]byte(body), &parsed), "index.json must be valid JSON")
+	assert.Equal(t, skillIndexSchema, parsed.Schema)
+	assert.Equal(t, len(allSkills()), len(parsed.Skills))
+}
+
+// TestSkillsExtensionAndIndexAdvertised verifies the SEP-2640 wire contract end-to-end: the server
+// advertises the skills extension in its initialize capabilities and serves skill://index.json with
+// the discovery shape skill-aware clients consume.
+func TestSkillsExtensionAndIndexAdvertised(t *testing.T) {
+	t.Parallel()
+
+	cfg := MCPServerConfig{
+		Version:           "test",
+		Token:             "test-token",
+		EnabledToolsets:   []string{"context"},
+		Translator:        translations.NullTranslationHelper,
+		ContentWindowSize: 5000,
+	}
+	deps := stubDeps{obsv: stubExporters()}
+	inv, err := NewInventory(cfg.Translator).
+		WithDeprecatedAliases(DeprecatedToolAliases).
+		WithToolsets(cfg.EnabledToolsets).
+		Build()
+	require.NoError(t, err)
+
+	srv, err := NewMCPServer(context.Background(), &cfg, deps, inv)
+	require.NoError(t, err)
+
+	st, ct := mcp.NewInMemoryTransports()
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
+
+	type connResult struct {
+		session *mcp.ClientSession
+		err     error
+	}
+	connCh := make(chan connResult, 1)
+	go func() {
+		cs, cerr := client.Connect(context.Background(), ct, nil)
+		connCh <- connResult{session: cs, err: cerr}
+	}()
+
+	ss, err := srv.Connect(context.Background(), st, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ss.Close() })
+
+	got := <-connCh
+	require.NoError(t, got.err)
+	require.NotNil(t, got.session)
+	t.Cleanup(func() { _ = got.session.Close() })
+
+	// 1. The skills extension must be advertised so SEP-2640 clients opt into skill:// discovery.
+	init := got.session.InitializeResult()
+	require.NotNil(t, init)
+	require.NotNil(t, init.Capabilities)
+	require.Contains(t, init.Capabilities.Extensions, skillsExtensionID,
+		"server must advertise the skills extension")
+	// Tools/resources must still be inferred — advertising the extension must not clobber them.
+	assert.NotNil(t, init.Capabilities.Tools, "tools capability must still be advertised")
+	assert.NotNil(t, init.Capabilities.Resources, "resources capability must still be advertised")
+
+	// 2. skill://index.json must serve the discovery index.
+	res, err := got.session.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: skillIndexURI})
+	require.NoError(t, err)
+	require.Len(t, res.Contents, 1)
+	assert.Equal(t, "application/json", res.Contents[0].MIMEType)
+
+	var index skillIndexDocument
+	require.NoError(t, json.Unmarshal([]byte(res.Contents[0].Text), &index))
+	assert.True(t, strings.HasPrefix(index.Schema, "https://schemas.agentskills.io/discovery/"))
+	require.Len(t, index.Skills, len(allSkills()))
+	for _, entry := range index.Skills {
+		assert.Equal(t, "skill-md", entry.Type)
+		assert.NotEmpty(t, entry.AllowedTools)
+	}
 }
