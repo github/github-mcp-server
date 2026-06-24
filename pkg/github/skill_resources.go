@@ -2,11 +2,69 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// skillsExtensionID is the MCP capabilities extension key (SEP-2640) that signals a server
+// publishes a skill discovery index. Clients that recognise it read skillIndexURI to enumerate
+// skills and the tools each one governs without first fetching every SKILL.md.
+const skillsExtensionID = "io.modelcontextprotocol/skills"
+
+// skillIndexURI is the well-known resource enumerating the server's skills (SEP-2640).
+const skillIndexURI = "skill://index.json"
+
+// skillIndexSchema is the Agent Skills discovery-index schema URI advertised in index.json.
+const skillIndexSchema = "https://schemas.agentskills.io/discovery/0.2.0/index.json"
+
+// skillIndexEntry is one entry in the skill discovery index. `allowedTools` is an additive
+// (passthrough) hint, so SEP-2640-aware clients can gate/defer those tools before a skill is
+// loaded WITHOUT first fetching SKILL.md frontmatter.
+type skillIndexEntry struct {
+	Type         string   `json:"type"`
+	Name         string   `json:"name"`
+	Description  string   `json:"description"`
+	URL          string   `json:"url"`
+	AllowedTools []string `json:"allowedTools"`
+}
+
+// skillIndexDocument is the full `skill://index.json` payload.
+type skillIndexDocument struct {
+	Schema string            `json:"$schema"`
+	Skills []skillIndexEntry `json:"skills"`
+}
+
+// buildSkillIndex constructs the SEP-2640 discovery index from the in-memory skill set. Each entry
+// points at the skill's individually readable SKILL.md resource and carries its allowed-tools list.
+func buildSkillIndex() skillIndexDocument {
+	skills := allSkills()
+	doc := skillIndexDocument{
+		Schema: skillIndexSchema,
+		Skills: make([]skillIndexEntry, 0, len(skills)),
+	}
+	for _, skill := range skills {
+		doc.Skills = append(doc.Skills, skillIndexEntry{
+			Type:         "skill-md",
+			Name:         skill.name,
+			Description:  skill.description,
+			URL:          fmt.Sprintf("skill://github/%s/SKILL.md", skill.name),
+			AllowedTools: skill.allowedTools,
+		})
+	}
+	return doc
+}
+
+// buildSkillIndexJSON serialises the discovery index returned by skill://index.json.
+func buildSkillIndexJSON() (string, error) {
+	body, err := json.MarshalIndent(buildSkillIndex(), "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("marshal skill index: %w", err)
+	}
+	return string(body), nil
+}
 
 // skillDefinition holds the metadata and content for a single skill resource.
 type skillDefinition struct {
@@ -509,6 +567,33 @@ func buildSkillContent(skill skillDefinition) string {
 // Each skill is a static resource with a skill:// URI that can be discovered
 // by MCP clients supporting the skills pattern.
 func RegisterSkillResources(s *mcp.Server) {
+	// Publish the discovery index first so SEP-2640 clients can enumerate skills (and the tools
+	// each governs) from a single resource read, without fetching every SKILL.md.
+	s.AddResource(
+		&mcp.Resource{
+			URI:         skillIndexURI,
+			Name:        "skill-index",
+			Title:       "Skill index",
+			Description: "SEP-2640 skill discovery index enumerating available skills and their allowed tools.",
+			MIMEType:    "application/json",
+		},
+		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			body, err := buildSkillIndexJSON()
+			if err != nil {
+				return nil, err
+			}
+			return &mcp.ReadResourceResult{
+				Contents: []*mcp.ResourceContents{
+					{
+						URI:      skillIndexURI,
+						MIMEType: "application/json",
+						Text:     body,
+					},
+				},
+			}, nil
+		},
+	)
+
 	for _, skill := range allSkills() {
 		content := buildSkillContent(skill)
 		uri := fmt.Sprintf("skill://github/%s/SKILL.md", skill.name)

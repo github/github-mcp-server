@@ -100,6 +100,14 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 		}
 	}
 
+	// Advertise the skills extension (SEP-2640) so skill-aware clients use skill:// discovery
+	// (skill://index.json + per-skill SKILL.md). Adding only the extension leaves Tools/Resources/
+	// Prompts nil so the SDK still infers them from the registered handlers (see Server.capabilities).
+	if serverOpts.Capabilities == nil {
+		serverOpts.Capabilities = &mcp.ServerCapabilities{}
+	}
+	serverOpts.Capabilities.AddExtension(skillsExtensionID, nil)
+
 	ghServer := NewServer(cfg.Version, cfg.Translator("SERVER_NAME", "github-mcp-server"), cfg.Translator("SERVER_TITLE", "GitHub MCP Server"), serverOpts)
 
 	// Add middlewares. Order matters - for example, the error context middleware should be applied last so that it runs FIRST (closest to the handler) to ensure all errors are captured,
