@@ -18,7 +18,7 @@
         "type": "number"
       },
       "method": {
-        "description": "The action to perform on a single sub-issue\nOptions are:\n- 'add' - add a sub-issue to a parent issue in a GitHub repository.\n- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.\n- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.\n\t\t\t\t",
+        "description": "The action to perform on a single sub-issue\nOptions are:\n- 'add' - add a sub-issue to a parent issue in a GitHub repository.\n- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.\n- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.\nThis tool WRITES hierarchy; the parent relationship is read back via issue_read (get returns has_parent / has_children / parent / sub_issues_summary) or issue_read get_parent. There is no writable parent field: to move an issue under a new parent, call 'add' with replace_parent=true.\n\t\t\t\t",
         "type": "string"
       },
       "owner": {

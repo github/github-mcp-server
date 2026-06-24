@@ -891,7 +891,7 @@ The following sets of tools are available:
   - `issue_number`: The number of the issue (number, required)
   - `method`: The read operation to perform on a single issue.
     Options are:
-    1. get - Get details of a specific issue.
+    1. get - Get details of a specific issue, including hierarchy relationship signals: has_parent and has_children (booleans, always present), plus a compact parent reference (parent) and sub-issue counts (sub_issues_summary) when those relationships exist. Hierarchy is READ here (and via get_parent / get_sub_issues); there is no writable parent field. To change an issue's parent, use sub_issue_write (add with replace_parent). An issue with no parent returns has_parent:false and omits parent.
     2. get_comments - Get issue comments.
     3. get_sub_issues - Get sub-issues (children) of the issue.
     4. get_parent - Get the parent issue, if this issue is a sub-issue of another.
@@ -968,6 +968,7 @@ The following sets of tools are available:
     - 'add' - add a sub-issue to a parent issue in a GitHub repository.
     - 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
     - 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
+    This tool WRITES hierarchy; the parent relationship is read back via issue_read (get returns has_parent / has_children / parent / sub_issues_summary) or issue_read get_parent. There is no writable parent field: to move an issue under a new parent, call 'add' with replace_parent=true.
     				 (string, required)
   - `owner`: Repository owner (string, required)
   - `replace_parent`: When true, replaces the sub-issue's current parent issue. Use with 'add' method only. (boolean, optional)

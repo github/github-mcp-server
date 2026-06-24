@@ -342,6 +342,31 @@ type MinimalIssue struct {
 	IssueType         string                   `json:"issue_type,omitempty"`
 	IssueFieldValues  []MinimalIssueFieldValue `json:"issue_field_values,omitempty"`
 	FieldValues       []MinimalFieldValue      `json:"field_values,omitempty"`
+
+	// Hierarchy relationship signals. HasParent and HasChildren are always emitted
+	// (an explicit false is itself a useful routing signal); Parent and SubIssuesSummary
+	// are only populated when the relationship exists.
+	HasParent        bool                     `json:"has_parent"`
+	HasChildren      bool                     `json:"has_children"`
+	Parent           *MinimalIssueRef         `json:"parent,omitempty"`
+	SubIssuesSummary *MinimalSubIssuesSummary `json:"sub_issues_summary,omitempty"`
+}
+
+// MinimalIssueRef is a compact reference to a related issue (e.g. a parent issue).
+// Its keys mirror the get_parent (GetIssueParent) payload so both surfaces agree.
+type MinimalIssueRef struct {
+	Number     int    `json:"number"`
+	Title      string `json:"title"`
+	State      string `json:"state"`
+	URL        string `json:"url"`
+	Repository string `json:"repository,omitempty"`
+}
+
+// MinimalSubIssuesSummary holds the native GraphQL subIssuesSummary counts for an issue.
+type MinimalSubIssuesSummary struct {
+	Total            int `json:"total"`
+	Completed        int `json:"completed"`
+	PercentCompleted int `json:"percent_completed"`
 }
 
 // MinimalIssuesResponse is the trimmed output for a paginated list of issues.
