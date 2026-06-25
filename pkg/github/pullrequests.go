@@ -2277,38 +2277,74 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			var params struct {
-				Owner       string
-				Repo        string
-				PullNumber  int32
-				Path        string
-				Body        string
-				SubjectType string
-				Line        *int32
-				Side        *string
-				StartLine   *int32
-				StartSide   *string
-			}
-			if err := mapstructure.WeakDecode(args, &params); err != nil {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			pullNumber, err := RequiredInt(args, "pullNumber")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			path, err := RequiredParam[string](args, "path")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			body, err := RequiredParam[string](args, "body")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			subjectType, err := RequiredParam[string](args, "subjectType")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			line, err := OptionalIntParam(args, "line")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			side, _ := OptionalParam[string](args, "side")
+			startLine, err := OptionalIntParam(args, "startLine")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			startSide, _ := OptionalParam[string](args, "startSide")
 
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
 			}
 
+			var linePtr, startLinePtr *int32
+			if line != 0 {
+				l := int32(line) // #nosec G115
+				linePtr = &l
+			}
+			if startLine != 0 {
+				sl := int32(startLine) // #nosec G115
+				startLinePtr = &sl
+			}
+			var sidePtr, startSidePtr *string
+			if side != "" {
+				sidePtr = &side
+			}
+			if startSide != "" {
+				startSidePtr = &startSide
+			}
+
 			result, err := AddCommentToPendingReviewCall(ctx, client, AddCommentToPendingReviewParams{
-				Owner:       params.Owner,
-				Repo:        params.Repo,
-				PullNumber:  params.PullNumber,
-				Path:        params.Path,
-				Body:        params.Body,
-				SubjectType: params.SubjectType,
-				Line:        params.Line,
-				Side:        params.Side,
-				StartLine:   params.StartLine,
-				StartSide:   params.StartSide,
+				Owner:       owner,
+				Repo:        repo,
+				PullNumber:  int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers
+				Path:        path,
+				Body:        body,
+				SubjectType: subjectType,
+				Line:        linePtr,
+				Side:        sidePtr,
+				StartLine:   startLinePtr,
+				StartSide:   startSidePtr,
 			})
 			return result, nil, err
 		})
