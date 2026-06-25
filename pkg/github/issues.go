@@ -25,6 +25,13 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// Method sets for the consolidated issue tools (single source for the schema
+// enum via methodEnum and the unknown-method error via unknownMethodError).
+var (
+	issueReadMethods     = []string{"get", "get_comments", "get_sub_issues", "get_parent", "get_labels"}
+	subIssueWriteMethods = []string{"add", "remove", "reprioritize"}
+)
+
 // CloseIssueInput represents the input for closing an issue via the GraphQL API.
 // Used to extend the functionality of the githubv4 library to support closing issues as duplicates.
 type CloseIssueInput struct {
@@ -620,7 +627,7 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 					"3. get_sub_issues - Get sub-issues (children) of the issue.\n" +
 					"4. get_parent - Get the parent issue, if this issue is a sub-issue of another.\n" +
 					"5. get_labels - Get labels assigned to the issue.\n",
-				Enum: []any{"get", "get_comments", "get_sub_issues", "get_parent", "get_labels"},
+				Enum: methodEnum(issueReadMethods),
 			},
 			"owner": {
 				Type:        "string",
@@ -707,7 +714,7 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
 				return attachIFC(result), nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return unknownMethodError(method, issueReadMethods), nil, nil
 			}
 		})
 }
@@ -1398,6 +1405,7 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 							"- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.\n" +
 							"- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.\n" +
 							"Writes issue hierarchy. To move a sub-issue to a new parent, use `add` with `replace_parent=true`; there is no writable parent field.\n",
+						Enum: methodEnum(subIssueWriteMethods),
 					},
 					"owner": {
 						Type:        "string",
@@ -1485,7 +1493,7 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				result, err := ReprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID)
 				return result, nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return unknownMethodError(method, subIssueWriteMethods), nil, nil
 			}
 		})
 	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}
