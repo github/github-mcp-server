@@ -2179,21 +2179,13 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		issueRequest.Type = github.Ptr(issueType)
 	}
 
-	// fallbackDeleteFieldIDs holds field IDs we need to clear via the dedicated
-	// REST DELETE endpoint after the PATCH lands. This is the omitempty-trap
-	// fallback: when the merged list is empty AND we have deletions to make,
-	// `go-github`'s `omitempty` tag on IssueRequest.IssueFieldValues strips the
-	// empty slice from the JSON body, the dotcom REST handler's top-level
-	// `if data.include?(ISSUE_FIELD_VALUES)` guard short-circuits, and nothing
-	// gets cleared. When the merged list is non-empty the PATCH's set semantics
-	// handle the deletes implicitly (current - new), so no DELETE follow-up is
-	// needed in that path.
+	// Field IDs to clear via DELETE after the PATCH. See the post-PATCH loop
+	// for why we can't just rely on REST set semantics.
 	var fallbackDeleteFieldIDs []int64
 
 	if len(issueFieldValues) > 0 || len(fieldIDsToDelete) > 0 {
-		// The REST update endpoint uses "set" semantics — it overwrites all existing
-		// field values with whatever is sent. Fetch the current values first, merge in
-		// the new values, then remove any explicitly deleted fields.
+		// REST PATCH uses set semantics, so fetch existing values, merge in
+		// the new ones, then drop anything explicitly deleted.
 		existing, err := fetchExistingIssueFieldValues(ctx, gqlClient, owner, repo, issueNumber)
 		if err != nil {
 			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to fetch existing issue field values", err), nil
@@ -2213,14 +2205,9 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 			merged = kept
 		}
 		if len(merged) == 0 && len(fieldIDsToDelete) > 0 {
-			// Omitempty trap: skip the IssueFieldValues assignment so we don't
-			// rely on a value that's about to be stripped from the JSON anyway,
-			// and clear each field via the dedicated DELETE endpoint after the
-			// PATCH lands. Only queue a DELETE for fields actually present on
-			// the issue — the dotcom DELETE endpoint returns 404 for absent
-			// values, and we want to preserve the pre-fix behaviour of treating
-			// "delete a field that isn't set" as a silent no-op (which is what
-			// happens when the user idempotently re-runs the same call).
+			// Only queue DELETEs for fields actually present — the endpoint
+			// returns 404 otherwise, and "delete a field that isn't set" should
+			// stay a no-op (callers often invoke delete:true idempotently).
 			existingIDs := make(map[int64]bool, len(existing))
 			for _, e := range existing {
 				existingIDs[e.FieldID] = true
@@ -2253,17 +2240,11 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update issue", resp, body), nil
 	}
 
-	// Clear any fields whose deletion the PATCH couldn't carry. See the
-	// fallbackDeleteFieldIDs declaration above for the omitempty trap details.
-	// We hit the dedicated DELETE endpoint per field — it takes the integer
-	// field ID, and the URL is the standard `/repos/{owner}/{repo}` pattern.
-	//
-	// Per-field errors don't short-circuit: each DELETE is attempted, and any
-	// failures are aggregated into a single error response that names the
-	// successful and failed field IDs. This avoids leaving the caller blind
-	// to which deletions landed when one of several fails (e.g. transient
-	// 5xx on field 2 of 3 — without aggregation, field 1 is already gone and
-	// field 3 was never attempted, but the caller only sees a generic error).
+	// Per-field DELETE fallback. The PATCH can't clear field values when the
+	// merged set is empty — go-github's `omitempty` strips the empty slice
+	// and the dotcom REST handler skips its issue_field_values block when the
+	// key is absent. Errors are aggregated (not short-circuited) so callers
+	// can see which fields succeeded and which need retry.
 	if len(fallbackDeleteFieldIDs) > 0 {
 		var failedIDs, succeededIDs []int64
 		var firstFailureErr error

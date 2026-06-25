@@ -16,13 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Test_IssueRequest_EmptyFieldValues_OmittedByJSON pins the omitempty behaviour
-// that motivates the DELETE-endpoint fallback in UpdateIssue. If go-github's
-// IssueRequest ever drops the `omitempty` tag from `issue_field_values`, this
-// test will fail — at which point the fallback could potentially be revisited.
-// Until then, an empty `[]*IssueRequestFieldValue{}` is serialised as nothing
-// at all, so the REST PATCH alone can never clear a field's last value via
-// the set-semantics path.
+// Test_IssueRequest_EmptyFieldValues_OmittedByJSON pins the omitempty
+// behaviour that makes the DELETE fallback necessary. If go-github ever drops
+// the tag, the REST PATCH alone could clear field values and this test would
+// fail to remind us.
 func Test_IssueRequest_EmptyFieldValues_OmittedByJSON(t *testing.T) {
 	t.Parallel()
 
@@ -39,19 +36,10 @@ func Test_IssueRequest_EmptyFieldValues_OmittedByJSON(t *testing.T) {
 		"sanity check: other fields still serialise")
 }
 
-// Test_UpdateIssue_DeleteLastFieldValueCallsDeleteEndpoint: regression test for
-// the delete:true bug. When the kept set after merge + filter ends up empty
-// (e.g. deleting the only remaining field value), the PATCH alone cannot carry
-// the deletion intent because go-github strips the empty issue_field_values
-// slice via omitempty. UpdateIssue follows up with a per-field DELETE to the
-// dedicated `/repos/{owner}/{repo}/issues/{number}/issue-field-values/{id}`
-// endpoint.
-//
-// Asserts both halves:
-//
-//   - the PATCH body does NOT carry an `issue_field_values` key (we don't want
-//     to double-clear or rely on a value omitempty is about to strip)
-//   - a DELETE for the field ID fires after the PATCH
+// Test_UpdateIssue_DeleteLastFieldValueCallsDeleteEndpoint covers the bug fix:
+// when the kept set ends up empty, the PATCH alone can't clear the field
+// (omitempty strips the empty slice), so UpdateIssue follows up with a DELETE
+// to the dedicated endpoint.
 func Test_UpdateIssue_DeleteLastFieldValueCallsDeleteEndpoint(t *testing.T) {
 	t.Parallel()
 
@@ -86,9 +74,8 @@ func Test_UpdateIssue_DeleteLastFieldValueCallsDeleteEndpoint(t *testing.T) {
 		},
 	}))
 
-	// Existing field values for the merge step. Returning only the field about
-	// to be deleted is the worst case: the kept list ends up empty and the
-	// fallback DELETE is the only thing that can clear it.
+	// Existing field values for the merge step. Returning the field we're
+	// about to delete makes the kept list empty, triggering the fallback DELETE.
 	existingFieldsResponse := githubv4mock.DataResponse(map[string]any{
 		"repository": map[string]any{
 			"issue": map[string]any{
@@ -151,10 +138,9 @@ func Test_UpdateIssue_DeleteLastFieldValueCallsDeleteEndpoint(t *testing.T) {
 		"expected exactly one DELETE call to the dedicated endpoint for field id 101")
 }
 
-// Test_UpdateIssue_DeleteOneOfManyUsesSetSemantics verifies that when the kept
-// set after merge + filter is non-empty (deleting 1 of N existing fields), the
-// PATCH carries the kept fields and the dotcom REST handler's set semantics do
-// the deletion implicitly — no fallback DELETE call is needed.
+// Test_UpdateIssue_DeleteOneOfManyUsesSetSemantics: when the kept set is
+// non-empty, set semantics handle the deletion implicitly via the PATCH — no
+// DELETE follow-up needed.
 func Test_UpdateIssue_DeleteOneOfManyUsesSetSemantics(t *testing.T) {
 	t.Parallel()
 
@@ -248,12 +234,10 @@ func Test_UpdateIssue_DeleteOneOfManyUsesSetSemantics(t *testing.T) {
 		"no DELETE call should fire when the kept set is non-empty — the PATCH's set semantics clear the deleted field on the server side")
 }
 
-// Test_UpdateIssue_DeleteAbsentFieldIsNoOp verifies that asking to delete a
-// field that isn't currently set on the issue does not fire a DELETE request
-// to the dedicated endpoint (which would 404). This preserves the pre-fix
-// behaviour of treating "delete a field that isn't set" as a silent no-op —
-// important because callers often use delete:true idempotently ("ensure
-// field X is cleared"), and the second invocation should succeed not error.
+// Test_UpdateIssue_DeleteAbsentFieldIsNoOp: deleting a field that isn't set
+// must not fire a DELETE (the endpoint would 404), preserving the pre-fix
+// silent-no-op behaviour so idempotent delete:true callers don't break on
+// retry.
 func Test_UpdateIssue_DeleteAbsentFieldIsNoOp(t *testing.T) {
 	t.Parallel()
 
@@ -343,11 +327,9 @@ func Test_UpdateIssue_DeleteAbsentFieldIsNoOp(t *testing.T) {
 		"no DELETE call should fire for a field that isn't present on the issue — preserves the pre-fix silent-no-op behaviour and avoids a guaranteed 404")
 }
 
-// Test_UpdateIssue_DeleteFallbackContinuesOnPartialFailure verifies that when
-// one DELETE in the fallback loop fails, the remaining DELETEs still fire and
-// the aggregated error names the failed and succeeded field IDs. The pre-fix
-// loop short-circuited on the first failure, which left the caller blind to
-// which deletions had landed.
+// Test_UpdateIssue_DeleteFallbackContinuesOnPartialFailure: a failing DELETE
+// must not short-circuit subsequent ones, and the error must name which IDs
+// succeeded and which failed so callers can retry the right ones.
 func Test_UpdateIssue_DeleteFallbackContinuesOnPartialFailure(t *testing.T) {
 	t.Parallel()
 
@@ -373,10 +355,8 @@ func Test_UpdateIssue_DeleteFallbackContinuesOnPartialFailure(t *testing.T) {
 			mu.Lock()
 			deletePaths = append(deletePaths, r.URL.Path)
 			mu.Unlock()
-			// Field 202 returns 500; fields 101 and 303 succeed. We expect
-			// all three calls to fire even though the middle one errors, and
-			// the final tool result must mention 202 as failed and 101/303
-			// as cleared.
+			// Field 202 fails; 101 and 303 succeed. All three should fire and
+			// the error must name 202 as failed and 101/303 as cleared.
 			if strings.HasSuffix(r.URL.Path, "/202") {
 				w.WriteHeader(http.StatusInternalServerError)
 				_, _ = w.Write([]byte(`{"message":"simulated failure"}`))
