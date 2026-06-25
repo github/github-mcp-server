@@ -1,0 +1,16 @@
+{
+  "annotations": {
+    "title": "Update pull request branch"
+  },
+  "description": "Update the branch of pull request octocat/hello-world#42 with the latest changes from its base branch.",
+  "inputSchema": {
+    "properties": {
+      "expectedHeadSha": {
+        "description": "The expected SHA of the pull request's HEAD ref",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "name": "update_pull_request_branch"
+}

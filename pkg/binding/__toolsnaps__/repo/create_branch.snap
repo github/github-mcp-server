@@ -1,0 +1,23 @@
+{
+  "annotations": {
+    "title": "Create branch"
+  },
+  "description": "Create a new branch in octocat/hello-world.",
+  "inputSchema": {
+    "properties": {
+      "branch": {
+        "description": "Name for new branch",
+        "type": "string"
+      },
+      "from_branch": {
+        "description": "Source branch (defaults to repo default)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "branch"
+    ],
+    "type": "object"
+  },
+  "name": "create_branch"
+}

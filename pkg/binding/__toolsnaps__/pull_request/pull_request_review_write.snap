@@ -1,0 +1,41 @@
+{
+  "annotations": {
+    "title": "Write operations (create, submit, delete) on pull request reviews"
+  },
+  "description": "Create, submit, or discard a pending review on pull request octocat/hello-world#42.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "Review comment text",
+        "type": "string"
+      },
+      "commitID": {
+        "description": "SHA of commit to review",
+        "type": "string"
+      },
+      "event": {
+        "description": "Review action to perform.",
+        "enum": [
+          "APPROVE",
+          "REQUEST_CHANGES",
+          "COMMENT"
+        ],
+        "type": "string"
+      },
+      "method": {
+        "description": "The write operation to perform on pull request review.",
+        "enum": [
+          "create",
+          "submit_pending",
+          "delete_pending"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "method"
+    ],
+    "type": "object"
+  },
+  "name": "pull_request_review_write"
+}

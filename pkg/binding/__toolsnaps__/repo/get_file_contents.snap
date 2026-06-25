@@ -1,0 +1,26 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get file or directory contents"
+  },
+  "description": "Read a file's contents or list a directory in octocat/hello-world.",
+  "inputSchema": {
+    "properties": {
+      "path": {
+        "default": "/",
+        "description": "Path to file/directory",
+        "type": "string"
+      },
+      "ref": {
+        "description": "Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head`",
+        "type": "string"
+      },
+      "sha": {
+        "description": "Accepts optional commit SHA. If specified, it will be used instead of ref",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "name": "get_file_contents"
+}

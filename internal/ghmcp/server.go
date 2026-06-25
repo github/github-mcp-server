@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/github/github-mcp-server/pkg/binding"
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/transport"
@@ -149,14 +150,32 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		obs,
 	)
 	// Build and register the tool/resource/prompt inventory
-	inventoryBuilder := github.NewInventory(cfg.Translator).
-		WithDeprecatedAliases(github.DeprecatedToolAliases).
-		WithReadOnly(cfg.ReadOnly).
-		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools)).
-		WithTools(github.CleanTools(cfg.EnabledTools)).
-		WithExcludeTools(cfg.ExcludeTools).
-		WithServerInstructions().
-		WithFeatureChecker(featureChecker)
+	var inventoryBuilder *inventory.Builder
+	if cfg.Scope != nil {
+		// Scoped mode: the manifest defines the surface, so toolset/tool/
+		// exclude selection flags are intentionally ignored. Read-only,
+		// feature-flag, and PAT-scope filtering still apply on top. All
+		// toolsets are enabled because the manifest — not the toolset filter —
+		// decides membership.
+		scoped, err := github.NewScopedInventory(cfg.Translator, *cfg.Scope)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build scoped inventory: %w", err)
+		}
+		inventoryBuilder = scoped.
+			WithToolsets([]string{"all"}).
+			WithReadOnly(cfg.ReadOnly).
+			WithServerInstructions().
+			WithFeatureChecker(featureChecker)
+	} else {
+		inventoryBuilder = github.NewInventory(cfg.Translator).
+			WithDeprecatedAliases(github.DeprecatedToolAliases).
+			WithReadOnly(cfg.ReadOnly).
+			WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools)).
+			WithTools(github.CleanTools(cfg.EnabledTools)).
+			WithExcludeTools(cfg.ExcludeTools).
+			WithServerInstructions().
+			WithFeatureChecker(featureChecker)
+	}
 
 	// Apply token scope filtering if scopes are known (for PAT filtering)
 	if cfg.TokenScopes != nil {
@@ -229,6 +248,11 @@ type StdioServerConfig struct {
 
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
+
+	// Scope, when non-nil, binds the server to a fixed GitHub context (a
+	// repository, pull request, or project), exposing the bespoke scoped tool
+	// surface for that context instead of the full toolset.
+	Scope *binding.Context
 }
 
 // RunStdioServer is not concurrent safe.
@@ -287,6 +311,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Logger:            logger,
 		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
 		TokenScopes:       tokenScopes,
+		Scope:             cfg.Scope,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)

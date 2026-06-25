@@ -1,0 +1,121 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "title": "Manage GitHub Projects"
+  },
+  "description": "Manage project #7 owned by octocat: add, update, or remove items, post status updates, and create iteration fields.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "The body of the status update (markdown). Used for 'create_project_status_update' method.",
+        "type": "string"
+      },
+      "field_name": {
+        "description": "The name of the iteration field (e.g. 'Sprint'). Required for 'create_iteration_field' method.",
+        "type": "string"
+      },
+      "issue_number": {
+        "description": "The issue number (use when item_type is 'issue' for 'add_project_item' method). Provide either issue_number or pull_request_number.",
+        "type": "number"
+      },
+      "item_id": {
+        "description": "The project item ID. Required for 'update_project_item' and 'delete_project_item' methods.",
+        "type": "number"
+      },
+      "item_owner": {
+        "description": "The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method.",
+        "type": "string"
+      },
+      "item_repo": {
+        "description": "The name of the repository containing the issue or pull request. Required for 'add_project_item' method.",
+        "type": "string"
+      },
+      "item_type": {
+        "description": "The item's type, either issue or pull_request. Required for 'add_project_item' method.",
+        "enum": [
+          "issue",
+          "pull_request"
+        ],
+        "type": "string"
+      },
+      "iteration_duration": {
+        "description": "Duration in days for iterations of the field (e.g. 7 for weekly, 14 for bi-weekly). Required for 'create_iteration_field' method.",
+        "type": "number"
+      },
+      "iterations": {
+        "description": "Custom iterations for 'create_iteration_field' method. Only set this when you need iterations with varying durations, breaks between them, or specific titles. Otherwise omit it: GitHub auto-creates three iterations of 'iteration_duration' days starting on 'start_date', which is the right choice for most cases.",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "duration": {
+              "description": "Duration in days",
+              "type": "number"
+            },
+            "start_date": {
+              "description": "Start date in YYYY-MM-DD format",
+              "type": "string"
+            },
+            "title": {
+              "description": "Iteration title (e.g. 'Sprint 1')",
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "start_date",
+            "duration"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "method": {
+        "description": "The method to execute",
+        "enum": [
+          "add_project_item",
+          "update_project_item",
+          "delete_project_item",
+          "create_project_status_update",
+          "create_iteration_field"
+        ],
+        "type": "string"
+      },
+      "pull_request_number": {
+        "description": "The pull request number (use when item_type is 'pull_request' for 'add_project_item' method). Provide either issue_number or pull_request_number.",
+        "type": "number"
+      },
+      "start_date": {
+        "description": "Start date in YYYY-MM-DD format. Used for 'create_project_status_update' and 'create_iteration_field' methods.",
+        "type": "string"
+      },
+      "status": {
+        "description": "The status of the project. Used for 'create_project_status_update' method.",
+        "enum": [
+          "INACTIVE",
+          "ON_TRACK",
+          "AT_RISK",
+          "OFF_TRACK",
+          "COMPLETE"
+        ],
+        "type": "string"
+      },
+      "target_date": {
+        "description": "The target date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method.",
+        "type": "string"
+      },
+      "title": {
+        "description": "The project title. Required for 'create_project' method.",
+        "type": "string"
+      },
+      "updated_field": {
+        "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}. Required for 'update_project_item' method.",
+        "type": "object"
+      }
+    },
+    "required": [
+      "method"
+    ],
+    "type": "object"
+  },
+  "name": "projects_write"
+}

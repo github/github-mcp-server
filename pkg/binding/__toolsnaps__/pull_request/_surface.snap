@@ -1,0 +1,11 @@
+[
+  "add_comment_to_pending_review",
+  "add_reply_to_pull_request_comment",
+  "get_commit",
+  "get_file_contents",
+  "merge_pull_request",
+  "pull_request_read",
+  "pull_request_review_write",
+  "request_copilot_review",
+  "update_pull_request_branch"
+]

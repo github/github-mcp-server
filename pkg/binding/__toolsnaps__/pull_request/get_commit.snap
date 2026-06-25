@@ -1,0 +1,41 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get commit details"
+  },
+  "description": "Get the details and diff of a single commit in octocat/hello-world, the repository of pull request octocat/hello-world#42.",
+  "inputSchema": {
+    "properties": {
+      "detail": {
+        "default": "stats",
+        "description": "Level of detail to include for changed files. \"none\" omits stats and files entirely. \"stats\" (default) includes per-file metadata: filename, status, and lines-of-code counts (additions, deletions, changes), with no patch content. \"full_patch\" additionally includes the unified diff content for each file and can be very large.",
+        "enum": [
+          "none",
+          "stats",
+          "full_patch"
+        ],
+        "type": "string"
+      },
+      "page": {
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "sha": {
+        "description": "Commit SHA, branch name, or tag name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "sha"
+    ],
+    "type": "object"
+  },
+  "name": "get_commit"
+}

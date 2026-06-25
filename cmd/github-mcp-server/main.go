@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/github/github-mcp-server/internal/ghmcp"
+	"github.com/github/github-mcp-server/pkg/binding"
 	"github.com/github/github-mcp-server/pkg/github"
 	ghhttp "github.com/github/github-mcp-server/pkg/http"
 	"github.com/spf13/cobra"
@@ -78,6 +79,12 @@ var (
 			}
 
 			ttl := viper.GetDuration("repo-access-cache-ttl")
+
+			scope, err := resolveScope(viper.GetString("repository"), viper.GetString("pull-request"), viper.GetString("project"))
+			if err != nil {
+				return err
+			}
+
 			stdioServerConfig := ghmcp.StdioServerConfig{
 				Version:              version,
 				Host:                 viper.GetString("host"),
@@ -94,6 +101,7 @@ var (
 				InsidersMode:         viper.GetBool("insiders"),
 				ExcludeTools:         excludeTools,
 				RepoAccessCacheTTL:   &ttl,
+				Scope:                scope,
 			}
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
@@ -183,6 +191,13 @@ func init() {
 	rootCmd.PersistentFlags().Bool("insiders", false, "Enable insiders features")
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
 
+	// Scoped-mode flags (stdio only). Each binds the server to a single fixed
+	// GitHub context and exposes a bespoke tool surface for it. They are
+	// mutually exclusive.
+	stdioCmd.Flags().String("repository", "", "Bind the server to a single repository (owner/repo), exposing a repository-scoped tool surface")
+	stdioCmd.Flags().String("pull-request", "", "Bind the server to a single pull request (owner/repo#number), exposing a pull-request-scoped tool surface")
+	stdioCmd.Flags().String("project", "", "Bind the server to a single project (org|user/owner/number), exposing a project-scoped tool surface")
+
 	// HTTP-specific flags
 	httpCmd.Flags().Int("port", 8082, "HTTP server port")
 	httpCmd.Flags().String("listen-host", "", "Host the HTTP server binds to (e.g. 127.0.0.1). Empty binds to all interfaces.")
@@ -205,6 +220,9 @@ func init() {
 	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
 	_ = viper.BindPFlag("insiders", rootCmd.PersistentFlags().Lookup("insiders"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
+	_ = viper.BindPFlag("repository", stdioCmd.Flags().Lookup("repository"))
+	_ = viper.BindPFlag("pull-request", stdioCmd.Flags().Lookup("pull-request"))
+	_ = viper.BindPFlag("project", stdioCmd.Flags().Lookup("project"))
 	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))
 	_ = viper.BindPFlag("listen-host", httpCmd.Flags().Lookup("listen-host"))
 	_ = viper.BindPFlag("base-url", httpCmd.Flags().Lookup("base-url"))
@@ -237,4 +255,43 @@ func wordSepNormalizeFunc(_ *pflag.FlagSet, name string) pflag.NormalizedName {
 		name = strings.ReplaceAll(name, sep, to)
 	}
 	return pflag.NormalizedName(name)
+}
+
+// resolveScope turns the mutually-exclusive --repository / --pull-request /
+// --project flags into a single binding.Context. It returns nil when none are
+// set (the server runs in its normal, unscoped mode).
+func resolveScope(repository, pullRequest, project string) (*binding.Context, error) {
+	var set []string
+	if repository != "" {
+		set = append(set, "--repository")
+	}
+	if pullRequest != "" {
+		set = append(set, "--pull-request")
+	}
+	if project != "" {
+		set = append(set, "--project")
+	}
+	if len(set) == 0 {
+		return nil, nil
+	}
+	if len(set) > 1 {
+		return nil, fmt.Errorf("flags %s are mutually exclusive; set only one scoped mode", strings.Join(set, ", "))
+	}
+
+	var (
+		ctx binding.Context
+		err error
+	)
+	switch {
+	case repository != "":
+		ctx, err = binding.ParseRepository(repository)
+	case pullRequest != "":
+		ctx, err = binding.ParsePullRequest(pullRequest)
+	case project != "":
+		ctx, err = binding.ParseProject(project)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &ctx, nil
 }
