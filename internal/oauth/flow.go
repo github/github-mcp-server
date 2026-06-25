@@ -24,9 +24,15 @@ type flowPlan struct {
 	// poll the device endpoint) and returns the token.
 	run func(context.Context) (*oauth2.Token, error)
 	// display, if set, presents the prompt to the user via the Prompter and
-	// blocks until they act. A non-nil error (including ErrPromptDeclined)
-	// aborts the flow.
+	// blocks until they act. ErrPromptDeclined (the user said no) or any other
+	// error aborts the flow, except ErrPromptUnavailable, which degrades to
+	// fallback when that is set.
 	display func(context.Context) error
+	// fallback, if set alongside display, is the manual user action to surface
+	// when the display prompt cannot be delivered (ErrPromptUnavailable). It lets
+	// a runtime elicitation failure degrade to the manual channel — keeping the
+	// background flow alive — instead of aborting.
+	fallback *UserAction
 	// userAction, if set, indicates the last-resort channel: the caller must
 	// surface it and the user retries after authorizing out of band.
 	userAction *UserAction
@@ -124,6 +130,16 @@ func (m *Manager) beginPKCE(prompter Prompter) (*flowPlan, error) {
 		m.logger.Debug("browser auto-open unavailable", "reason", browserErr)
 	}
 
+	// The manual instructions double as the fallback if a chosen display channel
+	// turns out to be undeliverable at runtime, so build them once here.
+	manual := &UserAction{
+		URL: authURL,
+		Message: fmt.Sprintf(
+			"To authorize the GitHub MCP Server, open this URL in your browser:\n\n%s\n\nAfter authorizing, retry your request.\n\n%s",
+			authURL, securityAdvisory,
+		),
+	}
+
 	if canPromptURL(prompter) {
 		display := func(ctx context.Context) error {
 			return prompter.PromptURL(ctx, Prompt{
@@ -131,16 +147,10 @@ func (m *Manager) beginPKCE(prompter Prompter) (*flowPlan, error) {
 				URL:     authURL,
 			})
 		}
-		return &flowPlan{run: run, display: display}, nil
+		return &flowPlan{run: run, display: display, fallback: manual}, nil
 	}
 
-	return &flowPlan{run: run, userAction: &UserAction{
-		URL: authURL,
-		Message: fmt.Sprintf(
-			"To authorize the GitHub MCP Server, open this URL in your browser:\n\n%s\n\nAfter authorizing, retry your request.\n\n%s",
-			authURL, securityAdvisory,
-		),
-	}}, nil
+	return &flowPlan{run: run, userAction: manual}, nil
 }
 
 // beginDevice prepares the device authorization flow. It requests a device code
@@ -164,6 +174,17 @@ func (m *Manager) beginDevice(prompter Prompter) (*flowPlan, error) {
 		return tok, nil
 	}
 
+	// As with PKCE, the manual instructions double as the runtime fallback, so
+	// build them once and reuse for both display plans and the last resort.
+	manual := &UserAction{
+		URL:      da.VerificationURI,
+		UserCode: da.UserCode,
+		Message: fmt.Sprintf(
+			"%s\n\nAfter authorizing, retry your request.\n\n%s",
+			deviceInstruction(da), securityAdvisory,
+		),
+	}
+
 	if canPromptURL(prompter) {
 		display := func(ctx context.Context) error {
 			return prompter.PromptURL(ctx, Prompt{
@@ -172,7 +193,7 @@ func (m *Manager) beginDevice(prompter Prompter) (*flowPlan, error) {
 				UserCode: da.UserCode,
 			})
 		}
-		return &flowPlan{run: run, display: display}, nil
+		return &flowPlan{run: run, display: display, fallback: manual}, nil
 	}
 
 	if canPromptForm(prompter) {
@@ -183,17 +204,10 @@ func (m *Manager) beginDevice(prompter Prompter) (*flowPlan, error) {
 				UserCode: da.UserCode,
 			})
 		}
-		return &flowPlan{run: run, display: display}, nil
+		return &flowPlan{run: run, display: display, fallback: manual}, nil
 	}
 
-	return &flowPlan{run: run, userAction: &UserAction{
-		URL:      da.VerificationURI,
-		UserCode: da.UserCode,
-		Message: fmt.Sprintf(
-			"%s\n\nAfter authorizing, retry your request.\n\n%s",
-			deviceInstruction(da), securityAdvisory,
-		),
-	}}, nil
+	return &flowPlan{run: run, userAction: manual}, nil
 }
 
 // securityAdvisory nudges users on clients without URL elicitation to ask their

@@ -117,6 +117,42 @@ func TestAuthenticateDeclinedPromptFails(t *testing.T) {
 	assert.Empty(t, m.AccessToken())
 }
 
+func TestAuthenticateUndeliverablePromptFallsBack(t *testing.T) {
+	f := newFakeGitHub(t)
+	m := newManager(t, f)
+	m.openURL = func(string) error { return errors.New("no browser") }
+
+	// The client advertised URL elicitation but delivering the prompt fails (a
+	// transport/protocol error, not a user decision). This must degrade to the
+	// manual instructions rather than aborting like a decline does.
+	prompter := &fakePrompter{
+		urlCapable: true,
+		onURL: func(_ context.Context, _ Prompt) error {
+			return ErrPromptUnavailable
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	out, err := m.Authenticate(ctx, prompter)
+	require.NoError(t, err, "an undeliverable prompt must not abort the flow")
+	require.NotNil(t, out)
+	require.NotNil(t, out.UserAction, "an undeliverable prompt must fall back to a user action")
+	assert.NotEmpty(t, out.UserAction.URL)
+	assert.Contains(t, out.UserAction.Message, securityAdvisory)
+
+	// A concurrent retry while awaiting the user returns the same fallback action.
+	out2, err := m.Authenticate(ctx, nil)
+	require.NoError(t, err)
+	require.NotNil(t, out2.UserAction)
+	assert.Equal(t, out.UserAction.URL, out2.UserAction.URL)
+
+	// The background flow stayed alive: opening the URL out of band completes it.
+	require.NoError(t, browserGet(out.UserAction.URL))
+	assert.Equal(t, "gho_access", waitForToken(t, m))
+}
+
 func TestAuthenticateLastDitchUserAction(t *testing.T) {
 	f := newFakeGitHub(t)
 	m := newManager(t, f)

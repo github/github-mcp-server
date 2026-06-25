@@ -2,6 +2,7 @@ package ghmcp
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -190,6 +191,51 @@ func TestSessionPrompterPromptActions(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestSessionPrompterTransportError verifies that a prompt which fails to be
+// delivered (the client errors instead of returning an action) is reported as
+// ErrPromptUnavailable, not ErrPromptDeclined. The manager relies on this
+// distinction to fall back to manual instructions instead of aborting.
+func TestSessionPrompterTransportError(t *testing.T) {
+	t.Parallel()
+
+	caps := &mcp.ClientCapabilities{Elicitation: &mcp.ElicitationCapabilities{
+		URL:  &mcp.URLElicitationCapabilities{},
+		Form: &mcp.FormElicitationCapabilities{},
+	}}
+
+	for _, mode := range []string{"url", "form"} {
+		t.Run(mode, func(t *testing.T) {
+			t.Parallel()
+
+			handler := func(_ context.Context, _ *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+				return nil, errors.New("client cannot deliver elicitation")
+			}
+
+			got := runProbe(t, caps, handler, func(ctx context.Context, p *sessionPrompter) string {
+				var err error
+				if mode == "url" {
+					err = p.PromptURL(ctx, oauth.Prompt{Message: "msg", URL: "https://example.com/auth"})
+				} else {
+					err = p.PromptForm(ctx, oauth.Prompt{Message: "msg"})
+				}
+				switch {
+				case err == nil:
+					return "ok"
+				case errors.Is(err, oauth.ErrPromptDeclined):
+					return "declined"
+				case errors.Is(err, oauth.ErrPromptUnavailable):
+					return "unavailable"
+				default:
+					return "error: " + err.Error()
+				}
+			})
+
+			assert.Equal(t, "unavailable", got,
+				"a delivery failure must be classified as undeliverable, not a decline")
+		})
 	}
 }
 

@@ -190,14 +190,32 @@ func (m *Manager) Authenticate(ctx context.Context, prompter Prompter) (*Outcome
 }
 
 // runFlow executes a prepared flow in the background and records the result. The
-// optional display prompt runs concurrently; if it ends in error or decline it
-// cancels the flow.
+// optional display prompt runs concurrently: a decline (or other failure) aborts
+// the flow, while an undeliverable prompt degrades to the manual fallback without
+// tearing the flow down, so the user can still authorize out of band.
 func (m *Manager) runFlow(ctx context.Context, cancel context.CancelFunc, plan *flowPlan) {
 	defer cancel()
 
 	if plan.display != nil {
 		go func() {
-			if err := plan.display(ctx); err != nil {
+			err := plan.display(ctx)
+			switch {
+			case err == nil:
+				// Prompt shown; the flow completes when the token arrives.
+			case ctx.Err() != nil:
+				// The flow is already ending (timed out or cancelled elsewhere),
+				// so there is nothing to fall back to. Checking this before the
+				// fallback also prevents misreading a context-cancelled prompt as
+				// a transport failure.
+			case errors.Is(err, ErrPromptUnavailable) && plan.fallback != nil:
+				// The client advertised the capability but could not deliver the
+				// prompt. Surface the manual instructions instead of failing, and
+				// keep the background flow alive so the user can still authorize.
+				m.logger.Debug("authorization prompt undeliverable; falling back to manual instructions", "reason", err)
+				m.fallBackToUserAction(plan.fallback)
+			default:
+				// A user decline (ErrPromptDeclined) or any other prompt failure
+				// ends the flow.
 				m.logger.Debug("authorization prompt closed", "reason", err)
 				cancel()
 			}
@@ -206,6 +224,26 @@ func (m *Manager) runFlow(ctx context.Context, cancel context.CancelFunc, plan *
 
 	tok, err := plan.run(ctx)
 	m.complete(tok, err)
+}
+
+// fallBackToUserAction promotes a running secure flow to the manual user-action
+// channel after its prompt could not be delivered. The background flow keeps
+// running, so the user can complete authorization out of band and retry. It is a
+// no-op if the flow has already resolved.
+func (m *Manager) fallBackToUserAction(ua *UserAction) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.status != statusInProgress {
+		return
+	}
+	m.status = statusAwaitingUser
+	m.pending = ua
+	// Wake any callers joined on this flow so they receive the action, and clear
+	// done so complete() does not double-close it when run() later finishes.
+	if m.done != nil {
+		close(m.done)
+		m.done = nil
+	}
 }
 
 // complete records the flow result, installing a refreshing token source on
@@ -236,7 +274,9 @@ func (m *Manager) complete(tok *oauth2.Token, err error) {
 	}
 }
 
-// joinWait blocks until the running flow finishes or ctx is cancelled.
+// joinWait blocks until the running flow finishes or ctx is cancelled. If the
+// flow was promoted to the manual channel while waiting (its prompt could not be
+// delivered), it returns that user action rather than an error.
 func (m *Manager) joinWait(ctx context.Context, done chan struct{}) (*Outcome, error) {
 	select {
 	case <-done:
@@ -244,8 +284,12 @@ func (m *Manager) joinWait(ctx context.Context, done chan struct{}) (*Outcome, e
 			return nil, nil
 		}
 		m.mu.Lock()
+		pending := m.pending
 		err := m.lastErr
 		m.mu.Unlock()
+		if pending != nil {
+			return &Outcome{UserAction: pending}, nil
+		}
 		if err != nil {
 			return nil, err
 		}

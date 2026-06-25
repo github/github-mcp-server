@@ -44,7 +44,10 @@ func (p *sessionPrompter) PromptURL(ctx context.Context, prompt oauth.Prompt) er
 		ElicitationID: rand.Text(),
 	})
 	if err != nil {
-		return err
+		// The client advertised URL elicitation but the request itself failed:
+		// classify it as undeliverable (not a user decision) so the flow can fall
+		// back to a channel that needs no client capability.
+		return fmt.Errorf("%w: %w", oauth.ErrPromptUnavailable, err)
 	}
 	if res.Action != "accept" {
 		return oauth.ErrPromptDeclined
@@ -71,7 +74,9 @@ func (p *sessionPrompter) PromptForm(ctx context.Context, prompt oauth.Prompt) e
 		Message: prompt.Message,
 	})
 	if err != nil {
-		return err
+		// As with PromptURL, a delivery failure is undeliverable rather than a
+		// decline, so the flow can fall back instead of aborting.
+		return fmt.Errorf("%w: %w", oauth.ErrPromptUnavailable, err)
 	}
 	if res.Action != "accept" {
 		return oauth.ErrPromptDeclined
