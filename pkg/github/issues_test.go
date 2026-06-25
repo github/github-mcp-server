@@ -1655,9 +1655,10 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
 
-	t.Run("UI client with labels skips form and executes directly", func(t *testing.T) {
-		// The form does not collect labels, so a call carrying them must bypass
-		// the form rather than silently drop them.
+	t.Run("UI client with labels routes through UI form", func(t *testing.T) {
+		// labels is now a form param (the issue-write view prefills and renders
+		// a label selector), so a call carrying them must route to the form
+		// rather than execute directly.
 		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"method": "create",
 			"owner":  "owner",
@@ -1669,10 +1670,9 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.NotContains(t, textContent.Text, "interactive form has been shown",
-			"labels should skip UI form")
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
-			"labels call should execute directly and return issue URL")
+		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for creating a new issue",
+			"labels should route through UI form")
+		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
 
 	t.Run("UI client with show_ui=false skips form and executes directly", func(t *testing.T) {
@@ -1768,14 +1768,15 @@ func Test_issueWriteHasNonFormParams(t *testing.T) {
 		{name: "only form params", args: map[string]any{"method": "create", "owner": "o", "repo": "r", "title": "t", "body": "b", "issue_number": float64(1), "_ui_submitted": true}, want: false},
 		{name: "show_ui true is a form param", args: map[string]any{"title": "t", "show_ui": true}, want: false},
 		{name: "show_ui false is a form param", args: map[string]any{"title": "t", "show_ui": false}, want: false},
-		{name: "labels present", args: map[string]any{"title": "t", "labels": []any{"bug"}}, want: true},
-		{name: "assignees present", args: map[string]any{"title": "t", "assignees": []any{"octocat"}}, want: true},
-		{name: "milestone present", args: map[string]any{"title": "t", "milestone": float64(2)}, want: true},
-		{name: "type present", args: map[string]any{"title": "t", "type": "Bug"}, want: true},
+		{name: "labels present", args: map[string]any{"title": "t", "labels": []any{"bug"}}, want: false},
+		{name: "assignees present", args: map[string]any{"title": "t", "assignees": []any{"octocat"}}, want: false},
+		{name: "milestone present", args: map[string]any{"title": "t", "milestone": float64(2)}, want: false},
+		{name: "type present", args: map[string]any{"title": "t", "type": "Bug"}, want: false},
 		{name: "issue_fields present", args: map[string]any{"issue_fields": []any{map[string]any{"field_name": "Priority"}}}, want: false},
 		{name: "state present", args: map[string]any{"state": "closed"}, want: false},
 		{name: "state_reason present", args: map[string]any{"state_reason": "completed"}, want: false},
 		{name: "duplicate_of present", args: map[string]any{"duplicate_of": float64(7)}, want: false},
+		{name: "unknown non-schema param present", args: map[string]any{"title": "t", "not_a_real_param": "x"}, want: true},
 		{name: "nil value is ignored", args: map[string]any{"issue_fields": nil}, want: false},
 	}
 
@@ -1796,13 +1797,11 @@ func Test_issueWriteSchemaClassification(t *testing.T) {
 	t.Parallel()
 
 	// Schema properties the MCP App form cannot represent — their presence
-	// must trigger the safety-net bypass via issueWriteHasNonFormParams.
-	knownNonForm := map[string]struct{}{
-		"assignees": {},
-		"labels":    {},
-		"milestone": {},
-		"type":      {},
-	}
+	// must trigger the safety-net bypass via issueWriteHasNonFormParams. The
+	// form currently collects every schema property, so this allowlist is
+	// empty; add a property here only if it is added to the schema without
+	// corresponding form support.
+	knownNonForm := map[string]struct{}{}
 
 	cases := []struct {
 		name string
