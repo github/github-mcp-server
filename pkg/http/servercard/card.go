@@ -13,7 +13,11 @@
 //   - https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2127
 package servercard
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/github/github-mcp-server/pkg/octicons"
+)
 
 const (
 	// SchemaURL is the v1 Server Card JSON Schema URI that emitted cards
@@ -31,7 +35,25 @@ const (
 	// DefaultRemoteURL is the streamable-HTTP endpoint of the hosted GitHub MCP
 	// Server on github.com. The remote repository overrides this per environment.
 	DefaultRemoteURL = "https://api.githubcopilot.com/mcp/"
+
+	// iconName is the Octicon used as the server's icon (the GitHub mark).
+	iconName = "mark-github"
+
+	// iconSize is the pixel dimension of the embedded Octicon PNGs (square).
+	iconSize = "24x24"
 )
+
+// DefaultProtocolVersions lists the MCP protocol versions advertised on the
+// card's remote when Config.ProtocolVersions is not set. It mirrors the
+// versions supported by the bundled go-sdk (see modelcontextprotocol/go-sdk
+// mcp.supportedProtocolVersions, which is unexported) and is ordered newest
+// first. Keep it in sync when the go-sdk dependency in go.mod is upgraded.
+var DefaultProtocolVersions = []string{
+	"2025-11-25",
+	"2025-06-18",
+	"2025-03-26",
+	"2024-11-05",
+}
 
 // Identity fields reused from the MCP Registry document (server.json) so the
 // Server Card and the registry entry describe the same server.
@@ -161,6 +183,10 @@ type Config struct {
 	// It is consumed by the Handler when serving a card; NewServerCard ignores
 	// it, since the card constructor is not request-aware.
 	RemoteURLFunc func(*http.Request) string
+
+	// ProtocolVersions overrides the MCP protocol versions advertised on the
+	// card's remote. When empty, DefaultProtocolVersions is used.
+	ProtocolVersions []string
 }
 
 // NewServerCard builds the GitHub MCP Server's Server Card from cfg.
@@ -175,6 +201,11 @@ func NewServerCard(cfg Config) *ServerCard {
 		remoteURL = DefaultRemoteURL
 	}
 
+	protocolVersions := cfg.ProtocolVersions
+	if protocolVersions == nil {
+		protocolVersions = DefaultProtocolVersions
+	}
+
 	return &ServerCard{
 		Schema:      SchemaURL,
 		Name:        serverName,
@@ -182,6 +213,7 @@ func NewServerCard(cfg Config) *ServerCard {
 		Description: serverDescription,
 		Title:       serverTitle,
 		WebsiteURL:  repositoryURL,
+		Icons:       githubIcons(),
 		Repository: &Repository{
 			URL:    repositoryURL,
 			Source: repositorySource,
@@ -201,7 +233,36 @@ func NewServerCard(cfg Config) *ServerCard {
 						Name: "Authorization",
 					},
 				},
+				SupportedProtocolVersions: protocolVersions,
 			},
 		},
 	}
+}
+
+// githubIcons returns the light- and dark-theme GitHub mark icons as
+// self-contained data URIs, reusing the embedded Octicons so the card has no
+// external image dependency. The order is fixed so the serialized card — and
+// therefore its ETag — is deterministic. It returns nil if the icons are
+// unavailable.
+func githubIcons() []Icon {
+	themes := []struct {
+		octicon octicons.Theme
+		card    string
+	}{
+		{octicons.ThemeLight, "light"},
+		{octicons.ThemeDark, "dark"},
+	}
+
+	var icons []Icon
+	for _, t := range themes {
+		if src := octicons.DataURI(iconName, t.octicon); src != "" {
+			icons = append(icons, Icon{
+				Src:      src,
+				MimeType: "image/png",
+				Sizes:    []string{iconSize},
+				Theme:    t.card,
+			})
+		}
+	}
+	return icons
 }
