@@ -642,3 +642,18 @@ func TestOptionalPaginationParams(t *testing.T) {
 		})
 	}
 }
+
+
+func TestMethodEnum(t *testing.T) {
+	assert.Equal(t, []any{"create", "submit_pending"}, methodEnum([]string{"create", "submit_pending"}))
+	assert.Empty(t, methodEnum(nil))
+}
+
+func TestUnknownMethodError(t *testing.T) {
+	res := unknownMethodError("bogus", []string{"create", "submit_pending", "delete_pending"})
+	assert.NotNil(t, res)
+	assert.True(t, res.IsError)
+	txt := getErrorResult(t, res).Text
+	assert.Contains(t, txt, "unknown method: bogus")
+	assert.Contains(t, txt, "Supported methods are: create, submit_pending, delete_pending")
+}

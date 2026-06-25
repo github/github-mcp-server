@@ -24,6 +24,13 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// Method sets for the consolidated issue tools (single source for the schema
+// enum via methodEnum and the unknown-method error via unknownMethodError).
+var (
+	issueReadMethods     = []string{"get", "get_comments", "get_sub_issues", "get_parent", "get_labels"}
+	subIssueWriteMethods = []string{"add", "remove", "reprioritize"}
+)
+
 // CloseIssueInput represents the input for closing an issue via the GraphQL API.
 // Used to extend the functionality of the githubv4 library to support closing issues as duplicates.
 type CloseIssueInput struct {
@@ -620,7 +627,7 @@ Options are:
 4. get_parent - Get the parent issue, if this issue is a sub-issue of another.
 5. get_labels - Get labels assigned to the issue.
 `,
-				Enum: []any{"get", "get_comments", "get_sub_issues", "get_parent", "get_labels"},
+				Enum: methodEnum(issueReadMethods),
 			},
 			"owner": {
 				Type:        "string",
@@ -707,7 +714,7 @@ Options are:
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
 				return attachIFC(result), nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return unknownMethodError(method, issueReadMethods), nil, nil
 			}
 		})
 }
@@ -1313,6 +1320,7 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Properties: map[string]*jsonschema.Schema{
 					"method": {
 						Type: "string",
+						Enum: methodEnum(subIssueWriteMethods),
 						Description: `The action to perform on a single sub-issue
 Options are:
 - 'add' - add a sub-issue to a parent issue in a GitHub repository.
@@ -1406,7 +1414,7 @@ Options are:
 				result, err := ReprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID)
 				return result, nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return unknownMethodError(method, subIssueWriteMethods), nil, nil
 			}
 		})
 	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}
