@@ -68,6 +68,15 @@ type MCPServerConfig struct {
 	// This is used for PAT scope filtering where we can't issue scope challenges.
 	TokenScopes []string
 
+	// DefaultRepository is the owner/repo configured for project-focused mode.
+	DefaultRepository string
+
+	// FocusRepository hides open-world discovery tools when a default repository is configured.
+	FocusRepository bool
+
+	// AllowDiscoveryTools keeps discovery tools available even when FocusRepository is enabled.
+	AllowDiscoveryTools bool
+
 	// Additional server options to apply
 	ServerOptions []MCPServerOption
 }

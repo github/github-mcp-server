@@ -55,6 +55,8 @@ type Builder struct {
 	featureChecker       FeatureFlagChecker
 	filters              []ToolFilter // filters to apply to all tools
 	generateInstructions bool
+	defaultRepository    string
+	focusRepository      bool
 }
 
 // NewBuilder creates a new Builder.
@@ -99,6 +101,18 @@ func (b *Builder) WithReadOnly(readOnly bool) *Builder {
 
 func (b *Builder) WithServerInstructions() *Builder {
 	b.generateInstructions = true
+	return b
+}
+
+// WithDefaultRepository sets the default owner/repo used in server instructions.
+func (b *Builder) WithDefaultRepository(repository string) *Builder {
+	b.defaultRepository = strings.TrimSpace(repository)
+	return b
+}
+
+// WithFocusRepository marks the inventory as project-focused for instruction generation.
+func (b *Builder) WithFocusRepository(enabled bool) *Builder {
+	b.focusRepository = enabled
 	return b
 }
 
@@ -273,6 +287,9 @@ func (b *Builder) Build() (*Inventory, error) {
 	if b.generateInstructions {
 		r.instructions = generateInstructions(r)
 	}
+
+	r.defaultRepository = b.defaultRepository
+	r.focusRepository = b.focusRepository
 
 	return r, nil
 }

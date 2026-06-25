@@ -60,6 +60,10 @@ type Inventory struct {
 	unrecognizedToolsets []string
 	// server instructions hold high-level instructions for agents to use the server effectively
 	instructions string
+	// defaultRepository is the configured owner/repo for project-focused mode
+	defaultRepository string
+	// focusRepository indicates project-focused mode is enabled
+	focusRepository bool
 }
 
 // UnrecognizedToolsets returns toolset IDs that were passed to WithToolsets but don't
@@ -366,4 +370,14 @@ func (r *Inventory) EnabledToolsets() []ToolsetMetadata {
 
 func (r *Inventory) Instructions() string {
 	return r.instructions
+}
+
+// DefaultRepository returns the configured default owner/repo reference.
+func (r *Inventory) DefaultRepository() string {
+	return r.defaultRepository
+}
+
+// FocusRepository reports whether project-focused mode is enabled.
+func (r *Inventory) FocusRepository() bool {
+	return r.focusRepository
 }

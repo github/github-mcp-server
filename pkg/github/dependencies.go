@@ -105,6 +105,16 @@ type ToolDependencies interface {
 
 	// Metrics returns the metrics client
 	Metrics(ctx context.Context) metrics.Metrics
+
+	// GetRepositoryContext returns configured default repository context for project-focused mode.
+	GetRepositoryContext() RepositoryContextConfig
+}
+
+// RepositoryContextConfig holds server-level repository scoping configuration.
+type RepositoryContextConfig struct {
+	DefaultRepository *RepositoryRef
+	FocusMode         bool
+	Token             string
 }
 
 // BaseDeps is the standard implementation of ToolDependencies for the local server.
@@ -125,6 +135,9 @@ type BaseDeps struct {
 	// Feature flag checker for runtime checks
 	featureChecker inventory.FeatureFlagChecker
 
+	// Repository context for project-focused mode
+	RepositoryContext RepositoryContextConfig
+
 	// Observability exporters (includes logger)
 	Obsv observability.Exporters
 }
@@ -142,6 +155,7 @@ func NewBaseDeps(
 	flags FeatureFlags,
 	contentWindowSize int,
 	featureChecker inventory.FeatureFlagChecker,
+	repositoryContext RepositoryContextConfig,
 	obsv observability.Exporters,
 ) *BaseDeps {
 	return &BaseDeps{
@@ -153,6 +167,7 @@ func NewBaseDeps(
 		Flags:             flags,
 		ContentWindowSize: contentWindowSize,
 		featureChecker:    featureChecker,
+		RepositoryContext: repositoryContext,
 		Obsv:              obsv,
 	}
 }
@@ -194,6 +209,11 @@ func (d BaseDeps) Logger(_ context.Context) *slog.Logger {
 // Metrics implements ToolDependencies.
 func (d BaseDeps) Metrics(ctx context.Context) metrics.Metrics {
 	return d.Obsv.Metrics(ctx)
+}
+
+// GetRepositoryContext implements ToolDependencies.
+func (d BaseDeps) GetRepositoryContext() RepositoryContextConfig {
+	return d.RepositoryContext
 }
 
 // IsFeatureEnabled checks if a feature flag is enabled.
@@ -440,4 +460,9 @@ func (d *RequestDeps) IsFeatureEnabled(ctx context.Context, flagName string) boo
 	}
 
 	return enabled
+}
+
+// GetRepositoryContext implements ToolDependencies.
+func (d *RequestDeps) GetRepositoryContext() RepositoryContextConfig {
+	return RepositoryContextConfig{}
 }

@@ -94,6 +94,8 @@ var (
 				InsidersMode:         viper.GetBool("insiders"),
 				ExcludeTools:         excludeTools,
 				RepoAccessCacheTTL:   &ttl,
+				DefaultRepository:    viper.GetString("repository"),
+				AllowDiscoveryTools:  viper.GetBool("allow-discovery-tools"),
 			}
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
@@ -182,6 +184,8 @@ func init() {
 	rootCmd.PersistentFlags().Bool("lockdown-mode", false, "Enable lockdown mode")
 	rootCmd.PersistentFlags().Bool("insiders", false, "Enable insiders features")
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
+	rootCmd.PersistentFlags().String("repository", "", "Default owner/repo for project-focused mode (also GITHUB_REPOSITORY env var)")
+	rootCmd.PersistentFlags().Bool("allow-discovery-tools", false, "Keep open-world discovery tools when --repository is set")
 
 	// HTTP-specific flags
 	httpCmd.Flags().Int("port", 8082, "HTTP server port")
@@ -205,6 +209,8 @@ func init() {
 	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
 	_ = viper.BindPFlag("insiders", rootCmd.PersistentFlags().Lookup("insiders"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
+	_ = viper.BindPFlag("repository", rootCmd.PersistentFlags().Lookup("repository"))
+	_ = viper.BindPFlag("allow-discovery-tools", rootCmd.PersistentFlags().Lookup("allow-discovery-tools"))
 	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))
 	_ = viper.BindPFlag("listen-host", httpCmd.Flags().Lookup("listen-host"))
 	_ = viper.BindPFlag("base-url", httpCmd.Flags().Lookup("base-url"))
