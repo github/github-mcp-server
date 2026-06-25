@@ -13,6 +13,8 @@
 //   - https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2127
 package servercard
 
+import "net/http"
+
 const (
 	// SchemaURL is the v1 Server Card JSON Schema URI that emitted cards
 	// conform to. The schema is versioned by its `vN` path segment.
@@ -140,7 +142,7 @@ type Icon struct {
 	Theme string `json:"theme,omitempty"`
 }
 
-// Config controls how the GitHub MCP Server card is built.
+// Config controls how the GitHub MCP Server card is built and served.
 type Config struct {
 	// Version is advertised as the card's version and SHOULD match the
 	// runtime serverInfo version. When empty, "0.0.0-dev" is used.
@@ -150,6 +152,15 @@ type Config struct {
 	// card's single remote. When empty, DefaultRemoteURL is used. The remote
 	// repository supplies a per-environment URL here.
 	RemoteURL string
+
+	// RemoteURLFunc, when set, derives the streamable-HTTP remote URL from the
+	// incoming request, taking precedence over RemoteURL whenever it returns a
+	// non-empty value. This supports multi-tenant deployments (e.g. proxima)
+	// where the absolute URL varies per request (e.g. from X-Forwarded-Host).
+	//
+	// It is consumed by the Handler when serving a card; NewServerCard ignores
+	// it, since the card constructor is not request-aware.
+	RemoteURLFunc func(*http.Request) string
 }
 
 // NewServerCard builds the GitHub MCP Server's Server Card from cfg.

@@ -1,6 +1,8 @@
 package servercard
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -39,42 +41,112 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 
 // ServeHTTP serves the Server Card as application/mcp-server-card+json.
 //
-// It honors GET (and OPTIONS preflight), performs content negotiation against
-// the Accept header, and is safe to mount at <streamable-http-url>/server-card
-// without any authentication middleware.
+// It honors GET and HEAD (with OPTIONS preflight), performs content negotiation
+// against the Accept header, supports ETag conditional requests, and is safe to
+// mount at <streamable-http-url>/server-card without authentication middleware.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	setCORSHeaders(w)
-
 	switch r.Method {
 	case http.MethodOptions:
+		setCORSHeaders(w)
 		w.WriteHeader(http.StatusOK)
 		return
 	case http.MethodGet, http.MethodHead:
 		// served below
 	default:
+		setCORSHeaders(w)
 		w.Header().Set("Allow", "GET, HEAD, OPTIONS")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	if !acceptsCard(r.Header.Get(headers.AcceptHeader)) {
+		setCORSHeaders(w)
 		http.Error(w, "not acceptable: expected "+MediaType, http.StatusNotAcceptable)
 		return
 	}
 
-	body, err := json.Marshal(NewServerCard(h.cfg))
+	ServeCard(w, r, h.resolveCard(r))
+}
+
+// resolveCard builds the card for a request, applying the per-request
+// RemoteURLFunc override when configured.
+func (h *Handler) resolveCard(r *http.Request) *ServerCard {
+	cfg := h.cfg
+	if h.cfg.RemoteURLFunc != nil {
+		if url := h.cfg.RemoteURLFunc(r); url != "" {
+			cfg.RemoteURL = url
+		}
+	}
+	return NewServerCard(cfg)
+}
+
+// ServeCard writes card to w as the canonical Server Card HTTP response and is
+// the single source of truth for the response headers and conditional-request
+// behavior. Callers that build a card per request — for example multi-tenant
+// deployments that derive a per-request remote URL — can reuse it directly to
+// guarantee byte-for-byte identical ETag and header handling.
+//
+// On a GET/HEAD it sets the read-only CORS headers, a one-hour Cache-Control,
+// and a strong ETag (the lowercase-hex SHA-256 of the exact served body,
+// double-quoted), plus Content-Type for the 200 response. When the request's
+// If-None-Match matches that ETag (strong or weak form) or is `*`, it returns
+// 304 Not Modified with the ETag and Cache-Control but no body. HEAD responses
+// carry the same headers with an empty body. The caller is responsible for
+// method dispatch and Accept negotiation before invoking ServeCard.
+func ServeCard(w http.ResponseWriter, r *http.Request, card *ServerCard) {
+	body, err := json.Marshal(card)
 	if err != nil {
+		setCORSHeaders(w)
 		http.Error(w, "failed to encode server card", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set(headers.ContentTypeHeader, MediaType)
+	etag := computeETag(body)
+
+	setCORSHeaders(w)
 	w.Header().Set("Cache-Control", "public, max-age=3600")
+	w.Header().Set("ETag", etag)
+
+	if ifNoneMatchSatisfied(r.Header.Get("If-None-Match"), etag) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+
+	w.Header().Set(headers.ContentTypeHeader, MediaType)
 	w.WriteHeader(http.StatusOK)
 	if r.Method == http.MethodHead {
 		return
 	}
 	_, _ = w.Write(body)
+}
+
+// computeETag returns a strong ETag: the lowercase-hex SHA-256 of body, wrapped
+// in double quotes. It is deterministic for identical content.
+func computeETag(body []byte) string {
+	sum := sha256.Sum256(body)
+	return `"` + hex.EncodeToString(sum[:]) + `"`
+}
+
+// ifNoneMatchSatisfied reports whether an If-None-Match header value matches the
+// given strong ETag using RFC 9110 weak comparison: `*` always matches, and a
+// listed entity-tag matches if its opaque tag equals etag's, ignoring any weak
+// `W/` prefix.
+func ifNoneMatchSatisfied(ifNoneMatch, etag string) bool {
+	ifNoneMatch = strings.TrimSpace(ifNoneMatch)
+	if ifNoneMatch == "" {
+		return false
+	}
+	if ifNoneMatch == "*" {
+		return true
+	}
+
+	target := strings.TrimPrefix(etag, "W/")
+	for candidate := range strings.SplitSeq(ifNoneMatch, ",") {
+		if strings.TrimPrefix(strings.TrimSpace(candidate), "W/") == target {
+			return true
+		}
+	}
+	return false
 }
 
 // setCORSHeaders applies the read-only CORS policy required for discovery
