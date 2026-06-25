@@ -21,20 +21,23 @@ type projectFieldsTestQuery struct {
 			Fields struct {
 				Nodes []struct {
 					ProjectV2Field struct {
-						ID       githubv4.ID
-						Name     githubv4.String
-						DataType githubv4.String
+						ID         githubv4.ID
+						DatabaseID githubv4.Int `graphql:"databaseId"`
+						Name       githubv4.String
+						DataType   githubv4.String
 					} `graphql:"... on ProjectV2Field"`
 					ProjectV2IterationField struct {
-						ID       githubv4.ID
-						Name     githubv4.String
-						DataType githubv4.String
+						ID         githubv4.ID
+						DatabaseID githubv4.Int `graphql:"databaseId"`
+						Name       githubv4.String
+						DataType   githubv4.String
 					} `graphql:"... on ProjectV2IterationField"`
 					ProjectV2SingleSelectField struct {
-						ID       githubv4.ID
-						Name     githubv4.String
-						DataType githubv4.String
-						Options  []struct {
+						ID         githubv4.ID
+						DatabaseID githubv4.Int `graphql:"databaseId"`
+						Name       githubv4.String
+						DataType   githubv4.String
+						Options    []struct {
 							ID   githubv4.String
 							Name githubv4.String
 						}
@@ -56,12 +59,15 @@ func fieldsQueryVars(owner string, projectNumber int) map[string]any {
 }
 
 // statusFieldNode is a single-select field response node for use in mock data.
-func statusFieldNode(id, name string, options []map[string]any) map[string]any {
+// `nodeID` is the global node ID (e.g. "PVTSSF_lADO...") and `databaseID` is
+// the numeric database ID the REST API expects.
+func statusFieldNode(nodeID string, databaseID int, name string, options []map[string]any) map[string]any {
 	return map[string]any{
-		"id":       id,
-		"name":     name,
-		"dataType": "SINGLE_SELECT",
-		"options":  options,
+		"id":         nodeID,
+		"databaseId": databaseID,
+		"name":       name,
+		"dataType":   "SINGLE_SELECT",
+		"options":    options,
 	}
 }
 
@@ -89,7 +95,7 @@ func Test_ResolveProjectFieldByName_Success(t *testing.T) {
 			projectFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 7),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
-				statusFieldNode("12345", "Status", []map[string]any{
+				statusFieldNode("PVTSSF_lADOBBcDeFg123", 12345, "Status", []map[string]any{
 					{"id": "OPT_a", "name": "Todo"},
 					{"id": "OPT_b", "name": "In Progress"},
 					{"id": "OPT_c", "name": "Done"},
@@ -117,7 +123,7 @@ func Test_ResolveProjectFieldByName_NotFound_ReturnsStructuredError(t *testing.T
 			projectFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 7),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
-				statusFieldNode("12345", "Status", nil),
+				statusFieldNode("PVTSSF_lADOBBcDeFg123", 12345, "Status", nil),
 			})),
 		),
 	)
@@ -139,8 +145,8 @@ func Test_ResolveProjectFieldByName_Ambiguous_ReturnsStructuredError(t *testing.
 			projectFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 7),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
-				statusFieldNode("12345", "Status", nil),
-				statusFieldNode("67890", "Status", nil),
+				statusFieldNode("PVTSSF_lADOBBcDeFg123", 12345, "Status", nil),
+				statusFieldNode("PVTSSF_lADOBBcDeFg678", 67890, "Status", nil),
 			})),
 		),
 	)
@@ -340,8 +346,8 @@ func Test_ResolveFieldNamesToIDs_Success(t *testing.T) {
 			projectFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 1),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
-				statusFieldNode("100", "Status", nil),
-				statusFieldNode("200", "Priority", nil),
+				statusFieldNode("PVTSSF_lADOBBcDeFg100", 100, "Status", nil),
+				statusFieldNode("PVTSSF_lADOBBcDeFg200", 200, "Priority", nil),
 			})),
 		),
 	)
@@ -416,7 +422,7 @@ func Test_ProjectsWrite_UpdateProjectItem_ByName(t *testing.T) {
 			projectFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 1),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
-				statusFieldNode("101", "Status", []map[string]any{
+				statusFieldNode("PVTSSF_lADOBBcDeFg101", 101, "Status", []map[string]any{
 					{"id": "OPT_in_progress", "name": "In Progress"},
 				}),
 			})),
@@ -453,7 +459,7 @@ func Test_ProjectsWrite_UpdateProjectItem_NameNotFound_StructuredError(t *testin
 			projectFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 1),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
-				statusFieldNode("101", "Status", nil),
+				statusFieldNode("PVTSSF_lADOBBcDeFg101", 101, "Status", nil),
 			})),
 		),
 	)

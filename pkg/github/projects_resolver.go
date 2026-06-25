@@ -45,25 +45,28 @@ type projectFieldsQueryUser struct {
 	} `graphql:"user(login: $owner)"`
 }
 
-// projectFieldsConnection is a paginated list of project fields with the field
-// union expanded so we get IDs, names, types, and options in one hop.
+// projectFieldsConnection is a paginated list of project fields. We select `id`
+// to discriminate the union variant and `databaseId` for the numeric ID REST needs.
 type projectFieldsConnection struct {
 	Nodes []struct {
 		ProjectV2Field struct {
-			ID       githubv4.ID
-			Name     githubv4.String
-			DataType githubv4.String
+			ID         githubv4.ID
+			DatabaseID githubv4.Int `graphql:"databaseId"`
+			Name       githubv4.String
+			DataType   githubv4.String
 		} `graphql:"... on ProjectV2Field"`
 		ProjectV2IterationField struct {
-			ID       githubv4.ID
-			Name     githubv4.String
-			DataType githubv4.String
+			ID         githubv4.ID
+			DatabaseID githubv4.Int `graphql:"databaseId"`
+			Name       githubv4.String
+			DataType   githubv4.String
 		} `graphql:"... on ProjectV2IterationField"`
 		ProjectV2SingleSelectField struct {
-			ID       githubv4.ID
-			Name     githubv4.String
-			DataType githubv4.String
-			Options  []struct {
+			ID         githubv4.ID
+			DatabaseID githubv4.Int `graphql:"databaseId"`
+			Name       githubv4.String
+			DataType   githubv4.String
+			Options    []struct {
 				ID   githubv4.String
 				Name githubv4.String
 			}
@@ -111,20 +114,20 @@ func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner
 					opts = append(opts, ResolvedFieldOption{ID: string(o.ID), Name: string(o.Name)})
 				}
 				all = append(all, ResolvedField{
-					ID:       fmt.Sprintf("%v", n.ProjectV2SingleSelectField.ID),
+					ID:       fmt.Sprintf("%d", n.ProjectV2SingleSelectField.DatabaseID),
 					Name:     string(n.ProjectV2SingleSelectField.Name),
 					DataType: string(n.ProjectV2SingleSelectField.DataType),
 					Options:  opts,
 				})
 			case n.ProjectV2IterationField.ID != nil && n.ProjectV2IterationField.ID != "":
 				all = append(all, ResolvedField{
-					ID:       fmt.Sprintf("%v", n.ProjectV2IterationField.ID),
+					ID:       fmt.Sprintf("%d", n.ProjectV2IterationField.DatabaseID),
 					Name:     string(n.ProjectV2IterationField.Name),
 					DataType: string(n.ProjectV2IterationField.DataType),
 				})
 			case n.ProjectV2Field.ID != nil && n.ProjectV2Field.ID != "":
 				all = append(all, ResolvedField{
-					ID:       fmt.Sprintf("%v", n.ProjectV2Field.ID),
+					ID:       fmt.Sprintf("%d", n.ProjectV2Field.DatabaseID),
 					Name:     string(n.ProjectV2Field.Name),
 					DataType: string(n.ProjectV2Field.DataType),
 				})
