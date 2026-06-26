@@ -63,10 +63,14 @@ func generateFlaggedToolsDoc(flags []string, emptyMessage string) string {
 	if !hasAny {
 		return emptyMessage
 	}
+	// Clarify scope semantics for the rendered tools: every listed required
+	// scope is needed (AND), and a higher scope in the hierarchy also satisfies
+	// a required scope.
+	preamble := "> **OAuth scopes:** all listed required scopes are needed (AND). A higher scope in the hierarchy (e.g. `admin:org` for `read:org`, `repo` for `public_repo`) also satisfies a required scope.\n\n"
 	// Leading/trailing newlines around the body produce blank lines between
 	// our content and the surrounding marker comments, so the trailing comment
 	// doesn't get absorbed into the final list item by markdown renderers.
-	return "\n" + strings.TrimSuffix(buf.String(), "\n") + "\n"
+	return "\n" + preamble + strings.TrimSuffix(buf.String(), "\n") + "\n"
 }
 
 // flaggedToolDiff returns the tools whose definition (input schema or meta)

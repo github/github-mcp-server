@@ -168,28 +168,38 @@ func expandScopeSet(scopes []string) map[string]bool {
 	return expanded
 }
 
-// HasRequiredScopes checks if tokenScopes satisfy the acceptedScopes requirement.
-// A tool's acceptedScopes includes both the required scopes AND parent scopes
-// that implicitly grant the required permissions (via ExpandScopes).
+// HasRequiredScopes reports whether tokenScopes satisfy EVERY scope in
+// requiredScopes. The requiredScopes are the literal scopes a tool declares and
+// they are all required: satisfaction is AND-of-ORs (conjunctive normal form).
 //
-// For PAT filtering: if ANY of the acceptedScopes are granted by the token
-// (directly or via scope hierarchy), the tool should be visible.
+// The AND is over the distinct required scopes. The OR is the hierarchy: each
+// required scope can be satisfied either directly or by a higher scope that
+// implicitly grants it. This is implemented by expanding the TOKEN downward
+// through the hierarchy (via expandScopeSet, e.g. repo -> public_repo and
+// admin:org -> read:org) and checking that every required scope is present in
+// that expanded set.
 //
-// Returns true if the tool should be visible to the token holder.
-func HasRequiredScopes(tokenScopes []string, acceptedScopes []string) bool {
+// An empty requiredScopes is always satisfied.
+//
+// Each required scope currently has exactly one satisfying alternative set (the
+// scope itself plus its hierarchy ancestors). If a tool ever needs true
+// arbitrary alternatives (e.g. "repo OR admin:org" for a single requirement),
+// the place to add it is a list-of-groups extension to RequiredScopes; that is
+// deliberately not built yet (YAGNI).
+func HasRequiredScopes(tokenScopes []string, requiredScopes []string) bool {
 	// No scopes required = always allowed
-	if len(acceptedScopes) == 0 {
+	if len(requiredScopes) == 0 {
 		return true
 	}
 
 	// Expand token scopes to include child scopes they grant
-	grantedScopes := expandScopeSet(tokenScopes)
+	granted := expandScopeSet(tokenScopes)
 
-	// Check if any accepted scope is granted by the token
-	for _, accepted := range acceptedScopes {
-		if grantedScopes[accepted] {
-			return true
+	// Every required scope must be granted by the token (directly or via hierarchy)
+	for _, required := range requiredScopes {
+		if !granted[required] {
+			return false
 		}
 	}
-	return false
+	return true
 }

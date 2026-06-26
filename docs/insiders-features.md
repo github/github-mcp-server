@@ -26,6 +26,8 @@ The list below is generated from the Go source. It covers tool **inventory and s
 
 <!-- START AUTOMATED INSIDERS TOOLS -->
 
+> **OAuth scopes:** all listed required scopes are needed (AND). A higher scope in the hierarchy (e.g. `admin:org` for `read:org`, `repo` for `public_repo`) also satisfies a required scope.
+
 ### `remote_mcp_ui_apps`
 
 - **create_pull_request** - Open new pull request
@@ -68,7 +70,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
   - `type`: Type of this issue. Only use if issue types are enabled for this repository. Use list_issue_types tool to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
 
 - **ui_get** - Get UI data
-  - **Required OAuth Scopes (any of)**: `repo`, `read:org`
+  - **Required OAuth Scopes**: `repo`, `read:org`
   - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `repo`, `write:org`
   - `method`: The type of data to fetch (string, required)
   - `owner`: Repository owner (required for all methods) (string, required)
