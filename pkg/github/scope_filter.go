@@ -37,6 +37,12 @@ func onlyRequiresRepoScopes(requiredScopes []string) bool {
 // like we can with OAuth apps. Instead, we hide tools that require scopes
 // the token doesn't have.
 //
+// This is a best-effort UX filter, not an authorization boundary: the GitHub
+// API still enforces real permissions. It is gated to classic ghp_ PATs and is
+// skipped entirely when scopes can't be fetched, so the posture is to fail open
+// (prefer showing a tool when access is plausible). See docs/scope-filtering.md
+// for the known limitations (sibling scopes, org roles, repo visibility).
+//
 // This is the recommended way to filter tools for stdio servers where the
 // token is known at startup and won't change during the session.
 //

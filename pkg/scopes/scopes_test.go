@@ -310,6 +310,24 @@ func TestHasRequiredScopes(t *testing.T) {
 			expected:       false,
 		},
 		{
+			name:           "security tool: repo token satisfies security_events (neutral)",
+			tokenScopes:    []string{"repo"},
+			requiredScopes: []string{"security_events"},
+			expected:       true,
+		},
+		{
+			name:           "security tool: security_events token satisfies security_events",
+			tokenScopes:    []string{"security_events"},
+			requiredScopes: []string{"security_events"},
+			expected:       true,
+		},
+		{
+			name:           "security tool: public_repo (sibling) does NOT satisfy security_events",
+			tokenScopes:    []string{"public_repo"},
+			requiredScopes: []string{"security_events"},
+			expected:       false,
+		},
+		{
 			name:           "user scope grants read:user",
 			tokenScopes:    []string{"user"},
 			requiredScopes: []string{"read:user"},

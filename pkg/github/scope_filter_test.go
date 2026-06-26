@@ -63,6 +63,15 @@ func TestCreateToolScopeFilter(t *testing.T) {
 		RequiredScopes: []string{"repo", "read:org"},
 	}
 
+	// Models security tools (code scanning etc.): read-only, single {security_events}.
+	toolSecurityEvents := &inventory.ServerTool{
+		Tool: mcp.Tool{
+			Name:        "list_code_scanning_alerts",
+			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
+		},
+		RequiredScopes: []string{"security_events"},
+	}
+
 	tests := []struct {
 		name        string
 		tokenScopes []string
@@ -146,6 +155,24 @@ func TestCreateToolScopeFilter(t *testing.T) {
 			tokenScopes: []string{"repo", "admin:org"},
 			tool:        toolRepoAndReadOrg,
 			expected:    true,
+		},
+		{
+			name:        "security tool: repo token satisfies security_events (neutral)",
+			tokenScopes: []string{"repo"},
+			tool:        toolSecurityEvents,
+			expected:    true,
+		},
+		{
+			name:        "security tool: security_events token shows tool",
+			tokenScopes: []string{"security_events"},
+			tool:        toolSecurityEvents,
+			expected:    true,
+		},
+		{
+			name:        "security tool: public_repo (sibling) does not show tool",
+			tokenScopes: []string{"public_repo"},
+			tool:        toolSecurityEvents,
+			expected:    false,
 		},
 	}
 

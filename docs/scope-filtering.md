@@ -4,6 +4,8 @@ The GitHub MCP Server automatically filters available tools based on your classi
 
 > **Note:** This feature applies to **classic PATs** (tokens starting with `ghp_`). Fine-grained PATs, GitHub App installation tokens, and server-to-server tokens don't support scope detection and show all tools.
 
+> **Important:** Scope filtering is a best-effort UX convenience, **not an authorization boundary**. The GitHub API is always the source of truth and enforces real permissions. The server therefore **fails open**: it only hides a tool when confident your token cannot use it, and shows the tool whenever access is plausible. See [Limitations and Fail-Open Posture](#limitations-and-fail-open-posture).
+
 ## How It Works
 
 When the server starts with a classic PAT, it makes a lightweight HTTP HEAD request to the GitHub API to discover your token's scopes from the `X-OAuth-Scopes` header. Tools that require scopes your token doesn't have are automatically hidden.
@@ -76,6 +78,18 @@ If the server cannot fetch your token's scopes (e.g., network issues, rate limit
 WARN: failed to fetch token scopes, continuing without scope filtering
 ```
 
+## Limitations and Fail-Open Posture
+
+Scope filtering is a **best-effort UX nicety**, not an authorization boundary. The GitHub API is the source of truth and enforces real permissions regardless of what the server shows. Because of this, the server is designed to **fail open**: it only hides a tool (or, for OAuth, issues a scope challenge) when it is confident the token cannot use it. When access is plausible, it prefers to show the tool and let the API decide. Filtering is also limited to classic PATs (`ghp_`) and is skipped entirely when scopes can't be fetched.
+
+A tool's declared scopes are **all required** (logical AND), and each one may be satisfied directly or by an ancestor scope from the [hierarchy](#scope-hierarchy). However, some ways a tool can legitimately be used cannot be determined from OAuth scopes alone, so the server intentionally does not try to model them:
+
+- **Sibling scopes outside the hierarchy.** The hierarchy only models *ancestor* substitution. For example, code scanning alerts on a **public** repository are readable with `public_repo`, which is a *sibling* of the declared `security_events` (both are children of `repo`), not an ancestor. Token expansion can't bridge siblings. Capturing this faithfully would require representing requirements as a list of OR-groups (groups AND-ed, members within a group OR-ed), e.g. code scanning = `security_events` OR `public_repo` OR `repo`. That model isn't implemented today; instead the server relies on the fail-open posture so these cases aren't wrongly hidden.
+- **Organization roles.** Roles such as *security manager* grant access orthogonally to OAuth scopes and are invisible to scope detection. A user may legitimately have access the server cannot see from scopes alone.
+- **Public vs. private repositories.** Whether a given scope suffices depends on the target repository's visibility, which isn't known at filter time.
+
+In each of these cases the server errs toward showing the tool; if the token truly lacks access, the API returns the appropriate error.
+
 ## Classic vs Fine-Grained Personal Access Tokens
 
 **Classic PATs** (`ghp_` prefix) support OAuth scopes and return them in the `X-OAuth-Scopes` header. Scope filtering works fully with these tokens.
@@ -92,7 +106,7 @@ WARN: failed to fetch token scopes, continuing without scope filtering
 |---------|-------|----------|
 | Missing expected tools | Token lacks required scope | [Edit your PAT's scopes](https://github.com/settings/tokens) in GitHub settings |
 | All tools visible despite limited PAT | Scope detection failed | Check logs for warnings about scope fetching |
-| "Insufficient permissions" errors | Tool visible but scope insufficient | This shouldn't happen with scope filtering; report as bug |
+| "Insufficient permissions" errors | Tool visible but scope insufficient | Expected in some cases (fail-open, public/private ambiguity, org roles, or scope detection skipped). The API enforces the real boundary—grant the needed scope or access |
 
 > **Tip:** You can adjust the scopes of an existing classic PAT at any time via [GitHub's token settings](https://github.com/settings/tokens). After updating scopes, restart the MCP server to pick up the changes.
 
