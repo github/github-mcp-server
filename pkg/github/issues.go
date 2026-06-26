@@ -777,14 +777,10 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 	return MarshalledTextResult(minimalIssue), nil
 }
 
-// lockdownRedactedTitle replaces a related issue's title when lockdown mode is enabled and the
-// related content cannot be verified as safe. Numeric/structural fields stay intact.
-const lockdownRedactedTitle = "[redacted - not from a trusted source]"
-
 // applyIssueReadEnrichment populates the hierarchy relationship signals (has_parent/has_children,
 // parent, sub_issues_summary) and field_values onto the minimal issue. In lockdown mode the parent
-// title is redacted unless the parent content can be verified as safe; counts and booleans are pure
-// numbers and are always safe to surface.
+// reference is omitted unless the parent content can be verified as safe; has_parent and the numeric
+// counts are structural routing signals and are always safe to surface.
 func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, enrichment *issueReadEnrichment, cache *lockdown.RepoAccessCache, lockdownMode bool) {
 	if enrichment == nil {
 		return
@@ -793,12 +789,15 @@ func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, e
 	minimalIssue.FieldValues = enrichment.FieldValues
 
 	if parent := enrichment.Parent; parent != nil {
-		ref := parent.Ref
-		if lockdownMode && !isSafeParentContent(ctx, cache, parent) {
-			ref.Title = lockdownRedactedTitle
-		}
-		minimalIssue.Parent = &ref
 		minimalIssue.HasParent = true
+		// Surface the parent reference only when it is safe to expose. Under lockdown an
+		// unverified (possibly cross-repo) parent is omitted entirely, mirroring how unsafe
+		// comments and sub-issues are filtered out. has_parent still routes an agent to
+		// get_parent if it needs to follow up.
+		if !lockdownMode || isSafeParentContent(ctx, cache, parent) {
+			ref := parent.Ref
+			minimalIssue.Parent = &ref
+		}
 	}
 
 	if enrichment.SubIssuesSummary.Total > 0 {
@@ -808,9 +807,9 @@ func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, e
 	}
 }
 
-// isSafeParentContent reports whether the parent issue's title can be exposed under lockdown mode.
+// isSafeParentContent reports whether the parent issue reference can be exposed under lockdown mode.
 // It fails closed: any inability to positively verify safe content (missing cache, missing author,
-// unparseable repository, or a lookup error) results in redaction.
+// unparseable repository, or a lookup error) results in the parent reference being omitted.
 func isSafeParentContent(ctx context.Context, cache *lockdown.RepoAccessCache, parent *issueReadParent) bool {
 	if cache == nil || parent.AuthorLogin == "" {
 		return false

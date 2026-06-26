@@ -344,8 +344,9 @@ type MinimalIssue struct {
 	FieldValues       []MinimalFieldValue      `json:"field_values,omitempty"`
 
 	// Hierarchy relationship signals. HasParent and HasChildren are always emitted
-	// (an explicit false is itself a useful routing signal); Parent and SubIssuesSummary
-	// are only populated when the relationship exists.
+	// (an explicit false is itself a useful routing signal); SubIssuesSummary is populated
+	// when children exist, and Parent when a parent exists and may be surfaced (under lockdown
+	// an unverified parent reference is omitted while HasParent stays true).
 	HasParent        bool                     `json:"has_parent"`
 	HasChildren      bool                     `json:"has_children"`
 	Parent           *MinimalIssueRef         `json:"parent,omitempty"`

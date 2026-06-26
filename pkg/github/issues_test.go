@@ -715,8 +715,9 @@ func Test_GetIssue_HierarchyEnrichment_Lockdown(t *testing.T) {
 	// In lockdown mode the issue's own author must be verified as safe (mirrors the existing
 	// REST lockdown gate). The repo-access cache performs push-access checks against its own
 	// REST client: the issue author ("author") has write access, while the parent author
-	// ("parentauthor") only has read access and so cannot be verified as safe. The parent title
-	// is therefore redacted while the numeric/structural fields remain intact.
+	// ("parentauthor") only has read access and so cannot be verified as safe. The parent
+	// reference is therefore omitted entirely, while has_parent stays true so an agent can
+	// still route to get_parent.
 	restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
 	})
@@ -758,14 +759,8 @@ func Test_GetIssue_HierarchyEnrichment_Lockdown(t *testing.T) {
 	var returnedIssue MinimalIssue
 	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returnedIssue))
 
-	require.NotNil(t, returnedIssue.Parent)
-	assert.True(t, returnedIssue.HasParent)
-	assert.Equal(t, lockdownRedactedTitle, returnedIssue.Parent.Title, "parent title should be redacted under lockdown")
-	// Numeric/structural fields remain intact even when redacted.
-	assert.Equal(t, 2820, returnedIssue.Parent.Number)
-	assert.Equal(t, "OPEN", returnedIssue.Parent.State)
-	assert.Equal(t, "owner/repo", returnedIssue.Parent.Repository)
-	assert.Equal(t, "https://github.com/owner/repo/issues/2820", returnedIssue.Parent.URL)
+	require.Nil(t, returnedIssue.Parent, "parent reference should be omitted under lockdown when it cannot be verified safe")
+	assert.True(t, returnedIssue.HasParent, "has_parent should still be true so agents can route to get_parent")
 }
 
 func Test_GetIssue_HierarchyEnrichment_QueryFailureReturnsBaseIssue(t *testing.T) {
