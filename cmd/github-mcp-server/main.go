@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/github/github-mcp-server/internal/buildinfo"
 	"github.com/github/github-mcp-server/internal/ghmcp"
 	"github.com/github/github-mcp-server/internal/oauth"
 	"github.com/github/github-mcp-server/pkg/github"
@@ -37,6 +38,18 @@ var (
 		RunE: func(_ *cobra.Command, _ []string) error {
 			token := viper.GetString("personal_access_token")
 			oauthClientID := viper.GetString("oauth-client-id")
+			oauthClientSecret := viper.GetString("oauth-client-secret")
+			// Fall back to the build-time baked-in client (official releases) when none is
+			// configured explicitly. The baked-in app is registered on github.com, so it is
+			// only applied to the default host; GHES/ghe.com users must bring their own
+			// --oauth-client-id. Recognizing the host via NormalizeHost means an explicit
+			// GITHUB_HOST=github.com (or api.github.com) still counts as the default and keeps
+			// zero-config login working. The secret tracks the id, so an explicitly provided
+			// id with no secret never picks up the baked-in secret.
+			if oauthClientID == "" && oauth.NormalizeHost(viper.GetString("host")) == "https://github.com" {
+				oauthClientID = buildinfo.OAuthClientID
+				oauthClientSecret = buildinfo.OAuthClientSecret
+			}
 			if token == "" && oauthClientID == "" {
 				return errors.New("authentication required: set GITHUB_PERSONAL_ACCESS_TOKEN, or pass --oauth-client-id to log in via OAuth")
 			}
@@ -112,7 +125,7 @@ var (
 				}
 				oauthConfig := oauth.NewGitHubConfig(
 					oauthClientID,
-					viper.GetString("oauth-client-secret"),
+					oauthClientSecret,
 					scopes,
 					viper.GetString("host"),
 					viper.GetInt("oauth-callback-port"),
