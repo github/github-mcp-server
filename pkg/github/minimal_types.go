@@ -1,6 +1,8 @@
 package github
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -11,6 +13,57 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/sanitize"
 )
+
+// codeSearchItemFieldEnum lists the selectable fields for search_code result
+// items, matching the JSON field names of MinimalCodeResult. The repository and
+// text_matches fields are the heaviest, so omitting them is the main lever for
+// shrinking large result sets.
+var codeSearchItemFieldEnum = []any{"name", "path", "sha", "repository", "text_matches"}
+
+// fileContentFieldEnum lists the selectable fields for get_file_contents
+// directory listings, matching the JSON field names of
+// github.RepositoryContent that appear for directory entries. Only applied when
+// the requested path is a directory; ignored for single files.
+var fileContentFieldEnum = []any{"type", "name", "path", "size", "sha", "url", "git_url", "html_url", "download_url"}
+
+// filterFields marshals v to a JSON object and returns a map containing only the
+// requested fields. Fields that are unknown or absent from the JSON (for example
+// empty values dropped via omitempty) are skipped.
+func filterFields(v any, fields []string) (map[string]any, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber() // preserve integer precision for fields such as IDs
+	var object map[string]any
+	if err := decoder.Decode(&object); err != nil {
+		return nil, err
+	}
+
+	picked := make(map[string]any, len(fields))
+	for _, field := range fields {
+		if value, ok := object[field]; ok {
+			picked[field] = value
+		}
+	}
+	return picked, nil
+}
+
+// filterEachField applies filterFields to every item, returning a slice in which
+// each element contains only the requested fields.
+func filterEachField[T any](items []T, fields []string) ([]map[string]any, error) {
+	filtered := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		picked, err := filterFields(item, fields)
+		if err != nil {
+			return nil, err
+		}
+		filtered = append(filtered, picked)
+	}
+	return filtered, nil
+}
 
 // MinimalUser is the output type for user and organization search results.
 type MinimalUser struct {
