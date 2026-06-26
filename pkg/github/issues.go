@@ -1200,6 +1200,20 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			var reactionResponse *MinimalResponse
 			if hasReaction {
 				if hasCommentID {
+					comment, resp, err := client.Issues.GetComment(ctx, owner, repo, commentID)
+					if err != nil {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get issue comment", resp, err), nil, nil
+					}
+					defer func() { _ = resp.Body.Close() }()
+
+					commentIssueNumber, err := issueNumberFromIssueURL(comment.GetIssueURL())
+					if err != nil {
+						return utils.NewToolResultErrorFromErr("failed to determine issue number for comment", err), nil, nil
+					}
+					if commentIssueNumber != issueNumber {
+						return utils.NewToolResultError(fmt.Sprintf("comment_id does not belong to issue_number %d", issueNumber)), nil, nil
+					}
+
 					reaction, resp, err := client.Reactions.CreateIssueCommentReaction(ctx, owner, repo, commentID, reactionContent)
 					if err != nil {
 						return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reaction to issue comment", resp, err), nil, nil
@@ -1269,6 +1283,15 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
+}
+
+func issueNumberFromIssueURL(issueURL string) (int, error) {
+	issueNumberString := issueURL[strings.LastIndex(issueURL, "/")+1:]
+	issueNumber, err := strconv.Atoi(issueNumberString)
+	if err != nil {
+		return 0, fmt.Errorf("invalid issue URL %q: %w", issueURL, err)
+	}
+	return issueNumber, nil
 }
 
 // SubIssueWrite creates a tool to add a sub-issue to a parent issue.

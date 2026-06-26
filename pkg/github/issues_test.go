@@ -560,112 +560,6 @@ func Test_GetIssue_FieldValues_Enriched(t *testing.T) {
 	assert.Equal(t, "2.5", returnedIssue.FieldValues[1].Value)
 }
 
-func Test_AddIssueComment(t *testing.T) {
-	// Verify tool definition once
-	serverTool := AddIssueComment(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	assert.Equal(t, "add_issue_comment", tool.Name)
-	assert.NotEmpty(t, tool.Description)
-
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "comment_id")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "body")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "reaction")
-	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "issue_number"})
-
-	// Setup mock comment for success case
-	mockComment := &github.IssueComment{
-		ID:   github.Ptr(int64(123)),
-		Body: github.Ptr("This is a test comment"),
-		User: &github.User{
-			Login: github.Ptr("testuser"),
-		},
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42#issuecomment-123"),
-	}
-
-	tests := []struct {
-		name            string
-		mockedClient    *http.Client
-		requestArgs     map[string]any
-		expectError     bool
-		expectedComment *github.IssueComment
-		expectedErrMsg  string
-	}{
-		{
-			name: "successful comment creation",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockComment),
-			}),
-			requestArgs: map[string]any{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(42),
-				"body":         "This is a test comment",
-			},
-			expectError:     false,
-			expectedComment: mockComment,
-		},
-		{
-			name: "comment creation fails",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusUnprocessableEntity)
-					_, _ = w.Write([]byte(`{"message": "Invalid request"}`))
-				}),
-			}),
-			requestArgs: map[string]any{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(42),
-				"body":         "This is a test comment",
-			},
-			expectError:    true,
-			expectedErrMsg: "failed to create comment",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
-			client := mustNewGHClient(t, tc.mockedClient)
-			deps := BaseDeps{
-				Client: client,
-			}
-			handler := serverTool.Handler(deps)
-
-			// Create call request
-			request := createMCPRequest(tc.requestArgs)
-
-			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-
-			if tc.expectError {
-				require.NoError(t, err)
-				require.True(t, result.IsError)
-				errorContent := getErrorResult(t, result)
-				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
-				return
-			}
-
-			require.NoError(t, err)
-
-			// Parse the result and get the text content if no error
-			textContent := getTextResult(t, result)
-
-			// Unmarshal and verify the result contains minimal response
-			var minimalResponse MinimalResponse
-			err = json.Unmarshal([]byte(textContent.Text), &minimalResponse)
-			require.NoError(t, err)
-			assert.Equal(t, fmt.Sprintf("%d", tc.expectedComment.GetID()), minimalResponse.ID)
-			assert.Equal(t, tc.expectedComment.GetHTMLURL(), minimalResponse.URL)
-		})
-	}
-}
-
 func Test_SearchIssues(t *testing.T) {
 	// Verify tool definition once
 	serverTool := SearchIssues(translations.NullTranslationHelper)
@@ -4316,6 +4210,10 @@ func TestAddIssueComment(t *testing.T) {
 		ID:      github.Ptr(int64(789)),
 		Content: github.Ptr("heart"),
 	}
+	mockIssueComment := &github.IssueComment{
+		ID:       github.Ptr(int64(999)),
+		IssueURL: github.Ptr("https://api.github.com/repos/owner/repo/issues/42"),
+	}
 	commentCreatedAfterReactionFailure := &atomic.Bool{}
 
 	tests := []struct {
@@ -4353,6 +4251,7 @@ func TestAddIssueComment(t *testing.T) {
 		{
 			name: "successful reaction to issue comment",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesCommentByOwnerByRepoByCommentID:            mockResponse(t, http.StatusOK, mockIssueComment),
 				PostReposIssuesCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusCreated, mockReaction),
 			}),
 			requestArgs: map[string]any{
@@ -4362,6 +4261,42 @@ func TestAddIssueComment(t *testing.T) {
 				"comment_id":   float64(999),
 				"reaction":     "heart",
 			},
+		},
+		{
+			name: "issue comment reaction requires matching issue_number",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesCommentByOwnerByRepoByCommentID: mockResponse(t, http.StatusOK, &github.IssueComment{
+					ID:       github.Ptr(int64(999)),
+					IssueURL: github.Ptr("https://api.github.com/repos/owner/repo/issues/43"),
+				}),
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(999),
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "comment_id does not belong to issue_number 42",
+		},
+		{
+			name: "issue comment lookup fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesCommentByOwnerByRepoByCommentID: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				},
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(999),
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to get issue comment",
 		},
 		{
 			name: "successful comment and reaction to issue",
