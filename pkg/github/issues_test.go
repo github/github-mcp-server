@@ -1565,86 +1565,6 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 			"labels should route through UI form")
 		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
-
-	t.Run("UI client with show_ui=false skips form and executes directly", func(t *testing.T) {
-		// show_ui=false is the explicit, model-facing way to opt out of the
-		// form. It must bypass the form even when every other condition would
-		// route the call there (UI capability, MCP Apps flag on, no
-		// _ui_submitted, only form params present).
-		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
-			"method":  "create",
-			"owner":   "owner",
-			"repo":    "repo",
-			"title":   "Test",
-			"show_ui": false,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.NotContains(t, textContent.Text, "interactive form has been shown",
-			"show_ui=false should skip UI form")
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
-			"show_ui=false call should execute directly and return issue URL")
-	})
-
-	t.Run("UI client with show_ui=true returns form message", func(t *testing.T) {
-		// show_ui=true is the explicit, redundant-with-the-default way to ask
-		// for the form. It must still route through the form and must not be
-		// treated as a non-form parameter that would trigger the safety-net
-		// bypass.
-		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
-			"method":  "create",
-			"owner":   "owner",
-			"repo":    "repo",
-			"title":   "Test",
-			"show_ui": true,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "interactive form has been shown",
-			"show_ui=true should still route through the form")
-	})
-
-	t.Run("UI client with show_ui=false and _ui_submitted=true executes directly", func(t *testing.T) {
-		// _ui_submitted and show_ui=false are two ways to say "execute
-		// directly". When both are set there must be no conflict — the call
-		// still executes directly.
-		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
-			"method":        "create",
-			"owner":         "owner",
-			"repo":          "repo",
-			"title":         "Test",
-			"show_ui":       false,
-			"_ui_submitted": true,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
-			"show_ui=false + _ui_submitted should execute directly")
-	})
-
-	t.Run("non-UI client with show_ui=false executes directly (no regression)", func(t *testing.T) {
-		// show_ui is irrelevant when the client does not support UI; the call
-		// must execute directly exactly as it does today.
-		request := createMCPRequest(map[string]any{
-			"method":  "create",
-			"owner":   "owner",
-			"repo":    "repo",
-			"title":   "Test",
-			"show_ui": false,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
-			"non-UI client should execute directly regardless of show_ui")
-	})
 }
 
 func Test_issueWriteHasNonFormParams(t *testing.T) {
@@ -1657,8 +1577,6 @@ func Test_issueWriteHasNonFormParams(t *testing.T) {
 	}{
 		{name: "no params", args: map[string]any{}, want: false},
 		{name: "only form params", args: map[string]any{"method": "create", "owner": "o", "repo": "r", "title": "t", "body": "b", "issue_number": float64(1), "_ui_submitted": true}, want: false},
-		{name: "show_ui true is a form param", args: map[string]any{"title": "t", "show_ui": true}, want: false},
-		{name: "show_ui false is a form param", args: map[string]any{"title": "t", "show_ui": false}, want: false},
 		{name: "labels present", args: map[string]any{"title": "t", "labels": []any{"bug"}}, want: false},
 		{name: "assignees present", args: map[string]any{"title": "t", "assignees": []any{"octocat"}}, want: false},
 		{name: "milestone present", args: map[string]any{"title": "t", "milestone": float64(2)}, want: false},
@@ -1674,7 +1592,7 @@ func Test_issueWriteHasNonFormParams(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, issueWriteHasNonFormParams(tc.args))
+			assert.Equal(t, tc.want, hasNonFormParams(tc.args, issueWriteFormParams))
 		})
 	}
 }
@@ -1688,7 +1606,7 @@ func Test_issueWriteSchemaClassification(t *testing.T) {
 	t.Parallel()
 
 	// Schema properties the MCP App form cannot represent — their presence
-	// must trigger the safety-net bypass via issueWriteHasNonFormParams. The
+	// must trigger the safety-net bypass via hasNonFormParams. The
 	// form currently collects every schema property, so this allowlist is
 	// empty; add a property here only if it is added to the schema without
 	// corresponding form support.

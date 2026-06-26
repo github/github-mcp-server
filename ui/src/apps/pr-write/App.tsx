@@ -27,6 +27,7 @@ import {
 } from "@primer/octicons-react";
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
+import { completedToolResult } from "../../lib/toolResult";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 
 interface PRResult {
@@ -189,13 +190,23 @@ function CreatePRApp() {
   const [repoSearchLoading, setRepoSearchLoading] = useState(false);
   const [repoFilter, setRepoFilter] = useState("");
 
-  const { app, error: appError, toolInput, callTool, hostContext, setModelContext, openLink } = useMcpApp({
+  const { app, error: appError, toolInput, toolResult, callTool, hostContext, setModelContext, openLink } = useMcpApp({
     appName: "github-mcp-server-create-pull-request",
   });
 
   const owner = selectedRepo?.owner || (toolInput?.owner as string) || "";
   const repo = selectedRepo?.name || (toolInput?.repo as string) || "";
   const [submittedTitle, setSubmittedTitle] = useState("");
+
+  // When the server executed up-front instead of deferring to this form (e.g.
+  // the agent passed show_ui=false or parameters the form can't represent), the
+  // host still renders this View and delivers the created PR via tool-result.
+  // Treat that completed result as a success so we never show a "Create pull
+  // request" form for a PR that already exists. The deferral sentinel
+  // (awaiting_user_submission) returns null here, keeping the form for the
+  // normal deferred flow. See github/copilot-mcp-core#1864.
+  const resultPR = useMemo(() => completedToolResult<PRResult>(toolResult), [toolResult]);
+  const shownPR = successPR ?? resultPR;
 
   // Reset all transient form/result state when toolInput changes (new invocation).
   // Without this, the SuccessView from a previous submit stays visible and stale
@@ -440,10 +451,10 @@ function CreatePRApp() {
     }
   }, [title, body, owner, repo, baseBranch, headBranch, isDraft, maintainerCanModify, selectedReviewers, toolInput, callTool, setModelContext]);
 
-  if (successPR) {
+  if (shownPR) {
     return (
       <AppProvider hostContext={hostContext}>
-        <SuccessView pr={successPR} owner={owner} repo={repo} submittedTitle={submittedTitle} openLink={openLink} />
+        <SuccessView pr={shownPR} owner={owner} repo={repo} submittedTitle={submittedTitle} openLink={openLink} />
       </AppProvider>
     );
   }

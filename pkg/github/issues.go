@@ -1833,7 +1833,11 @@ const IssueWriteUIResourceURI = "ui://github-mcp-server/issue-write"
 
 // issueWriteFormParams are the parameters the issue_write MCP App form collects
 // and re-sends on submit. Any other parameter present on a call cannot be
-// represented by the form.
+// represented by the form. The form collects (and prefills) every parameter in
+// the tool's current input schema, so hasNonFormParams against this set is a
+// forward-compatibility safety net: a parameter added to the schema in the
+// future but not yet wired into the form trips the check and bypasses the form
+// so the supplied value isn't silently dropped.
 var issueWriteFormParams = map[string]struct{}{
 	"method":        {},
 	"owner":         {},
@@ -1849,26 +1853,7 @@ var issueWriteFormParams = map[string]struct{}{
 	"state":         {},
 	"state_reason":  {},
 	"duplicate_of":  {},
-	"show_ui":       {},
 	"_ui_submitted": {},
-}
-
-// issueWriteHasNonFormParams reports whether the call carries any parameter the
-// issue_write MCP App form cannot represent (anything outside issueWriteFormParams).
-// The form collects (and prefills) every parameter in the tool's current input
-// schema, so this is a forward-compatibility safety net: a parameter added to the
-// schema in the future but not yet wired into the form trips this check and bypasses
-// the UI so the supplied value isn't silently dropped.
-func issueWriteHasNonFormParams(args map[string]any) bool {
-	for key, value := range args {
-		if value == nil {
-			continue
-		}
-		if _, ok := issueWriteFormParams[key]; !ok {
-			return true
-		}
-	}
-	return false
 }
 
 // issueWriteAwaitingFormResult builds the "awaiting form submission" stub
@@ -2026,17 +2011,6 @@ Options are:
 							Required: []string{"field_name"},
 						},
 					},
-					// show_ui is hidden from clients that do not advertise MCP App
-					// UI support. The strip happens per-request in
-					// inventory.ToolsForRegistration; it is present in the static
-					// schema (and therefore in toolsnaps and the feature-flag /
-					// insiders docs) so the UI-capable surface is fully
-					// documented. It is intentionally not in the main README,
-					// which renders the stripped (non-UI) schema.
-					"show_ui": {
-						Type:        "boolean",
-						Description: "Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when the user has already confirmed the action and the form would be redundant.",
-					},
 				},
 				Required: []string{"method", "owner", "repo"},
 			},
@@ -2057,20 +2031,9 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When MCP Apps are enabled and the client supports UI, route the
-			// call to the interactive form unless:
-			//   - it is itself a form submission (the UI sends _ui_submitted=true),
-			//   - the caller explicitly asked to skip the UI (show_ui=false), or
-			//   - it carries parameters the form cannot represent (e.g. labels,
-			//     assignees or issue_fields). Those must be applied directly so
-			//     their values aren't silently dropped.
-			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
-			showUI, err := OptionalBoolParamWithDefault(args, "show_ui", true)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && showUI && !issueWriteHasNonFormParams(args) {
+			// Hand off to the interactive MCP App form unless this call must
+			// execute now (see shouldDeferToForm).
+			if shouldDeferToForm(ctx, deps, req, args, issueWriteFormParams) {
 				issueNumber := 0
 				if method == "update" {
 					n, numErr := RequiredInt(args, "issue_number")
@@ -2292,10 +2255,13 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		issueRequest.Type = github.Ptr(issueType)
 	}
 
+	// Field IDs to clear via DELETE after the PATCH. See the post-PATCH loop
+	// for why we can't just rely on REST set semantics.
+	var fallbackDeleteFieldIDs []int64
+
 	if len(issueFieldValues) > 0 || len(fieldIDsToDelete) > 0 {
-		// The REST update endpoint uses "set" semantics — it overwrites all existing
-		// field values with whatever is sent. Fetch the current values first, merge in
-		// the new values, then remove any explicitly deleted fields.
+		// REST PATCH uses set semantics, so fetch existing values, merge in
+		// the new ones, then drop anything explicitly deleted.
 		existing, err := fetchExistingIssueFieldValues(ctx, gqlClient, owner, repo, issueNumber)
 		if err != nil {
 			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to fetch existing issue field values", err), nil
@@ -2314,7 +2280,22 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 			}
 			merged = kept
 		}
-		issueRequest.IssueFieldValues = merged
+		if len(merged) == 0 && len(fieldIDsToDelete) > 0 {
+			// Only queue DELETEs for fields actually present — the endpoint
+			// returns 404 otherwise, and "delete a field that isn't set" should
+			// stay a no-op (callers often invoke delete:true idempotently).
+			existingIDs := make(map[int64]bool, len(existing))
+			for _, e := range existing {
+				existingIDs[e.FieldID] = true
+			}
+			for _, id := range fieldIDsToDelete {
+				if existingIDs[id] {
+					fallbackDeleteFieldIDs = append(fallbackDeleteFieldIDs, id)
+				}
+			}
+		} else {
+			issueRequest.IssueFieldValues = merged
+		}
 	}
 
 	updatedIssue, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)
@@ -2333,6 +2314,43 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update issue", resp, body), nil
+	}
+
+	// Per-field DELETE fallback. The PATCH can't clear field values when the
+	// merged set is empty — go-github's `omitempty` strips the empty slice
+	// and the dotcom REST handler skips its issue_field_values block when the
+	// key is absent. Errors are aggregated (not short-circuited) so callers
+	// can see which fields succeeded and which need retry.
+	if len(fallbackDeleteFieldIDs) > 0 {
+		var failedIDs, succeededIDs []int64
+		var firstFailureErr error
+		var firstFailureResp *github.Response
+		for _, fieldID := range fallbackDeleteFieldIDs {
+			path := fmt.Sprintf("repos/%s/%s/issues/%d/issue-field-values/%d", owner, repo, issueNumber, fieldID)
+			req, err := client.NewRequest(ctx, http.MethodDelete, path, nil)
+			if err != nil {
+				failedIDs = append(failedIDs, fieldID)
+				if firstFailureErr == nil {
+					firstFailureErr = err
+				}
+				continue
+			}
+			delResp, err := client.Do(req, nil)
+			if err != nil {
+				failedIDs = append(failedIDs, fieldID)
+				if firstFailureErr == nil {
+					firstFailureErr = err
+					firstFailureResp = delResp
+				}
+				continue
+			}
+			succeededIDs = append(succeededIDs, fieldID)
+			_ = delResp.Body.Close()
+		}
+		if len(failedIDs) > 0 {
+			msg := fmt.Sprintf("failed to clear issue field values: failed=%v, cleared=%v", failedIDs, succeededIDs)
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, msg, firstFailureResp, firstFailureErr), nil
+		}
 	}
 
 	// Use GraphQL API for state updates

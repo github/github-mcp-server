@@ -265,8 +265,6 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 		}
 		sort.Strings(paramNames)
 
-		conditional := inventory.ConditionalSchemaPropertyDescriptions()
-
 		for i, propName := range paramNames {
 			prop := schema.Properties[propName]
 			required := slices.Contains(schema.Required, propName)
@@ -292,11 +290,7 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 			// Indent any continuation lines in the description to maintain markdown formatting
 			description := indentMultilineDescription(prop.Description, "    ")
 
-			if cond, isConditional := conditional[propName]; isConditional {
-				fmt.Fprintf(buf, "  - `%s`: %s (%s, %s, conditional — %s)", propName, description, typeStr, requiredStr, cond)
-			} else {
-				fmt.Fprintf(buf, "  - `%s`: %s (%s, %s)", propName, description, typeStr, requiredStr)
-			}
+			fmt.Fprintf(buf, "  - `%s`: %s (%s, %s)", propName, description, typeStr, requiredStr)
 			if i < len(paramNames)-1 {
 				buf.WriteString("\n")
 			}

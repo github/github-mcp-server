@@ -603,7 +603,6 @@ var pullRequestWriteFormParams = map[string]struct{}{
 	"draft":                 {},
 	"maintainer_can_modify": {},
 	"reviewers":             {},
-	"show_ui":               {},
 	"_ui_submitted":         {},
 }
 
@@ -619,34 +618,6 @@ var pullRequestUpdateFormParams = map[string]struct{}{
 	"maintainer_can_modify": {},
 	"reviewers":             {},
 	"_ui_submitted":         {},
-}
-
-// pullRequestWriteHasNonFormParams reports whether the call carries any parameter
-// the create_pull_request MCP App form cannot represent (anything outside
-// pullRequestWriteFormParams). Such calls must bypass the UI form and execute
-// directly so the supplied values aren't silently dropped.
-func pullRequestWriteHasNonFormParams(args map[string]any) bool {
-	for key, value := range args {
-		if value == nil {
-			continue
-		}
-		if _, ok := pullRequestWriteFormParams[key]; !ok {
-			return true
-		}
-	}
-	return false
-}
-
-func pullRequestUpdateHasNonFormParams(args map[string]any) bool {
-	for key, value := range args {
-		if value == nil {
-			continue
-		}
-		if _, ok := pullRequestUpdateFormParams[key]; !ok {
-			return true
-		}
-	}
-	return false
 }
 
 // CreatePullRequest creates a tool to create a new pull request.
@@ -708,17 +679,6 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 							Type: "string",
 						},
 					},
-					// show_ui is hidden from clients that do not advertise MCP App
-					// UI support. The strip happens per-request in
-					// inventory.ToolsForRegistration; it is present in the static
-					// schema (and therefore in toolsnaps and the feature-flag /
-					// insiders docs) so the UI-capable surface is fully
-					// documented. It is intentionally not in the main README,
-					// which renders the stripped (non-UI) schema.
-					"show_ui": {
-						Type:        "boolean",
-						Description: "Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when the user has already confirmed the action and the form would be redundant.",
-					},
 				},
 				Required: []string{"owner", "repo", "title", "head", "base"},
 			},
@@ -734,19 +694,9 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When MCP Apps are enabled and the client supports UI, route the
-			// call to the interactive form unless:
-			//   - it is itself a form submission (the UI sends _ui_submitted=true),
-			//   - the caller explicitly asked to skip the UI (show_ui=false), or
-			//   - it carries parameters the form cannot represent. Those must be
-			//     applied directly so their values aren't silently dropped.
-			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
-			showUI, err := OptionalBoolParamWithDefault(args, "show_ui", true)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && showUI && !pullRequestWriteHasNonFormParams(args) {
+			// Hand off to the interactive MCP App form unless this call must
+			// execute now (see shouldDeferToForm).
+			if shouldDeferToForm(ctx, deps, req, args, pullRequestWriteFormParams) {
 				return utils.NewToolResultAwaitingFormSubmission(fmt.Sprintf(
 					"An interactive form has been shown to the user for creating a new pull request in %s/%s. "+
 						"STOP — do not call any other tools, do not respond as if the pull request was created, "+
@@ -965,8 +915,9 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
-			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && !pullRequestUpdateHasNonFormParams(args) {
+			// Hand off to the interactive MCP App form unless this call must
+			// execute now (see shouldDeferToForm).
+			if shouldDeferToForm(ctx, deps, req, args, pullRequestUpdateFormParams) {
 				return utils.NewToolResultAwaitingFormSubmission(fmt.Sprintf(
 					"An interactive form has been shown to the user for editing pull request #%d in %s/%s. "+
 						"STOP — do not call any other tools, do not respond as if the pull request was updated, "+
@@ -2333,38 +2284,74 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			var params struct {
-				Owner       string
-				Repo        string
-				PullNumber  int32
-				Path        string
-				Body        string
-				SubjectType string
-				Line        *int32
-				Side        *string
-				StartLine   *int32
-				StartSide   *string
-			}
-			if err := mapstructure.WeakDecode(args, &params); err != nil {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			pullNumber, err := RequiredInt(args, "pullNumber")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			path, err := RequiredParam[string](args, "path")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			body, err := RequiredParam[string](args, "body")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			subjectType, err := RequiredParam[string](args, "subjectType")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			line, err := OptionalIntParam(args, "line")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			side, _ := OptionalParam[string](args, "side")
+			startLine, err := OptionalIntParam(args, "startLine")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			startSide, _ := OptionalParam[string](args, "startSide")
 
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
 			}
 
+			var linePtr, startLinePtr *int32
+			if line != 0 {
+				l := int32(line) // #nosec G115
+				linePtr = &l
+			}
+			if startLine != 0 {
+				sl := int32(startLine) // #nosec G115
+				startLinePtr = &sl
+			}
+			var sidePtr, startSidePtr *string
+			if side != "" {
+				sidePtr = &side
+			}
+			if startSide != "" {
+				startSidePtr = &startSide
+			}
+
 			result, err := AddCommentToPendingReviewCall(ctx, client, AddCommentToPendingReviewParams{
-				Owner:       params.Owner,
-				Repo:        params.Repo,
-				PullNumber:  params.PullNumber,
-				Path:        params.Path,
-				Body:        params.Body,
-				SubjectType: params.SubjectType,
-				Line:        params.Line,
-				Side:        params.Side,
-				StartLine:   params.StartLine,
-				StartSide:   params.StartSide,
+				Owner:       owner,
+				Repo:        repo,
+				PullNumber:  int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers
+				Path:        path,
+				Body:        body,
+				SubjectType: subjectType,
+				Line:        linePtr,
+				Side:        sidePtr,
+				StartLine:   startLinePtr,
+				StartSide:   startSidePtr,
 			})
 			return result, nil, err
 		})

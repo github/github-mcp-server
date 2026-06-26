@@ -69,6 +69,7 @@ const (
 	DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber         = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/sub_issue"
 	PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber = "PATCH /repos/{owner}/{repo}/issues/{issue_number}/sub_issues/priority"
 	PostReposIssuesCommentsReactionsByOwnerByRepoByCommentID    = "POST /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions"
+	DeleteReposIssuesIssueFieldValueByOwnerByRepoByIssueNumber  = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/issue-field-values/{issue_field_id}"
 
 	// Pull request endpoints
 	GetReposPullsByOwnerByRepo                                = "GET /repos/{owner}/{repo}/pulls"
