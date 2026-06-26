@@ -1166,6 +1166,9 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
+				if commentID < 1 {
+					return utils.NewToolResultError("comment_id must be greater than 0"), nil, nil
+				}
 				hasCommentID = true
 			}
 			body, hasBody, err := OptionalParamOK[string](args, "body")

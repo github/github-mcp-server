@@ -11,6 +11,7 @@
       },
       "commentId": {
         "description": "The numeric ID of the pull request review comment to reply or react to. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
+        "minimum": 1,
         "type": "number"
       },
       "owner": {

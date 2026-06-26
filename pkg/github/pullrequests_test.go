@@ -4095,6 +4095,17 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 			expectedToolErrMsg: "missing required parameter: commentId",
 		},
 		{
+			name: "negative commentId",
+			requestArgs: map[string]any{
+				"owner":     "owner",
+				"repo":      "repo",
+				"commentId": float64(-123),
+				"reaction":  "rocket",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "commentId must be greater than 0",
+		},
+		{
 			name: "missing body and reaction",
 			requestArgs: map[string]any{
 				"owner":      "owner",

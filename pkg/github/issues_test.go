@@ -4354,6 +4354,18 @@ func TestAddIssueComment(t *testing.T) {
 			expectedToolErrMsg: "comment_id can only be provided when reaction is provided",
 		},
 		{
+			name: "negative comment_id",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(-1),
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "comment_id must be greater than 0",
+		},
+		{
 			name: "comment_id with body",
 			requestArgs: map[string]any{
 				"owner":        "owner",
