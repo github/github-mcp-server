@@ -1816,6 +1816,10 @@ var issueWriteFormParams = map[string]struct{}{
 	"body":          {},
 	"issue_number":  {},
 	"issue_fields":  {},
+	"labels":        {},
+	"assignees":     {},
+	"milestone":     {},
+	"type":          {},
 	"state":         {},
 	"state_reason":  {},
 	"duplicate_of":  {},
@@ -1824,9 +1828,11 @@ var issueWriteFormParams = map[string]struct{}{
 }
 
 // issueWriteHasNonFormParams reports whether the call carries any parameter the
-// issue_write MCP App form cannot represent (anything outside issueWriteFormParams,
-// e.g. labels, assignees, milestones or issue types). Such calls must bypass
-// the UI form and execute directly so the supplied values aren't silently dropped.
+// issue_write MCP App form cannot represent (anything outside issueWriteFormParams).
+// The form collects (and prefills) every parameter in the tool's current input
+// schema, so this is a forward-compatibility safety net: a parameter added to the
+// schema in the future but not yet wired into the form trips this check and bypasses
+// the UI so the supplied value isn't silently dropped.
 func issueWriteHasNonFormParams(args map[string]any) bool {
 	for key, value := range args {
 		if value == nil {
@@ -2003,7 +2009,7 @@ Options are:
 					// which renders the stripped (non-UI) schema.
 					"show_ui": {
 						Type:        "boolean",
-						Description: "Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when you have all required values (especially ones the form does not collect, like labels, assignees, milestone, type, issue_fields, or state changes) and the user has already confirmed the action.",
+						Description: "Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when the user has already confirmed the action and the form would be redundant.",
 					},
 				},
 				Required: []string{"method", "owner", "repo"},

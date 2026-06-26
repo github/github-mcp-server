@@ -717,7 +717,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 					// which renders the stripped (non-UI) schema.
 					"show_ui": {
 						Type:        "boolean",
-						Description: "Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when you have all required values (especially ones the form does not collect, like reviewers) and the user has already confirmed the action.",
+						Description: "Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when the user has already confirmed the action and the form would be redundant.",
 					},
 				},
 				Required: []string{"owner", "repo", "title", "head", "base"},

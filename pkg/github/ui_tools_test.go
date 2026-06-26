@@ -3,7 +3,10 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -16,6 +19,78 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// recorderTransport routes HTTP requests through an in-process handler, mirroring
+// internal/githubv4mock's own transport. We need it because githubv4mock keys its
+// matchers by query string, so it cannot model a multi-page labels query: every
+// page issues the identical query and differs only by the $cursor variable. This
+// transport lets a single handler answer each page dynamically.
+type recorderTransport struct{ handler http.Handler }
+
+func (rt recorderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	rec := httptest.NewRecorder()
+	rt.handler.ServeHTTP(rec, req)
+	return rec.Result(), nil
+}
+
+// alwaysHasNextPageLabelsClient returns a GraphQL client whose labels query always
+// reports another page, advancing the cursor on each call. It exercises uiGetLabels'
+// page cap: the loop fetches one label per page until it stops at uiGetMaxPages with
+// has_more=true. totalCount is reported as a large server-side count so the test can
+// confirm it stays the full repo count even when results are truncated.
+func alwaysHasNextPageLabelsClient(t *testing.T) *http.Client {
+	t.Helper()
+	var calls int
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		resp := map[string]any{
+			"data": map[string]any{
+				"repository": map[string]any{
+					"labels": map[string]any{
+						"nodes": []any{
+							map[string]any{
+								"id":          fmt.Sprintf("label-%d", calls),
+								"name":        fmt.Sprintf("label-%d", calls),
+								"color":       "ededed",
+								"description": "",
+							},
+						},
+						"totalCount": 9999,
+						"pageInfo": map[string]any{
+							"hasNextPage": true,
+							"endCursor":   fmt.Sprintf("cursor-%d", calls),
+						},
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	return &http.Client{Transport: recorderTransport{handler: mux}}
+}
+
+// alwaysNextPageHandler returns a REST handler that always advertises another page
+// via the Link header, regardless of the page requested. It drives a pagination loop
+// purely off the page cap so tests can assert ui_get stops at uiGetMaxPages and sets
+// has_more=true. The same body is returned for every page, so the number of items
+// collected equals the number of pages fetched.
+func alwaysNextPageHandler(t *testing.T, body any) http.HandlerFunc {
+	t.Helper()
+	return func(w http.ResponseWriter, r *http.Request) {
+		page := 1
+		if p := r.URL.Query().Get("page"); p != "" {
+			if parsed, err := strconv.Atoi(p); err == nil {
+				page = parsed
+			}
+		}
+		w.Header().Set("Link", fmt.Sprintf(`<https://api.github.com/next?page=%d>; rel="next"`, page+1))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(body)
+	}
+}
 
 func Test_UIGet(t *testing.T) {
 	// Verify tool definition
@@ -95,6 +170,7 @@ func Test_UIGet(t *testing.T) {
 				require.NoError(t, json.Unmarshal([]byte(responseText), &response))
 				assert.Contains(t, response, "assignees")
 				assert.Contains(t, response, "totalCount")
+				assert.Equal(t, false, response["has_more"], "results within the page cap should not be truncated")
 			},
 		},
 		{
@@ -113,6 +189,7 @@ func Test_UIGet(t *testing.T) {
 				require.NoError(t, json.Unmarshal([]byte(responseText), &response))
 				assert.Contains(t, response, "branches")
 				assert.Contains(t, response, "totalCount")
+				assert.Equal(t, false, response["has_more"], "results within the page cap should not be truncated")
 			},
 		},
 		{
@@ -228,6 +305,7 @@ func Test_UIGet(t *testing.T) {
 				require.Len(t, labels, 1)
 				assert.Equal(t, "bug", labels[0].(map[string]any)["name"])
 				assert.Equal(t, float64(1), response["totalCount"])
+				assert.Equal(t, false, response["has_more"], "results within the page cap should not be truncated")
 			},
 		},
 		{
@@ -300,6 +378,70 @@ func Test_UIGet(t *testing.T) {
 				assert.Equal(t, "docs", teams[0].(map[string]any)["slug"])
 				assert.Equal(t, "owner", teams[0].(map[string]any)["org"])
 				assert.Equal(t, float64(2), response["totalCount"])
+				assert.Equal(t, false, response["has_more"], "results within the page cap should not be truncated")
+			},
+		},
+		{
+			name: "branches pagination stops at the page cap",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/owner/repo/branches": alwaysNextPageHandler(t, []*github.Branch{{Name: github.Ptr("feature")}}),
+			}),
+			requestArgs: map[string]any{
+				"method": "branches",
+				"owner":  "owner",
+				"repo":   "repo",
+			},
+			expectError: false,
+			validateResult: func(t *testing.T, responseText string) {
+				var response map[string]any
+				require.NoError(t, json.Unmarshal([]byte(responseText), &response))
+				branches, ok := response["branches"].([]any)
+				require.True(t, ok, "branches should be a list")
+				assert.Len(t, branches, uiGetMaxPages, "loop should stop at the page cap")
+				assert.Equal(t, float64(uiGetMaxPages), response["totalCount"], "totalCount should be the bounded count")
+				assert.Equal(t, true, response["has_more"], "truncated results should set has_more")
+			},
+		},
+		{
+			name:            "labels pagination stops at the page cap",
+			mockedGQLClient: alwaysHasNextPageLabelsClient(t),
+			requestArgs: map[string]any{
+				"method": "labels",
+				"owner":  "owner",
+				"repo":   "repo",
+			},
+			expectError: false,
+			validateResult: func(t *testing.T, responseText string) {
+				var response map[string]any
+				require.NoError(t, json.Unmarshal([]byte(responseText), &response))
+				labels, ok := response["labels"].([]any)
+				require.True(t, ok, "labels should be a list")
+				assert.Len(t, labels, uiGetMaxPages, "loop should stop at the page cap")
+				assert.Equal(t, true, response["has_more"], "truncated results should set has_more")
+				// totalCount stays the server-reported full count, so it can exceed
+				// the number of labels returned once results are truncated.
+				assert.Equal(t, float64(9999), response["totalCount"])
+			},
+		},
+		{
+			name: "reviewers pagination stops at the page cap",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/owner/repo/collaborators": alwaysNextPageHandler(t, []*github.User{{Login: github.Ptr("octocat")}}),
+				"GET /repos/owner/repo/teams":         mockResponse(t, http.StatusOK, mockReviewerTeams),
+			}),
+			requestArgs: map[string]any{
+				"method": "reviewers",
+				"owner":  "owner",
+				"repo":   "repo",
+			},
+			expectError: false,
+			validateResult: func(t *testing.T, responseText string) {
+				var response map[string]any
+				require.NoError(t, json.Unmarshal([]byte(responseText), &response))
+				users, ok := response["users"].([]any)
+				require.True(t, ok, "users should be a list")
+				assert.Len(t, users, uiGetMaxPages, "collaborators loop should stop at the page cap")
+				assert.Equal(t, true, response["has_more"], "truncating either loop should set has_more")
 			},
 		},
 		{
