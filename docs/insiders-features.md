@@ -39,7 +39,6 @@ The list below is generated from the Go source. It covers tool **inventory and s
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], optional)
-  - `show_ui`: Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when the user has already confirmed the action and the form would be redundant. (boolean, optional, conditional — visible when remote_mcp_ui_apps is enabled unless the client explicitly indicates it does not support io.modelcontextprotocol/ui)
   - `title`: PR title (string, required)
 
 - **get_me** - Get my user profile
@@ -63,7 +62,6 @@ The list below is generated from the Go source. It covers tool **inventory and s
   - `milestone`: Milestone number (number, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
-  - `show_ui`: Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when the user has already confirmed the action and the form would be redundant. (boolean, optional, conditional — visible when remote_mcp_ui_apps is enabled unless the client explicitly indicates it does not support io.modelcontextprotocol/ui)
   - `state`: New state (string, optional)
   - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
   - `title`: Issue title (string, optional)

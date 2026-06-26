@@ -603,7 +603,6 @@ var pullRequestWriteFormParams = map[string]struct{}{
 	"draft":                 {},
 	"maintainer_can_modify": {},
 	"reviewers":             {},
-	"show_ui":               {},
 	"_ui_submitted":         {},
 }
 
@@ -708,17 +707,6 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 							Type: "string",
 						},
 					},
-					// show_ui is hidden from clients that do not advertise MCP App
-					// UI support. The strip happens per-request in
-					// inventory.ToolsForRegistration; it is present in the static
-					// schema (and therefore in toolsnaps and the feature-flag /
-					// insiders docs) so the UI-capable surface is fully
-					// documented. It is intentionally not in the main README,
-					// which renders the stripped (non-UI) schema.
-					"show_ui": {
-						Type:        "boolean",
-						Description: "Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when the user has already confirmed the action and the form would be redundant.",
-					},
 				},
 				Required: []string{"owner", "repo", "title", "head", "base"},
 			},
@@ -736,17 +724,12 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			// When MCP Apps are enabled and the client supports UI, route the
 			// call to the interactive form unless:
-			//   - it is itself a form submission (the UI sends _ui_submitted=true),
-			//   - the caller explicitly asked to skip the UI (show_ui=false), or
+			//   - it is itself a form submission (the UI sends _ui_submitted=true), or
 			//   - it carries parameters the form cannot represent. Those must be
 			//     applied directly so their values aren't silently dropped.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
-			showUI, err := OptionalBoolParamWithDefault(args, "show_ui", true)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
 
-			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && showUI && !pullRequestWriteHasNonFormParams(args) {
+			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && !pullRequestWriteHasNonFormParams(args) {
 				return utils.NewToolResultAwaitingFormSubmission(fmt.Sprintf(
 					"An interactive form has been shown to the user for creating a new pull request in %s/%s. "+
 						"STOP — do not call any other tools, do not respond as if the pull request was created, "+

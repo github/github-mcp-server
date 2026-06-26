@@ -96,10 +96,6 @@
         "description": "Repository name",
         "type": "string"
       },
-      "show_ui": {
-        "description": "Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when the user has already confirmed the action and the form would be redundant.",
-        "type": "boolean"
-      },
       "state": {
         "description": "New state",
         "enum": [
