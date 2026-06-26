@@ -33,6 +33,31 @@ To customize toolsets, add server-side headers like `X-MCP-Toolsets` or `X-MCP-R
 
 ## Local Server (Docker)
 
+On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-p", "127.0.0.1:8085:8085",
+        "-e", "GITHUB_OAUTH_CALLBACK_PORT",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_OAUTH_CALLBACK_PORT": "8085"
+      }
+    }
+  }
+}
+```
+
+See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+
+To authenticate with a Personal Access Token instead (replace `YOUR_GITHUB_PAT`; it takes precedence over OAuth):
+
 ```json
 {
   "mcpServers": {

@@ -63,6 +63,16 @@ claude mcp add-json github "{`"type`":`"http`",`"url`":`"https://api.githubcopil
 ### Local Server Setup (Docker required)
 
 ### With Docker
+
+On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback. Run the following command in the terminal (not in Claude Code CLI):
+
+```bash
+claude mcp add github -e GITHUB_OAUTH_CALLBACK_PORT=8085 -- docker run -i --rm -p 127.0.0.1:8085:8085 -e GITHUB_OAUTH_CALLBACK_PORT ghcr.io/github/github-mcp-server
+```
+
+See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+
+To authenticate with a Personal Access Token instead (it takes precedence over OAuth):
 1. Run the following command in the terminal (not in Claude Code CLI):
 ```bash
 claude mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_GITHUB_PAT -- docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server
@@ -135,6 +145,35 @@ claude mcp add github --transport http https://api.githubcopilot.com/mcp/ -H "Au
 ### Local Server Setup (Docker)
 
 Add this codeblock to your `claude_desktop_config.json`:
+
+On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-p",
+        "127.0.0.1:8085:8085",
+        "-e",
+        "GITHUB_OAUTH_CALLBACK_PORT",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_OAUTH_CALLBACK_PORT": "8085"
+      }
+    }
+  }
+}
+```
+
+See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+
+To authenticate with a Personal Access Token instead (it takes precedence over OAuth):
 
 ```json
 {
@@ -211,6 +250,35 @@ Or open the file in a text editor and add the `mcpServers` block manually:
 ### Local Server Setup (Docker)
 
 > **macOS note**: Xcode runs with a minimal `PATH` that typically excludes `/usr/local/bin` (Intel) and `/opt/homebrew/bin` (Apple Silicon). Use the full path to `docker` to ensure it can be found. Run `which docker` in Terminal to find the correct path on your system.
+
+On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "/usr/local/bin/docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-p",
+        "127.0.0.1:8085:8085",
+        "-e",
+        "GITHUB_OAUTH_CALLBACK_PORT",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_OAUTH_CALLBACK_PORT": "8085"
+      }
+    }
+  }
+}
+```
+
+See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+
+To authenticate with a Personal Access Token instead (it takes precedence over OAuth):
 
 ```json
 {

@@ -29,7 +29,32 @@ Replace `YOUR_GITHUB_PAT` with your [GitHub Personal Access Token](https://githu
 ## Local Server (Docker)
 
 1. Click the Cline icon in your editor's sidebar (or open the command palette and search for "Cline"), then click the **MCP Servers** icon (server stack icon at the top of the Cline panel), and click **"Configure MCP Servers"** to open `cline_mcp_settings.json`.
-2. Add the configuration below, replacing `YOUR_GITHUB_PAT` with your [GitHub Personal Access Token](https://github.com/settings/tokens).
+2. Add one of the configurations below. The OAuth option needs no token; for the PAT option, replace `YOUR_GITHUB_PAT` with your [GitHub Personal Access Token](https://github.com/settings/tokens).
+
+On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-p", "127.0.0.1:8085:8085",
+        "-e", "GITHUB_OAUTH_CALLBACK_PORT",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_OAUTH_CALLBACK_PORT": "8085"
+      }
+    }
+  }
+}
+```
+
+See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+
+To authenticate with a Personal Access Token instead (it takes precedence over OAuth):
 
 ```json
 {

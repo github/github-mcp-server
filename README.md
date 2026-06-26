@@ -280,9 +280,38 @@ More about using MCP server tools in VS Code's [agent mode documentation](https:
 
 Install in GitHub Copilot on other IDEs (JetBrains, Visual Studio, Eclipse, etc.)
 
-Add the following JSON block to your IDE's MCP settings.
+Add one of the following JSON blocks to your IDE's MCP settings.
 
-> The examples below authenticate with a Personal Access Token. To log in with OAuth instead (no token to create or store), see **[Local Server OAuth Login](docs/oauth-login.md)** — in Docker it needs a fixed callback port, as the one-click buttons above show.
+**Log in with OAuth (no token to create or store).** On github.com you can start the server with no token at all: it runs a browser-based login on first use and keeps the resulting token **in memory only**. In Docker this needs a fixed callback port published to loopback so the container's login callback is reachable:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "github": {
+        "command": "docker",
+        "args": [
+          "run",
+          "-i",
+          "--rm",
+          "-p",
+          "127.0.0.1:8085:8085",
+          "-e",
+          "GITHUB_OAUTH_CALLBACK_PORT",
+          "ghcr.io/github/github-mcp-server"
+        ],
+        "env": {
+          "GITHUB_OAUTH_CALLBACK_PORT": "8085"
+        }
+      }
+    }
+  }
+}
+```
+
+See **[Local Server OAuth Login](docs/oauth-login.md)** for the native-binary flow (no fixed port needed), the headless/device-code fallback, GitHub Enterprise Server / `ghe.com`, and bringing your own OAuth or GitHub App.
+
+**Or authenticate with a Personal Access Token.** Set `GITHUB_PERSONAL_ACCESS_TOKEN` instead (it takes precedence over OAuth):
 
 ```json
 {

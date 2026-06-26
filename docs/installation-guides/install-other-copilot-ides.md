@@ -40,7 +40,27 @@ For users who prefer to run the GitHub MCP server locally. Requires Docker insta
 
 #### Configuration
 1. Create an `.mcp.json` file in your solution or %USERPROFILE% directory.
-2. Add this configuration:
+2. Add this configuration. On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback:
+```json
+{
+  "servers": {
+    "github": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm", "-p", "127.0.0.1:8085:8085", "-e", "GITHUB_OAUTH_CALLBACK_PORT",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_OAUTH_CALLBACK_PORT": "8085"
+      }
+    }
+  }
+}
+```
+See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+
+To authenticate with a Personal Access Token instead (it takes precedence over OAuth):
 ```json
 {
   "inputs": [
@@ -109,6 +129,29 @@ The remote GitHub MCP server is hosted by GitHub and provides automatic updates 
 For users who prefer to run the GitHub MCP server locally. Requires Docker installed and running.
 
 #### Configuration
+
+On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback:
+```json
+{
+  "servers": {
+    "github": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm", 
+        "-p", "127.0.0.1:8085:8085",
+        "-e", "GITHUB_OAUTH_CALLBACK_PORT",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_OAUTH_CALLBACK_PORT": "8085"
+      }
+    }
+  }
+}
+```
+See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+
+To authenticate with a Personal Access Token instead (it takes precedence over OAuth):
 ```json
 {
   "servers": {
@@ -165,6 +208,29 @@ The remote GitHub MCP server is hosted by GitHub and provides automatic updates 
 For users who prefer to run the GitHub MCP server locally. Requires Docker installed and running.
 
 #### Configuration
+
+On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback:
+```json
+{
+  "servers": {
+    "github": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm", 
+        "-p", "127.0.0.1:8085:8085",
+        "-e", "GITHUB_OAUTH_CALLBACK_PORT",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_OAUTH_CALLBACK_PORT": "8085"
+      }
+    }
+  }
+}
+```
+See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+
+To authenticate with a Personal Access Token instead (it takes precedence over OAuth):
 ```json
 {
   "servers": {
@@ -222,6 +288,29 @@ The remote GitHub MCP server is hosted by GitHub and provides automatic updates 
 For users who prefer to run the GitHub MCP server locally. Requires Docker installed and running.
 
 #### Configuration
+
+On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback:
+```json
+{
+  "servers": {
+    "github": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm", 
+        "-p", "127.0.0.1:8085:8085",
+        "-e", "GITHUB_OAUTH_CALLBACK_PORT",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_OAUTH_CALLBACK_PORT": "8085"
+      }
+    }
+  }
+}
+```
+See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+
+To authenticate with a Personal Access Token instead (it takes precedence over OAuth):
 ```json
 {
   "servers": {
