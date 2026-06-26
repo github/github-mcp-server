@@ -64,7 +64,7 @@ claude mcp add-json github "{`"type`":`"http`",`"url`":`"https://api.githubcopil
 
 ### With Docker
 
-On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback. Run the following command in the terminal (not in Claude Code CLI):
+Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback. Run the following command in the terminal (not in Claude Code CLI):
 
 ```bash
 claude mcp add github -e GITHUB_OAUTH_CALLBACK_PORT=8085 -- docker run -i --rm -p 127.0.0.1:8085:8085 -e GITHUB_OAUTH_CALLBACK_PORT ghcr.io/github/github-mcp-server
@@ -146,7 +146,7 @@ claude mcp add github --transport http https://api.githubcopilot.com/mcp/ -H "Au
 
 Add this codeblock to your `claude_desktop_config.json`:
 
-On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback:
+Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
 
 ```json
 {
@@ -251,7 +251,7 @@ Or open the file in a text editor and add the `mcpServers` block manually:
 
 > **macOS note**: Xcode runs with a minimal `PATH` that typically excludes `/usr/local/bin` (Intel) and `/opt/homebrew/bin` (Apple Silicon). Use the full path to `docker` to ensure it can be found. Run `which docker` in Terminal to find the correct path on your system.
 
-On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback:
+Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
 
 ```json
 {

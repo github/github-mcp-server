@@ -61,7 +61,7 @@ You can also connect to the hosted MCP server directly. After securely storing y
 
 With docker running, you can run the GitHub MCP server in a container.
 
-On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback:
+Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
 
 ```json
 // ~/.gemini/settings.json

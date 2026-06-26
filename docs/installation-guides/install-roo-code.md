@@ -33,7 +33,7 @@ To customize toolsets, add server-side headers like `X-MCP-Toolsets` or `X-MCP-R
 
 ## Local Server (Docker)
 
-On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback:
+Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
 
 ```json
 {

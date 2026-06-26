@@ -40,7 +40,7 @@ For users who prefer to run the GitHub MCP server locally. Requires Docker insta
 
 #### Configuration
 1. Create an `.mcp.json` file in your solution or %USERPROFILE% directory.
-2. Add this configuration. On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback:
+2. Add this configuration. Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
 ```json
 {
   "servers": {
@@ -130,7 +130,7 @@ For users who prefer to run the GitHub MCP server locally. Requires Docker insta
 
 #### Configuration
 
-On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback:
+Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
 ```json
 {
   "servers": {
@@ -209,7 +209,7 @@ For users who prefer to run the GitHub MCP server locally. Requires Docker insta
 
 #### Configuration
 
-On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback:
+Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
 ```json
 {
   "servers": {
@@ -289,7 +289,7 @@ For users who prefer to run the GitHub MCP server locally. Requires Docker insta
 
 #### Configuration
 
-On github.com you can skip the token entirely: the server opens a browser login on first use and keeps the credential in memory only. In Docker, publish a fixed callback port to loopback:
+Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
 ```json
 {
   "servers": {

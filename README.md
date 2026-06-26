@@ -282,7 +282,7 @@ Install in GitHub Copilot on other IDEs (JetBrains, Visual Studio, Eclipse, etc.
 
 Add one of the following JSON blocks to your IDE's MCP settings.
 
-**Log in with OAuth (no token to create or store).** On github.com you can start the server with no token at all: it runs a browser-based login on first use and keeps the resulting token **in memory only**. In Docker this needs a fixed callback port published to loopback so the container's login callback is reachable:
+**Log in with OAuth (no token to create or store).** On github.com the official image already includes the app credentials, so you provide none yourself: it runs a browser-based login on first use and keeps the resulting token **in memory only**. In Docker this needs a fixed callback port published to loopback so the container's login callback is reachable:
 
 ```json
 {
