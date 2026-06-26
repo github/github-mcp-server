@@ -129,37 +129,101 @@ func TestHandlerRegisterRoutes(t *testing.T) {
 	r := chi.NewRouter()
 	NewHandler(Config{}).RegisterRoutes(r)
 
-	for _, path := range []string{Path, "/mcp" + Path} {
-		t.Run(path, func(t *testing.T) {
-			t.Parallel()
+	t.Run("GET serves the card at the canonical path", func(t *testing.T) {
+		t.Parallel()
 
-			req := httptest.NewRequest(http.MethodGet, path, nil)
-			rec := httptest.NewRecorder()
-			r.ServeHTTP(rec, req)
+		req := httptest.NewRequest(http.MethodGet, Path, nil)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
 
-			res := rec.Result()
-			defer res.Body.Close()
+		res := rec.Result()
+		defer res.Body.Close()
 
-			assert.Equal(t, http.StatusOK, res.StatusCode)
-			assert.Equal(t, MediaType, res.Header.Get(headers.ContentTypeHeader))
-		})
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+		assert.Equal(t, MediaType, res.Header.Get(headers.ContentTypeHeader))
+	})
 
-		t.Run(path+" POST owned by card handler", func(t *testing.T) {
-			t.Parallel()
+	t.Run("POST owned by card handler", func(t *testing.T) {
+		t.Parallel()
 
-			// The handler is registered for all methods so non-GET requests are
-			// answered here (405) rather than falling through to another route.
-			req := httptest.NewRequest(http.MethodPost, path, nil)
-			rec := httptest.NewRecorder()
-			r.ServeHTTP(rec, req)
+		// The handler is registered for all methods so non-GET requests are
+		// answered here (405) rather than falling through to another route.
+		req := httptest.NewRequest(http.MethodPost, Path, nil)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
 
-			res := rec.Result()
-			defer res.Body.Close()
+		res := rec.Result()
+		defer res.Body.Close()
 
-			assert.Equal(t, http.StatusMethodNotAllowed, res.StatusCode)
-			assert.Equal(t, "*", res.Header.Get("Access-Control-Allow-Origin"))
-		})
-	}
+		assert.Equal(t, http.StatusMethodNotAllowed, res.StatusCode)
+		assert.Equal(t, "*", res.Header.Get("Access-Control-Allow-Origin"))
+	})
+
+	t.Run("card is served at exactly one path", func(t *testing.T) {
+		t.Parallel()
+
+		// The card must be discoverable at a single canonical location only;
+		// no alternate path (e.g. /mcp/server-card) is registered.
+		req := httptest.NewRequest(http.MethodGet, "/mcp"+Path, nil)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+
+		res := rec.Result()
+		defer res.Body.Close()
+
+		assert.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+}
+
+// TestHandlerRegisterRoutesNotShadowedByCatchAll mirrors the production wiring
+// (pkg/http/server.go), where the streamable MCP endpoint is mounted as a
+// catch-all at "/" (pkg/http/handler.go: r.Mount("/", h)). The card's static
+// route must take precedence over that wildcard mount so the card — and not the
+// auth-gated MCP endpoint — answers GET and non-GET requests at the card path.
+func TestHandlerRegisterRoutesNotShadowedByCatchAll(t *testing.T) {
+	t.Parallel()
+
+	const mcpStatus = http.StatusUnauthorized // sentinel for the auth-gated MCP endpoint
+
+	r := chi.NewRouter()
+	r.Group(func(r chi.Router) {
+		r.Mount("/", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(mcpStatus)
+		}))
+	})
+	r.Group(func(r chi.Router) {
+		NewHandler(Config{}).RegisterRoutes(r)
+	})
+
+	t.Run("GET is owned by the card handler", func(t *testing.T) {
+		t.Parallel()
+
+		req := httptest.NewRequest(http.MethodGet, Path, nil)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+
+		res := rec.Result()
+		defer res.Body.Close()
+
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+		assert.Equal(t, MediaType, res.Header.Get(headers.ContentTypeHeader))
+	})
+
+	t.Run("non-GET is owned by the card handler, not the catch-all", func(t *testing.T) {
+		t.Parallel()
+
+		// A POST must get the card handler's 405, not the MCP catch-all's
+		// sentinel status — proving the static route is not shadowed.
+		req := httptest.NewRequest(http.MethodPost, Path, nil)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+
+		res := rec.Result()
+		defer res.Body.Close()
+
+		assert.Equal(t, http.StatusMethodNotAllowed, res.StatusCode)
+		assert.NotEqual(t, mcpStatus, res.StatusCode)
+	})
 }
 
 func TestHandlerETagConditionalRequests(t *testing.T) {

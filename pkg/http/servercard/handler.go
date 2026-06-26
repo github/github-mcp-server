@@ -27,16 +27,17 @@ func NewHandler(cfg Config) *Handler {
 	return &Handler{cfg: cfg}
 }
 
-// RegisterRoutes mounts the Server Card handler at the reserved
-// `<streamable-http-url>/server-card` location. Because GitHub's hosted edge
-// strips the `/mcp` base path before forwarding, both `/server-card` and
-// `/mcp/server-card` are registered so the card is reachable either way. The
-// handler is registered for all methods (mirroring oauth.AuthHandler) so it
-// owns the path and answers non-GET requests itself rather than falling through
-// to the auth-gated MCP endpoint.
+// RegisterRoutes mounts the Server Card handler at the single reserved
+// `<streamable-http-url>/server-card` location. The handler is registered for
+// all methods (mirroring oauth.AuthHandler) so it owns the path and answers
+// non-GET requests itself rather than falling through to the auth-gated MCP
+// endpoint.
+//
+// The card is served at exactly one canonical location — the URL the MCP/AI
+// catalog links — so it is deliberately not also exposed under any alternate
+// path.
 func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Handle(Path, h)
-	r.Handle("/mcp"+Path, h)
 }
 
 // ServeHTTP serves the Server Card as application/mcp-server-card+json.
