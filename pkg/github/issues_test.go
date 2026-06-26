@@ -1701,7 +1701,7 @@ func Test_issueWriteHasNonFormParams(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, issueWriteHasNonFormParams(tc.args))
+			assert.Equal(t, tc.want, hasNonFormParams(tc.args, issueWriteFormParams))
 		})
 	}
 }
@@ -1715,7 +1715,7 @@ func Test_issueWriteSchemaClassification(t *testing.T) {
 	t.Parallel()
 
 	// Schema properties the MCP App form cannot represent — their presence
-	// must trigger the safety-net bypass via issueWriteHasNonFormParams. The
+	// must trigger the safety-net bypass via hasNonFormParams. The
 	// form currently collects every schema property, so this allowlist is
 	// empty; add a property here only if it is added to the schema without
 	// corresponding form support.
