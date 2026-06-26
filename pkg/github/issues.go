@@ -616,10 +616,11 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 Options are:
 1. get - Get details of a specific issue.
 2. get_comments - Get issue comments.
-3. get_sub_issues - Get sub-issues of the issue.
-4. get_labels - Get labels assigned to the issue.
+3. get_sub_issues - Get sub-issues (children) of the issue.
+4. get_parent - Get the parent issue, if this issue is a sub-issue of another.
+5. get_labels - Get labels assigned to the issue.
 `,
-				Enum: []any{"get", "get_comments", "get_sub_issues", "get_labels"},
+				Enum: []any{"get", "get_comments", "get_sub_issues", "get_parent", "get_labels"},
 			},
 			"owner": {
 				Type:        "string",
@@ -698,6 +699,9 @@ Options are:
 				return attachIFC(result), nil, err
 			case "get_sub_issues":
 				result, err := GetSubIssues(ctx, client, deps, owner, repo, issueNumber, pagination)
+				return attachIFC(result), nil, err
+			case "get_parent":
+				result, err := GetIssueParent(ctx, gqlClient, owner, repo, issueNumber)
 				return attachIFC(result), nil, err
 			case "get_labels":
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
@@ -894,6 +898,52 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 	}
 
 	return utils.NewToolResultText(string(r)), nil
+}
+
+// GetIssueParent returns the parent issue of the given issue, or a null parent
+// when the issue is not a sub-issue of any other issue. It reads the GraphQL
+// Issue.parent field, the upward counterpart to the downward get_sub_issues read.
+func GetIssueParent(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+	var query struct {
+		Repository struct {
+			Issue struct {
+				Parent *struct {
+					Number     githubv4.Int
+					Title      githubv4.String
+					State      githubv4.String
+					URL        githubv4.String
+					Repository struct {
+						NameWithOwner githubv4.String
+					}
+				}
+			} `graphql:"issue(number: $issueNumber)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	vars := map[string]any{
+		"owner":       githubv4.String(owner),
+		"repo":        githubv4.String(repo),
+		"issueNumber": githubv4.Int(issueNumber), // #nosec G115 - issue numbers are always small positive integers
+	}
+
+	if err := client.Query(ctx, &query, vars); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue parent", err), nil
+	}
+
+	parent := query.Repository.Issue.Parent
+	if parent == nil {
+		return MarshalledTextResult(map[string]any{"parent": nil}), nil
+	}
+
+	return MarshalledTextResult(map[string]any{
+		"parent": map[string]any{
+			"number":     int(parent.Number),
+			"title":      string(parent.Title),
+			"state":      string(parent.State),
+			"url":        string(parent.URL),
+			"repository": string(parent.Repository.NameWithOwner),
+		},
+	}), nil
 }
 
 func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
@@ -1676,7 +1726,11 @@ const IssueWriteUIResourceURI = "ui://github-mcp-server/issue-write"
 
 // issueWriteFormParams are the parameters the issue_write MCP App form collects
 // and re-sends on submit. Any other parameter present on a call cannot be
-// represented by the form.
+// represented by the form. The form collects (and prefills) every parameter in
+// the tool's current input schema, so hasNonFormParams against this set is a
+// forward-compatibility safety net: a parameter added to the schema in the
+// future but not yet wired into the form trips the check and bypasses the form
+// so the supplied value isn't silently dropped.
 var issueWriteFormParams = map[string]struct{}{
 	"method":        {},
 	"owner":         {},
@@ -1685,27 +1739,14 @@ var issueWriteFormParams = map[string]struct{}{
 	"body":          {},
 	"issue_number":  {},
 	"issue_fields":  {},
+	"labels":        {},
+	"assignees":     {},
+	"milestone":     {},
+	"type":          {},
 	"state":         {},
 	"state_reason":  {},
 	"duplicate_of":  {},
-	"show_ui":       {},
 	"_ui_submitted": {},
-}
-
-// issueWriteHasNonFormParams reports whether the call carries any parameter the
-// issue_write MCP App form cannot represent (anything outside issueWriteFormParams,
-// e.g. labels, assignees, milestones or issue types). Such calls must bypass
-// the UI form and execute directly so the supplied values aren't silently dropped.
-func issueWriteHasNonFormParams(args map[string]any) bool {
-	for key, value := range args {
-		if value == nil {
-			continue
-		}
-		if _, ok := issueWriteFormParams[key]; !ok {
-			return true
-		}
-	}
-	return false
 }
 
 // issueWriteAwaitingFormResult builds the "awaiting form submission" stub
@@ -1863,17 +1904,6 @@ Options are:
 							Required: []string{"field_name"},
 						},
 					},
-					// show_ui is hidden from clients that do not advertise MCP App
-					// UI support. The strip happens per-request in
-					// inventory.ToolsForRegistration; it is present in the static
-					// schema (and therefore in toolsnaps and the feature-flag /
-					// insiders docs) so the UI-capable surface is fully
-					// documented. It is intentionally not in the main README,
-					// which renders the stripped (non-UI) schema.
-					"show_ui": {
-						Type:        "boolean",
-						Description: "Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when you have all required values (especially ones the form does not collect, like labels, assignees, milestone, type, issue_fields, or state changes) and the user has already confirmed the action.",
-					},
 				},
 				Required: []string{"method", "owner", "repo"},
 			},
@@ -1894,20 +1924,9 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When MCP Apps are enabled and the client supports UI, route the
-			// call to the interactive form unless:
-			//   - it is itself a form submission (the UI sends _ui_submitted=true),
-			//   - the caller explicitly asked to skip the UI (show_ui=false), or
-			//   - it carries parameters the form cannot represent (e.g. labels,
-			//     assignees or issue_fields). Those must be applied directly so
-			//     their values aren't silently dropped.
-			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
-			showUI, err := OptionalBoolParamWithDefault(args, "show_ui", true)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && showUI && !issueWriteHasNonFormParams(args) {
+			// Hand off to the interactive MCP App form unless this call must
+			// execute now (see shouldDeferToForm).
+			if shouldDeferToForm(ctx, deps, req, args, issueWriteFormParams) {
 				issueNumber := 0
 				if method == "update" {
 					n, numErr := RequiredInt(args, "issue_number")

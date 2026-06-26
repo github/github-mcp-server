@@ -2686,89 +2686,6 @@ func Test_CreatePullRequest_MCPAppsFeature_UIGate(t *testing.T) {
 		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
 			"non-form param call should execute directly and return PR URL")
 	})
-
-	t.Run("UI client with show_ui=false skips form and executes directly", func(t *testing.T) {
-		// show_ui=false is the explicit, model-facing way to opt out of the
-		// form. It must bypass the form even when every other condition would
-		// route the call there (UI capability, MCP Apps flag on, no
-		// _ui_submitted, only form params present).
-		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
-			"owner":   "owner",
-			"repo":    "repo",
-			"title":   "Test PR",
-			"head":    "feature",
-			"base":    "main",
-			"show_ui": false,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.NotContains(t, textContent.Text, "interactive form has been shown",
-			"show_ui=false should skip UI form")
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
-			"show_ui=false call should execute directly and return PR URL")
-	})
-
-	t.Run("UI client with show_ui=true returns form message", func(t *testing.T) {
-		// show_ui=true must still route through the form and must not be
-		// treated as a non-form parameter that would trigger the safety-net
-		// bypass.
-		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
-			"owner":   "owner",
-			"repo":    "repo",
-			"title":   "Test PR",
-			"head":    "feature",
-			"base":    "main",
-			"show_ui": true,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "interactive form has been shown",
-			"show_ui=true should still route through the form")
-	})
-
-	t.Run("UI client with show_ui=false and _ui_submitted=true executes directly", func(t *testing.T) {
-		// _ui_submitted and show_ui=false are two ways to say "execute
-		// directly". When both are set there must be no conflict — the call
-		// still executes directly.
-		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
-			"owner":         "owner",
-			"repo":          "repo",
-			"title":         "Test PR",
-			"head":          "feature",
-			"base":          "main",
-			"show_ui":       false,
-			"_ui_submitted": true,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
-			"show_ui=false + _ui_submitted should execute directly")
-	})
-
-	t.Run("non-UI client with show_ui=false executes directly (no regression)", func(t *testing.T) {
-		// show_ui is irrelevant when the client does not support UI; the call
-		// must execute directly exactly as it does today.
-		request := createMCPRequest(map[string]any{
-			"owner":   "owner",
-			"repo":    "repo",
-			"title":   "Test PR",
-			"head":    "feature",
-			"base":    "main",
-			"show_ui": false,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
-			"non-UI client should execute directly regardless of show_ui")
-	})
 }
 
 // Test_UpdatePullRequest_MCPAppsFeature_UIGate verifies the form-routing
@@ -2876,9 +2793,7 @@ func Test_pullRequestWriteHasNonFormParams(t *testing.T) {
 		want bool
 	}{
 		{name: "no params", args: map[string]any{}, want: false},
-		{name: "only form params", args: map[string]any{"owner": "o", "repo": "r", "title": "t", "body": "b", "head": "h", "base": "b", "draft": true, "maintainer_can_modify": false, "reviewers": []any{"octocat"}, "show_ui": true, "_ui_submitted": true}, want: false},
-		{name: "show_ui true is a form param", args: map[string]any{"title": "t", "show_ui": true}, want: false},
-		{name: "show_ui false is a form param", args: map[string]any{"title": "t", "show_ui": false}, want: false},
+		{name: "only form params", args: map[string]any{"owner": "o", "repo": "r", "title": "t", "body": "b", "head": "h", "base": "b", "draft": true, "maintainer_can_modify": false, "reviewers": []any{"octocat"}, "_ui_submitted": true}, want: false},
 		{name: "unknown param present", args: map[string]any{"title": "t", "unknown_param": "value"}, want: true},
 		{name: "nil value is ignored", args: map[string]any{"reviewers": nil}, want: false},
 	}
@@ -2886,7 +2801,7 @@ func Test_pullRequestWriteHasNonFormParams(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, pullRequestWriteHasNonFormParams(tc.args))
+			assert.Equal(t, tc.want, hasNonFormParams(tc.args, pullRequestWriteFormParams))
 		})
 	}
 }
@@ -3515,6 +3430,30 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 					}),
 				),
 			),
+		},
+		{
+			name: "missing required parameter owner",
+			requestArgs: map[string]any{
+				"repo":        "gated-probe",
+				"pullNumber":  float64(1),
+				"path":        "f.go",
+				"body":        "x",
+				"subjectType": "LINE",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: owner",
+		},
+		{
+			name: "missing required parameter path",
+			requestArgs: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"pullNumber":  float64(42),
+				"body":        "This is a test comment",
+				"subjectType": "LINE",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: path",
 		},
 		{
 			name: "thread ID is nil - invalid line number",

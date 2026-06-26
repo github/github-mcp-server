@@ -68,6 +68,11 @@ type MCPServerConfig struct {
 	// This is used for PAT scope filtering where we can't issue scope challenges.
 	TokenScopes []string
 
+	// TokenProvider, when non-nil, supplies the GitHub token for each API
+	// request instead of the static Token. It backs OAuth login, where the
+	// token is obtained lazily on first use and refreshed thereafter.
+	TokenProvider func() string
+
 	// Additional server options to apply
 	ServerOptions []MCPServerOption
 }

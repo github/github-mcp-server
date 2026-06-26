@@ -61,6 +61,33 @@ Set `GITHUB_PERSONAL_ACCESS_TOKEN` in your shell environment before starting Ope
 
 The local GitHub MCP server runs via Docker and requires Docker Desktop (or another Docker runtime) to be installed and running.
 
+Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "github": {
+      "type": "local",
+      "command": [
+        "docker", "run", "-i", "--rm",
+        "-p", "127.0.0.1:8085:8085",
+        "-e", "GITHUB_OAUTH_CALLBACK_PORT",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "enabled": true,
+      "environment": {
+        "GITHUB_OAUTH_CALLBACK_PORT": "8085"
+      }
+    }
+  }
+}
+```
+
+See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+
+To authenticate with a Personal Access Token instead (it takes precedence over OAuth):
+
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
