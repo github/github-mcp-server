@@ -49,18 +49,16 @@ func newRepoAccessHTTPClient() *http.Client {
 	return &http.Client{Transport: &repoAccessMockTransport{responses: responses}}
 }
 
+const issueReadEnrichmentQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}},parent{number,title,state,url,author{login},repository{nameWithOwner}},subIssuesSummary{total,completed,percentCompleted}}}}"
+
 // newIssueReadEnrichmentMatcher builds a matcher for the issue_read `get` enrichment query for a
-// single issue node ID. The query string is constructed from the typed githubv4.ID variable so the
-// generated `$ids:[ID!]!` declaration matches the real client, while the comparison variables are
-// reassigned to the []any shape the request body decodes into so equality holds.
+// single issue node ID.
 func newIssueReadEnrichmentMatcher(nodeID string, response githubv4mock.GQLResponse) githubv4mock.Matcher {
-	matcher := githubv4mock.NewQueryMatcher(
-		issueReadEnrichmentQuery{},
-		map[string]any{"ids": []githubv4.ID{githubv4.ID(nodeID)}},
+	return githubv4mock.NewQueryMatcher(
+		issueReadEnrichmentQueryString,
+		map[string]any{"ids": []any{nodeID}},
 		response,
 	)
-	matcher.Variables = map[string]any{"ids": []any{nodeID}}
-	return matcher
 }
 
 func (rt *repoAccessMockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
