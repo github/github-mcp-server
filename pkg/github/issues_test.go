@@ -3665,7 +3665,7 @@ func Test_GetIssueParent(t *testing.T) {
 				"issue": map[string]any{
 					"parent": map[string]any{
 						"number": githubv4.Int(42),
-						"title":  githubv4.String("Parent issue"),
+						"title":  githubv4.String("Parent\u202e issue"),
 						"state":  githubv4.String("OPEN"),
 						"url":    githubv4.String("https://github.com/owner/repo/issues/42"),
 						"author": map[string]any{
@@ -3697,7 +3697,7 @@ func Test_GetIssueParent(t *testing.T) {
 					parentResponse("author"),
 				),
 			),
-			expectedText: `"number":42`,
+			expectedText: `"title":"Parent issue"`,
 		},
 		{
 			name: "issue has no parent",

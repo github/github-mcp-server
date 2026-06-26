@@ -900,14 +900,13 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 	return utils.NewToolResultText(string(r)), nil
 }
 
-// GetIssueParent returns the parent issue of the given issue, or a null parent
-// when the issue is not a sub-issue of any other issue. It reads the GraphQL
-// Issue.parent field, the upward counterpart to the downward get_sub_issues read.
+// GetIssueParent returns the parent issue of the given issue, or a null
+// parent when the issue is not a sub-issue. It reads the GraphQL
+// Issue.parent field, the upward counterpart to get_sub_issues.
 //
-// The parent may live in a different repository, so its title is always
-// sanitized before being returned. When lockdown mode is enabled the parent is
-// only returned when its author has push access to the parent repository
-// (mirroring GetIssue); otherwise it is omitted (fail closed).
+// The parent title is always sanitized (it may be cross-repo). Under
+// lockdown mode the parent is only returned when its author has push
+// access to the parent repo (mirroring GetIssue); otherwise it is omitted.
 func GetIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDependencies, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
@@ -953,9 +952,8 @@ func GetIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDepen
 		if cache == nil {
 			return nil, fmt.Errorf("lockdown cache is not configured")
 		}
-		// The lockdown safe-content check keys off the parent author's push
-		// access to the parent repository. Fail closed by omitting the parent
-		// if anything required for that check is missing or unverifiable.
+		// Fail closed: omit the parent if anything needed for the safe-content
+		// check is missing or unverifiable.
 		parentAuthorLogin := string(parent.Author.Login)
 		parentOwner, parentRepo, ok := strings.Cut(string(parent.Repository.NameWithOwner), "/")
 		if parentAuthorLogin == "" || !ok || parentOwner == "" || parentRepo == "" {
