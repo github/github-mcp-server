@@ -6,6 +6,20 @@
   "description": "Fast and precise code search across ALL GitHub repositories using GitHub's native search engine. Best for finding exact symbols, functions, classes, or specific code patterns.",
   "inputSchema": {
     "properties": {
+      "fields": {
+        "description": "Subset of fields to return for each code search result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'repository' and 'text_matches' in particular drops the largest per-result data.",
+        "items": {
+          "enum": [
+            "name",
+            "path",
+            "sha",
+            "repository",
+            "text_matches"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
       "order": {
         "description": "Sort order for results",
         "enum": [
