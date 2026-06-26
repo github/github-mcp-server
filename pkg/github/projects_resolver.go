@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/shurcooL/githubv4"
@@ -325,11 +326,8 @@ func resolveItemIDFromIssueArgs(ctx context.Context, gqlClient *githubv4.Client,
 	return resolveProjectItemIDByIssueNumber(ctx, gqlClient, owner, ownerType, projectNumber, issueOwner, issueRepo, issueNumber)
 }
 
-// parseInt64 parses a decimal string into int64.
 func parseInt64(s string) (int64, error) {
-	var n int64
-	_, err := fmt.Sscanf(s, "%d", &n)
-	return n, err
+	return strconv.ParseInt(s, 10, 64)
 }
 
 // resolveFieldNamesToIDs resolves field names to numeric IDs in one GraphQL
