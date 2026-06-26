@@ -80,15 +80,16 @@ WARN: failed to fetch token scopes, continuing without scope filtering
 
 ## Limitations and Fail-Open Posture
 
-Scope filtering is a **best-effort UX nicety**, not an authorization boundary. The GitHub API is the source of truth and enforces real permissions regardless of what the server shows. Because of this, the server is designed to **fail open**: it only hides a tool (or, for OAuth, issues a scope challenge) when it is confident the token cannot use it. When access is plausible, it prefers to show the tool and let the API decide. Filtering is also limited to classic PATs (`ghp_`) and is skipped entirely when scopes can't be fetched.
+Scope filtering is a **best-effort UX convenience** for classic PATs (`ghp_`) only. It is **NOT an authorization boundary** — the GitHub API is the source of truth and enforces real permissions regardless of what the server shows. The server therefore **fails open**: when access is plausible but unprovable at filter/challenge time, the tool is shown rather than hidden.
 
-A tool's declared scopes are **all required** (logical AND), and each one may be satisfied directly or by an ancestor scope from the [hierarchy](#scope-hierarchy). However, some ways a tool can legitimately be used cannot be determined from OAuth scopes alone, so the server intentionally does not try to model them:
+A tool's declared scopes are **all required** (logical AND), and each one may be satisfied directly or by an ancestor scope from the [hierarchy](#scope-hierarchy). Some ways a tool can legitimately be used cannot be determined from OAuth scopes alone, so the scope model intentionally does not fully capture them:
 
-- **Sibling scopes outside the hierarchy.** The hierarchy only models *ancestor* substitution. For example, code scanning alerts on a **public** repository are readable with `public_repo`, which is a *sibling* of the declared `security_events` (both are children of `repo`), not an ancestor. Token expansion can't bridge siblings. Capturing this faithfully would require representing requirements as a list of OR-groups (groups AND-ed, members within a group OR-ed), e.g. code scanning = `security_events` OR `public_repo` OR `repo`. That model isn't implemented today; instead the server relies on the fail-open posture so these cases aren't wrongly hidden.
-- **Organization roles.** Roles such as *security manager* grant access orthogonally to OAuth scopes and are invisible to scope detection. A user may legitimately have access the server cannot see from scopes alone.
-- **Public vs. private repositories.** Whether a given scope suffices depends on the target repository's visibility, which isn't known at filter time.
+- **Public vs. private repositories.** Which scope suffices can depend on the target repository, which isn't known when tools are filtered. For example, code scanning alerts on **public** repos are readable with `public_repo`, while **private** repos need `security_events` (or `repo`).
+- **Sibling-OR alternatives.** `security_events` and `public_repo` are *siblings* under `repo` (not parent/child), so token hierarchy expansion can't treat one as satisfying the other. A `public_repo`-only token may therefore have the security tools (code scanning, secret scanning, Dependabot, security advisories) hidden even though it could read public-repo data.
+- **Organization roles.** A *security manager* (or similar) org role grants access orthogonally to OAuth scopes and is invisible to scope filtering.
+- **Other token types.** Fine-grained PATs, OAuth, and GitHub App tokens use different permission models; filtering is skipped for them entirely (gated to `ghp_`), which is fail-open by design.
 
-In each of these cases the server errs toward showing the tool; if the token truly lacks access, the API returns the appropriate error.
+These cases are deferred to runtime API enforcement. If precise sibling-OR modeling is ever needed, the extension point is making the required scopes a list of OR-groups (AND across groups, OR within a group) — deliberately not built yet.
 
 ## Classic vs Fine-Grained Personal Access Tokens
 
