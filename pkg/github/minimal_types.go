@@ -669,42 +669,6 @@ func convertToMinimalIssueComment(comment *github.IssueComment) MinimalIssueComm
 	return m
 }
 
-func convertToMinimalFileContentResponse(resp *github.RepositoryContentResponse) MinimalFileContentResponse {
-	m := MinimalFileContentResponse{}
-
-	if resp == nil {
-		return m
-	}
-
-	if c := resp.Content; c != nil {
-		m.Content = &MinimalFileContent{
-			Name:    c.GetName(),
-			Path:    c.GetPath(),
-			SHA:     c.GetSHA(),
-			Size:    c.GetSize(),
-			HTMLURL: c.GetHTMLURL(),
-		}
-	}
-
-	m.Commit = &MinimalFileCommit{
-		SHA:     resp.Commit.GetSHA(),
-		Message: resp.Commit.GetMessage(),
-		HTMLURL: resp.Commit.GetHTMLURL(),
-	}
-
-	if author := resp.Commit.Author; author != nil {
-		m.Commit.Author = &MinimalCommitAuthor{
-			Name:  author.GetName(),
-			Email: author.GetEmail(),
-		}
-		if author.Date != nil {
-			m.Commit.Author.Date = author.Date.Format(time.RFC3339)
-		}
-	}
-
-	return m
-}
-
 func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
 	m := MinimalPullRequest{
 		Number:         pr.GetNumber(),

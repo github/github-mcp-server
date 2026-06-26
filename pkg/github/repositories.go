@@ -24,6 +24,97 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+type commitOnBranchFile struct {
+	Path    string
+	Content string
+}
+
+type commitOnBranchResult struct {
+	SHA     string
+	Message string
+	HTMLURL string
+	Author  *github.CommitAuthor
+}
+
+func createCommitOnBranch(ctx context.Context, client *githubv4.Client, owner, repo, branch, message, expectedHeadOID string, files []commitOnBranchFile) (*commitOnBranchResult, error) {
+	if client == nil {
+		return nil, fmt.Errorf("GitHub GraphQL client is not configured")
+	}
+
+	additions := make([]githubv4.FileAddition, 0, len(files))
+	for _, file := range files {
+		additions = append(additions, githubv4.FileAddition{
+			Path:     githubv4.String(strings.TrimPrefix(file.Path, "/")),
+			Contents: githubv4.Base64String(base64.StdEncoding.EncodeToString([]byte(file.Content))),
+		})
+	}
+
+	var mutation struct {
+		CreateCommitOnBranch struct {
+			Commit struct {
+				OID     githubv4.GitObjectID `graphql:"oid"`
+				Message githubv4.String
+				URL     githubv4.URI
+				Author  struct {
+					Name  githubv4.String
+					Email githubv4.String
+					Date  githubv4.DateTime
+				}
+			}
+		} `graphql:"createCommitOnBranch(input: $input)"`
+	}
+
+	input := githubv4.CreateCommitOnBranchInput{
+		Branch: githubv4.CommittableBranch{
+			RepositoryNameWithOwner: githubv4.NewString(githubv4.String(owner + "/" + repo)),
+			BranchName:              githubv4.NewString(githubv4.String(branch)),
+		},
+		Message: githubv4.CommitMessage{
+			Headline: githubv4.String(message),
+		},
+		ExpectedHeadOid: githubv4.GitObjectID(expectedHeadOID),
+		FileChanges: &githubv4.FileChanges{
+			Additions: &additions,
+		},
+	}
+
+	if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+		return nil, err
+	}
+
+	commit := mutation.CreateCommitOnBranch.Commit
+	result := &commitOnBranchResult{
+		SHA:     string(commit.OID),
+		Message: string(commit.Message),
+		HTMLURL: commit.URL.String(),
+		Author: &github.CommitAuthor{
+			Name:  github.Ptr(string(commit.Author.Name)),
+			Email: github.Ptr(string(commit.Author.Email)),
+		},
+	}
+	if !commit.Author.Date.Time.IsZero() {
+		result.Author.Date = &github.Timestamp{Time: commit.Author.Date.Time}
+	}
+
+	return result, nil
+}
+
+func minimalFileCommitFromCommitOnBranchResult(commit *commitOnBranchResult) *MinimalFileCommit {
+	if commit == nil {
+		return nil
+	}
+
+	m := &MinimalFileCommit{
+		SHA:     commit.SHA,
+		Message: commit.Message,
+		HTMLURL: commit.HTMLURL,
+	}
+	if commit.Author != nil {
+		m.Author = convertToMinimalCommitAuthor(commit.Author)
+	}
+	return m
+}
+
 func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
@@ -456,23 +547,9 @@ SHA MUST be provided for existing file updates.
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// json.Marshal encodes byte arrays with base64, which is required for the API.
-			contentBytes := []byte(content)
-
-			// Create the file options
-			opts := &github.RepositoryContentFileOptions{
-				Message: github.Ptr(message),
-				Content: contentBytes,
-				Branch:  github.Ptr(branch),
-			}
-
-			// If SHA is provided, set it (for updates)
 			sha, err := OptionalParam[string](args, "sha")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			if sha != "" {
-				opts.SHA = github.Ptr(sha)
 			}
 
 			// Create or update the file
@@ -547,7 +624,7 @@ SHA MUST be provided for existing file updates.
 				// If file not found, no previous SHA needed (new file creation)
 			}
 
-			fileContent, resp, err := client.Repositories.CreateFile(ctx, owner, repo, path, opts)
+			ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/heads/"+branch)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to create/update file",
@@ -555,17 +632,53 @@ SHA MUST be provided for existing file updates.
 					err,
 				), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != 200 && resp.StatusCode != 201 {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create/update file", resp, body), nil, nil
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
+			if ref == nil || ref.Object == nil || ref.Object.SHA == nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to resolve branch head for %s", branch)), nil, nil
 			}
 
-			minimalResponse := convertToMinimalFileContentResponse(fileContent)
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub GraphQL client: %w", err)
+			}
+			commit, err := createCommitOnBranch(ctx, gqlClient, owner, repo, branch, message, *ref.Object.SHA, []commitOnBranchFile{
+				{Path: path, Content: content},
+			})
+			if err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to create/update file", err), nil, nil
+			}
+
+			updatedFile, dirContent, resp, err := client.Repositories.GetContents(ctx, owner, repo, path, &github.RepositoryContentGetOptions{Ref: commit.SHA})
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to get updated file contents",
+					resp,
+					err,
+				), nil, nil
+			}
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
+			if dirContent != nil {
+				return utils.NewToolResultError(fmt.Sprintf(
+					"Path %s is a directory, not a file. This tool only works with files.",
+					path)), nil, nil
+			}
+
+			minimalResponse := MinimalFileContentResponse{
+				Commit: minimalFileCommitFromCommitOnBranchResult(commit),
+			}
+			if updatedFile != nil {
+				minimalResponse.Content = &MinimalFileContent{
+					Name:    updatedFile.GetName(),
+					Path:    updatedFile.GetPath(),
+					SHA:     updatedFile.GetSHA(),
+					Size:    updatedFile.GetSize(),
+					HTMLURL: updatedFile.GetHTMLURL(),
+				}
+			}
 
 			return MarshalledTextResult(minimalResponse), nil, nil
 		},
@@ -1443,8 +1556,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				baseCommit = base
 			}
 
-			// Create tree entries for all files (or remaining files if empty repo)
-			var entries []*github.TreeEntry
+			fileChanges := make([]commitOnBranchFile, 0, len(filesObj))
 
 			for _, file := range filesObj {
 				fileMap, ok := file.(map[string]any)
@@ -1462,60 +1574,28 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					return utils.NewToolResultError("each file must have content"), nil, nil
 				}
 
-				// Create a tree entry for the file
-				entries = append(entries, &github.TreeEntry{
-					Path:    github.Ptr(path),
-					Mode:    github.Ptr("100644"), // Regular file mode
-					Type:    github.Ptr("blob"),
-					Content: github.Ptr(content),
+				fileChanges = append(fileChanges, commitOnBranchFile{
+					Path:    path,
+					Content: content,
 				})
 			}
 
-			// Create a new tree with the file entries (baseCommit is now guaranteed to exist)
-			newTree, resp, err := client.Git.CreateTree(ctx, owner, repo, *baseCommit.Tree.SHA, entries)
+			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to create tree",
-					resp,
-					err,
-				), nil, nil
+				return nil, nil, fmt.Errorf("failed to get GitHub GraphQL client: %w", err)
 			}
-			if resp != nil && resp.Body != nil {
-				defer func() { _ = resp.Body.Close() }()
+			newCommit, err := createCommitOnBranch(ctx, gqlClient, owner, repo, branch, message, *baseCommit.SHA, fileChanges)
+			if err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to create commit", err), nil, nil
 			}
 
-			// Create a new commit (baseCommit always has a value now)
-			commit := github.Commit{
-				Message: github.Ptr(message),
-				Tree:    newTree,
-				Parents: []*github.Commit{{SHA: baseCommit.SHA}},
+			updatedRef := &github.Reference{
+				Ref: ref.Ref,
+				Object: &github.GitObject{
+					SHA:  github.Ptr(newCommit.SHA),
+					Type: github.Ptr("commit"),
+				},
 			}
-			newCommit, resp, err := client.Git.CreateCommit(ctx, owner, repo, commit, nil)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to create commit",
-					resp,
-					err,
-				), nil, nil
-			}
-			if resp != nil && resp.Body != nil {
-				defer func() { _ = resp.Body.Close() }()
-			}
-
-			// Update the reference to point to the new commit
-			ref.Object.SHA = newCommit.SHA
-			updatedRef, resp, err := client.Git.UpdateRef(ctx, owner, repo, *ref.Ref, github.UpdateRef{
-				SHA:   *newCommit.SHA,
-				Force: github.Ptr(false),
-			})
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to update reference",
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
 
 			r, err := json.Marshal(updatedRef)
 			if err != nil {
