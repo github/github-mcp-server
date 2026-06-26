@@ -1077,7 +1077,7 @@ The following sets of tools are available:
   - `status`: The status of the project. Used for 'create_project_status_update' method. (string, optional)
   - `target_date`: The target date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method. (string, optional)
   - `title`: The project title. Required for 'create_project' method. (string, optional)
-  - `updated_field`: Object describing the field to update and its new value. Required for 'update_project_item'. Two shapes are accepted: (1) by ID — {"id": 123456, "value": "..."}; (2) by name — {"name": "Status", "value": "In Progress"}. For single-select fields, the value may be the option name (resolved server-side) or the option ID. Set value to null to clear the field. (object, optional)
+  - `updated_field`: Object describing the field to update and its new value. Required for 'update_project_item'. Two shapes are accepted: (1) by ID — {"id": 123456, "value": "..."}; (2) by name — {"name": "Status", "value": "In Progress"}. For single-select fields, option-name resolution requires the by-name shape; on the by-ID shape, pass the option ID. Set value to null to clear the field. (object, optional)
 
 </details>
 
