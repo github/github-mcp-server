@@ -1196,11 +1196,22 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 	return st
 }
 
-// AddReplyToPullRequestComment creates a tool to add a reply to an existing pull request comment.
-func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+// PullRequestCommentWrite creates a consolidated tool for write operations on
+// pull request review comments: replying to, updating, and deleting them.
+func PullRequestCommentWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
+			"method": {
+				Type: "string",
+				Description: `Write operation to perform on a pull request review comment.
+Options are:
+- 'reply' - add a reply to an existing review comment. This creates a new comment that is linked as a reply to the specified comment. Requires "pullNumber" and "body".
+- 'update' - replace the body of an existing review comment. Requires "body". Only comments authored by the authenticated user can be updated.
+- 'delete' - delete an existing review comment. Only comments authored by the authenticated user can be deleted.
+`,
+				Enum: []any{"reply", "update", "delete"},
+			},
 			"owner": {
 				Type:        "string",
 				Description: "Repository owner",
@@ -1211,33 +1222,44 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 			},
 			"pullNumber": {
 				Type:        "number",
-				Description: "Pull request number",
+				Description: "Pull request number (required for 'reply' method)",
 			},
 			"commentId": {
 				Type:        "number",
-				Description: "The ID of the comment to reply to",
+				Description: "The ID of the review comment to operate on. For 'reply', this is the comment to reply to.",
 			},
 			"body": {
 				Type:        "string",
-				Description: "The text of the reply",
+				Description: "Comment text (required for 'reply' and 'update' methods)",
 			},
 		},
-		Required: []string{"owner", "repo", "pullNumber", "commentId", "body"},
+		Required: []string{"method", "owner", "repo", "commentId"},
 	}
 
 	return NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
-			Name:        "add_reply_to_pull_request_comment",
-			Description: t("TOOL_ADD_REPLY_TO_PULL_REQUEST_COMMENT_DESCRIPTION", "Add a reply to an existing pull request comment. This creates a new comment that is linked as a reply to the specified comment."),
+			Name: "pull_request_comment_write",
+			Description: t("TOOL_PULL_REQUEST_COMMENT_WRITE_DESCRIPTION", `Write operations for pull request review comments.
+
+Available methods:
+- reply: Add a reply to an existing review comment. This creates a new comment that is linked as a reply to the specified comment.
+- update: Replace the body of an existing review comment. Only comments authored by the authenticated user can be updated.
+- delete: Delete an existing review comment. Only comments authored by the authenticated user can be deleted.
+`),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ADD_REPLY_TO_PULL_REQUEST_COMMENT_USER_TITLE", "Add reply to pull request comment"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_PULL_REQUEST_COMMENT_WRITE_USER_TITLE", "Write operations (reply, update, delete) on pull request review comments"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(true),
 			},
 			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			method, err := RequiredParam[string](args, "method")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -1246,15 +1268,7 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			pullNumber, err := RequiredInt(args, "pullNumber")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
 			commentID, err := RequiredInt(args, "commentId")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			body, err := RequiredParam[string](args, "body")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -1264,27 +1278,100 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			comment, resp, err := client.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, pullNumber, body, int64(commentID))
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reply to pull request comment", resp, err), nil, nil
+			switch method {
+			case "reply":
+				return replyToPullRequestComment(ctx, client, args, owner, repo, int64(commentID))
+			case "update":
+				return updatePullRequestComment(ctx, client, args, owner, repo, int64(commentID))
+			case "delete":
+				return deletePullRequestComment(ctx, client, owner, repo, int64(commentID))
+			default:
+				return utils.NewToolResultError("invalid method, must be one of: 'reply', 'update', 'delete'"), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusCreated {
-				bodyBytes, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
-				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add reply to pull request comment", resp, bodyBytes), nil, nil
-			}
-
-			r, err := json.Marshal(comment)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
-			}
-
-			return utils.NewToolResultText(string(r)), nil, nil
 		})
+}
+
+func replyToPullRequestComment(ctx context.Context, client *github.Client, args map[string]any, owner, repo string, commentID int64) (*mcp.CallToolResult, any, error) {
+	pullNumber, err := RequiredInt(args, "pullNumber")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	body, err := RequiredParam[string](args, "body")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+
+	comment, resp, err := client.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, pullNumber, body, commentID)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reply to pull request comment", resp, err), nil, nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusCreated {
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add reply to pull request comment", resp, bodyBytes), nil, nil
+	}
+
+	r, err := json.Marshal(comment)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+	}
+
+	return utils.NewToolResultText(string(r)), nil, nil
+}
+
+func updatePullRequestComment(ctx context.Context, client *github.Client, args map[string]any, owner, repo string, commentID int64) (*mcp.CallToolResult, any, error) {
+	body, err := RequiredParam[string](args, "body")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+
+	comment, resp, err := client.PullRequests.EditComment(ctx, owner, repo, commentID, &github.PullRequestComment{
+		Body: github.Ptr(body),
+	})
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update pull request comment", resp, err), nil, nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update pull request comment", resp, bodyBytes), nil, nil
+	}
+
+	r, err := json.Marshal(MinimalResponse{
+		ID:  fmt.Sprintf("%d", comment.GetID()),
+		URL: comment.GetHTMLURL(),
+	})
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+	}
+
+	return utils.NewToolResultText(string(r)), nil, nil
+}
+
+func deletePullRequestComment(ctx context.Context, client *github.Client, owner, repo string, commentID int64) (*mcp.CallToolResult, any, error) {
+	resp, err := client.PullRequests.DeleteComment(ctx, owner, repo, commentID)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to delete pull request comment", resp, err), nil, nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusNoContent {
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to delete pull request comment", resp, bodyBytes), nil, nil
+	}
+
+	return utils.NewToolResultText(fmt.Sprintf("pull request comment %d deleted successfully", commentID)), nil, nil
 }
 
 // ListPullRequests creates a tool to list and filter repository pull requests.

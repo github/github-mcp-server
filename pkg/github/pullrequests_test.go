@@ -3975,23 +3975,24 @@ func getLatestPendingReviewQuery(p getLatestPendingReviewQueryParams) githubv4mo
 	)
 }
 
-func TestAddReplyToPullRequestComment(t *testing.T) {
+func TestPullRequestCommentWrite(t *testing.T) {
 	t.Parallel()
 
 	// Verify tool definition once
-	serverTool := AddReplyToPullRequestComment(translations.NullTranslationHelper)
+	serverTool := PullRequestCommentWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "add_reply_to_pull_request_comment", tool.Name)
+	assert.Equal(t, "pull_request_comment_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "method")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
 	assert.Contains(t, schema.Properties, "pullNumber")
 	assert.Contains(t, schema.Properties, "commentId")
 	assert.Contains(t, schema.Properties, "body")
-	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "pullNumber", "commentId", "body"})
+	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "commentId"})
 
 	// Setup mock reply comment for success case
 	mockReplyComment := &github.PullRequestComment{
@@ -4006,16 +4007,30 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 		UpdatedAt: &github.Timestamp{Time: time.Now()},
 	}
 
+	// Setup mock updated comment for success case
+	mockUpdatedComment := &github.PullRequestComment{
+		ID:      github.Ptr(int64(123)),
+		Body:    github.Ptr("Updated comment text"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42#discussion_r123"),
+		User: &github.User{
+			Login: github.Ptr("author"),
+		},
+		CreatedAt: &github.Timestamp{Time: time.Now()},
+		UpdatedAt: &github.Timestamp{Time: time.Now()},
+	}
+
 	tests := []struct {
 		name               string
 		mockedClient       *http.Client
 		requestArgs        map[string]any
 		expectToolError    bool
 		expectedToolErrMsg string
+		expectedInResult   string
 	}{
 		{
 			name: "successful reply to pull request comment",
 			requestArgs: map[string]any{
+				"method":     "reply",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -4029,10 +4044,66 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 					_, _ = w.Write(responseData)
 				},
 			}),
+			expectedInResult: "This is a reply to the comment",
+		},
+		{
+			name: "successful update of pull request comment",
+			requestArgs: map[string]any{
+				"method":    "update",
+				"owner":     "owner",
+				"repo":      "repo",
+				"commentId": float64(123),
+				"body":      "Updated comment text",
+			},
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposPullsCommentsByOwnerByRepoByCommentID: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					responseData, _ := json.Marshal(mockUpdatedComment)
+					_, _ = w.Write(responseData)
+				},
+			}),
+			expectedInResult: "https://github.com/owner/repo/pull/42#discussion_r123",
+		},
+		{
+			name: "successful delete of pull request comment",
+			requestArgs: map[string]any{
+				"method":    "delete",
+				"owner":     "owner",
+				"repo":      "repo",
+				"commentId": float64(123),
+			},
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposPullsCommentsByOwnerByRepoByCommentID: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNoContent)
+				},
+			}),
+			expectedInResult: "pull request comment 123 deleted successfully",
+		},
+		{
+			name: "missing required parameter method",
+			requestArgs: map[string]any{
+				"owner":     "owner",
+				"repo":      "repo",
+				"commentId": float64(123),
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: method",
+		},
+		{
+			name: "invalid method",
+			requestArgs: map[string]any{
+				"method":    "resolve",
+				"owner":     "owner",
+				"repo":      "repo",
+				"commentId": float64(123),
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "invalid method, must be one of: 'reply', 'update', 'delete'",
 		},
 		{
 			name: "missing required parameter owner",
 			requestArgs: map[string]any{
+				"method":     "reply",
 				"repo":       "repo",
 				"pullNumber": float64(42),
 				"commentId":  float64(123),
@@ -4044,6 +4115,7 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 		{
 			name: "missing required parameter repo",
 			requestArgs: map[string]any{
+				"method":     "reply",
 				"owner":      "owner",
 				"pullNumber": float64(42),
 				"commentId":  float64(123),
@@ -4053,8 +4125,9 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 			expectedToolErrMsg: "missing required parameter: repo",
 		},
 		{
-			name: "missing required parameter pullNumber",
+			name: "missing required parameter pullNumber for reply",
 			requestArgs: map[string]any{
+				"method":    "reply",
 				"owner":     "owner",
 				"repo":      "repo",
 				"commentId": float64(123),
@@ -4066,6 +4139,7 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 		{
 			name: "missing required parameter commentId",
 			requestArgs: map[string]any{
+				"method":     "reply",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -4075,12 +4149,24 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 			expectedToolErrMsg: "missing required parameter: commentId",
 		},
 		{
-			name: "missing required parameter body",
+			name: "missing required parameter body for reply",
 			requestArgs: map[string]any{
+				"method":     "reply",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
 				"commentId":  float64(123),
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: body",
+		},
+		{
+			name: "missing required parameter body for update",
+			requestArgs: map[string]any{
+				"method":    "update",
+				"owner":     "owner",
+				"repo":      "repo",
+				"commentId": float64(123),
 			},
 			expectToolError:    true,
 			expectedToolErrMsg: "missing required parameter: body",
@@ -4094,6 +4180,7 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 				},
 			}),
 			requestArgs: map[string]any{
+				"method":     "reply",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -4103,6 +4190,41 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 			expectToolError:    true,
 			expectedToolErrMsg: "failed to add reply to pull request comment",
 		},
+		{
+			name: "API error when updating comment authored by another user",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposPullsCommentsByOwnerByRepoByCommentID: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusForbidden)
+					_, _ = w.Write([]byte(`{"message": "Forbidden"}`))
+				},
+			}),
+			requestArgs: map[string]any{
+				"method":    "update",
+				"owner":     "owner",
+				"repo":      "repo",
+				"commentId": float64(123),
+				"body":      "Updated comment text",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to update pull request comment",
+		},
+		{
+			name: "API error when deleting non-existent comment",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposPullsCommentsByOwnerByRepoByCommentID: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				},
+			}),
+			requestArgs: map[string]any{
+				"method":    "delete",
+				"owner":     "owner",
+				"repo":      "repo",
+				"commentId": float64(999),
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to delete pull request comment",
+		},
 	}
 
 	for _, tc := range tests {
@@ -4111,7 +4233,7 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 
 			// Setup client with mock
 			client := mustNewGHClient(t, tc.mockedClient)
-			serverTool := AddReplyToPullRequestComment(translations.NullTranslationHelper)
+			serverTool := PullRequestCommentWrite(translations.NullTranslationHelper)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -4134,7 +4256,7 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 			// Parse the result and verify it's not an error
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
-			assert.Contains(t, textContent.Text, "This is a reply to the comment")
+			assert.Contains(t, textContent.Text, tc.expectedInResult)
 		})
 	}
 }

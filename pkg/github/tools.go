@@ -233,7 +233,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		UpdatePullRequest(t),
 		PullRequestReviewWrite(t),
 		AddCommentToPendingReview(t),
-		AddReplyToPullRequestComment(t),
+		PullRequestCommentWrite(t),
 
 		// Copilot tools
 		AssignCopilotToIssue(t),
