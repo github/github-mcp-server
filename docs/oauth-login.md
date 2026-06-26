@@ -32,9 +32,12 @@ pass `--oauth-client-id` (see [Bring your own app](#bring-your-own-app)).
 
 The server prefers the **authorization code flow with PKCE**: it starts a
 loopback callback server on your machine, opens GitHub's authorization page, and
-exchanges the returned code for a token. PKCE means the client secret is not
-required to complete the exchange, which is why a public, distributed client can
-ship without a confidential secret.
+exchanges the returned code for a token. GitHub requires a client secret at the
+token endpoint (for both OAuth Apps and GitHub Apps), so the exchange sends it
+together with the PKCE verifier. Because this is a public, distributed client,
+that secret is baked into the binary and is **not truly confidential** — PKCE is
+what secures the flow: it binds the authorization code to this one login attempt,
+so a code intercepted on the loopback redirect can't be redeemed anywhere else.
 
 To present the authorization URL, the server uses the most secure channel your
 MCP client offers, in order:
