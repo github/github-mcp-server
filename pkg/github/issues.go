@@ -613,14 +613,13 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 		Properties: map[string]*jsonschema.Schema{
 			"method": {
 				Type: "string",
-				Description: `The read operation to perform on a single issue.
-Options are:
-1. get - Get details of a specific issue, including hierarchy relationship signals: has_parent and has_children (booleans, always present), plus a compact parent reference (parent) and sub-issue counts (sub_issues_summary) when those relationships exist. Hierarchy is READ here (and via get_parent / get_sub_issues); there is no writable parent field. To change an issue's parent, use sub_issue_write (add with replace_parent). An issue with no parent returns has_parent:false and omits parent.
-2. get_comments - Get issue comments.
-3. get_sub_issues - Get sub-issues (children) of the issue.
-4. get_parent - Get the parent issue, if this issue is a sub-issue of another.
-5. get_labels - Get labels assigned to the issue.
-`,
+				Description: "The read operation to perform on a single issue.\n" +
+					"Options are:\n" +
+					"1. get - Get issue details. Also returns best-effort hierarchy flags (`has_parent`, `has_children`); `parent` and `sub_issues_summary` are optional relationship summaries.\n" +
+					"2. get_comments - Get issue comments.\n" +
+					"3. get_sub_issues - Get sub-issues (children) of the issue.\n" +
+					"4. get_parent - Get the parent issue, if this issue is a sub-issue of another.\n" +
+					"5. get_labels - Get labels assigned to the issue.\n",
 				Enum: []any{"get", "get_comments", "get_sub_issues", "get_parent", "get_labels"},
 			},
 			"owner": {
@@ -1364,13 +1363,12 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Properties: map[string]*jsonschema.Schema{
 					"method": {
 						Type: "string",
-						Description: `The action to perform on a single sub-issue
-Options are:
-- 'add' - add a sub-issue to a parent issue in a GitHub repository.
-- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
-- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
-This tool WRITES hierarchy; the parent relationship is read back via issue_read (get returns has_parent / has_children / parent / sub_issues_summary) or issue_read get_parent. There is no writable parent field: to move an issue under a new parent, call 'add' with replace_parent=true.
-				`,
+						Description: "The action to perform on a single sub-issue\n" +
+							"Options are:\n" +
+							"- 'add' - add a sub-issue to a parent issue in a GitHub repository.\n" +
+							"- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.\n" +
+							"- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.\n" +
+							"Writes issue hierarchy. To move a sub-issue to a new parent, use `add` with `replace_parent=true`; there is no writable parent field.\n",
 					},
 					"owner": {
 						Type:        "string",
