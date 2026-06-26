@@ -16,6 +16,10 @@ const FeatureFlagIFCLabels = "ifc_labels"
 // is not advertised by default, keeping the tool surface small unless opted in.
 const FeatureFlagFileBlame = "file_blame"
 
+// FeatureFlagIssueFieldsMultiSelect is the feature flag name for the multi-select
+// variant of the consolidated issue-fields write tools (issue_write, list_issues).
+const FeatureFlagIssueFieldsMultiSelect = "remote_mcp_issue_fields_multiselect"
+
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag or X-MCP-Features HTTP header.
 // Only flags in this list are accepted; unknown flags are silently ignored.
@@ -27,6 +31,7 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagIssuesGranular,
 	FeatureFlagPullRequestsGranular,
 	FeatureFlagFileBlame,
+	FeatureFlagIssueFieldsMultiSelect,
 }
 
 // InsidersFeatureFlags is the list of feature flags that insiders mode enables.
@@ -37,6 +42,7 @@ var InsidersFeatureFlags = []string{
 	MCPAppsFeatureFlag,
 	FeatureFlagCSVOutput,
 	FeatureFlagFileBlame,
+	FeatureFlagIssueFieldsMultiSelect,
 }
 
 // FeatureFlags defines runtime feature toggles that adjust tool behavior.

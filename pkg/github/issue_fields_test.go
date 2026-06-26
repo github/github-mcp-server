@@ -15,10 +15,20 @@ import (
 )
 
 func Test_ListIssueFields(t *testing.T) {
-	// Verify tool definition
+	// Verify tool definitions. The MS-aware variant owns the _ff_<flag> snap;
+	// the legacy variant owns the canonical list_issue_fields.snap.
 	serverTool := ListIssueFields(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueFieldsMultiSelect, tool))
+	assert.Equal(t, FeatureFlagIssueFieldsMultiSelect, serverTool.FeatureFlagEnable, "ListIssueFields is the multi-select-aware variant and must be gated on the FF")
+	assert.Contains(t, tool.Description, "multi_select", "the MS-aware description must mention multi_select")
+
+	legacyServerTool := ListIssueFieldsLegacy(translations.NullTranslationHelper)
+	legacyTool := legacyServerTool.Tool
+	require.NoError(t, toolsnaps.Test(legacyTool.Name, legacyTool))
+	assert.Empty(t, legacyServerTool.FeatureFlagEnable, "ListIssueFieldsLegacy must not require any flag to be enabled")
+	assert.ElementsMatch(t, []string{FeatureFlagIssueFieldsMultiSelect}, legacyServerTool.FeatureFlagDisable, "ListIssueFieldsLegacy must be hidden when the multi-select flag is on")
+	assert.NotContains(t, legacyTool.Description, "multi_select", "the legacy description must not advertise multi_select")
 
 	assert.Equal(t, "list_issue_fields", tool.Name)
 	assert.NotEmpty(t, tool.Description)

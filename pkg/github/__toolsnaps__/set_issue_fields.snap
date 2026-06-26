@@ -8,7 +8,7 @@
   "inputSchema": {
     "properties": {
       "fields": {
-        "description": "Array of issue field values to set. Each element must have a 'field_id' (string, the GraphQL node ID of the field) and exactly one value field: 'text_value' for text fields, 'number_value' for number fields, 'date_value' (ISO 8601 date string) for date fields, or 'single_select_option_id' (the GraphQL node ID of the option) for single select fields. Set 'delete' to true to remove a field value.",
+        "description": "Array of issue field values to set. Each element must have a 'field_id' (string, the GraphQL node ID of the field) and exactly one value field: 'text_value' for text fields, 'number_value' for number fields, 'date_value' (ISO 8601 date string) for date fields, 'single_select_option_id' (the GraphQL node ID of the option) for single select fields, or 'multi_select_option_ids' (an array of GraphQL node IDs) for multi select fields. Set 'delete' to true to remove a field value.",
         "items": {
           "properties": {
             "confidence": {
@@ -35,6 +35,13 @@
             "is_suggestion": {
               "description": "If true, this field value is sent to the API as a suggestion (suggest:true) rather than an applied value. Whether the value is applied or recorded as a proposal is determined by the API.",
               "type": "boolean"
+            },
+            "multi_select_option_ids": {
+              "description": "The GraphQL node IDs of the options to set for a multi select field",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
             },
             "number_value": {
               "description": "The value to set for a number field",
