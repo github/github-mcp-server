@@ -558,7 +558,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"updated_field": {
 						Type:        "object",
-						Description: "Object describing the field to update and its new value. Required for 'update_project_item'. Two shapes are accepted: (1) by ID — {\"id\": 123456, \"value\": \"...\"}; (2) by name — {\"name\": \"Status\", \"value\": \"In Progress\"}. For single-select fields, the value may be the option name (resolved server-side) or the option ID. Set value to null to clear the field.",
+						Description: "Object describing the field to update and its new value. Required for 'update_project_item'. Two shapes are accepted: (1) by ID — {\"id\": 123456, \"value\": \"...\"}; (2) by name — {\"name\": \"Status\", \"value\": \"In Progress\"}. For single-select fields, option-name resolution requires the by-name shape; on the by-ID shape, pass the option ID. Set value to null to clear the field.",
 					},
 					"body": {
 						Type:        "string",
