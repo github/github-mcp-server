@@ -623,7 +623,7 @@ func Test_AddIssueComment(t *testing.T) {
 				"issue_number": float64(42),
 				"body":         "This is a test comment",
 			},
-			expectError:    false,
+			expectError:    true,
 			expectedErrMsg: "failed to create comment",
 		},
 	}
@@ -643,17 +643,11 @@ func Test_AddIssueComment(t *testing.T) {
 			// Call handler
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
 			if tc.expectError {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expectedErrMsg)
-				return
-			}
-
-			if tc.expectedErrMsg != "" {
-				require.NotNil(t, result)
-				textContent := getTextResult(t, result)
-				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
 				return
 			}
 
@@ -4421,10 +4415,22 @@ func TestAddIssueComment(t *testing.T) {
 				"repo":         "repo",
 				"issue_number": float64(42),
 				"comment_id":   float64(999),
-				"body":         "This is a comment",
 			},
 			expectToolError:    true,
 			expectedToolErrMsg: "comment_id can only be provided when reaction is provided",
+		},
+		{
+			name: "comment_id with body",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(999),
+				"body":         "This is a comment",
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "comment_id cannot be combined with body",
 		},
 		{
 			name: "does not create comment when reaction fails",

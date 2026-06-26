@@ -1129,7 +1129,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 					},
 					"comment_id": {
 						Type:        "number",
-						Description: "The numeric ID of the issue or pull request comment to react to. Use this for reactions to comments; omit it to react to the issue or pull request itself.",
+						Description: "The numeric ID of the issue or pull request comment to react to. Use this for reactions to comments; omit it to react to the issue or pull request itself. Cannot be combined with body.",
 						Minimum:     jsonschema.Ptr(1.0),
 					},
 					"body": {
@@ -1176,11 +1176,14 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			if !hasBody && !hasReaction {
-				return utils.NewToolResultError("at least one of body or reaction is required"), nil, nil
+			if hasCommentID && hasBody {
+				return utils.NewToolResultError("comment_id cannot be combined with body"), nil, nil
 			}
 			if hasCommentID && !hasReaction {
 				return utils.NewToolResultError("comment_id can only be provided when reaction is provided"), nil, nil
+			}
+			if !hasBody && !hasReaction {
+				return utils.NewToolResultError("at least one of body or reaction is required"), nil, nil
 			}
 			if hasBody && body == "" {
 				return utils.NewToolResultError("body cannot be empty when provided"), nil, nil
@@ -1228,7 +1231,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 				}
 				createdComment, resp, err := client.Issues.CreateComment(ctx, owner, repo, issueNumber, comment)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to create comment", err), nil, nil
+					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create comment", resp, err), nil, nil
 				}
 				defer func() { _ = resp.Body.Close() }()
 

@@ -842,7 +842,7 @@ The following sets of tools are available:
 - **add_issue_comment** - Add comment to issue or pull request
   - **Required OAuth Scopes**: `repo`
   - `body`: Comment content. Required unless reaction is provided. (string, optional)
-  - `comment_id`: The numeric ID of the issue or pull request comment to react to. Use this for reactions to comments; omit it to react to the issue or pull request itself. (number, optional)
+  - `comment_id`: The numeric ID of the issue or pull request comment to react to. Use this for reactions to comments; omit it to react to the issue or pull request itself. Cannot be combined with body. (number, optional)
   - `issue_number`: Issue or pull request number to comment on or react to. (number, required)
   - `owner`: Repository owner (string, required)
   - `reaction`: Emoji reaction to add. Required unless body is provided. (string, optional)
