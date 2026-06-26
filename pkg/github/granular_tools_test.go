@@ -244,24 +244,314 @@ func TestGranularUpdateIssueBody(t *testing.T) {
 }
 
 func TestGranularUpdateIssueAssignees(t *testing.T) {
-	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
-			"assignees": []any{"user1", "user2"},
-		}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
-	}))
-	deps := BaseDeps{Client: client}
-	serverTool := GranularUpdateIssueAssignees(translations.NullTranslationHelper)
-	handler := serverTool.Handler(deps)
+	tests := []struct {
+		name        string
+		requestArgs map[string]any
+		expectedReq map[string]any
+	}{
+		{
+			name: "assignees as plain strings",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"assignees":    []any{"user1", "user2"},
+			},
+			expectedReq: map[string]any{
+				"assignees": []any{"user1", "user2"},
+			},
+		},
+		{
+			name: "assignee objects without rationale serialize as strings",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"assignees": []any{
+					map[string]any{"login": "user1"},
+					"user2",
+				},
+			},
+			expectedReq: map[string]any{
+				"assignees": []any{"user1", "user2"},
+			},
+		},
+		{
+			name: "mixed strings and assignee objects with rationale",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"assignees": []any{
+					"user1",
+					map[string]any{"login": "user2", "rationale": "  Author of the component  "},
+					map[string]any{"login": "user3", "rationale": "Reviewer for this area"},
+				},
+			},
+			expectedReq: map[string]any{
+				"assignees": []any{
+					"user1",
+					map[string]any{"login": "user2", "rationale": "Author of the component"},
+					map[string]any{"login": "user3", "rationale": "Reviewer for this area"},
+				},
+			},
+		},
+		{
+			name: "[]string typed array still works",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"assignees":    []string{"user1", "user2"},
+			},
+			expectedReq: map[string]any{
+				"assignees": []any{"user1", "user2"},
+			},
+		},
+	}
 
-	request := createMCPRequest(map[string]any{
-		"owner":        "owner",
-		"repo":         "repo",
-		"issue_number": float64(1),
-		"assignees":    []string{"user1", "user2"},
-	})
-	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-	require.NoError(t, err)
-	assert.False(t, result.IsError)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+			}))
+			deps := BaseDeps{Client: client}
+			serverTool := GranularUpdateIssueAssignees(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			assert.False(t, result.IsError)
+		})
+	}
+}
+
+func TestGranularUpdateIssueAssigneesSuggest(t *testing.T) {
+	tests := []struct {
+		name        string
+		requestArgs map[string]any
+		expectedReq map[string]any
+	}{
+		{
+			name: "single assignee suggested without rationale",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"assignees": []any{
+					map[string]any{"login": "user1", "is_suggestion": true},
+				},
+			},
+			expectedReq: map[string]any{
+				"assignees": []any{
+					map[string]any{"login": "user1", "suggest": true},
+				},
+			},
+		},
+		{
+			name: "suggested assignee with rationale",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"assignees": []any{
+					map[string]any{"login": "user1", "rationale": "Author of the component", "is_suggestion": true},
+				},
+			},
+			expectedReq: map[string]any{
+				"assignees": []any{
+					map[string]any{"login": "user1", "rationale": "Author of the component", "suggest": true},
+				},
+			},
+		},
+		{
+			name: "mix of plain, applied-with-rationale, and suggested assignees",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"assignees": []any{
+					"user1",
+					map[string]any{"login": "user2", "rationale": "Author of the component"},
+					map[string]any{"login": "user3", "is_suggestion": true},
+				},
+			},
+			expectedReq: map[string]any{
+				"assignees": []any{
+					"user1",
+					map[string]any{"login": "user2", "rationale": "Author of the component"},
+					map[string]any{"login": "user3", "suggest": true},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+			}))
+			deps := BaseDeps{Client: client}
+			serverTool := GranularUpdateIssueAssignees(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			assert.False(t, result.IsError)
+		})
+	}
+}
+
+func TestGranularUpdateIssueAssigneesInvalidRationale(t *testing.T) {
+	tests := []struct {
+		name            string
+		requestArgs     map[string]any
+		expectedErrText string
+	}{
+		{
+			name: "rationale too long",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"assignees": []any{
+					map[string]any{"login": "user1", "rationale": strings.Repeat("a", 281)},
+				},
+			},
+			expectedErrText: "assignee rationale must be 280 characters or less",
+		},
+		{
+			name: "assignee object missing login",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"assignees": []any{
+					map[string]any{"rationale": "no login provided"},
+				},
+			},
+			expectedErrText: "each assignee object must have a 'login' string",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			deps := BaseDeps{Client: mustNewGHClient(t, MockHTTPClientWithHandlers(nil))}
+			serverTool := GranularUpdateIssueAssignees(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			errorContent := getErrorResult(t, result)
+			assert.Contains(t, errorContent.Text, tc.expectedErrText)
+		})
+	}
+}
+
+func TestGranularUpdateIssueAssigneesConfidence(t *testing.T) {
+	tests := []struct {
+		name        string
+		requestArgs map[string]any
+		expectedReq map[string]any
+	}{
+		{
+			name: "assignee with confidence triggers object form",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"assignees": []any{
+					map[string]any{"login": "user1", "confidence": "HIGH"},
+				},
+			},
+			expectedReq: map[string]any{
+				"assignees": []any{
+					map[string]any{"login": "user1", "confidence": "HIGH"},
+				},
+			},
+		},
+		{
+			name: "assignee with confidence and rationale",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"assignees": []any{
+					map[string]any{"login": "user1", "rationale": "Component author", "confidence": "MEDIUM"},
+				},
+			},
+			expectedReq: map[string]any{
+				"assignees": []any{
+					map[string]any{"login": "user1", "rationale": "Component author", "confidence": "MEDIUM"},
+				},
+			},
+		},
+		{
+			name: "assignee confidence is normalized",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"assignees": []any{
+					map[string]any{"login": "user1", "confidence": " high\t"},
+				},
+			},
+			expectedReq: map[string]any{
+				"assignees": []any{
+					map[string]any{"login": "user1", "confidence": "HIGH"},
+				},
+			},
+		},
+		{
+			name: "invalid confidence value",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"assignees": []any{
+					map[string]any{"login": "user1", "confidence": "very_high"},
+				},
+			},
+			expectedReq: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.expectedReq == nil {
+				deps := BaseDeps{Client: mustNewGHClient(t, MockHTTPClientWithHandlers(nil))}
+				serverTool := GranularUpdateIssueAssignees(translations.NullTranslationHelper)
+				handler := serverTool.Handler(deps)
+
+				request := createMCPRequest(tc.requestArgs)
+				result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+				require.NoError(t, err)
+
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, "confidence must be one of: LOW, MEDIUM, HIGH")
+				return
+			}
+
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+			}))
+			deps := BaseDeps{Client: client}
+			serverTool := GranularUpdateIssueAssignees(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			assert.False(t, result.IsError)
+		})
+	}
 }
 
 func TestGranularUpdateIssueLabels(t *testing.T) {

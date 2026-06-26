@@ -138,7 +138,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **update_issue_assignees** - Update Issue Assignees
   - **Required OAuth Scopes**: `repo`
-  - `assignees`: GitHub usernames to assign to this issue (string[], required)
+  - `assignees`: GitHub usernames to assign to this issue. ([], required)
   - `issue_number`: The issue number to update (number, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)
