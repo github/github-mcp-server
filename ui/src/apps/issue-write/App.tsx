@@ -24,6 +24,7 @@ import {
 } from "@primer/octicons-react";
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
+import { completedToolResult } from "../../lib/toolResult";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 
 interface IssueResult {
@@ -435,9 +436,20 @@ function CreateIssueApp() {
   const [repoSearchLoading, setRepoSearchLoading] = useState(false);
   const [repoFilter, setRepoFilter] = useState("");
 
-  const { app, error: appError, toolInput, callTool, hostContext, setModelContext, openLink } = useMcpApp({
+  const { app, error: appError, toolInput, toolResult, callTool, hostContext, setModelContext, openLink } = useMcpApp({
     appName: "github-mcp-server-issue-write",
   });
+
+  // When the server created/updated the issue up-front instead of deferring to
+  // this form (e.g. the agent passed show_ui=false or parameters the form can't
+  // represent, such as labels/assignees/issue_fields), the host still renders
+  // this View and delivers the result via tool-result. Render that completed
+  // result as success so we never show a create/update form for an issue that
+  // is already done. The deferral sentinel (awaiting_user_submission) returns
+  // null here, keeping the form for the normal deferred flow.
+  // See github/copilot-mcp-core#1864.
+  const resultIssue = useMemo(() => completedToolResult<IssueResult>(toolResult), [toolResult]);
+  const shownIssue = successIssue ?? resultIssue;
 
   // Get method and issue_number from toolInput
   const method = (toolInput?.method as string) || "create";
@@ -1210,10 +1222,10 @@ function CreateIssueApp() {
     );
   }
 
-  if (successIssue) {
+  if (shownIssue) {
     return (
       <SuccessView
-        issue={successIssue}
+        issue={shownIssue}
         owner={owner}
         repo={repo}
         submittedTitle={title}
