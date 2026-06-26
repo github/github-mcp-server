@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/github/github-mcp-server/internal/oauth"
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/transport"
@@ -61,16 +62,30 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
 	}
 
-	// Construct REST client
+	// Construct REST client. When a TokenProvider is configured (OAuth), we
+	// authenticate via BearerAuthTransport and skip go-github's WithAuthToken:
+	// the latter installs its own round tripper that would pin the static token
+	// and shadow the dynamic one.
 	restUATransport := &transport.UserAgentTransport{
 		Transport: http.DefaultTransport,
 		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
 	}
-	restClient, err := gogithub.NewClient(
-		gogithub.WithHTTPClient(&http.Client{Transport: restUATransport}),
-		gogithub.WithAuthToken(cfg.Token),
-		gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
-	)
+	var restClient *gogithub.Client
+	if cfg.TokenProvider != nil {
+		restClient, err = gogithub.NewClient(
+			gogithub.WithHTTPClient(&http.Client{Transport: &transport.BearerAuthTransport{
+				Transport:     restUATransport,
+				TokenProvider: cfg.TokenProvider,
+			}}),
+			gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
+		)
+	} else {
+		restClient, err = gogithub.NewClient(
+			gogithub.WithHTTPClient(&http.Client{Transport: restUATransport}),
+			gogithub.WithAuthToken(cfg.Token),
+			gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
+		)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to create REST client: %w", err)
 	}
@@ -82,7 +97,8 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 			Transport: &transport.GraphQLFeaturesTransport{
 				Transport: http.DefaultTransport,
 			},
-			Token: cfg.Token,
+			Token:         cfg.Token,
+			TokenProvider: cfg.TokenProvider,
 		},
 	}
 
@@ -229,10 +245,29 @@ type StdioServerConfig struct {
 
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
+
+	// OAuthManager, when non-nil, enables OAuth 2.1 login for stdio mode. The
+	// server starts without a token and runs the authorization flow on the
+	// first tool call (see createOAuthMiddleware). It is mutually exclusive with
+	// a static Token.
+	OAuthManager *oauth.Manager
+
+	// OAuthScopes are the scopes requested during OAuth login. They double as
+	// the scope set for tool filtering: tools requiring a scope outside this set
+	// are hidden. The default set is the full supported list, which hides
+	// nothing; an explicit, narrower list filters accordingly.
+	OAuthScopes []string
 }
 
 // RunStdioServer is not concurrent safe.
 func RunStdioServer(cfg StdioServerConfig) error {
+	// OAuth login and a static token are mutually exclusive: they would
+	// disagree on how the token is sourced (lazy provider vs. static) and on
+	// scope filtering, so reject the ambiguous combination up front.
+	if cfg.OAuthManager != nil && cfg.Token != "" {
+		return fmt.Errorf("OAuthManager and a static Token are mutually exclusive: provide one or the other")
+	}
+
 	// Create app context
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -255,11 +290,13 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
 
-	// Fetch token scopes for scope-based tool filtering (PAT tokens only)
-	// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.
-	// Fine-grained PATs and other token types don't support this, so we skip filtering.
+	// Determine the scope set used to filter tools. Classic PATs expose their
+	// granted scopes via the API; OAuth uses the requested scopes (the default
+	// set hides nothing, a narrower explicit set filters accordingly). Other
+	// token types don't advertise scopes, so filtering is skipped.
 	var tokenScopes []string
-	if strings.HasPrefix(cfg.Token, "ghp_") {
+	switch {
+	case strings.HasPrefix(cfg.Token, "ghp_"):
 		fetchedScopes, err := fetchTokenScopesForHost(ctx, cfg.Token, cfg.Host)
 		if err != nil {
 			logger.Warn("failed to fetch token scopes, continuing without scope filtering", "error", err)
@@ -267,8 +304,18 @@ func RunStdioServer(cfg StdioServerConfig) error {
 			tokenScopes = fetchedScopes
 			logger.Info("token scopes fetched for filtering", "scopes", tokenScopes)
 		}
-	} else {
+	case cfg.OAuthManager != nil:
+		tokenScopes = cfg.OAuthScopes
+		logger.Info("using requested OAuth scopes for tool filtering", "scopes", tokenScopes)
+	default:
 		logger.Debug("skipping scope filtering for non-PAT token")
+	}
+
+	// For OAuth, the token is resolved lazily: empty until the user authorizes
+	// on the first tool call, then refreshed for the rest of the session.
+	var tokenProvider func() string
+	if cfg.OAuthManager != nil {
+		tokenProvider = cfg.OAuthManager.AccessToken
 	}
 
 	ghServer, err := NewStdioMCPServer(ctx, github.MCPServerConfig{
@@ -287,9 +334,16 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Logger:            logger,
 		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
 		TokenScopes:       tokenScopes,
+		TokenProvider:     tokenProvider,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
+	}
+
+	// With OAuth, intercept tool calls to run the authorization flow on first
+	// use, before the handler tries to call GitHub with an empty token.
+	if cfg.OAuthManager != nil {
+		ghServer.AddReceivingMiddleware(createOAuthMiddleware(cfg.OAuthManager, logger))
 	}
 
 	if cfg.ExportTranslations {
