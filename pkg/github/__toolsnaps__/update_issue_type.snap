@@ -4,11 +4,20 @@
     "openWorldHint": true,
     "title": "Update Issue Type"
   },
-  "description": "Update the type of an existing issue (e.g. 'bug', 'feature').",
+  "description": "Update the type of an existing issue (e.g. 'bug', 'feature'). When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice.",
   "inputSchema": {
     "properties": {
+      "confidence": {
+        "description": "How confident you are in this choice. Use 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal.",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH"
+        ],
+        "type": "string"
+      },
       "is_suggestion": {
-        "description": "If true, propose the issue type change instead of applying it. Defaults to false, which applies the change to the issue.",
+        "description": "If true, this issue type change is sent to the API as a suggestion (suggest:true) rather than an applied value. Whether the type is applied or recorded as a proposal is determined by the API.",
         "type": "boolean"
       },
       "issue_number": {

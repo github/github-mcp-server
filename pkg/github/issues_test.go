@@ -15,6 +15,7 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/http/headers"
 	transportpkg "github.com/github/github-mcp-server/pkg/http/transport"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -70,16 +71,15 @@ func (rt *repoAccessMockTransport) RoundTrip(req *http.Request) (*http.Response,
 		value = repoAccessValue{isPrivate: false}
 	}
 
-	responseBody, err := json.Marshal(map[string]any{
-		"data": map[string]any{
-			"viewer": map[string]any{
-				"login": "test-viewer",
-			},
-			"repository": map[string]any{
-				"isPrivate": value.isPrivate,
-			},
-		},
-	})
+	data := map[string]any{}
+	if strings.Contains(payload.Query, "viewer") {
+		data["viewer"] = map[string]any{"login": "test-viewer"}
+	}
+	if strings.Contains(payload.Query, "repository") {
+		data["repository"] = map[string]any{"isPrivate": value.isPrivate}
+	}
+
+	responseBody, err := json.Marshal(map[string]any{"data": data})
 	if err != nil {
 		return nil, err
 	}
@@ -356,7 +356,7 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 
-	t.Run("insiders mode enabled on private repo with get_comments emits private untrusted", func(t *testing.T) {
+	t.Run("insiders mode enabled on private repo with get_comments emits private trusted", func(t *testing.T) {
 		deps := BaseDeps{
 			Client:         mustNewGHClient(t, makeMockClient(true, 0)),
 			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
@@ -370,7 +370,7 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
-		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "trusted", ifcMap["integrity"])
 		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
 
@@ -394,7 +394,9 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 }
 
 func Test_GetIssue_FieldValues(t *testing.T) {
-	// Verify that issue_field_values from the REST API are present in the returned object.
+	// The raw REST issue_field_values are always cleared. Enriched field_values are
+	// only populated via GraphQL when the issue has a node ID; this issue has none,
+	// so field_values stays empty.
 	serverTool := IssueRead(translations.NullTranslationHelper)
 
 	mockIssueWithFields := &github.Issue{
@@ -457,24 +459,104 @@ func Test_GetIssue_FieldValues(t *testing.T) {
 	err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 	require.NoError(t, err)
 
-	require.Len(t, returnedIssue.IssueFieldValues, 2, "expected two issue field values")
+	// Raw REST IssueFieldValues must be cleared, and no enriched field_values are
+	// present because this issue has no node ID.
+	assert.Empty(t, returnedIssue.IssueFieldValues, "raw REST issue_field_values should not be exposed")
+	assert.Empty(t, returnedIssue.FieldValues, "enriched field_values should not be present without a node ID")
+}
 
-	first := returnedIssue.IssueFieldValues[0]
-	assert.Equal(t, int64(1001), first.IssueFieldID)
-	assert.Equal(t, "FV_node_1", first.NodeID)
-	assert.Equal(t, "single_select", first.DataType)
-	assert.Equal(t, "High", first.Value)
-	require.NotNil(t, first.SingleSelectOption)
-	assert.Equal(t, int64(42), first.SingleSelectOption.ID)
-	assert.Equal(t, "High", first.SingleSelectOption.Name)
-	assert.Equal(t, "red", first.SingleSelectOption.Color)
+func Test_GetIssue_FieldValues_Enriched(t *testing.T) {
+	// Verify the enriched field_values are populated via GraphQL when the issue has
+	// a node ID, and the raw REST issue_field_values stays cleared.
+	serverTool := IssueRead(translations.NullTranslationHelper)
 
-	second := returnedIssue.IssueFieldValues[1]
-	assert.Equal(t, int64(1002), second.IssueFieldID)
-	assert.Equal(t, "FV_node_2", second.NodeID)
-	assert.Equal(t, "text", second.DataType)
-	assert.Equal(t, "some text value", second.Value)
-	assert.Nil(t, second.SingleSelectOption)
+	mockIssueWithFields := &github.Issue{
+		Number:  github.Ptr(99),
+		NodeID:  github.Ptr("I_node_99"),
+		Title:   github.Ptr("Issue with field values"),
+		Body:    github.Ptr("body"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/99"),
+		User: &github.User{
+			Login: github.Ptr("testuser"),
+		},
+		IssueFieldValues: []*github.IssueFieldValue{
+			{
+				IssueFieldID: 1001,
+				NodeID:       "FV_node_1",
+				DataType:     "single_select",
+				Value:        "High",
+			},
+		},
+	}
+
+	restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssueWithFields),
+	})
+
+	gqlVars := map[string]any{
+		"ids": []any{"I_node_99"},
+	}
+	gqlResponse := githubv4mock.DataResponse(map[string]any{
+		"nodes": []map[string]any{
+			{
+				"id": "I_node_99",
+				"issueFieldValues": map[string]any{
+					"nodes": []map[string]any{
+						{
+							"__typename": "IssueFieldSingleSelectValue",
+							"field":      map[string]any{"name": "priority"},
+							"value":      "P1",
+						},
+						{
+							"__typename":  "IssueFieldNumberValue",
+							"field":       map[string]any{"name": "estimate"},
+							"valueNumber": 2.5,
+						},
+					},
+				},
+			},
+		},
+	})
+
+	const nodesQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}}}}"
+	matcher := githubv4mock.NewQueryMatcher(nodesQueryString, gqlVars, gqlResponse)
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+
+	cache := stubRepoAccessCache(nil, 15*time.Minute)
+	deps := BaseDeps{
+		Client:          mustNewGHClient(t, restClient),
+		GQLClient:       gqlClient,
+		RepoAccessCache: cache,
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":       "get",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(99),
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.IsError, "expected result to not be an error")
+
+	textContent := getTextResult(t, result)
+
+	var returnedIssue MinimalIssue
+	err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
+	require.NoError(t, err)
+
+	// Raw REST IssueFieldValues is always cleared.
+	assert.Empty(t, returnedIssue.IssueFieldValues, "raw REST issue_field_values should not be exposed")
+
+	// Enriched FieldValues comes from the GraphQL nodes() round-trip.
+	require.Len(t, returnedIssue.FieldValues, 2, "field_values should be populated from GraphQL")
+	assert.Equal(t, "priority", returnedIssue.FieldValues[0].Field)
+	assert.Equal(t, "P1", returnedIssue.FieldValues[0].Value)
+	assert.Equal(t, "estimate", returnedIssue.FieldValues[1].Field)
+	assert.Equal(t, "2.5", returnedIssue.FieldValues[1].Value)
 }
 
 func Test_AddIssueComment(t *testing.T) {
@@ -1166,9 +1248,8 @@ func Test_SearchIssues_FieldValuesEnrichment(t *testing.T) {
 	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
 
 	deps := BaseDeps{
-		Client:         mustNewGHClient(t, restClient),
-		GQLClient:      gqlClient,
-		featureChecker: featureCheckerFor(FeatureFlagIssueFields),
+		Client:    mustNewGHClient(t, restClient),
+		GQLClient: gqlClient,
 	}
 	handler := serverTool.Handler(deps)
 
@@ -1200,6 +1281,7 @@ func Test_CreateIssue(t *testing.T) {
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.Empty(t, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -1478,7 +1560,8 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "Ready to create an issue")
+		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for creating a new issue")
+		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
 
 	t.Run("UI client with _ui_submitted executes directly", func(t *testing.T) {
@@ -1512,78 +1595,10 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 			"non-UI client should execute directly")
 	})
 
-	t.Run("UI client with state change skips form and executes directly", func(t *testing.T) {
-		mockBaseIssue := &github.Issue{
-			Number:  github.Ptr(1),
-			Title:   github.Ptr("Test"),
-			State:   github.Ptr("open"),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/1"),
-		}
-		issueIDQueryResponse := githubv4mock.DataResponse(map[string]any{
-			"repository": map[string]any{
-				"issue": map[string]any{
-					"id": "I_kwDOA0xdyM50BPaO",
-				},
-			},
-		})
-		closeSuccessResponse := githubv4mock.DataResponse(map[string]any{
-			"closeIssue": map[string]any{
-				"issue": map[string]any{
-					"id":     "I_kwDOA0xdyM50BPaO",
-					"number": 1,
-					"url":    "https://github.com/owner/repo/issues/1",
-					"state":  "CLOSED",
-				},
-			},
-		})
-		completedReason := IssueClosedStateReasonCompleted
-
-		closeClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockBaseIssue),
-		}))
-		closeGQLClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
-			githubv4mock.NewQueryMatcher(
-				struct {
-					Repository struct {
-						Issue struct {
-							ID githubv4.ID
-						} `graphql:"issue(number: $issueNumber)"`
-					} `graphql:"repository(owner: $owner, name: $repo)"`
-				}{},
-				map[string]any{
-					"owner":       githubv4.String("owner"),
-					"repo":        githubv4.String("repo"),
-					"issueNumber": githubv4.Int(1),
-				},
-				issueIDQueryResponse,
-			),
-			githubv4mock.NewMutationMatcher(
-				struct {
-					CloseIssue struct {
-						Issue struct {
-							ID     githubv4.ID
-							Number githubv4.Int
-							URL    githubv4.String
-							State  githubv4.String
-						}
-					} `graphql:"closeIssue(input: $input)"`
-				}{},
-				CloseIssueInput{
-					IssueID:     "I_kwDOA0xdyM50BPaO",
-					StateReason: &completedReason,
-				},
-				nil,
-				closeSuccessResponse,
-			),
-		))
-
-		closeDeps := BaseDeps{
-			Client:         closeClient,
-			GQLClient:      closeGQLClient,
-			featureChecker: featureCheckerFor(MCPAppsFeatureFlag),
-		}
-		closeHandler := serverTool.Handler(closeDeps)
-
+	t.Run("UI client with state change routes through UI form", func(t *testing.T) {
+		// state/state_reason/duplicate_of are form params (the issue-write view
+		// renders close/reopen controls), so a call carrying them must go to
+		// the form rather than execute directly.
 		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"method":       "update",
 			"owner":        "owner",
@@ -1592,14 +1607,13 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 			"state":        "closed",
 			"state_reason": "completed",
 		})
-		result, err := closeHandler(ContextWithDeps(context.Background(), closeDeps), &request)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.NotContains(t, textContent.Text, "Ready to update issue",
-			"state change should skip UI form")
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
-			"state change should execute directly and return issue URL")
+		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for editing issue #1",
+			"state change should route through UI form")
+		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
 
 	t.Run("UI client update without state change returns form message", func(t *testing.T) {
@@ -1614,17 +1628,133 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "Ready to update issue #1",
+		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for editing issue #1",
 			"update without state should show UI form")
+		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
+
+	t.Run("UI client with issue_fields routes through UI form", func(t *testing.T) {
+		// issue_fields is now a form param (the issue-write view renders a
+		// per-field editor), so a call carrying it must go to the form rather
+		// than execute directly.
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"method": "create",
+			"owner":  "owner",
+			"repo":   "repo",
+			"title":  "Issue with fields",
+			"issue_fields": []any{
+				map[string]any{"field_name": "Priority", "field_option_name": "P1"},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for creating a new issue",
+			"issue_fields should route through UI form")
+		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
+	})
+
+	t.Run("UI client with labels routes through UI form", func(t *testing.T) {
+		// labels is now a form param (the issue-write view prefills and renders
+		// a label selector), so a call carrying them must route to the form
+		// rather than execute directly.
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"method": "create",
+			"owner":  "owner",
+			"repo":   "repo",
+			"title":  "Test",
+			"labels": []any{"bug"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for creating a new issue",
+			"labels should route through UI form")
+		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
+	})
+}
+
+func Test_issueWriteHasNonFormParams(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args map[string]any
+		want bool
+	}{
+		{name: "no params", args: map[string]any{}, want: false},
+		{name: "only form params", args: map[string]any{"method": "create", "owner": "o", "repo": "r", "title": "t", "body": "b", "issue_number": float64(1), "_ui_submitted": true}, want: false},
+		{name: "labels present", args: map[string]any{"title": "t", "labels": []any{"bug"}}, want: false},
+		{name: "assignees present", args: map[string]any{"title": "t", "assignees": []any{"octocat"}}, want: false},
+		{name: "milestone present", args: map[string]any{"title": "t", "milestone": float64(2)}, want: false},
+		{name: "type present", args: map[string]any{"title": "t", "type": "Bug"}, want: false},
+		{name: "issue_fields present", args: map[string]any{"issue_fields": []any{map[string]any{"field_name": "Priority"}}}, want: false},
+		{name: "state present", args: map[string]any{"state": "closed"}, want: false},
+		{name: "state_reason present", args: map[string]any{"state_reason": "completed"}, want: false},
+		{name: "duplicate_of present", args: map[string]any{"duplicate_of": float64(7)}, want: false},
+		{name: "unknown non-schema param present", args: map[string]any{"title": "t", "not_a_real_param": "x"}, want: true},
+		{name: "nil value is ignored", args: map[string]any{"issue_fields": nil}, want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, hasNonFormParams(tc.args, issueWriteFormParams))
+		})
+	}
+}
+
+// Test_issueWriteSchemaClassification fails when a schema property is added
+// without classifying it as either form-resendable (issueWriteFormParams) or
+// known-non-form (knownNonForm below). Without this guard, an unclassified
+// property would silently flip UI gating: form-incompatible fields would
+// stop tripping the safety-net bypass and the form would drop their values.
+func Test_issueWriteSchemaClassification(t *testing.T) {
+	t.Parallel()
+
+	// Schema properties the MCP App form cannot represent — their presence
+	// must trigger the safety-net bypass via hasNonFormParams. The
+	// form currently collects every schema property, so this allowlist is
+	// empty; add a property here only if it is added to the schema without
+	// corresponding form support.
+	knownNonForm := map[string]struct{}{}
+
+	cases := []struct {
+		name string
+		tool inventory.ServerTool
+	}{
+		{name: "IssueWrite", tool: IssueWrite(translations.NullTranslationHelper)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			schema, ok := tc.tool.Tool.InputSchema.(*jsonschema.Schema)
+			require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+
+			for prop := range schema.Properties {
+				_, isForm := issueWriteFormParams[prop]
+				_, isNonForm := knownNonForm[prop]
+
+				assert.Falsef(t, isForm && isNonForm,
+					"property %q is classified as both form-resendable and non-form — pick one", prop)
+				assert.Truef(t, isForm || isNonForm,
+					"property %q in %s schema is unclassified — add it to issueWriteFormParams (pkg/github/issues.go) "+
+						"if the MCP App form can carry it on submit, otherwise add it to the knownNonForm allowlist in this test",
+					prop, tc.name)
+			}
+		})
+	}
 }
 
 func Test_ListIssues(t *testing.T) {
 	// Verify tool definition
 	serverTool := ListIssues(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueFields, tool))
-	require.Equal(t, FeatureFlagIssueFields, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.Empty(t, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "list_issues", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -2513,7 +2643,7 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 
-	t.Run("insiders mode enabled on private repo emits private untrusted label", func(t *testing.T) {
+	t.Run("insiders mode enabled on private repo emits private trusted label", func(t *testing.T) {
 		matcher := githubv4mock.NewQueryMatcher(query, vars, makeResponse(true))
 		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
 		deps := BaseDeps{
@@ -2536,98 +2666,9 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		var ifcMap map[string]any
 		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
 
-		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "trusted", ifcMap["integrity"])
 		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
-}
-
-func Test_LegacyListIssues_Definition(t *testing.T) {
-	serverTool := LegacyListIssues(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-
-	// LegacyListIssues claims the base tool name "list_issues" and produces the
-	// FeatureFlagIssueFields-disabled schema (no field_filters). It owns the
-	// canonical list_issues.snap; the FeatureFlagIssueFields-enabled variant
-	// owns list_issues_ff_<flag>.snap.
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Equal(t, "list_issues", tool.Name)
-	require.Equal(t, FeatureFlagIssueFields, serverTool.FeatureFlagDisable)
-	require.Empty(t, serverTool.FeatureFlagEnable)
-
-	props := tool.InputSchema.(*jsonschema.Schema).Properties
-	assert.Contains(t, props, "owner")
-	assert.Contains(t, props, "repo")
-	assert.Contains(t, props, "state")
-	assert.Contains(t, props, "labels")
-	assert.Contains(t, props, "since")
-	assert.NotContains(t, props, "field_filters", "legacy list_issues must not advertise field_filters")
-}
-
-func Test_LegacyListIssues_OmitsFieldValuesAndFilters(t *testing.T) {
-	t.Parallel()
-
-	serverTool := LegacyListIssues(translations.NullTranslationHelper)
-
-	mockIssues := []map[string]any{
-		{
-			"number":     7,
-			"title":      "Legacy issue",
-			"body":       "body",
-			"state":      "OPEN",
-			"databaseId": 7,
-			"createdAt":  "2026-01-01T00:00:00Z",
-			"updatedAt":  "2026-01-01T00:00:00Z",
-			"author":     map[string]any{"login": "octocat"},
-			"labels":     map[string]any{"nodes": []map[string]any{}},
-			"comments":   map[string]any{"totalCount": 0},
-		},
-	}
-	pageInfo := map[string]any{
-		"hasNextPage":     false,
-		"hasPreviousPage": false,
-		"startCursor":     "c1",
-		"endCursor":       "c1",
-	}
-
-	// The legacy query must NOT reference issueFieldValues (neither in the selection
-	// set nor in filterBy). The matcher's query string therefore omits both.
-	const legacyQuery = "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
-	vars := map[string]any{
-		"owner":     "owner",
-		"repo":      "repo",
-		"states":    []any{"OPEN", "CLOSED"},
-		"orderBy":   "CREATED_AT",
-		"direction": "DESC",
-		"first":     float64(30),
-		"after":     nil,
-	}
-	response := githubv4mock.DataResponse(map[string]any{
-		"repository": map[string]any{
-			"isPrivate": false,
-			"issues": map[string]any{
-				"nodes":      mockIssues,
-				"pageInfo":   pageInfo,
-				"totalCount": 1,
-			},
-		},
-	})
-	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(githubv4mock.NewQueryMatcher(legacyQuery, vars, response)))
-
-	deps := BaseDeps{GQLClient: gqlClient}
-	handler := serverTool.Handler(deps)
-	request := createMCPRequest(map[string]any{
-		"owner": "owner",
-		"repo":  "repo",
-	})
-	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-	require.NoError(t, err)
-	require.False(t, result.IsError, "expected non-error result; got: %v", getTextResult(t, result).Text)
-
-	var resp MinimalIssuesResponse
-	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &resp))
-	require.Len(t, resp.Issues, 1)
-	assert.Equal(t, 7, resp.Issues[0].Number)
-	assert.Nil(t, resp.Issues[0].FieldValues, "legacy list_issues must not return field_values")
 }
 
 func Test_UpdateIssue(t *testing.T) {
@@ -2762,6 +2803,33 @@ func Test_UpdateIssue(t *testing.T) {
 			},
 			expectError:   false,
 			expectedIssue: mockUpdatedIssue,
+		},
+		{
+			name: "partial update clears labels and assignees",
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+					"labels":    []any{},
+					"assignees": []any{},
+				}).andThen(
+					mockResponse(t, http.StatusOK, &github.Issue{
+						Number:  github.Ptr(123),
+						HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
+					}),
+				),
+			}),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"labels":       []any{},
+				"assignees":    []any{},
+			},
+			expectError: false,
+			expectedIssue: &github.Issue{
+				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
+			},
 		},
 		{
 			name: "partial update with issue fields reconciled by names",
@@ -3182,6 +3250,47 @@ func Test_UpdateIssue(t *testing.T) {
 	}
 }
 
+func Test_UpdateIssueClearsLabelsAndAssignees(t *testing.T) {
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+	updatedIssue := &github.Issue{
+		Number:  github.Ptr(8),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/8"),
+	}
+
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+			"labels":    []any{},
+			"assignees": []any{},
+		}).andThen(mockResponse(t, http.StatusOK, updatedIssue)),
+	}))
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
+	deps := BaseDeps{
+		Client:    client,
+		GQLClient: gqlClient,
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":       "update",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(8),
+		"labels":       []any{},
+		"assignees":    []any{},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	if result.IsError {
+		t.Fatalf("Unexpected error result: %s", getErrorResult(t, result).Text)
+	}
+	textContent := getTextResult(t, result)
+
+	var updateResp MinimalResponse
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &updateResp))
+	assert.Equal(t, updatedIssue.GetHTMLURL(), updateResp.URL)
+}
+
 func Test_ParseISOTimestamp(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -3516,6 +3625,128 @@ func Test_GetIssueLabels(t *testing.T) {
 			} else {
 				assert.False(t, result.IsError)
 			}
+		})
+	}
+}
+
+func Test_GetIssueParent(t *testing.T) {
+	t.Parallel()
+
+	serverTool := IssueRead(translations.NullTranslationHelper)
+
+	parentMatcherStruct := struct {
+		Repository struct {
+			Issue struct {
+				Parent *struct {
+					Number     githubv4.Int
+					Title      githubv4.String
+					State      githubv4.String
+					URL        githubv4.String
+					Repository struct {
+						NameWithOwner githubv4.String
+					}
+				}
+			} `graphql:"issue(number: $issueNumber)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}{}
+
+	vars := map[string]any{
+		"owner":       githubv4.String("owner"),
+		"repo":        githubv4.String("repo"),
+		"issueNumber": githubv4.Int(123),
+	}
+
+	tests := []struct {
+		name            string
+		mockedClient    *http.Client
+		expectToolError bool
+		expectedText    string
+	}{
+		{
+			name: "issue has a parent",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					parentMatcherStruct,
+					vars,
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"issue": map[string]any{
+								"parent": map[string]any{
+									"number": githubv4.Int(42),
+									"title":  githubv4.String("Parent issue"),
+									"state":  githubv4.String("OPEN"),
+									"url":    githubv4.String("https://github.com/owner/repo/issues/42"),
+									"repository": map[string]any{
+										"nameWithOwner": githubv4.String("owner/repo"),
+									},
+								},
+							},
+						},
+					}),
+				),
+			),
+			expectedText: `"number":42`,
+		},
+		{
+			name: "issue has no parent",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					parentMatcherStruct,
+					vars,
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"issue": map[string]any{
+								"parent": nil,
+							},
+						},
+					}),
+				),
+			),
+			expectedText: `"parent":null`,
+		},
+		{
+			name: "graphql error",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					parentMatcherStruct,
+					vars,
+					githubv4mock.ErrorResponse("issue not found"),
+				),
+			),
+			expectToolError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gqlClient := githubv4.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, nil)
+			deps := BaseDeps{
+				Client:          client,
+				GQLClient:       gqlClient,
+				RepoAccessCache: stubRepoAccessCache(nil, 15*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(map[string]any{
+				"method":       "get_parent",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+			})
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			if tc.expectToolError {
+				assert.True(t, result.IsError)
+				return
+			}
+			assert.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+			assert.Contains(t, textContent.Text, tc.expectedText)
 		})
 	}
 }
@@ -4509,6 +4740,30 @@ func Test_ListIssueTypes(t *testing.T) {
 			requestArgs:    map[string]any{},
 			expectError:    false, // This should be handled by parameter validation, error returned in result
 			expectedErrMsg: "missing required parameter: owner",
+		},
+		{
+			name: "successful repo issue types retrieval",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/testorg/testrepo/issue-types": mockResponse(t, http.StatusOK, mockIssueTypes),
+			}),
+			requestArgs: map[string]any{
+				"owner": "testorg",
+				"repo":  "testrepo",
+			},
+			expectError:        false,
+			expectedIssueTypes: mockIssueTypes,
+		},
+		{
+			name: "repo not found",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/testorg/nonexistent/issue-types": mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
+			}),
+			requestArgs: map[string]any{
+				"owner": "testorg",
+				"repo":  "nonexistent",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to list issue types",
 		},
 	}
 

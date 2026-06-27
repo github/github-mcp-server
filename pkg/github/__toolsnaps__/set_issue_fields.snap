@@ -11,6 +11,15 @@
         "description": "Array of issue field values to set. Each element must have a 'field_id' (string, the GraphQL node ID of the field) and exactly one value field: 'text_value' for text fields, 'number_value' for number fields, 'date_value' (ISO 8601 date string) for date fields, or 'single_select_option_id' (the GraphQL node ID of the option) for single select fields. Set 'delete' to true to remove a field value.",
         "items": {
           "properties": {
+            "confidence": {
+              "description": "How confident you are in this choice. Use 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal.",
+              "enum": [
+                "LOW",
+                "MEDIUM",
+                "HIGH"
+              ],
+              "type": "string"
+            },
             "date_value": {
               "description": "The value to set for a date field (ISO 8601 date string)",
               "type": "string"
@@ -22,6 +31,10 @@
             "field_id": {
               "description": "The GraphQL node ID of the issue field",
               "type": "string"
+            },
+            "is_suggestion": {
+              "description": "If true, this field value is sent to the API as a suggestion (suggest:true) rather than an applied value. Whether the value is applied or recorded as a proposal is determined by the API.",
+              "type": "boolean"
             },
             "number_value": {
               "description": "The value to set for a number field",

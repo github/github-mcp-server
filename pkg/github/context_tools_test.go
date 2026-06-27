@@ -199,7 +199,9 @@ func Test_GetMe_IFC_FeatureFlag(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, "trusted", ifcMap["integrity"])
-		assert.Equal(t, "public", ifcMap["confidentiality"])
+		// get_me returns the caller's private repo/gist counts, which are not
+		// part of the public profile, so confidentiality is private.
+		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
 }
 

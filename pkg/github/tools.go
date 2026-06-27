@@ -5,10 +5,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v87/github"
 	"github.com/shurcooL/githubv4"
+
+	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/translations"
 )
 
 type GetClientFn func(context.Context) (*github.Client, error)
@@ -75,6 +76,11 @@ var (
 		ID:          "actions",
 		Description: "GitHub Actions workflows and CI/CD operations",
 		Icon:        "workflow",
+	}
+	ToolsetMetadataCodeQuality = inventory.ToolsetMetadata{
+		ID:          "code_quality",
+		Description: "GitHub Code Quality related tools",
+		Icon:        "code-square",
 	}
 	ToolsetMetadataCodeSecurity = inventory.ToolsetMetadata{
 		ID:          "code_security",
@@ -180,6 +186,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		SearchCode(t),
 		SearchCommits(t),
 		GetCommit(t),
+		GetFileBlame(t),
 		ListBranches(t),
 		ListTags(t),
 		GetTag(t),
@@ -204,12 +211,13 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		IssueRead(t),
 		SearchIssues(t),
 		ListIssues(t),
-		LegacyListIssues(t),
 		ListIssueTypes(t),
 		ListIssueFields(t),
 		IssueWrite(t),
 		AddIssueComment(t),
 		SubIssueWrite(t),
+		IssueDependencyRead(t),
+		IssueDependencyWrite(t),
 
 		// User tools
 		SearchUsers(t),
@@ -232,6 +240,9 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		// Copilot tools
 		AssignCopilotToIssue(t),
 		RequestCopilotReview(t),
+
+		// Code quality tools
+		GetCodeQualityFinding(t),
 
 		// Code security tools
 		GetCodeScanningAlert(t),
@@ -288,6 +299,9 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GetLabelForLabelsToolset(t),
 		ListLabels(t),
 		LabelWrite(t),
+
+		// UI tools (insiders only)
+		UIGet(t),
 
 		// Granular issue tools (feature-flagged, replace consolidated issue_write/sub_issue_write)
 		GranularCreateIssue(t),

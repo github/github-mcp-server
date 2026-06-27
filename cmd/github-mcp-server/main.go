@@ -8,9 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/github/github-mcp-server/internal/buildinfo"
 	"github.com/github/github-mcp-server/internal/ghmcp"
+	"github.com/github/github-mcp-server/internal/oauth"
 	"github.com/github/github-mcp-server/pkg/github"
 	ghhttp "github.com/github/github-mcp-server/pkg/http"
+	ghoauth "github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -36,15 +39,27 @@ var (
 		RunE: func(_ *cobra.Command, _ []string) error {
 			token := viper.GetString("personal_access_token")
 
-			// Parse GitHub App authentication config
+			// Parse GitHub App authentication config.
 			appID, privateKey, installationID, err := parseAppAuthConfig()
 			if err != nil {
 				return err
 			}
 			useAppAuth := appID != 0 && len(privateKey) > 0 && installationID != 0
-
-			if token == "" && !useAppAuth {
-				return errors.New("GITHUB_PERSONAL_ACCESS_TOKEN not set (or configure GitHub App auth with GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY/GITHUB_APP_PRIVATE_KEY_PATH, and GITHUB_APP_INSTALLATION_ID)")
+			oauthClientID := viper.GetString("oauth-client-id")
+			oauthClientSecret := viper.GetString("oauth-client-secret")
+			// Fall back to the build-time baked-in client (official releases) when none is
+			// configured explicitly. The baked-in app is registered on github.com, so it is
+			// only applied to the default host; GHES/ghe.com users must bring their own
+			// --oauth-client-id. Recognizing the host via NormalizeHost means an explicit
+			// GITHUB_HOST=github.com (or api.github.com) still counts as the default and keeps
+			// zero-config login working. The secret tracks the id, so an explicitly provided
+			// id with no secret never picks up the baked-in secret.
+			if oauthClientID == "" && oauth.NormalizeHost(viper.GetString("host")) == "https://github.com" {
+				oauthClientID = buildinfo.OAuthClientID
+				oauthClientSecret = buildinfo.OAuthClientSecret
+			}
+			if token == "" && !useAppAuth && oauthClientID == "" {
+				return errors.New("authentication required: set GITHUB_PERSONAL_ACCESS_TOKEN, configure GitHub App auth with GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID, and GITHUB_APP_PRIVATE_KEY or GITHUB_APP_PRIVATE_KEY_PATH, or pass --oauth-client-id to log in via OAuth")
 			}
 
 			// If you're wondering why we're not using viper.GetStringSlice("toolsets"),
@@ -107,6 +122,29 @@ var (
 				PrivateKey:           privateKey,
 				InstallationID:       installationID,
 			}
+
+			// When no static token is provided, log in via OAuth using the given
+			// client. The requested scopes default to the full supported set
+			// (which filters out no tools); an explicit, narrower --oauth-scopes
+			// both narrows the grant and hides tools needing other scopes.
+			if token == "" && !useAppAuth {
+				scopes := ghoauth.SupportedScopes
+				if viper.IsSet("oauth-scopes") {
+					if err := viper.UnmarshalKey("oauth-scopes", &scopes); err != nil {
+						return fmt.Errorf("failed to unmarshal oauth-scopes: %w", err)
+					}
+				}
+				oauthConfig := oauth.NewGitHubConfig(
+					oauthClientID,
+					oauthClientSecret,
+					scopes,
+					viper.GetString("host"),
+					viper.GetInt("oauth-callback-port"),
+				)
+				stdioServerConfig.OAuthManager = oauth.NewManager(oauthConfig, nil)
+				stdioServerConfig.OAuthScopes = scopes
+			}
+
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
 	}
@@ -155,6 +193,7 @@ var (
 				Version:              version,
 				Host:                 viper.GetString("host"),
 				Port:                 viper.GetInt("port"),
+				ListenHost:           viper.GetString("listen-host"),
 				BaseURL:              viper.GetString("base-url"),
 				ResourcePath:         viper.GetString("base-path"),
 				ExportTranslations:   viper.GetBool("export-translations"),
@@ -202,8 +241,17 @@ func init() {
 	rootCmd.PersistentFlags().Bool("insiders", false, "Enable insiders features")
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
 
+	// stdio-specific OAuth flags. Provide --oauth-client-id (instead of a token)
+	// to log in via the browser-based OAuth flow on first use. Works for both
+	// OAuth Apps and GitHub Apps.
+	stdioCmd.Flags().String("oauth-client-id", "", "OAuth App or GitHub App client ID, enabling interactive OAuth login when no token is set")
+	stdioCmd.Flags().String("oauth-client-secret", "", "OAuth client secret, if the app requires one (it is a public, non-confidential credential for distributed clients)")
+	stdioCmd.Flags().StringSlice("oauth-scopes", nil, "Comma-separated OAuth scopes to request; also filters tools to those scopes. Defaults to the full supported set")
+	stdioCmd.Flags().Int("oauth-callback-port", 0, "Fixed local port for the OAuth callback server. Defaults to a random port; set a fixed port when mapping it through Docker")
+
 	// HTTP-specific flags
 	httpCmd.Flags().Int("port", 8082, "HTTP server port")
+	httpCmd.Flags().String("listen-host", "", "Host the HTTP server binds to (e.g. 127.0.0.1). Empty binds to all interfaces.")
 	httpCmd.Flags().String("base-url", "", "Base URL where this server is publicly accessible (for OAuth resource metadata)")
 	httpCmd.Flags().String("base-path", "", "Externally visible base path for the HTTP server (for OAuth resource metadata)")
 	httpCmd.Flags().Bool("scope-challenge", false, "Enable OAuth scope challenge responses")
@@ -223,7 +271,12 @@ func init() {
 	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
 	_ = viper.BindPFlag("insiders", rootCmd.PersistentFlags().Lookup("insiders"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
+	_ = viper.BindPFlag("oauth-client-id", stdioCmd.Flags().Lookup("oauth-client-id"))
+	_ = viper.BindPFlag("oauth-client-secret", stdioCmd.Flags().Lookup("oauth-client-secret"))
+	_ = viper.BindPFlag("oauth-scopes", stdioCmd.Flags().Lookup("oauth-scopes"))
+	_ = viper.BindPFlag("oauth-callback-port", stdioCmd.Flags().Lookup("oauth-callback-port"))
 	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))
+	_ = viper.BindPFlag("listen-host", httpCmd.Flags().Lookup("listen-host"))
 	_ = viper.BindPFlag("base-url", httpCmd.Flags().Lookup("base-url"))
 	_ = viper.BindPFlag("base-path", httpCmd.Flags().Lookup("base-path"))
 	_ = viper.BindPFlag("scope-challenge", httpCmd.Flags().Lookup("scope-challenge"))

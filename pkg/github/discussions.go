@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -272,7 +273,11 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal discussions: %w", err)
 			}
-			return utils.NewToolResultText(string(out)), nil, nil
+			result := utils.NewToolResultText(string(out))
+			// Discussion content is user-authored (untrusted); confidentiality
+			// follows repo visibility.
+			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoUserContent)
+			return result, nil, nil
 		},
 	)
 }
@@ -376,7 +381,11 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal discussion: %w", err)
 			}
 
-			return utils.NewToolResultText(string(out)), nil, nil
+			result := utils.NewToolResultText(string(out))
+			// Discussion content is user-authored (untrusted); confidentiality
+			// follows repo visibility.
+			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, params.Owner, params.Repo, result, ifc.LabelRepoUserContent)
+			return result, nil, nil
 		},
 	)
 }
@@ -580,7 +589,11 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				return nil, nil, fmt.Errorf("failed to marshal comments: %w", err)
 			}
 
-			return utils.NewToolResultText(string(out)), nil, nil
+			result := utils.NewToolResultText(string(out))
+			// Discussion comments are user-authored (untrusted); confidentiality
+			// follows repo visibility.
+			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, params.Owner, params.Repo, result, ifc.LabelRepoUserContent)
+			return result, nil, nil
 		},
 	)
 }
@@ -1084,7 +1097,11 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal discussion categories: %w", err)
 			}
-			return utils.NewToolResultText(string(out)), nil, nil
+			result := utils.NewToolResultText(string(out))
+			// Discussion categories are repo-defined structural metadata
+			// (trusted); confidentiality follows repo visibility.
+			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
+			return result, nil, nil
 		},
 	)
 }

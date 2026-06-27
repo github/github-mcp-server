@@ -1,4 +1,13 @@
 {
+  "_meta": {
+    "ui": {
+      "resourceUri": "ui://github-mcp-server/pr-edit",
+      "visibility": [
+        "model",
+        "app"
+      ]
+    }
+  },
   "annotations": {
     "title": "Edit pull request"
   },
@@ -34,7 +43,7 @@
         "type": "string"
       },
       "reviewers": {
-        "description": "GitHub usernames to request reviews from",
+        "description": "GitHub usernames or ORG/team-slug team reviewers to request reviews from",
         "items": {
           "type": "string"
         },

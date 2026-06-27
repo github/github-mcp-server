@@ -88,22 +88,16 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 			wantEnabled:    true,
 		},
 		{
-			name:           "internal-only flag in header is ignored",
-			flagName:       github.FeatureFlagIFCLabels,
-			headerFeatures: []string{github.FeatureFlagIFCLabels},
-			wantEnabled:    false,
-		},
-		{
 			name:           "static insiders enables insiders flags without route context",
 			staticInsiders: true,
 			flagName:       github.FeatureFlagCSVOutput,
 			wantEnabled:    true,
 		},
 		{
-			name:         "insiders mode enables internal-only insiders flags",
+			name:         "insiders mode does not auto-enable ifc labels",
 			flagName:     github.FeatureFlagIFCLabels,
 			insidersMode: true,
-			wantEnabled:  true,
+			wantEnabled:  false,
 		},
 		{
 			name:         "insiders mode does not enable granular flags",
@@ -127,6 +121,47 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 			enabled, err := checker(ctx, tt.flagName)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantEnabled, enabled)
+		})
+	}
+}
+
+func TestResolveListenAddress(t *testing.T) {
+	tests := []struct {
+		name string
+		host string
+		port int
+		want string
+	}{
+		{
+			name: "empty host falls back to :port",
+			host: "",
+			port: 8082,
+			want: ":8082",
+		},
+		{
+			name: "ipv4 host is joined with port",
+			host: "127.0.0.1",
+			port: 9090,
+			want: "127.0.0.1:9090",
+		},
+		{
+			name: "ipv6 host is bracketed and joined with port",
+			host: "::1",
+			port: 9090,
+			want: "[::1]:9090",
+		},
+		{
+			name: "hostname is joined with port",
+			host: "localhost",
+			port: 8082,
+			want: "localhost:8082",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolveListenAddress(tt.host, tt.port)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
