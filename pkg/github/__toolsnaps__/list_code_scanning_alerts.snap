@@ -10,6 +10,17 @@
         "description": "The owner of the repository.",
         "type": "string"
       },
+      "page": {
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
       "ref": {
         "description": "The Git reference for the results you want to list.",
         "type": "string"

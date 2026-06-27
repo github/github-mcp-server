@@ -12,6 +12,7 @@
       "files": {
         "description": "Array of file objects to push, each object with path (string) and content (string)",
         "items": {
+          "additionalProperties": false,
           "properties": {
             "content": {
               "description": "file content",

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/shurcooL/githubv4"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -77,6 +77,11 @@ var (
 		Description: "GitHub Actions workflows and CI/CD operations",
 		Icon:        "workflow",
 	}
+	ToolsetMetadataCodeQuality = inventory.ToolsetMetadata{
+		ID:          "code_quality",
+		Description: "GitHub Code Quality related tools",
+		Icon:        "code-square",
+	}
 	ToolsetMetadataCodeSecurity = inventory.ToolsetMetadata{
 		ID:          "code_security",
 		Description: "Code security related tools, such as GitHub Code Scanning",
@@ -124,11 +129,6 @@ var (
 		Description: "GitHub Stargazers related tools",
 		Icon:        "star",
 	}
-	ToolsetMetadataDynamic = inventory.ToolsetMetadata{
-		ID:          "dynamic",
-		Description: "Discover GitHub MCP tools that can help achieve tasks by enabling additional sets of tools, you can control the enablement of any toolset to access its tools when this toolset is enabled.",
-		Icon:        "tools",
-	}
 	ToolsetLabels = inventory.ToolsetMetadata{
 		ID:          "labels",
 		Description: "GitHub Labels related tools",
@@ -142,6 +142,20 @@ var (
 		Icon:        "copilot",
 	}
 
+	// Feature flag names for granular tool variants.
+	// When active, consolidated tools are replaced by single-purpose granular tools.
+	FeatureFlagIssuesGranular       = "issues_granular"
+	FeatureFlagPullRequestsGranular = "pull_requests_granular"
+)
+
+// HeaderAllowedFeatureFlags returns the feature flags that clients may enable via
+// the X-MCP-Features header. It delegates to AllowedFeatureFlags as the single
+// source of truth.
+func HeaderAllowedFeatureFlags() []string {
+	return slices.Clone(AllowedFeatureFlags)
+}
+
+var (
 	// Remote-only toolsets - these are only available in the remote MCP server
 	// but are documented here for consistency and to enable automated documentation.
 	ToolsetMetadataCopilotSpaces = inventory.ToolsetMetadata{
@@ -159,7 +173,7 @@ var (
 // AllTools returns all tools with their embedded toolset metadata.
 // Tool functions return ServerTool directly with toolset info.
 func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
-	return []inventory.ServerTool{
+	return withCSVOutput([]inventory.ServerTool{
 		// Context tools
 		GetMe(t),
 		GetTeams(t),
@@ -170,7 +184,9 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GetFileContents(t),
 		ListCommits(t),
 		SearchCode(t),
+		SearchCommits(t),
 		GetCommit(t),
+		GetFileBlame(t),
 		ListBranches(t),
 		ListTags(t),
 		GetTag(t),
@@ -186,6 +202,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListStarredRepositories(t),
 		StarRepository(t),
 		UnstarRepository(t),
+		ListRepositoryCollaborators(t),
 
 		// Git tools
 		GetRepositoryTree(t),
@@ -195,9 +212,12 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		SearchIssues(t),
 		ListIssues(t),
 		ListIssueTypes(t),
+		ListIssueFields(t),
 		IssueWrite(t),
 		AddIssueComment(t),
 		SubIssueWrite(t),
+		IssueDependencyRead(t),
+		IssueDependencyWrite(t),
 
 		// User tools
 		GetUser(t),
@@ -221,6 +241,9 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		// Copilot tools
 		AssignCopilotToIssue(t),
 		RequestCopilotReview(t),
+
+		// Code quality tools
+		GetCodeQualityFinding(t),
 
 		// Code security tools
 		GetCodeScanningAlert(t),
@@ -246,6 +269,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListDiscussions(t),
 		GetDiscussion(t),
 		GetDiscussionComments(t),
+		DiscussionCommentWrite(t),
 		ListDiscussionCategories(t),
 
 		// Actions tools
@@ -276,7 +300,40 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GetLabelForLabelsToolset(t),
 		ListLabels(t),
 		LabelWrite(t),
-	}
+
+		// UI tools (insiders only)
+		UIGet(t),
+
+		// Granular issue tools (feature-flagged, replace consolidated issue_write/sub_issue_write)
+		GranularCreateIssue(t),
+		GranularUpdateIssueTitle(t),
+		GranularUpdateIssueBody(t),
+		GranularUpdateIssueAssignees(t),
+		GranularUpdateIssueLabels(t),
+		GranularUpdateIssueMilestone(t),
+		GranularUpdateIssueType(t),
+		GranularUpdateIssueState(t),
+		GranularAddSubIssue(t),
+		GranularRemoveSubIssue(t),
+		GranularReprioritizeSubIssue(t),
+		GranularSetIssueFields(t),
+		GranularAddIssueReaction(t),
+		GranularAddIssueCommentReaction(t),
+
+		// Granular pull request tools (feature-flagged, replace consolidated update_pull_request/pull_request_review_write)
+		GranularUpdatePullRequestTitle(t),
+		GranularUpdatePullRequestBody(t),
+		GranularUpdatePullRequestState(t),
+		GranularUpdatePullRequestDraftState(t),
+		GranularRequestPullRequestReviewers(t),
+		GranularCreatePullRequestReview(t),
+		GranularSubmitPendingPullRequestReview(t),
+		GranularDeletePendingPullRequestReview(t),
+		GranularAddPullRequestReviewComment(t),
+		GranularResolveReviewThread(t),
+		GranularUnresolveReviewThread(t),
+		GranularAddPullRequestReviewCommentReaction(t),
+	})
 }
 
 // ToBoolPtr converts a bool to a *bool pointer.
@@ -309,8 +366,8 @@ func GenerateToolsetsHelp() string {
 		defaultBuf.WriteString(string(id))
 	}
 
-	// Get all available toolsets (excludes context and dynamic for display)
-	allToolsets := r.AvailableToolsets("context", "dynamic")
+	// Get all available toolsets (excludes context for display)
+	allToolsets := r.AvailableToolsets("context")
 	var availableBuf strings.Builder
 	const maxLineLength = 70
 	currentLine := ""

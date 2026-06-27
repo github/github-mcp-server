@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,7 +65,7 @@ func Test_GetUser(t *testing.T) {
 		{
 			name: "successful user retrieval by username",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetUserByUsername: mockResponse(t, http.StatusOK, mockUser),
+				GetUsersByUsername: mockResponse(t, http.StatusOK, mockUser),
 			}),
 			requestArgs: map[string]any{
 				"username": "non-existent-john-doe",
@@ -103,7 +103,7 @@ func Test_GetUser(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}

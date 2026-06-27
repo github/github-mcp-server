@@ -1,0 +1,47 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "title": "Add Pull Request Review Comment Reaction"
+  },
+  "description": "Add a reaction to a pull request review comment.",
+  "inputSchema": {
+    "properties": {
+      "comment_id": {
+        "description": "The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
+        "minimum": 1,
+        "type": "number"
+      },
+      "content": {
+        "description": "The emoji reaction type",
+        "enum": [
+          "+1",
+          "-1",
+          "laugh",
+          "confused",
+          "heart",
+          "hooray",
+          "rocket",
+          "eyes"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "comment_id",
+      "content"
+    ],
+    "type": "object"
+  },
+  "name": "add_pull_request_review_comment_reaction"
+}

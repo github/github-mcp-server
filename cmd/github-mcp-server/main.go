@@ -7,9 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/github/github-mcp-server/internal/buildinfo"
 	"github.com/github/github-mcp-server/internal/ghmcp"
+	"github.com/github/github-mcp-server/internal/oauth"
 	"github.com/github/github-mcp-server/pkg/github"
 	ghhttp "github.com/github/github-mcp-server/pkg/http"
+	ghoauth "github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -34,8 +37,21 @@ var (
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			token := viper.GetString("personal_access_token")
-			if token == "" {
-				return errors.New("GITHUB_PERSONAL_ACCESS_TOKEN not set")
+			oauthClientID := viper.GetString("oauth-client-id")
+			oauthClientSecret := viper.GetString("oauth-client-secret")
+			// Fall back to the build-time baked-in client (official releases) when none is
+			// configured explicitly. The baked-in app is registered on github.com, so it is
+			// only applied to the default host; GHES/ghe.com users must bring their own
+			// --oauth-client-id. Recognizing the host via NormalizeHost means an explicit
+			// GITHUB_HOST=github.com (or api.github.com) still counts as the default and keeps
+			// zero-config login working. The secret tracks the id, so an explicitly provided
+			// id with no secret never picks up the baked-in secret.
+			if oauthClientID == "" && oauth.NormalizeHost(viper.GetString("host")) == "https://github.com" {
+				oauthClientID = buildinfo.OAuthClientID
+				oauthClientSecret = buildinfo.OAuthClientSecret
+			}
+			if token == "" && oauthClientID == "" {
+				return errors.New("authentication required: set GITHUB_PERSONAL_ACCESS_TOKEN, or pass --oauth-client-id to log in via OAuth")
 			}
 
 			// If you're wondering why we're not using viper.GetStringSlice("toolsets"),
@@ -85,7 +101,6 @@ var (
 				EnabledToolsets:      enabledToolsets,
 				EnabledTools:         enabledTools,
 				EnabledFeatures:      enabledFeatures,
-				DynamicToolsets:      viper.GetBool("dynamic_toolsets"),
 				ReadOnly:             viper.GetBool("read-only"),
 				ExportTranslations:   viper.GetBool("export-translations"),
 				EnableCommandLogging: viper.GetBool("enable-command-logging"),
@@ -96,6 +111,29 @@ var (
 				ExcludeTools:         excludeTools,
 				RepoAccessCacheTTL:   &ttl,
 			}
+
+			// When no static token is provided, log in via OAuth using the given
+			// client. The requested scopes default to the full supported set
+			// (which filters out no tools); an explicit, narrower --oauth-scopes
+			// both narrows the grant and hides tools needing other scopes.
+			if token == "" {
+				scopes := ghoauth.SupportedScopes
+				if viper.IsSet("oauth-scopes") {
+					if err := viper.UnmarshalKey("oauth-scopes", &scopes); err != nil {
+						return fmt.Errorf("failed to unmarshal oauth-scopes: %w", err)
+					}
+				}
+				oauthConfig := oauth.NewGitHubConfig(
+					oauthClientID,
+					oauthClientSecret,
+					scopes,
+					viper.GetString("host"),
+					viper.GetInt("oauth-callback-port"),
+				)
+				stdioServerConfig.OAuthManager = oauth.NewManager(oauthConfig, nil)
+				stdioServerConfig.OAuthScopes = scopes
+			}
+
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
 	}
@@ -105,11 +143,41 @@ var (
 		Short: "Start HTTP server",
 		Long:  `Start an HTTP server that listens for MCP requests over HTTP.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			// Parse toolsets (same approach as stdio — see comment there)
+			var enabledToolsets []string
+			if viper.IsSet("toolsets") {
+				if err := viper.UnmarshalKey("toolsets", &enabledToolsets); err != nil {
+					return fmt.Errorf("failed to unmarshal toolsets: %w", err)
+				}
+			}
+
+			var enabledTools []string
+			if viper.IsSet("tools") {
+				if err := viper.UnmarshalKey("tools", &enabledTools); err != nil {
+					return fmt.Errorf("failed to unmarshal tools: %w", err)
+				}
+			}
+
+			var excludeTools []string
+			if viper.IsSet("exclude_tools") {
+				if err := viper.UnmarshalKey("exclude_tools", &excludeTools); err != nil {
+					return fmt.Errorf("failed to unmarshal exclude-tools: %w", err)
+				}
+			}
+
+			var enabledFeatures []string
+			if viper.IsSet("features") {
+				if err := viper.UnmarshalKey("features", &enabledFeatures); err != nil {
+					return fmt.Errorf("failed to unmarshal features: %w", err)
+				}
+			}
+
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			httpConfig := ghhttp.ServerConfig{
 				Version:              version,
 				Host:                 viper.GetString("host"),
 				Port:                 viper.GetInt("port"),
+				ListenHost:           viper.GetString("listen-host"),
 				BaseURL:              viper.GetString("base-url"),
 				ResourcePath:         viper.GetString("base-path"),
 				ExportTranslations:   viper.GetBool("export-translations"),
@@ -119,6 +187,13 @@ var (
 				LockdownMode:         viper.GetBool("lockdown-mode"),
 				RepoAccessCacheTTL:   &ttl,
 				ScopeChallenge:       viper.GetBool("scope-challenge"),
+				ReadOnly:             viper.GetBool("read-only"),
+				EnabledToolsets:      enabledToolsets,
+				EnabledTools:         enabledTools,
+				ExcludeTools:         excludeTools,
+				EnabledFeatures:      enabledFeatures,
+				InsidersMode:         viper.GetBool("insiders"),
+				TrustProxyHeaders:    viper.GetBool("trust-proxy-headers"),
 			}
 
 			return ghhttp.RunHTTPServer(httpConfig)
@@ -137,7 +212,6 @@ func init() {
 	rootCmd.PersistentFlags().StringSlice("tools", nil, "Comma-separated list of specific tools to enable")
 	rootCmd.PersistentFlags().StringSlice("exclude-tools", nil, "Comma-separated list of tool names to disable regardless of other settings")
 	rootCmd.PersistentFlags().StringSlice("features", nil, "Comma-separated list of feature flags to enable")
-	rootCmd.PersistentFlags().Bool("dynamic-toolsets", false, "Enable dynamic toolsets")
 	rootCmd.PersistentFlags().Bool("read-only", false, "Restrict the server to read-only operations")
 	rootCmd.PersistentFlags().String("log-file", "", "Path to log file")
 	rootCmd.PersistentFlags().Bool("enable-command-logging", false, "When enabled, the server will log all command requests and responses to the log file")
@@ -148,18 +222,27 @@ func init() {
 	rootCmd.PersistentFlags().Bool("insiders", false, "Enable insiders features")
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
 
+	// stdio-specific OAuth flags. Provide --oauth-client-id (instead of a token)
+	// to log in via the browser-based OAuth flow on first use. Works for both
+	// OAuth Apps and GitHub Apps.
+	stdioCmd.Flags().String("oauth-client-id", "", "OAuth App or GitHub App client ID, enabling interactive OAuth login when no token is set")
+	stdioCmd.Flags().String("oauth-client-secret", "", "OAuth client secret, if the app requires one (it is a public, non-confidential credential for distributed clients)")
+	stdioCmd.Flags().StringSlice("oauth-scopes", nil, "Comma-separated OAuth scopes to request; also filters tools to those scopes. Defaults to the full supported set")
+	stdioCmd.Flags().Int("oauth-callback-port", 0, "Fixed local port for the OAuth callback server. Defaults to a random port; set a fixed port when mapping it through Docker")
+
 	// HTTP-specific flags
 	httpCmd.Flags().Int("port", 8082, "HTTP server port")
+	httpCmd.Flags().String("listen-host", "", "Host the HTTP server binds to (e.g. 127.0.0.1). Empty binds to all interfaces.")
 	httpCmd.Flags().String("base-url", "", "Base URL where this server is publicly accessible (for OAuth resource metadata)")
 	httpCmd.Flags().String("base-path", "", "Externally visible base path for the HTTP server (for OAuth resource metadata)")
 	httpCmd.Flags().Bool("scope-challenge", false, "Enable OAuth scope challenge responses")
+	httpCmd.Flags().Bool("trust-proxy-headers", false, "Honor X-Forwarded-Host and X-Forwarded-Proto when constructing OAuth resource metadata URLs. Only enable when the server is deployed behind a trusted proxy that sets these headers. Ignored when --base-url is set.")
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
 	_ = viper.BindPFlag("tools", rootCmd.PersistentFlags().Lookup("tools"))
 	_ = viper.BindPFlag("exclude_tools", rootCmd.PersistentFlags().Lookup("exclude-tools"))
 	_ = viper.BindPFlag("features", rootCmd.PersistentFlags().Lookup("features"))
-	_ = viper.BindPFlag("dynamic_toolsets", rootCmd.PersistentFlags().Lookup("dynamic-toolsets"))
 	_ = viper.BindPFlag("read-only", rootCmd.PersistentFlags().Lookup("read-only"))
 	_ = viper.BindPFlag("log-file", rootCmd.PersistentFlags().Lookup("log-file"))
 	_ = viper.BindPFlag("enable-command-logging", rootCmd.PersistentFlags().Lookup("enable-command-logging"))
@@ -169,10 +252,16 @@ func init() {
 	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
 	_ = viper.BindPFlag("insiders", rootCmd.PersistentFlags().Lookup("insiders"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
+	_ = viper.BindPFlag("oauth-client-id", stdioCmd.Flags().Lookup("oauth-client-id"))
+	_ = viper.BindPFlag("oauth-client-secret", stdioCmd.Flags().Lookup("oauth-client-secret"))
+	_ = viper.BindPFlag("oauth-scopes", stdioCmd.Flags().Lookup("oauth-scopes"))
+	_ = viper.BindPFlag("oauth-callback-port", stdioCmd.Flags().Lookup("oauth-callback-port"))
 	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))
+	_ = viper.BindPFlag("listen-host", httpCmd.Flags().Lookup("listen-host"))
 	_ = viper.BindPFlag("base-url", httpCmd.Flags().Lookup("base-url"))
 	_ = viper.BindPFlag("base-path", httpCmd.Flags().Lookup("base-path"))
 	_ = viper.BindPFlag("scope-challenge", httpCmd.Flags().Lookup("scope-challenge"))
+	_ = viper.BindPFlag("trust-proxy-headers", httpCmd.Flags().Lookup("trust-proxy-headers"))
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
 	rootCmd.AddCommand(httpCmd)

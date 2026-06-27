@@ -11,11 +11,25 @@ import (
 type BearerAuthTransport struct {
 	Transport http.RoundTripper
 	Token     string
+
+	// TokenProvider, when non-nil, supplies the bearer token for each request
+	// and takes precedence over Token. It backs OAuth, where the token is
+	// obtained after the client is built and is refreshed over the session's
+	// lifetime. It may return an empty string before authorization completes.
+	TokenProvider func() string
 }
 
 func (t *BearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req = req.Clone(req.Context())
-	req.Header.Set(headers.AuthorizationHeader, "Bearer "+t.Token)
+	token := t.Token
+	if t.TokenProvider != nil {
+		token = t.TokenProvider()
+	}
+	// Before OAuth authorization completes the token is empty; send an
+	// unauthenticated request rather than an empty "Bearer " header.
+	if token != "" {
+		req.Header.Set(headers.AuthorizationHeader, "Bearer "+token)
+	}
 
 	// Check for GraphQL-Features in context and add header if present
 	if features := ghcontext.GetGraphQLFeatures(req.Context()); len(features) > 0 {

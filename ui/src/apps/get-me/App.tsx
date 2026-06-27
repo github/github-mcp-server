@@ -1,4 +1,5 @@
 import { StrictMode, useState } from "react";
+import type React from "react";
 import { createRoot } from "react-dom/client";
 import { Avatar, Box, Text, Link, Heading, Spinner } from "@primer/react";
 import {
@@ -62,8 +63,20 @@ function AvatarWithFallback({ src, login, size }: { src?: string; login: string;
   );
 }
 
-function UserCard({ user }: { user: UserData }) {
+function UserCard({
+  user,
+  onOpenLink,
+}: {
+  user: UserData;
+  onOpenLink?: (url: string) => void;
+}) {
   const d = user.details || {};
+  const handleClick =
+    onOpenLink &&
+    ((url: string) => (e: React.MouseEvent) => {
+      e.preventDefault();
+      onOpenLink(url);
+    });
 
   return (
     <Box
@@ -103,7 +116,13 @@ function UserCard({ user }: { user: UserData }) {
         {d.blog && (
           <>
             <Box sx={{ color: "fg.muted" }}><LinkIcon size={16} /></Box>
-            <Link href={d.blog} target="_blank">{d.blog}</Link>
+            <Link
+              href={d.blog}
+              target="_blank"
+              onClick={handleClick?.(d.blog)}
+            >
+              {d.blog}
+            </Link>
           </>
         )}
         {d.email && (
@@ -140,41 +159,39 @@ function UserCard({ user }: { user: UserData }) {
 }
 
 function GetMeApp() {
-  const { error, toolResult } = useMcpApp({
+  const { error, toolResult, hostContext, openLink } = useMcpApp({
     appName: "github-mcp-server-get-me",
   });
 
-  if (error) {
-    return <Text sx={{ color: "danger.fg" }}>Error: {error.message}</Text>;
-  }
+  const content = (() => {
+    if (error) {
+      return <Text sx={{ color: "danger.fg" }}>Error: {error.message}</Text>;
+    }
+    if (!toolResult) {
+      return (
+        <Box display="flex" alignItems="center" gap={2}>
+          <Spinner size="small" />
+          <Text sx={{ color: "fg.muted" }}>Loading user data...</Text>
+        </Box>
+      );
+    }
+    const textContent = toolResult.content?.find((c: { type: string }) => c.type === "text");
+    if (!textContent || !("text" in textContent)) {
+      return <Text sx={{ color: "danger.fg" }}>No user data in response</Text>;
+    }
+    try {
+      const userData = JSON.parse(textContent.text as string) as UserData;
+      return <UserCard user={userData} onOpenLink={(url) => void openLink(url)} />;
+    } catch {
+      return <Text sx={{ color: "danger.fg" }}>Failed to parse user data</Text>;
+    }
+  })();
 
-  if (!toolResult) {
-    return (
-      <Box display="flex" alignItems="center" gap={2}>
-        <Spinner size="small" />
-        <Text sx={{ color: "fg.muted" }}>Loading user data...</Text>
-      </Box>
-    );
-  }
-
-  // Parse user data from tool result
-  const textContent = toolResult.content?.find((c: { type: string }) => c.type === "text");
-  if (!textContent || !("text" in textContent)) {
-    return <Text sx={{ color: "danger.fg" }}>No user data in response</Text>;
-  }
-
-  try {
-    const userData = JSON.parse(textContent.text as string) as UserData;
-    return <UserCard user={userData} />;
-  } catch {
-    return <Text sx={{ color: "danger.fg" }}>Failed to parse user data</Text>;
-  }
+  return <AppProvider hostContext={hostContext}>{content}</AppProvider>;
 }
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <AppProvider>
-      <GetMeApp />
-    </AppProvider>
+    <GetMeApp />
   </StrictMode>
 );

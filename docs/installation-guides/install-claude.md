@@ -37,9 +37,17 @@ echo -e ".env\n.mcp.json" >> .gitignore
 claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp","headers":{"Authorization":"Bearer YOUR_GITHUB_PAT"}}'
 ```
 
-With an environment variable:
+With an environment variable (Linux/macOS):
 ```bash
-claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp","headers":{"Authorization":"Bearer '"$(grep GITHUB_PAT .env | cut -d '=' -f2)"'"}}'
+export GITHUB_PAT="$(grep '^GITHUB_PAT=' .env | cut -d '=' -f2-)"
+claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp","headers":{"Authorization":"Bearer '"$GITHUB_PAT"'"}}'
+```
+
+With an environment variable (Windows PowerShell):
+```powershell
+$githubPatLine = Get-Content .env | Select-String "^\s*GITHUB_PAT\s*=" | Select-Object -First 1
+$env:GITHUB_PAT = ($githubPatLine.Line -split "=", 2)[1].Trim().Trim('"').Trim("'")
+claude mcp add-json github "{`"type`":`"http`",`"url`":`"https://api.githubcopilot.com/mcp`",`"headers`":{`"Authorization`":`"Bearer $env:GITHUB_PAT`"}}"
 ```
 
 > **About the `--scope` flag** (optional): Use this to specify where the configuration is stored:
@@ -55,6 +63,16 @@ claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/
 ### Local Server Setup (Docker required)
 
 ### With Docker
+
+Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback. Run the following command in the terminal (not in Claude Code CLI):
+
+```bash
+claude mcp add github -e GITHUB_OAUTH_CALLBACK_PORT=8085 -- docker run -i --rm -p 127.0.0.1:8085:8085 -e GITHUB_OAUTH_CALLBACK_PORT ghcr.io/github/github-mcp-server
+```
+
+See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+
+To authenticate with a Personal Access Token instead (it takes precedence over OAuth):
 1. Run the following command in the terminal (not in Claude Code CLI):
 ```bash
 claude mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_GITHUB_PAT -- docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server
@@ -128,6 +146,35 @@ claude mcp add github --transport http https://api.githubcopilot.com/mcp/ -H "Au
 
 Add this codeblock to your `claude_desktop_config.json`:
 
+Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-p",
+        "127.0.0.1:8085:8085",
+        "-e",
+        "GITHUB_OAUTH_CALLBACK_PORT",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_OAUTH_CALLBACK_PORT": "8085"
+      }
+    }
+  }
+}
+```
+
+See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+
+To authenticate with a Personal Access Token instead (it takes precedence over OAuth):
+
 ```json
 {
   "mcpServers": {
@@ -164,7 +211,104 @@ Add this codeblock to your `claude_desktop_config.json`:
 
 ---
 
-## Troubleshooting
+## Xcode (Claude Agent)
+
+Xcode's Claude Agent uses the same `.claude.json` configuration format as the Claude Code CLI, but reads it from an Xcode-specific directory rather than the global config location.
+
+### Configuration File Location
+
+```
+~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/.claude.json
+```
+
+> Configurations placed here only affect Claude Agent when launched from Xcode. See [Apple's documentation](https://developer.apple.com/documentation/xcode/setting-up-coding-intelligence#Customize-the-Claude-Agent-and-Codex-environments) for more details.
+
+### Remote Server Setup (Recommended)
+
+Run the following command in Terminal to add the remote GitHub MCP server:
+
+```bash
+claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp/","headers":{"Authorization":"Bearer YOUR_GITHUB_PAT"}}' --config ~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/.claude.json
+```
+
+Or open the file in a text editor and add the `mcpServers` block manually:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer YOUR_GITHUB_PAT"
+      }
+    }
+  }
+}
+```
+
+### Local Server Setup (Docker)
+
+> **macOS note**: Xcode runs with a minimal `PATH` that typically excludes `/usr/local/bin` (Intel) and `/opt/homebrew/bin` (Apple Silicon). Use the full path to `docker` to ensure it can be found. Run `which docker` in Terminal to find the correct path on your system.
+
+Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "/usr/local/bin/docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-p",
+        "127.0.0.1:8085:8085",
+        "-e",
+        "GITHUB_OAUTH_CALLBACK_PORT",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_OAUTH_CALLBACK_PORT": "8085"
+      }
+    }
+  }
+}
+```
+
+See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+
+To authenticate with a Personal Access Token instead (it takes precedence over OAuth):
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "/usr/local/bin/docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT"
+      }
+    }
+  }
+}
+```
+
+### Setup Steps
+1. Create or open `~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/.claude.json`
+2. Add the configuration block above
+3. Replace `YOUR_GITHUB_PAT` with your actual token
+4. Restart Xcode
+
+---
+
 
 **Authentication Failed:**
 - Verify PAT has `repo` scope

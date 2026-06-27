@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "openWorldHint": true,
+    "title": "Remove Sub-Issue"
+  },
+  "description": "Remove a sub-issue from a parent issue.",
+  "inputSchema": {
+    "properties": {
+      "issue_number": {
+        "description": "The parent issue number",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "sub_issue_id": {
+        "description": "The ID of the sub-issue to remove. ID is not the same as issue number",
+        "type": "number"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "issue_number",
+      "sub_issue_id"
+    ],
+    "type": "object"
+  },
+  "name": "remove_sub_issue"
+}

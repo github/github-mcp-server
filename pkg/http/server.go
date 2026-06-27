@@ -5,27 +5,27 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"slices"
+	"strconv"
 	"syscall"
 	"time"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/observability"
+	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 )
-
-// knownFeatureFlags are the feature flags that can be enabled via X-MCP-Features header.
-// Only these flags are accepted from headers.
-var knownFeatureFlags = []string{}
 
 type ServerConfig struct {
 	// Version of the server
@@ -34,8 +34,12 @@ type ServerConfig struct {
 	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
 	Host string
 
-	// Port to listen on (default: 8082)
+	// Port to listen on (default: 8082).
 	Port int
+
+	// ListenHost is the host the HTTP server binds to (e.g. "127.0.0.1").
+	// When empty, the server binds to all interfaces. Combined with Port.
+	ListenHost string
 
 	// BaseURL is the publicly accessible URL of this server for OAuth resource metadata.
 	// If not set, the server will derive the URL from incoming request headers.
@@ -44,6 +48,13 @@ type ServerConfig struct {
 	// ResourcePath is the externally visible base path for this server (e.g., "/mcp").
 	// This is used to restore the original path when a proxy strips a base path before forwarding.
 	ResourcePath string
+
+	// TrustProxyHeaders indicates whether X-Forwarded-Host and X-Forwarded-Proto
+	// should be honored when constructing OAuth resource metadata URLs. Only
+	// enable this when the server is deployed behind a trusted proxy that sets
+	// these headers. When BaseURL is set, it always wins and this setting has
+	// no effect.
+	TrustProxyHeaders bool
 
 	// ExportTranslations indicates if we should export translations
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#i18n--overriding-descriptions
@@ -67,6 +78,28 @@ type ServerConfig struct {
 	// ScopeChallenge indicates if we should return OAuth scope challenges, and if we should perform
 	// tool filtering based on token scopes.
 	ScopeChallenge bool
+
+	// ReadOnly indicates if we should only register read-only tools.
+	// When set via CLI flag, this acts as an upper bound — per-request headers
+	// cannot re-enable write tools.
+	ReadOnly bool
+
+	// EnabledToolsets is a list of toolsets to enable.
+	// When set via CLI flag, per-request headers can only narrow within these toolsets.
+	EnabledToolsets []string
+
+	// EnabledTools is a list of specific tools to enable (additive to toolsets).
+	EnabledTools []string
+
+	// ExcludeTools is a list of tool names to disable regardless of other settings.
+	// When set via CLI flag, per-request headers cannot re-include these tools.
+	ExcludeTools []string
+
+	// EnabledFeatures is a list of feature flags that are enabled.
+	EnabledFeatures []string
+
+	// InsidersMode expands to the curated set of feature flags enabled for insiders.
+	InsidersMode bool
 }
 
 func RunHTTPServer(cfg ServerConfig) error {
@@ -90,7 +123,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo})
 	}
 	logger := slog.New(slogHandler)
-	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "lockdownEnabled", cfg.LockdownMode)
+	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "lockdownEnabled", cfg.LockdownMode, "readOnly", cfg.ReadOnly, "insidersMode", cfg.InsidersMode)
 
 	apiHost, err := utils.NewAPIHost(cfg.Host)
 	if err != nil {
@@ -104,7 +137,12 @@ func RunHTTPServer(cfg ServerConfig) error {
 		repoAccessOpts = append(repoAccessOpts, lockdown.WithTTL(*cfg.RepoAccessCacheTTL))
 	}
 
-	featureChecker := createHTTPFeatureChecker()
+	featureChecker := createHTTPFeatureChecker(cfg.EnabledFeatures, cfg.InsidersMode)
+
+	obs, err := observability.NewExporters(logger, metrics.NewNoopMetrics())
+	if err != nil {
+		return fmt.Errorf("failed to create observability exporters: %w", err)
+	}
 
 	deps := github.NewRequestDeps(
 		apiHost,
@@ -114,6 +152,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 		t,
 		cfg.ContentWindowSize,
 		featureChecker,
+		obs,
 	)
 
 	// Initialize the global tool scope map
@@ -124,8 +163,9 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	// Register OAuth protected resource metadata endpoints
 	oauthCfg := &oauth.Config{
-		BaseURL:      cfg.BaseURL,
-		ResourcePath: cfg.ResourcePath,
+		BaseURL:           cfg.BaseURL,
+		ResourcePath:      cfg.ResourcePath,
+		TrustProxyHeaders: cfg.TrustProxyHeaders,
 	}
 
 	serverOptions := []HandlerOption{}
@@ -142,6 +182,8 @@ func RunHTTPServer(cfg ServerConfig) error {
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Use(middleware.SetCorsHeaders)
+
 		// Register Middleware First, needs to be before route registration
 		handler.RegisterMiddleware(r)
 
@@ -156,7 +198,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 	})
 	logger.Info("OAuth protected resource endpoints registered", "baseURL", cfg.BaseURL)
 
-	addr := fmt.Sprintf(":%d", cfg.Port)
+	addr := resolveListenAddress(cfg.ListenHost, cfg.Port)
 	httpSvr := http.Server{
 		Addr:              addr,
 		Handler:           r,
@@ -187,6 +229,16 @@ func RunHTTPServer(cfg ServerConfig) error {
 	return nil
 }
 
+// resolveListenAddress returns the address string passed to http.Server.
+// When host is empty the server binds to all interfaces on the given port;
+// otherwise host and port are joined into a single address.
+func resolveListenAddress(host string, port int) string {
+	if host == "" {
+		return fmt.Sprintf(":%d", port)
+	}
+	return net.JoinHostPort(host, strconv.Itoa(port))
+}
+
 func initGlobalToolScopeMap(t translations.TranslationHelperFunc) error {
 	// Build inventory with all tools to extract scope information
 	inv, err := inventory.NewBuilder().
@@ -203,19 +255,16 @@ func initGlobalToolScopeMap(t translations.TranslationHelperFunc) error {
 	return nil
 }
 
-// createHTTPFeatureChecker creates a feature checker that reads header features from context
-// and validates them against the knownFeatureFlags whitelist
-func createHTTPFeatureChecker() inventory.FeatureFlagChecker {
-	// Pre-compute whitelist as set for O(1) lookup
-	knownSet := make(map[string]bool, len(knownFeatureFlags))
-	for _, f := range knownFeatureFlags {
-		knownSet[f] = true
-	}
-
+// createHTTPFeatureChecker creates a feature checker that resolves static CLI
+// features plus per-request header features and insiders mode.
+func createHTTPFeatureChecker(enabledFeatures []string, insidersMode bool) inventory.FeatureFlagChecker {
 	return func(ctx context.Context, flag string) (bool, error) {
-		if knownSet[flag] && slices.Contains(ghcontext.GetHeaderFeatures(ctx), flag) {
-			return true, nil
-		}
-		return false, nil
+		headerFeatures := ghcontext.GetHeaderFeatures(ctx)
+		features := make([]string, 0, len(enabledFeatures)+len(headerFeatures))
+		features = append(features, enabledFeatures...)
+		features = append(features, headerFeatures...)
+
+		effective := github.ResolveFeatureFlags(features, insidersMode || ghcontext.IsInsidersMode(ctx))
+		return effective[flag], nil
 	}
 }

@@ -9,7 +9,6 @@ import (
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gh "github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -100,7 +99,7 @@ func Test_ProjectsList_ListProjects(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := gh.NewClient(tc.mockedClient)
+			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -140,7 +139,7 @@ func Test_ProjectsList_ListProjectFields(t *testing.T) {
 			GetOrgsProjectsV2FieldsByProject: mockResponse(t, http.StatusOK, fields),
 		})
 
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -167,7 +166,7 @@ func Test_ProjectsList_ListProjectFields(t *testing.T) {
 
 	t.Run("missing project_number", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -186,17 +185,159 @@ func Test_ProjectsList_ListProjectFields(t *testing.T) {
 	})
 }
 
+func verbosePullRequestProjectItemFixture() map[string]any {
+	return map[string]any{
+		"id":           1001,
+		"node_id":      "PVTI_1",
+		"content_type": "PullRequest",
+		"item_url":     "https://api.github.com/projectsV2/items/1001",
+		"project_url":  "https://api.github.com/orgs/octo-org/projectsV2/1",
+		"creator": map[string]any{
+			"login":         "creator",
+			"id":            999,
+			"followers_url": "https://api.github.com/users/creator/followers",
+		},
+		"content": map[string]any{
+			"id":         2002,
+			"node_id":    "PR_1",
+			"number":     42,
+			"title":      "Reduce project item output",
+			"body":       "Long pull request body that should not be returned from project item tools.",
+			"state":      "closed",
+			"html_url":   "https://github.com/cli/cli/pull/42",
+			"url":        "https://api.github.com/repos/cli/cli/pulls/42",
+			"diff_url":   "https://github.com/cli/cli/pull/42.diff",
+			"patch_url":  "https://github.com/cli/cli/pull/42.patch",
+			"draft":      false,
+			"merged":     true,
+			"created_at": "2026-05-07T18:41:21Z",
+			"updated_at": "2026-05-07T21:21:57Z",
+			"closed_at":  "2026-05-07T21:21:55Z",
+			"merged_at":  "2026-05-07T21:21:55Z",
+			"user": map[string]any{
+				"login":         "octocat",
+				"id":            123,
+				"followers_url": "https://api.github.com/users/octocat/followers",
+			},
+			"assignees": []map[string]any{
+				{
+					"login":      "hubot",
+					"events_url": "https://api.github.com/users/hubot/events{/privacy}",
+				},
+			},
+			"labels": []map[string]any{
+				{
+					"name": "bug",
+					"url":  "https://api.github.com/repos/cli/cli/labels/bug",
+				},
+			},
+			"milestone": map[string]any{
+				"title":       "v1.0",
+				"description": "Verbose milestone description",
+			},
+			"head": map[string]any{
+				"ref": "feature",
+				"repo": map[string]any{
+					"full_name":   "fork/cli",
+					"archive_url": "https://api.github.com/repos/fork/cli/{archive_format}{/ref}",
+				},
+			},
+			"base": map[string]any{
+				"ref": "trunk",
+				"repo": map[string]any{
+					"full_name":   "cli/cli",
+					"archive_url": "https://api.github.com/repos/cli/cli/{archive_format}{/ref}",
+				},
+			},
+			"_links": map[string]any{
+				"self": map[string]any{
+					"href": "https://api.github.com/repos/cli/cli/pulls/42",
+				},
+			},
+			"statuses_url": "https://api.github.com/repos/cli/cli/statuses/abc123",
+		},
+		"fields": []map[string]any{
+			{
+				"id":        301,
+				"name":      "Status",
+				"data_type": "single_select",
+				"value": map[string]any{
+					"id":          "opt1",
+					"name":        "Done",
+					"color":       "GREEN",
+					"description": "Verbose option description",
+				},
+			},
+		},
+		"created_at": "2026-05-28T07:39:37Z",
+		"updated_at": "2026-05-28T07:40:15Z",
+	}
+}
+
+func assertMinimalPullRequestProjectItem(t *testing.T, rawJSON string, item map[string]any) {
+	t.Helper()
+
+	assert.Equal(t, float64(1001), item["id"])
+	assert.Equal(t, "PVTI_1", item["node_id"])
+	assert.Equal(t, "PullRequest", item["content_type"])
+	assert.Equal(t, "creator", item["creator"])
+	assert.Equal(t, "2026-05-28T07:39:37Z", item["created_at"])
+	assert.Equal(t, "2026-05-28T07:40:15Z", item["updated_at"])
+
+	content, ok := item["content"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, float64(42), content["number"])
+	assert.Equal(t, "Reduce project item output", content["title"])
+	assert.Equal(t, "closed", content["state"])
+	assert.Equal(t, "https://github.com/cli/cli/pull/42", content["html_url"])
+	assert.Equal(t, "cli/cli", content["repository"])
+	assert.Equal(t, "octocat", content["author"])
+	assert.Equal(t, true, content["merged"])
+	assert.Equal(t, "2026-05-07T18:41:21Z", content["created_at"])
+	assert.Equal(t, "2026-05-07T21:21:57Z", content["updated_at"])
+	assert.Equal(t, "2026-05-07T21:21:55Z", content["closed_at"])
+	assert.Equal(t, "2026-05-07T21:21:55Z", content["merged_at"])
+	assert.Equal(t, []any{"hubot"}, content["assignees"])
+	assert.Equal(t, []any{"bug"}, content["labels"])
+	assert.Equal(t, "v1.0", content["milestone"])
+
+	fields, ok := item["fields"].([]any)
+	require.True(t, ok)
+	require.Len(t, fields, 1)
+	field, ok := fields[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, float64(301), field["id"])
+	assert.Equal(t, "Status", field["name"])
+	assert.Equal(t, "single_select", field["data_type"])
+	value, ok := field["value"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "opt1", value["id"])
+	assert.Equal(t, "Done", value["name"])
+	assert.Equal(t, "GREEN", value["color"])
+
+	assert.NotContains(t, rawJSON, `"body"`)
+	assert.NotContains(t, rawJSON, `"archive_url"`)
+	assert.NotContains(t, rawJSON, `"followers_url"`)
+	assert.NotContains(t, rawJSON, `"events_url"`)
+	assert.NotContains(t, rawJSON, `"_links"`)
+	assert.NotContains(t, rawJSON, `"head"`)
+	assert.NotContains(t, rawJSON, `"base"`)
+	assert.NotContains(t, rawJSON, `"url":`)
+	assert.NotContains(t, rawJSON, `"statuses_url"`)
+	assert.NotContains(t, rawJSON, `"diff_url"`)
+}
+
 func Test_ProjectsList_ListProjectItems(t *testing.T) {
 	toolDef := ProjectsList(translations.NullTranslationHelper)
 
-	items := []map[string]any{{"id": 1001, "archived_at": nil, "content": map[string]any{"title": "Issue 1"}}}
+	items := []map[string]any{verbosePullRequestProjectItemFixture()}
 
 	t.Run("success organization", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetOrgsProjectsV2ItemsByProject: mockResponse(t, http.StatusOK, items),
 		})
 
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -219,6 +360,199 @@ func Test_ProjectsList_ListProjectItems(t *testing.T) {
 		itemsList, ok := response["items"].([]any)
 		require.True(t, ok)
 		assert.Equal(t, 1, len(itemsList))
+		item, ok := itemsList[0].(map[string]any)
+		require.True(t, ok)
+		assertMinimalPullRequestProjectItem(t, textContent.Text, item)
+	})
+}
+
+func Test_detectOwnerType(t *testing.T) {
+	t.Run("uses organization account type", func(t *testing.T) {
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetUsersByUsername: mockResponse(t, http.StatusOK, map[string]any{
+				"login": "github",
+				"type":  "Organization",
+			}),
+		})
+		client := mustNewGHClient(t, mockedClient)
+
+		ownerType, err := detectOwnerType(context.Background(), client, "github", 1)
+
+		require.NoError(t, err)
+		assert.Equal(t, "org", ownerType)
+	})
+
+	t.Run("uses user account type", func(t *testing.T) {
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetUsersByUsername: mockResponse(t, http.StatusOK, map[string]any{
+				"login": "octocat",
+				"type":  "User",
+			}),
+		})
+		client := mustNewGHClient(t, mockedClient)
+
+		ownerType, err := detectOwnerType(context.Background(), client, "octocat", 1)
+
+		require.NoError(t, err)
+		assert.Equal(t, "user", ownerType)
+	})
+
+	t.Run("falls back to project probes", func(t *testing.T) {
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetUsersProjectsV2ByUsernameByProject: mockResponse(t, http.StatusNotFound, nil),
+			GetOrgsProjectsV2ByProject:            mockResponse(t, http.StatusOK, map[string]any{"id": 1}),
+		})
+		client := mustNewGHClient(t, mockedClient)
+
+		ownerType, err := detectOwnerType(context.Background(), client, "octo-org", 1)
+
+		require.NoError(t, err)
+		assert.Equal(t, "org", ownerType)
+	})
+}
+
+func Test_ProjectsList_IFC_InsidersMode(t *testing.T) {
+	toolDef := ProjectsList(translations.NullTranslationHelper)
+
+	t.Run("list_projects joins returned project visibilities", func(t *testing.T) {
+		projects := []map[string]any{
+			{"id": 1, "node_id": "NODE1", "title": "Public Project", "public": true},
+			{"id": 2, "node_id": "NODE2", "title": "Private Project", "public": false},
+		}
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetOrgsProjectsV2: mockResponse(t, http.StatusOK, projects),
+		})
+		client := mustNewGHClient(t, mockedClient)
+		deps := BaseDeps{
+			Client:         client,
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":     "list_projects",
+			"owner":      "octo-org",
+			"owner_type": "org",
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "private", ifcMap["confidentiality"])
+	})
+
+	t.Run("list_project_fields uses project metadata label", func(t *testing.T) {
+		fields := []map[string]any{{"id": 101, "name": "Status", "data_type": "single_select"}}
+		project := map[string]any{"id": 1, "node_id": "NODE1", "title": "Private Project", "public": false}
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetOrgsProjectsV2FieldsByProject: mockResponse(t, http.StatusOK, fields),
+			GetOrgsProjectsV2ByProject:       mockResponse(t, http.StatusOK, project),
+		})
+		client := mustNewGHClient(t, mockedClient)
+		deps := BaseDeps{
+			Client:         client,
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "list_project_fields",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "trusted", ifcMap["integrity"])
+		assert.Equal(t, "private", ifcMap["confidentiality"])
+	})
+
+	t.Run("list_project_items uses project content label", func(t *testing.T) {
+		items := []map[string]any{verbosePullRequestProjectItemFixture()}
+		project := map[string]any{"id": 1, "node_id": "NODE1", "title": "Private Project", "public": false}
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetOrgsProjectsV2ItemsByProject: mockResponse(t, http.StatusOK, items),
+			GetOrgsProjectsV2ByProject:      mockResponse(t, http.StatusOK, project),
+		})
+		client := mustNewGHClient(t, mockedClient)
+		deps := BaseDeps{
+			Client:         client,
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "list_project_items",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "private", ifcMap["confidentiality"])
+	})
+
+	t.Run("list_project_status_updates uses GraphQL project visibility", func(t *testing.T) {
+		gqlMockedClient := githubv4mock.NewMockedHTTPClient(
+			githubv4mock.NewQueryMatcher(
+				statusUpdatesOrgQuery{},
+				map[string]any{
+					"owner":         githubv4.String("octo-org"),
+					"projectNumber": githubv4.Int(1),
+					"first":         githubv4.Int(50),
+					"after":         (*githubv4.String)(nil),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"organization": map[string]any{
+						"projectV2": map[string]any{
+							"public": true,
+							"statusUpdates": map[string]any{
+								"nodes": []map[string]any{},
+								"pageInfo": map[string]any{
+									"hasNextPage":     false,
+									"hasPreviousPage": false,
+									"startCursor":     "",
+									"endCursor":       "",
+								},
+							},
+						},
+					},
+				}),
+			),
+		)
+		deps := BaseDeps{
+			Client:         mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
+			GQLClient:      githubv4.NewClient(gqlMockedClient),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "list_project_status_updates",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 }
 
@@ -249,7 +583,7 @@ func Test_ProjectsGet_GetProject(t *testing.T) {
 			GetOrgsProjectsV2ByProject: mockResponse(t, http.StatusOK, project),
 		})
 
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -274,7 +608,7 @@ func Test_ProjectsGet_GetProject(t *testing.T) {
 
 	t.Run("unknown method", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -294,6 +628,79 @@ func Test_ProjectsGet_GetProject(t *testing.T) {
 	})
 }
 
+func Test_ProjectsGet_IFC_InsidersMode(t *testing.T) {
+	toolDef := ProjectsGet(translations.NullTranslationHelper)
+
+	t.Run("get_project uses project metadata label", func(t *testing.T) {
+		project := map[string]any{"id": 123, "node_id": "NODE1", "title": "Private Project", "public": false}
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetOrgsProjectsV2ByProject: mockResponse(t, http.StatusOK, project),
+		})
+		client := mustNewGHClient(t, mockedClient)
+		deps := BaseDeps{
+			Client:         client,
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "get_project",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "trusted", ifcMap["integrity"])
+		assert.Equal(t, "private", ifcMap["confidentiality"])
+	})
+
+	t.Run("get_project_status_update uses GraphQL project visibility", func(t *testing.T) {
+		gqlMockedClient := githubv4mock.NewMockedHTTPClient(
+			githubv4mock.NewQueryMatcher(
+				statusUpdateNodeQuery{},
+				map[string]any{
+					"id": githubv4.ID("SU_abc123"),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"node": map[string]any{
+						"id":         "SU_abc123",
+						"body":       "On track",
+						"status":     "ON_TRACK",
+						"createdAt":  "2026-01-15T10:00:00Z",
+						"startDate":  "2026-01-01",
+						"targetDate": "2026-03-01",
+						"creator":    map[string]any{"login": "octocat"},
+						"project":    map[string]any{"public": true},
+					},
+				}),
+			),
+		)
+		deps := BaseDeps{
+			GQLClient:      githubv4.NewClient(gqlMockedClient),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":           "get_project_status_update",
+			"status_update_id": "SU_abc123",
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
+	})
+}
+
 func Test_ProjectsGet_GetProjectField(t *testing.T) {
 	toolDef := ProjectsGet(translations.NullTranslationHelper)
 
@@ -304,7 +711,7 @@ func Test_ProjectsGet_GetProjectField(t *testing.T) {
 			GetOrgsProjectsV2FieldsByProjectByFieldID: mockResponse(t, http.StatusOK, field),
 		})
 
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -330,7 +737,7 @@ func Test_ProjectsGet_GetProjectField(t *testing.T) {
 
 	t.Run("missing field_id", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -353,14 +760,14 @@ func Test_ProjectsGet_GetProjectField(t *testing.T) {
 func Test_ProjectsGet_GetProjectItem(t *testing.T) {
 	toolDef := ProjectsGet(translations.NullTranslationHelper)
 
-	item := map[string]any{"id": 1001, "archived_at": nil, "content": map[string]any{"title": "Issue 1"}}
+	item := verbosePullRequestProjectItemFixture()
 
 	t.Run("success organization", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetOrgsProjectsV2ItemsByProjectByItemID: mockResponse(t, http.StatusOK, item),
 		})
 
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -381,12 +788,12 @@ func Test_ProjectsGet_GetProjectItem(t *testing.T) {
 		var response map[string]any
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
-		assert.NotNil(t, response["id"])
+		assertMinimalPullRequestProjectItem(t, textContent.Text, response)
 	})
 
 	t.Run("missing item_id", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -425,7 +832,7 @@ func Test_ProjectsWrite(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "issue_number")
 	assert.Contains(t, inputSchema.Properties, "pull_request_number")
 	assert.Contains(t, inputSchema.Properties, "updated_field")
-	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner", "project_number"})
+	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner"})
 
 	// Verify DestructiveHint is set
 	assert.NotNil(t, toolDef.Tool.Annotations)
@@ -486,7 +893,8 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 				struct {
 					AddProjectV2ItemByID struct {
 						Item struct {
-							ID githubv4.ID
+							ID             githubv4.ID
+							FullDatabaseID string `graphql:"fullDatabaseId"`
 						}
 					} `graphql:"addProjectV2ItemById(input: $input)"`
 				}{},
@@ -498,7 +906,8 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 				githubv4mock.DataResponse(map[string]any{
 					"addProjectV2ItemById": map[string]any{
 						"item": map[string]any{
-							"id": "PVTI_item1",
+							"id":             "PVTI_item1",
+							"fullDatabaseId": "1001",
 						},
 					},
 				}),
@@ -530,6 +939,8 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
 		assert.NotNil(t, response["id"])
+		assert.Equal(t, float64(1001), response["item_id"])
+		assert.Equal(t, "1001", response["full_database_id"])
 		assert.Contains(t, response["message"], "Successfully added")
 	})
 
@@ -583,7 +994,8 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 				struct {
 					AddProjectV2ItemByID struct {
 						Item struct {
-							ID githubv4.ID
+							ID             githubv4.ID
+							FullDatabaseID string `graphql:"fullDatabaseId"`
 						}
 					} `graphql:"addProjectV2ItemById(input: $input)"`
 				}{},
@@ -595,7 +1007,8 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 				githubv4mock.DataResponse(map[string]any{
 					"addProjectV2ItemById": map[string]any{
 						"item": map[string]any{
-							"id": "PVTI_item2",
+							"id":             "PVTI_item2",
+							"fullDatabaseId": "1002",
 						},
 					},
 				}),
@@ -627,6 +1040,8 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
 		assert.NotNil(t, response["id"])
+		assert.Equal(t, float64(1002), response["item_id"])
+		assert.Equal(t, "1002", response["full_database_id"])
 		assert.Contains(t, response["message"], "Successfully added")
 	})
 
@@ -704,14 +1119,14 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 func Test_ProjectsWrite_UpdateProjectItem(t *testing.T) {
 	toolDef := ProjectsWrite(translations.NullTranslationHelper)
 
-	updatedItem := map[string]any{"id": 1001, "archived_at": nil}
+	updatedItem := verbosePullRequestProjectItemFixture()
 
 	t.Run("success organization", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			PatchOrgsProjectsV2ItemsByProjectByItemID: mockResponse(t, http.StatusOK, updatedItem),
 		})
 
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -736,12 +1151,12 @@ func Test_ProjectsWrite_UpdateProjectItem(t *testing.T) {
 		var response map[string]any
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
-		assert.NotNil(t, response["id"])
+		assertMinimalPullRequestProjectItem(t, textContent.Text, response)
 	})
 
 	t.Run("missing updated_field", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -772,7 +1187,7 @@ func Test_ProjectsWrite_DeleteProjectItem(t *testing.T) {
 			}),
 		})
 
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -795,7 +1210,7 @@ func Test_ProjectsWrite_DeleteProjectItem(t *testing.T) {
 
 	t.Run("missing item_id", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
-		client := gh.NewClient(mockedClient)
+		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
 		}
@@ -813,6 +1228,108 @@ func Test_ProjectsWrite_DeleteProjectItem(t *testing.T) {
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "missing required parameter: item_id")
 	})
+}
+
+func TestMinimalProjectFieldValue(t *testing.T) {
+	tests := []struct {
+		name  string
+		value any
+		want  any
+	}{
+		{
+			name: "select option",
+			value: map[string]any{
+				"id":          "opt1",
+				"name":        "Done",
+				"color":       "GREEN",
+				"description": "verbose",
+			},
+			want: minimalProjectOptionValue{
+				ID:    "opt1",
+				Name:  "Done",
+				Color: "GREEN",
+			},
+		},
+		{
+			name: "iteration",
+			value: map[string]any{
+				"id":         "iter1",
+				"title":      "Sprint 1",
+				"start_date": "2026-05-01",
+				"duration":   float64(14),
+			},
+			want: minimalProjectIterationValue{
+				ID:        "iter1",
+				Title:     "Sprint 1",
+				StartDate: "2026-05-01",
+				Duration:  14,
+			},
+		},
+		{
+			name: "assignees",
+			value: []any{
+				map[string]any{"login": "octocat", "followers_url": "https://api.github.com/users/octocat/followers"},
+				map[string]any{"login": "hubot", "followers_url": "https://api.github.com/users/hubot/followers"},
+			},
+			want: []string{"octocat", "hubot"},
+		},
+		{
+			name: "labels",
+			value: []any{
+				map[string]any{"name": "bug", "url": "https://api.github.com/repos/cli/cli/labels/bug"},
+				map[string]any{"name": "help wanted", "url": "https://api.github.com/repos/cli/cli/labels/help%20wanted"},
+			},
+			want: []string{"bug", "help wanted"},
+		},
+		{
+			name: "repository",
+			value: map[string]any{
+				"full_name":   "cli/cli",
+				"archive_url": "https://api.github.com/repos/cli/cli/{archive_format}{/ref}",
+			},
+			want: "cli/cli",
+		},
+		{
+			name: "linked pull requests",
+			value: []any{
+				map[string]any{
+					"number":   float64(42),
+					"title":    "Reduce output",
+					"state":    "open",
+					"html_url": "https://github.com/cli/cli/pull/42",
+					"base": map[string]any{
+						"repo": map[string]any{
+							"full_name":   "cli/cli",
+							"archive_url": "https://api.github.com/repos/cli/cli/{archive_format}{/ref}",
+						},
+					},
+				},
+			},
+			want: []minimalProjectPullRequestRef{
+				{
+					Number:     42,
+					Title:      "Reduce output",
+					State:      "open",
+					HTMLURL:    "https://github.com/cli/cli/pull/42",
+					Repository: "cli/cli",
+				},
+			},
+		},
+		{
+			name: "raw text content",
+			value: map[string]any{
+				"raw":  "plain text",
+				"html": "<p>plain text</p>",
+			},
+			want: "plain text",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, minimalProjectFieldValue(tc.value))
+		})
+	}
 }
 
 func Test_ProjectsList_ListProjectStatusUpdates(t *testing.T) {
@@ -837,6 +1354,7 @@ func Test_ProjectsList_ListProjectStatusUpdates(t *testing.T) {
 				githubv4mock.DataResponse(map[string]any{
 					"user": map[string]any{
 						"projectV2": map[string]any{
+							"public": false,
 							"statusUpdates": map[string]any{
 								"nodes": []map[string]any{
 									{
@@ -864,7 +1382,7 @@ func Test_ProjectsList_ListProjectStatusUpdates(t *testing.T) {
 
 		gqlClient := githubv4.NewClient(gqlMockedClient)
 		deps := BaseDeps{
-			Client:    gh.NewClient(restClient),
+			Client:    mustNewGHClient(t, restClient),
 			GQLClient: gqlClient,
 		}
 		handler := toolDef.Handler(deps)
@@ -907,6 +1425,7 @@ func Test_ProjectsGet_GetProjectStatusUpdate(t *testing.T) {
 						"startDate":  "2026-01-01",
 						"targetDate": "2026-03-01",
 						"creator":    map[string]any{"login": "octocat"},
+						"project":    map[string]any{"public": false},
 					},
 				}),
 			),

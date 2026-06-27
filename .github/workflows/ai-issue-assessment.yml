@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Run AI assessment
         uses: github/ai-assessment-comment-labeler@e3bedc38cfffa9179fe4cee8f7ecc93bffb3fee7 # v1.0.1

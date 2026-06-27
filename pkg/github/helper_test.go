@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	gogithub "github.com/google/go-github/v87/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	testifymock "github.com/stretchr/testify/mock"
@@ -21,8 +22,8 @@ import (
 const (
 	// User endpoints
 	GetAuthenticatedUser           = "GET /user"
+	GetUsersByUsername             = "GET /users/{username}"
 	GetUserStarred                 = "GET /user/starred"
-	GetUserByUsername              = "GET /users/{username}"
 	GetUsersGistsByUsername        = "GET /users/{username}/gists"
 	GetUsersStarredByUsername      = "GET /users/{username}/starred"
 	PutUserStarredByOwnerByRepo    = "PUT /user/starred/{owner}/{repo}"
@@ -40,6 +41,7 @@ const (
 	GetReposSubscriptionByOwnerByRepo    = "GET /repos/{owner}/{repo}/subscription"
 	PutReposSubscriptionByOwnerByRepo    = "PUT /repos/{owner}/{repo}/subscription"
 	DeleteReposSubscriptionByOwnerByRepo = "DELETE /repos/{owner}/{repo}/subscription"
+	ListCollaborators                    = "GET /repos/{owner}/{repo}/collaborators"
 
 	// Git endpoints
 	GetReposGitTreesByOwnerByRepoByTree        = "GET /repos/{owner}/{repo}/git/trees/{tree}"
@@ -56,18 +58,23 @@ const (
 
 	// Issues endpoints
 	GetReposIssuesByOwnerByRepoByIssueNumber                    = "GET /repos/{owner}/{repo}/issues/{issue_number}"
+	GetReposIssuesCommentByOwnerByRepoByCommentID               = "GET /repos/{owner}/{repo}/issues/comments/{comment_id}"
 	GetReposIssuesCommentsByOwnerByRepoByIssueNumber            = "GET /repos/{owner}/{repo}/issues/{issue_number}/comments"
 	PostReposIssuesByOwnerByRepo                                = "POST /repos/{owner}/{repo}/issues"
 	PostReposIssuesCommentsByOwnerByRepoByIssueNumber           = "POST /repos/{owner}/{repo}/issues/{issue_number}/comments"
+	PostReposIssuesReactionsByOwnerByRepoByIssueNumber          = "POST /repos/{owner}/{repo}/issues/{issue_number}/reactions"
 	PatchReposIssuesByOwnerByRepoByIssueNumber                  = "PATCH /repos/{owner}/{repo}/issues/{issue_number}"
 	GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber           = "GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
 	PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber          = "POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
 	DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber         = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/sub_issue"
 	PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber = "PATCH /repos/{owner}/{repo}/issues/{issue_number}/sub_issues/priority"
+	PostReposIssuesCommentsReactionsByOwnerByRepoByCommentID    = "POST /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions"
+	DeleteReposIssuesIssueFieldValueByOwnerByRepoByIssueNumber  = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/issue-field-values/{issue_field_id}"
 
 	// Pull request endpoints
 	GetReposPullsByOwnerByRepo                                = "GET /repos/{owner}/{repo}/pulls"
 	GetReposPullsByOwnerByRepoByPullNumber                    = "GET /repos/{owner}/{repo}/pulls/{pull_number}"
+	GetReposPullsCommitsByOwnerByRepoByPullNumber             = "GET /repos/{owner}/{repo}/pulls/{pull_number}/commits"
 	GetReposPullsFilesByOwnerByRepoByPullNumber               = "GET /repos/{owner}/{repo}/pulls/{pull_number}/files"
 	GetReposPullsReviewsByOwnerByRepoByPullNumber             = "GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews"
 	PostReposPullsByOwnerByRepo                               = "POST /repos/{owner}/{repo}/pulls"
@@ -76,6 +83,7 @@ const (
 	PutReposPullsUpdateBranchByOwnerByRepoByPullNumber        = "PUT /repos/{owner}/{repo}/pulls/{pull_number}/update-branch"
 	PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber = "POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers"
 	PostReposPullsCommentsByOwnerByRepoByPullNumber           = "POST /repos/{owner}/{repo}/pulls/{pull_number}/comments"
+	PostReposPullsCommentsReactionsByOwnerByRepoByCommentID   = "POST /repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions"
 
 	// Notifications endpoints
 	GetNotifications                                 = "GET /notifications"
@@ -98,6 +106,9 @@ const (
 	GetReposReleasesByOwnerByRepo          = "GET /repos/{owner}/{repo}/releases"
 	GetReposReleasesLatestByOwnerByRepo    = "GET /repos/{owner}/{repo}/releases/latest"
 	GetReposReleasesTagsByOwnerByRepoByTag = "GET /repos/{owner}/{repo}/releases/tags/{tag}"
+
+	// Code quality endpoints
+	GetReposCodeQualityFindingsByOwnerByRepoByFindingNumber = "GET /repos/{owner}/{repo}/code-quality/findings/{finding_number}"
 
 	// Code scanning endpoints
 	GetReposCodeScanningAlertsByOwnerByRepo              = "GET /repos/{owner}/{repo}/code-scanning/alerts"
@@ -139,6 +150,7 @@ const (
 	GetSearchIssues       = "GET /search/issues"
 	GetSearchUsers        = "GET /search/users"
 	GetSearchRepositories = "GET /search/repositories"
+	GetSearchCommits      = "GET /search/commits"
 
 	// Raw content endpoints (used for GitHub raw content API, not standard API)
 	// These are used with the raw content client that interacts with raw.githubusercontent.com
@@ -177,6 +189,22 @@ type expectations struct {
 	path        string
 	queryParams map[string]string
 	requestBody any
+}
+
+// mustNewGHClient creates a new GitHub client for testing.
+// If httpClient is nil, a client with no options is created.
+// The test fails immediately if client creation fails.
+func mustNewGHClient(t *testing.T, httpClient *http.Client) *gogithub.Client {
+	t.Helper()
+	var client *gogithub.Client
+	var err error
+	if httpClient == nil {
+		client, err = gogithub.NewClient()
+	} else {
+		client, err = gogithub.NewClient(gogithub.WithHTTPClient(httpClient))
+	}
+	require.NoError(t, err)
+	return client
 }
 
 // expect is a helper function to create a partial mock that expects various
@@ -220,9 +248,15 @@ func expectRequestBody(t *testing.T, expectedRequestBody any) *partialMock {
 type partialMock struct {
 	t *testing.T
 
-	expectedPath        string
-	expectedQueryParams map[string]string
-	expectedRequestBody any
+	expectedPath           string
+	expectedQueryParams    map[string]string
+	expectedRequestBody    any
+	expectedHeaderContains map[string]string
+}
+
+func (p *partialMock) withHeaders(headers map[string]string) *partialMock {
+	p.expectedHeaderContains = headers
+	return p
 }
 
 func (p *partialMock) andThen(responseHandler http.HandlerFunc) http.HandlerFunc {
@@ -245,6 +279,12 @@ func (p *partialMock) andThen(responseHandler http.HandlerFunc) http.HandlerFunc
 			require.NoError(p.t, err)
 
 			require.Equal(p.t, p.expectedRequestBody, unmarshaledRequestBody)
+		}
+
+		if p.expectedHeaderContains != nil {
+			for k, v := range p.expectedHeaderContains {
+				require.Contains(p.t, r.Header.Get(k), v, "expected header %q to contain %q", k, v)
+			}
 		}
 
 		responseHandler(w, r)

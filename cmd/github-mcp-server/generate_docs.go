@@ -29,6 +29,12 @@ func init() {
 	rootCmd.AddCommand(generateDocsCmd)
 }
 
+// noFeatureFlagsChecker reports every feature flag as disabled. It models the
+// default user experience used by the generated documentation.
+func noFeatureFlagsChecker(_ context.Context, _ string) (bool, error) {
+	return false, nil
+}
+
 func generateAllDocs() error {
 	for _, doc := range []struct {
 		path string
@@ -37,6 +43,8 @@ func generateAllDocs() error {
 		// File to edit, function to generate its docs
 		{"README.md", generateReadmeDocs},
 		{"docs/remote-server.md", generateRemoteServerDocs},
+		{"docs/insiders-features.md", generateInsidersFeaturesDocs},
+		{"docs/feature-flags.md", generateFeatureFlagsDocs},
 		{"docs/tool-renaming.md", generateDeprecatedAliasesDocs},
 	} {
 		if err := doc.fn(doc.path); err != nil {
@@ -51,9 +59,16 @@ func generateReadmeDocs(readmePath string) error {
 	// Create translation helper
 	t, _ := translations.TranslationHelper()
 
-	// (not available to regular users) while including tools with FeatureFlagDisable.
+	// The README documents the default user experience: tools that are
+	// enabled with no special flags set. Installing a checker that reports
+	// every flag as disabled excludes tools gated by FeatureFlagEnable and
+	// keeps the legacy variants of tools gated by FeatureFlagDisable, so
+	// flag-gated duplicates don't appear twice.
 	// Build() can only fail if WithTools specifies invalid tools - not used here
-	r, _ := github.NewInventory(t).WithToolsets([]string{"all"}).Build()
+	r, _ := github.NewInventory(t).
+		WithToolsets([]string{"all"}).
+		WithFeatureChecker(noFeatureFlagsChecker).
+		Build()
 
 	// Generate toolsets documentation
 	toolsetsDoc := generateToolsetsDoc(r)
@@ -145,8 +160,8 @@ func generateToolsetsDoc(i *inventory.Inventory) string {
 	fmt.Fprintf(&buf, "| %s | `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |\n", contextIcon)
 
 	// AvailableToolsets() returns toolsets that have tools, sorted by ID
-	// Exclude context (custom description above) and dynamic (internal only)
-	for _, ts := range i.AvailableToolsets("context", "dynamic") {
+	// Exclude context (custom description above)
+	for _, ts := range i.AvailableToolsets("context") {
 		icon := octiconImg(ts.Icon)
 		fmt.Fprintf(&buf, "| %s | `%s` | %s |\n", icon, ts.ID, ts.Description)
 	}
@@ -155,7 +170,7 @@ func generateToolsetsDoc(i *inventory.Inventory) string {
 }
 
 func generateToolsDoc(r *inventory.Inventory) string {
-	tools := r.AvailableTools(context.Background())
+	tools := r.ToolsForRegistration(context.Background())
 	if len(tools) == 0 {
 		return ""
 	}
@@ -206,11 +221,28 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 
 	// OAuth scopes if present
 	if len(tool.RequiredScopes) > 0 {
-		fmt.Fprintf(buf, "  - **Required OAuth Scopes**: `%s`\n", strings.Join(tool.RequiredScopes, "`, `"))
+		// Scope filtering uses "any of" semantics (see scopes.HasRequiredScopes),
+		// so when multiple required scopes are listed, render them as alternatives
+		// rather than implying all are required.
+		scopeList := "`" + strings.Join(tool.RequiredScopes, "`, `") + "`"
+		if len(tool.RequiredScopes) > 1 {
+			fmt.Fprintf(buf, "  - **Required OAuth Scopes (any of)**: %s\n", scopeList)
+		} else {
+			fmt.Fprintf(buf, "  - **Required OAuth Scopes**: %s\n", scopeList)
+		}
 
 		// Only show accepted scopes if they differ from required scopes
 		if len(tool.AcceptedScopes) > 0 && !scopesEqual(tool.RequiredScopes, tool.AcceptedScopes) {
 			fmt.Fprintf(buf, "  - **Accepted OAuth Scopes**: `%s`\n", strings.Join(tool.AcceptedScopes, "`, `"))
+		}
+	}
+
+	// MCP App UI metadata (only rendered when the remote_mcp_ui_apps flag
+	// applied to the inventory; for the no-flags README this section is
+	// stripped by inventory.ToolsForRegistration before rendering).
+	if ui, ok := tool.Tool.Meta["ui"].(map[string]any); ok {
+		if uri, ok := ui["resourceUri"].(string); ok && uri != "" {
+			fmt.Fprintf(buf, "  - **MCP App UI**: `%s`\n", uri)
 		}
 	}
 
@@ -341,13 +373,15 @@ func generateRemoteToolsetsDoc() string {
 	buf.WriteString("| Name | Description | API URL | 1-Click Install (VS Code) | Read-only Link | 1-Click Read-only Install (VS Code) |\n")
 	buf.WriteString("| ---- | ----------- | ------- | ------------------------- | -------------- | ----------------------------------- |\n")
 
-	// Add "all" toolset first (special case)
-	allIcon := octiconImg("apps", "../")
-	fmt.Fprintf(&buf, "| %s<br>`all` | All available GitHub MCP tools | https://api.githubcopilot.com/mcp/ | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2F%%22%%7D) | [read-only](https://api.githubcopilot.com/mcp/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Freadonly%%22%%7D) |\n", allIcon)
+	// Add "default" and "all" meta toolsets first (special cases). The base
+	// URL serves the default toolset; /x/all enables every toolset at once.
+	metaIcon := octiconImg("apps", "../")
+	fmt.Fprintf(&buf, "| %s<br>`default` | Default toolset | https://api.githubcopilot.com/mcp/ | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2F%%22%%7D) | [read-only](https://api.githubcopilot.com/mcp/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Freadonly%%22%%7D) |\n", metaIcon)
+	fmt.Fprintf(&buf, "| %s<br>`all` | All available GitHub MCP tools | https://api.githubcopilot.com/mcp/x/all | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-all&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Fx%%2Fall%%22%%7D) | [read-only](https://api.githubcopilot.com/mcp/x/all/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-all&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Fx%%2Fall%%2Freadonly%%22%%7D) |\n", metaIcon)
 
 	// AvailableToolsets() returns toolsets that have tools, sorted by ID
-	// Exclude context (handled separately) and dynamic (internal only)
-	for _, ts := range r.AvailableToolsets("context", "dynamic") {
+	// Exclude context (handled separately)
+	for _, ts := range r.AvailableToolsets("context") {
 		idStr := string(ts.ID)
 
 		apiURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s", idStr)

@@ -4,46 +4,46 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/google/go-github/v87/github"
 	"github.com/muesli/cache2go"
 	"github.com/shurcooL/githubv4"
 )
 
 // RepoAccessCache caches repository metadata related to lockdown checks so that
 // multiple tools can reuse the same access information safely across goroutines.
+// In HTTP mode each request must construct its own instance so viewer-scoped
+// lookups run under the requesting user's credentials.
 type RepoAccessCache struct {
 	client           *githubv4.Client
-	mu               sync.Mutex
+	restClient       *github.Client
 	cache            *cache2go.CacheTable
 	ttl              time.Duration
 	logger           *slog.Logger
 	trustedBotLogins map[string]struct{}
+
+	viewerMu    sync.Mutex
+	viewerLogin string
 }
 
 type repoAccessCacheEntry struct {
-	isPrivate   bool
-	knownUsers  map[string]bool // normalized login -> has push access
-	viewerLogin string
+	isPrivate  bool
+	knownUsers map[string]bool // normalized login -> has push access
 }
 
 // RepoAccessInfo captures repository metadata needed for lockdown decisions.
 type RepoAccessInfo struct {
 	IsPrivate     bool
 	HasPushAccess bool
-	ViewerLogin   string
 }
 
 const (
 	defaultRepoAccessTTL      = 20 * time.Minute
 	defaultRepoAccessCacheKey = "repo-access-cache"
-)
-
-var (
-	instance   *RepoAccessCache
-	instanceMu sync.Mutex
 )
 
 // RepoAccessOption configures RepoAccessCache at construction time.
@@ -64,8 +64,8 @@ func WithLogger(logger *slog.Logger) RepoAccessOption {
 	}
 }
 
-// WithCacheName overrides the cache table name used for storing entries. This option is intended for tests
-// that need isolated cache instances.
+// WithCacheName overrides the cache table name used for storing entries.
+// Use this to isolate cache entries between tenants or in tests.
 func WithCacheName(name string) RepoAccessOption {
 	return func(c *RepoAccessCache) {
 		if name != "" {
@@ -74,36 +74,24 @@ func WithCacheName(name string) RepoAccessOption {
 	}
 }
 
-// GetInstance returns the singleton instance of RepoAccessCache.
-// It initializes the instance on first call with the provided client and options.
-// Subsequent calls ignore the client and options parameters and return the existing instance.
-// This is the preferred way to access the cache in production code.
-func GetInstance(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessCache {
-	instanceMu.Lock()
-	defer instanceMu.Unlock()
-	if instance == nil {
-		instance = &RepoAccessCache{
-			client: client,
-			cache:  cache2go.Cache(defaultRepoAccessCacheKey),
-			ttl:    defaultRepoAccessTTL,
-			trustedBotLogins: map[string]struct{}{
-				"copilot": {},
-			},
-		}
-		for _, opt := range opts {
-			if opt != nil {
-				opt(instance)
-			}
+// NewRepoAccessCache creates a RepoAccessCache bound to the supplied clients.
+func NewRepoAccessCache(client *githubv4.Client, restClient *github.Client, opts ...RepoAccessOption) *RepoAccessCache {
+	c := &RepoAccessCache{
+		client:     client,
+		restClient: restClient,
+		cache:      cache2go.Cache(defaultRepoAccessCacheKey),
+		ttl:        defaultRepoAccessTTL,
+		trustedBotLogins: map[string]struct{}{
+			"copilot":             {},
+			"github-actions[bot]": {},
+		},
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(c)
 		}
 	}
-	return instance
-}
-
-// SetLogger updates the logger used for cache diagnostics.
-func (c *RepoAccessCache) SetLogger(logger *slog.Logger) {
-	c.mu.Lock()
-	c.logger = logger
-	c.mu.Unlock()
+	return c
 }
 
 // CacheStats summarizes cache activity counters.
@@ -120,6 +108,14 @@ type CacheStats struct {
 // - the repository is private;
 // - the content was created by the viewer.
 func (c *RepoAccessCache) IsSafeContent(ctx context.Context, username, owner, repo string) (bool, error) {
+	if c == nil {
+		return false, fmt.Errorf("nil repo access cache")
+	}
+
+	if c.isTrustedBot(username) {
+		return true, nil
+	}
+
 	repoInfo, err := c.getRepoAccessInfo(ctx, username, owner, repo)
 	if err != nil {
 		return false, err
@@ -128,10 +124,55 @@ func (c *RepoAccessCache) IsSafeContent(ctx context.Context, username, owner, re
 	c.logDebug(ctx, fmt.Sprintf("evaluated repo access for user %s to %s/%s for content filtering, result: hasPushAccess=%t, isPrivate=%t",
 		username, owner, repo, repoInfo.HasPushAccess, repoInfo.IsPrivate))
 
-	if c.isTrustedBot(username) || repoInfo.IsPrivate || repoInfo.ViewerLogin == strings.ToLower(username) {
+	if repoInfo.IsPrivate {
 		return true, nil
 	}
-	return repoInfo.HasPushAccess, nil
+	if repoInfo.HasPushAccess {
+		return true, nil
+	}
+
+	viewerLogin, err := c.viewerLoginFor(ctx)
+	if err != nil {
+		return false, err
+	}
+	return viewerLogin == strings.ToLower(username), nil
+}
+
+func (c *RepoAccessCache) viewerLoginFor(ctx context.Context) (string, error) {
+	c.viewerMu.Lock()
+	defer c.viewerMu.Unlock()
+	if c.viewerLogin != "" {
+		return c.viewerLogin, nil
+	}
+	if c.client == nil {
+		return "", fmt.Errorf("nil GraphQL client")
+	}
+	var query struct {
+		Viewer struct {
+			Login githubv4.String
+		}
+	}
+	if err := c.client.Query(ctx, &query, nil); err != nil {
+		return "", fmt.Errorf("failed to query viewer login: %w", err)
+	}
+	login := strings.ToLower(string(query.Viewer.Login))
+	if login == "" {
+		return "", fmt.Errorf("viewer login returned empty")
+	}
+	c.viewerLogin = login
+	return c.viewerLogin, nil
+}
+
+// setViewerLogin seeds the cached viewer login from a piggy-backed query response.
+func (c *RepoAccessCache) setViewerLogin(login string) {
+	if login == "" {
+		return
+	}
+	c.viewerMu.Lock()
+	defer c.viewerMu.Unlock()
+	if c.viewerLogin == "" {
+		c.viewerLogin = strings.ToLower(login)
+	}
 }
 
 func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner, repo string) (RepoAccessInfo, error) {
@@ -141,66 +182,68 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 
 	key := cacheKey(owner, repo)
 	userKey := strings.ToLower(username)
-	c.mu.Lock()
-	defer c.mu.Unlock()
 
-	// Try to get entry from cache - this will keep the item alive if it exists
-	cacheItem, err := c.cache.Value(key)
-	if err == nil {
+	// Entries are immutable once added: the cache table is shared across instances,
+	// so we publish a fresh entry with a cloned knownUsers map on every miss.
+	if cacheItem, err := c.cache.Value(key); err == nil {
 		entry := cacheItem.Data().(*repoAccessCacheEntry)
 		if cachedHasPush, known := entry.knownUsers[userKey]; known {
 			c.logDebug(ctx, fmt.Sprintf("repo access cache hit for user %s to %s/%s", username, owner, repo))
 			return RepoAccessInfo{
 				IsPrivate:     entry.isPrivate,
 				HasPushAccess: cachedHasPush,
-				ViewerLogin:   entry.viewerLogin,
 			}, nil
 		}
 
-		c.logDebug(ctx, "known users cache miss, fetching from graphql API")
+		c.logDebug(ctx, "known users cache miss, fetching permission")
 
-		info, queryErr := c.queryRepoAccessInfo(ctx, username, owner, repo)
-		if queryErr != nil {
-			return RepoAccessInfo{}, queryErr
+		hasPush, pushErr := c.checkPushAccess(ctx, username, owner, repo)
+		if pushErr != nil {
+			return RepoAccessInfo{}, pushErr
 		}
 
-		entry.knownUsers[userKey] = info.HasPushAccess
-		entry.viewerLogin = info.ViewerLogin
-		entry.isPrivate = info.IsPrivate
-		c.cache.Add(key, c.ttl, entry)
+		users := make(map[string]bool, len(entry.knownUsers)+1)
+		maps.Copy(users, entry.knownUsers)
+		users[userKey] = hasPush
+		c.cache.Add(key, c.ttl, &repoAccessCacheEntry{
+			isPrivate:  entry.isPrivate,
+			knownUsers: users,
+		})
 
 		return RepoAccessInfo{
 			IsPrivate:     entry.isPrivate,
-			HasPushAccess: entry.knownUsers[userKey],
-			ViewerLogin:   entry.viewerLogin,
+			HasPushAccess: hasPush,
 		}, nil
 	}
 
 	c.logDebug(ctx, fmt.Sprintf("repo access cache miss for user %s to %s/%s", username, owner, repo))
 
-	info, queryErr := c.queryRepoAccessInfo(ctx, username, owner, repo)
+	isPrivate, viewerLogin, queryErr := c.queryRepoAccessInfo(ctx, owner, repo)
 	if queryErr != nil {
 		return RepoAccessInfo{}, queryErr
 	}
+	c.setViewerLogin(viewerLogin)
 
-	// Create new entry
-	entry := &repoAccessCacheEntry{
-		knownUsers:  map[string]bool{userKey: info.HasPushAccess},
-		isPrivate:   info.IsPrivate,
-		viewerLogin: info.ViewerLogin,
+	hasPush, pushErr := c.checkPushAccess(ctx, username, owner, repo)
+	if pushErr != nil {
+		return RepoAccessInfo{}, pushErr
 	}
-	c.cache.Add(key, c.ttl, entry)
+
+	c.cache.Add(key, c.ttl, &repoAccessCacheEntry{
+		knownUsers: map[string]bool{userKey: hasPush},
+		isPrivate:  isPrivate,
+	})
 
 	return RepoAccessInfo{
-		IsPrivate:     entry.isPrivate,
-		HasPushAccess: entry.knownUsers[userKey],
-		ViewerLogin:   entry.viewerLogin,
+		IsPrivate:     isPrivate,
+		HasPushAccess: hasPush,
 	}, nil
 }
 
-func (c *RepoAccessCache) queryRepoAccessInfo(ctx context.Context, username, owner, repo string) (RepoAccessInfo, error) {
+// queryRepoAccessInfo fetches repository visibility and the viewer login in a single GraphQL round-trip.
+func (c *RepoAccessCache) queryRepoAccessInfo(ctx context.Context, owner, repo string) (bool, string, error) {
 	if c.client == nil {
-		return RepoAccessInfo{}, fmt.Errorf("nil GraphQL client")
+		return false, "", fmt.Errorf("nil GraphQL client")
 	}
 
 	var query struct {
@@ -208,46 +251,39 @@ func (c *RepoAccessCache) queryRepoAccessInfo(ctx context.Context, username, own
 			Login githubv4.String
 		}
 		Repository struct {
-			IsPrivate     githubv4.Boolean
-			Collaborators struct {
-				Edges []struct {
-					Permission githubv4.String
-					Node       struct {
-						Login githubv4.String
-					}
-				}
-			} `graphql:"collaborators(query: $username, first: 1)"`
+			IsPrivate githubv4.Boolean
 		} `graphql:"repository(owner: $owner, name: $name)"`
 	}
 
 	variables := map[string]any{
-		"owner":    githubv4.String(owner),
-		"name":     githubv4.String(repo),
-		"username": githubv4.String(username),
+		"owner": githubv4.String(owner),
+		"name":  githubv4.String(repo),
 	}
 
 	if err := c.client.Query(ctx, &query, variables); err != nil {
-		return RepoAccessInfo{}, fmt.Errorf("failed to query repository access info: %w", err)
+		return false, "", fmt.Errorf("failed to query repository metadata: %w", err)
 	}
 
-	hasPush := false
-	for _, edge := range query.Repository.Collaborators.Edges {
-		login := string(edge.Node.Login)
-		if strings.EqualFold(login, username) {
-			permission := string(edge.Permission)
-			hasPush = permission == "WRITE" || permission == "ADMIN" || permission == "MAINTAIN"
-			break
-		}
+	c.logDebug(ctx, fmt.Sprintf("queried repo access info for %s/%s: isPrivate=%t", owner, repo, bool(query.Repository.IsPrivate)))
+
+	return bool(query.Repository.IsPrivate), string(query.Viewer.Login), nil
+}
+
+// checkPushAccess checks if the user has push access to the repository via the REST permission endpoint.
+func (c *RepoAccessCache) checkPushAccess(ctx context.Context, username, owner, repo string) (bool, error) {
+	if c.restClient == nil {
+		return false, fmt.Errorf("nil REST client")
 	}
 
-	c.logDebug(ctx, fmt.Sprintf("queried repo access info for user %s to %s/%s: isPrivate=%t, hasPushAccess=%t, viewerLogin=%s",
-		username, owner, repo, bool(query.Repository.IsPrivate), hasPush, query.Viewer.Login))
+	permLevel, _, err := c.restClient.Repositories.GetPermissionLevel(ctx, owner, repo, username)
+	if err != nil {
+		return false, fmt.Errorf("failed to get user permission level: %w", err)
+	}
 
-	return RepoAccessInfo{
-		IsPrivate:     bool(query.Repository.IsPrivate),
-		HasPushAccess: hasPush,
-		ViewerLogin:   string(query.Viewer.Login),
-	}, nil
+	// REST API maps "maintain" to "write" (and "triage" to "read")
+	// https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user
+	permission := permLevel.GetPermission()
+	return permission == "admin" || permission == "write", nil
 }
 
 func (c *RepoAccessCache) log(ctx context.Context, level slog.Level, msg string, attrs ...slog.Attr) {

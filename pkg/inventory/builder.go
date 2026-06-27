@@ -14,6 +14,11 @@ var (
 	ErrUnknownTools = errors.New("unknown tools specified in WithTools")
 )
 
+// mcpAppsFeatureFlag is the feature flag name that controls MCP Apps UI metadata.
+// This is defined here to avoid importing pkg/github (which imports pkg/inventory).
+// The value must match github.MCPAppsFeatureFlag.
+const mcpAppsFeatureFlag = "remote_mcp_ui_apps"
+
 // ToolFilter is a function that determines if a tool should be included.
 // Returns true if the tool should be included, false to exclude it.
 type ToolFilter func(ctx context.Context, tool *ServerTool) (bool, error)
@@ -48,7 +53,6 @@ type Builder struct {
 	featureChecker       FeatureFlagChecker
 	filters              []ToolFilter // filters to apply to all tools
 	generateInstructions bool
-	insidersMode         bool
 }
 
 // NewBuilder creates a new Builder.
@@ -102,8 +106,7 @@ func (b *Builder) WithServerInstructions() *Builder {
 //   - "default": expands to toolsets marked with Default: true in their metadata
 //
 // Input strings are trimmed of whitespace and duplicates are removed.
-// Pass nil to use default toolsets. Pass an empty slice to disable all toolsets
-// (useful for dynamic toolsets mode where tools are enabled on demand).
+// Pass nil to use default toolsets. Pass an empty slice to disable all toolsets.
 // Returns self for chaining.
 func (b *Builder) WithToolsets(toolsetIDs []string) *Builder {
 	b.toolsetIDs = toolsetIDs
@@ -124,8 +127,20 @@ func (b *Builder) WithTools(toolNames []string) *Builder {
 
 // WithFeatureChecker sets the feature flag checker function.
 // The checker receives a context (for actor extraction) and feature flag name,
-// returns (enabled, error). If error occurs, it will be logged and treated as false.
-// If checker is nil, all feature flag checks return false.
+// and returns (enabled, error). Errors are logged and treated as "not enabled".
+//
+// When the checker is non-nil, Build() installs a feature-flag ToolFilter
+// at the head of the filter pipeline so that tools annotated with
+// FeatureFlagEnable / FeatureFlagDisable are gated accordingly. Resources
+// and prompts use the same checker via an explicit guard at their iteration
+// site.
+//
+// When the checker is nil, no feature-flag filter is installed; tools,
+// resources, and prompts pass through feature-flag gating unchanged. The
+// per-request inventory in HTTP mode must always install a checker so that
+// MCP registration (which can only serve a given tool name once) sees a
+// deduplicated set of dual-name variants.
+//
 // Returns self for chaining.
 func (b *Builder) WithFeatureChecker(checker FeatureFlagChecker) *Builder {
 	b.featureChecker = checker
@@ -151,15 +166,6 @@ func (b *Builder) WithExcludeTools(toolNames []string) *Builder {
 	if len(cleaned) > 0 {
 		b.filters = append(b.filters, CreateExcludeToolsFilter(cleaned))
 	}
-	return b
-}
-
-// WithInsidersMode enables or disables insiders mode features.
-// When insiders mode is disabled (default), UI metadata is removed from tools
-// so clients won't attempt to load UI resources.
-// Returns self for chaining.
-func (b *Builder) WithInsidersMode(enabled bool) *Builder {
-	b.insidersMode = enabled
 	return b
 }
 
@@ -204,10 +210,16 @@ func cleanTools(tools []string) []string {
 // (i.e., they don't exist in the tool set and are not deprecated aliases).
 // This ensures invalid tool configurations fail fast at build time.
 func (b *Builder) Build() (*Inventory, error) {
-	// When insiders mode is disabled, strip insiders-only features from tools
 	tools := b.tools
-	if !b.insidersMode {
-		tools = stripInsidersFeatures(b.tools)
+
+	// Install the feature-flag filter at the head of the pipeline so that
+	// flag-gated tools are excluded before any user-supplied WithFilter sees
+	// them. Doing this in Build() (rather than inside WithFeatureChecker)
+	// keeps the install idempotent — repeated WithFeatureChecker calls
+	// replace the checker without stacking duplicate filters.
+	filters := b.filters
+	if b.featureChecker != nil {
+		filters = append([]ToolFilter{createFeatureFlagFilter(b.featureChecker)}, filters...)
 	}
 
 	r := &Inventory{
@@ -217,7 +229,7 @@ func (b *Builder) Build() (*Inventory, error) {
 		deprecatedAliases: b.deprecatedAliases,
 		readOnly:          b.readOnly,
 		featureChecker:    b.featureChecker,
-		filters:           b.filters,
+		filters:           filters,
 	}
 
 	// Process toolsets and pre-compute metadata in a single pass
@@ -375,24 +387,17 @@ func (b *Builder) processToolsets() (map[ToolsetID]bool, []string, []ToolsetID, 
 	return enabledToolsets, unrecognized, allToolsetIDs, validIDs, defaultToolsetIDList, descriptions
 }
 
-// insidersOnlyMetaKeys lists the Meta keys that are only available in insiders mode.
-// Add new experimental feature keys here to have them automatically stripped
-// when insiders mode is disabled.
-var insidersOnlyMetaKeys = []string{
+// mcpAppsMetaKeys lists the Meta keys controlled by the remote_mcp_ui_apps feature flag.
+var mcpAppsMetaKeys = []string{
 	"ui", // MCP Apps UI metadata
 }
 
-// stripInsidersFeatures removes insiders-only features from tools.
-// This includes removing tools marked with InsidersOnly and stripping
-// Meta keys listed in insidersOnlyMetaKeys from remaining tools.
-func stripInsidersFeatures(tools []ServerTool) []ServerTool {
+// stripMCPAppsMetadata removes MCP Apps UI metadata from tools when the
+// remote_mcp_ui_apps feature flag is not enabled.
+func stripMCPAppsMetadata(tools []ServerTool) []ServerTool {
 	result := make([]ServerTool, 0, len(tools))
 	for _, tool := range tools {
-		// Skip tools marked as insiders-only
-		if tool.InsidersOnly {
-			continue
-		}
-		if stripped := stripInsidersMetaFromTool(tool); stripped != nil {
+		if stripped := stripMetaKeys(tool, mcpAppsMetaKeys); stripped != nil {
 			result = append(result, *stripped)
 		} else {
 			result = append(result, tool)
@@ -401,30 +406,30 @@ func stripInsidersFeatures(tools []ServerTool) []ServerTool {
 	return result
 }
 
-// stripInsidersMetaFromTool removes insiders-only Meta keys from a single tool.
+// stripMetaKeys removes the specified Meta keys from a single tool.
 // Returns a modified copy if changes were made, nil otherwise.
-func stripInsidersMetaFromTool(tool ServerTool) *ServerTool {
-	if tool.Tool.Meta == nil {
+func stripMetaKeys(tool ServerTool, keys []string) *ServerTool {
+	if tool.Tool.Meta == nil || len(keys) == 0 {
 		return nil
 	}
 
-	// Check if any insiders-only keys exist
-	hasInsidersKeys := false
-	for _, key := range insidersOnlyMetaKeys {
-		if tool.Tool.Meta[key] != nil {
-			hasInsidersKeys = true
+	// Check if any of the specified keys exist
+	hasKeys := false
+	for _, key := range keys {
+		if _, ok := tool.Tool.Meta[key]; ok {
+			hasKeys = true
 			break
 		}
 	}
-	if !hasInsidersKeys {
+	if !hasKeys {
 		return nil
 	}
 
-	// Make a shallow copy and remove insiders-only keys
+	// Make a shallow copy and remove specified keys
 	toolCopy := tool
 	newMeta := make(map[string]any, len(tool.Tool.Meta))
 	for k, v := range tool.Tool.Meta {
-		if !slices.Contains(insidersOnlyMetaKeys, k) {
+		if !slices.Contains(keys, k) {
 			newMeta[k] = v
 		}
 	}

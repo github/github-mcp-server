@@ -19,6 +19,7 @@ bell
 book
 check-circle
 codescan
+code-square
 comment-discussion
 copilot
 dependabot

@@ -1,0 +1,30 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get code quality finding"
+  },
+  "description": "Get details of a specific code quality finding in a GitHub repository.",
+  "inputSchema": {
+    "properties": {
+      "findingNumber": {
+        "description": "The number of the finding.",
+        "type": "number"
+      },
+      "owner": {
+        "description": "The owner of the repository.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "The name of the repository.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "findingNumber"
+    ],
+    "type": "object"
+  },
+  "name": "get_code_quality_finding"
+}

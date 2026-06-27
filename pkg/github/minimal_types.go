@@ -1,9 +1,13 @@
 package github
 
 import (
+	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v87/github"
 
 	"github.com/github/github-mcp-server/pkg/sanitize"
 )
@@ -51,6 +55,31 @@ type MinimalSearchRepositoriesResult struct {
 	Items             []MinimalRepository `json:"items"`
 }
 
+// MinimalDiscussionComment is the trimmed output type for discussion comment objects.
+type MinimalDiscussionComment struct {
+	ID              string                     `json:"id"`
+	Body            string                     `json:"body"`
+	IsAnswer        bool                       `json:"isAnswer,omitempty"`
+	Replies         []MinimalDiscussionComment `json:"replies,omitempty"`
+	ReplyTotalCount int                        `json:"replyTotalCount,omitempty"`
+}
+
+// MinimalCodeSearchResult is the trimmed output type for code search results.
+type MinimalCodeSearchResult struct {
+	TotalCount        int                 `json:"total_count"`
+	IncompleteResults bool                `json:"incomplete_results"`
+	Items             []MinimalCodeResult `json:"items"`
+}
+
+// MinimalCodeResult is the trimmed output type for a single code search hit.
+type MinimalCodeResult struct {
+	Name        string              `json:"name"`
+	Path        string              `json:"path"`
+	SHA         string              `json:"sha"`
+	Repository  string              `json:"repository"`
+	TextMatches []*github.TextMatch `json:"text_matches,omitempty"`
+}
+
 // MinimalCommitAuthor represents commit author information.
 type MinimalCommitAuthor struct {
 	Name  string `json:"name,omitempty"`
@@ -79,6 +108,7 @@ type MinimalCommitFile struct {
 	Additions int    `json:"additions,omitempty"`
 	Deletions int    `json:"deletions,omitempty"`
 	Changes   int    `json:"changes,omitempty"`
+	Patch     string `json:"patch,omitempty"`
 }
 
 // MinimalPRFile represents a file changed in a pull request.
@@ -93,6 +123,14 @@ type MinimalPRFile struct {
 	PreviousFilename string `json:"previous_filename,omitempty"`
 }
 
+// MinimalPullRequestCommit is the trimmed output type for commits listed on a pull request.
+type MinimalPullRequestCommit struct {
+	SHA     string               `json:"sha"`
+	HTMLURL string               `json:"html_url,omitempty"`
+	Message string               `json:"message,omitempty"`
+	Author  *MinimalCommitAuthor `json:"author,omitempty"`
+}
+
 // MinimalCommit is the trimmed output type for commit objects.
 type MinimalCommit struct {
 	SHA       string              `json:"sha"`
@@ -102,6 +140,23 @@ type MinimalCommit struct {
 	Committer *MinimalUser        `json:"committer,omitempty"`
 	Stats     *MinimalCommitStats `json:"stats,omitempty"`
 	Files     []MinimalCommitFile `json:"files,omitempty"`
+}
+
+// MinimalRepoRef is a lightweight reference to a repository, used when a
+// result needs to identify which repository it belongs to (for example, in
+// cross-repo commit search results).
+type MinimalRepoRef struct {
+	FullName string `json:"full_name"`
+	HTMLURL  string `json:"html_url,omitempty"`
+	Private  bool   `json:"private,omitempty"`
+}
+
+// MinimalCommitSearchItem extends MinimalCommit with the containing
+// repository, since commit search spans repositories and callers need to
+// know which repo each result came from.
+type MinimalCommitSearchItem struct {
+	MinimalCommit
+	Repository *MinimalRepoRef `json:"repository,omitempty"`
 }
 
 // MinimalRelease is the trimmed output type for release objects.
@@ -138,6 +193,13 @@ type MinimalResponse struct {
 	URL string `json:"url"`
 }
 
+// MinimalCollaborator is the trimmed output type for repository collaborators.
+type MinimalCollaborator struct {
+	Login    string `json:"login"`
+	ID       int64  `json:"id"`
+	RoleName string `json:"role_name"`
+}
+
 type MinimalProject struct {
 	ID               *int64            `json:"id,omitempty"`
 	NodeID           *string           `json:"node_id,omitempty"`
@@ -156,6 +218,68 @@ type MinimalProject struct {
 	OwnerType        string            `json:"owner_type,omitempty"`
 }
 
+type MinimalProjectItem struct {
+	ID          int64                          `json:"id"`
+	NodeID      string                         `json:"node_id,omitempty"`
+	ContentType string                         `json:"content_type,omitempty"`
+	Content     *MinimalProjectItemContent     `json:"content,omitempty"`
+	Fields      []MinimalProjectItemFieldValue `json:"fields,omitempty"`
+	ArchivedAt  string                         `json:"archived_at,omitempty"`
+	CreatedAt   string                         `json:"created_at,omitempty"`
+	UpdatedAt   string                         `json:"updated_at,omitempty"`
+	Creator     string                         `json:"creator,omitempty"`
+}
+
+type MinimalProjectItemContent struct {
+	ID          int64    `json:"id,omitempty"`
+	NodeID      string   `json:"node_id,omitempty"`
+	Number      int      `json:"number,omitempty"`
+	Title       string   `json:"title,omitempty"`
+	State       string   `json:"state,omitempty"`
+	StateReason string   `json:"state_reason,omitempty"`
+	HTMLURL     string   `json:"html_url,omitempty"`
+	Repository  string   `json:"repository,omitempty"`
+	Author      string   `json:"author,omitempty"`
+	Assignees   []string `json:"assignees,omitempty"`
+	Labels      []string `json:"labels,omitempty"`
+	Milestone   string   `json:"milestone,omitempty"`
+	Comments    int      `json:"comments,omitempty"`
+	Draft       bool     `json:"draft,omitempty"`
+	Merged      bool     `json:"merged,omitempty"`
+	CreatedAt   string   `json:"created_at,omitempty"`
+	UpdatedAt   string   `json:"updated_at,omitempty"`
+	ClosedAt    string   `json:"closed_at,omitempty"`
+	MergedAt    string   `json:"merged_at,omitempty"`
+}
+
+type MinimalProjectItemFieldValue struct {
+	ID       int64  `json:"id,omitempty"`
+	Name     string `json:"name,omitempty"`
+	DataType string `json:"data_type,omitempty"`
+	Value    any    `json:"value,omitempty"`
+}
+
+type minimalProjectOptionValue struct {
+	ID    string `json:"id,omitempty"`
+	Name  string `json:"name,omitempty"`
+	Color string `json:"color,omitempty"`
+}
+
+type minimalProjectIterationValue struct {
+	ID        string `json:"id,omitempty"`
+	Title     string `json:"title,omitempty"`
+	StartDate string `json:"start_date,omitempty"`
+	Duration  int    `json:"duration,omitempty"`
+}
+
+type minimalProjectPullRequestRef struct {
+	Number     int    `json:"number,omitempty"`
+	Title      string `json:"title,omitempty"`
+	State      string `json:"state,omitempty"`
+	HTMLURL    string `json:"html_url,omitempty"`
+	Repository string `json:"repository,omitempty"`
+}
+
 // MinimalReactions is the trimmed output type for reaction summaries, dropping the API URL.
 type MinimalReactions struct {
 	TotalCount int `json:"total_count"`
@@ -169,28 +293,55 @@ type MinimalReactions struct {
 	Eyes       int `json:"eyes"`
 }
 
+// MinimalIssueFieldValueSingleSelectOption is the trimmed output type for a single-select option of an issue field value.
+type MinimalIssueFieldValueSingleSelectOption struct {
+	ID    int64  `json:"id"`
+	Name  string `json:"name"`
+	Color string `json:"color"`
+}
+
+// MinimalIssueFieldValue is the trimmed output type for a custom field value attached to an issue,
+// populated from REST API responses (e.g. get_issue). For GraphQL-sourced field values see MinimalFieldValue.
+type MinimalIssueFieldValue struct {
+	IssueFieldID       int64                                     `json:"issue_field_id,omitempty"`
+	NodeID             string                                    `json:"node_id,omitempty"`
+	DataType           string                                    `json:"data_type,omitempty"`
+	Value              any                                       `json:"value,omitempty"`
+	SingleSelectOption *MinimalIssueFieldValueSingleSelectOption `json:"single_select_option,omitempty"`
+}
+
+// MinimalFieldValue is the trimmed output type for a custom field value resolved via GraphQL
+// (e.g. list_issues, search_issues). Single-value variants populate Value; Values is reserved for multi-select.
+type MinimalFieldValue struct {
+	Field  string   `json:"field"`
+	Value  string   `json:"value,omitempty"`
+	Values []string `json:"values,omitempty"`
+}
+
 // MinimalIssue is the trimmed output type for issue objects to reduce verbosity.
 type MinimalIssue struct {
-	Number            int               `json:"number"`
-	Title             string            `json:"title"`
-	Body              string            `json:"body,omitempty"`
-	State             string            `json:"state"`
-	StateReason       string            `json:"state_reason,omitempty"`
-	Draft             bool              `json:"draft,omitempty"`
-	Locked            bool              `json:"locked,omitempty"`
-	HTMLURL           string            `json:"html_url,omitempty"`
-	User              *MinimalUser      `json:"user,omitempty"`
-	AuthorAssociation string            `json:"author_association,omitempty"`
-	Labels            []string          `json:"labels,omitempty"`
-	Assignees         []string          `json:"assignees,omitempty"`
-	Milestone         string            `json:"milestone,omitempty"`
-	Comments          int               `json:"comments,omitempty"`
-	Reactions         *MinimalReactions `json:"reactions,omitempty"`
-	CreatedAt         string            `json:"created_at,omitempty"`
-	UpdatedAt         string            `json:"updated_at,omitempty"`
-	ClosedAt          string            `json:"closed_at,omitempty"`
-	ClosedBy          string            `json:"closed_by,omitempty"`
-	IssueType         string            `json:"issue_type,omitempty"`
+	Number            int                      `json:"number"`
+	Title             string                   `json:"title"`
+	Body              string                   `json:"body,omitempty"`
+	State             string                   `json:"state"`
+	StateReason       string                   `json:"state_reason,omitempty"`
+	Draft             bool                     `json:"draft,omitempty"`
+	Locked            bool                     `json:"locked,omitempty"`
+	HTMLURL           string                   `json:"html_url,omitempty"`
+	User              *MinimalUser             `json:"user,omitempty"`
+	AuthorAssociation string                   `json:"author_association,omitempty"`
+	Labels            []string                 `json:"labels,omitempty"`
+	Assignees         []string                 `json:"assignees,omitempty"`
+	Milestone         string                   `json:"milestone,omitempty"`
+	Comments          int                      `json:"comments,omitempty"`
+	Reactions         *MinimalReactions        `json:"reactions,omitempty"`
+	CreatedAt         string                   `json:"created_at,omitempty"`
+	UpdatedAt         string                   `json:"updated_at,omitempty"`
+	ClosedAt          string                   `json:"closed_at,omitempty"`
+	ClosedBy          string                   `json:"closed_by,omitempty"`
+	IssueType         string                   `json:"issue_type,omitempty"`
+	IssueFieldValues  []MinimalIssueFieldValue `json:"issue_field_values,omitempty"`
+	FieldValues       []MinimalFieldValue      `json:"field_values,omitempty"`
 }
 
 // MinimalIssuesResponse is the trimmed output for a paginated list of issues.
@@ -210,6 +361,13 @@ type MinimalIssueComment struct {
 	Reactions         *MinimalReactions `json:"reactions,omitempty"`
 	CreatedAt         string            `json:"created_at,omitempty"`
 	UpdatedAt         string            `json:"updated_at,omitempty"`
+}
+
+// MinimalSearchCommitsResult is the trimmed output type for commit search results.
+type MinimalSearchCommitsResult struct {
+	TotalCount        int                       `json:"total_count"`
+	IncompleteResults bool                      `json:"incomplete_results"`
+	Items             []MinimalCommitSearchItem `json:"items"`
 }
 
 // MinimalFileContentResponse is the trimmed output type for create/update/delete file responses.
@@ -368,6 +526,26 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 		m.IssueType = issueType.GetName()
 	}
 
+	for _, fv := range issue.IssueFieldValues {
+		if fv == nil {
+			continue
+		}
+		mfv := MinimalIssueFieldValue{
+			IssueFieldID: fv.IssueFieldID,
+			NodeID:       fv.NodeID,
+			DataType:     fv.DataType,
+			Value:        fv.Value,
+		}
+		if opt := fv.SingleSelectOption; opt != nil {
+			mfv.SingleSelectOption = &MinimalIssueFieldValueSingleSelectOption{
+				ID:    opt.ID,
+				Name:  opt.Name,
+				Color: opt.Color,
+			}
+		}
+		m.IssueFieldValues = append(m.IssueFieldValues, mfv)
+	}
+
 	if r := issue.Reactions; r != nil {
 		m.Reactions = &MinimalReactions{
 			TotalCount: r.GetTotalCount(),
@@ -403,7 +581,41 @@ func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 		m.Labels = append(m.Labels, string(label.Name))
 	}
 
+	for _, fv := range fragment.IssueFieldValues.Nodes {
+		if mfv, ok := fragmentToMinimalFieldValue(fv); ok {
+			m.FieldValues = append(m.FieldValues, mfv)
+		}
+	}
+
 	return m
+}
+
+// fragmentToMinimalFieldValue flattens the union value fragment into a single
+// {field, value} pair. Returns ok=false if the typename is unrecognised.
+func fragmentToMinimalFieldValue(fv IssueFieldValueFragment) (MinimalFieldValue, bool) {
+	switch fv.TypeName {
+	case "IssueFieldDateValue":
+		return MinimalFieldValue{
+			Field: fv.DateValue.Field.Name(),
+			Value: string(fv.DateValue.Value),
+		}, true
+	case "IssueFieldNumberValue":
+		return MinimalFieldValue{
+			Field: fv.NumberValue.Field.Name(),
+			Value: strconv.FormatFloat(float64(fv.NumberValue.Value), 'f', -1, 64),
+		}, true
+	case "IssueFieldSingleSelectValue":
+		return MinimalFieldValue{
+			Field: fv.SingleSelectValue.Field.Name(),
+			Value: string(fv.SingleSelectValue.Value),
+		}, true
+	case "IssueFieldTextValue":
+		return MinimalFieldValue{
+			Field: fv.TextValue.Field.Name(),
+			Value: string(fv.TextValue.Value),
+		}, true
+	}
+	return MinimalFieldValue{}, false
 }
 
 func convertToMinimalIssuesResponse(fragment IssueQueryFragment) MinimalIssuesResponse {
@@ -604,6 +816,547 @@ func convertToMinimalProject(fullProject *github.ProjectV2) *MinimalProject {
 	}
 }
 
+func convertToMinimalProjectItem(item *github.ProjectV2Item) MinimalProjectItem {
+	if item == nil {
+		return MinimalProjectItem{}
+	}
+
+	contentType := ""
+	if item.ContentType != nil {
+		contentType = string(*item.ContentType)
+	}
+
+	creator := ""
+	if item.Creator != nil {
+		creator = item.Creator.GetLogin()
+	}
+
+	return MinimalProjectItem{
+		ID:          item.GetID(),
+		NodeID:      item.GetNodeID(),
+		ContentType: contentType,
+		Content:     convertToMinimalProjectItemContent(item.GetContent()),
+		Fields:      convertToMinimalProjectItemFields(item.GetFields()),
+		ArchivedAt:  formatProjectTimestamp(item.ArchivedAt),
+		CreatedAt:   formatProjectTimestamp(item.CreatedAt),
+		UpdatedAt:   formatProjectTimestamp(item.UpdatedAt),
+		Creator:     creator,
+	}
+}
+
+func convertToMinimalProjectItemContent(content *github.ProjectV2ItemContent) *MinimalProjectItemContent {
+	if content == nil {
+		return nil
+	}
+
+	if issue := content.GetIssue(); issue != nil {
+		return convertIssueToMinimalProjectItemContent(issue)
+	}
+	if pr := content.GetPullRequest(); pr != nil {
+		return convertPullRequestToMinimalProjectItemContent(pr)
+	}
+	if draftIssue := content.GetDraftIssue(); draftIssue != nil {
+		return convertDraftIssueToMinimalProjectItemContent(draftIssue)
+	}
+
+	return nil
+}
+
+func convertIssueToMinimalProjectItemContent(issue *github.Issue) *MinimalProjectItemContent {
+	m := &MinimalProjectItemContent{
+		ID:          issue.GetID(),
+		NodeID:      issue.GetNodeID(),
+		Number:      issue.GetNumber(),
+		Title:       issue.GetTitle(),
+		State:       issue.GetState(),
+		StateReason: issue.GetStateReason(),
+		HTMLURL:     issue.GetHTMLURL(),
+		Repository:  issueRepositoryFullName(issue),
+		Comments:    issue.GetComments(),
+		Draft:       issue.GetDraft(),
+		CreatedAt:   formatProjectTimestamp(issue.CreatedAt),
+		UpdatedAt:   formatProjectTimestamp(issue.UpdatedAt),
+		ClosedAt:    formatProjectTimestamp(issue.ClosedAt),
+	}
+
+	if user := issue.GetUser(); user != nil {
+		m.Author = user.GetLogin()
+	}
+	for _, assignee := range issue.Assignees {
+		if assignee != nil {
+			m.Assignees = append(m.Assignees, assignee.GetLogin())
+		}
+	}
+	for _, label := range issue.Labels {
+		if label != nil {
+			m.Labels = append(m.Labels, label.GetName())
+		}
+	}
+	if milestone := issue.GetMilestone(); milestone != nil {
+		m.Milestone = milestone.GetTitle()
+	}
+
+	return m
+}
+
+func convertPullRequestToMinimalProjectItemContent(pr *github.PullRequest) *MinimalProjectItemContent {
+	m := &MinimalProjectItemContent{
+		ID:         pr.GetID(),
+		NodeID:     pr.GetNodeID(),
+		Number:     pr.GetNumber(),
+		Title:      pr.GetTitle(),
+		State:      pr.GetState(),
+		HTMLURL:    pr.GetHTMLURL(),
+		Repository: pullRequestRepositoryFullName(pr),
+		Comments:   pr.GetComments(),
+		Draft:      pr.GetDraft(),
+		Merged:     pr.GetMerged(),
+		CreatedAt:  formatProjectTimestamp(pr.CreatedAt),
+		UpdatedAt:  formatProjectTimestamp(pr.UpdatedAt),
+		ClosedAt:   formatProjectTimestamp(pr.ClosedAt),
+		MergedAt:   formatProjectTimestamp(pr.MergedAt),
+	}
+
+	if user := pr.GetUser(); user != nil {
+		m.Author = user.GetLogin()
+	}
+	for _, assignee := range pr.Assignees {
+		if assignee != nil {
+			m.Assignees = append(m.Assignees, assignee.GetLogin())
+		}
+	}
+	for _, label := range pr.Labels {
+		if label != nil {
+			m.Labels = append(m.Labels, label.GetName())
+		}
+	}
+	if milestone := pr.GetMilestone(); milestone != nil {
+		m.Milestone = milestone.GetTitle()
+	}
+
+	return m
+}
+
+func convertDraftIssueToMinimalProjectItemContent(draftIssue *github.ProjectV2DraftIssue) *MinimalProjectItemContent {
+	m := &MinimalProjectItemContent{
+		ID:        draftIssue.GetID(),
+		NodeID:    draftIssue.GetNodeID(),
+		Title:     draftIssue.GetTitle(),
+		CreatedAt: formatProjectTimestamp(draftIssue.CreatedAt),
+		UpdatedAt: formatProjectTimestamp(draftIssue.UpdatedAt),
+	}
+
+	if user := draftIssue.GetUser(); user != nil {
+		m.Author = user.GetLogin()
+	}
+
+	return m
+}
+
+func convertToMinimalProjectItemFields(fields []*github.ProjectV2ItemFieldValue) []MinimalProjectItemFieldValue {
+	minimalFields := make([]MinimalProjectItemFieldValue, 0, len(fields))
+	for _, field := range fields {
+		if field == nil {
+			continue
+		}
+		minimalFields = append(minimalFields, MinimalProjectItemFieldValue{
+			ID:       field.GetID(),
+			Name:     field.GetName(),
+			DataType: field.GetDataType(),
+			Value:    minimalProjectFieldValue(field.GetValue()),
+		})
+	}
+	return minimalFields
+}
+
+func minimalProjectFieldValue(value any) any {
+	switch v := value.(type) {
+	case nil:
+		return nil
+	case string, bool, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+		return v
+	case []string:
+		return v
+	case map[string]any:
+		return minimalProjectMapValue(v)
+	case []any:
+		return minimalProjectArrayValue(v)
+	case *github.User:
+		return v.GetLogin()
+	case *github.Label:
+		return v.GetName()
+	case *github.Repository:
+		return v.GetFullName()
+	case *github.Milestone:
+		return v.GetTitle()
+	case *github.PullRequest:
+		return minimalProjectPullRequestRefFromPullRequest(v)
+	case *github.ProjectV2FieldOption:
+		return minimalProjectOptionValue{
+			ID:    v.GetID(),
+			Name:  projectTextContentString(v.GetName()),
+			Color: v.GetColor(),
+		}
+	case *github.ProjectV2FieldIteration:
+		return minimalProjectIterationValue{
+			ID:        v.GetID(),
+			Title:     projectTextContentString(v.GetTitle()),
+			StartDate: v.GetStartDate(),
+			Duration:  v.GetDuration(),
+		}
+	case []*github.User:
+		logins := make([]string, 0, len(v))
+		for _, user := range v {
+			if user != nil {
+				logins = append(logins, user.GetLogin())
+			}
+		}
+		return logins
+	case []*github.Label:
+		names := make([]string, 0, len(v))
+		for _, label := range v {
+			if label != nil {
+				names = append(names, label.GetName())
+			}
+		}
+		return names
+	case []*github.PullRequest:
+		refs := make([]minimalProjectPullRequestRef, 0, len(v))
+		for _, pr := range v {
+			if pr != nil {
+				refs = append(refs, minimalProjectPullRequestRefFromPullRequest(pr))
+			}
+		}
+		return refs
+	default:
+		return nil
+	}
+}
+
+func minimalProjectMapValue(value map[string]any) any {
+	if text := minimalProjectTextValue(value); text != "" {
+		return text
+	}
+	if repo := fullNameFromMap(value); repo != "" {
+		return repo
+	}
+	if login := stringFromMap(value, "login"); login != "" {
+		return login
+	}
+	if isPullRequestMap(value) {
+		return minimalProjectPullRequestRefFromMap(value)
+	}
+	if option, ok := minimalProjectOptionFromMap(value); ok {
+		return option
+	}
+	if iteration, ok := minimalProjectIterationFromMap(value); ok {
+		return iteration
+	}
+	if title := stringFromMap(value, "title"); title != "" {
+		return title
+	}
+	if name := stringFromMap(value, "name"); name != "" {
+		return name
+	}
+
+	compact := make(map[string]any)
+	for key, nestedValue := range value {
+		minimalValue := minimalProjectFieldValue(nestedValue)
+		if shouldKeepMinimalProjectValue(minimalValue) {
+			compact[key] = minimalValue
+		}
+	}
+	if len(compact) == 0 {
+		return nil
+	}
+	return compact
+}
+
+func minimalProjectArrayValue(values []any) any {
+	if refs, ok := minimalProjectPullRequestRefsFromArray(values); ok {
+		return refs
+	}
+	if strings, ok := minimalProjectStringsFromArray(values, "login"); ok {
+		return strings
+	}
+	if strings, ok := minimalProjectStringsFromArray(values, "name"); ok {
+		return strings
+	}
+
+	compact := make([]any, 0, len(values))
+	for _, value := range values {
+		minimalValue := minimalProjectFieldValue(value)
+		if shouldKeepMinimalProjectValue(minimalValue) {
+			compact = append(compact, minimalValue)
+		}
+	}
+	if len(compact) == 0 {
+		return nil
+	}
+	return compact
+}
+
+func minimalProjectTextValue(value map[string]any) string {
+	if raw := stringFromMap(value, "raw"); raw != "" {
+		return raw
+	}
+	if html := stringFromMap(value, "html"); html != "" {
+		return html
+	}
+	return stringFromMap(value, "text")
+}
+
+func minimalProjectOptionFromMap(value map[string]any) (minimalProjectOptionValue, bool) {
+	name := textContentStringFromMap(value, "name")
+	color := stringFromMap(value, "color")
+	if name == "" && color == "" {
+		return minimalProjectOptionValue{}, false
+	}
+	return minimalProjectOptionValue{
+		ID:    stringFromMap(value, "id"),
+		Name:  name,
+		Color: color,
+	}, true
+}
+
+func minimalProjectIterationFromMap(value map[string]any) (minimalProjectIterationValue, bool) {
+	startDate := stringFromMap(value, "start_date")
+	duration := intFromAny(value["duration"])
+	if startDate == "" && duration == 0 {
+		return minimalProjectIterationValue{}, false
+	}
+	return minimalProjectIterationValue{
+		ID:        stringFromMap(value, "id"),
+		Title:     textContentStringFromMap(value, "title"),
+		StartDate: startDate,
+		Duration:  duration,
+	}, true
+}
+
+// textContentStringFromMap returns a string for a field that may be either a
+// plain string or a nested ProjectV2TextContent object (with raw/html/text
+// fields), as returned for project option names and iteration titles.
+func textContentStringFromMap(value map[string]any, key string) string {
+	if s := stringFromMap(value, key); s != "" {
+		return s
+	}
+	if nested, ok := value[key].(map[string]any); ok {
+		return minimalProjectTextValue(nested)
+	}
+	return ""
+}
+
+func minimalProjectPullRequestRefsFromArray(values []any) ([]minimalProjectPullRequestRef, bool) {
+	refs := make([]minimalProjectPullRequestRef, 0, len(values))
+	for _, value := range values {
+		switch pr := value.(type) {
+		case map[string]any:
+			if !isPullRequestMap(pr) {
+				return nil, false
+			}
+			refs = append(refs, minimalProjectPullRequestRefFromMap(pr))
+		case *github.PullRequest:
+			if pr == nil {
+				continue
+			}
+			refs = append(refs, minimalProjectPullRequestRefFromPullRequest(pr))
+		default:
+			return nil, false
+		}
+	}
+	return refs, len(refs) > 0
+}
+
+func minimalProjectStringsFromArray(values []any, key string) ([]string, bool) {
+	strings := make([]string, 0, len(values))
+	for _, value := range values {
+		switch v := value.(type) {
+		case map[string]any:
+			stringValue := stringFromMap(v, key)
+			if stringValue == "" {
+				return nil, false
+			}
+			strings = append(strings, stringValue)
+		case *github.User:
+			if key != "login" || v == nil {
+				return nil, false
+			}
+			strings = append(strings, v.GetLogin())
+		case *github.Label:
+			if key != "name" || v == nil {
+				return nil, false
+			}
+			strings = append(strings, v.GetName())
+		default:
+			return nil, false
+		}
+	}
+	return strings, len(strings) > 0
+}
+
+func minimalProjectPullRequestRefFromPullRequest(pr *github.PullRequest) minimalProjectPullRequestRef {
+	if pr == nil {
+		return minimalProjectPullRequestRef{}
+	}
+	return minimalProjectPullRequestRef{
+		Number:     pr.GetNumber(),
+		Title:      pr.GetTitle(),
+		State:      pr.GetState(),
+		HTMLURL:    pr.GetHTMLURL(),
+		Repository: pullRequestRepositoryFullName(pr),
+	}
+}
+
+func minimalProjectPullRequestRefFromMap(value map[string]any) minimalProjectPullRequestRef {
+	htmlURL := stringFromMap(value, "html_url")
+	repository := fullNameFromMapValue(value["repository"])
+	if repository == "" {
+		repository = branchRepositoryFullNameFromMap(value, "base")
+	}
+	if repository == "" {
+		repository = branchRepositoryFullNameFromMap(value, "head")
+	}
+	if repository == "" {
+		repository = repositoryFromHTMLURL(htmlURL)
+	}
+
+	return minimalProjectPullRequestRef{
+		Number:     intFromAny(value["number"]),
+		Title:      stringFromMap(value, "title"),
+		State:      stringFromMap(value, "state"),
+		HTMLURL:    htmlURL,
+		Repository: repository,
+	}
+}
+
+func isPullRequestMap(value map[string]any) bool {
+	return intFromAny(value["number"]) != 0 && (stringFromMap(value, "html_url") != "" || stringFromMap(value, "state") != "")
+}
+
+func branchRepositoryFullNameFromMap(value map[string]any, branchKey string) string {
+	branch, ok := value[branchKey].(map[string]any)
+	if !ok {
+		return ""
+	}
+	return fullNameFromMapValue(branch["repo"])
+}
+
+func shouldKeepMinimalProjectValue(value any) bool {
+	switch v := value.(type) {
+	case nil:
+		return false
+	case string:
+		return v != ""
+	case []any:
+		return len(v) > 0
+	case []string:
+		return len(v) > 0
+	case []minimalProjectPullRequestRef:
+		return len(v) > 0
+	case map[string]any:
+		return len(v) > 0
+	default:
+		return true
+	}
+}
+
+func issueRepositoryFullName(issue *github.Issue) string {
+	if repo := issue.GetRepository(); repo != nil {
+		return repo.GetFullName()
+	}
+	return repositoryFromHTMLURL(issue.GetHTMLURL())
+}
+
+func pullRequestRepositoryFullName(pr *github.PullRequest) string {
+	if base := pr.GetBase(); base != nil {
+		if repo := base.GetRepo(); repo != nil && repo.GetFullName() != "" {
+			return repo.GetFullName()
+		}
+	}
+	if head := pr.GetHead(); head != nil {
+		if repo := head.GetRepo(); repo != nil && repo.GetFullName() != "" {
+			return repo.GetFullName()
+		}
+	}
+	return repositoryFromHTMLURL(pr.GetHTMLURL())
+}
+
+func fullNameFromMapValue(value any) string {
+	repo, ok := value.(map[string]any)
+	if !ok {
+		return ""
+	}
+	return fullNameFromMap(repo)
+}
+
+func fullNameFromMap(value map[string]any) string {
+	return stringFromMap(value, "full_name")
+}
+
+func repositoryFromHTMLURL(rawURL string) string {
+	if rawURL == "" {
+		return ""
+	}
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	parts := strings.Split(strings.Trim(parsedURL.Path, "/"), "/")
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+		return ""
+	}
+	return parts[0] + "/" + parts[1]
+}
+
+func projectTextContentString(content *github.ProjectV2TextContent) string {
+	if content == nil {
+		return ""
+	}
+	if raw := content.GetRaw(); raw != "" {
+		return raw
+	}
+	return content.GetHTML()
+}
+
+func formatProjectTimestamp(timestamp *github.Timestamp) string {
+	if timestamp == nil || timestamp.IsZero() {
+		return ""
+	}
+	return timestamp.Format(time.RFC3339)
+}
+
+func stringFromMap(value map[string]any, key string) string {
+	return stringFromAny(value[key])
+}
+
+func stringFromAny(value any) string {
+	switch v := value.(type) {
+	case string:
+		return v
+	case fmt.Stringer:
+		return v.String()
+	default:
+		return ""
+	}
+}
+
+func intFromAny(value any) int {
+	switch v := value.(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	case string:
+		i, err := strconv.Atoi(v)
+		if err != nil {
+			return 0
+		}
+		return i
+	default:
+		return 0
+	}
+}
+
 func convertToMinimalUser(user *github.User) *MinimalUser {
 	if user == nil {
 		return nil
@@ -617,83 +1370,154 @@ func convertToMinimalUser(user *github.User) *MinimalUser {
 	}
 }
 
-// convertToMinimalCommit converts a GitHub API RepositoryCommit to MinimalCommit
-func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) MinimalCommit {
+// newMinimalCommitFromCore builds a MinimalCommit from the fields that are
+// shared between *github.RepositoryCommit and *github.CommitResult. Caller
+// is responsible for setting any type-specific extras (stats/files for
+// RepositoryCommit, repository for CommitResult).
+func newMinimalCommitFromCore(sha, htmlURL string, commit *github.Commit, author, committer *github.User) MinimalCommit {
 	minimalCommit := MinimalCommit{
-		SHA:     commit.GetSHA(),
-		HTMLURL: commit.GetHTMLURL(),
+		SHA:     sha,
+		HTMLURL: htmlURL,
 	}
 
-	if commit.Commit != nil {
+	if commit != nil {
 		minimalCommit.Commit = &MinimalCommitInfo{
-			Message: commit.Commit.GetMessage(),
+			Message: commit.GetMessage(),
 		}
 
-		if commit.Commit.Author != nil {
+		if commit.Author != nil {
 			minimalCommit.Commit.Author = &MinimalCommitAuthor{
-				Name:  commit.Commit.Author.GetName(),
-				Email: commit.Commit.Author.GetEmail(),
+				Name:  commit.Author.GetName(),
+				Email: commit.Author.GetEmail(),
 			}
-			if commit.Commit.Author.Date != nil {
-				minimalCommit.Commit.Author.Date = commit.Commit.Author.Date.Format(time.RFC3339)
+			if commit.Author.Date != nil {
+				minimalCommit.Commit.Author.Date = commit.Author.Date.Format(time.RFC3339)
 			}
 		}
 
-		if commit.Commit.Committer != nil {
+		if commit.Committer != nil {
 			minimalCommit.Commit.Committer = &MinimalCommitAuthor{
-				Name:  commit.Commit.Committer.GetName(),
-				Email: commit.Commit.Committer.GetEmail(),
+				Name:  commit.Committer.GetName(),
+				Email: commit.Committer.GetEmail(),
 			}
-			if commit.Commit.Committer.Date != nil {
-				minimalCommit.Commit.Committer.Date = commit.Commit.Committer.Date.Format(time.RFC3339)
+			if commit.Committer.Date != nil {
+				minimalCommit.Commit.Committer.Date = commit.Committer.Date.Format(time.RFC3339)
 			}
 		}
 	}
 
-	if commit.Author != nil {
+	if author != nil {
 		minimalCommit.Author = &MinimalUser{
-			Login:      commit.Author.GetLogin(),
-			ID:         commit.Author.GetID(),
-			ProfileURL: commit.Author.GetHTMLURL(),
-			AvatarURL:  commit.Author.GetAvatarURL(),
+			Login:      author.GetLogin(),
+			ID:         author.GetID(),
+			ProfileURL: author.GetHTMLURL(),
+			AvatarURL:  author.GetAvatarURL(),
 		}
 	}
 
-	if commit.Committer != nil {
+	if committer != nil {
 		minimalCommit.Committer = &MinimalUser{
-			Login:      commit.Committer.GetLogin(),
-			ID:         commit.Committer.GetID(),
-			ProfileURL: commit.Committer.GetHTMLURL(),
-			AvatarURL:  commit.Committer.GetAvatarURL(),
-		}
-	}
-
-	// Only include stats and files if includeDiffs is true
-	if includeDiffs {
-		if commit.Stats != nil {
-			minimalCommit.Stats = &MinimalCommitStats{
-				Additions: commit.Stats.GetAdditions(),
-				Deletions: commit.Stats.GetDeletions(),
-				Total:     commit.Stats.GetTotal(),
-			}
-		}
-
-		if len(commit.Files) > 0 {
-			minimalCommit.Files = make([]MinimalCommitFile, 0, len(commit.Files))
-			for _, file := range commit.Files {
-				minimalFile := MinimalCommitFile{
-					Filename:  file.GetFilename(),
-					Status:    file.GetStatus(),
-					Additions: file.GetAdditions(),
-					Deletions: file.GetDeletions(),
-					Changes:   file.GetChanges(),
-				}
-				minimalCommit.Files = append(minimalCommit.Files, minimalFile)
-			}
+			Login:      committer.GetLogin(),
+			ID:         committer.GetID(),
+			ProfileURL: committer.GetHTMLURL(),
+			AvatarURL:  committer.GetAvatarURL(),
 		}
 	}
 
 	return minimalCommit
+}
+
+// commitDetail controls how much per-file information convertToMinimalCommit
+// includes in its output.
+type commitDetail string
+
+const (
+	// commitDetailNone omits Stats and Files entirely.
+	commitDetailNone commitDetail = "none"
+	// commitDetailStats includes Stats and Files with metadata only
+	// (filename, status, additions, deletions, changes) but no patch text.
+	commitDetailStats commitDetail = "stats"
+	// commitDetailFullPatch additionally includes the unified diff for each file.
+	commitDetailFullPatch commitDetail = "full_patch"
+)
+
+// parseCommitDetail validates the user-supplied detail value and returns the
+// default (stats) when the value is empty.
+func parseCommitDetail(s string) (commitDetail, error) {
+	switch s {
+	case "":
+		return commitDetailStats, nil
+	case string(commitDetailNone), string(commitDetailStats), string(commitDetailFullPatch):
+		return commitDetail(s), nil
+	default:
+		return "", fmt.Errorf("invalid detail %q: must be one of \"none\", \"stats\", \"full_patch\"", s)
+	}
+}
+
+func convertToMinimalCommit(commit *github.RepositoryCommit, detail commitDetail) MinimalCommit {
+	minimalCommit := newMinimalCommitFromCore(
+		commit.GetSHA(),
+		commit.GetHTMLURL(),
+		commit.Commit,
+		commit.Author,
+		commit.Committer,
+	)
+
+	if detail == commitDetailNone {
+		return minimalCommit
+	}
+
+	if commit.Stats != nil {
+		minimalCommit.Stats = &MinimalCommitStats{
+			Additions: commit.Stats.GetAdditions(),
+			Deletions: commit.Stats.GetDeletions(),
+			Total:     commit.Stats.GetTotal(),
+		}
+	}
+
+	if len(commit.Files) > 0 {
+		minimalCommit.Files = make([]MinimalCommitFile, 0, len(commit.Files))
+		for _, file := range commit.Files {
+			minimalFile := MinimalCommitFile{
+				Filename:  file.GetFilename(),
+				Status:    file.GetStatus(),
+				Additions: file.GetAdditions(),
+				Deletions: file.GetDeletions(),
+				Changes:   file.GetChanges(),
+			}
+			if detail == commitDetailFullPatch {
+				minimalFile.Patch = file.GetPatch()
+			}
+			minimalCommit.Files = append(minimalCommit.Files, minimalFile)
+		}
+	}
+
+	return minimalCommit
+}
+
+// convertCommitResultToMinimalCommit converts a GitHub API commit search
+// result, attaching the containing repository so the caller can tell which
+// repo each result came from.
+func convertCommitResultToMinimalCommit(commit *github.CommitResult) MinimalCommitSearchItem {
+	item := MinimalCommitSearchItem{
+		MinimalCommit: newMinimalCommitFromCore(
+			commit.GetSHA(),
+			commit.GetHTMLURL(),
+			commit.Commit,
+			commit.Author,
+			commit.Committer,
+		),
+	}
+
+	if commit.Repository != nil {
+		item.Repository = &MinimalRepoRef{
+			FullName: commit.Repository.GetFullName(),
+			HTMLURL:  commit.Repository.GetHTMLURL(),
+			Private:  commit.Repository.GetPrivate(),
+		}
+	}
+
+	return item
 }
 
 // MinimalPageInfo contains pagination cursor information.
@@ -717,6 +1541,7 @@ type MinimalReviewComment struct {
 
 // MinimalReviewThread is the trimmed output type for PR review thread objects.
 type MinimalReviewThread struct {
+	ID          string                 `json:"id"`
 	IsResolved  bool                   `json:"is_resolved"`
 	IsOutdated  bool                   `json:"is_outdated"`
 	IsCollapsed bool                   `json:"is_collapsed"`
@@ -745,6 +1570,44 @@ func convertToMinimalPRFiles(files []*github.CommitFile) []MinimalPRFile {
 		})
 	}
 	return result
+}
+
+func convertToMinimalPullRequestCommits(commits []*github.RepositoryCommit) []MinimalPullRequestCommit {
+	result := make([]MinimalPullRequestCommit, 0, len(commits))
+	for _, commit := range commits {
+		if commit == nil {
+			continue
+		}
+
+		minimalCommit := MinimalPullRequestCommit{
+			SHA:     commit.GetSHA(),
+			HTMLURL: commit.GetHTMLURL(),
+		}
+
+		if commit.Commit != nil {
+			minimalCommit.Message = commit.Commit.GetMessage()
+			minimalCommit.Author = convertToMinimalCommitAuthor(commit.Commit.Author)
+		}
+
+		result = append(result, minimalCommit)
+	}
+	return result
+}
+
+func convertToMinimalCommitAuthor(author *github.CommitAuthor) *MinimalCommitAuthor {
+	if author == nil {
+		return nil
+	}
+
+	minimalAuthor := &MinimalCommitAuthor{
+		Name:  author.GetName(),
+		Email: author.GetEmail(),
+	}
+	if author.Date != nil {
+		minimalAuthor.Date = author.Date.Format(time.RFC3339)
+	}
+
+	return minimalAuthor
 }
 
 // convertToMinimalBranch converts a GitHub API Branch to MinimalBranch
@@ -853,6 +1716,7 @@ func convertToMinimalReviewThread(thread reviewThreadNode) MinimalReviewThread {
 	}
 
 	return MinimalReviewThread{
+		ID:          fmt.Sprintf("%v", thread.ID),
 		IsResolved:  bool(thread.IsResolved),
 		IsOutdated:  bool(thread.IsOutdated),
 		IsCollapsed: bool(thread.IsCollapsed),
