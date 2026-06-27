@@ -182,7 +182,7 @@ GitHub Enterprise Server does not support remote server hosting. Please refer to
 
 1. To run the server in a container, you will need to have [Docker](https://www.docker.com/) installed.
 2. Once Docker is installed, you will also need to ensure Docker is running. The Docker image is available at `ghcr.io/github/github-mcp-server`. The image is public; if you get errors on pull, you may have an expired token and need to `docker logout ghcr.io`.
-3. **Authentication.** On github.com you don't need to create anything up front — the one-click buttons above log you in with OAuth on first use (a browser-based flow; the token is kept in memory only). The Docker buttons publish a fixed callback port (`127.0.0.1:8085`) so the container's login callback is reachable. See **[Local Server OAuth Login](docs/oauth-login.md)** for how it works, headless/device-code fallback, and bringing your own OAuth or GitHub App client for the OAuth flow. To authenticate directly as a GitHub App installation via `GITHUB_APP_ID` / `GITHUB_APP_INSTALLATION_ID`, see **[Local Server GitHub App Authentication](docs/github-app-auth.md)**.
+3. **Authentication.** On github.com you don't need to create anything up front — the one-click buttons above log you in with OAuth on first use (a browser-based flow; the token is kept in memory only). The Docker buttons publish a fixed callback port (`127.0.0.1:8085`) so the container's login callback is reachable. See **[Local Server OAuth Login](docs/oauth-login.md)** for how it works, headless/device-code fallback, and bringing your own OAuth or GitHub App (required for GitHub Enterprise Server and `ghe.com`).
 
    Prefer a token? You can still authenticate with a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new) by setting `GITHUB_PERSONAL_ACCESS_TOKEN` instead (it takes precedence over OAuth). The MCP server can use many of the GitHub APIs, so enable the permissions that you feel comfortable granting your AI tools (to learn more about access tokens, please check out the [documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
 
@@ -241,12 +241,6 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
   ```
 
 </details>
-
-### GitHub App Authentication
-
-As an alternative to user-based PAT or OAuth login, the local server can authenticate directly as a [GitHub App](https://docs.github.com/en/apps) installation using `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, and either `GITHUB_APP_PRIVATE_KEY` or `GITHUB_APP_PRIVATE_KEY_PATH`. This works for both `stdio` and `http`, uses short-lived installation tokens, and refreshes them automatically.
-
-See **[Local Server GitHub App Authentication](docs/github-app-auth.md)** for setup, required environment variables, Docker and VS Code examples, and GitHub Enterprise Server guidance.
 
 ### GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)
 
@@ -315,7 +309,7 @@ Add one of the following JSON blocks to your IDE's MCP settings.
 }
 ```
 
-See **[Local Server OAuth Login](docs/oauth-login.md)** for the native-binary flow (no fixed port needed), the headless/device-code fallback, GitHub Enterprise Server / `ghe.com`, and bringing your own OAuth or GitHub App client for OAuth login. For installation-based GitHub App auth, see **[Local Server GitHub App Authentication](docs/github-app-auth.md)**.
+See **[Local Server OAuth Login](docs/oauth-login.md)** for the native-binary flow (no fixed port needed), the headless/device-code fallback, GitHub Enterprise Server / `ghe.com`, and bringing your own OAuth or GitHub App.
 
 **Or authenticate with a Personal Access Token.** Set `GITHUB_PERSONAL_ACCESS_TOKEN` instead (it takes precedence over OAuth):
 
