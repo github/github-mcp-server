@@ -2148,10 +2148,13 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		issueRequest.Type = github.Ptr(issueType)
 	}
 
+	// Field IDs to clear via DELETE after the PATCH. See the post-PATCH loop
+	// for why we can't just rely on REST set semantics.
+	var fallbackDeleteFieldIDs []int64
+
 	if len(issueFieldValues) > 0 || len(fieldIDsToDelete) > 0 {
-		// The REST update endpoint uses "set" semantics — it overwrites all existing
-		// field values with whatever is sent. Fetch the current values first, merge in
-		// the new values, then remove any explicitly deleted fields.
+		// REST PATCH uses set semantics, so fetch existing values, merge in
+		// the new ones, then drop anything explicitly deleted.
 		existing, err := fetchExistingIssueFieldValues(ctx, gqlClient, owner, repo, issueNumber)
 		if err != nil {
 			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to fetch existing issue field values", err), nil
@@ -2170,7 +2173,22 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 			}
 			merged = kept
 		}
-		issueRequest.IssueFieldValues = merged
+		if len(merged) == 0 && len(fieldIDsToDelete) > 0 {
+			// Only queue DELETEs for fields actually present — the endpoint
+			// returns 404 otherwise, and "delete a field that isn't set" should
+			// stay a no-op (callers often invoke delete:true idempotently).
+			existingIDs := make(map[int64]bool, len(existing))
+			for _, e := range existing {
+				existingIDs[e.FieldID] = true
+			}
+			for _, id := range fieldIDsToDelete {
+				if existingIDs[id] {
+					fallbackDeleteFieldIDs = append(fallbackDeleteFieldIDs, id)
+				}
+			}
+		} else {
+			issueRequest.IssueFieldValues = merged
+		}
 	}
 
 	updatedIssue, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)
@@ -2189,6 +2207,43 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update issue", resp, body), nil
+	}
+
+	// Per-field DELETE fallback. The PATCH can't clear field values when the
+	// merged set is empty — go-github's `omitempty` strips the empty slice
+	// and the dotcom REST handler skips its issue_field_values block when the
+	// key is absent. Errors are aggregated (not short-circuited) so callers
+	// can see which fields succeeded and which need retry.
+	if len(fallbackDeleteFieldIDs) > 0 {
+		var failedIDs, succeededIDs []int64
+		var firstFailureErr error
+		var firstFailureResp *github.Response
+		for _, fieldID := range fallbackDeleteFieldIDs {
+			path := fmt.Sprintf("repos/%s/%s/issues/%d/issue-field-values/%d", owner, repo, issueNumber, fieldID)
+			req, err := client.NewRequest(ctx, http.MethodDelete, path, nil)
+			if err != nil {
+				failedIDs = append(failedIDs, fieldID)
+				if firstFailureErr == nil {
+					firstFailureErr = err
+				}
+				continue
+			}
+			delResp, err := client.Do(req, nil)
+			if err != nil {
+				failedIDs = append(failedIDs, fieldID)
+				if firstFailureErr == nil {
+					firstFailureErr = err
+					firstFailureResp = delResp
+				}
+				continue
+			}
+			succeededIDs = append(succeededIDs, fieldID)
+			_ = delResp.Body.Close()
+		}
+		if len(failedIDs) > 0 {
+			msg := fmt.Sprintf("failed to clear issue field values: failed=%v, cleared=%v", failedIDs, succeededIDs)
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, msg, firstFailureResp, firstFailureErr), nil
+		}
 	}
 
 	// Use GraphQL API for state updates
