@@ -1,0 +1,42 @@
+version: "1"
+description: "GitHub MCP — permissive policy. All tools allowed. Rate limits on destructive and high-risk operations."
+default: allow
+
+tools:
+  # Destructive — blocked even in permissive mode
+  delete_file:
+    rules:
+      - action: deny
+        on_deny: "File deletion blocked by policy"
+
+  # High-risk writes — rate limited
+  merge_pull_request:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "20/hour"
+        on_deny: "Max 20 merges per hour"
+
+  push_files:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "30/hour"
+        on_deny: "Max 30 pushes per hour"
+
+  actions_run_trigger:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "10/hour"
+        on_deny: "Max 10 workflow triggers per hour"
+
+  create_repository:
+    rules:
+      - name: "rate-limit"
+        rate_limit: "10/hour"
+        on_deny: "Max 10 repository creations per hour"
+
+  # Global safety net
+  "*":
+    rules:
+      - name: "global-rate-limit"
+        rate_limit: "180/minute"
+        on_deny: "Global rate limit — max 180 tool calls per minute"
