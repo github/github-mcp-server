@@ -11,7 +11,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/go-github/v87/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -313,15 +312,19 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			// Decode params
-			var params struct {
-				Owner            string
-				Repo             string
-				DiscussionNumber int32
-			}
-			if err := mapstructure.WeakDecode(args, &params); err != nil {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			discussionNumber, err := RequiredInt(args, "discussionNumber")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
@@ -345,9 +348,9 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
 			vars := map[string]any{
-				"owner":            githubv4.String(params.Owner),
-				"repo":             githubv4.String(params.Repo),
-				"discussionNumber": githubv4.Int(params.DiscussionNumber),
+				"owner":            githubv4.String(owner),
+				"repo":             githubv4.String(repo),
+				"discussionNumber": githubv4.Int(discussionNumber),
 			}
 			if err := client.Query(ctx, &q, vars); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -384,7 +387,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 			result := utils.NewToolResultText(string(out))
 			// Discussion content is user-authored (untrusted); confidentiality
 			// follows repo visibility.
-			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, params.Owner, params.Repo, result, ifc.LabelRepoUserContent)
+			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoUserContent)
 			return result, nil, nil
 		},
 	)
@@ -425,13 +428,16 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			// Decode params
-			var params struct {
-				Owner            string
-				Repo             string
-				DiscussionNumber int32
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			if err := mapstructure.WeakDecode(args, &params); err != nil {
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			discussionNumber, err := RequiredInt(args, "discussionNumber")
+			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
@@ -467,9 +473,9 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 			}
 
 			vars := map[string]any{
-				"owner":            githubv4.String(params.Owner),
-				"repo":             githubv4.String(params.Repo),
-				"discussionNumber": githubv4.Int(params.DiscussionNumber),
+				"owner":            githubv4.String(owner),
+				"repo":             githubv4.String(repo),
+				"discussionNumber": githubv4.Int(discussionNumber),
 				"first":            githubv4.Int(*paginationParams.First),
 			}
 			if paginationParams.After != nil {
@@ -592,7 +598,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 			result := utils.NewToolResultText(string(out))
 			// Discussion comments are user-authored (untrusted); confidentiality
 			// follows repo visibility.
-			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, params.Owner, params.Repo, result, ifc.LabelRepoUserContent)
+			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoUserContent)
 			return result, nil, nil
 		},
 	)
