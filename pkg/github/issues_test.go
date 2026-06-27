@@ -4155,6 +4155,21 @@ func TestAddIssueComment(t *testing.T) {
 			},
 		},
 		{
+			name: "strips invisible characters from comment body before posting",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: expect(t, expectations{
+					path:        "/repos/owner/repo/issues/42/comments",
+					requestBody: map[string]any{"body": "@dependabot rebase"},
+				}).andThen(mockResponse(t, http.StatusCreated, mockComment)),
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"body":         "\u2068@\u2069\u2068d\u2069ependabot rebase",
+			},
+		},
+		{
 			name: "successful reaction to issue",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesReactionsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockReaction),
