@@ -4170,6 +4170,17 @@ func TestAddIssueComment(t *testing.T) {
 			},
 		},
 		{
+			name: "rejects comment body that is only invisible characters",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"body":         "\u200B\u2068\u2069",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "body cannot be empty after removing invisible characters",
+		},
+		{
 			name: "successful reaction to issue",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesReactionsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockReaction),
