@@ -45,40 +45,13 @@ The local GitHub MCP server runs via Docker and requires Docker Desktop to be in
 
 1. Click the install button above and follow the flow, or go directly to your global MCP configuration file at `~/.cursor/mcp.json` and enter the code block below
 2. In Tools & Integrations > MCP tools, click the pencil icon next to "github"
-3. Replace `YOUR_GITHUB_PAT` with your actual [GitHub Personal Access Token](https://github.com/settings/tokens)
+3. Replace `YOUR_GITHUB_PAT` with your actual [GitHub Personal Access Token](https://github.com/settings/tokens) (PAT setup only; for OAuth, use the configuration below and skip this step)
 4. Save the file
 5. Restart Cursor
 
-### Docker Configuration
+### Docker Configuration (Personal Access Token)
 
-Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
-
-```json
-{
-  "mcpServers": {
-    "github": {
-      "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-p",
-        "127.0.0.1:8085:8085",
-        "-e",
-        "GITHUB_OAUTH_CALLBACK_PORT",
-        "ghcr.io/github/github-mcp-server"
-      ],
-      "env": {
-        "GITHUB_OAUTH_CALLBACK_PORT": "8085"
-      }
-    }
-  }
-}
-```
-
-See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
-
-To authenticate with a Personal Access Token instead (it takes precedence over OAuth):
+Authenticate with a Personal Access Token. This works with the current release image (`ghcr.io/github/github-mcp-server:latest`):
 
 ```json
 {
@@ -100,6 +73,37 @@ To authenticate with a Personal Access Token instead (it takes precedence over O
   }
 }
 ```
+
+### Docker Configuration (OAuth)
+
+> **Version note**: Stdio OAuth login merged after the **v1.4.0** release (2026-06-18). Until a newer version is tagged, use the pre-release image `ghcr.io/github/github-mcp-server:main` (or build from source). The `:latest` image does **not** include OAuth yet — it exits with a misleading `GITHUB_PERSONAL_ACCESS_TOKEN not set` error instead of starting browser login. A future release will restore OAuth on `:latest`.
+
+Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-p",
+        "127.0.0.1:8085:8085",
+        "-e",
+        "GITHUB_OAUTH_CALLBACK_PORT",
+        "ghcr.io/github/github-mcp-server:main"
+      ],
+      "env": {
+        "GITHUB_OAUTH_CALLBACK_PORT": "8085"
+      }
+    }
+  }
+}
+```
+
+See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
 
 > **Important**: The npm package `@modelcontextprotocol/server-github` is no longer supported as of April 2025. Use the official Docker image `ghcr.io/github/github-mcp-server` instead.
 
@@ -128,6 +132,7 @@ To authenticate with a Personal Access Token instead (it takes precedence over O
 - **Docker errors**: Ensure Docker Desktop is running
 - **Image pull failures**: Try `docker logout ghcr.io` then retry
 - **Docker not found**: Install Docker Desktop and ensure it's running
+- **`GITHUB_PERSONAL_ACCESS_TOKEN not set` with OAuth config**: The published `:latest` image (v1.4.0) does not include stdio OAuth. Use the PAT configuration above, or switch the image tag to `ghcr.io/github/github-mcp-server:main` until the next release
 
 ### General Issues
 
