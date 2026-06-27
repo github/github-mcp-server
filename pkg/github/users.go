@@ -14,7 +14,7 @@ import (
 
 // GetUser creates a tool to get a user by username.
 func GetUser(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	st := NewTool(
 		ToolsetMetadataUsers,
 		mcp.Tool{
 			Name:        "get_user",
@@ -39,6 +39,8 @@ func GetUser(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return getUserHandler(ctx, deps, args)
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagUsersGranular
+	return st
 }
 
 func getUserHandler(ctx context.Context, deps ToolDependencies, args map[string]any) (*mcp.CallToolResult, any, error) {

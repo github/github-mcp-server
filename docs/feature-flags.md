@@ -334,4 +334,9 @@ runtime behavior (such as output formatting) won't appear here.
     - 'blocked_by' - the subject issue is blocked by the related issue.
     - 'blocking' - the subject issue blocks the related issue. (string, required)
 
+### `users_granular`
+
+- **get_user** - Get a user by username
+  - `username`: Username of the user (string, required)
+
 <!-- END AUTOMATED FEATURE FLAG TOOLS -->

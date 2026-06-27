@@ -22,6 +22,10 @@ func Test_GetUser(t *testing.T) {
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
+	// get_user is a granular user tool, gated so it is not advertised unless
+	// the users_granular feature flag opts it in.
+	assert.Equal(t, FeatureFlagUsersGranular, serverTool.FeatureFlagEnable, "get_user must be gated behind the users_granular feature flag")
+
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 

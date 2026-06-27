@@ -23,6 +23,12 @@ const FeatureFlagFileBlame = "file_blame"
 // unless explicitly opted in.
 const FeatureFlagIssueDependencies = "issue_dependencies"
 
+// FeatureFlagUsersGranular is the feature flag name for granular user tools
+// such as get_user, which fetches a single GitHub user's profile by username.
+// It is gated so the extra tool is not advertised by default, keeping the tool
+// surface small unless opted in.
+const FeatureFlagUsersGranular = "users_granular"
+
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag or X-MCP-Features HTTP header.
 // Only flags in this list are accepted; unknown flags are silently ignored.
@@ -35,6 +41,7 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagPullRequestsGranular,
 	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,
+	FeatureFlagUsersGranular,
 }
 
 // InsidersFeatureFlags is the list of feature flags that insiders mode enables.
