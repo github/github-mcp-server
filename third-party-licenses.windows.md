@@ -25,8 +25,8 @@ The following packages are included for the 386, amd64, arm64 architectures.
  - [github.com/josephburnett/jd/v2](https://pkg.go.dev/github.com/josephburnett/jd/v2) ([MIT](https://github.com/josephburnett/jd/blob/v2.5.0/v2/LICENSE))
  - [github.com/lithammer/fuzzysearch/fuzzy](https://pkg.go.dev/github.com/lithammer/fuzzysearch/fuzzy) ([MIT](https://github.com/lithammer/fuzzysearch/blob/v1.1.8/LICENSE))
  - [github.com/microcosm-cc/bluemonday](https://pkg.go.dev/github.com/microcosm-cc/bluemonday) ([BSD-3-Clause](https://github.com/microcosm-cc/bluemonday/blob/v1.0.27/LICENSE.md))
- - [github.com/modelcontextprotocol/go-sdk](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk) ([Apache-2.0](https://github.com/modelcontextprotocol/go-sdk/blob/v1.6.1/LICENSE))
- - [github.com/modelcontextprotocol/go-sdk](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk) ([MIT](https://github.com/modelcontextprotocol/go-sdk/blob/v1.6.1/LICENSE))
+ - [github.com/modelcontextprotocol/go-sdk](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk) ([Apache-2.0](https://github.com/modelcontextprotocol/go-sdk/blob/v1.7.0-pre.1/LICENSE))
+ - [github.com/modelcontextprotocol/go-sdk](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk) ([MIT](https://github.com/modelcontextprotocol/go-sdk/blob/v1.7.0-pre.1/LICENSE))
  - [github.com/muesli/cache2go](https://pkg.go.dev/github.com/muesli/cache2go) ([BSD-3-Clause](https://github.com/muesli/cache2go/blob/518229cd8021/LICENSE.txt))
  - [github.com/pelletier/go-toml/v2](https://pkg.go.dev/github.com/pelletier/go-toml/v2) ([MIT](https://github.com/pelletier/go-toml/blob/v2.2.4/LICENSE))
  - [github.com/sagikazarmark/locafero](https://pkg.go.dev/github.com/sagikazarmark/locafero) ([MIT](https://github.com/sagikazarmark/locafero/blob/v0.11.0/LICENSE))
@@ -45,7 +45,9 @@ The following packages are included for the 386, amd64, arm64 architectures.
  - [go.yaml.in/yaml/v3](https://pkg.go.dev/go.yaml.in/yaml/v3) ([MIT](https://github.com/yaml/go-yaml/blob/v3.0.4/LICENSE))
  - [golang.org/x/net/html](https://pkg.go.dev/golang.org/x/net/html) ([BSD-3-Clause](https://cs.opensource.google/go/x/net/+/v0.38.0:LICENSE))
  - [golang.org/x/oauth2](https://pkg.go.dev/golang.org/x/oauth2) ([BSD-3-Clause](https://cs.opensource.google/go/x/oauth2/+/v0.35.0:LICENSE))
+ - [golang.org/x/sync/errgroup](https://pkg.go.dev/golang.org/x/sync/errgroup) ([BSD-3-Clause](https://cs.opensource.google/go/x/sync/+/v0.20.0:LICENSE))
  - [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys) ([BSD-3-Clause](https://cs.opensource.google/go/x/sys/+/v0.41.0:LICENSE))
  - [golang.org/x/text](https://pkg.go.dev/golang.org/x/text) ([BSD-3-Clause](https://cs.opensource.google/go/x/text/+/v0.28.0:LICENSE))
+ - [golang.org/x/time/rate](https://pkg.go.dev/golang.org/x/time/rate) ([BSD-3-Clause](https://cs.opensource.google/go/x/time/+/v0.15.0:LICENSE))
 
 [github/github-mcp-server]: https://github.com/github/github-mcp-server
