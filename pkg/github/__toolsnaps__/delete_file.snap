@@ -1,6 +1,8 @@
 {
   "annotations": {
     "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Delete file"
   },
   "description": "Delete a file from a GitHub repository",

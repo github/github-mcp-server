@@ -1,7 +1,9 @@
 {
   "annotations": {
     "destructiveHint": false,
+    "idempotentHint": false,
     "openWorldHint": true,
+    "readOnlyHint": false,
     "title": "Update Issue State"
   },
   "description": "Update the state of an existing issue (open or closed), with an optional state reason.",

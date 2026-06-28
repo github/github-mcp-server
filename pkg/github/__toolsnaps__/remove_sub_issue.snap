@@ -1,7 +1,9 @@
 {
   "annotations": {
     "destructiveHint": true,
+    "idempotentHint": false,
     "openWorldHint": true,
+    "readOnlyHint": false,
     "title": "Remove Sub-Issue"
   },
   "description": "Remove a sub-issue from a parent issue.",

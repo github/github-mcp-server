@@ -1,7 +1,9 @@
 {
   "annotations": {
     "destructiveHint": false,
+    "idempotentHint": false,
     "openWorldHint": true,
+    "readOnlyHint": false,
     "title": "Add Reaction to Issue or Pull Request"
   },
   "description": "Add a reaction to an issue or pull request.",
