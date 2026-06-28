@@ -78,3 +78,36 @@ func TestNewServerToolWithContextHandler_ValidArguments_Succeeds(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "success: octocat/hello-world", textContent.Text)
 }
+
+func TestNewServerToolWithContextHandler_EmptyArguments_TreatedAsEmptyObject(t *testing.T) {
+	type expectedArgs struct {
+		Owner string `json:"owner"`
+	}
+
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "test_tool"},
+		testToolsetMetadata("test"),
+		func(_ context.Context, _ *mcp.CallToolRequest, args expectedArgs) (*mcp.CallToolResult, any, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: "success: " + args.Owner},
+				},
+			}, nil, nil
+		},
+	)
+
+	handler := tool.HandlerFunc(nil)
+
+	for _, args := range []json.RawMessage{nil, json.RawMessage{}, json.RawMessage(`{}`)} {
+		result, err := handler(context.Background(), &mcp.CallToolRequest{
+			Params: &mcp.CallToolParamsRaw{
+				Name:      "test_tool",
+				Arguments: args,
+			},
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.False(t, result.IsError, "arguments payload %q should be treated as empty object", args)
+	}
+}
