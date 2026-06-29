@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/github/github-mcp-server/pkg/octicons"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -116,7 +117,36 @@ func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any) {
 	if len(toolCopy.Icons) == 0 {
 		toolCopy.Icons = st.Toolset.Icons()
 	}
+	// Project routing-relevant params to standard MCP-Param-* headers (SEP-2243)
+	// so a remote proxy can read owner/repo from headers instead of re-parsing the
+	// JSON-RPC body. No-op for tools without these params.
+	annotateHeaderParams(&toolCopy)
 	s.AddTool(&toolCopy, handler)
+}
+
+// headerParams maps tool input properties to the MCP-Param-* header name a
+// header-aware proxy reads, avoiding a second parse of the request body.
+var headerParams = map[string]string{"owner": "owner", "repo": "repo"}
+
+// annotateHeaderParams adds an "x-mcp-header" annotation to matching top-level
+// input properties, which the SDK projects onto Mcp-Param-{name} request headers.
+func annotateHeaderParams(tool *mcp.Tool) {
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	if !ok || schema == nil {
+		return
+	}
+	for prop, header := range headerParams {
+		ps := schema.Properties[prop]
+		if ps == nil {
+			continue
+		}
+		if ps.Extra == nil {
+			ps.Extra = map[string]any{}
+		}
+		if _, exists := ps.Extra["x-mcp-header"]; !exists {
+			ps.Extra["x-mcp-header"] = header
+		}
+	}
 }
 
 // NewServerToolWithContextHandler creates a ServerTool with a handler that receives deps via context.

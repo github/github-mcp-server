@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,4 +78,24 @@ func TestNewServerToolWithContextHandler_ValidArguments_Succeeds(t *testing.T) {
 	textContent, ok := result.Content[0].(*mcp.TextContent)
 	require.True(t, ok)
 	assert.Equal(t, "success: octocat/hello-world", textContent.Text)
+}
+
+func TestAnnotateHeaderParams(t *testing.T) {
+	tool := &mcp.Tool{InputSchema: &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner":  {Type: "string"},
+			"repo":   {Type: "string"},
+			"detail": {Type: "string"},
+		},
+	}}
+	annotateHeaderParams(tool)
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Equal(t, "owner", schema.Properties["owner"].Extra["x-mcp-header"])
+	assert.Equal(t, "repo", schema.Properties["repo"].Extra["x-mcp-header"])
+	assert.Nil(t, schema.Properties["detail"].Extra)
+
+	// No-op for tools without owner/repo and when InputSchema is not a *jsonschema.Schema
+	annotateHeaderParams(&mcp.Tool{InputSchema: &jsonschema.Schema{Properties: map[string]*jsonschema.Schema{"x": {}}}})
+	annotateHeaderParams(&mcp.Tool{InputSchema: json.RawMessage(`{}`)})
 }
