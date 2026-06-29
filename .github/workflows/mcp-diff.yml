@@ -50,12 +50,12 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Run MCP Server Diff
-        # Pinned to the 3.0 branch (cross-spec-version normalization: _meta plumbing,
-        # cache hints, initialize envelope, tool-annotation default hints; plus the
-        # stateless SEP-2575 server/discover probe path so each server is probed at its
-        # own newest spec) so the go-sdk v1.6.1 -> v1.7.0-pre.1 bump produces an honest,
-        # signal-only diff. Move to the v3.0.0 tag once it ships. See github/copilot-mcp-core#1709.
-        uses: SamMorrowDrums/mcp-server-diff@8fc26d8ff078dfd783f0c5c235e2cd52fca0d6f6
+        # Pinned to the cross-spec-aware mcp-server-diff v3.0.0 (full SHA required —
+        # Actions rejects shortened SHAs): normalizes _meta plumbing, cache hints,
+        # initialize envelope, tool-annotation default hints; probes each server at its
+        # own newest spec via the stateless SEP-2575 server/discover path. Keeps the
+        # go-sdk v1.6.1 -> v1.7.0-pre.1 bump an honest, signal-only diff. github/copilot-mcp-core#1709.
+        uses: SamMorrowDrums/mcp-server-diff@3521651bb0d3cc267a23df8d94a2a645556980a4 # v3.0.0
         with:
           setup_go: "false"
           install_command: |
@@ -119,8 +119,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Run MCP Server Diff (streamable-http)
-        # Pinned to the 3.0 branch — see rationale on the stdio job above.
-        uses: SamMorrowDrums/mcp-server-diff@8fc26d8ff078dfd783f0c5c235e2cd52fca0d6f6
+        # Pinned to mcp-server-diff v3.0.0 — see rationale on the stdio job above.
+        uses: SamMorrowDrums/mcp-server-diff@3521651bb0d3cc267a23df8d94a2a645556980a4 # v3.0.0
         with:
           setup_go: "false"
           install_command: |
