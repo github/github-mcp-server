@@ -20,6 +20,15 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// uiGetMaxPages bounds how many pages each ui_get pagination loop will fetch.
+// ui_get backs a synchronous UI picker (dropdowns for labels/assignees/etc. in
+// the MCP App issue/PR write surfaces), so responsiveness matters more than
+// completeness. At PerPage 100 this caps a call at ~1000 items and a bounded
+// number of API round-trips, keeping latency predictable on very large
+// repos/orgs. Results past the cap are truncated and surfaced via a "has_more"
+// flag, which is acceptable because the picker pairs truncation with typeahead.
+const uiGetMaxPages = 10
+
 // UIGet creates a tool to fetch UI data for MCP Apps.
 func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
@@ -131,7 +140,8 @@ func uiGetLabels(ctx context.Context, deps ToolDependencies, args map[string]any
 
 	labels := make([]map[string]any, 0)
 	var totalCount int
-	for {
+	hasMore := false
+	for page := 1; ; page++ {
 		if err := client.Query(ctx, &query, vars); err != nil {
 			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to list labels", err), nil, nil
 		}
@@ -147,12 +157,17 @@ func uiGetLabels(ctx context.Context, deps ToolDependencies, args map[string]any
 		if !query.Repository.Labels.PageInfo.HasNextPage {
 			break
 		}
+		if page >= uiGetMaxPages {
+			hasMore = true
+			break
+		}
 		vars["cursor"] = githubv4.NewString(query.Repository.Labels.PageInfo.EndCursor)
 	}
 
 	response := map[string]any{
 		"labels":     labels,
 		"totalCount": totalCount,
+		"has_more":   hasMore,
 	}
 
 	out, err := json.Marshal(response)
@@ -176,8 +191,9 @@ func uiGetAssignees(ctx context.Context, deps ToolDependencies, args map[string]
 
 	opts := &github.ListOptions{PerPage: 100}
 	var allAssignees []*github.User
+	hasMore := false
 
-	for {
+	for page := 1; ; page++ {
 		assignees, resp, err := client.Issues.ListAssignees(ctx, owner, repo, opts)
 		if err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list assignees", resp, err), nil, nil
@@ -187,6 +203,10 @@ func uiGetAssignees(ctx context.Context, deps ToolDependencies, args map[string]
 			_ = resp.Body.Close()
 		}
 		if resp.NextPage == 0 {
+			break
+		}
+		if page >= uiGetMaxPages {
+			hasMore = true
 			break
 		}
 		opts.Page = resp.NextPage
@@ -203,6 +223,7 @@ func uiGetAssignees(ctx context.Context, deps ToolDependencies, args map[string]
 	out, err := json.Marshal(map[string]any{
 		"assignees":  result,
 		"totalCount": len(result),
+		"has_more":   hasMore,
 	})
 	if err != nil {
 		return utils.NewToolResultErrorFromErr("failed to marshal assignees", err), nil, nil
@@ -228,7 +249,8 @@ func uiGetMilestones(ctx context.Context, deps ToolDependencies, args map[string
 	}
 
 	var allMilestones []*github.Milestone
-	for {
+	hasMore := false
+	for page := 1; ; page++ {
 		milestones, resp, err := client.Issues.ListMilestones(ctx, owner, repo, opts)
 		if err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list milestones", resp, err), nil, nil
@@ -238,6 +260,10 @@ func uiGetMilestones(ctx context.Context, deps ToolDependencies, args map[string
 			_ = resp.Body.Close()
 		}
 		if resp.NextPage == 0 {
+			break
+		}
+		if page >= uiGetMaxPages {
+			hasMore = true
 			break
 		}
 		opts.Page = resp.NextPage
@@ -262,6 +288,7 @@ func uiGetMilestones(ctx context.Context, deps ToolDependencies, args map[string
 	out, err := json.Marshal(map[string]any{
 		"milestones": result,
 		"totalCount": len(result),
+		"has_more":   hasMore,
 	})
 	if err != nil {
 		return utils.NewToolResultErrorFromErr("failed to marshal milestones", err), nil, nil
@@ -314,7 +341,8 @@ func uiGetBranches(ctx context.Context, deps ToolDependencies, args map[string]a
 	}
 
 	var allBranches []*github.Branch
-	for {
+	hasMore := false
+	for page := 1; ; page++ {
 		branches, resp, err := client.Repositories.ListBranches(ctx, owner, repo, opts)
 		if err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list branches", resp, err), nil, nil
@@ -324,6 +352,10 @@ func uiGetBranches(ctx context.Context, deps ToolDependencies, args map[string]a
 			_ = resp.Body.Close()
 		}
 		if resp.NextPage == 0 {
+			break
+		}
+		if page >= uiGetMaxPages {
+			hasMore = true
 			break
 		}
 		opts.Page = resp.NextPage
@@ -337,6 +369,7 @@ func uiGetBranches(ctx context.Context, deps ToolDependencies, args map[string]a
 	r, err := json.Marshal(map[string]any{
 		"branches":   minimalBranches,
 		"totalCount": len(minimalBranches),
+		"has_more":   hasMore,
 	})
 	if err != nil {
 		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
@@ -446,7 +479,8 @@ func uiGetReviewers(ctx context.Context, deps ToolDependencies, args map[string]
 		ListOptions: github.ListOptions{PerPage: 100},
 	}
 	var allCollaborators []*github.User
-	for {
+	hasMore := false
+	for page := 1; ; page++ {
 		collaborators, resp, err := client.Repositories.ListCollaborators(ctx, owner, repo, collaboratorOpts)
 		if err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list reviewers", resp, err), nil, nil
@@ -458,12 +492,16 @@ func uiGetReviewers(ctx context.Context, deps ToolDependencies, args map[string]
 		if resp.NextPage == 0 {
 			break
 		}
+		if page >= uiGetMaxPages {
+			hasMore = true
+			break
+		}
 		collaboratorOpts.Page = resp.NextPage
 	}
 
 	teamOpts := &github.ListOptions{PerPage: 100}
 	var allTeams []*github.Team
-	for {
+	for page := 1; ; page++ {
 		teams, resp, err := client.Repositories.ListTeams(ctx, owner, repo, teamOpts)
 		if err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list reviewer teams", resp, err), nil, nil
@@ -473,6 +511,10 @@ func uiGetReviewers(ctx context.Context, deps ToolDependencies, args map[string]
 			_ = resp.Body.Close()
 		}
 		if resp.NextPage == 0 {
+			break
+		}
+		if page >= uiGetMaxPages {
+			hasMore = true
 			break
 		}
 		teamOpts.Page = resp.NextPage
@@ -503,6 +545,7 @@ func uiGetReviewers(ctx context.Context, deps ToolDependencies, args map[string]
 		"users":      users,
 		"teams":      teams,
 		"totalCount": len(users) + len(teams),
+		"has_more":   hasMore,
 	})
 	if err != nil {
 		return utils.NewToolResultErrorFromErr("failed to marshal reviewers", err), nil, nil

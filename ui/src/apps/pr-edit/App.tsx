@@ -25,6 +25,7 @@ import {
 } from "@primer/octicons-react";
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
+import { completedToolResult } from "../../lib/toolResult";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 
 interface PRResult {
@@ -267,13 +268,22 @@ function EditPRApp() {
   const [reviewersLoading, setReviewersLoading] = useState(false);
   const [reviewersFilter, setReviewersFilter] = useState("");
 
-  const { app, error: appError, toolInput, callTool, hostContext, setModelContext, openLink } = useMcpApp({
+  const { app, error: appError, toolInput, toolResult, callTool, hostContext, setModelContext, openLink } = useMcpApp({
     appName: "github-mcp-server-edit-pull-request",
   });
 
   const owner = (toolInput?.owner as string) || "";
   const repo = (toolInput?.repo as string) || "";
   const pullNumber = asNumber(toolInput?.pullNumber);
+
+  // When the server updated the PR up-front instead of deferring to this form,
+  // the host still renders this View and delivers the updated PR via
+  // tool-result. Render that completed result as success so we never show an
+  // edit form for changes already applied. The deferral sentinel
+  // (awaiting_user_submission) returns null here, keeping the form for the
+  // normal deferred flow. See github/copilot-mcp-core#1864.
+  const resultPR = useMemo(() => completedToolResult<PRResult>(toolResult), [toolResult]);
+  const shownPR = successPR ?? resultPR;
 
   useEffect(() => {
     setTitle("");
@@ -495,10 +505,10 @@ function EditPRApp() {
     }
   }, [title, body, owner, repo, pullNumber, baseBranch, initialValues, selectedReviewers, prState, isDraft, maintainerCanModify, callTool, setModelContext]);
 
-  if (successPR) {
+  if (shownPR) {
     return (
       <AppProvider hostContext={hostContext}>
-        <SuccessView pr={successPR} owner={owner} repo={repo} submittedTitle={submittedTitle} openLink={openLink} />
+        <SuccessView pr={shownPR} owner={owner} repo={repo} submittedTitle={submittedTitle} openLink={openLink} />
       </AppProvider>
     );
   }

@@ -19,7 +19,13 @@ const (
 	OAuthProtectedResourcePrefix = "/.well-known/oauth-protected-resource"
 )
 
-// SupportedScopes lists all OAuth scopes that may be required by MCP tools.
+// SupportedScopes lists every OAuth scope that an MCP tool may require. It is the
+// source of truth in two places: HTTP mode advertises it as scopes_supported in
+// the protected-resource metadata, and stdio OAuth login requests it by default
+// and then filters the exposed tools to the granted scopes. A tool whose required
+// scope is absent here is therefore hidden under default OAuth even though a PAT
+// carrying that scope would expose it, so keep this list in sync with tool scope
+// requirements when scopes change.
 var SupportedScopes = []string{
 	"repo",
 	"read:org",

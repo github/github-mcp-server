@@ -176,14 +176,15 @@ GitHub Enterprise Server does not support remote server hosting. Please refer to
 
 ## Local GitHub MCP Server
 
-[![Install with Docker in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&inputs=%5B%7B%22id%22%3A%22github_token%22%2C%22type%22%3A%22promptString%22%2C%22description%22%3A%22GitHub%20Personal%20Access%20Token%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-e%22%2C%22GITHUB_PERSONAL_ACCESS_TOKEN%22%2C%22ghcr.io%2Fgithub%2Fgithub-mcp-server%22%5D%2C%22env%22%3A%7B%22GITHUB_PERSONAL_ACCESS_TOKEN%22%3A%22%24%7Binput%3Agithub_token%7D%22%7D%7D) [![Install with Docker in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&inputs=%5B%7B%22id%22%3A%22github_token%22%2C%22type%22%3A%22promptString%22%2C%22description%22%3A%22GitHub%20Personal%20Access%20Token%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-e%22%2C%22GITHUB_PERSONAL_ACCESS_TOKEN%22%2C%22ghcr.io%2Fgithub%2Fgithub-mcp-server%22%5D%2C%22env%22%3A%7B%22GITHUB_PERSONAL_ACCESS_TOKEN%22%3A%22%24%7Binput%3Agithub_token%7D%22%7D%7D&quality=insiders) [![Install with Docker in Visual Studio](https://img.shields.io/badge/Visual_Studio-Install_Server-C16FDE?style=flat-square&logo=visualstudio&logoColor=white)](https://aka.ms/vs/mcp-install?%7B%22name%22%3A%22github%22%2C%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-e%22%2C%22GITHUB_PERSONAL_ACCESS_TOKEN%22%2C%22ghcr.io%2Fgithub%2Fgithub-mcp-server%22%5D%7D)
+[![Install with Docker in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-p%22%2C%22127.0.0.1%3A8085%3A8085%22%2C%22-e%22%2C%22GITHUB_OAUTH_CALLBACK_PORT%22%2C%22ghcr.io%2Fgithub%2Fgithub-mcp-server%22%5D%2C%22env%22%3A%7B%22GITHUB_OAUTH_CALLBACK_PORT%22%3A%228085%22%7D%7D) [![Install with Docker in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-p%22%2C%22127.0.0.1%3A8085%3A8085%22%2C%22-e%22%2C%22GITHUB_OAUTH_CALLBACK_PORT%22%2C%22ghcr.io%2Fgithub%2Fgithub-mcp-server%22%5D%2C%22env%22%3A%7B%22GITHUB_OAUTH_CALLBACK_PORT%22%3A%228085%22%7D%7D&quality=insiders) [![Install with Docker in Visual Studio](https://img.shields.io/badge/Visual_Studio-Install_Server-C16FDE?style=flat-square&logo=visualstudio&logoColor=white)](https://aka.ms/vs/mcp-install?%7B%22name%22%3A%22github%22%2C%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-p%22%2C%22127.0.0.1%3A8085%3A8085%22%2C%22-e%22%2C%22GITHUB_OAUTH_CALLBACK_PORT%3D8085%22%2C%22ghcr.io%2Fgithub%2Fgithub-mcp-server%22%5D%7D)
 
 ### Prerequisites
 
 1. To run the server in a container, you will need to have [Docker](https://www.docker.com/) installed.
 2. Once Docker is installed, you will also need to ensure Docker is running. The Docker image is available at `ghcr.io/github/github-mcp-server`. The image is public; if you get errors on pull, you may have an expired token and need to `docker logout ghcr.io`.
-3. Lastly you will need to [Create a GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new).
-The MCP server can use many of the GitHub APIs, so enable the permissions that you feel comfortable granting your AI tools (to learn more about access tokens, please check out the [documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
+3. **Authentication.** On github.com you don't need to create anything up front — the one-click buttons above log you in with OAuth on first use (a browser-based flow; the token is kept in memory only). The Docker buttons publish a fixed callback port (`127.0.0.1:8085`) so the container's login callback is reachable. See **[Local Server OAuth Login](docs/oauth-login.md)** for how it works, headless/device-code fallback, and bringing your own OAuth or GitHub App (required for GitHub Enterprise Server and `ghe.com`).
+
+   Prefer a token? You can still authenticate with a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new) by setting `GITHUB_PERSONAL_ACCESS_TOKEN` instead (it takes precedence over OAuth). The MCP server can use many of the GitHub APIs, so enable the permissions that you feel comfortable granting your AI tools (to learn more about access tokens, please check out the [documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
 
 <details><summary><b>Handling PATs Securely</b></summary>
 
@@ -279,7 +280,38 @@ More about using MCP server tools in VS Code's [agent mode documentation](https:
 
 Install in GitHub Copilot on other IDEs (JetBrains, Visual Studio, Eclipse, etc.)
 
-Add the following JSON block to your IDE's MCP settings.
+Add one of the following JSON blocks to your IDE's MCP settings.
+
+**Log in with OAuth (no token to create or store).** On github.com the official image already includes the app credentials, so you provide none yourself: it runs a browser-based login on first use and keeps the resulting token **in memory only**. In Docker this needs a fixed callback port published to loopback so the container's login callback is reachable:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "github": {
+        "command": "docker",
+        "args": [
+          "run",
+          "-i",
+          "--rm",
+          "-p",
+          "127.0.0.1:8085:8085",
+          "-e",
+          "GITHUB_OAUTH_CALLBACK_PORT",
+          "ghcr.io/github/github-mcp-server"
+        ],
+        "env": {
+          "GITHUB_OAUTH_CALLBACK_PORT": "8085"
+        }
+      }
+    }
+  }
+}
+```
+
+See **[Local Server OAuth Login](docs/oauth-login.md)** for the native-binary flow (no fixed port needed), the headless/device-code fallback, GitHub Enterprise Server / `ghe.com`, and bringing your own OAuth or GitHub App.
+
+**Or authenticate with a Personal Access Token.** Set `GITHUB_PERSONAL_ACCESS_TOKEN` instead (it takes precedence over OAuth):
 
 ```json
 {
@@ -841,9 +873,11 @@ The following sets of tools are available:
 
 - **add_issue_comment** - Add comment to issue or pull request
   - **Required OAuth Scopes**: `repo`
-  - `body`: Comment content (string, required)
-  - `issue_number`: Issue number to comment on (number, required)
+  - `body`: Comment content. Required unless reaction is provided. (string, optional)
+  - `comment_id`: The numeric ID of the issue or pull request comment to react to. Use this for reactions to comments; omit it to react to the issue or pull request itself. Cannot be combined with body. (number, optional)
+  - `issue_number`: Issue or pull request number to comment on or react to. (number, required)
   - `owner`: Repository owner (string, required)
+  - `reaction`: Emoji reaction to add. Required unless body is provided. (string, optional)
   - `repo`: Repository name (string, required)
 
 - **get_label** - Get a specific label from a repository
@@ -1100,10 +1134,11 @@ The following sets of tools are available:
 
 - **add_reply_to_pull_request_comment** - Add reply to pull request comment
   - **Required OAuth Scopes**: `repo`
-  - `body`: The text of the reply (string, required)
-  - `commentId`: The ID of the comment to reply to (number, required)
+  - `body`: The text of the reply. Required unless reaction is provided. (string, optional)
+  - `commentId`: The numeric ID of the pull request review comment to reply or react to. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...). (number, required)
   - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
+  - `pullNumber`: Pull request number. Required when body is provided. (number, optional)
+  - `reaction`: Emoji reaction to add. Required unless body is provided. (string, optional)
   - `repo`: Repository name (string, required)
 
 - **create_pull_request** - Open new pull request

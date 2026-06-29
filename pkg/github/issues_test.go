@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -557,116 +558,6 @@ func Test_GetIssue_FieldValues_Enriched(t *testing.T) {
 	assert.Equal(t, "P1", returnedIssue.FieldValues[0].Value)
 	assert.Equal(t, "estimate", returnedIssue.FieldValues[1].Field)
 	assert.Equal(t, "2.5", returnedIssue.FieldValues[1].Value)
-}
-
-func Test_AddIssueComment(t *testing.T) {
-	// Verify tool definition once
-	serverTool := AddIssueComment(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	assert.Equal(t, "add_issue_comment", tool.Name)
-	assert.NotEmpty(t, tool.Description)
-
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "body")
-	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "issue_number", "body"})
-
-	// Setup mock comment for success case
-	mockComment := &github.IssueComment{
-		ID:   github.Ptr(int64(123)),
-		Body: github.Ptr("This is a test comment"),
-		User: &github.User{
-			Login: github.Ptr("testuser"),
-		},
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42#issuecomment-123"),
-	}
-
-	tests := []struct {
-		name            string
-		mockedClient    *http.Client
-		requestArgs     map[string]any
-		expectError     bool
-		expectedComment *github.IssueComment
-		expectedErrMsg  string
-	}{
-		{
-			name: "successful comment creation",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockComment),
-			}),
-			requestArgs: map[string]any{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(42),
-				"body":         "This is a test comment",
-			},
-			expectError:     false,
-			expectedComment: mockComment,
-		},
-		{
-			name: "comment creation fails",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusUnprocessableEntity)
-					_, _ = w.Write([]byte(`{"message": "Invalid request"}`))
-				}),
-			}),
-			requestArgs: map[string]any{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(42),
-				"body":         "",
-			},
-			expectError:    false,
-			expectedErrMsg: "missing required parameter: body",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
-			client := mustNewGHClient(t, tc.mockedClient)
-			deps := BaseDeps{
-				Client: client,
-			}
-			handler := serverTool.Handler(deps)
-
-			// Create call request
-			request := createMCPRequest(tc.requestArgs)
-
-			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-
-			// Verify results
-			if tc.expectError {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expectedErrMsg)
-				return
-			}
-
-			if tc.expectedErrMsg != "" {
-				require.NotNil(t, result)
-				textContent := getTextResult(t, result)
-				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
-				return
-			}
-
-			require.NoError(t, err)
-
-			// Parse the result and get the text content if no error
-			textContent := getTextResult(t, result)
-
-			// Unmarshal and verify the result contains minimal response
-			var minimalResponse MinimalResponse
-			err = json.Unmarshal([]byte(textContent.Text), &minimalResponse)
-			require.NoError(t, err)
-			assert.Equal(t, fmt.Sprintf("%d", tc.expectedComment.GetID()), minimalResponse.ID)
-			assert.Equal(t, tc.expectedComment.GetHTMLURL(), minimalResponse.URL)
-		})
-	}
 }
 
 func Test_SearchIssues(t *testing.T) {
@@ -1655,9 +1546,10 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
 
-	t.Run("UI client with labels skips form and executes directly", func(t *testing.T) {
-		// The form does not collect labels, so a call carrying them must bypass
-		// the form rather than silently drop them.
+	t.Run("UI client with labels routes through UI form", func(t *testing.T) {
+		// labels is now a form param (the issue-write view prefills and renders
+		// a label selector), so a call carrying them must route to the form
+		// rather than execute directly.
 		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"method": "create",
 			"owner":  "owner",
@@ -1669,90 +1561,9 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.NotContains(t, textContent.Text, "interactive form has been shown",
-			"labels should skip UI form")
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
-			"labels call should execute directly and return issue URL")
-	})
-
-	t.Run("UI client with show_ui=false skips form and executes directly", func(t *testing.T) {
-		// show_ui=false is the explicit, model-facing way to opt out of the
-		// form. It must bypass the form even when every other condition would
-		// route the call there (UI capability, MCP Apps flag on, no
-		// _ui_submitted, only form params present).
-		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
-			"method":  "create",
-			"owner":   "owner",
-			"repo":    "repo",
-			"title":   "Test",
-			"show_ui": false,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.NotContains(t, textContent.Text, "interactive form has been shown",
-			"show_ui=false should skip UI form")
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
-			"show_ui=false call should execute directly and return issue URL")
-	})
-
-	t.Run("UI client with show_ui=true returns form message", func(t *testing.T) {
-		// show_ui=true is the explicit, redundant-with-the-default way to ask
-		// for the form. It must still route through the form and must not be
-		// treated as a non-form parameter that would trigger the safety-net
-		// bypass.
-		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
-			"method":  "create",
-			"owner":   "owner",
-			"repo":    "repo",
-			"title":   "Test",
-			"show_ui": true,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "interactive form has been shown",
-			"show_ui=true should still route through the form")
-	})
-
-	t.Run("UI client with show_ui=false and _ui_submitted=true executes directly", func(t *testing.T) {
-		// _ui_submitted and show_ui=false are two ways to say "execute
-		// directly". When both are set there must be no conflict — the call
-		// still executes directly.
-		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
-			"method":        "create",
-			"owner":         "owner",
-			"repo":          "repo",
-			"title":         "Test",
-			"show_ui":       false,
-			"_ui_submitted": true,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
-			"show_ui=false + _ui_submitted should execute directly")
-	})
-
-	t.Run("non-UI client with show_ui=false executes directly (no regression)", func(t *testing.T) {
-		// show_ui is irrelevant when the client does not support UI; the call
-		// must execute directly exactly as it does today.
-		request := createMCPRequest(map[string]any{
-			"method":  "create",
-			"owner":   "owner",
-			"repo":    "repo",
-			"title":   "Test",
-			"show_ui": false,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
-			"non-UI client should execute directly regardless of show_ui")
+		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for creating a new issue",
+			"labels should route through UI form")
+		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
 }
 
@@ -1766,23 +1577,22 @@ func Test_issueWriteHasNonFormParams(t *testing.T) {
 	}{
 		{name: "no params", args: map[string]any{}, want: false},
 		{name: "only form params", args: map[string]any{"method": "create", "owner": "o", "repo": "r", "title": "t", "body": "b", "issue_number": float64(1), "_ui_submitted": true}, want: false},
-		{name: "show_ui true is a form param", args: map[string]any{"title": "t", "show_ui": true}, want: false},
-		{name: "show_ui false is a form param", args: map[string]any{"title": "t", "show_ui": false}, want: false},
-		{name: "labels present", args: map[string]any{"title": "t", "labels": []any{"bug"}}, want: true},
-		{name: "assignees present", args: map[string]any{"title": "t", "assignees": []any{"octocat"}}, want: true},
-		{name: "milestone present", args: map[string]any{"title": "t", "milestone": float64(2)}, want: true},
-		{name: "type present", args: map[string]any{"title": "t", "type": "Bug"}, want: true},
+		{name: "labels present", args: map[string]any{"title": "t", "labels": []any{"bug"}}, want: false},
+		{name: "assignees present", args: map[string]any{"title": "t", "assignees": []any{"octocat"}}, want: false},
+		{name: "milestone present", args: map[string]any{"title": "t", "milestone": float64(2)}, want: false},
+		{name: "type present", args: map[string]any{"title": "t", "type": "Bug"}, want: false},
 		{name: "issue_fields present", args: map[string]any{"issue_fields": []any{map[string]any{"field_name": "Priority"}}}, want: false},
 		{name: "state present", args: map[string]any{"state": "closed"}, want: false},
 		{name: "state_reason present", args: map[string]any{"state_reason": "completed"}, want: false},
 		{name: "duplicate_of present", args: map[string]any{"duplicate_of": float64(7)}, want: false},
+		{name: "unknown non-schema param present", args: map[string]any{"title": "t", "not_a_real_param": "x"}, want: true},
 		{name: "nil value is ignored", args: map[string]any{"issue_fields": nil}, want: false},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, issueWriteHasNonFormParams(tc.args))
+			assert.Equal(t, tc.want, hasNonFormParams(tc.args, issueWriteFormParams))
 		})
 	}
 }
@@ -1796,13 +1606,11 @@ func Test_issueWriteSchemaClassification(t *testing.T) {
 	t.Parallel()
 
 	// Schema properties the MCP App form cannot represent — their presence
-	// must trigger the safety-net bypass via issueWriteHasNonFormParams.
-	knownNonForm := map[string]struct{}{
-		"assignees": {},
-		"labels":    {},
-		"milestone": {},
-		"type":      {},
-	}
+	// must trigger the safety-net bypass via hasNonFormParams. The
+	// form currently collects every schema property, so this allowlist is
+	// empty; add a property here only if it is added to the schema without
+	// corresponding form support.
+	knownNonForm := map[string]struct{}{}
 
 	cases := []struct {
 		name string
@@ -4287,6 +4095,263 @@ func Test_GetSubIssues(t *testing.T) {
 						assert.Equal(t, *tc.expectedSubIssues[i].Body, *subIssue.Body)
 					}
 				}
+
+			}
+		})
+	}
+}
+
+func TestAddIssueComment(t *testing.T) {
+	t.Parallel()
+
+	serverTool := AddIssueComment(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "add_issue_comment", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "issue_number")
+	assert.Contains(t, schema.Properties, "comment_id")
+	assert.Contains(t, schema.Properties, "body")
+	assert.Contains(t, schema.Properties, "reaction")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "issue_number"})
+
+	mockComment := &github.IssueComment{
+		ID:      github.Ptr(int64(456)),
+		Body:    github.Ptr("This is a comment"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42#issuecomment-456"),
+	}
+	mockReaction := &github.Reaction{
+		ID:      github.Ptr(int64(789)),
+		Content: github.Ptr("heart"),
+	}
+	mockIssueComment := &github.IssueComment{
+		ID:       github.Ptr(int64(999)),
+		IssueURL: github.Ptr("https://api.github.com/repos/owner/repo/issues/42"),
+	}
+	commentCreatedAfterReactionFailure := &atomic.Bool{}
+
+	tests := []struct {
+		name               string
+		mockedClient       *http.Client
+		requestArgs        map[string]any
+		expectToolError    bool
+		expectedToolErrMsg string
+		unexpectedCall     *atomic.Bool
+	}{
+		{
+			name: "successful comment on issue",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockComment),
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"body":         "This is a comment",
+			},
+		},
+		{
+			name: "successful reaction to issue",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesReactionsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockReaction),
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"reaction":     "heart",
+			},
+		},
+		{
+			name: "successful reaction to issue comment",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesCommentByOwnerByRepoByCommentID:            mockResponse(t, http.StatusOK, mockIssueComment),
+				PostReposIssuesCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusCreated, mockReaction),
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(999),
+				"reaction":     "heart",
+			},
+		},
+		{
+			name: "issue comment reaction requires matching issue_number",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesCommentByOwnerByRepoByCommentID: mockResponse(t, http.StatusOK, &github.IssueComment{
+					ID:       github.Ptr(int64(999)),
+					IssueURL: github.Ptr("https://api.github.com/repos/owner/repo/issues/43"),
+				}),
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(999),
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "comment_id does not belong to issue_number 42",
+		},
+		{
+			name: "issue comment lookup fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesCommentByOwnerByRepoByCommentID: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				},
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(999),
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to get issue comment",
+		},
+		{
+			name: "successful comment and reaction to issue",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesCommentsByOwnerByRepoByIssueNumber:  mockResponse(t, http.StatusCreated, mockComment),
+				PostReposIssuesReactionsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockReaction),
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"body":         "This is a comment",
+				"reaction":     "heart",
+			},
+		},
+		{
+			name: "missing body and reaction",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "at least one of body or reaction is required",
+		},
+		{
+			name: "missing issue_number for reaction",
+			requestArgs: map[string]any{
+				"owner":    "owner",
+				"repo":     "repo",
+				"reaction": "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: issue_number",
+		},
+		{
+			name: "missing issue_number for body",
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"body":  "This is a comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: issue_number",
+		},
+		{
+			name: "comment_id without reaction",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(999),
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "comment_id can only be provided when reaction is provided",
+		},
+		{
+			name: "negative comment_id",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(-1),
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "comment_id must be greater than 0",
+		},
+		{
+			name: "comment_id with body",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(999),
+				"body":         "This is a comment",
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "comment_id cannot be combined with body",
+		},
+		{
+			name: "does not create comment when reaction fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesReactionsByOwnerByRepoByIssueNumber: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+					_, _ = w.Write([]byte(`{"message": "server error"}`))
+				},
+				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: func(w http.ResponseWriter, _ *http.Request) {
+					commentCreatedAfterReactionFailure.Store(true)
+					w.WriteHeader(http.StatusCreated)
+					responseData, _ := json.Marshal(mockComment)
+					_, _ = w.Write(responseData)
+				},
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"body":         "This is a comment",
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to add reaction to issue",
+			unexpectedCall:     commentCreatedAfterReactionFailure,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			if tc.expectToolError {
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedToolErrMsg)
+				if tc.unexpectedCall != nil {
+					assert.False(t, tc.unexpectedCall.Load())
+				}
+				return
+			}
+
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+			if _, ok := tc.requestArgs["body"]; ok {
+				assert.Contains(t, textContent.Text, "456")
+			}
+			if _, ok := tc.requestArgs["reaction"]; ok {
+				assert.Contains(t, textContent.Text, "789")
 			}
 		})
 	}

@@ -69,6 +69,13 @@ export function useMcpApp({
       app.ontoolinput = async (input) => {
         const args = (input.arguments ?? {}) as Record<string, unknown>;
         setToolInput(args);
+        // A tool-input notification marks a new invocation, and the spec
+        // guarantees it is delivered before that invocation's tool-result.
+        // Drop any prior result so a completed result from a previous
+        // invocation can't leak into the new render (e.g. a stale success card
+        // showing over a fresh, still-deferred form). The current invocation's
+        // result, if any, arrives next via ontoolresult.
+        setToolResult(null);
         onToolInput?.(args);
       };
       app.onhostcontextchanged = (params) => {

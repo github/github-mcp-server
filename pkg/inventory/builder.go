@@ -7,8 +7,6 @@ import (
 	"maps"
 	"slices"
 	"strings"
-
-	"github.com/google/jsonschema-go/jsonschema"
 )
 
 var (
@@ -406,97 +404,6 @@ func stripMCPAppsMetadata(tools []ServerTool) []ServerTool {
 		}
 	}
 	return result
-}
-
-// uiOnlySchemaProperties lists input-schema property names that should only
-// be visible to clients that advertise MCP Apps UI support. They live on the
-// static schema (so toolsnaps and the feature-flag / insiders docs document
-// the full UI-capable surface; the main README renders the stripped
-// non-UI schema) and are stripped per-request when the same gate that hides
-// _meta.ui is true.
-var uiOnlySchemaProperties = []string{
-	"show_ui", // explicit "render the MCP App form" toggle on form-backed write tools
-}
-
-// ConditionalSchemaPropertyDescriptions returns a map of schema property name
-// to a human-readable description of the condition under which the property
-// is visible to clients. The doc generator uses this to annotate conditional
-// parameters so readers can see at a glance which fields are not always
-// available. This is the single source of truth for the conditional-property
-// surface — entries here must correspond to a strip rule in
-// ToolsForRegistration.
-func ConditionalSchemaPropertyDescriptions() map[string]string {
-	const uiOnlyCondition = "visible when remote_mcp_ui_apps is enabled unless the client explicitly indicates it does not support io.modelcontextprotocol/ui"
-	out := make(map[string]string, len(uiOnlySchemaProperties))
-	for _, name := range uiOnlySchemaProperties {
-		out[name] = uiOnlyCondition
-	}
-	return out
-}
-
-// stripUIOnlySchemaProperties removes UI-capability-gated input-schema
-// properties (currently just "show_ui") from each tool's static schema.
-// Tools whose InputSchema is not a *jsonschema.Schema (e.g. json.RawMessage)
-// are passed through untouched — no such tool currently declares a gated
-// property, and inferring intent from an opaque schema is not safe.
-// Tools without any gated property are returned as-is so we only allocate
-// when a change is actually made (mirrors the stripMetaKeys pattern).
-func stripUIOnlySchemaProperties(tools []ServerTool) []ServerTool {
-	result := make([]ServerTool, 0, len(tools))
-	for _, tool := range tools {
-		if stripped := stripSchemaProperties(tool, uiOnlySchemaProperties); stripped != nil {
-			result = append(result, *stripped)
-		} else {
-			result = append(result, tool)
-		}
-	}
-	return result
-}
-
-// stripSchemaProperties removes the named keys from tool.Tool.InputSchema's
-// Properties map (and Required list, if present) and returns a modified copy.
-// Returns nil when the schema is not a *jsonschema.Schema or no listed key
-// is present, signalling no change.
-func stripSchemaProperties(tool ServerTool, keys []string) *ServerTool {
-	if tool.Tool.InputSchema == nil || len(keys) == 0 {
-		return nil
-	}
-	schema, ok := tool.Tool.InputSchema.(*jsonschema.Schema)
-	if !ok || schema == nil || len(schema.Properties) == 0 {
-		return nil
-	}
-
-	hasKey := false
-	for _, key := range keys {
-		if _, exists := schema.Properties[key]; exists {
-			hasKey = true
-			break
-		}
-	}
-	if !hasKey {
-		return nil
-	}
-
-	toolCopy := tool
-	schemaCopy := *schema
-	newProps := make(map[string]*jsonschema.Schema, len(schema.Properties))
-	for k, v := range schema.Properties {
-		if !slices.Contains(keys, k) {
-			newProps[k] = v
-		}
-	}
-	schemaCopy.Properties = newProps
-	if len(schemaCopy.Required) > 0 {
-		newRequired := make([]string, 0, len(schemaCopy.Required))
-		for _, r := range schemaCopy.Required {
-			if !slices.Contains(keys, r) {
-				newRequired = append(newRequired, r)
-			}
-		}
-		schemaCopy.Required = newRequired
-	}
-	toolCopy.Tool.InputSchema = &schemaCopy
-	return &toolCopy
 }
 
 // stripMetaKeys removes the specified Meta keys from a single tool.

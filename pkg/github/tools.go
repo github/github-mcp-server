@@ -216,6 +216,8 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		IssueWrite(t),
 		AddIssueComment(t),
 		SubIssueWrite(t),
+		IssueDependencyRead(t),
+		IssueDependencyWrite(t),
 
 		// User tools
 		SearchUsers(t),
@@ -314,6 +316,8 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GranularRemoveSubIssue(t),
 		GranularReprioritizeSubIssue(t),
 		GranularSetIssueFields(t),
+		GranularAddIssueReaction(t),
+		GranularAddIssueCommentReaction(t),
 
 		// Granular pull request tools (feature-flagged, replace consolidated update_pull_request/pull_request_review_write)
 		GranularUpdatePullRequestTitle(t),
@@ -327,6 +331,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GranularAddPullRequestReviewComment(t),
 		GranularResolveReviewThread(t),
 		GranularUnresolveReviewThread(t),
+		GranularAddPullRequestReviewCommentReaction(t),
 	})
 }
 

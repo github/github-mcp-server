@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -43,6 +44,8 @@ func TestGranularToolSnaps(t *testing.T) {
 		GranularRemoveSubIssue,
 		GranularReprioritizeSubIssue,
 		GranularSetIssueFields,
+		GranularAddIssueReaction,
+		GranularAddIssueCommentReaction,
 		GranularUpdatePullRequestTitle,
 		GranularUpdatePullRequestBody,
 		GranularUpdatePullRequestState,
@@ -54,6 +57,7 @@ func TestGranularToolSnaps(t *testing.T) {
 		GranularAddPullRequestReviewComment,
 		GranularResolveReviewThread,
 		GranularUnresolveReviewThread,
+		GranularAddPullRequestReviewCommentReaction,
 	}
 
 	for _, constructor := range toolConstructors {
@@ -86,6 +90,8 @@ func TestIssuesGranularToolset(t *testing.T) {
 			"remove_sub_issue",
 			"reprioritize_sub_issue",
 			"set_issue_fields",
+			"add_issue_reaction",
+			"add_issue_comment_reaction",
 		}
 		for _, name := range expected {
 			assert.Contains(t, toolNames, name)
@@ -121,6 +127,7 @@ func TestPullRequestsGranularToolset(t *testing.T) {
 			"add_pull_request_review_comment",
 			"resolve_review_thread",
 			"unresolve_review_thread",
+			"add_pull_request_review_comment_reaction",
 		}
 		for _, name := range expected {
 			assert.Contains(t, toolNames, name)
@@ -2024,4 +2031,196 @@ func TestGranularSetIssueFields(t *testing.T) {
 		// query does not require the feature flag.
 		assert.Equal(t, "update_issue_suggestions", spy.captured.Get(headers.GraphQLFeaturesHeader))
 	})
+}
+
+// --- Reaction granular tool handler tests ---
+
+func TestGranularAddIssueReaction(t *testing.T) {
+	mockReaction := &gogithub.Reaction{
+		ID:      gogithub.Ptr(int64(12345)),
+		Content: gogithub.Ptr("+1"),
+	}
+
+	tests := []struct {
+		name         string
+		mockedClient *http.Client
+		args         map[string]any
+		expectErr    bool
+	}{
+		{
+			name: "add reaction to issue successfully",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesReactionsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockReaction),
+			}),
+			args: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"content":      "+1",
+			},
+			expectErr: false,
+		},
+		{
+			name:         "missing owner returns error",
+			mockedClient: MockHTTPClientWithHandlers(nil),
+			args: map[string]any{
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"content":      "+1",
+			},
+			expectErr: true,
+		},
+		{
+			name:         "missing content returns error",
+			mockedClient: MockHTTPClientWithHandlers(nil),
+			args: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			serverTool := GranularAddIssueReaction(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(tc.args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			if tc.expectErr {
+				assert.True(t, result.IsError)
+			} else {
+				assert.False(t, result.IsError)
+				textContent := getTextResult(t, result)
+				var response MinimalResponse
+				require.NoError(t, json.Unmarshal([]byte(textContent.Text), &response))
+				assert.Equal(t, "12345", response.ID)
+				assert.Equal(t, "https://api.github.com/repos/owner/repo/issues/42/reactions/12345", response.URL)
+			}
+		})
+	}
+}
+
+func TestGranularAddIssueCommentReaction(t *testing.T) {
+	mockReaction := &gogithub.Reaction{
+		ID:      gogithub.Ptr(int64(67890)),
+		Content: gogithub.Ptr("heart"),
+	}
+
+	tests := []struct {
+		name         string
+		mockedClient *http.Client
+		args         map[string]any
+		expectErr    bool
+	}{
+		{
+			name: "add reaction to issue comment successfully",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusCreated, mockReaction),
+			}),
+			args: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(999),
+				"content":    "heart",
+			},
+			expectErr: false,
+		},
+		{
+			name:         "missing comment_id returns error",
+			mockedClient: MockHTTPClientWithHandlers(nil),
+			args: map[string]any{
+				"owner":   "owner",
+				"repo":    "repo",
+				"content": "heart",
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			serverTool := GranularAddIssueCommentReaction(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(tc.args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			if tc.expectErr {
+				assert.True(t, result.IsError)
+			} else {
+				assert.False(t, result.IsError)
+				textContent := getTextResult(t, result)
+				var response MinimalResponse
+				require.NoError(t, json.Unmarshal([]byte(textContent.Text), &response))
+				assert.Equal(t, "67890", response.ID)
+				assert.Equal(t, "https://api.github.com/repos/owner/repo/issues/comments/999/reactions/67890", response.URL)
+			}
+		})
+	}
+}
+
+func TestGranularAddPullRequestReviewCommentReaction(t *testing.T) {
+	mockReaction := &gogithub.Reaction{
+		ID:      gogithub.Ptr(int64(54321)),
+		Content: gogithub.Ptr("rocket"),
+	}
+
+	tests := []struct {
+		name         string
+		mockedClient *http.Client
+		args         map[string]any
+		expectErr    bool
+	}{
+		{
+			name: "add reaction to PR review comment successfully",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusCreated, mockReaction),
+			}),
+			args: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(888),
+				"content":    "rocket",
+			},
+			expectErr: false,
+		},
+		{
+			name:         "missing repo returns error",
+			mockedClient: MockHTTPClientWithHandlers(nil),
+			args: map[string]any{
+				"owner":      "owner",
+				"comment_id": float64(888),
+				"content":    "rocket",
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			serverTool := GranularAddPullRequestReviewCommentReaction(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(tc.args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			if tc.expectErr {
+				assert.True(t, result.IsError)
+			} else {
+				assert.False(t, result.IsError)
+				textContent := getTextResult(t, result)
+				var response MinimalResponse
+				require.NoError(t, json.Unmarshal([]byte(textContent.Text), &response))
+				assert.Equal(t, "54321", response.ID)
+				assert.Equal(t, "https://api.github.com/repos/owner/repo/pulls/comments/888/reactions/54321", response.URL)
+			}
+		})
+	}
 }

@@ -1101,13 +1101,13 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 		})
 }
 
-// AddIssueComment creates a tool to add a comment to an issue.
+// AddIssueComment creates a tool to add a comment or reaction to an issue.
 func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "add_issue_comment",
-			Description: t("TOOL_ADD_ISSUE_COMMENT_DESCRIPTION", "Add a comment to a specific issue in a GitHub repository. Use this tool to add comments to pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add review comments."),
+			Description: t("TOOL_ADD_ISSUE_COMMENT_DESCRIPTION", "Add a comment and/or reaction to a specific issue or issue comment in a GitHub repository. Use this tool with pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add or react to review comments. At least one of body or reaction is required."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ADD_ISSUE_COMMENT_USER_TITLE", "Add comment to issue or pull request"),
 				ReadOnlyHint: false,
@@ -1125,14 +1125,24 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 					},
 					"issue_number": {
 						Type:        "number",
-						Description: "Issue number to comment on",
+						Description: "Issue or pull request number to comment on or react to.",
+					},
+					"comment_id": {
+						Type:        "number",
+						Description: "The numeric ID of the issue or pull request comment to react to. Use this for reactions to comments; omit it to react to the issue or pull request itself. Cannot be combined with body.",
+						Minimum:     jsonschema.Ptr(1.0),
 					},
 					"body": {
 						Type:        "string",
-						Description: "Comment content",
+						Description: "Comment content. Required unless reaction is provided.",
+					},
+					"reaction": {
+						Type:        "string",
+						Description: "Emoji reaction to add. Required unless body is provided.",
+						Enum:        []any{"+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes"},
 					},
 				},
-				Required: []string{"owner", "repo", "issue_number", "body"},
+				Required: []string{"owner", "repo", "issue_number"},
 			},
 		},
 		[]scopes.Scope{scopes.Repo},
@@ -1149,45 +1159,142 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			body, err := RequiredParam[string](args, "body")
+			var commentID int64
+			hasCommentID := false
+			if _, ok := args["comment_id"]; ok {
+				commentID, err = RequiredBigInt(args, "comment_id")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				if commentID < 1 {
+					return utils.NewToolResultError("comment_id must be greater than 0"), nil, nil
+				}
+				hasCommentID = true
+			}
+			body, hasBody, err := OptionalParamOK[string](args, "body")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-
-			comment := &github.IssueComment{
-				Body: github.Ptr(body),
+			reactionContent, hasReaction, err := OptionalParamOK[string](args, "reaction")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if hasCommentID && hasBody {
+				return utils.NewToolResultError("comment_id cannot be combined with body"), nil, nil
+			}
+			if hasCommentID && !hasReaction {
+				return utils.NewToolResultError("comment_id can only be provided when reaction is provided"), nil, nil
+			}
+			if !hasBody && !hasReaction {
+				return utils.NewToolResultError("at least one of body or reaction is required"), nil, nil
+			}
+			if hasBody && body == "" {
+				return utils.NewToolResultError("body cannot be empty when provided"), nil, nil
+			}
+			if hasReaction && reactionContent == "" {
+				return utils.NewToolResultError("reaction cannot be empty when provided"), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
-			createdComment, resp, err := client.Issues.CreateComment(ctx, owner, repo, issueNumber, comment)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to create comment", err), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
 
-			if resp.StatusCode != http.StatusCreated {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+			var reactionResponse *MinimalResponse
+			if hasReaction {
+				if hasCommentID {
+					comment, resp, err := client.Issues.GetComment(ctx, owner, repo, commentID)
+					if err != nil {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get issue comment", resp, err), nil, nil
+					}
+					defer func() { _ = resp.Body.Close() }()
+
+					commentIssueNumber, err := issueNumberFromIssueURL(comment.GetIssueURL())
+					if err != nil {
+						return utils.NewToolResultErrorFromErr("failed to determine issue number for comment", err), nil, nil
+					}
+					if commentIssueNumber != issueNumber {
+						return utils.NewToolResultError(fmt.Sprintf("comment_id does not belong to issue_number %d", issueNumber)), nil, nil
+					}
+
+					reaction, resp, err := client.Reactions.CreateIssueCommentReaction(ctx, owner, repo, commentID, reactionContent)
+					if err != nil {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reaction to issue comment", resp, err), nil, nil
+					}
+					defer func() { _ = resp.Body.Close() }()
+
+					reactionResponse = &MinimalResponse{
+						ID:  fmt.Sprintf("%d", reaction.GetID()),
+						URL: fmt.Sprintf("%srepos/%s/%s/issues/comments/%d/reactions/%d", client.BaseURL(), owner, repo, commentID, reaction.GetID()),
+					}
+				} else {
+					reaction, resp, err := client.Reactions.CreateIssueReaction(ctx, owner, repo, issueNumber, reactionContent)
+					if err != nil {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reaction to issue", resp, err), nil, nil
+					}
+					defer func() { _ = resp.Body.Close() }()
+
+					reactionResponse = &MinimalResponse{
+						ID:  fmt.Sprintf("%d", reaction.GetID()),
+						URL: fmt.Sprintf("%srepos/%s/%s/issues/%d/reactions/%d", client.BaseURL(), owner, repo, issueNumber, reaction.GetID()),
+					}
 				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create comment", resp, body), nil, nil
 			}
 
-			minimalResponse := MinimalResponse{
-				ID:  fmt.Sprintf("%d", createdComment.GetID()),
-				URL: createdComment.GetHTMLURL(),
+			var commentResponse *MinimalResponse
+			if hasBody {
+				comment := &github.IssueComment{
+					Body: github.Ptr(body),
+				}
+				createdComment, resp, err := client.Issues.CreateComment(ctx, owner, repo, issueNumber, comment)
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create comment", resp, err), nil, nil
+				}
+				defer func() { _ = resp.Body.Close() }()
+
+				if resp.StatusCode != http.StatusCreated {
+					bodyBytes, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					}
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create comment", resp, bodyBytes), nil, nil
+				}
+
+				commentResponse = &MinimalResponse{
+					ID:  fmt.Sprintf("%d", createdComment.GetID()),
+					URL: createdComment.GetHTMLURL(),
+				}
 			}
 
-			r, err := json.Marshal(minimalResponse)
+			var result any
+			switch {
+			case hasBody && hasReaction:
+				result = map[string]MinimalResponse{
+					"comment":  *commentResponse,
+					"reaction": *reactionResponse,
+				}
+			case hasReaction:
+				result = reactionResponse
+			default:
+				result = commentResponse
+			}
+
+			r, err := json.Marshal(result)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
+}
+
+func issueNumberFromIssueURL(issueURL string) (int, error) {
+	issueNumberString := issueURL[strings.LastIndex(issueURL, "/")+1:]
+	issueNumber, err := strconv.Atoi(issueNumberString)
+	if err != nil {
+		return 0, fmt.Errorf("invalid issue URL %q: %w", issueURL, err)
+	}
+	return issueNumber, nil
 }
 
 // SubIssueWrite creates a tool to add a sub-issue to a parent issue.
@@ -1726,7 +1833,11 @@ const IssueWriteUIResourceURI = "ui://github-mcp-server/issue-write"
 
 // issueWriteFormParams are the parameters the issue_write MCP App form collects
 // and re-sends on submit. Any other parameter present on a call cannot be
-// represented by the form.
+// represented by the form. The form collects (and prefills) every parameter in
+// the tool's current input schema, so hasNonFormParams against this set is a
+// forward-compatibility safety net: a parameter added to the schema in the
+// future but not yet wired into the form trips the check and bypasses the form
+// so the supplied value isn't silently dropped.
 var issueWriteFormParams = map[string]struct{}{
 	"method":        {},
 	"owner":         {},
@@ -1735,27 +1846,14 @@ var issueWriteFormParams = map[string]struct{}{
 	"body":          {},
 	"issue_number":  {},
 	"issue_fields":  {},
+	"labels":        {},
+	"assignees":     {},
+	"milestone":     {},
+	"type":          {},
 	"state":         {},
 	"state_reason":  {},
 	"duplicate_of":  {},
-	"show_ui":       {},
 	"_ui_submitted": {},
-}
-
-// issueWriteHasNonFormParams reports whether the call carries any parameter the
-// issue_write MCP App form cannot represent (anything outside issueWriteFormParams,
-// e.g. labels, assignees, milestones or issue types). Such calls must bypass
-// the UI form and execute directly so the supplied values aren't silently dropped.
-func issueWriteHasNonFormParams(args map[string]any) bool {
-	for key, value := range args {
-		if value == nil {
-			continue
-		}
-		if _, ok := issueWriteFormParams[key]; !ok {
-			return true
-		}
-	}
-	return false
 }
 
 // issueWriteAwaitingFormResult builds the "awaiting form submission" stub
@@ -1913,17 +2011,6 @@ Options are:
 							Required: []string{"field_name"},
 						},
 					},
-					// show_ui is hidden from clients that do not advertise MCP App
-					// UI support. The strip happens per-request in
-					// inventory.ToolsForRegistration; it is present in the static
-					// schema (and therefore in toolsnaps and the feature-flag /
-					// insiders docs) so the UI-capable surface is fully
-					// documented. It is intentionally not in the main README,
-					// which renders the stripped (non-UI) schema.
-					"show_ui": {
-						Type:        "boolean",
-						Description: "Whether to render the MCP App form instead of executing the request immediately. Defaults to true. Set to false to skip the form and execute directly — useful when you have all required values (especially ones the form does not collect, like labels, assignees, milestone, type, issue_fields, or state changes) and the user has already confirmed the action.",
-					},
 				},
 				Required: []string{"method", "owner", "repo"},
 			},
@@ -1944,20 +2031,9 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When MCP Apps are enabled and the client supports UI, route the
-			// call to the interactive form unless:
-			//   - it is itself a form submission (the UI sends _ui_submitted=true),
-			//   - the caller explicitly asked to skip the UI (show_ui=false), or
-			//   - it carries parameters the form cannot represent (e.g. labels,
-			//     assignees or issue_fields). Those must be applied directly so
-			//     their values aren't silently dropped.
-			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
-			showUI, err := OptionalBoolParamWithDefault(args, "show_ui", true)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted && showUI && !issueWriteHasNonFormParams(args) {
+			// Hand off to the interactive MCP App form unless this call must
+			// execute now (see shouldDeferToForm).
+			if shouldDeferToForm(ctx, deps, req, args, issueWriteFormParams) {
 				issueNumber := 0
 				if method == "update" {
 					n, numErr := RequiredInt(args, "issue_number")
@@ -2179,10 +2255,13 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		issueRequest.Type = github.Ptr(issueType)
 	}
 
+	// Field IDs to clear via DELETE after the PATCH. See the post-PATCH loop
+	// for why we can't just rely on REST set semantics.
+	var fallbackDeleteFieldIDs []int64
+
 	if len(issueFieldValues) > 0 || len(fieldIDsToDelete) > 0 {
-		// The REST update endpoint uses "set" semantics — it overwrites all existing
-		// field values with whatever is sent. Fetch the current values first, merge in
-		// the new values, then remove any explicitly deleted fields.
+		// REST PATCH uses set semantics, so fetch existing values, merge in
+		// the new ones, then drop anything explicitly deleted.
 		existing, err := fetchExistingIssueFieldValues(ctx, gqlClient, owner, repo, issueNumber)
 		if err != nil {
 			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to fetch existing issue field values", err), nil
@@ -2201,7 +2280,22 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 			}
 			merged = kept
 		}
-		issueRequest.IssueFieldValues = merged
+		if len(merged) == 0 && len(fieldIDsToDelete) > 0 {
+			// Only queue DELETEs for fields actually present — the endpoint
+			// returns 404 otherwise, and "delete a field that isn't set" should
+			// stay a no-op (callers often invoke delete:true idempotently).
+			existingIDs := make(map[int64]bool, len(existing))
+			for _, e := range existing {
+				existingIDs[e.FieldID] = true
+			}
+			for _, id := range fieldIDsToDelete {
+				if existingIDs[id] {
+					fallbackDeleteFieldIDs = append(fallbackDeleteFieldIDs, id)
+				}
+			}
+		} else {
+			issueRequest.IssueFieldValues = merged
+		}
 	}
 
 	updatedIssue, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)
@@ -2220,6 +2314,43 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update issue", resp, body), nil
+	}
+
+	// Per-field DELETE fallback. The PATCH can't clear field values when the
+	// merged set is empty — go-github's `omitempty` strips the empty slice
+	// and the dotcom REST handler skips its issue_field_values block when the
+	// key is absent. Errors are aggregated (not short-circuited) so callers
+	// can see which fields succeeded and which need retry.
+	if len(fallbackDeleteFieldIDs) > 0 {
+		var failedIDs, succeededIDs []int64
+		var firstFailureErr error
+		var firstFailureResp *github.Response
+		for _, fieldID := range fallbackDeleteFieldIDs {
+			path := fmt.Sprintf("repos/%s/%s/issues/%d/issue-field-values/%d", owner, repo, issueNumber, fieldID)
+			req, err := client.NewRequest(ctx, http.MethodDelete, path, nil)
+			if err != nil {
+				failedIDs = append(failedIDs, fieldID)
+				if firstFailureErr == nil {
+					firstFailureErr = err
+				}
+				continue
+			}
+			delResp, err := client.Do(req, nil)
+			if err != nil {
+				failedIDs = append(failedIDs, fieldID)
+				if firstFailureErr == nil {
+					firstFailureErr = err
+					firstFailureResp = delResp
+				}
+				continue
+			}
+			succeededIDs = append(succeededIDs, fieldID)
+			_ = delResp.Body.Close()
+		}
+		if len(failedIDs) > 0 {
+			msg := fmt.Sprintf("failed to clear issue field values: failed=%v, cleared=%v", failedIDs, succeededIDs)
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, msg, firstFailureResp, firstFailureErr), nil
+		}
 	}
 
 	// Use GraphQL API for state updates
