@@ -3,6 +3,7 @@ package inventory
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -98,4 +99,40 @@ func TestAnnotateHeaderParams(t *testing.T) {
 	// No-op for tools without owner/repo and when InputSchema is not a *jsonschema.Schema
 	AnnotateHeaderParams(&mcp.Tool{InputSchema: &jsonschema.Schema{Properties: map[string]*jsonschema.Schema{"x": {}}}})
 	AnnotateHeaderParams(&mcp.Tool{InputSchema: json.RawMessage(`{}`)})
+}
+
+func TestAnnotateHeaderParams_DoesNotMutateOriginal(t *testing.T) {
+	orig := &jsonschema.Schema{
+		Type:       "object",
+		Properties: map[string]*jsonschema.Schema{"owner": {Type: "string"}, "repo": {Type: "string"}},
+	}
+	tool := &mcp.Tool{InputSchema: orig}
+	AnnotateHeaderParams(tool)
+
+	// Original schema and its property Extra maps must be untouched.
+	require.Nil(t, orig.Properties["owner"].Extra, "must not mutate original owner schema")
+	require.Nil(t, orig.Properties["repo"].Extra, "must not mutate original repo schema")
+	// Returned copy carries the annotation.
+	got := tool.InputSchema.(*jsonschema.Schema)
+	require.NotSame(t, orig, got, "must replace InputSchema with a copy")
+	require.Equal(t, "owner", got.Properties["owner"].Extra["x-mcp-header"])
+}
+
+func TestAnnotateHeaderParams_ConcurrentRegistrationIsRaceFree(t *testing.T) {
+	// Shared base schema, as ServerTool.Tool is shallow-copied per registration.
+	base := &jsonschema.Schema{
+		Type:       "object",
+		Properties: map[string]*jsonschema.Schema{"owner": {Type: "string"}, "repo": {Type: "string"}},
+	}
+	var wg sync.WaitGroup
+	for range 64 {
+		wg.Go(func() {
+			tool := mcp.Tool{InputSchema: base} // shallow copy shares *Schema
+			AnnotateHeaderParams(&tool)
+			got := tool.InputSchema.(*jsonschema.Schema)
+			require.Equal(t, "repo", got.Properties["repo"].Extra["x-mcp-header"])
+		})
+	}
+	wg.Wait()
+	require.Nil(t, base.Properties["owner"].Extra, "shared base must remain unmutated")
 }
