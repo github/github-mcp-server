@@ -55,7 +55,7 @@ jobs:
         # stateless SEP-2575 server/discover probe path so each server is probed at its
         # own newest spec) so the go-sdk v1.6.1 -> v1.7.0-pre.1 bump produces an honest,
         # signal-only diff. Move to the v3.0.0 tag once it ships. See github/copilot-mcp-core#1709.
-        uses: SamMorrowDrums/mcp-server-diff@a2ba618c42293fb36e67be88e59c60d5608a302a
+        uses: SamMorrowDrums/mcp-server-diff@8fc26d8ff078dfd783f0c5c235e2cd52fca0d6f6
         with:
           setup_go: "false"
           install_command: |
@@ -120,7 +120,7 @@ jobs:
 
       - name: Run MCP Server Diff (streamable-http)
         # Pinned to the 3.0 branch — see rationale on the stdio job above.
-        uses: SamMorrowDrums/mcp-server-diff@a2ba618c42293fb36e67be88e59c60d5608a302a
+        uses: SamMorrowDrums/mcp-server-diff@8fc26d8ff078dfd783f0c5c235e2cd52fca0d6f6
         with:
           setup_go: "false"
           install_command: |
