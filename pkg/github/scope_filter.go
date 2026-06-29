@@ -67,6 +67,11 @@ func CreateToolScopeFilter(tokenScopes []string) inventory.ToolFilter {
 	return func(_ context.Context, tool *inventory.ServerTool) (bool, error) {
 		// Read-only tools requiring only repo/public_repo work on public repos without any scope.
 		// Tools that also require a non-repo scope (e.g. {repo, read:org}) fall through to the AND check.
+		//
+		// Note: this public-repo exception is PAT-only. The OAuth scope-challenge
+		// path (scopes.ToolScopeInfo.Satisfies) has no equivalent and will still
+		// challenge for `repo`. That asymmetry is intentional; see
+		// TestAssumption_PATShowsRepoToolsButOAuthChallengesForRepo.
 		if tool.Tool.Annotations != nil && tool.Tool.Annotations.ReadOnlyHint && onlyRequiresRepoScopes(tool.RequiredScopes) {
 			return true, nil
 		}
