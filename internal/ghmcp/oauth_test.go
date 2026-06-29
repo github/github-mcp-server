@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/github/github-mcp-server/internal/githubapp"
 	"github.com/github/github-mcp-server/internal/oauth"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/headers"
@@ -332,20 +333,40 @@ func TestCreateOAuthMiddleware(t *testing.T) {
 	})
 }
 
-// TestRunStdioServerRejectsTokenAndOAuth verifies the mutually-exclusive guard:
-// supplying both a static token and an OAuth manager is rejected before the
-// server starts, rather than silently preferring one for auth and the other for
-// scope filtering.
-func TestRunStdioServerRejectsTokenAndOAuth(t *testing.T) {
+// TestRunStdioServerRejectsMultipleAuthModes verifies the mutually-exclusive
+// guard: supplying more than one of a static token, an OAuth manager, or GitHub
+// App auth is rejected before the server starts, rather than silently preferring
+// one for auth and another for scope filtering.
+func TestRunStdioServerRejectsMultipleAuthModes(t *testing.T) {
 	t.Parallel()
 
 	mgr := oauth.NewManager(oauth.NewGitHubConfig("client-id", "", nil, "", 0), discardLogger())
-	err := RunStdioServer(StdioServerConfig{
-		Token:        "ghp_static",
-		OAuthManager: mgr,
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "mutually exclusive")
+
+	tests := []struct {
+		name string
+		cfg  StdioServerConfig
+	}{
+		{
+			name: "token and oauth",
+			cfg:  StdioServerConfig{Token: "ghp_static", OAuthManager: mgr},
+		},
+		{
+			name: "token and app",
+			cfg:  StdioServerConfig{Token: "ghp_static", AppAuth: &githubapp.Config{}},
+		},
+		{
+			name: "oauth and app",
+			cfg:  StdioServerConfig{OAuthManager: mgr, AppAuth: &githubapp.Config{}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := RunStdioServer(tt.cfg)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "exactly one authentication mode")
+		})
+	}
 }
 
 // TestCreateGitHubClientsTokenProvider proves the OAuth wiring: when a
