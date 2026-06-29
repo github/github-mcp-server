@@ -109,7 +109,7 @@ func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner
 
 		for _, n := range conn.Nodes {
 			switch {
-			case n.ProjectV2SingleSelectField.ID != nil && n.ProjectV2SingleSelectField.ID != "":
+			case n.ProjectV2SingleSelectField.ID != nil:
 				opts := make([]ResolvedFieldOption, 0, len(n.ProjectV2SingleSelectField.Options))
 				for _, o := range n.ProjectV2SingleSelectField.Options {
 					opts = append(opts, ResolvedFieldOption{ID: string(o.ID), Name: string(o.Name)})
@@ -120,13 +120,13 @@ func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner
 					DataType: string(n.ProjectV2SingleSelectField.DataType),
 					Options:  opts,
 				})
-			case n.ProjectV2IterationField.ID != nil && n.ProjectV2IterationField.ID != "":
+			case n.ProjectV2IterationField.ID != nil:
 				all = append(all, ResolvedField{
 					ID:       fmt.Sprintf("%d", n.ProjectV2IterationField.DatabaseID),
 					Name:     string(n.ProjectV2IterationField.Name),
 					DataType: string(n.ProjectV2IterationField.DataType),
 				})
-			case n.ProjectV2Field.ID != nil && n.ProjectV2Field.ID != "":
+			case n.ProjectV2Field.ID != nil:
 				all = append(all, ResolvedField{
 					ID:       fmt.Sprintf("%d", n.ProjectV2Field.DatabaseID),
 					Name:     string(n.ProjectV2Field.Name),
@@ -297,7 +297,7 @@ func resolveProjectItemIDByIssueNumber(ctx context.Context, gqlClient *githubv4.
 	}
 
 	for _, item := range query.Repository.Issue.ProjectItems.Nodes {
-		if fmt.Sprintf("%v", item.Project.ID) == fmt.Sprintf("%v", projectID) {
+		if item.Project.ID == projectID {
 			itemID, parseErr := parseInt64(string(item.FullDatabaseID))
 			if parseErr != nil {
 				return 0, fmt.Errorf("project item ID %q is not an integer: %w", string(item.FullDatabaseID), parseErr)
