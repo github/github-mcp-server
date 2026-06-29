@@ -120,22 +120,24 @@ func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any) {
 	// Project routing-relevant params to standard MCP-Param-* headers (SEP-2243)
 	// so a remote proxy can read owner/repo from headers instead of re-parsing the
 	// JSON-RPC body. No-op for tools without these params.
-	annotateHeaderParams(&toolCopy)
+	AnnotateHeaderParams(&toolCopy)
 	s.AddTool(&toolCopy, handler)
 }
 
-// headerParams maps tool input properties to the MCP-Param-* header name a
-// header-aware proxy reads, avoiding a second parse of the request body.
-var headerParams = map[string]string{"owner": "owner", "repo": "repo"}
+// HeaderParams maps tool input properties to the MCP-Param-* header name a
+// header-aware proxy reads, avoiding a second parse of the request body. New
+// routing-relevant params should be added here so projection stays automatic
+// for every tool; the enforcement test in pkg/github guards full coverage.
+var HeaderParams = map[string]string{"owner": "owner", "repo": "repo"}
 
-// annotateHeaderParams adds an "x-mcp-header" annotation to matching top-level
+// AnnotateHeaderParams adds an "x-mcp-header" annotation to matching top-level
 // input properties, which the SDK projects onto Mcp-Param-{name} request headers.
-func annotateHeaderParams(tool *mcp.Tool) {
+func AnnotateHeaderParams(tool *mcp.Tool) {
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	if !ok || schema == nil {
 		return
 	}
-	for prop, header := range headerParams {
+	for prop, header := range HeaderParams {
 		ps := schema.Properties[prop]
 		if ps == nil {
 			continue

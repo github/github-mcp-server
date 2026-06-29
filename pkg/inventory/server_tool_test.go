@@ -89,13 +89,13 @@ func TestAnnotateHeaderParams(t *testing.T) {
 			"detail": {Type: "string"},
 		},
 	}}
-	annotateHeaderParams(tool)
+	AnnotateHeaderParams(tool)
 	schema := tool.InputSchema.(*jsonschema.Schema)
 	assert.Equal(t, "owner", schema.Properties["owner"].Extra["x-mcp-header"])
 	assert.Equal(t, "repo", schema.Properties["repo"].Extra["x-mcp-header"])
 	assert.Nil(t, schema.Properties["detail"].Extra)
 
 	// No-op for tools without owner/repo and when InputSchema is not a *jsonschema.Schema
-	annotateHeaderParams(&mcp.Tool{InputSchema: &jsonschema.Schema{Properties: map[string]*jsonschema.Schema{"x": {}}}})
-	annotateHeaderParams(&mcp.Tool{InputSchema: json.RawMessage(`{}`)})
+	AnnotateHeaderParams(&mcp.Tool{InputSchema: &jsonschema.Schema{Properties: map[string]*jsonschema.Schema{"x": {}}}})
+	AnnotateHeaderParams(&mcp.Tool{InputSchema: json.RawMessage(`{}`)})
 }
