@@ -787,9 +787,10 @@ func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, e
 	}
 
 	minimalIssue.FieldValues = enrichment.FieldValues
+	minimalIssue.HasParent = ToBoolPtr(enrichment.Parent != nil)
+	minimalIssue.HasChildren = ToBoolPtr(enrichment.SubIssuesSummary.Total > 0)
 
 	if parent := enrichment.Parent; parent != nil {
-		minimalIssue.HasParent = true
 		// Surface the parent reference only when it is safe to expose. Under lockdown an
 		// unverified (possibly cross-repo) parent is omitted entirely, mirroring how unsafe
 		// comments and sub-issues are filtered out. has_parent still routes an agent to
@@ -803,7 +804,6 @@ func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, e
 	if enrichment.SubIssuesSummary.Total > 0 {
 		summary := enrichment.SubIssuesSummary
 		minimalIssue.SubIssuesSummary = &summary
-		minimalIssue.HasChildren = true
 	}
 }
 

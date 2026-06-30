@@ -571,8 +571,8 @@ func Test_GetIssue_FieldValues_Enriched(t *testing.T) {
 
 	// With no parent and no sub-issues, the routing booleans are explicit false and the
 	// optional relationship payloads are omitted.
-	assert.False(t, returnedIssue.HasParent, "has_parent should be false without a parent")
-	assert.False(t, returnedIssue.HasChildren, "has_children should be false without sub-issues")
+	assert.Equal(t, github.Ptr(false), returnedIssue.HasParent, "has_parent should be false without a parent")
+	assert.Equal(t, github.Ptr(false), returnedIssue.HasChildren, "has_children should be false without sub-issues")
 	assert.Nil(t, returnedIssue.Parent, "parent should be omitted when there is no parent")
 	assert.Nil(t, returnedIssue.SubIssuesSummary, "sub_issues_summary should be omitted with no sub-issues")
 }
@@ -610,8 +610,8 @@ func Test_GetIssue_HierarchyEnrichment(t *testing.T) {
 			parent:  parentNode,
 			summary: map[string]any{"total": 4, "completed": 1, "percentCompleted": 25},
 			assertResponse: func(t *testing.T, issue MinimalIssue) {
-				assert.True(t, issue.HasParent)
-				assert.True(t, issue.HasChildren)
+				assert.Equal(t, github.Ptr(true), issue.HasParent)
+				assert.Equal(t, github.Ptr(true), issue.HasChildren)
 				require.NotNil(t, issue.Parent)
 				assert.Equal(t, 2820, issue.Parent.Number)
 				assert.Equal(t, "Parent issue", issue.Parent.Title)
@@ -628,7 +628,7 @@ func Test_GetIssue_HierarchyEnrichment(t *testing.T) {
 			parent:  nil,
 			summary: map[string]any{"total": 0, "completed": 0, "percentCompleted": 0},
 			assertResponse: func(t *testing.T, issue MinimalIssue) {
-				assert.False(t, issue.HasParent)
+				assert.Equal(t, github.Ptr(false), issue.HasParent)
 				assert.Nil(t, issue.Parent)
 			},
 		},
@@ -637,7 +637,7 @@ func Test_GetIssue_HierarchyEnrichment(t *testing.T) {
 			parent:  nil,
 			summary: map[string]any{"total": 0, "completed": 0, "percentCompleted": 0},
 			assertResponse: func(t *testing.T, issue MinimalIssue) {
-				assert.False(t, issue.HasChildren)
+				assert.Equal(t, github.Ptr(false), issue.HasChildren)
 				assert.Nil(t, issue.SubIssuesSummary)
 			},
 		},
@@ -758,7 +758,7 @@ func Test_GetIssue_HierarchyEnrichment_Lockdown(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returnedIssue))
 
 	require.Nil(t, returnedIssue.Parent, "parent reference should be omitted under lockdown when it cannot be verified safe")
-	assert.True(t, returnedIssue.HasParent, "has_parent should still be true so agents can route to get_parent")
+	assert.Equal(t, github.Ptr(true), returnedIssue.HasParent, "has_parent should still be true so agents can route to get_parent")
 }
 
 func Test_GetIssue_HierarchyEnrichment_QueryFailureReturnsBaseIssue(t *testing.T) {
@@ -802,8 +802,8 @@ func Test_GetIssue_HierarchyEnrichment_QueryFailureReturnsBaseIssue(t *testing.T
 	var returnedIssue MinimalIssue
 	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returnedIssue))
 	assert.Equal(t, 2990, returnedIssue.Number)
-	assert.False(t, returnedIssue.HasParent)
-	assert.False(t, returnedIssue.HasChildren)
+	assert.Nil(t, returnedIssue.HasParent)
+	assert.Nil(t, returnedIssue.HasChildren)
 	assert.Nil(t, returnedIssue.Parent)
 	assert.Nil(t, returnedIssue.SubIssuesSummary)
 }

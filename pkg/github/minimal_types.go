@@ -343,12 +343,12 @@ type MinimalIssue struct {
 	IssueFieldValues  []MinimalIssueFieldValue `json:"issue_field_values,omitempty"`
 	FieldValues       []MinimalFieldValue      `json:"field_values,omitempty"`
 
-	// Hierarchy relationship signals. HasParent and HasChildren are always emitted
-	// (an explicit false is itself a useful routing signal); SubIssuesSummary is populated
-	// when children exist, and Parent when a parent exists and may be surfaced (under lockdown
-	// an unverified parent reference is omitted while HasParent stays true).
-	HasParent        bool                     `json:"has_parent"`
-	HasChildren      bool                     `json:"has_children"`
+	// Hierarchy relationship signals. HasParent and HasChildren are populated when
+	// hierarchy enrichment succeeds; SubIssuesSummary is populated when children exist,
+	// and Parent when a parent exists and may be surfaced (under lockdown an unverified
+	// parent reference is omitted while HasParent stays true).
+	HasParent        *bool                    `json:"has_parent,omitempty"`
+	HasChildren      *bool                    `json:"has_children,omitempty"`
 	Parent           *MinimalIssueRef         `json:"parent,omitempty"`
 	SubIssuesSummary *MinimalSubIssuesSummary `json:"sub_issues_summary,omitempty"`
 }
