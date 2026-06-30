@@ -873,9 +873,11 @@ The following sets of tools are available:
 
 - **add_issue_comment** - Add comment to issue or pull request
   - **Required OAuth Scopes**: `repo`
-  - `body`: Comment content (string, required)
-  - `issue_number`: Issue number to comment on (number, required)
+  - `body`: Comment content. Required unless reaction is provided. (string, optional)
+  - `comment_id`: The numeric ID of the issue or pull request comment to react to. Use this for reactions to comments; omit it to react to the issue or pull request itself. Cannot be combined with body. (number, optional)
+  - `issue_number`: Issue or pull request number to comment on or react to. (number, required)
   - `owner`: Repository owner (string, required)
+  - `reaction`: Emoji reaction to add. Required unless body is provided. (string, optional)
   - `repo`: Repository name (string, required)
 
 - **get_label** - Get a specific label from a repository
@@ -1130,10 +1132,11 @@ The following sets of tools are available:
 
 - **add_reply_to_pull_request_comment** - Add reply to pull request comment
   - **Required OAuth Scopes**: `repo`
-  - `body`: The text of the reply (string, required)
-  - `commentId`: The ID of the comment to reply to (number, required)
+  - `body`: The text of the reply. Required unless reaction is provided. (string, optional)
+  - `commentId`: The numeric ID of the pull request review comment to reply or react to. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...). (number, required)
   - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
+  - `pullNumber`: Pull request number. Required when body is provided. (number, optional)
+  - `reaction`: Emoji reaction to add. Required unless body is provided. (string, optional)
   - `repo`: Repository name (string, required)
 
 - **create_pull_request** - Open new pull request
