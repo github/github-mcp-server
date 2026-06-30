@@ -182,8 +182,10 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		// Repository tools
 		SearchRepositories(t),
 		GetFileContents(t),
+		LegacyGetFileContents(t),
 		ListCommits(t),
 		SearchCode(t),
+		LegacySearchCode(t),
 		SearchCommits(t),
 		GetCommit(t),
 		GetFileBlame(t),

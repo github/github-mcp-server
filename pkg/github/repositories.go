@@ -693,8 +693,73 @@ func FetchRepoIsPrivate(ctx context.Context, client *github.Client, owner, repo 
 	return r.GetPrivate(), nil
 }
 
-// GetFileContents creates a tool to get the contents of a file or directory from a GitHub repository.
+// GetFileContents creates a tool to get the contents of a file or directory from
+// a GitHub repository. It is the FeatureFlagFieldsParam-enabled variant: it
+// advertises the optional `fields` parameter and filters directory listings to
+// the requested subset. Both this and LegacyGetFileContents register under the
+// tool name "get_file_contents"; exactly one is active for any given request
+// thanks to mutually exclusive FeatureFlagEnable / FeatureFlagDisable annotations.
 func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := getFileContentsTool(t, true)
+	st.FeatureFlagEnable = FeatureFlagFieldsParam
+	return st
+}
+
+// LegacyGetFileContents is the FeatureFlagFieldsParam-disabled variant of
+// get_file_contents. It exposes the original schema (no `fields` parameter) and
+// never filters directory listings, so it acts as the kill switch when the flag
+// is off. It owns the canonical get_file_contents.snap; the flag-enabled variant
+// owns get_file_contents_ff_<flag>.snap. Delete this function when the flag is
+// removed.
+func LegacyGetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := getFileContentsTool(t, false)
+	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
+	return st
+}
+
+// getFileContentsTool builds the get_file_contents tool. When includeFields is
+// true the tool advertises the optional `fields` parameter, filters directory
+// listings to the requested subset, and emits fields telemetry. When false it is
+// the original tool with no fields parameter and no filtering.
+func getFileContentsTool(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner (username or organization)",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"path": {
+				Type:        "string",
+				Description: "Path to file/directory",
+				Default:     json.RawMessage(`"/"`),
+			},
+			"ref": {
+				Type:        "string",
+				Description: "Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head`",
+			},
+			"sha": {
+				Type:        "string",
+				Description: "Accepts optional commit SHA. If specified, it will be used instead of ref",
+			},
+		},
+		Required: []string{"owner", "repo"},
+	}
+	if includeFields {
+		schema.Properties["fields"] = &jsonschema.Schema{
+			Type:        "array",
+			Description: "Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'.",
+			Items: &jsonschema.Schema{
+				Type: "string",
+				Enum: fileContentFieldEnum,
+			},
+		}
+	}
+
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -704,41 +769,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Title:        t("TOOL_GET_FILE_CONTENTS_USER_TITLE", "Get file or directory contents"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner": {
-						Type:        "string",
-						Description: "Repository owner (username or organization)",
-					},
-					"repo": {
-						Type:        "string",
-						Description: "Repository name",
-					},
-					"path": {
-						Type:        "string",
-						Description: "Path to file/directory",
-						Default:     json.RawMessage(`"/"`),
-					},
-					"ref": {
-						Type:        "string",
-						Description: "Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head`",
-					},
-					"sha": {
-						Type:        "string",
-						Description: "Accepts optional commit SHA. If specified, it will be used instead of ref",
-					},
-					"fields": {
-						Type:        "array",
-						Description: "Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'.",
-						Items: &jsonschema.Schema{
-							Type: "string",
-							Enum: fileContentFieldEnum,
-						},
-					},
-				},
-				Required: []string{"owner", "repo"},
-			},
+			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -768,9 +799,12 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			fields, err := OptionalStringArrayParam(args, "fields")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			var fields []string
+			if includeFields {
+				fields, err = OptionalStringArrayParam(args, "fields")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -896,17 +930,22 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
 			} else if dirContent != nil {
 				// file content or file SHA is nil which means it's a directory
+				filtered := false
 				var payload any = dirContent
-				if len(fields) > 0 {
-					filtered, err := filterEachField(dirContent, fields)
+				if includeFields && len(fields) > 0 {
+					filteredEntries, err := filterEachField(dirContent, fields)
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to filter directory contents", err), nil, nil
 					}
-					payload = filtered
+					payload = filteredEntries
+					filtered = true
 				}
 				r, err := json.Marshal(payload)
 				if err != nil {
 					return utils.NewToolResultError("failed to marshal response"), nil, nil
+				}
+				if includeFields {
+					recordDirContentsFieldsUsage(ctx, deps, dirContent, filtered, len(r))
 				}
 				return attachIFC(utils.NewToolResultText(string(r))), nil, nil
 			}
@@ -914,6 +953,20 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			return utils.NewToolResultError("failed to get file contents"), nil, nil
 		},
 	)
+}
+
+// recordDirContentsFieldsUsage emits fields telemetry for a get_file_contents
+// directory listing. sentBytes is the size of the payload actually returned.
+// When the listing was filtered, the unfiltered size is computed from the full
+// directory content so the realized savings can be measured.
+func recordDirContentsFieldsUsage(ctx context.Context, deps ToolDependencies, full []*github.RepositoryContent, filtered bool, sentBytes int) {
+	fullBytes := sentBytes
+	if filtered {
+		if data, err := json.Marshal(full); err == nil {
+			fullBytes = len(data)
+		}
+	}
+	recordFieldsUsage(ctx, deps, "get_file_contents", filtered, fullBytes, sentBytes)
 }
 
 // ForkRepository creates a tool to fork a repository.

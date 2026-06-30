@@ -191,8 +191,34 @@ func attachSearchRepositoriesIFCLabel(ctx context.Context, deps ToolDependencies
 	setIFCLabel(callResult, ifc.LabelSearchIssues(visibilities))
 }
 
-// SearchCode creates a tool to search for code across GitHub repositories.
+// SearchCode creates a tool to search for code across GitHub repositories. It is
+// the FeatureFlagFieldsParam-enabled variant: it advertises the optional
+// `fields` parameter and filters each result to the requested subset. Both this
+// and LegacySearchCode register under the tool name "search_code"; exactly one
+// is active for any given request thanks to mutually exclusive
+// FeatureFlagEnable / FeatureFlagDisable annotations.
 func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := searchCodeTool(t, true)
+	st.FeatureFlagEnable = FeatureFlagFieldsParam
+	return st
+}
+
+// LegacySearchCode is the FeatureFlagFieldsParam-disabled variant of
+// search_code. It exposes the original schema (no `fields` parameter) and never
+// filters results, so it acts as the kill switch when the flag is off. It owns
+// the canonical search_code.snap; the flag-enabled variant owns
+// search_code_ff_<flag>.snap. Delete this function when the flag is removed.
+func LegacySearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := searchCodeTool(t, false)
+	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
+	return st
+}
+
+// searchCodeTool builds the search_code tool. When includeFields is true the
+// tool advertises the optional `fields` parameter, filters each result to the
+// requested subset, and emits fields telemetry. When false it is the original
+// tool with no fields parameter and no filtering.
+func searchCodeTool(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -209,16 +235,18 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Description: "Sort order for results",
 				Enum:        []any{"asc", "desc"},
 			},
-			"fields": {
-				Type:        "array",
-				Description: "Subset of fields to return for each code search result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'repository' and 'text_matches' in particular drops the largest per-result data.",
-				Items: &jsonschema.Schema{
-					Type: "string",
-					Enum: codeSearchItemFieldEnum,
-				},
-			},
 		},
 		Required: []string{"query"},
+	}
+	if includeFields {
+		schema.Properties["fields"] = &jsonschema.Schema{
+			Type:        "array",
+			Description: "Subset of fields to return for each code search result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'repository' and 'text_matches' in particular drops the largest per-result data.",
+			Items: &jsonschema.Schema{
+				Type: "string",
+				Enum: codeSearchItemFieldEnum,
+			},
+		}
 	}
 	WithPagination(schema)
 
@@ -247,9 +275,12 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			fields, err := OptionalStringArrayParam(args, "fields")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			var fields []string
+			if includeFields {
+				fields, err = OptionalStringArrayParam(args, "fields")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
@@ -309,8 +340,9 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Items:             minimalItems,
 			}
 
+			filtered := false
 			var payload any = minimalResult
-			if len(fields) > 0 {
+			if includeFields && len(fields) > 0 {
 				filteredItems, err := filterEachField(minimalItems, fields)
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to filter code search results", err), nil, nil
@@ -320,11 +352,16 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 					"incomplete_results": minimalResult.IncompleteResults,
 					"items":              filteredItems,
 				}
+				filtered = true
 			}
 
 			r, err := json.Marshal(payload)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+
+			if includeFields {
+				recordSearchCodeFieldsUsage(ctx, deps, minimalResult, filtered, len(r))
 			}
 
 			callResult := utils.NewToolResultText(string(r))
@@ -341,6 +378,20 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return callResult, nil, nil
 		},
 	)
+}
+
+// recordSearchCodeFieldsUsage emits fields telemetry for a search_code call.
+// sentBytes is the size of the payload actually returned. When the response was
+// filtered, the unfiltered size is computed from the full minimal result so the
+// realized savings can be measured.
+func recordSearchCodeFieldsUsage(ctx context.Context, deps ToolDependencies, full *MinimalCodeSearchResult, filtered bool, sentBytes int) {
+	fullBytes := sentBytes
+	if filtered {
+		if data, err := json.Marshal(full); err == nil {
+			fullBytes = len(data)
+		}
+	}
+	recordFieldsUsage(ctx, deps, "search_code", filtered, fullBytes, sentBytes)
 }
 
 func userOrOrgHandler(ctx context.Context, accountType string, deps ToolDependencies, args map[string]any) (*mcp.CallToolResult, any, error) {

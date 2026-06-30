@@ -342,7 +342,11 @@ func Test_SearchCode(t *testing.T) {
 	// Verify tool definition once
 	serverTool := SearchCode(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	// SearchCode is the FeatureFlagFieldsParam-enabled variant; it owns the
+	// _ff_<flag> snapshot. The canonical search_code.snap is owned by
+	// LegacySearchCode (see Test_LegacySearchCode_Definition).
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
+	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "search_code", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -354,6 +358,7 @@ func Test_SearchCode(t *testing.T) {
 	assert.Contains(t, schema.Properties, "order")
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "fields")
 	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
 	// Setup mock search results
@@ -564,6 +569,92 @@ func Test_SearchCode_FieldFiltering(t *testing.T) {
 
 	assert.NotContains(t, textContent.Text, "repository")
 	assert.NotContains(t, textContent.Text, "text_matches")
+}
+
+func Test_LegacySearchCode_Definition(t *testing.T) {
+	serverTool := LegacySearchCode(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	// LegacySearchCode is the FeatureFlagFieldsParam-disabled variant and owns
+	// the canonical search_code.snap (no `fields`).
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.Equal(t, []string{FeatureFlagFieldsParam}, serverTool.FeatureFlagDisable)
+
+	assert.Equal(t, "search_code", tool.Name)
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.NotContains(t, schema.Properties, "fields")
+}
+
+func Test_SearchCode_FieldsTelemetry(t *testing.T) {
+	mockSearchResult := &github.CodeSearchResult{
+		Total:             github.Ptr(1),
+		IncompleteResults: github.Ptr(false),
+		CodeResults: []*github.CodeResult{
+			{
+				Name: github.Ptr("file1.go"),
+				Path: github.Ptr("path/to/file1.go"),
+				SHA:  github.Ptr("abc123def456"),
+				Repository: &github.Repository{
+					Name:     github.Ptr("repo"),
+					FullName: github.Ptr("owner/repo"),
+				},
+				TextMatches: []*github.TextMatch{
+					{Fragment: github.Ptr("func main() {}")},
+				},
+			},
+		},
+	}
+
+	serverTool := SearchCode(translations.NullTranslationHelper)
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetSearchCode: mockResponse(t, http.StatusOK, mockSearchResult),
+	}))
+
+	t.Run("filtered call records savings", func(t *testing.T) {
+		deps, rec := depsWithRecordingMetrics(t, BaseDeps{Client: client})
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"query":  "fmt.Println language:go",
+			"fields": []any{"name", "path"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		call, ok := rec.increment(metricFieldsToolCall)
+		require.True(t, ok)
+		assert.Equal(t, "search_code", call.tags["tool"])
+		assert.Equal(t, "true", call.tags["filtered"])
+
+		full, ok := rec.counter(metricFieldsBytesFull)
+		require.True(t, ok)
+		sent, ok := rec.counter(metricFieldsBytesSent)
+		require.True(t, ok)
+		saved, ok := rec.counter(metricFieldsBytesSaved)
+		require.True(t, ok)
+		assert.Greater(t, full.value, sent.value, "filtering should remove bytes")
+		assert.Equal(t, full.value-sent.value, saved.value)
+	})
+
+	t.Run("unfiltered call records adoption only", func(t *testing.T) {
+		deps, rec := depsWithRecordingMetrics(t, BaseDeps{Client: client})
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"query": "fmt.Println language:go",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		call, ok := rec.increment(metricFieldsToolCall)
+		require.True(t, ok)
+		assert.Equal(t, "false", call.tags["filtered"])
+
+		_, ok = rec.counter(metricFieldsBytesFull)
+		assert.False(t, ok, "no byte counters when not filtered")
+	})
 }
 
 func Test_SearchUsers(t *testing.T) {
