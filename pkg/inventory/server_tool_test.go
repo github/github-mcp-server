@@ -78,3 +78,70 @@ func TestNewServerToolWithContextHandler_ValidArguments_Succeeds(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "success: octocat/hello-world", textContent.Text)
 }
+
+func TestNewServerToolWithContextHandler_EmptyArguments_Succeeds(t *testing.T) {
+	type expectedArgs struct {
+		Owner string `json:"owner,omitempty"`
+		Repo  string `json:"repo,omitempty"`
+	}
+
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "test_tool"},
+		testToolsetMetadata("test"),
+		func(_ context.Context, _ *mcp.CallToolRequest, args expectedArgs) (*mcp.CallToolResult, any, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: "success: " + args.Owner + "/" + args.Repo},
+				},
+			}, nil, nil
+		},
+	)
+
+	handler := tool.HandlerFunc(nil)
+
+	testCases := []struct {
+		name      string
+		arguments json.RawMessage
+		expected  string
+	}{
+		{
+			name:      "nil arguments",
+			arguments: nil,
+			expected:  "success: /",
+		},
+		{
+			name:      "empty arguments",
+			arguments: json.RawMessage(``),
+			expected:  "success: /",
+		},
+		{
+			name:      "null arguments",
+			arguments: json.RawMessage(`null`),
+			expected:  "success: /",
+		},
+		{
+			name:      "empty object arguments",
+			arguments: json.RawMessage(`{}`),
+			expected:  "success: /",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := handler(context.Background(), &mcp.CallToolRequest{
+				Params: &mcp.CallToolParamsRaw{
+					Name:      "test_tool",
+					Arguments: tc.arguments,
+				},
+			})
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.False(t, result.IsError)
+			textContent, ok := result.Content[0].(*mcp.TextContent)
+			require.True(t, ok)
+			assert.Equal(t, tc.expected, textContent.Text)
+		})
+	}
+}
+
