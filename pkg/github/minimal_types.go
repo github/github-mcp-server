@@ -354,7 +354,7 @@ type MinimalIssue struct {
 }
 
 // MinimalIssueRef is a compact reference to a related issue (e.g. a parent issue).
-// Its keys mirror the get_parent (GetIssueParent) payload so both surfaces agree.
+// Its keys mirror the get_parent (GetIssueParent) response shape.
 type MinimalIssueRef struct {
 	Number     int    `json:"number"`
 	Title      string `json:"title"`

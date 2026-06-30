@@ -635,7 +635,7 @@ func Test_GetIssue_HierarchyEnrichment(t *testing.T) {
 		{
 			name:    "has_children is false when total is zero even with completed nonzero",
 			parent:  nil,
-			summary: map[string]any{"total": 0, "completed": 0, "percentCompleted": 0},
+			summary: map[string]any{"total": 0, "completed": 1, "percentCompleted": 0},
 			assertResponse: func(t *testing.T, issue MinimalIssue) {
 				assert.Equal(t, github.Ptr(false), issue.HasChildren)
 				assert.Nil(t, issue.SubIssuesSummary)
