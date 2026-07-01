@@ -311,6 +311,8 @@ Add one of the following JSON blocks to your IDE's MCP settings.
 
 See **[Local Server OAuth Login](docs/oauth-login.md)** for the native-binary flow (no fixed port needed), the headless/device-code fallback, GitHub Enterprise Server / `ghe.com`, and bringing your own OAuth or GitHub App.
 
+**Running headless (CI, Kubernetes, background agents)?** The stdio server can authenticate as a **GitHub App installation** with no browser, device code, or elicitation — see **[GitHub App Server-to-Server Authentication](docs/github-app-auth.md)**. This injects a high-privilege credential alongside the agent, so read the security guidance there first; it is not recommended without an independent security review.
+
 **Or authenticate with a Personal Access Token.** Set `GITHUB_PERSONAL_ACCESS_TOKEN` instead (it takes precedence over OAuth):
 
 ```json

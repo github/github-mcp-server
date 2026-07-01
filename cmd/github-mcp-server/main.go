@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -9,10 +10,12 @@ import (
 
 	"github.com/github/github-mcp-server/internal/buildinfo"
 	"github.com/github/github-mcp-server/internal/ghmcp"
+	"github.com/github/github-mcp-server/internal/githubapp"
 	"github.com/github/github-mcp-server/internal/oauth"
 	"github.com/github/github-mcp-server/pkg/github"
 	ghhttp "github.com/github/github-mcp-server/pkg/http"
 	ghoauth "github.com/github/github-mcp-server/pkg/http/oauth"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -37,6 +40,17 @@ var (
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			token := viper.GetString("personal_access_token")
+
+			// GitHub App server-to-server auth (non-interactive). It is detected
+			// when any app-* setting is present; a partial configuration yields a
+			// clear error from the loader/validator below rather than silently
+			// falling back to another mode.
+			appID := viper.GetString("app-id")
+			appInstallationID := viper.GetString("app-installation-id")
+			appPrivateKeyPath := viper.GetString("app-private-key-path")
+			appPrivateKeyInline := viper.GetString("app-private-key")
+			appAuthRequested := appID != "" || appInstallationID != "" || appPrivateKeyPath != "" || appPrivateKeyInline != ""
+
 			oauthClientID := viper.GetString("oauth-client-id")
 			oauthClientSecret := viper.GetString("oauth-client-secret")
 			// Fall back to the build-time baked-in client (official releases) when none is
@@ -45,13 +59,20 @@ var (
 			// --oauth-client-id. Recognizing the host via NormalizeHost means an explicit
 			// GITHUB_HOST=github.com (or api.github.com) still counts as the default and keeps
 			// zero-config login working. The secret tracks the id, so an explicitly provided
-			// id with no secret never picks up the baked-in secret.
-			if oauthClientID == "" && oauth.NormalizeHost(viper.GetString("host")) == "https://github.com" {
+			// id with no secret never picks up the baked-in secret. App auth opts out of this
+			// default so configuring an app never accidentally enables OAuth login too.
+			if oauthClientID == "" && !appAuthRequested && oauth.NormalizeHost(viper.GetString("host")) == "https://github.com" {
 				oauthClientID = buildinfo.OAuthClientID
 				oauthClientSecret = buildinfo.OAuthClientSecret
 			}
-			if token == "" && oauthClientID == "" {
-				return errors.New("authentication required: set GITHUB_PERSONAL_ACCESS_TOKEN, or pass --oauth-client-id to log in via OAuth")
+			if token == "" && !appAuthRequested && oauthClientID == "" {
+				return errors.New("authentication required: set GITHUB_PERSONAL_ACCESS_TOKEN, configure GitHub App auth (GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID and GITHUB_APP_PRIVATE_KEY_PATH), or pass --oauth-client-id to log in via OAuth")
+			}
+			if appAuthRequested && token != "" {
+				return errors.New("GitHub App authentication and GITHUB_PERSONAL_ACCESS_TOKEN are mutually exclusive: set only one")
+			}
+			if appAuthRequested && oauthClientID != "" {
+				return errors.New("GitHub App authentication and OAuth login (--oauth-client-id) are mutually exclusive: set only one")
 			}
 
 			// If you're wondering why we're not using viper.GetStringSlice("toolsets"),
@@ -116,7 +137,8 @@ var (
 			// client. The requested scopes default to the full supported set
 			// (which filters out no tools); an explicit, narrower --oauth-scopes
 			// both narrows the grant and hides tools needing other scopes.
-			if token == "" {
+			// Skipped for GitHub App auth, which sources tokens non-interactively.
+			if token == "" && !appAuthRequested {
 				scopes := ghoauth.SupportedScopes
 				if viper.IsSet("oauth-scopes") {
 					if err := viper.UnmarshalKey("oauth-scopes", &scopes); err != nil {
@@ -132,6 +154,17 @@ var (
 				)
 				stdioServerConfig.OAuthManager = oauth.NewManager(oauthConfig, nil)
 				stdioServerConfig.OAuthScopes = scopes
+			}
+
+			// GitHub App server-to-server auth: load and parse the private key,
+			// then resolve the REST base URL so the server can mint installation
+			// tokens for the configured host (github.com, GHES, or ghe.com).
+			if appAuthRequested {
+				appConfig, err := buildAppAuthConfig(appID, appInstallationID, appPrivateKeyPath, appPrivateKeyInline, viper.GetString("host"))
+				if err != nil {
+					return err
+				}
+				stdioServerConfig.AppAuth = appConfig
 			}
 
 			return ghmcp.RunStdioServer(stdioServerConfig)
@@ -230,6 +263,15 @@ func init() {
 	stdioCmd.Flags().StringSlice("oauth-scopes", nil, "Comma-separated OAuth scopes to request; also filters tools to those scopes. Defaults to the full supported set")
 	stdioCmd.Flags().Int("oauth-callback-port", 0, "Fixed local port for the OAuth callback server. Defaults to a random port; set a fixed port when mapping it through Docker")
 
+	// stdio-specific GitHub App (server-to-server) flags. Provide an app ID,
+	// installation ID, and private key to authenticate non-interactively — no
+	// browser, device code, or elicitation. Intended for headless deployments.
+	// The private key itself has no flag (only GITHUB_APP_PRIVATE_KEY): a flag
+	// would place the key in the process arguments. Prefer the key file path.
+	stdioCmd.Flags().String("app-id", "", "GitHub App ID or client ID, enabling non-interactive server-to-server authentication")
+	stdioCmd.Flags().String("app-installation-id", "", "GitHub App installation ID to mint installation access tokens for")
+	stdioCmd.Flags().String("app-private-key-path", "", "Path to the GitHub App private key (PEM). Preferred over GITHUB_APP_PRIVATE_KEY: keeps the key off the command line and out of the environment")
+
 	// HTTP-specific flags
 	httpCmd.Flags().Int("port", 8082, "HTTP server port")
 	httpCmd.Flags().String("listen-host", "", "Host the HTTP server binds to (e.g. 127.0.0.1). Empty binds to all interfaces.")
@@ -256,6 +298,9 @@ func init() {
 	_ = viper.BindPFlag("oauth-client-secret", stdioCmd.Flags().Lookup("oauth-client-secret"))
 	_ = viper.BindPFlag("oauth-scopes", stdioCmd.Flags().Lookup("oauth-scopes"))
 	_ = viper.BindPFlag("oauth-callback-port", stdioCmd.Flags().Lookup("oauth-callback-port"))
+	_ = viper.BindPFlag("app-id", stdioCmd.Flags().Lookup("app-id"))
+	_ = viper.BindPFlag("app-installation-id", stdioCmd.Flags().Lookup("app-installation-id"))
+	_ = viper.BindPFlag("app-private-key-path", stdioCmd.Flags().Lookup("app-private-key-path"))
 	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))
 	_ = viper.BindPFlag("listen-host", httpCmd.Flags().Lookup("listen-host"))
 	_ = viper.BindPFlag("base-url", httpCmd.Flags().Lookup("base-url"))
@@ -278,6 +323,60 @@ func main() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
+	}
+}
+
+// buildAppAuthConfig assembles the GitHub App server-to-server configuration:
+// it loads and parses the private key and resolves the REST base URL for the
+// configured host. The private key is read from a file (preferred) or an inline
+// environment value; a missing or partial configuration yields a clear error.
+func buildAppAuthConfig(appID, installationID, keyPath, keyInline, host string) (*githubapp.Config, error) {
+	keyBytes, err := loadAppPrivateKey(keyPath, keyInline)
+	if err != nil {
+		return nil, err
+	}
+	privateKey, err := githubapp.ParsePrivateKey(keyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("invalid GitHub App private key: %w", err)
+	}
+
+	apiHost, err := utils.NewAPIHost(host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse host for GitHub App authentication: %w", err)
+	}
+	restURL, err := apiHost.BaseRESTURL(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve REST URL for GitHub App authentication: %w", err)
+	}
+
+	cfg := &githubapp.Config{
+		AppID:          appID,
+		InstallationID: installationID,
+		PrivateKey:     privateKey,
+		BaseRESTURL:    restURL.String(),
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+// loadAppPrivateKey returns the GitHub App private key bytes from a file path
+// (preferred — it keeps the key off argv and out of the environment) or from an
+// inline value. The inline form tolerates literal "\n" escapes so a PEM survives
+// being carried in a single-line environment variable.
+func loadAppPrivateKey(path, inline string) ([]byte, error) {
+	switch {
+	case path != "":
+		data, err := os.ReadFile(path) //#nosec G304 -- operator-supplied path to their own key
+		if err != nil {
+			return nil, fmt.Errorf("reading GitHub App private key file: %w", err)
+		}
+		return data, nil
+	case inline != "":
+		return []byte(strings.ReplaceAll(inline, `\n`, "\n")), nil
+	default:
+		return nil, errors.New("GitHub App authentication requires a private key: set GITHUB_APP_PRIVATE_KEY_PATH (preferred) or GITHUB_APP_PRIVATE_KEY")
 	}
 }
 
