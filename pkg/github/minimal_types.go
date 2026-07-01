@@ -1666,6 +1666,8 @@ type MinimalCheckRun struct {
 type MinimalCheckRunsResult struct {
 	TotalCount int               `json:"total_count"`
 	CheckRuns  []MinimalCheckRun `json:"check_runs"`
+	// Source indicates which API provided the data: "checks_api", "workflow_runs", or "commit_statuses".
+	Source string `json:"source,omitempty"`
 }
 
 // convertToMinimalCheckRun converts a GitHub API CheckRun to MinimalCheckRun
@@ -1684,6 +1686,56 @@ func convertToMinimalCheckRun(checkRun *github.CheckRun) MinimalCheckRun {
 	}
 	if checkRun.CompletedAt != nil {
 		minimalCheckRun.CompletedAt = checkRun.CompletedAt.Format("2006-01-02T15:04:05Z")
+	}
+
+	return minimalCheckRun
+}
+
+func convertWorkflowRunToMinimalCheckRun(run *github.WorkflowRun) MinimalCheckRun {
+	status := run.GetStatus()
+	conclusion := run.GetConclusion()
+
+	minimalCheckRun := MinimalCheckRun{
+		ID:         run.GetID(),
+		Name:       run.GetName(),
+		Status:     status,
+		Conclusion: conclusion,
+		HTMLURL:    run.GetHTMLURL(),
+		DetailsURL: run.GetHTMLURL(),
+	}
+
+	if run.RunStartedAt != nil {
+		minimalCheckRun.StartedAt = run.RunStartedAt.Format("2006-01-02T15:04:05Z")
+	}
+	if run.UpdatedAt != nil && status == "completed" {
+		minimalCheckRun.CompletedAt = run.UpdatedAt.Format("2006-01-02T15:04:05Z")
+	}
+
+	return minimalCheckRun
+}
+
+func convertCommitStatusToMinimalCheckRun(status *github.RepoStatus) MinimalCheckRun {
+	state := status.GetState()
+	conclusion := state
+	checkStatus := "completed"
+	if state == "pending" {
+		checkStatus = "in_progress"
+		conclusion = ""
+	}
+
+	minimalCheckRun := MinimalCheckRun{
+		ID:         status.GetID(),
+		Name:       status.GetContext(),
+		Status:     checkStatus,
+		Conclusion: conclusion,
+		DetailsURL: status.GetTargetURL(),
+	}
+
+	if status.CreatedAt != nil {
+		minimalCheckRun.StartedAt = status.CreatedAt.Format("2006-01-02T15:04:05Z")
+	}
+	if status.UpdatedAt != nil {
+		minimalCheckRun.CompletedAt = status.UpdatedAt.Format("2006-01-02T15:04:05Z")
 	}
 
 	return minimalCheckRun
