@@ -642,39 +642,199 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 	return st
 }
 
+// stateWithIntent represents the object form of the state field, allowing
+// rationale, confidence, and/or suggest flag to be sent alongside the state value.
+type stateWithIntent struct {
+	Value      string `json:"value"`
+	Rationale  string `json:"rationale,omitempty"`
+	Confidence string `json:"confidence,omitempty"`
+	Suggest    bool   `json:"suggest,omitempty"`
+}
+
+// stateUpdateRequest is a custom request body for updating an issue's state
+// with optional intent metadata, using the object form that the REST API accepts.
+type stateUpdateRequest struct {
+	State            stateWithIntent `json:"state"`
+	StateReason      string          `json:"state_reason,omitempty"`
+	DuplicateIssueID *int64          `json:"duplicate_issue_id,omitempty"`
+}
+
 // GranularUpdateIssueState creates a tool to update an issue's state.
 func GranularUpdateIssueState(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return issueUpdateTool(t,
-		"update_issue_state",
-		"Update the state of an existing issue (open or closed), with an optional state reason.",
-		"Update Issue State",
-		map[string]*jsonschema.Schema{
-			"state": {
-				Type:        "string",
-				Description: "The new state for the issue",
-				Enum:        []any{"open", "closed"},
+	st := NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "update_issue_state",
+			Description: t("TOOL_UPDATE_ISSUE_STATE_DESCRIPTION", "Update the state of an existing issue (open or closed), with an optional state reason. When closing, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the decision. Use is_suggestion to propose the change without applying it directly."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_UPDATE_ISSUE_STATE_USER_TITLE", "Update Issue State"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
+				OpenWorldHint:   jsonschema.Ptr(true),
 			},
-			"state_reason": {
-				Type:        "string",
-				Description: "The reason for the state change (only for closed state)",
-				Enum:        []any{"completed", "not_planned", "duplicate"},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"issue_number": {
+						Type:        "number",
+						Description: "The issue number to update",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"state": {
+						Type:        "string",
+						Description: "The new state for the issue",
+						Enum:        []any{"open", "closed"},
+					},
+					"state_reason": {
+						Type:        "string",
+						Description: "The reason for the state change (only for closed state)",
+						Enum:        []any{"completed", "not_planned", "duplicate"},
+					},
+					"rationale": {
+						Type: "string",
+						Description: "One concise sentence explaining what specifically about the issue led you to choose this state. " +
+							"State the concrete signal (e.g. 'The reported crash is fixed in v2.1' → completed).",
+						MaxLength: jsonschema.Ptr(280),
+					},
+					"confidence": {
+						Type:        "string",
+						Description: "How confident you are in this choice. Use 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal.",
+						Enum:        []any{"LOW", "MEDIUM", "HIGH"},
+					},
+					"is_suggestion": {
+						Type: "boolean",
+						Description: "If true, this state change is sent to the API as a suggestion (suggest:true) rather than an applied change. " +
+							"Whether the change is applied or recorded as a proposal is determined by the API.",
+					},
+					"duplicate_of": {
+						Type:        "number",
+						Description: "The issue number of the canonical issue this issue duplicates. Only valid when state_reason is 'duplicate'. Required when is_suggestion is true. The issue number is resolved to a database ID before being sent to the API.",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+				},
+				Required: []string{"owner", "repo", "issue_number", "state"},
 			},
 		},
-		[]string{"state"},
-		func(args map[string]any) (*github.IssueRequest, error) {
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			state, err := RequiredParam[string](args, "state")
 			if err != nil {
-				return nil, err
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			req := &github.IssueRequest{State: &state}
+			stateReason, err := OptionalParam[string](args, "state_reason")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			rationale, err := OptionalParam[string](args, "rationale")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			rationale = strings.TrimSpace(rationale)
+			if len([]rune(rationale)) > 280 {
+				return utils.NewToolResultError("parameter rationale must be 280 characters or less"), nil, nil
+			}
+			confidence, err := OptionalParam[string](args, "confidence")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			confidence = normalizeConfidence(confidence)
+			if confidence != "" && confidence != "LOW" && confidence != "MEDIUM" && confidence != "HIGH" {
+				return utils.NewToolResultError("confidence must be one of: LOW, MEDIUM, HIGH"), nil, nil
+			}
+			isSuggestion, err := OptionalParam[bool](args, "is_suggestion")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			duplicateOf, err := OptionalIntParam(args, "duplicate_of")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if duplicateOf != 0 && stateReason != "duplicate" {
+				return utils.NewToolResultError("duplicate_of can only be used when state_reason is 'duplicate'"), nil, nil
+			}
+			if isSuggestion && stateReason == "duplicate" && duplicateOf == 0 {
+				return utils.NewToolResultError("duplicate_of is required when suggesting a close as duplicate"), nil, nil
+			}
 
-			stateReason, _ := OptionalParam[string](args, "state_reason")
-			if stateReason != "" {
-				req.StateReason = &stateReason
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
-			return req, nil
+
+			var body any
+			if rationale != "" || isSuggestion || confidence != "" || duplicateOf != 0 {
+				req := &stateUpdateRequest{
+					State: stateWithIntent{
+						Value:      state,
+						Rationale:  rationale,
+						Confidence: confidence,
+						Suggest:    isSuggestion,
+					},
+					StateReason: stateReason,
+				}
+				if duplicateOf != 0 {
+					duplicateIssue, resp, err := client.Issues.Get(ctx, owner, repo, duplicateOf)
+					if err != nil {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get duplicate issue", resp, err), nil, nil
+					}
+					_ = resp.Body.Close()
+					id := duplicateIssue.GetID()
+					req.DuplicateIssueID = &id
+				}
+				body = req
+			} else {
+				req := &github.IssueRequest{State: &state}
+				if stateReason != "" {
+					req.StateReason = &stateReason
+				}
+				body = req
+			}
+
+			apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
+			req, err := client.NewRequest(ctx, "PATCH", apiURL, body)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to create request", err), nil, nil
+			}
+
+			issue := &github.Issue{}
+			resp, err := client.Do(req, issue)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			r, err := json.Marshal(MinimalResponse{
+				ID:  fmt.Sprintf("%d", issue.GetID()),
+				URL: issue.GetHTMLURL(),
+			})
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	return st
 }
 
 // GranularAddSubIssue creates a tool to add a sub-issue.
