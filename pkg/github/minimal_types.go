@@ -404,6 +404,7 @@ type MinimalPullRequest struct {
 	MergeableState     string           `json:"mergeable_state,omitempty"`
 	HTMLURL            string           `json:"html_url"`
 	User               *MinimalUser     `json:"user,omitempty"`
+	AuthorAssociation  string           `json:"author_association,omitempty"`
 	Labels             []string         `json:"labels,omitempty"`
 	Assignees          []string         `json:"assignees,omitempty"`
 	RequestedReviewers []string         `json:"requested_reviewers,omitempty"`
@@ -565,13 +566,14 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 
 func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 	m := MinimalIssue{
-		Number:    int(fragment.Number),
-		Title:     sanitize.Sanitize(string(fragment.Title)),
-		Body:      sanitize.Sanitize(string(fragment.Body)),
-		State:     string(fragment.State),
-		Comments:  int(fragment.Comments.TotalCount),
-		CreatedAt: fragment.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: fragment.UpdatedAt.Format(time.RFC3339),
+		Number:            int(fragment.Number),
+		Title:             sanitize.Sanitize(string(fragment.Title)),
+		Body:              sanitize.Sanitize(string(fragment.Body)),
+		State:             string(fragment.State),
+		Comments:          int(fragment.Comments.TotalCount),
+		CreatedAt:         fragment.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:         fragment.UpdatedAt.Format(time.RFC3339),
+		AuthorAssociation: string(fragment.AuthorAssociation),
 		User: &MinimalUser{
 			Login: string(fragment.Author.Login),
 		},
@@ -707,16 +709,17 @@ func convertToMinimalFileContentResponse(resp *github.RepositoryContentResponse)
 
 func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
 	m := MinimalPullRequest{
-		Number:         pr.GetNumber(),
-		Title:          pr.GetTitle(),
-		Body:           pr.GetBody(),
-		State:          pr.GetState(),
-		Draft:          pr.GetDraft(),
-		Merged:         pr.GetMerged(),
-		MergeableState: pr.GetMergeableState(),
-		HTMLURL:        pr.GetHTMLURL(),
-		User:           convertToMinimalUser(pr.GetUser()),
-		Additions:      pr.GetAdditions(),
+		Number:            pr.GetNumber(),
+		Title:             pr.GetTitle(),
+		Body:              pr.GetBody(),
+		State:             pr.GetState(),
+		Draft:             pr.GetDraft(),
+		Merged:            pr.GetMerged(),
+		MergeableState:    pr.GetMergeableState(),
+		HTMLURL:           pr.GetHTMLURL(),
+		User:              convertToMinimalUser(pr.GetUser()),
+		AuthorAssociation: pr.GetAuthorAssociation(),
+		Additions:         pr.GetAdditions(),
 		Deletions:      pr.GetDeletions(),
 		ChangedFiles:   pr.GetChangedFiles(),
 		Commits:        pr.GetCommits(),
