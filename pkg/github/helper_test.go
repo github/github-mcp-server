@@ -71,6 +71,11 @@ const (
 	PostReposIssuesCommentsReactionsByOwnerByRepoByCommentID    = "POST /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions"
 	DeleteReposIssuesIssueFieldValueByOwnerByRepoByIssueNumber  = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/issue-field-values/{issue_field_id}"
 
+	// Issue dependency endpoints
+	GetReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber              = "GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by"
+	PostReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber             = "POST /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by"
+	DeleteReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumberByIssueID  = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by/{issue_id}"
+
 	// Pull request endpoints
 	GetReposPullsByOwnerByRepo                                = "GET /repos/{owner}/{repo}/pulls"
 	GetReposPullsByOwnerByRepoByPullNumber                    = "GET /repos/{owner}/{repo}/pulls/{pull_number}"
