@@ -8,9 +8,13 @@ type ToolScopeMap map[string]*ToolScopeInfo
 // ToolScopeInfo contains scope information for a single tool.
 type ToolScopeInfo struct {
 	// RequiredScopes contains the scopes that are directly required by this tool.
+	// They are ALL required (AND-of-ORs) and are the single source of truth for
+	// allow/challenge decisions.
 	RequiredScopes []string
 
-	// AcceptedScopes contains all scopes that satisfy the requirements (including parent scopes).
+	// AcceptedScopes contains the required scopes plus higher scopes from the
+	// hierarchy. It is display-only metadata and is NOT used to make any
+	// allow/challenge/missing decision.
 	AcceptedScopes []string
 }
 
@@ -68,53 +72,44 @@ func GetToolScopeMapFromInventory(inv *inventory.Inventory) ToolScopeMap {
 	return result
 }
 
-// HasAcceptedScope checks if any of the provided user scopes satisfy the tool's requirements.
-func (t *ToolScopeInfo) HasAcceptedScope(userScopes ...string) bool {
-	if t == nil || len(t.AcceptedScopes) == 0 {
+// Satisfies reports whether the provided user scopes satisfy ALL of the tool's
+// required scopes (AND-of-ORs). Each required scope may be satisfied directly or
+// by a higher scope in the hierarchy, so the user scopes are expanded downward
+// (via expandScopeSet) before checking. A tool with no required scopes is always
+// satisfied.
+//
+// AcceptedScopes is display-only metadata and is intentionally not consulted.
+func (t *ToolScopeInfo) Satisfies(userScopes ...string) bool {
+	if t == nil || len(t.RequiredScopes) == 0 {
 		return true // No scopes required
 	}
 
-	userScopeSet := make(map[string]bool)
-	for _, scope := range userScopes {
-		userScopeSet[scope] = true
-	}
-
-	for _, scope := range t.AcceptedScopes {
-		if userScopeSet[scope] {
-			return true
+	granted := expandScopeSet(userScopes)
+	for _, required := range t.RequiredScopes {
+		if !granted[required] {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
-// MissingScopes returns the required scopes that are not present in the user's scopes.
+// MissingScopes returns the subset of the tool's required scopes that the user
+// scopes do not satisfy, after expanding the user scopes through the scope
+// hierarchy. It returns nil when all required scopes are satisfied (or none are
+// required). The result is the precise set of additional scopes needed for an
+// OAuth scope challenge.
 func (t *ToolScopeInfo) MissingScopes(userScopes ...string) []string {
 	if t == nil || len(t.RequiredScopes) == 0 {
 		return nil
 	}
 
-	// Create a set of user scopes for O(1) lookup
-	userScopeSet := make(map[string]bool, len(userScopes))
-	for _, s := range userScopes {
-		userScopeSet[s] = true
-	}
-
-	// Check if any accepted scope is present
-	hasAccepted := false
-	for _, scope := range t.AcceptedScopes {
-		if userScopeSet[scope] {
-			hasAccepted = true
-			break
+	granted := expandScopeSet(userScopes)
+	var missing []string
+	for _, required := range t.RequiredScopes {
+		if !granted[required] {
+			missing = append(missing, required)
 		}
 	}
-
-	if hasAccepted {
-		return nil // User has sufficient scopes
-	}
-
-	// Return required scopes as the minimum needed
-	missing := make([]string, len(t.RequiredScopes))
-	copy(missing, t.RequiredScopes)
 	return missing
 }
 

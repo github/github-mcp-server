@@ -4,6 +4,8 @@ The GitHub MCP Server automatically filters available tools based on your classi
 
 > **Note:** This feature applies to **classic PATs** (tokens starting with `ghp_`). Fine-grained PATs, GitHub App installation tokens, and server-to-server tokens don't support scope detection and show all tools.
 
+> **Important:** Scope filtering is a best-effort UX convenience, **not an authorization boundary**. The GitHub API is always the source of truth and enforces real permissions. The server therefore **fails open**: it only hides a tool when confident your token cannot use it, and shows the tool whenever access is plausible. See [Limitations and Fail-Open Posture](#limitations-and-fail-open-posture).
+
 ## How It Works
 
 When the server starts with a classic PAT, it makes a lightweight HTTP HEAD request to the GitHub API to discover your token's scopes from the `X-OAuth-Scopes` header. Tools that require scopes your token doesn't have are automatically hidden.
@@ -76,6 +78,19 @@ If the server cannot fetch your token's scopes (e.g., network issues, rate limit
 WARN: failed to fetch token scopes, continuing without scope filtering
 ```
 
+## Limitations and Fail-Open Posture
+
+Scope filtering is a **best-effort UX convenience** for classic PATs (`ghp_`) only. It is **NOT an authorization boundary** — the GitHub API is the source of truth and enforces real permissions regardless of what the server shows. The server therefore **fails open**: when access is plausible but unprovable at filter/challenge time, the tool is shown rather than hidden.
+
+A tool's declared scopes are **all required** (logical AND), and each one may be satisfied directly or by an ancestor scope from the [hierarchy](#scope-hierarchy). Some ways a tool can legitimately be used cannot be determined from OAuth scopes alone, so the scope model intentionally does not fully capture them:
+
+- **Public vs. private repositories.** Which scope suffices can depend on the target repository, which isn't known when tools are filtered. For example, code scanning alerts on **public** repos are readable with `public_repo`, while **private** repos need `security_events` (or `repo`).
+- **Sibling-OR alternatives.** `security_events` and `public_repo` are *siblings* under `repo` (not parent/child), so token hierarchy expansion can't treat one as satisfying the other. A `public_repo`-only token may therefore have the security tools (code scanning, secret scanning, Dependabot, security advisories) hidden even though it could read public-repo data.
+- **Organization roles.** A *security manager* (or similar) org role grants access orthogonally to OAuth scopes and is invisible to scope filtering.
+- **Other token types.** Fine-grained PATs, OAuth, and GitHub App tokens use different permission models; filtering is skipped for them entirely (gated to `ghp_`), which is fail-open by design.
+
+These cases are deferred to runtime API enforcement. If precise sibling-OR modeling is ever needed, the extension point is making the required scopes a list of OR-groups (AND across groups, OR within a group) — deliberately not built yet.
+
 ## Classic vs Fine-Grained Personal Access Tokens
 
 **Classic PATs** (`ghp_` prefix) support OAuth scopes and return them in the `X-OAuth-Scopes` header. Scope filtering works fully with these tokens.
@@ -92,7 +107,7 @@ WARN: failed to fetch token scopes, continuing without scope filtering
 |---------|-------|----------|
 | Missing expected tools | Token lacks required scope | [Edit your PAT's scopes](https://github.com/settings/tokens) in GitHub settings |
 | All tools visible despite limited PAT | Scope detection failed | Check logs for warnings about scope fetching |
-| "Insufficient permissions" errors | Tool visible but scope insufficient | This shouldn't happen with scope filtering; report as bug |
+| "Insufficient permissions" errors | Tool visible but scope insufficient | Expected in some cases (fail-open, public/private ambiguity, org roles, or scope detection skipped). The API enforces the real boundary—grant the needed scope or access |
 
 > **Tip:** You can adjust the scopes of an existing classic PAT at any time via [GitHub's token settings](https://github.com/settings/tokens). After updating scopes, restart the MCP server to pick up the changes.
 

@@ -15,14 +15,14 @@ var repoScopesSet = map[string]bool{
 	string(scopes.PublicRepo): true,
 }
 
-// onlyRequiresRepoScopes returns true if all of the tool's accepted scopes
+// onlyRequiresRepoScopes returns true if all of the tool's required scopes
 // are repo-related scopes (repo, public_repo). Such tools work on public
 // repositories without needing any scope.
-func onlyRequiresRepoScopes(acceptedScopes []string) bool {
-	if len(acceptedScopes) == 0 {
+func onlyRequiresRepoScopes(requiredScopes []string) bool {
+	if len(requiredScopes) == 0 {
 		return false
 	}
-	for _, scope := range acceptedScopes {
+	for _, scope := range requiredScopes {
 		if !repoScopesSet[scope] {
 			return false
 		}
@@ -37,13 +37,23 @@ func onlyRequiresRepoScopes(acceptedScopes []string) bool {
 // like we can with OAuth apps. Instead, we hide tools that require scopes
 // the token doesn't have.
 //
+// This is a best-effort UX filter, not an authorization boundary: the GitHub
+// API still enforces real permissions. It is gated to classic ghp_ PATs and is
+// skipped entirely when scopes can't be fetched, so the posture is to fail open
+// (prefer showing a tool when access is plausible). See docs/scope-filtering.md
+// for the known limitations (sibling scopes, org roles, repo visibility).
+//
 // This is the recommended way to filter tools for stdio servers where the
 // token is known at startup and won't change during the session.
 //
 // The filter returns true (include tool) if:
-//   - The tool has no scope requirements (AcceptedScopes is empty)
+//   - The tool has no scope requirements (RequiredScopes is empty)
 //   - The tool is read-only and only requires repo/public_repo scopes (works on public repos)
-//   - The token has at least one of the tool's accepted scopes
+//   - The token satisfies ALL of the tool's required scopes (AND-of-ORs, where
+//     each required scope may be met directly or by a higher scope)
+//
+// RequiredScopes is the single source of truth here; AcceptedScopes is
+// display-only metadata and is intentionally not consulted.
 //
 // Example usage:
 //
@@ -55,10 +65,16 @@ func onlyRequiresRepoScopes(acceptedScopes []string) bool {
 //	inventory := github.NewInventory(t).WithFilter(filter).Build()
 func CreateToolScopeFilter(tokenScopes []string) inventory.ToolFilter {
 	return func(_ context.Context, tool *inventory.ServerTool) (bool, error) {
-		// Read-only tools requiring only repo/public_repo work on public repos without any scope
-		if tool.Tool.Annotations != nil && tool.Tool.Annotations.ReadOnlyHint && onlyRequiresRepoScopes(tool.AcceptedScopes) {
+		// Read-only tools requiring only repo/public_repo work on public repos without any scope.
+		// Tools that also require a non-repo scope (e.g. {repo, read:org}) fall through to the AND check.
+		//
+		// Note: this public-repo exception is PAT-only. The OAuth scope-challenge
+		// path (scopes.ToolScopeInfo.Satisfies) has no equivalent and will still
+		// challenge for `repo`. That asymmetry is intentional; see
+		// TestAssumption_PATShowsRepoToolsButOAuthChallengesForRepo.
+		if tool.Tool.Annotations != nil && tool.Tool.Annotations.ReadOnlyHint && onlyRequiresRepoScopes(tool.RequiredScopes) {
 			return true, nil
 		}
-		return scopes.HasRequiredScopes(tokenScopes, tool.AcceptedScopes), nil
+		return scopes.HasRequiredScopes(tokenScopes, tool.RequiredScopes), nil
 	}
 }
