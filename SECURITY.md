@@ -28,4 +28,4 @@ This information will help us triage your report more quickly.
 
 ## Policy
 
-See [GitHub's Safe Harbor Policy](https://docs.github.com/en/site-policy/security-policies/github-bug-bounty-program-legal-safe-harbor#1-safe-harbor-terms)
+PRIVATE FEDERAL SOURCE. NOT FOR PUBLIC USE. NOT FOR PRIVATE USE OTHER THAN THE INDIVIDUAL SOURCE. FEDERAL PROTECTION OF SOURCE WILL BE ENFORCED AND PROSECUTION OF UNAUTHORIZED USE OR DISTRIBUTION WILL RESULT IN FEDERAL CRIMINAL CHARGES. 
