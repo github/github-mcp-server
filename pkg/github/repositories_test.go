@@ -23,6 +23,63 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func createCommitOnBranchMatcher(owner, repo, branch, expectedHeadOID, message string, files []commitOnBranchFile, commit *commitOnBranchResult) githubv4mock.Matcher {
+	additions := make([]githubv4.FileAddition, 0, len(files))
+	for _, file := range files {
+		additions = append(additions, githubv4.FileAddition{
+			Path:     githubv4.String(strings.TrimPrefix(file.Path, "/")),
+			Contents: githubv4.Base64String(base64.StdEncoding.EncodeToString([]byte(file.Content))),
+		})
+	}
+
+	input := githubv4.CreateCommitOnBranchInput{
+		Branch: githubv4.CommittableBranch{
+			RepositoryNameWithOwner: githubv4.NewString(githubv4.String(owner + "/" + repo)),
+			BranchName:              githubv4.NewString(githubv4.String(branch)),
+		},
+		Message: githubv4.CommitMessage{
+			Headline: githubv4.String(message),
+		},
+		ExpectedHeadOid: githubv4.GitObjectID(expectedHeadOID),
+		FileChanges: &githubv4.FileChanges{
+			Additions: &additions,
+		},
+	}
+
+	return githubv4mock.NewMutationMatcher(
+		struct {
+			CreateCommitOnBranch struct {
+				Commit struct {
+					OID     githubv4.GitObjectID `graphql:"oid"`
+					Message githubv4.String
+					URL     githubv4.URI
+					Author  struct {
+						Name  githubv4.String
+						Email githubv4.String
+						Date  githubv4.DateTime
+					}
+				}
+			} `graphql:"createCommitOnBranch(input: $input)"`
+		}{},
+		input,
+		nil,
+		githubv4mock.DataResponse(map[string]any{
+			"createCommitOnBranch": map[string]any{
+				"commit": map[string]any{
+					"oid":     commit.SHA,
+					"message": commit.Message,
+					"url":     commit.HTMLURL,
+					"author": map[string]any{
+						"name":  commit.Author.GetName(),
+						"email": commit.Author.GetEmail(),
+						"date":  commit.Author.GetDate().Format(time.RFC3339),
+					},
+				},
+			},
+		}),
+	)
+}
+
 func Test_GetFileContents(t *testing.T) {
 	// Verify tool definition once
 	serverTool := GetFileContents(translations.NullTranslationHelper)
@@ -1607,10 +1664,50 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			HTMLURL: github.Ptr("https://github.com/owner/repo/commit/def456abc789"),
 		},
 	}
+	mockRef := &github.Reference{
+		Ref: github.Ptr("refs/heads/main"),
+		Object: &github.GitObject{
+			SHA: github.Ptr("head123"),
+		},
+	}
+	commitResult := func(message string) *commitOnBranchResult {
+		return &commitOnBranchResult{
+			SHA:     mockFileResponse.Commit.GetSHA(),
+			Message: message,
+			HTMLURL: mockFileResponse.Commit.GetHTMLURL(),
+			Author:  mockFileResponse.Commit.Author,
+		}
+	}
+	notFoundThenUpdatedFile := func() http.HandlerFunc {
+		callCount := 0
+		return func(w http.ResponseWriter, _ *http.Request) {
+			callCount++
+			if callCount == 1 {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			mockResponse(t, http.StatusOK, mockFileResponse.Content)(w, nil)
+		}
+	}
+	existingThenUpdatedFile := func(existingSHA string) http.HandlerFunc {
+		callCount := 0
+		return func(w http.ResponseWriter, _ *http.Request) {
+			callCount++
+			if callCount == 1 {
+				mockResponse(t, http.StatusOK, &github.RepositoryContent{
+					SHA:  github.Ptr(existingSHA),
+					Type: github.Ptr("file"),
+				})(w, nil)
+				return
+			}
+			mockResponse(t, http.StatusOK, mockFileResponse.Content)(w, nil)
+		}
+	}
 
 	tests := []struct {
 		name            string
 		mockedClient    *http.Client
+		mockedGQLClient *http.Client
 		requestArgs     map[string]any
 		expectError     bool
 		expectedContent *github.RepositoryContentResponse
@@ -1618,22 +1715,15 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 	}{
 		{
 			name: "successful file creation",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PutReposContentsByOwnerByRepoByPath: expectRequestBody(t, map[string]any{
-					"message": "Add example file",
-					"content": "IyBFeGFtcGxlCgpUaGlzIGlzIGFuIGV4YW1wbGUgZmlsZS4=", // Base64 encoded content
-					"branch":  "main",
-				}).andThen(
-					mockResponse(t, http.StatusOK, mockFileResponse),
-				),
-				"PUT /repos/{owner}/{repo}/contents/{path:.*}": expectRequestBody(t, map[string]any{
-					"message": "Add example file",
-					"content": "IyBFeGFtcGxlCgpUaGlzIGlzIGFuIGV4YW1wbGUgZmlsZS4=", // Base64 encoded content
-					"branch":  "main",
-				}).andThen(
-					mockResponse(t, http.StatusOK, mockFileResponse),
-				),
-			}),
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler("GET /repos/owner/repo/contents/docs/example.md", notFoundThenUpdatedFile()),
+				WithRequestMatch(GetReposGitRefByOwnerByRepoByRef, mockRef),
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				createCommitOnBranchMatcher("owner", "repo", "main", "head123", "Add example file", []commitOnBranchFile{
+					{Path: "docs/example.md", Content: "# Example\n\nThis is an example file."},
+				}, commitResult("Add example file")),
+			),
 			requestArgs: map[string]any{
 				"owner":   "owner",
 				"repo":    "repo",
@@ -1647,32 +1737,15 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		},
 		{
 			name: "successful file update with SHA",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /repos/owner/repo/contents/docs/example.md": mockResponse(t, http.StatusOK, &github.RepositoryContent{
-					SHA:  github.Ptr("abc123def456"),
-					Type: github.Ptr("file"),
-				}),
-				"GET /repos/{owner}/{repo}/contents/{path:.*}": mockResponse(t, http.StatusOK, &github.RepositoryContent{
-					SHA:  github.Ptr("abc123def456"),
-					Type: github.Ptr("file"),
-				}),
-				PutReposContentsByOwnerByRepoByPath: expectRequestBody(t, map[string]any{
-					"message": "Update example file",
-					"content": "IyBVcGRhdGVkIEV4YW1wbGUKClRoaXMgZmlsZSBoYXMgYmVlbiB1cGRhdGVkLg==", // Base64 encoded content
-					"branch":  "main",
-					"sha":     "abc123def456",
-				}).andThen(
-					mockResponse(t, http.StatusOK, mockFileResponse),
-				),
-				"PUT /repos/{owner}/{repo}/contents/{path:.*}": expectRequestBody(t, map[string]any{
-					"message": "Update example file",
-					"content": "IyBVcGRhdGVkIEV4YW1wbGUKClRoaXMgZmlsZSBoYXMgYmVlbiB1cGRhdGVkLg==", // Base64 encoded content
-					"branch":  "main",
-					"sha":     "abc123def456",
-				}).andThen(
-					mockResponse(t, http.StatusOK, mockFileResponse),
-				),
-			}),
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler("GET /repos/owner/repo/contents/docs/example.md", existingThenUpdatedFile("abc123def456")),
+				WithRequestMatch(GetReposGitRefByOwnerByRepoByRef, mockRef),
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				createCommitOnBranchMatcher("owner", "repo", "main", "head123", "Update example file", []commitOnBranchFile{
+					{Path: "docs/example.md", Content: "# Updated Example\n\nThis file has been updated."},
+				}, commitResult("Update example file")),
+			),
 			requestArgs: map[string]any{
 				"owner":   "owner",
 				"repo":    "repo",
@@ -1687,16 +1760,15 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		},
 		{
 			name: "file creation fails",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PutReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusUnprocessableEntity)
-					_, _ = w.Write([]byte(`{"message": "Invalid request"}`))
-				},
-				"PUT /repos/{owner}/{repo}/contents/{path:.*}": func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusUnprocessableEntity)
-					_, _ = w.Write([]byte(`{"message": "Invalid request"}`))
-				},
-			}),
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler("GET /repos/owner/repo/contents/docs/example.md", func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+				}),
+				WithRequestMatchHandler(GetReposGitRefByOwnerByRepoByRef, func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Reference does not exist"}`))
+				}),
+			),
 			requestArgs: map[string]any{
 				"owner":   "owner",
 				"repo":    "repo",
@@ -1710,32 +1782,15 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		},
 		{
 			name: "sha validation - current sha matches",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /repos/owner/repo/contents/docs/example.md": mockResponse(t, http.StatusOK, &github.RepositoryContent{
-					SHA:  github.Ptr("abc123def456"),
-					Type: github.Ptr("file"),
-				}),
-				"GET /repos/{owner}/{repo}/contents/{path:.*}": mockResponse(t, http.StatusOK, &github.RepositoryContent{
-					SHA:  github.Ptr("abc123def456"),
-					Type: github.Ptr("file"),
-				}),
-				PutReposContentsByOwnerByRepoByPath: expectRequestBody(t, map[string]any{
-					"message": "Update example file",
-					"content": "IyBVcGRhdGVkIEV4YW1wbGUKClRoaXMgZmlsZSBoYXMgYmVlbiB1cGRhdGVkLg==",
-					"branch":  "main",
-					"sha":     "abc123def456",
-				}).andThen(
-					mockResponse(t, http.StatusOK, mockFileResponse),
-				),
-				"PUT /repos/{owner}/{repo}/contents/{path:.*}": expectRequestBody(t, map[string]any{
-					"message": "Update example file",
-					"content": "IyBVcGRhdGVkIEV4YW1wbGUKClRoaXMgZmlsZSBoYXMgYmVlbiB1cGRhdGVkLg==",
-					"branch":  "main",
-					"sha":     "abc123def456",
-				}).andThen(
-					mockResponse(t, http.StatusOK, mockFileResponse),
-				),
-			}),
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler("GET /repos/owner/repo/contents/docs/example.md", existingThenUpdatedFile("abc123def456")),
+				WithRequestMatch(GetReposGitRefByOwnerByRepoByRef, mockRef),
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				createCommitOnBranchMatcher("owner", "repo", "main", "head123", "Update example file", []commitOnBranchFile{
+					{Path: "docs/example.md", Content: "# Updated Example\n\nThis file has been updated."},
+				}, commitResult("Update example file")),
+			),
 			requestArgs: map[string]any{
 				"owner":   "owner",
 				"repo":    "repo",
@@ -1774,30 +1829,15 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		},
 		{
 			name: "sha validation - file doesn't exist (404), proceed with create",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /repos/owner/repo/contents/docs/example.md": func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusNotFound)
-				},
-				"GET /repos/{owner}/{repo}/contents/{path:.*}": func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusNotFound)
-				},
-				PutReposContentsByOwnerByRepoByPath: expectRequestBody(t, map[string]any{
-					"message": "Create new file",
-					"content": "IyBOZXcgRmlsZQoKVGhpcyBpcyBhIG5ldyBmaWxlLg==",
-					"branch":  "main",
-					"sha":     "ignoredsha", // SHA is sent but GitHub API ignores it for new files
-				}).andThen(
-					mockResponse(t, http.StatusCreated, mockFileResponse),
-				),
-				"PUT /repos/{owner}/{repo}/contents/{path:.*}": expectRequestBody(t, map[string]any{
-					"message": "Create new file",
-					"content": "IyBOZXcgRmlsZQoKVGhpcyBpcyBhIG5ldyBmaWxlLg==",
-					"branch":  "main",
-					"sha":     "ignoredsha", // SHA is sent but GitHub API ignores it for new files
-				}).andThen(
-					mockResponse(t, http.StatusCreated, mockFileResponse),
-				),
-			}),
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler("GET /repos/owner/repo/contents/docs/example.md", notFoundThenUpdatedFile()),
+				WithRequestMatch(GetReposGitRefByOwnerByRepoByRef, mockRef),
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				createCommitOnBranchMatcher("owner", "repo", "main", "head123", "Create new file", []commitOnBranchFile{
+					{Path: "docs/example.md", Content: "# New File\n\nThis is a new file."},
+				}, commitResult("Create new file")),
+			),
 			requestArgs: map[string]any{
 				"owner":   "owner",
 				"repo":    "repo",
@@ -1835,28 +1875,15 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		},
 		{
 			name: "no sha provided - file doesn't exist, no warning",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /repos/owner/repo/contents/docs/example.md": func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusNotFound)
-				},
-				"GET /repos/{owner}/{repo}/contents/{path:.*}": func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusNotFound)
-				},
-				PutReposContentsByOwnerByRepoByPath: expectRequestBody(t, map[string]any{
-					"message": "Create new file",
-					"content": "IyBOZXcgRmlsZQoKQ3JlYXRlZCB3aXRob3V0IFNIQQ==",
-					"branch":  "main",
-				}).andThen(
-					mockResponse(t, http.StatusCreated, mockFileResponse),
-				),
-				"PUT /repos/{owner}/{repo}/contents/{path:.*}": expectRequestBody(t, map[string]any{
-					"message": "Create new file",
-					"content": "IyBOZXcgRmlsZQoKQ3JlYXRlZCB3aXRob3V0IFNIQQ==",
-					"branch":  "main",
-				}).andThen(
-					mockResponse(t, http.StatusCreated, mockFileResponse),
-				),
-			}),
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler("GET /repos/owner/repo/contents/docs/example.md", notFoundThenUpdatedFile()),
+				WithRequestMatch(GetReposGitRefByOwnerByRepoByRef, mockRef),
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				createCommitOnBranchMatcher("owner", "repo", "main", "head123", "Create new file", []commitOnBranchFile{
+					{Path: "docs/example.md", Content: "# New File\n\nCreated without SHA"},
+				}, commitResult("Create new file")),
+			),
 			requestArgs: map[string]any{
 				"owner":   "owner",
 				"repo":    "repo",
@@ -1874,8 +1901,13 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := mustNewGHClient(t, tc.mockedClient)
+			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
+			if tc.mockedGQLClient != nil {
+				gqlClient = githubv4.NewClient(tc.mockedGQLClient)
+			}
 			deps := BaseDeps{
-				Client: client,
+				Client:    client,
+				GQLClient: gqlClient,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -1920,7 +1952,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 
 			// Verify commit
 			assert.Equal(t, tc.expectedContent.Commit.GetSHA(), returnedContent.Commit.SHA)
-			assert.Equal(t, tc.expectedContent.Commit.GetMessage(), returnedContent.Commit.Message)
+			assert.Equal(t, tc.requestArgs["message"], returnedContent.Commit.Message)
 			assert.Equal(t, tc.expectedContent.Commit.GetHTMLURL(), returnedContent.Commit.HTMLURL)
 
 			// Verify commit author
@@ -2176,12 +2208,13 @@ func Test_PushFiles(t *testing.T) {
 
 	// Define test cases
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]any
-		expectError    bool
-		expectedRef    *github.Reference
-		expectedErrMsg string
+		name            string
+		mockedClient    *http.Client
+		mockedGQLClient *http.Client
+		requestArgs     map[string]any
+		expectError     bool
+		expectedRef     *github.Reference
+		expectedErrMsg  string
 	}{
 		{
 			name: "successful push of multiple files",
@@ -2240,6 +2273,17 @@ func Test_PushFiles(t *testing.T) {
 						mockResponse(t, http.StatusOK, mockUpdatedRef),
 					),
 				),
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				createCommitOnBranchMatcher("owner", "repo", "main", "abc123", "Update multiple files", []commitOnBranchFile{
+					{Path: "README.md", Content: "# Updated README\n\nThis is an updated README file."},
+					{Path: "docs/example.md", Content: "# Example\n\nThis is an example file."},
+				}, &commitOnBranchResult{
+					SHA:     "jkl012",
+					Message: "Update multiple files",
+					HTMLURL: "https://github.com/owner/repo/commit/jkl012",
+					Author:  &github.CommitAuthor{},
+				}),
 			),
 			requestArgs: map[string]any{
 				"owner":  "owner",
@@ -2390,7 +2434,7 @@ func Test_PushFiles(t *testing.T) {
 			expectedErrMsg: "failed to get base commit",
 		},
 		{
-			name: "fails to create tree",
+			name: "fails to create commit",
 			mockedClient: NewMockedHTTPClient(
 				// Get branch reference
 				WithRequestMatch(
@@ -2408,6 +2452,42 @@ func Test_PushFiles(t *testing.T) {
 					mockResponse(t, http.StatusInternalServerError, nil),
 				),
 			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewMutationMatcher(
+					struct {
+						CreateCommitOnBranch struct {
+							Commit struct {
+								OID     githubv4.GitObjectID `graphql:"oid"`
+								Message githubv4.String
+								URL     githubv4.URI
+								Author  struct {
+									Name  githubv4.String
+									Email githubv4.String
+									Date  githubv4.DateTime
+								}
+							}
+						} `graphql:"createCommitOnBranch(input: $input)"`
+					}{},
+					githubv4.CreateCommitOnBranchInput{
+						Branch: githubv4.CommittableBranch{
+							RepositoryNameWithOwner: githubv4.NewString(githubv4.String("owner/repo")),
+							BranchName:              githubv4.NewString(githubv4.String("main")),
+						},
+						Message:         githubv4.CommitMessage{Headline: githubv4.String("Update file")},
+						ExpectedHeadOid: githubv4.GitObjectID("abc123"),
+						FileChanges: &githubv4.FileChanges{
+							Additions: &[]githubv4.FileAddition{
+								{
+									Path:     githubv4.String("README.md"),
+									Contents: githubv4.Base64String(base64.StdEncoding.EncodeToString([]byte("# README"))),
+								},
+							},
+						},
+					},
+					nil,
+					githubv4mock.ErrorResponse("failed to create commit"),
+				),
+			),
 			requestArgs: map[string]any{
 				"owner":  "owner",
 				"repo":   "repo",
@@ -2421,7 +2501,7 @@ func Test_PushFiles(t *testing.T) {
 				"message": "Update file",
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to create tree",
+			expectedErrMsg: "failed to create commit",
 		},
 		{
 			name: "successful push to empty repository",
@@ -2493,6 +2573,16 @@ func Test_PushFiles(t *testing.T) {
 					PatchReposGitRefsByOwnerByRepoByRef,
 					mockUpdatedRef,
 				),
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				createCommitOnBranchMatcher("owner", "repo", "main", "abc123", "Initial commit", []commitOnBranchFile{
+					{Path: "README.md", Content: "# Initial README\n\nFirst commit to empty repository."},
+				}, &commitOnBranchResult{
+					SHA:     "jkl012",
+					Message: "Initial commit",
+					HTMLURL: "https://github.com/owner/repo/commit/jkl012",
+					Author:  &github.CommitAuthor{},
+				}),
 			),
 			requestArgs: map[string]any{
 				"owner":  "owner",
@@ -2639,6 +2729,18 @@ func Test_PushFiles(t *testing.T) {
 						mockResponse(t, http.StatusOK, mockUpdatedRef),
 					),
 				),
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				createCommitOnBranchMatcher("owner", "repo", "main", "init456", "Initial project setup", []commitOnBranchFile{
+					{Path: "README.md", Content: "# Project\n\nProject README"},
+					{Path: ".gitignore", Content: "node_modules/\n*.log\n"},
+					{Path: "src/main.js", Content: "console.log('Hello World');\n"},
+				}, &commitOnBranchResult{
+					SHA:     "jkl012",
+					Message: "Initial project setup",
+					HTMLURL: "https://github.com/owner/repo/commit/jkl012",
+					Author:  &github.CommitAuthor{},
+				}),
 			),
 			requestArgs: map[string]any{
 				"owner":  "owner",
@@ -2823,8 +2925,13 @@ func Test_PushFiles(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := mustNewGHClient(t, tc.mockedClient)
+			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
+			if tc.mockedGQLClient != nil {
+				gqlClient = githubv4.NewClient(tc.mockedGQLClient)
+			}
 			deps := BaseDeps{
-				Client: client,
+				Client:    client,
+				GQLClient: gqlClient,
 			}
 			handler := serverTool.Handler(deps)
 
