@@ -1,0 +1,158 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "openWorldHint": true,
+    "title": "Create repository security advisory"
+  },
+  "description": "Create a draft repository security advisory. Exactly one of severity or cvssVectorString must be provided. When startPrivateFork is true, a temporary private fork is created for collaborating on a fix.",
+  "inputSchema": {
+    "properties": {
+      "credits": {
+        "description": "Users credited for the advisory.",
+        "items": {
+          "properties": {
+            "login": {
+              "description": "The GitHub username of the credited user.",
+              "type": "string"
+            },
+            "type": {
+              "description": "The credit type.",
+              "enum": [
+                "analyst",
+                "finder",
+                "reporter",
+                "coordinator",
+                "remediation_developer",
+                "remediation_reviewer",
+                "remediation_verifier",
+                "tool",
+                "sponsor",
+                "other"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "login",
+            "type"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "cveId": {
+        "description": "The CVE ID to assign to the advisory.",
+        "type": "string"
+      },
+      "cvssVectorString": {
+        "description": "The CVSS vector string for the advisory. Exactly one of severity or cvssVectorString is required.",
+        "type": "string"
+      },
+      "cweIds": {
+        "description": "Common Weakness Enumeration IDs (for example, [\"CWE-79\"]).",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "description": {
+        "description": "A detailed description of the security advisory.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "The owner of the repository.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "The name of the repository.",
+        "type": "string"
+      },
+      "severity": {
+        "description": "The severity of the advisory. Exactly one of severity or cvssVectorString is required.",
+        "enum": [
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "type": "string"
+      },
+      "startPrivateFork": {
+        "description": "Whether to create a temporary private fork for collaborating on a fix.",
+        "type": "boolean"
+      },
+      "summary": {
+        "description": "A short summary of the security advisory.",
+        "type": "string"
+      },
+      "vulnerabilities": {
+        "description": "Affected products and version ranges.",
+        "items": {
+          "properties": {
+            "package": {
+              "properties": {
+                "ecosystem": {
+                  "description": "The package ecosystem.",
+                  "enum": [
+                    "actions",
+                    "composer",
+                    "erlang",
+                    "go",
+                    "maven",
+                    "npm",
+                    "nuget",
+                    "other",
+                    "pip",
+                    "pub",
+                    "rubygems",
+                    "rust",
+                    "swift"
+                  ],
+                  "type": "string"
+                },
+                "name": {
+                  "description": "The package name.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "ecosystem",
+                "name"
+              ],
+              "type": "object"
+            },
+            "patched_versions": {
+              "description": "The version that patches the vulnerability.",
+              "type": "string"
+            },
+            "vulnerable_functions": {
+              "description": "Functions in the package that are affected.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "vulnerable_version_range": {
+              "description": "The range of affected versions (for example, \"\u003c 2.0.0\").",
+              "type": "string"
+            }
+          },
+          "required": [
+            "package"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "summary",
+      "description",
+      "vulnerabilities"
+    ],
+    "type": "object"
+  },
+  "name": "create_repository_security_advisory"
+}
