@@ -348,6 +348,20 @@ func TestRunStdioServerRejectsTokenAndOAuth(t *testing.T) {
 	assert.Contains(t, err.Error(), "mutually exclusive")
 }
 
+func TestRunStdioServerRejectsAppAuthAndOAuth(t *testing.T) {
+	t.Parallel()
+
+	mgr := oauth.NewManager(oauth.NewGitHubConfig("client-id", "", nil, "", 0), discardLogger())
+	err := RunStdioServer(StdioServerConfig{
+		AppID:          1,
+		PrivateKey:     []byte("not-a-real-key"),
+		InstallationID: 2,
+		OAuthManager:   mgr,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "mutually exclusive")
+}
+
 // TestCreateGitHubClientsTokenProvider proves the OAuth wiring: when a
 // TokenProvider is configured the REST client authenticates with the provider's
 // current token on every request (and never pins a stale one), which is what the
@@ -369,7 +383,7 @@ func TestCreateGitHubClientsTokenProvider(t *testing.T) {
 	clients, err := createGitHubClients(github.MCPServerConfig{
 		Version:       "test",
 		TokenProvider: func() string { return current },
-	}, apiHost)
+	}, apiHost, nil)
 	require.NoError(t, err)
 
 	do := func() {

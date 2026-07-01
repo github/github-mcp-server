@@ -14,6 +14,10 @@ pass `--oauth-client-id` (see [Bring your own app](#bring-your-own-app)).
 > OAuth login applies to the **stdio** server only. The remote server and the
 > `http` command have their own authentication; see
 > [Remote Server](remote-server.md).
+>
+> To authenticate directly as a GitHub App installation via `GITHUB_APP_ID`,
+> `GITHUB_APP_INSTALLATION_ID`, and a private key, see
+> [Local Server GitHub App Authentication](github-app-auth.md).
 
 ## Contents
 

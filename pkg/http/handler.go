@@ -8,6 +8,7 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/github/appauth"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -36,6 +37,7 @@ type Handler struct {
 	oauthCfg               *oauth.Config
 	scopeFetcher           scopes.FetcherInterface
 	schemaCache            *mcp.SchemaCache
+	appAuthTransport       *appauth.Transport
 }
 
 type HandlerOptions struct {
@@ -44,6 +46,7 @@ type HandlerOptions struct {
 	OAuthConfig            *oauth.Config
 	ScopeFetcher           scopes.FetcherInterface
 	FeatureChecker         inventory.FeatureFlagChecker
+	AppAuthTransport       *appauth.Transport
 }
 
 type HandlerOption func(*HandlerOptions)
@@ -51,6 +54,16 @@ type HandlerOption func(*HandlerOptions)
 func WithScopeFetcher(f scopes.FetcherInterface) HandlerOption {
 	return func(o *HandlerOptions) {
 		o.ScopeFetcher = f
+	}
+}
+
+// WithAppAuthTransport configures the handler to authenticate outbound GitHub
+// API calls using a GitHub App installation. When set, an incoming request
+// without an Authorization header is allowed: the middleware injects the
+// installation token derived from this transport into the request context.
+func WithAppAuthTransport(t *appauth.Transport) HandlerOption {
+	return func(o *HandlerOptions) {
+		o.AppAuthTransport = t
 	}
 }
 
@@ -122,10 +135,14 @@ func NewHTTPMcpHandler(
 		oauthCfg:               opts.OAuthConfig,
 		scopeFetcher:           scopeFetcher,
 		schemaCache:            schemaCache,
+		appAuthTransport:       opts.AppAuthTransport,
 	}
 }
 
 func (h *Handler) RegisterMiddleware(r chi.Router) {
+	if h.appAuthTransport != nil {
+		r.Use(middleware.WithGitHubAppToken(h.appAuthTransport, h.logger))
+	}
 	r.Use(
 		middleware.ExtractUserToken(h.oauthCfg),
 		middleware.WithRequestConfig,

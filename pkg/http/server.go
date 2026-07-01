@@ -15,6 +15,7 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/github/appauth"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -100,6 +101,14 @@ type ServerConfig struct {
 
 	// InsidersMode expands to the curated set of feature flags enabled for insiders.
 	InsidersMode bool
+
+	// GitHub App authentication (alternative to per-request bearer tokens).
+	// When AppID, PrivateKey, and InstallationID are all set, the server
+	// authenticates outbound GitHub API calls as a GitHub App installation
+	// instead of requiring an Authorization header on incoming requests.
+	AppID          int64
+	PrivateKey     []byte
+	InstallationID int64
 }
 
 func RunHTTPServer(cfg ServerConfig) error {
@@ -172,6 +181,24 @@ func RunHTTPServer(cfg ServerConfig) error {
 	if cfg.ScopeChallenge {
 		scopeFetcher := scopes.NewFetcher(apiHost, scopes.FetcherOptions{})
 		serverOptions = append(serverOptions, WithScopeFetcher(scopeFetcher))
+	}
+
+	if cfg.AppID != 0 && len(cfg.PrivateKey) > 0 && cfg.InstallationID != 0 {
+		baseURL, err := apiHost.BaseRESTURL(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get base REST URL for app auth: %w", err)
+		}
+		appTransport, err := appauth.NewTransport(http.DefaultTransport, appauth.Config{
+			AppID:          cfg.AppID,
+			PrivateKey:     cfg.PrivateKey,
+			InstallationID: cfg.InstallationID,
+			BaseURL:        baseURL.String(),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create GitHub App auth transport: %w", err)
+		}
+		serverOptions = append(serverOptions, WithAppAuthTransport(appTransport))
+		logger.Info("using GitHub App authentication", "appID", cfg.AppID, "installationID", cfg.InstallationID)
 	}
 
 	r := chi.NewRouter()

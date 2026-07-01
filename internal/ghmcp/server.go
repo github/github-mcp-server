@@ -15,6 +15,7 @@ import (
 	"github.com/github/github-mcp-server/internal/oauth"
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/github/appauth"
 	"github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
@@ -41,7 +42,9 @@ type githubClients struct {
 }
 
 // createGitHubClients creates all the GitHub API clients needed by the server.
-func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolver) (*githubClients, error) {
+// If authTransport is non-nil, it is used for authentication instead of cfg.Token
+// or cfg.TokenProvider.
+func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolver, authTransport http.RoundTripper) (*githubClients, error) {
 	restURL, err := apiHost.BaseRESTURL(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get base REST URL: %w", err)
@@ -62,16 +65,30 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
 	}
 
+	// Determine the base transport for REST requests. GitHub App auth uses a
+	// custom transport; otherwise we start from the default transport and layer
+	// either a static token or a lazy token provider on top.
+	baseTransport := http.RoundTripper(http.DefaultTransport)
+	if authTransport != nil {
+		baseTransport = authTransport
+	}
+
 	// Construct REST client. When a TokenProvider is configured (OAuth), we
 	// authenticate via BearerAuthTransport and skip go-github's WithAuthToken:
 	// the latter installs its own round tripper that would pin the static token
 	// and shadow the dynamic one.
 	restUATransport := &transport.UserAgentTransport{
-		Transport: http.DefaultTransport,
+		Transport: baseTransport,
 		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
 	}
 	var restClient *gogithub.Client
-	if cfg.TokenProvider != nil {
+	switch {
+	case authTransport != nil:
+		restClient, err = gogithub.NewClient(
+			gogithub.WithHTTPClient(&http.Client{Transport: restUATransport}),
+			gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
+		)
+	case cfg.TokenProvider != nil:
 		restClient, err = gogithub.NewClient(
 			gogithub.WithHTTPClient(&http.Client{Transport: &transport.BearerAuthTransport{
 				Transport:     restUATransport,
@@ -79,7 +96,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 			}}),
 			gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
 		)
-	} else {
+	default:
 		restClient, err = gogithub.NewClient(
 			gogithub.WithHTTPClient(&http.Client{Transport: restUATransport}),
 			gogithub.WithAuthToken(cfg.Token),
@@ -92,15 +109,23 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 
 	// Construct GraphQL client
 	// We use NewEnterpriseClient unconditionally since we already parsed the API host
-	gqlHTTPClient := &http.Client{
-		Transport: &transport.BearerAuthTransport{
+	var gqlTransport http.RoundTripper
+	if authTransport != nil {
+		// Auth transport already sets the Authorization header; addUserAgentsMiddleware
+		// will wrap the client transport with the session-specific User-Agent after initialize.
+		gqlTransport = &transport.GraphQLFeaturesTransport{
+			Transport: authTransport,
+		}
+	} else {
+		gqlTransport = &transport.BearerAuthTransport{
 			Transport: &transport.GraphQLFeaturesTransport{
 				Transport: http.DefaultTransport,
 			},
 			Token:         cfg.Token,
 			TokenProvider: cfg.TokenProvider,
-		},
+		}
 	}
+	gqlHTTPClient := &http.Client{Transport: gqlTransport}
 
 	gqlClient := githubv4.NewEnterpriseClient(graphQLURL.String(), gqlHTTPClient)
 
@@ -132,13 +157,13 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	}, nil
 }
 
-func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Server, error) {
+func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig, authTransport http.RoundTripper) (*mcp.Server, error) {
 	apiHost, err := utils.NewAPIHost(cfg.Host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
 	}
 
-	clients, err := createGitHubClients(cfg, apiHost)
+	clients, err := createGitHubClients(cfg, apiHost, authTransport)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
 	}
@@ -246,6 +271,13 @@ type StdioServerConfig struct {
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
 
+	// GitHub App authentication (alternative to Token)
+	// When AppID, PrivateKey, and InstallationID are all set, the server
+	// authenticates as a GitHub App installation instead of using a PAT.
+	AppID          int64
+	PrivateKey     []byte
+	InstallationID int64
+
 	// OAuthManager, when non-nil, enables OAuth 2.1 login for stdio mode. The
 	// server starts without a token and runs the authorization flow on the
 	// first tool call (see createOAuthMiddleware). It is mutually exclusive with
@@ -261,11 +293,16 @@ type StdioServerConfig struct {
 
 // RunStdioServer is not concurrent safe.
 func RunStdioServer(cfg StdioServerConfig) error {
+	useAppAuth := cfg.AppID != 0 && len(cfg.PrivateKey) > 0 && cfg.InstallationID != 0
+
 	// OAuth login and a static token are mutually exclusive: they would
 	// disagree on how the token is sourced (lazy provider vs. static) and on
 	// scope filtering, so reject the ambiguous combination up front.
 	if cfg.OAuthManager != nil && cfg.Token != "" {
 		return fmt.Errorf("OAuthManager and a static Token are mutually exclusive: provide one or the other")
+	}
+	if cfg.OAuthManager != nil && useAppAuth {
+		return fmt.Errorf("OAuthManager and GitHub App authentication are mutually exclusive: provide one or the other")
 	}
 
 	// Create app context
@@ -290,12 +327,38 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
 
+	// Set up GitHub App authentication transport if configured
+	var appAuthTransport http.RoundTripper
+	if useAppAuth {
+		apiHost, err := utils.NewAPIHost(cfg.Host)
+		if err != nil {
+			return fmt.Errorf("failed to parse API host for app auth: %w", err)
+		}
+		baseURL, err := apiHost.BaseRESTURL(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get base REST URL for app auth: %w", err)
+		}
+		tr, err := appauth.NewTransport(http.DefaultTransport, appauth.Config{
+			AppID:          cfg.AppID,
+			PrivateKey:     cfg.PrivateKey,
+			InstallationID: cfg.InstallationID,
+			BaseURL:        baseURL.String(),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create GitHub App auth transport: %w", err)
+		}
+		appAuthTransport = tr
+		logger.Info("using GitHub App authentication", "appID", cfg.AppID, "installationID", cfg.InstallationID)
+	}
+
 	// Determine the scope set used to filter tools. Classic PATs expose their
 	// granted scopes via the API; OAuth uses the requested scopes (the default
 	// set hides nothing, a narrower explicit set filters accordingly). Other
 	// token types don't advertise scopes, so filtering is skipped.
 	var tokenScopes []string
 	switch {
+	case appAuthTransport != nil:
+		logger.Debug("skipping scope filtering for GitHub App authentication")
 	case strings.HasPrefix(cfg.Token, "ghp_"):
 		fetchedScopes, err := fetchTokenScopesForHost(ctx, cfg.Token, cfg.Host)
 		if err != nil {
@@ -335,7 +398,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
 		TokenScopes:       tokenScopes,
 		TokenProvider:     tokenProvider,
-	})
+	}, appAuthTransport)
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
 	}
