@@ -81,15 +81,16 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 
 ### Install in other MCP hosts
 
-- **[Copilot CLI](/docs/installation-guides/install-copilot-cli.md)** - Installation guide for GitHub Copilot CLI
-- **[GitHub Copilot in other IDEs](/docs/installation-guides/install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
-- **[Claude Applications](/docs/installation-guides/install-claude.md)** - Installation guide for Claude Desktop and Claude Code CLI
+- **[Claude Code & Claude Desktop](/docs/installation-guides/install-claude.md)** - Installation guide for Claude Code and Claude Desktop
 - **[Codex](/docs/installation-guides/install-codex.md)** - Installation guide for OpenAI Codex
+- **[Copilot CLI](/docs/installation-guides/install-copilot-cli.md)** - Installation guide for GitHub Copilot CLI
 - **[Cursor](/docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
+- **[GitHub Copilot in other IDEs](/docs/installation-guides/install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
+- **[Google Gemini CLI](/docs/installation-guides/install-gemini-cli.md)** - Installation guide for Google Gemini CLI
 - **[OpenCode](/docs/installation-guides/install-opencode.md)** - Installation guide for the OpenCode terminal agent
+- **[Rovo Dev CLI](/docs/installation-guides/install-rovo-dev-cli.md)** - Installation guide for Rovo Dev CLI
 - **[Windsurf](/docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
 - **[Zed](/docs/installation-guides/install-zed.md)** - Installation guide for Zed editor
-- **[Rovo Dev CLI](/docs/installation-guides/install-rovo-dev-cli.md)** - Installation guide for Rovo Dev CLI
 
 > **Note:** Each MCP host application needs to configure a GitHub App or OAuth App to support remote access via OAuth. Any host application that supports remote MCP servers should support the remote GitHub server with PAT authentication. Configuration details and support levels vary by host. Make sure to refer to the host application's documentation for more info.
 
@@ -385,14 +386,16 @@ Optionally, you can add a similar example (i.e. without the mcp key) to a file c
 
 For other MCP host applications, please refer to our installation guides:
 
-- **[Copilot CLI](docs/installation-guides/install-copilot-cli.md)** - Installation guide for GitHub Copilot CLI
+- **[Claude Code & Claude Desktop](/docs/installation-guides/install-claude.md)** - Installation guide for Claude Code and Claude Desktop
+- **[Codex](/docs/installation-guides/install-codex.md)** - Installation guide for OpenAI Codex
+- **[Copilot CLI](/docs/installation-guides/install-copilot-cli.md)** - Installation guide for GitHub Copilot CLI
+- **[Cursor](/docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
 - **[GitHub Copilot in other IDEs](/docs/installation-guides/install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
-- **[Claude Code & Claude Desktop](docs/installation-guides/install-claude.md)** - Installation guide for Claude Code and Claude Desktop
-- **[Cursor](docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
-- **[Google Gemini CLI](docs/installation-guides/install-gemini-cli.md)** - Installation guide for Google Gemini CLI
-- **[OpenCode](docs/installation-guides/install-opencode.md)** - Installation guide for the OpenCode terminal agent
-- **[Windsurf](docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
-- **[Zed](docs/installation-guides/install-zed.md)** - Installation guide for Zed editor
+- **[Google Gemini CLI](/docs/installation-guides/install-gemini-cli.md)** - Installation guide for Google Gemini CLI
+- **[OpenCode](/docs/installation-guides/install-opencode.md)** - Installation guide for the OpenCode terminal agent
+- **[Rovo Dev CLI](/docs/installation-guides/install-rovo-dev-cli.md)** - Installation guide for Rovo Dev CLI
+- **[Windsurf](/docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
+- **[Zed](/docs/installation-guides/install-zed.md)** - Installation guide for Zed editor
 
 For a complete overview of all installation options, see our **[Installation Guides Index](docs/installation-guides)**.
 
