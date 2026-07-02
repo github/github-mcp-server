@@ -6,9 +6,27 @@
     "readOnlyHint": false,
     "title": "Update Issue State"
   },
-  "description": "Update the state of an existing issue (open or closed), with an optional state reason.",
+  "description": "Update the state of an existing issue (open or closed), with an optional state reason. When closing, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the decision. Use is_suggestion to propose the change without applying it directly.",
   "inputSchema": {
     "properties": {
+      "confidence": {
+        "description": "How confident you are in this choice. Use 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal.",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH"
+        ],
+        "type": "string"
+      },
+      "duplicate_of": {
+        "description": "The issue number of the canonical issue this issue duplicates. Only valid when state_reason is 'duplicate'. Required when is_suggestion is true. The issue number is resolved to a database ID before being sent to the API.",
+        "minimum": 1,
+        "type": "number"
+      },
+      "is_suggestion": {
+        "description": "If true, this state change is sent to the API as a suggestion (suggest:true) rather than an applied change. Whether the change is applied or recorded as a proposal is determined by the API.",
+        "type": "boolean"
+      },
       "issue_number": {
         "description": "The issue number to update",
         "minimum": 1,
@@ -16,6 +34,11 @@
       },
       "owner": {
         "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "rationale": {
+        "description": "One concise sentence explaining what specifically about the issue led you to choose this state. State the concrete signal (e.g. 'The reported crash is fixed in v2.1' → completed).",
+        "maxLength": 280,
         "type": "string"
       },
       "repo": {
