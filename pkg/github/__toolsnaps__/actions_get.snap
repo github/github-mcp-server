@@ -7,6 +7,16 @@
   "description": "Get details about specific GitHub Actions resources.\nUse this tool to get details about individual workflows, workflow runs, jobs, and artifacts by their unique IDs.\n",
   "inputSchema": {
     "properties": {
+      "artifact_name": {
+        "description": "Exact workflow artifact name to resolve within 'run_id' for 'download_workflow_run_artifact'.",
+        "type": "string"
+      },
+      "max_bytes": {
+        "default": 65536,
+        "description": "Maximum number of bytes of text content to return per file when extracting 'download_workflow_run_artifact'. Defaults to 65536.",
+        "minimum": 1,
+        "type": "number"
+      },
       "method": {
         "description": "The method to execute",
         "enum": [
@@ -23,20 +33,27 @@
         "description": "Repository owner",
         "type": "string"
       },
+      "path": {
+        "description": "Optional exact file path inside the artifact ZIP to return for 'download_workflow_run_artifact'.",
+        "type": "string"
+      },
       "repo": {
         "description": "Repository name",
         "type": "string"
       },
       "resource_id": {
-        "description": "The unique identifier of the resource. This will vary based on the \"method\" provided, so ensure you provide the correct ID:\n- Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'get_workflow' method.\n- Provide a workflow run ID for 'get_workflow_run', 'get_workflow_run_usage', and 'get_workflow_run_logs_url' methods.\n- Provide an artifact ID for 'download_workflow_run_artifact' method.\n- Provide a job ID for 'get_workflow_job' method.\n",
+        "description": "The unique identifier of the resource. This will vary based on the \"method\" provided, so ensure you provide the correct ID:\n- Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'get_workflow' method.\n- Provide a workflow run ID for 'get_workflow_run', 'get_workflow_run_usage', and 'get_workflow_run_logs_url' methods.\n- Provide an artifact ID for 'download_workflow_run_artifact' to get a temporary download URL, or omit it and use 'run_id' plus 'artifact_name' to return artifact contents.\n- Provide a job ID for 'get_workflow_job' method.\n",
         "type": "string"
+      },
+      "run_id": {
+        "description": "Workflow run ID used with 'artifact_name' to resolve and extract an artifact for 'download_workflow_run_artifact'.",
+        "type": "number"
       }
     },
     "required": [
       "method",
       "owner",
-      "repo",
-      "resource_id"
+      "repo"
     ],
     "type": "object"
   },
