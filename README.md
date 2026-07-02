@@ -1151,6 +1151,14 @@ The following sets of tools are available:
   - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], optional)
   - `title`: PR title (string, required)
 
+- **get_pull_request_review_threads_batch** - Get batch pull request review threads
+  - **Required OAuth Scopes**: `repo`
+  - `afterByPullNumber`: Optional per-PR cursor map keyed by stringified pull request number. Each value should be the endCursor returned for that pull request in a previous batch response. (object, optional)
+  - `owner`: Repository owner (string, required)
+  - `perPage`: Review threads per pull request page (min 1, max 100) (integer, optional)
+  - `pullNumbers`: Explicit pull request numbers to hydrate. Accepts up to 20 items. (integer[], required)
+  - `repo`: Repository name (string, required)
+
 - **list_pull_requests** - List pull requests
   - **Required OAuth Scopes**: `repo`
   - `base`: Filter by base branch (string, optional)
