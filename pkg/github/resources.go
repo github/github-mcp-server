@@ -15,5 +15,8 @@ func AllResources(t translations.TranslationHelperFunc) []inventory.ServerResour
 		GetRepositoryResourceCommitContent(t),
 		GetRepositoryResourceTagContent(t),
 		GetRepositoryResourcePrContent(t),
+
+		// Issue resources
+		GetIssueResourceContent(t),
 	}
 }
