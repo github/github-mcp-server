@@ -161,28 +161,40 @@ Possible options:
 }
 
 func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+	minimalPR, toolErr, err := getMinimalPullRequest(ctx, client, deps, owner, repo, pullNumber)
+	if toolErr != nil || err != nil {
+		return toolErr, err
+	}
+
+	return MarshalledTextResult(minimalPR), nil
+}
+
+func getMinimalPullRequest(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int) (MinimalPullRequest, *mcp.CallToolResult, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+		return MinimalPullRequest{}, nil, fmt.Errorf("failed to get repo access cache: %w", err)
 	}
 	ff := deps.GetFlags(ctx)
 
 	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
 	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+		return MinimalPullRequest{}, ghErrors.NewGitHubAPIErrorResponse(ctx,
 			"failed to get pull request",
 			resp,
 			err,
 		), nil
+	}
+	if resp == nil {
+		return MinimalPullRequest{}, nil, fmt.Errorf("missing GitHub response")
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			return MinimalPullRequest{}, nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
+		return MinimalPullRequest{}, ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
 	}
 
 	// sanitize title/body on response
@@ -197,24 +209,22 @@ func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDepende
 
 	if ff.LockdownMode {
 		if cache == nil {
-			return nil, fmt.Errorf("lockdown cache is not configured")
+			return MinimalPullRequest{}, nil, fmt.Errorf("lockdown cache is not configured")
 		}
 		login := pr.GetUser().GetLogin()
 		if login != "" {
 			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
 			if err != nil {
-				return nil, fmt.Errorf("failed to check content removal: %w", err)
+				return MinimalPullRequest{}, nil, fmt.Errorf("failed to check content removal: %w", err)
 			}
 
 			if !isSafeContent {
-				return utils.NewToolResultError("access to pull request is restricted by lockdown mode"), nil
+				return MinimalPullRequest{}, utils.NewToolResultError("access to pull request is restricted by lockdown mode"), nil
 			}
 		}
 	}
 
-	minimalPR := convertToMinimalPullRequest(pr)
-
-	return MarshalledTextResult(minimalPR), nil
+	return convertToMinimalPullRequest(pr), nil, nil
 }
 
 func GetPullRequestDiff(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
