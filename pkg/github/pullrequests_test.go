@@ -3515,6 +3515,19 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 			expectToolError:    true,
 			expectedToolErrMsg: "Failed to add comment to pending review",
 		},
+		{
+			name:         "missing required owner is reported instead of running the query",
+			mockedClient: githubv4mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"repo":        "repo",
+				"pullNumber":  float64(42),
+				"path":        "file.go",
+				"body":        "This is a test comment",
+				"subjectType": "LINE",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: owner",
+		},
 	}
 
 	for _, tc := range tests {
