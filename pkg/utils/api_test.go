@@ -55,6 +55,21 @@ func TestParseAPIHost(t *testing.T) {
 			wantRestURL: "https://myghe.com/api/v3/",
 		},
 		{
+			name:        "github.localhost (local dotcom dev) routes to api.github.localhost",
+			input:       "http://github.localhost",
+			wantRestURL: "http://api.github.localhost/",
+		},
+		{
+			name:        "subdomain of github.localhost also routes to api.github.localhost",
+			input:       "http://www.github.localhost",
+			wantRestURL: "http://api.github.localhost/",
+		},
+		{
+			name:        "hostname ending in github.localhost but not a subdomain",
+			input:       "http://notgithub.localhost",
+			wantRestURL: "http://notgithub.localhost/api/v3/",
+		},
+		{
 			name:    "missing scheme",
 			input:   "github.com",
 			wantErr: true,
