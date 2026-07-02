@@ -1206,6 +1206,7 @@ The following sets of tools are available:
 
 - **search_pull_requests** - Search pull requests
   - **Required OAuth Scopes**: `repo`
+  - `minimal_output`: Return minimal pull request search results (default: true). When false, returns the full GitHub API search payload. (boolean, optional)
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only pull requests for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
