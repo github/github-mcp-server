@@ -17,19 +17,19 @@
         "type": "string"
       },
       "issue_number": {
-        "description": "The issue number (use when item_type is 'issue' for 'add_project_item' method). Provide either issue_number or pull_request_number.",
+        "description": "The issue number. Required for 'add_project_item' when item_type is 'issue'. Also accepted by 'update_project_item' to resolve the item by issue number (combine with item_owner and item_repo).",
         "type": "number"
       },
       "item_id": {
-        "description": "The project item ID. Required for 'update_project_item' and 'delete_project_item' methods.",
+        "description": "The project item ID. Required for 'delete_project_item'. For 'update_project_item', provide either item_id, or (item_owner + item_repo + issue_number) to resolve the item by issue.",
         "type": "number"
       },
       "item_owner": {
-        "description": "The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method.",
+        "description": "The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method. Also accepted by 'update_project_item' when resolving the item by issue number.",
         "type": "string"
       },
       "item_repo": {
-        "description": "The name of the repository containing the issue or pull request. Required for 'add_project_item' method.",
+        "description": "The name of the repository containing the issue or pull request. Required for 'add_project_item' method. Also accepted by 'update_project_item' when resolving the item by issue number.",
         "type": "string"
       },
       "item_type": {
@@ -127,7 +127,7 @@
         "type": "string"
       },
       "updated_field": {
-        "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}. Required for 'update_project_item' method.",
+        "description": "Object describing the field to update and its new value. Required for 'update_project_item'. Two shapes are accepted: (1) by ID — {\"id\": 123456, \"value\": \"...\"}; (2) by name — {\"name\": \"Status\", \"value\": \"In Progress\"}. For single-select fields, option-name resolution requires the by-name shape; on the by-ID shape, pass the option ID. Set value to null to clear the field.",
         "type": "object"
       }
     },
