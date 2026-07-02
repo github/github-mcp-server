@@ -588,50 +588,43 @@ func Test_GetDiscussion(t *testing.T) {
 			assert.Equal(t, "General", category["name"])
 		})
 	}
-}
 
-func Test_GetDiscussionWithStringNumber(t *testing.T) {
-	// Test that WeakDecode handles string discussionNumber from MCP clients
-	toolDef := GetDiscussion(translations.NullTranslationHelper)
-
-	qGetDiscussion := "query($discussionNumber:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){number,title,body,createdAt,closed,isAnswered,answerChosenAt,url,category{name}}}}"
-
-	vars := map[string]any{
-		"owner":            "owner",
-		"repo":             "repo",
-		"discussionNumber": float64(1),
+	// Test missing required parameters
+	missingParamTests := []struct {
+		name     string
+		params   map[string]any
+		errParam string
+	}{
+		{
+			name:     "missing owner",
+			params:   map[string]any{"repo": "repo", "discussionNumber": int32(1)},
+			errParam: "owner",
+		},
+		{
+			name:     "missing repo",
+			params:   map[string]any{"owner": "owner", "discussionNumber": int32(1)},
+			errParam: "repo",
+		},
+		{
+			name:     "missing discussionNumber",
+			params:   map[string]any{"owner": "owner", "repo": "repo"},
+			errParam: "discussionNumber",
+		},
 	}
 
-	matcher := githubv4mock.NewQueryMatcher(qGetDiscussion, vars, githubv4mock.DataResponse(map[string]any{
-		"repository": map[string]any{"discussion": map[string]any{
-			"number":     1,
-			"title":      "Test Discussion Title",
-			"body":       "This is a test discussion",
-			"url":        "https://github.com/owner/repo/discussions/1",
-			"createdAt":  "2025-04-25T12:00:00Z",
-			"closed":     false,
-			"isAnswered": false,
-			"category":   map[string]any{"name": "General"},
-		}},
-	}))
-	httpClient := githubv4mock.NewMockedHTTPClient(matcher)
-	gqlClient := githubv4.NewClient(httpClient)
-	deps := BaseDeps{GQLClient: gqlClient}
-	handler := toolDef.Handler(deps)
+	for _, tc := range missingParamTests {
+		t.Run(tc.name, func(t *testing.T) {
+			deps := BaseDeps{GQLClient: githubv4.NewClient(&http.Client{})}
+			handler := toolDef.Handler(deps)
 
-	// Send discussionNumber as a string instead of a number
-	reqParams := map[string]any{"owner": "owner", "repo": "repo", "discussionNumber": "1"}
-	req := createMCPRequest(reqParams)
-	res, err := handler(ContextWithDeps(context.Background(), deps), &req)
-	require.NoError(t, err)
+			req := createMCPRequest(tc.params)
+			res, _ := handler(ContextWithDeps(context.Background(), deps), &req)
+			text := getTextResult(t, res).Text
 
-	text := getTextResult(t, res).Text
-	require.False(t, res.IsError, "expected no error, got: %s", text)
-
-	var out map[string]any
-	require.NoError(t, json.Unmarshal([]byte(text), &out))
-	assert.Equal(t, float64(1), out["number"])
-	assert.Equal(t, "Test Discussion Title", out["title"])
+			require.True(t, res.IsError)
+			assert.Contains(t, text, tc.errParam)
+		})
+	}
 }
 
 func Test_GetDiscussionComments(t *testing.T) {
@@ -721,68 +714,43 @@ func Test_GetDiscussionComments(t *testing.T) {
 	assert.Equal(t, "This is the first comment", response.Comments[0].Body)
 	assert.Equal(t, "DC_id2", response.Comments[1].ID)
 	assert.Equal(t, "This is the second comment", response.Comments[1].Body)
-}
 
-func Test_GetDiscussionCommentsWithStringNumber(t *testing.T) {
-	// Test that WeakDecode handles string discussionNumber from MCP clients
-	toolDef := GetDiscussionComments(translations.NullTranslationHelper)
-
-	qGetComments := "query($after:String$discussionNumber:Int!$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){comments(first: $first, after: $after){nodes{id,body,isAnswer},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}}"
-
-	vars := map[string]any{
-		"owner":            "owner",
-		"repo":             "repo",
-		"discussionNumber": float64(1),
-		"first":            float64(30),
-		"after":            (*string)(nil),
-	}
-
-	mockResponse := githubv4mock.DataResponse(map[string]any{
-		"repository": map[string]any{
-			"discussion": map[string]any{
-				"comments": map[string]any{
-					"nodes": []map[string]any{
-						{"id": "DC_id3", "body": "First comment"},
-					},
-					"pageInfo": map[string]any{
-						"hasNextPage":     false,
-						"hasPreviousPage": false,
-						"startCursor":     "",
-						"endCursor":       "",
-					},
-					"totalCount": 1,
-				},
-			},
+	// Test missing required parameters
+	missingParamTests := []struct {
+		name     string
+		params   map[string]any
+		errParam string
+	}{
+		{
+			name:     "missing owner",
+			params:   map[string]any{"repo": "repo", "discussionNumber": int32(1)},
+			errParam: "owner",
 		},
-	})
-	matcher := githubv4mock.NewQueryMatcher(qGetComments, vars, mockResponse)
-	httpClient := githubv4mock.NewMockedHTTPClient(matcher)
-	gqlClient := githubv4.NewClient(httpClient)
-	deps := BaseDeps{GQLClient: gqlClient}
-	handler := toolDef.Handler(deps)
-
-	// Send discussionNumber as a string instead of a number
-	reqParams := map[string]any{
-		"owner":            "owner",
-		"repo":             "repo",
-		"discussionNumber": "1",
+		{
+			name:     "missing repo",
+			params:   map[string]any{"owner": "owner", "discussionNumber": int32(1)},
+			errParam: "repo",
+		},
+		{
+			name:     "missing discussionNumber",
+			params:   map[string]any{"owner": "owner", "repo": "repo"},
+			errParam: "discussionNumber",
+		},
 	}
-	request := createMCPRequest(reqParams)
 
-	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-	require.NoError(t, err)
+	for _, tc := range missingParamTests {
+		t.Run(tc.name, func(t *testing.T) {
+			deps := BaseDeps{GQLClient: githubv4.NewClient(&http.Client{})}
+			handler := toolDef.Handler(deps)
 
-	textContent := getTextResult(t, result)
-	require.False(t, result.IsError, "expected no error, got: %s", textContent.Text)
+			req := createMCPRequest(tc.params)
+			res, _ := handler(ContextWithDeps(context.Background(), deps), &req)
+			text := getTextResult(t, res).Text
 
-	var out struct {
-		Comments   []map[string]any `json:"comments"`
-		TotalCount int              `json:"totalCount"`
+			require.True(t, res.IsError)
+			assert.Contains(t, text, tc.errParam)
+		})
 	}
-	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &out))
-	assert.Len(t, out.Comments, 1)
-	assert.Equal(t, "DC_id3", out.Comments[0]["id"])
-	assert.Equal(t, "First comment", out.Comments[0]["body"])
 }
 
 func Test_ListDiscussionCategories(t *testing.T) {
