@@ -220,6 +220,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		IssueDependencyWrite(t),
 
 		// User tools
+		GetUser(t),
 		SearchUsers(t),
 
 		// Organization tools
