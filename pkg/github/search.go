@@ -209,6 +209,14 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Description: "Sort order for results",
 				Enum:        []any{"asc", "desc"},
 			},
+			"fields": {
+				Type:        "array",
+				Description: "Subset of fields to return for each code search result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'repository' and 'text_matches' in particular drops the largest per-result data.",
+				Items: &jsonschema.Schema{
+					Type: "string",
+					Enum: codeSearchItemFieldEnum,
+				},
+			},
 		},
 		Required: []string{"query"},
 	}
@@ -236,6 +244,10 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			order, err := OptionalParam[string](args, "order")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			fields, err := OptionalStringArrayParam(args, "fields")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -297,7 +309,20 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Items:             minimalItems,
 			}
 
-			r, err := json.Marshal(minimalResult)
+			var payload any = minimalResult
+			if len(fields) > 0 {
+				filteredItems, err := filterEachField(minimalItems, fields)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to filter code search results", err), nil, nil
+				}
+				payload = map[string]any{
+					"total_count":        minimalResult.TotalCount,
+					"incomplete_results": minimalResult.IncompleteResults,
+					"items":              filteredItems,
+				}
+			}
+
+			r, err := json.Marshal(payload)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
