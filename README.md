@@ -661,12 +661,12 @@ The following sets of tools are available:
 
 - **get_job_logs** - Get GitHub Actions workflow job logs
   - **Required OAuth Scopes**: `repo`
-  - `failed_only`: When true, gets logs for all failed jobs in the workflow run specified by run_id. Requires run_id to be provided. (boolean, optional)
-  - `job_id`: The unique identifier of the workflow job. Required when getting logs for a single job. (number, optional)
+  - `failed_only`: When true, returns logs only for failed jobs. With run_id, returns failed jobs in the run. With job_id, returns logs only if that job failed. (boolean, optional)
+  - `job_id`: The unique identifier of the workflow job. Provide either job_id or run_id, not both. (number, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `return_content`: Returns actual log content instead of URLs (boolean, optional)
-  - `run_id`: The unique identifier of the workflow run. Required when failed_only is true to get logs for all failed jobs in the run. (number, optional)
+  - `run_id`: The unique identifier of the workflow run. Provide either run_id or job_id, not both. (number, optional)
   - `tail_lines`: Number of lines to return from the end of the log (number, optional)
 
 </details>
