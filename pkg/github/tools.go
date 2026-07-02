@@ -197,6 +197,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		CreateRepository(t),
 		ForkRepository(t),
 		CreateBranch(t),
+		DeleteBranch(t),
 		PushFiles(t),
 		DeleteFile(t),
 		ListStarredRepositories(t),
