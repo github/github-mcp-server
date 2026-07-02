@@ -1,4 +1,4 @@
-# Automatically fix license files on PRs that need updates
+## Automatically fix license files on PRs that need updates
 # Tries to auto-commit the fix, or comments with instructions if push fails
 
 name: License Check
