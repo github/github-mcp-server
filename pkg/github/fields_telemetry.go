@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 )
 
@@ -51,4 +52,20 @@ func recordFieldsUsage(ctx context.Context, deps ToolDependencies, tool string, 
 	toolTag := map[string]string{"tool": tool}
 	m.Counter(metricFieldsBytesFull, toolTag, int64(fullBytes))
 	m.Counter(metricFieldsBytesSent, toolTag, int64(sentBytes))
+}
+
+// recordFieldsUsageFor emits fields telemetry for a tool whose response is a
+// list of items (optionally wrapped in a metadata envelope). sentBytes is the
+// size of the payload actually returned. When the response was filtered, the
+// unfiltered size is computed by marshalling full so the realized savings can be
+// measured; full should be the complete, unfiltered payload. It centralizes the
+// full-size computation shared by every fields-enabled tool.
+func recordFieldsUsageFor(ctx context.Context, deps ToolDependencies, tool string, full any, filtered bool, sentBytes int) {
+	fullBytes := sentBytes
+	if filtered {
+		if data, err := json.Marshal(full); err == nil {
+			fullBytes = len(data)
+		}
+	}
+	recordFieldsUsage(ctx, deps, tool, filtered, fullBytes, sentBytes)
 }

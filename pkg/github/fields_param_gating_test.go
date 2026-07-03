@@ -11,14 +11,23 @@ import (
 )
 
 // Test_FieldsParamVariants_MutuallyExclusive guards the dual-variant
-// registration for the fields_param feature flag. The flag-enabled tools
-// (search_code, get_file_contents) and their Legacy* counterparts share a tool
-// name, so exactly one of each pair must survive inventory filtering for any
-// flag state. If both ever leaked, a client could be offered two tools with the
-// same name. This asserts that each gated tool is present exactly once,
-// advertising the `fields` parameter only when fields_param is enabled.
+// registration for the fields_param feature flag. The flag-enabled tools and
+// their Legacy* counterparts share a tool name, so exactly one of each pair must
+// survive inventory filtering for any flag state. If both ever leaked, a client
+// could be offered two tools with the same name. This asserts that each gated
+// tool is present exactly once, advertising the `fields` parameter only when
+// fields_param is enabled.
 func Test_FieldsParamVariants_MutuallyExclusive(t *testing.T) {
-	gatedTools := []string{"search_code", "get_file_contents"}
+	gatedTools := []string{
+		"search_code",
+		"get_file_contents",
+		"list_issues",
+		"list_releases",
+		"list_pull_requests",
+		"search_issues",
+		"search_pull_requests",
+		"list_commits",
+	}
 
 	for _, tc := range []struct {
 		name          string

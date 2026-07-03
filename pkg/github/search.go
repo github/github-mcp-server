@@ -239,14 +239,10 @@ func searchCodeTool(t translations.TranslationHelperFunc, includeFields bool) in
 		Required: []string{"query"},
 	}
 	if includeFields {
-		schema.Properties["fields"] = &jsonschema.Schema{
-			Type:        "array",
-			Description: "Subset of fields to return for each code search result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'repository' and 'text_matches' in particular drops the largest per-result data.",
-			Items: &jsonschema.Schema{
-				Type: "string",
-				Enum: codeSearchItemFieldEnum,
-			},
-		}
+		schema.Properties["fields"] = fieldsSchemaProperty(
+			"Subset of fields to return for each code search result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'repository' and 'text_matches' in particular drops the largest per-result data.",
+			codeSearchItemFieldEnum,
+		)
 	}
 	WithPagination(schema)
 
@@ -381,17 +377,9 @@ func searchCodeTool(t translations.TranslationHelperFunc, includeFields bool) in
 }
 
 // recordSearchCodeFieldsUsage emits fields telemetry for a search_code call.
-// sentBytes is the size of the payload actually returned. When the response was
-// filtered, the unfiltered size is computed from the full minimal result so the
-// realized savings can be measured.
+// sentBytes is the size of the payload actually returned.
 func recordSearchCodeFieldsUsage(ctx context.Context, deps ToolDependencies, full *MinimalCodeSearchResult, filtered bool, sentBytes int) {
-	fullBytes := sentBytes
-	if filtered {
-		if data, err := json.Marshal(full); err == nil {
-			fullBytes = len(data)
-		}
-	}
-	recordFieldsUsage(ctx, deps, "search_code", filtered, fullBytes, sentBytes)
+	recordFieldsUsageFor(ctx, deps, "search_code", full, filtered, sentBytes)
 }
 
 func userOrOrgHandler(ctx context.Context, accountType string, deps ToolDependencies, args map[string]any) (*mcp.CallToolResult, any, error) {
