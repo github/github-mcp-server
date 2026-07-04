@@ -1,5 +1,7 @@
 {
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Dismiss notification"
   },
   "description": "Dismiss a notification by marking it as read or done",

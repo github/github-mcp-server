@@ -1,0 +1,49 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Add Reaction to Issue or Pull Request"
+  },
+  "description": "Add a reaction to an issue or pull request.",
+  "inputSchema": {
+    "properties": {
+      "content": {
+        "description": "The emoji reaction type",
+        "enum": [
+          "+1",
+          "-1",
+          "laugh",
+          "confused",
+          "heart",
+          "hooray",
+          "rocket",
+          "eyes"
+        ],
+        "type": "string"
+      },
+      "issue_number": {
+        "description": "The issue number",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "issue_number",
+      "content"
+    ],
+    "type": "object"
+  },
+  "name": "add_issue_reaction"
+}

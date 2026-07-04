@@ -96,6 +96,20 @@ runtime behavior (such as output formatting) won't appear here.
 
 ### `issues_granular`
 
+- **add_issue_comment_reaction** - Add Reaction to Issue or Pull Request Comment
+  - **Required OAuth Scopes**: `repo`
+  - `comment_id`: The issue or pull request comment ID (number, required)
+  - `content`: The emoji reaction type (string, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `repo`: Repository name (string, required)
+
+- **add_issue_reaction** - Add Reaction to Issue or Pull Request
+  - **Required OAuth Scopes**: `repo`
+  - `content`: The emoji reaction type (string, required)
+  - `issue_number`: The issue number (number, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `repo`: Repository name (string, required)
+
 - **add_sub_issue** - Add Sub-Issue
   - **Required OAuth Scopes**: `repo`
   - `issue_number`: The parent issue number (number, required)
@@ -201,6 +215,13 @@ runtime behavior (such as output formatting) won't appear here.
   - `startLine`: The start line of a multi-line comment (optional) (number, optional)
   - `startSide`: The start side of a multi-line comment (optional) (string, optional)
   - `subjectType`: The subject type of the comment (string, required)
+
+- **add_pull_request_review_comment_reaction** - Add Pull Request Review Comment Reaction
+  - **Required OAuth Scopes**: `repo`
+  - `comment_id`: The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...). (number, required)
+  - `content`: The emoji reaction type (string, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `repo`: Repository name (string, required)
 
 - **create_pull_request_review** - Create Pull Request Review
   - **Required OAuth Scopes**: `repo`

@@ -1,5 +1,6 @@
 {
   "annotations": {
+    "idempotentHint": false,
     "readOnlyHint": true,
     "title": "Get Gist Content"
   },
