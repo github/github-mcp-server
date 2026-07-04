@@ -1,7 +1,9 @@
 {
   "annotations": {
     "destructiveHint": false,
+    "idempotentHint": false,
     "openWorldHint": true,
+    "readOnlyHint": false,
     "title": "Update Issue Assignees"
   },
   "description": "Update the assignees of an existing issue. This replaces the current assignees with the provided list.",

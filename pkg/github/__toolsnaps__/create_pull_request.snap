@@ -9,6 +9,8 @@
     }
   },
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Open new pull request"
   },
   "description": "Create a new pull request in a GitHub repository.",

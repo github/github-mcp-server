@@ -1,5 +1,7 @@
 {
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Fork repository"
   },
   "description": "Fork a GitHub repository to your account or specified organization",

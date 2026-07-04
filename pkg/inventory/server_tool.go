@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 
 	"github.com/github/github-mcp-server/pkg/octicons"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -116,7 +118,62 @@ func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any) {
 	if len(toolCopy.Icons) == 0 {
 		toolCopy.Icons = st.Toolset.Icons()
 	}
+	// Project routing-relevant params to standard MCP-Param-* headers (SEP-2243)
+	// so a remote proxy can read owner/repo from headers instead of re-parsing the
+	// JSON-RPC body. No-op for tools without these params.
+	AnnotateHeaderParams(&toolCopy)
 	s.AddTool(&toolCopy, handler)
+}
+
+// HeaderParams maps tool input properties to the MCP-Param-* header name a
+// header-aware proxy reads, avoiding a second parse of the request body. New
+// routing-relevant params should be added here so projection stays automatic
+// for every tool; the enforcement test in pkg/github guards full coverage.
+var HeaderParams = map[string]string{"owner": "owner", "repo": "repo"}
+
+// AnnotateHeaderParams returns a copy of tool whose routing-relevant input
+// properties (per HeaderParams) carry an "x-mcp-header" annotation, which the
+// SDK projects onto Mcp-Param-{name} request headers. It never mutates the
+// input tool's schema or any map shared with the original tool definition:
+// callers shallow-copy ServerTool.Tool, so the *jsonschema.Schema (and its
+// per-property Extra maps) are shared, and per-request registration must not
+// race on them. Only the schema, its Properties map, and the specific property
+// schemas/Extra maps that gain an annotation are cloned.
+func AnnotateHeaderParams(tool *mcp.Tool) {
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	if !ok || schema == nil {
+		return
+	}
+
+	// Collect params that actually need an annotation, so a tool without
+	// owner/repo (or already annotated) is left untouched and unCloned.
+	var toAnnotate []string
+	for prop := range HeaderParams {
+		if ps := schema.Properties[prop]; ps != nil {
+			if _, exists := ps.Extra["x-mcp-header"]; !exists {
+				toAnnotate = append(toAnnotate, prop)
+			}
+		}
+	}
+	if len(toAnnotate) == 0 {
+		return
+	}
+
+	// Clone only what we mutate: a fresh schema value, a fresh Properties map,
+	// and fresh property schemas with fresh Extra maps. The original schema and
+	// its maps are never written to, so concurrent per-request registration is
+	// race-free and deterministic.
+	schemaCopy := *schema
+	schemaCopy.Properties = maps.Clone(schema.Properties)
+	for _, prop := range toAnnotate {
+		propCopy := *schemaCopy.Properties[prop]
+		extra := make(map[string]any, len(propCopy.Extra)+1)
+		maps.Copy(extra, propCopy.Extra)
+		extra["x-mcp-header"] = HeaderParams[prop]
+		propCopy.Extra = extra
+		schemaCopy.Properties[prop] = &propCopy
+	}
+	tool.InputSchema = &schemaCopy
 }
 
 // NewServerToolWithContextHandler creates a ServerTool with a handler that receives deps via context.

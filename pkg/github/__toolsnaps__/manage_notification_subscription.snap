@@ -1,5 +1,7 @@
 {
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Manage notification subscription"
   },
   "description": "Manage a notification subscription: ignore, watch, or delete a notification thread subscription.",
