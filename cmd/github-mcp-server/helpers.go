@@ -57,3 +57,46 @@ You are a **Build Configuration & Dependency Management Specialist** focused on 
 - Complex multi-module build issues requiring detailed profiling
 - Native build tool integration (NDK, CMake)
 - Custom plugin development outside standard Firebase SDKs
+I can see this PR adds guidelines for an Android Firebase Build Configuration Expert tool to the helpers.go file. The diff shows 30 lines of documentation being added without any deletions.
+
+Let me load the PR review ability to provide you with a comprehensive review:
+
+Gathered additional information
+Let me load the PR understanding ability to give you better context:
+
+Gathered additional information
+
+View file cmd/github-mcp-server/helpers.go
+Issue Summary
+
+This PR adds 30 lines of documentation to cmd/github-mcp-server/helpers.go, but there's a critical structural problem: the added content is Markdown documentation, not Go code, and it's being appended directly to a Go source file without proper formatting.
+
+The Problem
+
+The diff shows the content being added after line 29 (the closing brace of the Go file):
+
+Code
+29| }
+29,30+# Copilot Space: Android Firebase Build Configuration Expert
+29,31+
+29,32+## Role
+...
+This is invalid Go syntax. The added lines are pure Markdown that would fail to compile because:
+
+Markdown headings (# ..., ## ...) are not valid Go comments
+This breaks the file as executable Go code
+What Should Happen
+
+The Markdown documentation should be:
+
+In a separate file (e.g., docs/android-firebase-guide.md) or
+Properly wrapped in Go comments using // or /* */ blocks, or
+In a README or documentation directory, not embedded in source code
+Recommendation
+
+Request changes on this PR:
+
+Move the documentation to a proper location (not a .go file)
+If it must stay in this repo, create a .md file or add it to existing documentation
+Ensure the file compiles and passes tests before approval
+The PR description claims "Updated (README / docs / examples)" was checked, but the changes don't actually update those — they corrupt the Go source file instead.
