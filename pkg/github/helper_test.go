@@ -81,6 +81,8 @@ const (
 	PatchReposPullsByOwnerByRepoByPullNumber                  = "PATCH /repos/{owner}/{repo}/pulls/{pull_number}"
 	PutReposPullsMergeByOwnerByRepoByPullNumber               = "PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge"
 	PutReposPullsUpdateBranchByOwnerByRepoByPullNumber        = "PUT /repos/{owner}/{repo}/pulls/{pull_number}/update-branch"
+	PostReposPullsByOwnerByRepoByPullNumberConvertToDraft     = "POST /repos/{owner}/{repo}/pulls/{pull_number}/convert-to-draft"
+	PostReposPullsByOwnerByRepoByPullNumberReadyForReview     = "POST /repos/{owner}/{repo}/pulls/{pull_number}/ready_for_review"
 	PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber = "POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers"
 	PostReposPullsCommentsByOwnerByRepoByPullNumber           = "POST /repos/{owner}/{repo}/pulls/{pull_number}/comments"
 	PostReposPullsCommentsReactionsByOwnerByRepoByCommentID   = "POST /repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions"

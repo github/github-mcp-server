@@ -1100,77 +1100,47 @@ func TestGranularCreatePullRequestReview(t *testing.T) {
 
 func TestGranularUpdatePullRequestDraftState(t *testing.T) {
 	tests := []struct {
-		name  string
-		draft bool
+		name                string
+		initialDraftState   bool
+		requestedDraftState bool
+		expectedActionCalls int
+		getStatusCode       int
+		actionStatusCode    int
+		expectError         bool
+		expectedErrContains string
 	}{
-		{name: "convert to draft", draft: true},
-		{name: "mark ready for review", draft: false},
+		{name: "convert to draft", initialDraftState: false, requestedDraftState: true, expectedActionCalls: 1, getStatusCode: http.StatusOK, actionStatusCode: http.StatusOK},
+		{name: "mark ready for review", initialDraftState: true, requestedDraftState: false, expectedActionCalls: 1, getStatusCode: http.StatusOK, actionStatusCode: http.StatusOK},
+		{name: "no-op when already requested state", initialDraftState: true, requestedDraftState: true, expectedActionCalls: 0, getStatusCode: http.StatusOK, actionStatusCode: http.StatusOK},
+		{name: "returns error when action endpoint is forbidden", initialDraftState: false, requestedDraftState: true, expectedActionCalls: 1, getStatusCode: http.StatusOK, actionStatusCode: http.StatusForbidden, expectError: true, expectedErrContains: "failed to convert pull request to draft"},
+		{name: "returns error when pull request lookup is not found", initialDraftState: false, requestedDraftState: true, expectedActionCalls: 0, getStatusCode: http.StatusNotFound, actionStatusCode: http.StatusOK, expectError: true, expectedErrContains: "failed to get pull request"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var matchers []githubv4mock.Matcher
-
-			matchers = append(matchers, githubv4mock.NewQueryMatcher(
-				struct {
-					Repository struct {
-						PullRequest struct {
-							ID githubv4.ID
-						} `graphql:"pullRequest(number: $number)"`
-					} `graphql:"repository(owner: $owner, name: $name)"`
-				}{},
-				map[string]any{
-					"owner":  githubv4.String("owner"),
-					"name":   githubv4.String("repo"),
-					"number": githubv4.Int(1),
+			actionCalls := 0
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: func(w http.ResponseWriter, _ *http.Request) {
+					if tc.getStatusCode != http.StatusOK {
+						writeJSONResponse(t, w, tc.getStatusCode, map[string]any{"message": "not found"})
+						return
+					}
+					writeJSONResponse(t, w, http.StatusOK, &gogithub.PullRequest{
+						Number: gogithub.Ptr(1),
+						Draft:  gogithub.Ptr(tc.initialDraftState),
+					})
 				},
-				githubv4mock.DataResponse(map[string]any{
-					"repository": map[string]any{
-						"pullRequest": map[string]any{"id": "PR_123"},
-					},
-				}),
-			))
+				PostReposPullsByOwnerByRepoByPullNumberConvertToDraft: func(w http.ResponseWriter, _ *http.Request) {
+					actionCalls++
+					writeJSONResponse(t, w, tc.actionStatusCode, map[string]any{"message": "forbidden"})
+				},
+				PostReposPullsByOwnerByRepoByPullNumberReadyForReview: func(w http.ResponseWriter, _ *http.Request) {
+					actionCalls++
+					writeJSONResponse(t, w, tc.actionStatusCode, map[string]any{"message": "forbidden"})
+				},
+			}))
 
-			if tc.draft {
-				matchers = append(matchers, githubv4mock.NewMutationMatcher(
-					struct {
-						ConvertPullRequestToDraft struct {
-							PullRequest struct {
-								ID      githubv4.ID
-								IsDraft githubv4.Boolean
-							}
-						} `graphql:"convertPullRequestToDraft(input: $input)"`
-					}{},
-					githubv4.ConvertPullRequestToDraftInput{PullRequestID: githubv4.ID("PR_123")},
-					nil,
-					githubv4mock.DataResponse(map[string]any{
-						"convertPullRequestToDraft": map[string]any{
-							"pullRequest": map[string]any{"id": "PR_123", "isDraft": true},
-						},
-					}),
-				))
-			} else {
-				matchers = append(matchers, githubv4mock.NewMutationMatcher(
-					struct {
-						MarkPullRequestReadyForReview struct {
-							PullRequest struct {
-								ID      githubv4.ID
-								IsDraft githubv4.Boolean
-							}
-						} `graphql:"markPullRequestReadyForReview(input: $input)"`
-					}{},
-					githubv4.MarkPullRequestReadyForReviewInput{PullRequestID: githubv4.ID("PR_123")},
-					nil,
-					githubv4mock.DataResponse(map[string]any{
-						"markPullRequestReadyForReview": map[string]any{
-							"pullRequest": map[string]any{"id": "PR_123", "isDraft": false},
-						},
-					}),
-				))
-			}
-
-			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matchers...))
-			deps := BaseDeps{GQLClient: gqlClient}
+			deps := BaseDeps{Client: client}
 			serverTool := GranularUpdatePullRequestDraftState(translations.NullTranslationHelper)
 			handler := serverTool.Handler(deps)
 
@@ -1178,11 +1148,19 @@ func TestGranularUpdatePullRequestDraftState(t *testing.T) {
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(1),
-				"draft":      tc.draft,
+				"draft":      tc.requestedDraftState,
 			})
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
+			if tc.expectError {
+				assert.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrContains)
+				assert.Equal(t, tc.expectedActionCalls, actionCalls)
+				return
+			}
 			assert.False(t, result.IsError)
+			assert.Equal(t, tc.expectedActionCalls, actionCalls)
 		})
 	}
 }
