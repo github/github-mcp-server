@@ -1068,8 +1068,8 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `read:project`
   - **Accepted OAuth Scopes**: `project`, `read:project`
   - `field_id`: The field's ID. Required for 'get_project_field' method. (number, optional)
-  - `field_names`: Specific list of field names to include in the response when getting a project item (e.g. ["Status", "Priority"]). Resolved server-side to field IDs — pass this instead of 'fields' when you only know the human-readable names. Only used for 'get_project_item' method. (string[], optional)
-  - `fields`: Specific list of field IDs to include in the response when getting a project item (e.g. ["102589", "985201", "169875"]). If neither 'fields' nor 'field_names' is provided, only the title field is included. Only used for 'get_project_item' method. (string[], optional)
+  - `field_names`: Specific list of field names to include in the response when getting a project item (e.g. ["Status", "Priority"]). Resolved server-side to field IDs — pass this instead of 'fields' when you only know the human-readable names. Mutually exclusive with 'fields' — provide one, not both. Only used for 'get_project_item' method. (string[], optional)
+  - `fields`: Specific list of field IDs to include in the response when getting a project item (e.g. ["102589", "985201", "169875"]). If neither 'fields' nor 'field_names' is provided, only the title field is included. Mutually exclusive with 'field_names' — provide one, not both. Only used for 'get_project_item' method. (string[], optional)
   - `item_id`: The item's ID. Required for 'get_project_item' method. (number, optional)
   - `method`: The method to execute (string, required)
   - `owner`: The owner (user or organization login). The name is not case sensitive. (string, optional)
@@ -1082,8 +1082,8 @@ The following sets of tools are available:
   - **Accepted OAuth Scopes**: `project`, `read:project`
   - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
   - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
-  - `field_names`: Field names to include when listing project items (e.g. ["Status", "Priority"]). Resolved server-side to field IDs — pass this instead of 'fields' when you only know the human-readable names. Names that fail to resolve return a structured error. Only used for 'list_project_items' method. (string[], optional)
-  - `fields`: Field IDs to include when listing project items (e.g. ["102589", "985201"]). CRITICAL: Always provide to get field values. Without this (and without 'field_names'), only titles returned. Only used for 'list_project_items' method. (string[], optional)
+  - `field_names`: Field names to include when listing project items (e.g. ["Status", "Priority"]). Resolved server-side to field IDs — pass this instead of 'fields' when you only know the human-readable names. Names that fail to resolve return a structured error. Mutually exclusive with 'fields' — provide one, not both. Only used for 'list_project_items' method. (string[], optional)
+  - `fields`: Field IDs to include when listing project items (e.g. ["102589", "985201"]). CRITICAL: Always provide to get field values. Without this (and without 'field_names'), only titles returned. Mutually exclusive with 'field_names' — provide one, not both. Only used for 'list_project_items' method. (string[], optional)
   - `method`: The action to perform (string, required)
   - `owner`: The owner (user or organization login). The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (user or org). If not provided, will automatically try both. (string, optional)

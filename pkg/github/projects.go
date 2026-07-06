@@ -196,14 +196,14 @@ Use this tool to list projects for a user or organization, or list project field
 					},
 					"fields": {
 						Type:        "array",
-						Description: "Field IDs to include when listing project items (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this (and without 'field_names'), only titles returned. Only used for 'list_project_items' method.",
+						Description: "Field IDs to include when listing project items (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this (and without 'field_names'), only titles returned. Mutually exclusive with 'field_names' — provide one, not both. Only used for 'list_project_items' method.",
 						Items: &jsonschema.Schema{
 							Type: "string",
 						},
 					},
 					"field_names": {
 						Type:        "array",
-						Description: "Field names to include when listing project items (e.g. [\"Status\", \"Priority\"]). Resolved server-side to field IDs — pass this instead of 'fields' when you only know the human-readable names. Names that fail to resolve return a structured error. Only used for 'list_project_items' method.",
+						Description: "Field names to include when listing project items (e.g. [\"Status\", \"Priority\"]). Resolved server-side to field IDs — pass this instead of 'fields' when you only know the human-readable names. Names that fail to resolve return a structured error. Mutually exclusive with 'fields' — provide one, not both. Only used for 'list_project_items' method.",
 						Items: &jsonschema.Schema{
 							Type: "string",
 						},
@@ -355,14 +355,14 @@ Use this tool to get details about individual projects, project fields, and proj
 					},
 					"fields": {
 						Type:        "array",
-						Description: "Specific list of field IDs to include in the response when getting a project item (e.g. [\"102589\", \"985201\", \"169875\"]). If neither 'fields' nor 'field_names' is provided, only the title field is included. Only used for 'get_project_item' method.",
+						Description: "Specific list of field IDs to include in the response when getting a project item (e.g. [\"102589\", \"985201\", \"169875\"]). If neither 'fields' nor 'field_names' is provided, only the title field is included. Mutually exclusive with 'field_names' — provide one, not both. Only used for 'get_project_item' method.",
 						Items: &jsonschema.Schema{
 							Type: "string",
 						},
 					},
 					"field_names": {
 						Type:        "array",
-						Description: "Specific list of field names to include in the response when getting a project item (e.g. [\"Status\", \"Priority\"]). Resolved server-side to field IDs — pass this instead of 'fields' when you only know the human-readable names. Only used for 'get_project_item' method.",
+						Description: "Specific list of field names to include in the response when getting a project item (e.g. [\"Status\", \"Priority\"]). Resolved server-side to field IDs — pass this instead of 'fields' when you only know the human-readable names. Mutually exclusive with 'fields' — provide one, not both. Only used for 'get_project_item' method.",
 						Items: &jsonschema.Schema{
 							Type: "string",
 						},
