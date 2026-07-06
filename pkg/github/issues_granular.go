@@ -716,7 +716,7 @@ func GranularUpdateIssueState(t translations.TranslationHelperFunc) inventory.Se
 					},
 					"duplicate_of": {
 						Type:        "number",
-						Description: "The issue number of the canonical issue this issue duplicates. Only valid when state_reason is 'duplicate'. Required when is_suggestion is true. The issue number is resolved to a database ID before being sent to the API.",
+						Description: "The issue number of the canonical issue this issue duplicates. Only valid when state_reason is 'duplicate'. Required when is_suggestion is true and state_reason is 'duplicate'. The issue number is resolved to a database ID before being sent to the API.",
 						Minimum:     jsonschema.Ptr(1.0),
 					},
 				},
@@ -768,6 +768,9 @@ func GranularUpdateIssueState(t translations.TranslationHelperFunc) inventory.Se
 			duplicateOf, err := OptionalIntParam(args, "duplicate_of")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if stateReason != "" && state != "closed" {
+				return utils.NewToolResultError("state_reason can only be used when state is 'closed'"), nil, nil
 			}
 			if duplicateOf != 0 && stateReason != "duplicate" {
 				return utils.NewToolResultError("duplicate_of can only be used when state_reason is 'duplicate'"), nil, nil

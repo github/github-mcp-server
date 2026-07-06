@@ -1135,6 +1135,17 @@ func TestGranularUpdateIssueStateInvalidRationale(t *testing.T) {
 			},
 			expectedErrText: "duplicate_of is required when suggesting a close as duplicate",
 		},
+		{
+			name: "state_reason with open state",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"state":        "open",
+				"state_reason": "completed",
+			},
+			expectedErrText: "state_reason can only be used when state is 'closed'",
+		},
 	}
 
 	for _, tc := range tests {

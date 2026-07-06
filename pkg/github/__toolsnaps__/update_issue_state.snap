@@ -19,7 +19,7 @@
         "type": "string"
       },
       "duplicate_of": {
-        "description": "The issue number of the canonical issue this issue duplicates. Only valid when state_reason is 'duplicate'. Required when is_suggestion is true. The issue number is resolved to a database ID before being sent to the API.",
+        "description": "The issue number of the canonical issue this issue duplicates. Only valid when state_reason is 'duplicate'. Required when is_suggestion is true and state_reason is 'duplicate'. The issue number is resolved to a database ID before being sent to the API.",
         "minimum": 1,
         "type": "number"
       },
