@@ -238,29 +238,188 @@ func GranularUpdateIssueBody(t translations.TranslationHelperFunc) inventory.Ser
 
 // GranularUpdateIssueAssignees creates a tool to update an issue's assignees.
 func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return issueUpdateTool(t,
-		"update_issue_assignees",
-		"Update the assignees of an existing issue. This replaces the current assignees with the provided list.",
-		"Update Issue Assignees",
-		map[string]*jsonschema.Schema{
-			"assignees": {
-				Type:        "array",
-				Description: "GitHub usernames to assign to this issue",
-				Items:       &jsonschema.Schema{Type: "string"},
+	st := NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "update_issue_assignees",
+			Description: t("TOOL_UPDATE_ISSUE_ASSIGNEES_DESCRIPTION", "Update the assignees of an existing issue. This replaces the current assignees with the provided list. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_UPDATE_ISSUE_ASSIGNEES_USER_TITLE", "Update Issue Assignees"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"issue_number": {
+						Type:        "number",
+						Description: "The issue number to update",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"assignees": {
+						Type:        "array",
+						Description: "GitHub usernames to assign to this issue.",
+						Items: &jsonschema.Schema{
+							OneOf: []*jsonschema.Schema{
+								{Type: "string", Description: "GitHub username"},
+								{
+									Type: "object",
+									Properties: map[string]*jsonschema.Schema{
+										"login": {
+											Type:        "string",
+											Description: "GitHub username",
+										},
+										"rationale": {
+											Type: "string",
+											Description: "One concise sentence explaining what specifically about the issue led you to choose this assignee. " +
+												"State the concrete signal (e.g. 'Authored the file the crash originates in').",
+											MaxLength: jsonschema.Ptr(280),
+										},
+										"confidence": {
+											Type:        "string",
+											Description: "How confident you are in this choice. Use 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal.",
+											Enum:        []any{"LOW", "MEDIUM", "HIGH"},
+										},
+										"is_suggestion": {
+											Type: "boolean",
+											Description: "If true, this assignee is sent to the API as a suggestion (suggest:true) rather than an applied assignee. " +
+												"Whether the assignee is applied or recorded as a proposal is determined by the API.",
+										},
+									},
+									Required: []string{"login"},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"owner", "repo", "issue_number", "assignees"},
 			},
 		},
-		[]string{"assignees"},
-		func(args map[string]any) (*github.IssueRequest, error) {
-			if _, ok := args["assignees"]; !ok {
-				return nil, fmt.Errorf("missing required parameter: assignees")
-			}
-			assignees, err := OptionalStringArrayParam(args, "assignees")
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return nil, err
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			return &github.IssueRequest{Assignees: &assignees}, nil
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			assigneesRaw, ok := args["assignees"]
+			if !ok {
+				return utils.NewToolResultError("missing required parameter: assignees"), nil, nil
+			}
+			assigneesSlice, ok := assigneesRaw.([]any)
+			if !ok {
+				// Also accept []string for callers that pre-typed the array.
+				if strs, ok := assigneesRaw.([]string); ok {
+					assigneesSlice = make([]any, len(strs))
+					for i, s := range strs {
+						assigneesSlice[i] = s
+					}
+				} else {
+					return utils.NewToolResultError("parameter assignees must be an array"), nil, nil
+				}
+			}
+
+			useObjectForm := false
+			payload := make([]any, 0, len(assigneesSlice))
+			for _, item := range assigneesSlice {
+				switch v := item.(type) {
+				case string:
+					payload = append(payload, v)
+				case map[string]any:
+					login, err := RequiredParam[string](v, "login")
+					if err != nil {
+						return utils.NewToolResultError("each assignee object must have a 'login' string"), nil, nil
+					}
+					rationale, err := OptionalParam[string](v, "rationale")
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+					rationale = strings.TrimSpace(rationale)
+					if len([]rune(rationale)) > 280 {
+						return utils.NewToolResultError("assignee rationale must be 280 characters or less"), nil, nil
+					}
+					confidence, err := OptionalParam[string](v, "confidence")
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+					confidence = normalizeConfidence(confidence)
+					if confidence != "" && confidence != "LOW" && confidence != "MEDIUM" && confidence != "HIGH" {
+						return utils.NewToolResultError("confidence must be one of: LOW, MEDIUM, HIGH"), nil, nil
+					}
+					isSuggestion, err := OptionalParam[bool](v, "is_suggestion")
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+					if rationale == "" && !isSuggestion && confidence == "" {
+						payload = append(payload, login)
+					} else {
+						useObjectForm = true
+						payload = append(payload, assigneeWithIntent{Login: login, Rationale: rationale, Confidence: confidence, Suggest: isSuggestion})
+					}
+				default:
+					return utils.NewToolResultError("each assignee must be a string or an object with 'login' and optional 'rationale', 'confidence', and/or 'is_suggestion'"), nil, nil
+				}
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			var body any
+			if useObjectForm {
+				body = &assigneesUpdateRequest{Assignees: payload}
+			} else {
+				// Preserve the standard wire format when no rationale or suggest is supplied.
+				logins := make([]string, len(payload))
+				for i, p := range payload {
+					logins[i] = p.(string)
+				}
+				body = &github.IssueRequest{Assignees: &logins}
+			}
+
+			apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
+			req, err := client.NewRequest(ctx, "PATCH", apiURL, body)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to create request", err), nil, nil
+			}
+
+			issue := &github.Issue{}
+			resp, err := client.Do(req, issue)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			r, err := json.Marshal(MinimalResponse{
+				ID:  fmt.Sprintf("%d", issue.GetID()),
+				URL: issue.GetHTMLURL(),
+			})
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
+	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	return st
 }
 
 // labelWithIntent represents the object form of a label entry, allowing a
@@ -277,6 +436,22 @@ type labelWithIntent struct {
 // Labels is either a string (label name) or a labelWithIntent object.
 type labelsUpdateRequest struct {
 	Labels []any `json:"labels"`
+}
+
+// assigneeWithIntent represents the object form of an assignee entry, allowing a
+// rationale, confidence level, and/or suggest flag to be sent alongside the login.
+type assigneeWithIntent struct {
+	Login      string `json:"login"`
+	Rationale  string `json:"rationale,omitempty"`
+	Confidence string `json:"confidence,omitempty"`
+	Suggest    bool   `json:"suggest,omitempty"`
+}
+
+// assigneesUpdateRequest is a custom request body for updating an issue's
+// assignees where individual assignees may optionally include a rationale. Each
+// element of Assignees is either a string (login) or an assigneeWithIntent object.
+type assigneesUpdateRequest struct {
+	Assignees []any `json:"assignees"`
 }
 
 // GranularUpdateIssueLabels creates a tool to update an issue's labels.
