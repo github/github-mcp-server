@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/shurcooL/githubv4"
@@ -160,7 +161,7 @@ func resolveProjectFieldByName(ctx context.Context, gqlClient *githubv4.Client, 
 
 	var matches []ResolvedField
 	for _, f := range all {
-		if f.Name == fieldName {
+		if strings.EqualFold(f.Name, fieldName) {
 			matches = append(matches, f)
 		}
 	}
@@ -228,7 +229,7 @@ func resolveSingleSelectOptionByName(field *ResolvedField, optionName string) (s
 
 	var matchIDs []string
 	for _, o := range field.Options {
-		if o.Name == optionName {
+		if strings.EqualFold(o.Name, optionName) {
 			matchIDs = append(matchIDs, o.ID)
 		}
 	}
@@ -343,14 +344,16 @@ func resolveFieldNamesToIDs(ctx context.Context, gqlClient *githubv4.Client, own
 	}
 
 	// Build a name -> []ResolvedField map so we can detect duplicates per name.
+	// Matching is case-insensitive to align with the GraphQL API's behaviour.
 	byName := make(map[string][]ResolvedField, len(all))
 	for _, f := range all {
-		byName[f.Name] = append(byName[f.Name], f)
+		key := strings.ToLower(f.Name)
+		byName[key] = append(byName[key], f)
 	}
 
 	out := make([]int64, 0, len(names))
 	for _, name := range names {
-		matches := byName[name]
+		matches := byName[strings.ToLower(name)]
 		switch len(matches) {
 		case 0:
 			candidates := make([]any, 0, len(all))

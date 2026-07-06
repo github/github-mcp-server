@@ -456,6 +456,9 @@ Use this tool to get details about individual projects, project fields, and proj
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
+				if len(fields) > 0 && len(fieldNames) > 0 {
+					return utils.NewToolResultError("provide either 'fields' or 'field_names', not both"), nil, nil
+				}
 				if len(fieldNames) > 0 {
 					gqlClient, gqlErr := deps.GetGQLClient(ctx)
 					if gqlErr != nil {
@@ -954,6 +957,9 @@ func listProjectItems(ctx context.Context, client *github.Client, gqlClient *git
 	fieldNames, err := OptionalStringArrayParam(args, "field_names")
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	if len(fields) > 0 && len(fieldNames) > 0 {
+		return utils.NewToolResultError("provide either 'fields' or 'field_names', not both"), nil, nil
 	}
 	if len(fieldNames) > 0 {
 		resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, fieldNames)

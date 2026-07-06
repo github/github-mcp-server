@@ -358,6 +358,53 @@ func Test_ResolveFieldNamesToIDs_Success(t *testing.T) {
 	assert.Equal(t, []int64{100, 200}, ids)
 }
 
+// Field and single-select option name matching is case-insensitive so agents passing lowercase 
+// names like "status" or "in progress" resolve to "Status" and "In Progress" respectively.
+func Test_ResolveProjectFieldByName_CaseInsensitive(t *testing.T) {
+	mocked := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 7),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				statusFieldNode("PVTSSF_lADOBBcDeFg123", 12345, "Status", []map[string]any{
+					{"id": "OPT_a", "name": "Todo"},
+					{"id": "OPT_b", "name": "In Progress"},
+				}),
+			})),
+		),
+	)
+	gql := githubv4.NewClient(mocked)
+
+	field, err := resolveProjectFieldByName(context.Background(), gql, "octo-org", "org", 7, "status", "")
+	require.NoError(t, err)
+	require.NotNil(t, field)
+	assert.Equal(t, "12345", field.ID)
+
+	optionID, err := resolveSingleSelectOptionByName(field, "in progress")
+	require.NoError(t, err)
+	assert.Equal(t, "OPT_b", optionID)
+}
+
+// Test_ResolveFieldNamesToIDs_CaseInsensitive verifies bulk name resolution
+// also matches case-insensitively.
+func Test_ResolveFieldNamesToIDs_CaseInsensitive(t *testing.T) {
+	mocked := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 1),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				statusFieldNode("PVTSSF_lADOBBcDeFg100", 100, "Status", nil),
+				statusFieldNode("PVTSSF_lADOBBcDeFg200", 200, "Priority", nil),
+			})),
+		),
+	)
+	gql := githubv4.NewClient(mocked)
+
+	ids, err := resolveFieldNamesToIDs(context.Background(), gql, "octo-org", "org", 1, []string{"status", "PRIORITY"})
+	require.NoError(t, err)
+	assert.Equal(t, []int64{100, 200}, ids)
+}
+
 // Test_ProjectsWrite_UpdateProjectItem_ByName is the acceptance test for the
 // write side: set Status = "In Progress" using only names plus an issue number.
 func Test_ProjectsWrite_UpdateProjectItem_ByName(t *testing.T) {
