@@ -1,5 +1,7 @@
 {
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Change issue dependency"
   },
   "description": "Add or remove an issue dependency relationship in a GitHub repository. Use type 'blocked_by' to record that the subject issue is blocked by a related issue, or type 'blocking' to record that the subject issue blocks a related issue. The related issue defaults to the same repository as the subject unless related_owner/related_repo are provided.",

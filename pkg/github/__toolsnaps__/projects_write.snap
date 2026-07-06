@@ -1,6 +1,8 @@
 {
   "annotations": {
     "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Manage GitHub Projects"
   },
   "description": "Create and manage GitHub Projects: create projects, add/update/delete items, create status updates, and add iteration fields.",
