@@ -179,7 +179,7 @@ runtime behavior (such as output formatting) won't appear here.
 - **update_issue_state** - Update Issue State
   - **Required OAuth Scopes**: `repo`
   - `confidence`: How confident you are in this choice. Use 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal. (string, optional)
-  - `duplicate_of`: The issue number this issue is a duplicate of. Only valid when state_reason is 'duplicate' and is_suggestion is true. (number, optional)
+  - `duplicate_of`: The issue number this issue is a duplicate of. Only valid when state_reason is 'duplicate'. Required when is_suggestion is true. (number, optional)
   - `is_suggestion`: If true, this state change is sent to the API as a suggestion (suggest:true) rather than an applied change. Whether the change is applied or recorded as a proposal is determined by the API. (boolean, optional)
   - `issue_number`: The issue number to update (number, required)
   - `owner`: Repository owner (username or organization) (string, required)
