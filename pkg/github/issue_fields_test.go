@@ -316,3 +316,38 @@ func Test_ListIssueFields(t *testing.T) {
 		})
 	}
 }
+
+// Test_ListIssueFields_LegacyDoesNotLeakMSDescriptionUnderRealTranslationHelper
+// pins the fix for the translation-key collision bug. The real translation
+// helper is first-write-wins on cache hits: if both the MS and legacy variants
+// use the same translation key, the second registration inherits the first
+// registration's cached description regardless of the fallback passed in.
+//
+// AllTools() calls the MS variant first, so under the bug the legacy variant
+// silently gets the MS description at runtime — leaking "multi_select" into
+// what should be a legacy-only surface. This test simulates the real helper's
+// cache behaviour and asserts the two descriptions actually differ.
+func Test_ListIssueFields_LegacyDoesNotLeakMSDescriptionUnderRealTranslationHelper(t *testing.T) {
+	// Mimic the caching behaviour of translations.TranslationHelper (see
+	// pkg/translations/translations.go): first-write-wins keyed by key name.
+	cache := map[string]string{}
+	firstWriteWins := func(key, defaultValue string) string {
+		if v, ok := cache[key]; ok {
+			return v
+		}
+		cache[key] = defaultValue
+		return defaultValue
+	}
+
+	// Call in registration order: MS variant first, legacy second. This is
+	// what AllTools() does — see tools.go.
+	msDesc := ListIssueFields(firstWriteWins).Tool.Description
+	legacyDesc := ListIssueFieldsLegacy(firstWriteWins).Tool.Description
+
+	require.NotEqual(t, msDesc, legacyDesc,
+		"the MS and legacy variants MUST use different translation keys so the real TranslationHelper's first-write-wins cache doesn't leak the MS description into the legacy variant")
+	assert.Contains(t, msDesc, "multi_select",
+		"MS variant description must advertise multi_select")
+	assert.NotContains(t, legacyDesc, "multi_select",
+		"legacy variant description must not advertise multi_select — that would leak the gated feature")
+}

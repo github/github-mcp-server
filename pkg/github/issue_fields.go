@@ -129,29 +129,38 @@ type issueFieldsOrgQuery struct {
 // multi_select arm, so the OUTPUT will still surface multi-select fields if
 // the org has them (matching what the dotcom UI shows). Only the description
 // is gated.
+//
+// The two variants use DIFFERENT translation keys because the shared
+// TranslationHelper is first-write-wins on cache hits — if both variants used
+// the same key, the second one registered would inherit the first's cached
+// value at runtime, and the FF-off variant would leak the MS description.
 func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := buildListIssueFields(t, true)
+	description := t(
+		"TOOL_LIST_ISSUE_FIELDS_DESCRIPTION",
+		"List issue fields for a repository or organization. Returns field definitions including name, type (text, number, date, single_select, multi_select), and for single_select and multi_select fields the list of valid option names. When repo is omitted, returns org-level fields directly.",
+	)
+	st := buildListIssueFields(t, description)
 	st.FeatureFlagEnable = FeatureFlagIssueFieldsMultiSelect
 	return st
 }
 
 // ListIssueFieldsLegacy is the FF-off variant of list_issue_fields.
 func ListIssueFieldsLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := buildListIssueFields(t, false)
+	description := t(
+		"TOOL_LIST_ISSUE_FIELDS_LEGACY_DESCRIPTION",
+		"List issue fields for a repository or organization. Returns field definitions including name, type (text, number, date, single_select), and for single_select fields the list of valid option names. When repo is omitted, returns org-level fields directly.",
+	)
+	st := buildListIssueFields(t, description)
 	st.FeatureFlagDisable = []string{FeatureFlagIssueFieldsMultiSelect}
 	return st
 }
 
-func buildListIssueFields(t translations.TranslationHelperFunc, multiSelectEnabled bool) inventory.ServerTool {
-	description := "List issue fields for a repository or organization. Returns field definitions including name, type (text, number, date, single_select), and for single_select fields the list of valid option names. When repo is omitted, returns org-level fields directly."
-	if multiSelectEnabled {
-		description = "List issue fields for a repository or organization. Returns field definitions including name, type (text, number, date, single_select, multi_select), and for single_select and multi_select fields the list of valid option names. When repo is omitted, returns org-level fields directly."
-	}
+func buildListIssueFields(t translations.TranslationHelperFunc, description string) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issue_fields",
-			Description: t("TOOL_LIST_ISSUE_FIELDS_DESCRIPTION", description),
+			Description: description,
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_ISSUE_FIELDS_USER_TITLE", "List issue fields"),
 				ReadOnlyHint: true,
