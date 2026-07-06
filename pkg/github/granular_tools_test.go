@@ -320,7 +320,7 @@ func TestGranularUpdateIssueAssigneesObjectForm(t *testing.T) {
 			},
 			expectedReq: map[string]any{
 				"assignees": []any{
-					map[string]any{"login": "octocat", "rationale": "Authored the crashing file", "confidence": "high", "suggest": true},
+					map[string]any{"login": "octocat", "rationale": "Authored the crashing file", "confidence": "HIGH", "suggest": true},
 				},
 			},
 		},
@@ -402,7 +402,17 @@ func TestGranularUpdateIssueAssigneesInvalidInput(t *testing.T) {
 					map[string]any{"login": "octocat", "confidence": "maybe"},
 				},
 			},
-			expectedErrText: "confidence must be one of: low, medium, high",
+			expectedErrText: "confidence must be one of: LOW, MEDIUM, HIGH",
+		},
+		{
+			name: "assignee entry is neither string nor object",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"assignees":    []any{float64(123)},
+			},
+			expectedErrText: "each assignee must be a string or an object",
 		},
 	}
 

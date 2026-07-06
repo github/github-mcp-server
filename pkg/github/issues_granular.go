@@ -242,7 +242,7 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_assignees",
-			Description: t("TOOL_UPDATE_ISSUE_ASSIGNEES_DESCRIPTION", "Update the assignees of an existing issue. This replaces the current assignees with the provided list. When setting values, include a confidence level (low, medium, or high) reflecting how certain you are about the choice."),
+			Description: t("TOOL_UPDATE_ISSUE_ASSIGNEES_DESCRIPTION", "Update the assignees of an existing issue. This replaces the current assignees with the provided list. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_ASSIGNEES_USER_TITLE", "Update Issue Assignees"),
 				ReadOnlyHint:    false,
@@ -286,8 +286,8 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 										},
 										"confidence": {
 											Type:        "string",
-											Description: "How confident you are in this choice. Use 'high' for clear signal or explicit user request, 'medium' for reasonable inference with some ambiguity, 'low' for best guess with limited signal.",
-											Enum:        []any{"low", "medium", "high"},
+											Description: "How confident you are in this choice. Use 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal.",
+											Enum:        []any{"LOW", "MEDIUM", "HIGH"},
 										},
 										"is_suggestion": {
 											Type: "boolean",
@@ -359,8 +359,9 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 					if err != nil {
 						return utils.NewToolResultError(err.Error()), nil, nil
 					}
-					if confidence != "" && confidence != "low" && confidence != "medium" && confidence != "high" {
-						return utils.NewToolResultError("confidence must be one of: low, medium, high"), nil, nil
+					confidence = normalizeConfidence(confidence)
+					if confidence != "" && confidence != "LOW" && confidence != "MEDIUM" && confidence != "HIGH" {
+						return utils.NewToolResultError("confidence must be one of: LOW, MEDIUM, HIGH"), nil, nil
 					}
 					isSuggestion, err := OptionalParam[bool](v, "is_suggestion")
 					if err != nil {
