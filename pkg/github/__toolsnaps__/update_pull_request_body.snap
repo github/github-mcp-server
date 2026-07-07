@@ -1,7 +1,9 @@
 {
   "annotations": {
     "destructiveHint": false,
+    "idempotentHint": false,
     "openWorldHint": true,
+    "readOnlyHint": false,
     "title": "Update Pull Request Body"
   },
   "description": "Update the body description of an existing pull request.",

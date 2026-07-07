@@ -1,5 +1,6 @@
 {
   "annotations": {
+    "idempotentHint": false,
     "readOnlyHint": true,
     "title": "Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)"
   },

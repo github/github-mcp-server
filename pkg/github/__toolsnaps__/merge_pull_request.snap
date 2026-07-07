@@ -1,5 +1,7 @@
 {
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Merge pull request"
   },
   "description": "Merge a pull request in a GitHub repository.",

@@ -1,7 +1,9 @@
 {
   "annotations": {
     "destructiveHint": false,
+    "idempotentHint": false,
     "openWorldHint": true,
+    "readOnlyHint": false,
     "title": "Update Issue Body"
   },
   "description": "Update the body content of an existing issue.",

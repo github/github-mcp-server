@@ -1,7 +1,9 @@
 {
   "annotations": {
     "destructiveHint": false,
+    "idempotentHint": false,
     "openWorldHint": true,
+    "readOnlyHint": false,
     "title": "Update Issue Type"
   },
   "description": "Update the type of an existing issue (e.g. 'bug', 'feature'). When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice.",

@@ -1,5 +1,7 @@
 {
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Push files to repository"
   },
   "description": "Push multiple files to a GitHub repository in a single commit",
