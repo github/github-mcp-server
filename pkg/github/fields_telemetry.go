@@ -13,11 +13,14 @@ import (
 // (a small fixed set of tool names) and `filtered` (a boolean). Unbounded values
 // such as repository, owner, user, the query, or the requested field list are
 // never used as tags.
+//
+// The realized savings (bytes_full - bytes_sent) is intentionally not emitted as
+// its own metric: it is derivable on the dashboard from the two byte counters,
+// since sum(bytes_full) - sum(bytes_sent) equals the total saved at any rollup.
 const (
-	metricFieldsToolCall   = "mcp.fields.tool_call"
-	metricFieldsBytesFull  = "mcp.fields.bytes_full"
-	metricFieldsBytesSent  = "mcp.fields.bytes_sent"
-	metricFieldsBytesSaved = "mcp.fields.bytes_saved"
+	metricFieldsToolCall  = "mcp.fields.tool_call"
+	metricFieldsBytesFull = "mcp.fields.bytes_full"
+	metricFieldsBytesSent = "mcp.fields.bytes_sent"
 )
 
 // recordFieldsUsage emits telemetry for a single call to a tool that supports
@@ -27,10 +30,9 @@ const (
 // Every call increments mcp.fields.tool_call tagged by tool and whether the
 // response was filtered, which yields the adoption rate (filtered / total). When
 // the response was filtered, it also records the unfiltered (fullBytes) and
-// returned (sentBytes) payload sizes plus their difference, which yields the
-// realized savings. Byte counters are only emitted for filtered calls so that
-// "percent saved" (bytes_saved / bytes_full) is computed over the population
-// where filtering actually applied.
+// returned (sentBytes) payload sizes. Byte counters are only emitted for
+// filtered calls so that "percent saved" (1 - bytes_sent / bytes_full) is
+// computed over the population where filtering actually applied.
 func recordFieldsUsage(ctx context.Context, deps ToolDependencies, tool string, filtered bool, fullBytes, sentBytes int) {
 	m := deps.Metrics(ctx)
 	if m == nil {
@@ -47,8 +49,6 @@ func recordFieldsUsage(ctx context.Context, deps ToolDependencies, tool string, 
 	}
 
 	toolTag := map[string]string{"tool": tool}
-	saved := max(fullBytes-sentBytes, 0)
 	m.Counter(metricFieldsBytesFull, toolTag, int64(fullBytes))
 	m.Counter(metricFieldsBytesSent, toolTag, int64(sentBytes))
-	m.Counter(metricFieldsBytesSaved, toolTag, int64(saved))
 }

@@ -97,10 +97,6 @@ func Test_recordFieldsUsage_Filtered(t *testing.T) {
 	sent, ok := rec.counter(metricFieldsBytesSent)
 	require.True(t, ok)
 	assert.Equal(t, int64(30), sent.value)
-
-	saved, ok := rec.counter(metricFieldsBytesSaved)
-	require.True(t, ok)
-	assert.Equal(t, int64(70), saved.value)
 }
 
 func Test_recordFieldsUsage_NotFiltered(t *testing.T) {
@@ -115,19 +111,8 @@ func Test_recordFieldsUsage_NotFiltered(t *testing.T) {
 	// No byte counters are emitted when the response was not filtered.
 	_, ok = rec.counter(metricFieldsBytesFull)
 	assert.False(t, ok)
-	_, ok = rec.counter(metricFieldsBytesSaved)
+	_, ok = rec.counter(metricFieldsBytesSent)
 	assert.False(t, ok)
-}
-
-func Test_recordFieldsUsage_ClampsNegativeSavings(t *testing.T) {
-	deps, rec := depsWithRecordingMetrics(t, BaseDeps{})
-
-	// sent larger than full should never yield negative savings.
-	recordFieldsUsage(context.Background(), deps, "get_file_contents", true, 10, 25)
-
-	saved, ok := rec.counter(metricFieldsBytesSaved)
-	require.True(t, ok)
-	assert.Equal(t, int64(0), saved.value)
 }
 
 func Test_recordFieldsUsage_NilExporterDoesNotPanic(t *testing.T) {

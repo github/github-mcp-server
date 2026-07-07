@@ -631,10 +631,7 @@ func Test_SearchCode_FieldsTelemetry(t *testing.T) {
 		require.True(t, ok)
 		sent, ok := rec.counter(metricFieldsBytesSent)
 		require.True(t, ok)
-		saved, ok := rec.counter(metricFieldsBytesSaved)
-		require.True(t, ok)
 		assert.Greater(t, full.value, sent.value, "filtering should remove bytes")
-		assert.Equal(t, full.value-sent.value, saved.value)
 	})
 
 	t.Run("unfiltered call records adoption only", func(t *testing.T) {
