@@ -1,7 +1,9 @@
 {
   "annotations": {
     "destructiveHint": false,
+    "idempotentHint": false,
     "openWorldHint": true,
+    "readOnlyHint": false,
     "title": "Reprioritize Sub-Issue"
   },
   "description": "Reprioritize (reorder) a sub-issue relative to other sub-issues.",

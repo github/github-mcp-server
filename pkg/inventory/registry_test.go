@@ -2268,3 +2268,16 @@ func TestShouldStripMCPAppsMetadata(t *testing.T) {
 		})
 	}
 }
+
+func TestForMCPRequest_PreservesInstructions(t *testing.T) {
+	reg := mustBuild(t, NewBuilder().
+		SetTools([]ServerTool{mockTool("tool1", "repos", true)}).
+		WithToolsets([]string{"all"}).
+		WithServerInstructions())
+	want := reg.Instructions()
+	require.NotEmpty(t, want, "expected base inventory to generate instructions")
+	for _, m := range []string{MCPMethodDiscover, MCPMethodInitialize, MCPMethodToolsList} {
+		require.Equal(t, want, reg.ForMCPRequest(m, "").Instructions(),
+			"instructions must be preserved for %s (server identity)", m)
+	}
+}

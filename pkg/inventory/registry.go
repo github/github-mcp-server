@@ -71,6 +71,7 @@ func (r *Inventory) UnrecognizedToolsets() []string {
 // MCP method constants for use with ForMCPRequest.
 const (
 	MCPMethodInitialize             = "initialize"
+	MCPMethodDiscover               = "server/discover"
 	MCPMethodToolsList              = "tools/list"
 	MCPMethodToolsCall              = "tools/call"
 	MCPMethodResourcesList          = "resources/list"
@@ -89,7 +90,7 @@ const (
 //   - itemName: Name of specific item for call/get methods (tool name, resource URI, or prompt name)
 //
 // Returns a new Registry containing only the items relevant to the request:
-//   - MCPMethodInitialize: Empty (capabilities are set via ServerOptions, not registration)
+//   - MCPMethodInitialize / MCPMethodDiscover: Empty items (capabilities from ServerOptions; instructions preserved)
 //   - MCPMethodToolsList: All available tools (no resources/prompts)
 //   - MCPMethodToolsCall: Only the named tool
 //   - MCPMethodResourcesList, MCPMethodResourcesTemplatesList: All available resources (no tools/prompts)
@@ -114,6 +115,7 @@ func (r *Inventory) ForMCPRequest(method string, itemName string) *Inventory {
 		featureChecker:       r.featureChecker,
 		filters:              r.filters, // shared, not modified
 		unrecognizedToolsets: r.unrecognizedToolsets,
+		instructions:         r.instructions, // server identity; preserved for all methods
 	}
 
 	// Helper to clear all item types
@@ -124,7 +126,10 @@ func (r *Inventory) ForMCPRequest(method string, itemName string) *Inventory {
 	}
 
 	switch method {
-	case MCPMethodInitialize:
+	case MCPMethodInitialize, MCPMethodDiscover:
+		// Both handshakes register no items; capabilities come from ServerOptions
+		// and instructions are preserved via the copy above (SEP-2575 discover
+		// must surface the same server identity as initialize).
 		clearAll()
 	case MCPMethodToolsList:
 		result.resourceTemplates, result.prompts = nil, nil

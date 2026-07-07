@@ -3777,10 +3777,13 @@ func Test_GetIssueParent(t *testing.T) {
 		Repository struct {
 			Issue struct {
 				Parent *struct {
-					Number     githubv4.Int
-					Title      githubv4.String
-					State      githubv4.String
-					URL        githubv4.String
+					Number githubv4.Int
+					Title  githubv4.String
+					State  githubv4.String
+					URL    githubv4.String
+					Author struct {
+						Login githubv4.String
+					}
 					Repository struct {
 						NameWithOwner githubv4.String
 					}
@@ -3795,9 +3798,32 @@ func Test_GetIssueParent(t *testing.T) {
 		"issueNumber": githubv4.Int(123),
 	}
 
+	parentResponse := func(authorLogin string) githubv4mock.GQLResponse {
+		return githubv4mock.DataResponse(map[string]any{
+			"repository": map[string]any{
+				"issue": map[string]any{
+					"parent": map[string]any{
+						"number": githubv4.Int(42),
+						"title":  githubv4.String("Parent\u202e issue"),
+						"state":  githubv4.String("OPEN"),
+						"url":    githubv4.String("https://github.com/owner/repo/issues/42"),
+						"author": map[string]any{
+							"login": githubv4.String(authorLogin),
+						},
+						"repository": map[string]any{
+							"nameWithOwner": githubv4.String("owner/repo"),
+						},
+					},
+				},
+			},
+		})
+	}
+
 	tests := []struct {
 		name            string
 		mockedClient    *http.Client
+		lockdownEnabled bool
+		restOverrides   map[string]string
 		expectToolError bool
 		expectedText    string
 	}{
@@ -3807,24 +3833,10 @@ func Test_GetIssueParent(t *testing.T) {
 				githubv4mock.NewQueryMatcher(
 					parentMatcherStruct,
 					vars,
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"issue": map[string]any{
-								"parent": map[string]any{
-									"number": githubv4.Int(42),
-									"title":  githubv4.String("Parent issue"),
-									"state":  githubv4.String("OPEN"),
-									"url":    githubv4.String("https://github.com/owner/repo/issues/42"),
-									"repository": map[string]any{
-										"nameWithOwner": githubv4.String("owner/repo"),
-									},
-								},
-							},
-						},
-					}),
+					parentResponse("author"),
 				),
 			),
-			expectedText: `"number":42`,
+			expectedText: `"title":"Parent issue"`,
 		},
 		{
 			name: "issue has no parent",
@@ -3854,17 +3866,48 @@ func Test_GetIssueParent(t *testing.T) {
 			),
 			expectToolError: true,
 		},
+		{
+			name: "lockdown enabled - parent author has push access",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					parentMatcherStruct,
+					vars,
+					parentResponse("maintainer"),
+				),
+			),
+			lockdownEnabled: true,
+			restOverrides:   map[string]string{"maintainer": "write"},
+			expectedText:    `"title":"Parent issue"`,
+		},
+		{
+			name: "lockdown enabled - parent author lacks push access",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					parentMatcherStruct,
+					vars,
+					parentResponse("externaluser"),
+				),
+			),
+			lockdownEnabled: true,
+			restOverrides:   map[string]string{"externaluser": "read"},
+			expectedText:    `"parent":null`,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			gqlClient := githubv4.NewClient(tc.mockedClient)
 			client := mustNewGHClient(t, nil)
+
+			var restClient *github.Client
+			if tc.lockdownEnabled {
+				restClient = mockRESTPermissionServer(t, "read", tc.restOverrides)
+			}
 			deps := BaseDeps{
 				Client:          client,
 				GQLClient:       gqlClient,
-				RepoAccessCache: stubRepoAccessCache(nil, 15*time.Minute),
-				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+				RepoAccessCache: stubRepoAccessCache(restClient, 15*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled}),
 			}
 			handler := serverTool.Handler(deps)
 

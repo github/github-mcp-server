@@ -701,7 +701,7 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 				result, err := GetSubIssues(ctx, client, deps, owner, repo, issueNumber, pagination)
 				return attachIFC(result), nil, err
 			case "get_parent":
-				result, err := GetIssueParent(ctx, gqlClient, owner, repo, issueNumber)
+				result, err := GetIssueParent(ctx, gqlClient, deps, owner, repo, issueNumber)
 				return attachIFC(result), nil, err
 			case "get_labels":
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
@@ -949,18 +949,31 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 	return utils.NewToolResultText(string(r)), nil
 }
 
-// GetIssueParent returns the parent issue of the given issue, or a null parent
-// when the issue is not a sub-issue of any other issue. It reads the GraphQL
-// Issue.parent field, the upward counterpart to the downward get_sub_issues read.
-func GetIssueParent(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+// GetIssueParent returns the parent issue of the given issue, or a null
+// parent when the issue is not a sub-issue. It reads the GraphQL
+// Issue.parent field, the upward counterpart to get_sub_issues.
+//
+// The parent title is always sanitized (it may be cross-repo). Under
+// lockdown mode the parent is only returned when its author has push
+// access to the parent repo (mirroring GetIssue); otherwise it is omitted.
+func GetIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDependencies, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+	cache, err := deps.GetRepoAccessCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+	}
+	flags := deps.GetFlags(ctx)
+
 	var query struct {
 		Repository struct {
 			Issue struct {
 				Parent *struct {
-					Number     githubv4.Int
-					Title      githubv4.String
-					State      githubv4.String
-					URL        githubv4.String
+					Number githubv4.Int
+					Title  githubv4.String
+					State  githubv4.String
+					URL    githubv4.String
+					Author struct {
+						Login githubv4.String
+					}
 					Repository struct {
 						NameWithOwner githubv4.String
 					}
@@ -984,10 +997,27 @@ func GetIssueParent(ctx context.Context, client *githubv4.Client, owner string, 
 		return MarshalledTextResult(map[string]any{"parent": nil}), nil
 	}
 
+	if flags.LockdownMode {
+		if cache == nil {
+			return nil, fmt.Errorf("lockdown cache is not configured")
+		}
+		// Fail closed: omit the parent if anything needed for the safe-content
+		// check is missing or unverifiable.
+		parentAuthorLogin := string(parent.Author.Login)
+		parentOwner, parentRepo, ok := strings.Cut(string(parent.Repository.NameWithOwner), "/")
+		if parentAuthorLogin == "" || !ok || parentOwner == "" || parentRepo == "" {
+			return MarshalledTextResult(map[string]any{"parent": nil}), nil
+		}
+		isSafeContent, err := cache.IsSafeContent(ctx, parentAuthorLogin, parentOwner, parentRepo)
+		if err != nil || !isSafeContent {
+			return MarshalledTextResult(map[string]any{"parent": nil}), nil
+		}
+	}
+
 	return MarshalledTextResult(map[string]any{
 		"parent": map[string]any{
 			"number":     int(parent.Number),
-			"title":      string(parent.Title),
+			"title":      sanitize.Sanitize(string(parent.Title)),
 			"state":      string(parent.State),
 			"url":        string(parent.URL),
 			"repository": string(parent.Repository.NameWithOwner),

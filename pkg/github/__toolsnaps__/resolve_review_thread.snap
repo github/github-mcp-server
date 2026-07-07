@@ -1,7 +1,9 @@
 {
   "annotations": {
     "destructiveHint": false,
+    "idempotentHint": false,
     "openWorldHint": true,
+    "readOnlyHint": false,
     "title": "Resolve Review Thread"
   },
   "description": "Resolve a review thread on a pull request. Resolving an already-resolved thread is a no-op.",

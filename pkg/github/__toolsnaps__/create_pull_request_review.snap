@@ -1,7 +1,9 @@
 {
   "annotations": {
     "destructiveHint": false,
+    "idempotentHint": false,
     "openWorldHint": true,
+    "readOnlyHint": false,
     "title": "Create Pull Request Review"
   },
   "description": "Create a review on a pull request. If event is provided, the review is submitted immediately; otherwise a pending review is created.",

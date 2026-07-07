@@ -1,6 +1,8 @@
 {
   "annotations": {
     "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Trigger GitHub Actions workflow actions"
   },
   "description": "Trigger GitHub Actions workflow operations, including running, re-running, cancelling workflow runs, and deleting workflow run logs.",
