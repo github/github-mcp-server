@@ -1,0 +1,54 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Add reply to pull request comment"
+  },
+  "description": "Add a reply and/or reaction to an existing pull request comment. This can create a new comment linked as a reply to the specified comment, add an emoji reaction to the specified comment, or do both. At least one of body or reaction is required.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "The text of the reply. Required unless reaction is provided.",
+        "type": "string"
+      },
+      "commentId": {
+        "description": "The numeric ID of the pull request review comment to reply or react to. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
+        "minimum": 1,
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "Pull request number. Required when body is provided.",
+        "type": "number"
+      },
+      "reaction": {
+        "description": "Emoji reaction to add. Required unless body is provided.",
+        "enum": [
+          "+1",
+          "-1",
+          "laugh",
+          "confused",
+          "heart",
+          "hooray",
+          "rocket",
+          "eyes"
+        ],
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "commentId"
+    ],
+    "type": "object"
+  },
+  "name": "add_reply_to_pull_request_comment"
+}

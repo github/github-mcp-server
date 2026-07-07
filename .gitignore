@@ -1,4 +1,34 @@
 .idea
 cmd/github-mcp-server/github-mcp-server
+
+# VSCode
+.vscode/*
+!.vscode/launch.json
+
 # Added by goreleaser init:
 dist/
+__debug_bin*
+
+# Go
+vendor
+bin/
+
+# macOS
+.DS_Store
+
+# binary
+/github-mcp-server
+/mcpcurl
+/e2e.test
+
+.history
+conformance-report/
+
+# UI build artifacts
+ui/dist/
+ui/node_modules/
+
+# Embedded UI assets (built from ui/)
+pkg/github/ui_dist/*
+!pkg/github/ui_dist/.gitkeep
+!pkg/github/ui_dist/.placeholder.html

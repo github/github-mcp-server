@@ -1,0 +1,78 @@
+#!/bin/bash
+
+# Script to pretty print the output of the github-mcp-server
+# log.
+#
+# It uses colored output when running on a terminal.
+
+# show script help
+show_help() {
+  cat <<EOF
+Usage: $(basename "$0") [file]
+
+If [file] is provided, input is read from that file.
+If no argument is given, input is read from stdin.
+
+Options:
+  -h, --help      Show this help message and exit
+EOF
+}
+
+# choose color for stdin or stdout if we are printing to
+# an actual terminal
+color(){
+  io="$1"
+  if [[ "$io" == "stdin" ]]; then
+    color="\033[0;32m" # green
+  else
+    color="\033[0;36m" # cyan
+  fi
+  if [ ! $is_terminal = "1" ]; then
+    color=""
+  fi
+  echo -e "${color}[$io]"
+}
+
+# reset code if we are printing to an actual terminal
+reset(){
+  if [ ! $is_terminal = "1" ]; then
+    return
+  fi
+  echo -e "\033[0m"
+}
+
+
+# Handle -h or --help
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  show_help
+  exit 0
+fi
+
+# Determine input source
+if [[ -n "$1" ]]; then
+  if [[ ! -r "$1" ]]; then
+    echo "Error: File '$1' not found or not readable." >&2
+    exit 1
+  fi
+  input="$1"
+else
+  input="/dev/stdin"
+fi
+
+# check if we are in a terminal for showing colors
+if test -t 1; then
+  is_terminal="1"
+else
+  is_terminal="0"
+fi
+
+# Processs each log line, print whether is stdin or stdout, using different
+# colors if we output to a terminal, and pretty print json data using jq
+sed -nE 's/^.*\[(stdin|stdout)\]:.* ([0-9]+) bytes: (.*)\\n"$/\1 \2 \3/p' $input |
+while read -r io bytes json; do
+  # Unescape the JSON string safely
+  unescaped=$(echo "$json" | awk '{ print "echo -e \"" $0 "\" | jq ." }' | bash)
+  echo  "$(color $io)($bytes bytes):$(reset)"
+  echo "$unescaped" | jq .
+  echo
+done

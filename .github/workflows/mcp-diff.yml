@@ -1,0 +1,140 @@
+name: MCP Server Diff
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  mcp-diff:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Build UI
+        uses: ./.github/actions/build-ui
+
+      - name: Stash UI artifacts for baseline checkout
+        # mcp-server-diff checks the baseline ref out into a separate working
+        # directory and runs install_command there. Without these prebuilt
+        # artifacts, pkg/github/ui_dist/ would be empty on the baseline side
+        # and UIAssetsAvailable() would return false, producing a false-positive
+        # diff that "adds" _meta.ui to MCP Apps tools on every PR.
+        run: |
+          mkdir -p "${RUNNER_TEMP}/ui_dist"
+          cp pkg/github/ui_dist/*.html "${RUNNER_TEMP}/ui_dist/"
+
+      - name: Generate diff configurations
+        id: configs
+        # The generator imports pkg/github so any new entry in
+        # AllowedFeatureFlags is automatically diffed without touching this
+        # workflow. See script/print-mcp-diff-configs/main.go.
+        run: |
+          {
+            echo 'configurations<<MCP_DIFF_EOF'
+            go run ./script/print-mcp-diff-configs
+            echo 'MCP_DIFF_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run MCP Server Diff
+        # Pinned to the cross-spec-aware mcp-server-diff v3.0.0 (full SHA required —
+        # Actions rejects shortened SHAs): normalizes _meta plumbing, cache hints,
+        # initialize envelope, tool-annotation default hints; probes each server at its
+        # own newest spec via the stateless SEP-2575 server/discover path. Keeps the
+        # go-sdk v1.6.1 -> v1.7.0-pre.1 bump an honest, signal-only diff. github/copilot-mcp-core#1709.
+        uses: SamMorrowDrums/mcp-server-diff@40d992e0a220e5b63378758f9a40d6a8982898d2 # v3.0.0
+        with:
+          setup_go: "false"
+          install_command: |
+            go mod download
+            mkdir -p pkg/github/ui_dist
+            cp "${RUNNER_TEMP}"/ui_dist/*.html pkg/github/ui_dist/
+          start_command: go run ./cmd/github-mcp-server stdio
+          env_vars: |
+            GITHUB_PERSONAL_ACCESS_TOKEN=test-token
+          configurations: ${{ steps.configs.outputs.configurations }}
+
+      - name: Add interpretation note
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "ℹ️ **Note:** Differences may be intentional improvements." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Common expected differences:" >> $GITHUB_STEP_SUMMARY
+          echo "- New tools/toolsets added" >> $GITHUB_STEP_SUMMARY
+          echo "- Tool descriptions updated" >> $GITHUB_STEP_SUMMARY
+          echo "- Capability changes (intentional improvements)" >> $GITHUB_STEP_SUMMARY
+
+  mcp-diff-http:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Build UI
+        uses: ./.github/actions/build-ui
+
+      - name: Stash UI artifacts for baseline checkout
+        # See the stdio job above for rationale: the action's baseline checkout
+        # has no UI artifacts unless we hand them over via RUNNER_TEMP.
+        run: |
+          mkdir -p "${RUNNER_TEMP}/ui_dist"
+          cp pkg/github/ui_dist/*.html "${RUNNER_TEMP}/ui_dist/"
+
+      - name: Generate diff configurations
+        id: configs
+        # See script/print-mcp-diff-configs/main.go. The http-headers variant
+        # points every config at a shared HTTP server started by the action
+        # and carries per-config settings via X-MCP-* headers, mirroring how
+        # the remote server is invoked in production (server-side defaults +
+        # per-user header overrides).
+        run: |
+          {
+            echo 'configurations<<MCP_DIFF_EOF'
+            go run ./script/print-mcp-diff-configs -transport http-headers
+            echo 'MCP_DIFF_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run MCP Server Diff (streamable-http)
+        # Pinned to mcp-server-diff v3.0.0 — see rationale on the stdio job above.
+        uses: SamMorrowDrums/mcp-server-diff@40d992e0a220e5b63378758f9a40d6a8982898d2 # v3.0.0
+        with:
+          setup_go: "false"
+          install_command: |
+            go mod download
+            mkdir -p pkg/github/ui_dist
+            cp "${RUNNER_TEMP}"/ui_dist/*.html pkg/github/ui_dist/
+          http_start_command: go run ./cmd/github-mcp-server http --port 8082
+          http_startup_wait_ms: "5000"
+          configurations: ${{ steps.configs.outputs.configurations }}
+
+      - name: Add interpretation note
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "ℹ️ **Note:** This job exercises the streamable-http transport against a shared server, with per-config settings supplied via X-MCP-* request headers." >> $GITHUB_STEP_SUMMARY

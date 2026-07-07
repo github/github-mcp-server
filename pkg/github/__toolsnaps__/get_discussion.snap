@@ -1,0 +1,31 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Get discussion"
+  },
+  "description": "Get a specific discussion by ID",
+  "inputSchema": {
+    "properties": {
+      "discussionNumber": {
+        "description": "Discussion Number",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "discussionNumber"
+    ],
+    "type": "object"
+  },
+  "name": "get_discussion"
+}

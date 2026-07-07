@@ -1,0 +1,62 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Change issue dependency"
+  },
+  "description": "Add or remove an issue dependency relationship in a GitHub repository. Use type 'blocked_by' to record that the subject issue is blocked by a related issue, or type 'blocking' to record that the subject issue blocks a related issue. The related issue defaults to the same repository as the subject unless related_owner/related_repo are provided.",
+  "inputSchema": {
+    "properties": {
+      "issue_number": {
+        "description": "The number of the subject issue",
+        "type": "number"
+      },
+      "method": {
+        "description": "The action to perform.\nOptions are:\n- 'add' - create the dependency relationship.\n- 'remove' - delete the dependency relationship.",
+        "enum": [
+          "add",
+          "remove"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "The owner of the subject issue's repository",
+        "type": "string"
+      },
+      "related_issue_number": {
+        "description": "The number of the related issue to link or unlink",
+        "type": "number"
+      },
+      "related_owner": {
+        "description": "The owner of the related issue's repository. Defaults to 'owner' when omitted.",
+        "type": "string"
+      },
+      "related_repo": {
+        "description": "The name of the related issue's repository. Defaults to 'repo' when omitted.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "The name of the subject issue's repository",
+        "type": "string"
+      },
+      "type": {
+        "description": "The relationship direction relative to the subject issue.\nOptions are:\n- 'blocked_by' - the subject issue is blocked by the related issue.\n- 'blocking' - the subject issue blocks the related issue.",
+        "enum": [
+          "blocked_by",
+          "blocking"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "type",
+      "owner",
+      "repo",
+      "issue_number",
+      "related_issue_number"
+    ],
+    "type": "object"
+  },
+  "name": "issue_dependency_write"
+}

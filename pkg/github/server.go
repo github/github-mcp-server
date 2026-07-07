@@ -3,201 +3,200 @@ package github
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"net/http"
+	"log/slog"
+	"strings"
+	"time"
 
+	gherrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v69/github"
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// NewServer creates a new GitHub MCP server with the specified GH client and logger.
-func NewServer(client *github.Client, readOnly bool, t translations.TranslationHelperFunc) *server.MCPServer {
+type MCPServerConfig struct {
+	// Version of the server
+	Version string
+
+	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
+	Host string
+
+	// GitHub Token to authenticate with the GitHub API
+	Token string
+
+	// EnabledToolsets is a list of toolsets to enable
+	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
+	EnabledToolsets []string
+
+	// EnabledTools is a list of specific tools to enable (additive to toolsets)
+	// When specified, these tools are registered in addition to any specified toolset tools
+	EnabledTools []string
+
+	// EnabledFeatures is a list of feature flags that are enabled
+	// Items with FeatureFlagEnable matching an entry in this list will be available
+	EnabledFeatures []string
+
+	// ReadOnly indicates if we should only offer read-only tools
+	ReadOnly bool
+
+	// Translator provides translated text for the server tooling
+	Translator translations.TranslationHelperFunc
+
+	// Content window size
+	ContentWindowSize int
+
+	// LockdownMode indicates if we should enable lockdown mode
+	LockdownMode bool
+
+	// InsidersMode expands to the curated set of feature flags enabled for insiders.
+	InsidersMode bool
+
+	// Logger is used for logging within the server
+	Logger *slog.Logger
+	// RepoAccessTTL overrides the default TTL for repository access cache entries.
+	RepoAccessTTL *time.Duration
+
+	// ExcludeTools is a list of tool names that should be disabled regardless of
+	// other configuration. These tools will be excluded even if their toolset is enabled
+	// or they are explicitly listed in EnabledTools.
+	ExcludeTools []string
+
+	// TokenScopes contains the OAuth scopes available to the token.
+	// When non-nil, tools requiring scopes not in this list will be hidden.
+	// This is used for PAT scope filtering where we can't issue scope challenges.
+	TokenScopes []string
+
+	// TokenProvider, when non-nil, supplies the GitHub token for each API
+	// request instead of the static Token. It backs OAuth login, where the
+	// token is obtained lazily on first use and refreshed thereafter.
+	TokenProvider func() string
+
+	// Additional server options to apply
+	ServerOptions []MCPServerOption
+}
+
+type MCPServerOption func(*mcp.ServerOptions)
+
+func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependencies, inv *inventory.Inventory, middleware ...mcp.Middleware) (*mcp.Server, error) {
+	// Create the MCP server
+	serverOpts := &mcp.ServerOptions{
+		Instructions:      inv.Instructions(),
+		Logger:            cfg.Logger,
+		CompletionHandler: CompletionsHandler(deps.GetClient),
+	}
+
+	// Apply any additional server options
+	for _, o := range cfg.ServerOptions {
+		o(serverOpts)
+	}
+
+	ghServer := NewServer(cfg.Version, cfg.Translator("SERVER_NAME", "github-mcp-server"), cfg.Translator("SERVER_TITLE", "GitHub MCP Server"), serverOpts)
+
+	// Add middlewares. Order matters - for example, the error context middleware should be applied last so that it runs FIRST (closest to the handler) to ensure all errors are captured,
+	// and any middleware that needs to read or modify the context should be before it.
+	ghServer.AddReceivingMiddleware(middleware...)
+	ghServer.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
+
+	if unrecognized := inv.UnrecognizedToolsets(); len(unrecognized) > 0 {
+		cfg.Logger.Warn("Warning: unrecognized toolsets ignored", "toolsets", strings.Join(unrecognized, ", "))
+	}
+
+	// Register GitHub tools/resources/prompts from the inventory.
+	inv.RegisterAll(ctx, ghServer, deps)
+
+	// Register MCP App UI resources whenever the embedded UI assets are
+	// available. The resources are static HTML and are only referenced by
+	// tools when the remote_mcp_ui_apps feature flag is enabled for the
+	// request (the inventory strips the _meta.ui block otherwise via
+	// stripMCPAppsMetadata), so registering them unconditionally is safe.
+	// Registering here — rather than in the stdio bootstrap — ensures the
+	// remote/HTTP server also serves them, fixing the "-32002 Resource not
+	// found" error clients hit after the tool returns a ui:// URI.
+	if UIAssetsAvailable() {
+		RegisterUIResources(ghServer, cfg.ReadOnly)
+	}
+
+	return ghServer, nil
+}
+
+// ResolvedEnabledToolsets determines which toolsets should be enabled based on config.
+// Returns nil for "use defaults", empty slice for "none", or explicit list.
+func ResolvedEnabledToolsets(enabledToolsets []string, enabledTools []string) []string {
+	if enabledToolsets != nil {
+		return enabledToolsets
+	}
+	if len(enabledTools) > 0 {
+		// When specific tools are requested but no toolsets, don't use default toolsets
+		// This matches the original behavior: --tools=X alone registers only X
+		return []string{}
+	}
+
+	// nil means "use defaults" in WithToolsets
+	return nil
+}
+
+func addGitHubAPIErrorToContext(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(ctx context.Context, method string, req mcp.Request) (result mcp.Result, err error) {
+		// Ensure the context is cleared of any previous errors
+		// as context isn't propagated through middleware
+		ctx = gherrors.ContextWithGitHubErrors(ctx)
+		return next(ctx, method, req)
+	}
+}
+
+// NewServer creates a new GitHub MCP server with the given version, server
+// name, display title, and options. If name or title are empty the defaults
+// "github-mcp-server" and "GitHub MCP Server" are used.
+func NewServer(version, name, title string, opts *mcp.ServerOptions) *mcp.Server {
+	if opts == nil {
+		opts = &mcp.ServerOptions{}
+	}
+
+	if name == "" {
+		name = "github-mcp-server"
+	}
+	if title == "" {
+		title = "GitHub MCP Server"
+	}
+
 	// Create a new MCP server
-	s := server.NewMCPServer(
-		"github-mcp-server",
-		"0.0.1",
-		server.WithResourceCapabilities(true, true),
-		server.WithLogging())
+	s := mcp.NewServer(&mcp.Implementation{
+		Name:    name,
+		Title:   title,
+		Version: version,
+		Icons:   octicons.Icons("mark-github"),
+	}, opts)
 
-	// Add GitHub Resources
-	s.AddResourceTemplate(getRepositoryResourceContent(client, t))
-	s.AddResourceTemplate(getRepositoryResourceBranchContent(client, t))
-	s.AddResourceTemplate(getRepositoryResourceCommitContent(client, t))
-	s.AddResourceTemplate(getRepositoryResourceTagContent(client, t))
-	s.AddResourceTemplate(getRepositoryResourcePrContent(client, t))
-
-	// Add GitHub tools - Issues
-	s.AddTool(getIssue(client, t))
-	s.AddTool(searchIssues(client, t))
-	s.AddTool(listIssues(client, t))
-	if !readOnly {
-		s.AddTool(createIssue(client, t))
-		s.AddTool(addIssueComment(client, t))
-		s.AddTool(createIssue(client, t))
-		s.AddTool(updateIssue(client, t))
-	}
-
-	// Add GitHub tools - Pull Requests
-	s.AddTool(getPullRequest(client, t))
-	s.AddTool(listPullRequests(client, t))
-	s.AddTool(getPullRequestFiles(client, t))
-	s.AddTool(getPullRequestStatus(client, t))
-	s.AddTool(getPullRequestComments(client, t))
-	s.AddTool(getPullRequestReviews(client, t))
-	if !readOnly {
-		s.AddTool(mergePullRequest(client, t))
-		s.AddTool(updatePullRequestBranch(client, t))
-		s.AddTool(createPullRequestReview(client, t))
-		s.AddTool(createPullRequest(client, t))
-	}
-
-	// Add GitHub tools - Repositories
-	s.AddTool(searchRepositories(client, t))
-	s.AddTool(getFileContents(client, t))
-	s.AddTool(listCommits(client, t))
-	if !readOnly {
-		s.AddTool(createOrUpdateFile(client, t))
-		s.AddTool(createRepository(client, t))
-		s.AddTool(forkRepository(client, t))
-		s.AddTool(createBranch(client, t))
-		s.AddTool(pushFiles(client, t))
-	}
-
-	// Add GitHub tools - Search
-	s.AddTool(searchCode(client, t))
-	s.AddTool(searchUsers(client, t))
-
-	// Add GitHub tools - Users
-	s.AddTool(getMe(client, t))
-
-	// Add GitHub tools - Code Scanning
-	s.AddTool(getCodeScanningAlert(client, t))
-	s.AddTool(listCodeScanningAlerts(client, t))
 	return s
 }
 
-// getMe creates a tool to get details of the authenticated user.
-func getMe(client *github.Client, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("get_me",
-			mcp.WithDescription(t("TOOL_GET_ME_DESCRIPTION", "Get details of the authenticated GitHub user. Use this when a request include \"me\", \"my\"...")),
-			mcp.WithString("reason",
-				mcp.Description("Optional: reason the session was created"),
-			),
-		),
-		func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			user, resp, err := client.Users.Get(ctx, "")
-			if err != nil {
-				return nil, fmt.Errorf("failed to get user: %w", err)
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get user: %s", string(body))), nil
-			}
-
-			r, err := json.Marshal(user)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal user: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+func CompletionsHandler(getClient GetClientFn) func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
+	return func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
+		if req == nil || req.Params == nil || req.Params.Ref == nil {
+			return nil, fmt.Errorf("missing required parameter: ref")
 		}
+		switch req.Params.Ref.Type {
+		case "ref/resource":
+			if strings.HasPrefix(req.Params.Ref.URI, "repo://") {
+				return RepositoryResourceCompletionHandler(getClient)(ctx, req)
+			}
+			return nil, fmt.Errorf("unsupported resource URI: %s", req.Params.Ref.URI)
+		case "ref/prompt":
+			return nil, nil
+		default:
+			return nil, fmt.Errorf("unsupported ref type: %s", req.Params.Ref.Type)
+		}
+	}
 }
 
-// isAcceptedError checks if the error is an accepted error.
-func isAcceptedError(err error) bool {
-	var acceptedError *github.AcceptedError
-	return errors.As(err, &acceptedError)
-}
-
-// requiredParam is a helper function that can be used to fetch a requested parameter from the request.
-// It does the following checks:
-// 1. Checks if the parameter is present in the request.
-// 2. Checks if the parameter is of the expected type.
-// 3. Checks if the parameter is not empty, i.e: non-zero value
-func requiredParam[T comparable](r mcp.CallToolRequest, p string) (T, error) {
-	var zero T
-
-	// Check if the parameter is present in the request
-	if _, ok := r.Params.Arguments[p]; !ok {
-		return zero, fmt.Errorf("missing required parameter: %s", p)
-	}
-
-	// Check if the parameter is of the expected type
-	if _, ok := r.Params.Arguments[p].(T); !ok {
-		return zero, fmt.Errorf("parameter %s is not of type %T", p, zero)
-	}
-
-	if r.Params.Arguments[p].(T) == zero {
-		return zero, fmt.Errorf("missing required parameter: %s", p)
-
-	}
-
-	return r.Params.Arguments[p].(T), nil
-}
-
-// requiredInt is a helper function that can be used to fetch a requested parameter from the request.
-// It does the following checks:
-// 1. Checks if the parameter is present in the request.
-// 2. Checks if the parameter is of the expected type.
-// 3. Checks if the parameter is not empty, i.e: non-zero value
-func requiredInt(r mcp.CallToolRequest, p string) (int, error) {
-	v, err := requiredParam[float64](r, p)
+func MarshalledTextResult(v any) *mcp.CallToolResult {
+	data, err := json.Marshal(v)
 	if err != nil {
-		return 0, err
-	}
-	return int(v), nil
-}
-
-// optionalParam is a helper function that can be used to fetch a requested parameter from the request.
-// It does the following checks:
-// 1. Checks if the parameter is present in the request, if not, it returns its zero-value
-// 2. If it is present, it checks if the parameter is of the expected type and returns it
-func optionalParam[T any](r mcp.CallToolRequest, p string) (T, error) {
-	var zero T
-
-	// Check if the parameter is present in the request
-	if _, ok := r.Params.Arguments[p]; !ok {
-		return zero, nil
+		return utils.NewToolResultErrorFromErr("failed to marshal text result to json", err)
 	}
 
-	// Check if the parameter is of the expected type
-	if _, ok := r.Params.Arguments[p].(T); !ok {
-		return zero, fmt.Errorf("parameter %s is not of type %T", p, zero)
-	}
-
-	return r.Params.Arguments[p].(T), nil
-}
-
-// optionalIntParam is a helper function that can be used to fetch a requested parameter from the request.
-// It does the following checks:
-// 1. Checks if the parameter is present in the request, if not, it returns its zero-value
-// 2. If it is present, it checks if the parameter is of the expected type and returns it
-func optionalIntParam(r mcp.CallToolRequest, p string) (int, error) {
-	v, err := optionalParam[float64](r, p)
-	if err != nil {
-		return 0, err
-	}
-	return int(v), nil
-}
-
-// optionalIntParamWithDefault is a helper function that can be used to fetch a requested parameter from the request
-// similar to optionalIntParam, but it also takes a default value.
-func optionalIntParamWithDefault(r mcp.CallToolRequest, p string, d int) (int, error) {
-	v, err := optionalIntParam(r, p)
-	if err != nil {
-		return 0, err
-	}
-	if v == 0 {
-		return d, nil
-	}
-	return v, nil
+	return utils.NewToolResultText(string(data))
 }

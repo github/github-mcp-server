@@ -15,9 +15,29 @@ be executed against the configured MCP server.
 
 ## Installation
 
+### Prerequisites
+- Go 1.24 or later
+- Access to the GitHub MCP Server from either Docker or local build
+
+### Build from Source
+```bash
+cd cmd/mcpcurl
+go build -o mcpcurl
+```
+
+### Using Go Install
+```bash
+go install github.com/github/github-mcp-server/cmd/mcpcurl@latest
+```
+
+### Verify Installation
+```bash
+./mcpcurl --help
+```
+
 ## Usage
 
-```bash
+```console
 mcpcurl --stdio-server-cmd="<command to start MCP server>" <command> [flags]
 ```
 
@@ -31,9 +51,9 @@ The `--stdio-server-cmd` flag is required for all commands and specifies the com
 
 ### Examples
 
-List available tools in Anthropic's MCP server:
+List available tools in Github's MCP server:
 
-```bash
+```console
 % ./mcpcurl --stdio-server-cmd "docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN mcp/github" tools --help
 Contains all dynamically generated tool commands from the schema
 
@@ -49,7 +69,8 @@ Available Commands:
   create_repository     Create a new GitHub repository in your account
   fork_repository       Fork a GitHub repository to your account or specified organization
   get_file_contents     Get the contents of a file or directory from a GitHub repository
-  get_issue             Get details of a specific issue in a GitHub repository.
+  get_issue             Get details of a specific issue in a GitHub repository
+  get_issue_comments    Get comments for a GitHub issue
   list_commits          Get list of commits of a branch in a GitHub repository
   list_issues           List issues in a GitHub repository with filtering options
   push_files            Push multiple files to a GitHub repository in a single commit
@@ -71,9 +92,9 @@ Use "mcpcurl tools [command] --help" for more information about a command.
 
 Get help for a specific tool:
 
-```bash
+```console
  % ./mcpcurl --stdio-server-cmd "docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN mcp/github" tools get_issue --help
-Get details of a specific issue in a GitHub repository.
+Get details of a specific issue in a GitHub repository
 
 Usage:
   mcpcurl tools get_issue [flags]
@@ -92,7 +113,7 @@ Global Flags:
 
 Use one of the tools:
 
-```bash
+```console
  % ./mcpcurl --stdio-server-cmd "docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN mcp/github" tools get_issue --owner golang --repo go --issue_number 1
 {
   "active_lock_reason": null,

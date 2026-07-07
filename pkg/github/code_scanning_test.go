@@ -6,24 +6,29 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v69/github"
-	"github.com/migueleliasweb/go-github-mock/src/mock"
+	"github.com/google/go-github/v87/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_GetCodeScanningAlert(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := getCodeScanningAlert(mockClient, translations.NullTranslationHelper)
+	toolDef := GetCodeScanningAlert(translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
-	assert.Equal(t, "get_code_scanning_alert", tool.Name)
-	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "alertNumber")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "alertNumber"})
+	assert.Equal(t, "get_code_scanning_alert", toolDef.Tool.Name)
+	assert.NotEmpty(t, toolDef.Tool.Description)
+
+	// InputSchema is of type any, need to cast to *jsonschema.Schema
+	schema, ok := toolDef.Tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "alertNumber")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "alertNumber"})
 
 	// Setup mock alert for success case
 	mockAlert := &github.Alert{
@@ -36,20 +41,17 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedAlert  *github.Alert
 		expectedErrMsg string
 	}{
 		{
 			name: "successful alert fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber,
-					mockAlert,
-				),
-			),
-			requestArgs: map[string]interface{}{
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber: mockResponse(t, http.StatusOK, mockAlert),
+			}),
+			requestArgs: map[string]any{
 				"owner":       "owner",
 				"repo":        "repo",
 				"alertNumber": float64(42),
@@ -59,16 +61,13 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 		},
 		{
 			name: "alert fetch fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
-				),
-			),
-			requestArgs: map[string]interface{}{
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
 				"owner":       "owner",
 				"repo":        "repo",
 				"alertNumber": float64(9999),
@@ -81,23 +80,29 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
-			_, handler := getCodeScanningAlert(client, translations.NullTranslationHelper)
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := toolDef.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
-			result, err := handler(context.Background(), request)
+			// Call handler with new signature
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
 				return
 			}
 
 			require.NoError(t, err)
+			require.False(t, result.IsError)
 
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
@@ -117,17 +122,24 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 
 func Test_ListCodeScanningAlerts(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := listCodeScanningAlerts(mockClient, translations.NullTranslationHelper)
+	toolDef := ListCodeScanningAlerts(translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
-	assert.Equal(t, "list_code_scanning_alerts", tool.Name)
-	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "ref")
-	assert.Contains(t, tool.InputSchema.Properties, "state")
-	assert.Contains(t, tool.InputSchema.Properties, "severity")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
+	assert.Equal(t, "list_code_scanning_alerts", toolDef.Tool.Name)
+	assert.NotEmpty(t, toolDef.Tool.Description)
+
+	// InputSchema is of type any, need to cast to *jsonschema.Schema
+	schema, ok := toolDef.Tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "ref")
+	assert.Contains(t, schema.Properties, "state")
+	assert.Contains(t, schema.Properties, "severity")
+	assert.Contains(t, schema.Properties, "tool_name")
+	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	// Setup mock alerts for success case
 	mockAlerts := []*github.Alert{
@@ -148,47 +160,64 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedAlerts []*github.Alert
 		expectedErrMsg string
 	}{
 		{
 			name: "successful alerts listing",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposCodeScanningAlertsByOwnerByRepo,
-					expectQueryParams(t, map[string]string{
-						"ref":      "main",
-						"state":    "open",
-						"severity": "high",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockAlerts),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCodeScanningAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"ref":       "main",
+					"state":     "open",
+					"severity":  "high",
+					"tool_name": "codeql",
+					"page":      "1",
+					"per_page":  "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockAlerts),
 				),
-			),
-			requestArgs: map[string]interface{}{
-				"owner":    "owner",
-				"repo":     "repo",
-				"ref":      "main",
-				"state":    "open",
-				"severity": "high",
+			}),
+			requestArgs: map[string]any{
+				"owner":     "owner",
+				"repo":      "repo",
+				"ref":       "main",
+				"state":     "open",
+				"severity":  "high",
+				"tool_name": "codeql",
+			},
+			expectError:    false,
+			expectedAlerts: mockAlerts,
+		},
+		{
+			name: "successful alerts listing with custom pagination",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCodeScanningAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"page":     "2",
+					"per_page": "50",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockAlerts),
+				),
+			}),
+			requestArgs: map[string]any{
+				"owner":   "owner",
+				"repo":    "repo",
+				"page":    float64(2),
+				"perPage": float64(50),
 			},
 			expectError:    false,
 			expectedAlerts: mockAlerts,
 		},
 		{
 			name: "alerts listing fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposCodeScanningAlertsByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusUnauthorized)
-						_, _ = w.Write([]byte(`{"message": "Unauthorized access"}`))
-					}),
-				),
-			),
-			requestArgs: map[string]interface{}{
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCodeScanningAlertsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusUnauthorized)
+					_, _ = w.Write([]byte(`{"message": "Unauthorized access"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 			},
@@ -200,23 +229,29 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
-			_, handler := listCodeScanningAlerts(client, translations.NullTranslationHelper)
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := toolDef.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
-			result, err := handler(context.Background(), request)
+			// Call handler with new signature
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
 				return
 			}
 
 			require.NoError(t, err)
+			require.False(t, result.IsError)
 
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)

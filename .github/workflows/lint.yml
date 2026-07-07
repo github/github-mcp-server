@@ -1,0 +1,26 @@
+name: golangci-lint
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  golangci:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build UI
+        uses: ./.github/actions/build-ui
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          # sync with script/lint
+          version: v2.9

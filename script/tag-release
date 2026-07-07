@@ -1,0 +1,151 @@
+#!/bin/bash
+
+# Exit immediately if a command exits with a non-zero status.
+set -e
+
+# Initialize variables
+TAG=""
+DRY_RUN=false
+
+# Parse arguments
+for arg in "$@"; do
+  case $arg in
+    --dry-run)
+      DRY_RUN=true
+      ;;
+    *)
+      # The first non-flag argument is the tag
+      if [[ ! $arg == --* ]]; then
+        if [ -z "$TAG" ]; then
+          TAG=$arg
+        fi
+      fi
+      ;;
+  esac
+done
+
+if [ "$DRY_RUN" = true ]; then
+    echo "DRY RUN: No changes will be pushed to the remote repository."
+    echo
+fi
+
+# 1. Validate input
+if [ -z "$TAG" ]; then
+  echo "Error: No tag specified."
+  echo "Usage: ./script/tag-release vX.Y.Z [--dry-run]"
+  exit 1
+fi
+
+# Regular expression for semantic versioning (vX.Y.Z or vX.Y.Z-suffix)
+if [[ ! $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$ ]]; then
+    echo "Error: Tag must be in format vX.Y.Z or vX.Y.Z-suffix (e.g., v1.0.0 or v1.0.0-rc1)"
+    exit 1
+fi
+
+# 2. Check current branch
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$CURRENT_BRANCH" != "main" ]; then
+  echo "Error: You must be on the 'main' branch to create a release."
+  echo "Current branch is '$CURRENT_BRANCH'."
+  exit 1
+fi
+
+# 3. Fetch latest from origin
+echo "Fetching latest changes from origin..."
+git fetch origin main
+
+# 4. Check if the working directory is clean
+if ! git diff-index --quiet HEAD --; then
+    echo "Error: Working directory is not clean. Please commit or stash your changes."
+    exit 1
+fi
+
+# 5. Check if main is up-to-date with origin/main
+LOCAL_SHA=$(git rev-parse @)
+REMOTE_SHA=$(git rev-parse @{u})
+
+if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
+    echo "Error: Your local 'main' branch is not up-to-date with 'origin/main'. Please pull the latest changes."
+    exit 1
+fi
+echo "✅ Local 'main' branch is up-to-date with 'origin/main'."
+
+# 6. Check if tag already exists
+if git tag -l | grep -q "^${TAG}$"; then
+    echo "Error: Tag ${TAG} already exists locally."
+    exit 1
+fi
+if git ls-remote --tags origin | grep -q "refs/tags/${TAG}$"; then
+    echo "Error: Tag ${TAG} already exists on remote 'origin'."
+    exit 1
+fi
+
+# 7. Confirm release with user
+echo
+LATEST_TAG=$(git tag --sort=-version:refname | head -n 1)
+if [ -n "$LATEST_TAG" ]; then
+    echo "Current latest release: $LATEST_TAG"
+fi
+echo "Proposed new release:   $TAG"
+echo
+read -p "Do you want to proceed with the release? (y/n) " -n 1 -r
+echo # Move to a new line
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Release cancelled."
+    exit 1
+fi
+echo
+
+# 8. Create the new release tag
+if [ "$DRY_RUN" = true ]; then
+    echo "DRY RUN: Skipping creation of tag $TAG."
+else
+    echo "Creating new release tag: $TAG"
+    git tag -a "$TAG" -m "Release $TAG"
+fi
+
+# 9. Push the new tag to the remote repository
+if [ "$DRY_RUN" = true ]; then
+    echo "DRY RUN: Skipping push of tag $TAG to origin."
+else
+    echo "Pushing tag $TAG to origin..."
+    git push origin "$TAG"
+fi
+
+# 10. Update and push the 'latest-release' tag
+if [ "$DRY_RUN" = true ]; then
+    echo "DRY RUN: Skipping update and push of 'latest-release' tag."
+else
+    echo "Updating 'latest-release' tag to point to $TAG..."
+    git tag -f latest-release "$TAG"
+    echo "Pushing 'latest-release' tag to origin..."
+    git push origin latest-release --force
+fi
+
+if [ "$DRY_RUN" = true ]; then
+    echo "✅ DRY RUN complete. No tags were created or pushed."
+else
+    echo "✅ Successfully tagged and pushed release $TAG."
+    echo "✅ 'latest-release' tag has been updated."
+fi
+
+# 11. Post-release instructions
+REPO_URL=$(git remote get-url origin)
+REPO_SLUG=$(echo "$REPO_URL" | sed -e 's/.*github.com[:\/]//' -e 's/\.git$//')
+
+cat << EOF
+
+## 🎉 Release $TAG has been initiated!
+
+### Next steps:
+1. 📋 Check https://github.com/$REPO_SLUG/releases and wait for the draft release to show up (after the goreleaser workflow completes)
+2. ✏️  Edit the new release, delete the existing notes and click the auto-generate button GitHub provides
+3. ✨ Add a section at the top calling out the main features
+4. 🚀 Publish the release
+5. 📢 Post message in #gh-mcp-releases channel in Slack and then share to the other mcp channels
+
+### Resources:
+- 📦 Draft Release: https://github.com/$REPO_SLUG/releases/tag/$TAG
+
+The release process is now ready for your review and completion!
+EOF

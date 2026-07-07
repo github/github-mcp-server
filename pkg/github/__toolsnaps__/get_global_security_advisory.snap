@@ -1,0 +1,21 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Get a global security advisory"
+  },
+  "description": "Get a global security advisory",
+  "inputSchema": {
+    "properties": {
+      "ghsaId": {
+        "description": "GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx).",
+        "type": "string"
+      }
+    },
+    "required": [
+      "ghsaId"
+    ],
+    "type": "object"
+  },
+  "name": "get_global_security_advisory"
+}

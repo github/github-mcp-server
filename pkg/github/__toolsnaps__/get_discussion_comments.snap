@@ -1,0 +1,45 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Get discussion comments"
+  },
+  "description": "Get comments from a discussion",
+  "inputSchema": {
+    "properties": {
+      "after": {
+        "description": "Cursor for pagination. Use the cursor from the previous response.",
+        "type": "string"
+      },
+      "discussionNumber": {
+        "description": "Discussion Number",
+        "type": "number"
+      },
+      "includeReplies": {
+        "description": "When true, each top-level comment will include its replies nested within it (up to 100 replies per comment, which is the GitHub API maximum). Defaults to false.",
+        "type": "boolean"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "discussionNumber"
+    ],
+    "type": "object"
+  },
+  "name": "get_discussion_comments"
+}

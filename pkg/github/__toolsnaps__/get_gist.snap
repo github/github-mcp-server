@@ -1,0 +1,21 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Get Gist Content"
+  },
+  "description": "Get gist content of a particular gist, by gist ID",
+  "inputSchema": {
+    "properties": {
+      "gist_id": {
+        "description": "The ID of the gist",
+        "type": "string"
+      }
+    },
+    "required": [
+      "gist_id"
+    ],
+    "type": "object"
+  },
+  "name": "get_gist"
+}

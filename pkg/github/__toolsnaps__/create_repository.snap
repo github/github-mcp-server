@@ -1,0 +1,38 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Create repository"
+  },
+  "description": "Create a new GitHub repository in your account or specified organization",
+  "inputSchema": {
+    "properties": {
+      "autoInit": {
+        "description": "Initialize with README",
+        "type": "boolean"
+      },
+      "description": {
+        "description": "Repository description",
+        "type": "string"
+      },
+      "name": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "organization": {
+        "description": "Organization to create the repository in (omit to create in your personal account)",
+        "type": "string"
+      },
+      "private": {
+        "default": true,
+        "description": "Whether the repository should be private. Defaults to true (private) when omitted.",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "type": "object"
+  },
+  "name": "create_repository"
+}

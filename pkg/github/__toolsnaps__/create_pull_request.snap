@@ -1,0 +1,69 @@
+{
+  "_meta": {
+    "ui": {
+      "resourceUri": "ui://github-mcp-server/pr-write",
+      "visibility": [
+        "model",
+        "app"
+      ]
+    }
+  },
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Open new pull request"
+  },
+  "description": "Create a new pull request in a GitHub repository.",
+  "inputSchema": {
+    "properties": {
+      "base": {
+        "description": "Branch to merge into",
+        "type": "string"
+      },
+      "body": {
+        "description": "PR description",
+        "type": "string"
+      },
+      "draft": {
+        "description": "Create as draft PR",
+        "type": "boolean"
+      },
+      "head": {
+        "description": "Branch containing changes",
+        "type": "string"
+      },
+      "maintainer_can_modify": {
+        "description": "Allow maintainer edits",
+        "type": "boolean"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "reviewers": {
+        "description": "GitHub usernames or ORG/team-slug team reviewers to request reviews from",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "title": {
+        "description": "PR title",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "title",
+      "head",
+      "base"
+    ],
+    "type": "object"
+  },
+  "name": "create_pull_request"
+}

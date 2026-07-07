@@ -1,0 +1,37 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Create Issue"
+  },
+  "description": "Create a new issue in a GitHub repository with a title and optional body.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "Issue body content (optional)",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "title": {
+        "description": "Issue title",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "title"
+    ],
+    "type": "object"
+  },
+  "name": "create_issue"
+}

@@ -1,0 +1,25 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "List issue fields"
+  },
+  "description": "List issue fields for a repository or organization. Returns field definitions including name, type (text, number, date, single_select), and for single_select fields the list of valid option names. When repo is omitted, returns org-level fields directly.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "The account owner of the repository or organization. The name is not case sensitive.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "The name of the repository. When provided, returns fields for this specific repository (inherited from its organization). When omitted, returns org-level fields directly.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner"
+    ],
+    "type": "object"
+  },
+  "name": "list_issue_fields"
+}

@@ -1,0 +1,103 @@
+name: "CodeQL"
+run-name: ${{ github.event.inputs.code_scanning_run_name }}
+on: [push, pull_request, workflow_dispatch]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CODE_SCANNING_REF: ${{ github.event.inputs.code_scanning_ref }}
+  CODE_SCANNING_BASE_BRANCH: ${{ github.event.inputs.code_scanning_base_branch }}
+  CODE_SCANNING_IS_ANALYZING_DEFAULT_BRANCH: ${{ github.event.inputs.code_scanning_is_analyzing_default_branch }}
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    # Only run on the main repository, not on forks
+    if: github.repository == 'github/github-mcp-server'
+    runs-on: ${{ fromJSON(matrix.runner) }}
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write
+    continue-on-error: false
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            category: /language:actions
+            build-mode: none
+            runner: '["ubuntu-22.04"]'
+          - language: go
+            category: /language:go
+            build-mode: autobuild
+            runner: '["ubuntu-22.04"]'
+          - language: javascript
+            category: /language:javascript
+            build-mode: none
+            runner: '["ubuntu-22.04"]'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          dependency-caching: ${{ runner.environment == 'github-hosted' }}
+          queries: "" # Default query suite
+          packs: github/ccr-${{ matrix.language }}-queries
+          config: |
+            paths-ignore:
+              - third-party
+              - third-party-licenses.*.md
+            default-setup:
+              org:
+                model-packs: [ ${{ github.event.inputs.code_scanning_codeql_packs }} ]
+            threat-models: [  ]
+      - name: Setup proxy for registries
+        id: proxy
+        uses: github/codeql-action/start-proxy@v4
+        with:
+          registries_credentials: ${{ secrets.GITHUB_REGISTRIES_PROXY }}
+          language: ${{ matrix.language }}
+
+      - name: Configure
+        uses: github/codeql-action/resolve-environment@v4
+        id: resolve-environment
+        with:
+          language: ${{ matrix.language }}
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        if: matrix.language == 'go' && fromJSON(steps.resolve-environment.outputs.environment).configuration.go.version
+        with:
+          go-version: ${{ fromJSON(steps.resolve-environment.outputs.environment).configuration.go.version }}
+          cache: false
+
+      - name: Set up Node.js (for JavaScript CodeQL)
+        if: matrix.language == 'javascript'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Build UI
+        if: matrix.language == 'go'
+        uses: ./.github/actions/build-ui
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v4
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        env:
+          CODEQL_PROXY_HOST: ${{ steps.proxy.outputs.proxy_host }}
+          CODEQL_PROXY_PORT: ${{ steps.proxy.outputs.proxy_port }}
+          CODEQL_PROXY_CA_CERTIFICATE: ${{ steps.proxy.outputs.proxy_ca_certificate }}
+        with:
+          category: ${{ matrix.category }}

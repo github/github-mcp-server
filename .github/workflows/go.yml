@@ -1,4 +1,4 @@
-name: Unit Tests
+name: Build and Test Go Project
 on: [push, pull_request]
 
 permissions:
@@ -14,19 +14,31 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Force git to use LF
+        # This step is required on Windows to work around go mod tidy -diff issues caused by CRLF line endings.
+        # TODO: replace with a checkout option when https://github.com/actions/checkout/issues/226 is implemented
+        if: runner.os == 'Windows'
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+
+      - name: Build UI
+        uses: ./.github/actions/build-ui
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
 
-      - name: Download dependencies
-        run: go mod download
+      - name: Tidy dependencies
+        run: go mod tidy -diff
 
       - name: Run unit tests
-        run: go test -race ./...
+        shell: bash
+        run: script/test
 
       - name: Build
         run: go build -v ./cmd/github-mcp-server

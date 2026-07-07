@@ -1,0 +1,50 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Read issue dependencies"
+  },
+  "description": "Read an issue's dependency relationships in a GitHub repository: the issues that block it (blocked_by) or the issues it blocks (blocking).",
+  "inputSchema": {
+    "properties": {
+      "after": {
+        "description": "Cursor for pagination. Use the cursor from the previous response.",
+        "type": "string"
+      },
+      "issue_number": {
+        "description": "The number of the issue",
+        "type": "number"
+      },
+      "method": {
+        "description": "The read operation to perform on a single issue's dependencies.\nOptions are:\n1. get_blocked_by - List the issues that block this issue (this issue is blocked by them).\n2. get_blocking - List the issues that this issue blocks.\n",
+        "enum": [
+          "get_blocked_by",
+          "get_blocking"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "The owner of the repository",
+        "type": "string"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "The name of the repository",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo",
+      "issue_number"
+    ],
+    "type": "object"
+  },
+  "name": "issue_dependency_read"
+}

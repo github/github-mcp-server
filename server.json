@@ -1,0 +1,61 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.github/github-mcp-server",
+  "description": "Connect AI assistants to GitHub - manage repos, issues, PRs, and workflows through natural language.",
+  "title": "GitHub",
+  "repository": {
+    "url": "https://github.com/github/github-mcp-server",
+    "source": "github"
+  },
+  "version": "${VERSION}",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/github/github-mcp-server:${VERSION}",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "-p",
+          "description": "Publish the OAuth callback port to loopback so the in-container login callback is reachable",
+          "value": "127.0.0.1:8085:8085"
+        },
+        {
+          "type": "named",
+          "name": "-e",
+          "description": "Fixed OAuth callback port, matching the published port above",
+          "value": "GITHUB_OAUTH_CALLBACK_PORT=8085"
+        },
+        {
+          "type": "named",
+          "name": "-e",
+          "description": "Optional GitHub Personal Access Token. Omit to log in with OAuth on first use.",
+          "value": "GITHUB_PERSONAL_ACCESS_TOKEN={token}",
+          "isRequired": false,
+          "variables": {
+            "token": {
+              "isRequired": false,
+              "isSecret": true,
+              "format": "string"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Authorization header with authentication token (PAT or App token)",
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

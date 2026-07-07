@@ -1,0 +1,175 @@
+package http
+
+import (
+	"context"
+	"testing"
+
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestCreateHTTPFeatureChecker(t *testing.T) {
+	tests := []struct {
+		name           string
+		staticFeatures []string
+		staticInsiders bool
+		flagName       string
+		headerFeatures []string
+		insidersMode   bool
+		wantEnabled    bool
+	}{
+		{
+			name:           "allowed issues_granular flag accepted from header",
+			flagName:       github.FeatureFlagIssuesGranular,
+			headerFeatures: []string{github.FeatureFlagIssuesGranular},
+			wantEnabled:    true,
+		},
+		{
+			name:           "allowed pull_requests_granular flag accepted from header",
+			flagName:       github.FeatureFlagPullRequestsGranular,
+			headerFeatures: []string{github.FeatureFlagPullRequestsGranular},
+			wantEnabled:    true,
+		},
+		{
+			name:           "MCP Apps flag accepted from header",
+			flagName:       github.MCPAppsFeatureFlag,
+			headerFeatures: []string{github.MCPAppsFeatureFlag},
+			wantEnabled:    true,
+		},
+		{
+			name:           "unknown flag in header is ignored",
+			flagName:       "unknown_flag",
+			headerFeatures: []string{"unknown_flag"},
+			wantEnabled:    false,
+		},
+		{
+			name:           "allowed flag not in header returns false",
+			flagName:       github.FeatureFlagIssuesGranular,
+			headerFeatures: nil,
+			wantEnabled:    false,
+		},
+		{
+			name:           "allowed flag with different flag in header returns false",
+			flagName:       github.FeatureFlagIssuesGranular,
+			headerFeatures: []string{github.FeatureFlagPullRequestsGranular},
+			wantEnabled:    false,
+		},
+		{
+			name:           "multiple allowed flags in header",
+			flagName:       github.FeatureFlagIssuesGranular,
+			headerFeatures: []string{github.FeatureFlagIssuesGranular, github.FeatureFlagPullRequestsGranular},
+			wantEnabled:    true,
+		},
+		{
+			name:           "empty header features",
+			flagName:       github.FeatureFlagIssuesGranular,
+			headerFeatures: []string{},
+			wantEnabled:    false,
+		},
+		{
+			name:         "insiders mode enables MCP Apps without header",
+			flagName:     github.MCPAppsFeatureFlag,
+			insidersMode: true,
+			wantEnabled:  true,
+		},
+		{
+			name:           "static feature is enabled without header",
+			staticFeatures: []string{github.FeatureFlagCSVOutput},
+			flagName:       github.FeatureFlagCSVOutput,
+			wantEnabled:    true,
+		},
+		{
+			name:           "static features combine with header features",
+			staticFeatures: []string{github.FeatureFlagCSVOutput},
+			flagName:       github.FeatureFlagIssuesGranular,
+			headerFeatures: []string{github.FeatureFlagIssuesGranular},
+			wantEnabled:    true,
+		},
+		{
+			name:           "static insiders enables insiders flags without route context",
+			staticInsiders: true,
+			flagName:       github.FeatureFlagCSVOutput,
+			wantEnabled:    true,
+		},
+		{
+			name:         "insiders mode does not auto-enable ifc labels",
+			flagName:     github.FeatureFlagIFCLabels,
+			insidersMode: true,
+			wantEnabled:  false,
+		},
+		{
+			name:         "insiders mode does not enable granular flags",
+			flagName:     github.FeatureFlagIssuesGranular,
+			insidersMode: true,
+			wantEnabled:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			checker := createHTTPFeatureChecker(tt.staticFeatures, tt.staticInsiders)
+			ctx := context.Background()
+			if len(tt.headerFeatures) > 0 {
+				ctx = ghcontext.WithHeaderFeatures(ctx, tt.headerFeatures)
+			}
+			if tt.insidersMode {
+				ctx = ghcontext.WithInsidersMode(ctx, true)
+			}
+
+			enabled, err := checker(ctx, tt.flagName)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantEnabled, enabled)
+		})
+	}
+}
+
+func TestResolveListenAddress(t *testing.T) {
+	tests := []struct {
+		name string
+		host string
+		port int
+		want string
+	}{
+		{
+			name: "empty host falls back to :port",
+			host: "",
+			port: 8082,
+			want: ":8082",
+		},
+		{
+			name: "ipv4 host is joined with port",
+			host: "127.0.0.1",
+			port: 9090,
+			want: "127.0.0.1:9090",
+		},
+		{
+			name: "ipv6 host is bracketed and joined with port",
+			host: "::1",
+			port: 9090,
+			want: "[::1]:9090",
+		},
+		{
+			name: "hostname is joined with port",
+			host: "localhost",
+			port: 8082,
+			want: "localhost:8082",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolveListenAddress(tt.host, tt.port)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestHeaderAllowedFeatureFlagsMatchesAllowed(t *testing.T) {
+	// Ensure HeaderAllowedFeatureFlags delegates to AllowedFeatureFlags
+	allowed := github.HeaderAllowedFeatureFlags()
+	assert.Equal(t, github.AllowedFeatureFlags, allowed,
+		"HeaderAllowedFeatureFlags() should match AllowedFeatureFlags")
+	assert.NotEmpty(t, allowed, "AllowedFeatureFlags should not be empty")
+}

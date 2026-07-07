@@ -5,7 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	log "github.com/sirupsen/logrus"
+	"log/slog"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,11 +18,7 @@ func TestLoggedReadWriter(t *testing.T) {
 
 		// Create logger with buffer to capture output
 		var logBuffer bytes.Buffer
-		logger := log.New()
-		logger.SetOutput(&logBuffer)
-		logger.SetFormatter(&log.TextFormatter{
-			DisableTimestamp: true,
-		})
+		logger := slog.New(slog.NewTextHandler(&logBuffer, &slog.HandlerOptions{ReplaceAttr: removeTimeAttr}))
 
 		lrw := NewIOLogger(reader, nil, logger)
 
@@ -44,11 +41,7 @@ func TestLoggedReadWriter(t *testing.T) {
 
 		// Create logger with buffer to capture output
 		var logBuffer bytes.Buffer
-		logger := log.New()
-		logger.SetOutput(&logBuffer)
-		logger.SetFormatter(&log.TextFormatter{
-			DisableTimestamp: true,
-		})
+		logger := slog.New(slog.NewTextHandler(&logBuffer, &slog.HandlerOptions{ReplaceAttr: removeTimeAttr}))
 
 		lrw := NewIOLogger(nil, &writeBuffer, logger)
 
@@ -62,4 +55,11 @@ func TestLoggedReadWriter(t *testing.T) {
 		assert.Contains(t, logBuffer.String(), "[stdout]")
 		assert.Contains(t, logBuffer.String(), outputData)
 	})
+}
+
+func removeTimeAttr(groups []string, a slog.Attr) slog.Attr {
+	if a.Key == slog.TimeKey && len(groups) == 0 {
+		return slog.Attr{}
+	}
+	return a
 }

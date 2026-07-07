@@ -1,7 +1,8 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,8 +11,6 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
-
-	"crypto/rand"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -74,11 +73,11 @@ type (
 
 	// RequestParams contains the tool name and arguments
 	RequestParams struct {
-		Name      string                 `json:"name"`
-		Arguments map[string]interface{} `json:"arguments"`
+		Name      string         `json:"name"`
+		Arguments map[string]any `json:"arguments"`
 	}
 
-	// Define structure to match the response format
+	// Content matches the response format of a text content response
 	Content struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
@@ -161,7 +160,7 @@ func main() {
 	_ = rootCmd.MarkPersistentFlagRequired("stdio-server-cmd")
 
 	// Add global flag for pretty printing
-	rootCmd.PersistentFlags().Bool("pretty", true, "Pretty print MCP response (only for JSON responses)")
+	rootCmd.PersistentFlags().Bool("pretty", true, "Pretty print MCP response (only for JSON or JSONL responses)")
 
 	// Add the tools command to the root command
 	rootCmd.AddCommand(toolsCmd)
@@ -281,14 +280,16 @@ func addCommandFromTool(toolsCmd *cobra.Command, tool *Tool, prettyPrint bool) {
 			}
 		case "number":
 			cmd.Flags().Float64(name, 0, description)
+		case "integer":
+			cmd.Flags().Int64(name, 0, description)
 		case "boolean":
 			cmd.Flags().Bool(name, false, description)
 		case "array":
 			if prop.Items != nil {
-				if prop.Items.Type == "string" {
+				switch prop.Items.Type {
+				case "string":
 					cmd.Flags().StringSlice(name, []string{}, description)
-				} else if prop.Items.Type == "object" {
-					// For complex objects in arrays, we'll use a JSON string that users can provide
+				case "object":
 					cmd.Flags().String(name+"-json", "", description+" (provide as JSON array)")
 				}
 			}
@@ -307,8 +308,8 @@ func addCommandFromTool(toolsCmd *cobra.Command, tool *Tool, prettyPrint bool) {
 }
 
 // buildArgumentsMap extracts flag values into a map of arguments
-func buildArgumentsMap(cmd *cobra.Command, tool *Tool) (map[string]interface{}, error) {
-	arguments := make(map[string]interface{})
+func buildArgumentsMap(cmd *cobra.Command, tool *Tool) (map[string]any, error) {
+	arguments := make(map[string]any)
 
 	for name, prop := range tool.InputSchema.Properties {
 		switch prop.Type {
@@ -320,6 +321,10 @@ func buildArgumentsMap(cmd *cobra.Command, tool *Tool) (map[string]interface{}, 
 			if value, _ := cmd.Flags().GetFloat64(name); value != 0 {
 				arguments[name] = value
 			}
+		case "integer":
+			if value, _ := cmd.Flags().GetInt64(name); value != 0 {
+				arguments[name] = value
+			}
 		case "boolean":
 			// For boolean, we need to check if it was explicitly set
 			if cmd.Flags().Changed(name) {
@@ -328,13 +333,14 @@ func buildArgumentsMap(cmd *cobra.Command, tool *Tool) (map[string]interface{}, 
 			}
 		case "array":
 			if prop.Items != nil {
-				if prop.Items.Type == "string" {
+				switch prop.Items.Type {
+				case "string":
 					if values, _ := cmd.Flags().GetStringSlice(name); len(values) > 0 {
 						arguments[name] = values
 					}
-				} else if prop.Items.Type == "object" {
+				case "object":
 					if jsonStr, _ := cmd.Flags().GetString(name + "-json"); jsonStr != "" {
-						var jsonArray []interface{}
+						var jsonArray []any
 						if err := json.Unmarshal([]byte(jsonStr), &jsonArray); err != nil {
 							return nil, fmt.Errorf("error parsing JSON for %s: %w", name, err)
 						}
@@ -349,7 +355,7 @@ func buildArgumentsMap(cmd *cobra.Command, tool *Tool) (map[string]interface{}, 
 }
 
 // buildJSONRPCRequest creates a JSON-RPC request with the given tool name and arguments
-func buildJSONRPCRequest(method, toolName string, arguments map[string]interface{}) (string, error) {
+func buildJSONRPCRequest(method, toolName string, arguments map[string]any) (string, error) {
 	id, err := rand.Int(rand.Reader, big.NewInt(10000))
 	if err != nil {
 		return "", fmt.Errorf("failed to generate random ID: %w", err)
@@ -370,8 +376,8 @@ func buildJSONRPCRequest(method, toolName string, arguments map[string]interface
 	return string(jsonData), nil
 }
 
-// executeServerCommand runs the specified command, sends the JSON request to stdin,
-// and returns the response from stdout
+// executeServerCommand runs the specified command, performs the MCP initialization
+// handshake, sends the JSON request to stdin, and returns the response from stdout.
 func executeServerCommand(cmdStr, jsonRequest string) (string, error) {
 	// Split the command string into command and arguments
 	cmdParts := strings.Fields(cmdStr)
@@ -387,9 +393,14 @@ func executeServerCommand(cmdStr, jsonRequest string) (string, error) {
 		return "", fmt.Errorf("failed to create stdin pipe: %w", err)
 	}
 
-	// Setup stdout and stderr pipes
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
+	// Setup stdout pipe for line-by-line reading
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+
+	// Stderr still uses a buffer
+	var stderr strings.Builder
 	cmd.Stderr = &stderr
 
 	// Start the command
@@ -397,18 +408,104 @@ func executeServerCommand(cmdStr, jsonRequest string) (string, error) {
 		return "", fmt.Errorf("failed to start command: %w", err)
 	}
 
-	// Write the JSON request to stdin
+	// Ensure the child process is cleaned up on every return path.
+	// stdin must be closed before Wait so the server sees EOF and exits;
+	// its non-zero exit status on EOF is expected, so we ignore the error.
+	defer func() {
+		_ = stdin.Close()
+		_ = cmd.Wait()
+	}()
+
+	// Use a scanner with a large buffer for reading JSON-RPC responses
+	scanner := bufio.NewScanner(stdoutPipe)
+	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024) // 1MB max line size
+
+	// Step 1: Send MCP initialize request
+	initReq, err := buildInitializeRequest()
+	if err != nil {
+		return "", fmt.Errorf("failed to build initialize request: %w", err)
+	}
+	if _, err := io.WriteString(stdin, initReq+"\n"); err != nil {
+		return "", fmt.Errorf("failed to write initialize request: %w", err)
+	}
+
+	// Step 2: Read initialize response (skip any server notifications)
+	if _, err := readJSONRPCResponse(scanner); err != nil {
+		return "", fmt.Errorf("failed to read initialize response: %w, stderr: %s", err, stderr.String())
+	}
+
+	// Step 3: Send initialized notification
+	if _, err := io.WriteString(stdin, buildInitializedNotification()+"\n"); err != nil {
+		return "", fmt.Errorf("failed to write initialized notification: %w", err)
+	}
+
+	// Step 4: Send the actual request
 	if _, err := io.WriteString(stdin, jsonRequest+"\n"); err != nil {
-		return "", fmt.Errorf("failed to write to stdin: %w", err)
-	}
-	_ = stdin.Close()
-
-	// Wait for the command to complete
-	if err := cmd.Wait(); err != nil {
-		return "", fmt.Errorf("command failed: %w, stderr: %s", err, stderr.String())
+		return "", fmt.Errorf("failed to write request: %w", err)
 	}
 
-	return stdout.String(), nil
+	// Step 5: Read the actual response (skip any server notifications)
+	response, err := readJSONRPCResponse(scanner)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w, stderr: %s", err, stderr.String())
+	}
+
+	return response, nil
+}
+
+// buildInitializeRequest creates the MCP initialize handshake request.
+func buildInitializeRequest() (string, error) {
+	id, err := rand.Int(rand.Reader, big.NewInt(10000))
+	if err != nil {
+		return "", fmt.Errorf("failed to generate random ID: %w", err)
+	}
+	msg := map[string]any{
+		"jsonrpc": "2.0",
+		"id":      int(id.Int64()),
+		"method":  "initialize",
+		"params": map[string]any{
+			"protocolVersion": "2024-11-05",
+			"capabilities":    map[string]any{},
+			"clientInfo": map[string]any{
+				"name":    "mcpcurl",
+				"version": "0.1.0",
+			},
+		},
+	}
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal initialize request: %w", err)
+	}
+	return string(data), nil
+}
+
+// buildInitializedNotification creates the MCP initialized notification.
+func buildInitializedNotification() string {
+	return `{"jsonrpc":"2.0","method":"notifications/initialized"}`
+}
+
+// readJSONRPCResponse reads lines from the scanner, skipping server-initiated
+// notifications (messages without an "id" field), and returns the first response.
+func readJSONRPCResponse(scanner *bufio.Scanner) (string, error) {
+	for scanner.Scan() {
+		line := scanner.Text()
+		// JSON-RPC responses have an "id" field; notifications do not.
+		var msg map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			return "", fmt.Errorf("failed to parse JSON-RPC message: %w", err)
+		}
+		if _, hasID := msg["id"]; hasID {
+			if errField, hasErr := msg["error"]; hasErr {
+				return "", fmt.Errorf("server returned error: %s", string(errField))
+			}
+			return line, nil
+		}
+		// No "id" — this is a notification, skip it
+	}
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+	return "", fmt.Errorf("unexpected end of output")
 }
 
 func printResponse(response string, prettyPrint bool) error {
@@ -426,15 +523,26 @@ func printResponse(response string, prettyPrint bool) error {
 	// Extract text from content items of type "text"
 	for _, content := range resp.Result.Content {
 		if content.Type == "text" {
-			// Unmarshal the text content
-			var textContent map[string]interface{}
-			if err := json.Unmarshal([]byte(content.Text), &textContent); err != nil {
-				return fmt.Errorf("failed to parse text content: %w", err)
+			var textContentObj map[string]any
+			err := json.Unmarshal([]byte(content.Text), &textContentObj)
+
+			if err == nil {
+				prettyText, err := json.MarshalIndent(textContentObj, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to pretty print text content: %w", err)
+				}
+				fmt.Println(string(prettyText))
+				continue
 			}
-			// Pretty print the text content
-			prettyText, err := json.MarshalIndent(textContent, "", "  ")
+
+			// Fallback parsing as JSONL
+			var textContentList []map[string]any
+			if err := json.Unmarshal([]byte(content.Text), &textContentList); err != nil {
+				return fmt.Errorf("failed to parse text content as a list: %w", err)
+			}
+			prettyText, err := json.MarshalIndent(textContentList, "", "  ")
 			if err != nil {
-				return fmt.Errorf("failed to pretty print text content: %w", err)
+				return fmt.Errorf("failed to pretty print array content: %w", err)
 			}
 			fmt.Println(string(prettyText))
 		}
