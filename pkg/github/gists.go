@@ -331,9 +331,17 @@ func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Content:  github.Ptr(content),
 			}
 
+			// Only set Description when the caller actually provided it, so
+			// omitting it preserves the gist's existing description. Passing an
+			// explicit empty string still clears it.
+			var descriptionPtr *string
+			if _, ok := args["description"]; ok {
+				descriptionPtr = github.Ptr(description)
+			}
+
 			gist := github.UpdateGistRequest{
 				Files:       files,
-				Description: github.Ptr(description),
+				Description: descriptionPtr,
 			}
 
 			client, err := deps.GetClient(ctx)
