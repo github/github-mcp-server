@@ -247,6 +247,10 @@ func TestWriteLabel(t *testing.T) {
 	assert.Equal(t, "label_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.False(t, tool.Annotations.ReadOnlyHint, "label_write tool should not be read-only")
+	// label_write can delete a label repo-wide (removing it from every issue/PR),
+	// so clients must treat the tool as destructive and confirm before running it.
+	require.NotNil(t, tool.Annotations.DestructiveHint, "label_write should set DestructiveHint")
+	assert.True(t, *tool.Annotations.DestructiveHint, "label_write should be destructive")
 
 	tests := []struct {
 		name               string
