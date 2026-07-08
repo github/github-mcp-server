@@ -310,7 +310,6 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **issue_dependency_read** - Read issue dependencies
   - **Required OAuth Scopes**: `repo`
-  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `issue_number`: The number of the issue (number, required)
   - `method`: The read operation to perform on a single issue's dependencies.
     Options are:
@@ -318,6 +317,7 @@ runtime behavior (such as output formatting) won't appear here.
     2. get_blocking - List the issues that this issue blocks.
      (string, required)
   - `owner`: The owner of the repository (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: The name of the repository (string, required)
 
