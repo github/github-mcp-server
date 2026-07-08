@@ -2843,6 +2843,10 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 
 	assert.Equal(t, "pull_request_review_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	// delete_pending discards a pending review's body, so clients must treat
+	// the tool as destructive and confirm before running it.
+	require.NotNil(t, tool.Annotations.DestructiveHint, "pull_request_review_write should set DestructiveHint")
+	assert.True(t, *tool.Annotations.DestructiveHint, "pull_request_review_write should be destructive")
 	schema := tool.InputSchema.(*jsonschema.Schema)
 	assert.Contains(t, schema.Properties, "method")
 	assert.Contains(t, schema.Properties, "owner")
