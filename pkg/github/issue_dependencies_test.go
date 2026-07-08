@@ -88,6 +88,7 @@ func Test_IssueDependencyRead(t *testing.T) {
 		option        MockBackendOption
 		expectedCount int
 		expectedFirst int
+		expectedState string
 		expectedNext  bool
 	}{
 		{
@@ -96,6 +97,7 @@ func Test_IssueDependencyRead(t *testing.T) {
 			option:        WithRequestMatch(endpointBlockedBy, blockedByIssues),
 			expectedCount: 1,
 			expectedFirst: 7,
+			expectedState: "OPEN",
 			expectedNext:  false,
 		},
 		{
@@ -104,6 +106,7 @@ func Test_IssueDependencyRead(t *testing.T) {
 			option:        WithRequestMatchHandler(endpointBlocking, blockingHandler),
 			expectedCount: 2,
 			expectedFirst: 8,
+			expectedState: "OPEN",
 			expectedNext:  true,
 		},
 	}
@@ -136,6 +139,9 @@ func Test_IssueDependencyRead(t *testing.T) {
 			require.Len(t, payload.Issues, tc.expectedCount)
 			assert.Equal(t, tc.expectedFirst, payload.Issues[0].Number)
 			assert.Equal(t, "owner/repo", payload.Issues[0].Repository)
+			// State is normalized to upper case to match the GraphQL-sourced
+			// state used by other MinimalIssueRef producers (e.g. get_parent).
+			assert.Equal(t, tc.expectedState, payload.Issues[0].State)
 			assert.Equal(t, tc.expectedNext, payload.PageInfo.HasNextPage)
 		})
 	}

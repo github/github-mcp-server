@@ -164,12 +164,17 @@ func dependencyReadResult(issues []*github.Issue, resp *github.Response) *mcp.Ca
 
 // issueToDependencyRef converts a REST issue into the compact reference used by
 // the dependency tools, deriving the "owner/repo" name from the issue's
-// repository URL.
+// repository URL. The state is upper-cased so it matches the GraphQL-sourced
+// state (e.g. "OPEN"/"CLOSED") that MinimalIssueRef carries for the other issue
+// tools such as get_parent, keeping the field consistent across tools.
 func issueToDependencyRef(issue *github.Issue) MinimalIssueRef {
+	if issue == nil {
+		return MinimalIssueRef{}
+	}
 	ref := MinimalIssueRef{
 		Number: issue.GetNumber(),
 		Title:  issue.GetTitle(),
-		State:  issue.GetState(),
+		State:  strings.ToUpper(issue.GetState()),
 		URL:    issue.GetHTMLURL(),
 	}
 	if owner, repo, ok := parseRepositoryURL(issue.GetRepositoryURL()); ok {
