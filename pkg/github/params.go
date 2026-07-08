@@ -1,6 +1,7 @@
 package github
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -40,64 +41,138 @@ func isAcceptedError(err error) bool {
 	return errors.As(err, &acceptedError)
 }
 
-// toInt converts a value to int, handling both float64 and string representations.
-// Some MCP clients send numeric values as strings. It rejects NaN, ±Inf,
-// fractional values, and values outside the int range.
-func toInt(val any) (int, error) {
-	var f float64
-	switch v := val.(type) {
-	case float64:
-		f = v
-	case string:
-		var err error
-		f, err = strconv.ParseFloat(v, 64)
-		if err != nil {
-			return 0, fmt.Errorf("invalid numeric value: %s", v)
-		}
-	default:
-		return 0, fmt.Errorf("expected number, got %T", val)
-	}
+// float64ToInt64 converts a float64 to int64, rejecting non-finite, fractional,
+// and out-of-range values, including those that would lose precision.
+func float64ToInt64(f float64) (int64, error) {
 	if math.IsNaN(f) || math.IsInf(f, 0) {
 		return 0, fmt.Errorf("non-finite numeric value")
 	}
 	if f != math.Trunc(f) {
 		return 0, fmt.Errorf("non-integer numeric value: %v", f)
 	}
-	if f > math.MaxInt || f < math.MinInt {
+	if f > float64(math.MaxInt64) || f < float64(math.MinInt64) {
+		return 0, fmt.Errorf("numeric value %v is too large to fit in int64", f)
+	}
+	result := int64(f)
+	if float64(result) != f {
+		return 0, fmt.Errorf("numeric value %v is too large to fit in int64", f)
+	}
+	return result, nil
+}
+
+// float64ToInt converts a float64 to int, rejecting non-finite, fractional,
+// and out-of-range values.
+func float64ToInt(f float64) (int, error) {
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return 0, fmt.Errorf("non-finite numeric value")
+	}
+	if f != math.Trunc(f) {
+		return 0, fmt.Errorf("non-integer numeric value: %v", f)
+	}
+	if f > float64(math.MaxInt) || f < float64(math.MinInt) {
 		return 0, fmt.Errorf("numeric value out of int range: %v", f)
 	}
 	return int(f), nil
 }
 
-// toInt64 converts a value to int64, handling both float64 and string representations.
-// Some MCP clients send numeric values as strings. It rejects NaN, ±Inf,
-// fractional values, and values that lose precision in the float64→int64 conversion.
-func toInt64(val any) (int64, error) {
-	var f float64
+// toInt converts a value to int, handling float64, integer, and string representations.
+// Native integer types are preserved without a float64 round-trip so large values
+// are not corrupted. It rejects NaN, ±Inf, fractional values, and out-of-range values.
+func toInt(val any) (int, error) {
 	switch v := val.(type) {
+	case int:
+		return v, nil
+	case int32:
+		return int(v), nil
+	case int64:
+		if v > int64(math.MaxInt) || v < int64(math.MinInt) {
+			return 0, fmt.Errorf("numeric value out of int range: %v", v)
+		}
+		return int(v), nil
+	case uint:
+		if v > uint(math.MaxInt) {
+			return 0, fmt.Errorf("numeric value out of int range: %v", v)
+		}
+		return int(v), nil
+	case uint32:
+		return int(v), nil
+	case uint64:
+		if v > uint64(math.MaxInt) {
+			return 0, fmt.Errorf("numeric value out of int range: %v", v)
+		}
+		return int(v), nil
 	case float64:
-		f = v
+		return float64ToInt(v)
+	case float32:
+		return float64ToInt(float64(v))
 	case string:
-		var err error
-		f, err = strconv.ParseFloat(v, 64)
+		i, err := strconv.ParseInt(v, 10, 0)
 		if err != nil {
 			return 0, fmt.Errorf("invalid numeric value: %s", v)
 		}
+		return int(i), nil
+	case json.Number:
+		if i, err := v.Int64(); err == nil {
+			if i > int64(math.MaxInt) || i < int64(math.MinInt) {
+				return 0, fmt.Errorf("numeric value out of int range: %v", i)
+			}
+			return int(i), nil
+		}
+		f, err := v.Float64()
+		if err != nil {
+			return 0, fmt.Errorf("invalid numeric value: %s", v)
+		}
+		return float64ToInt(f)
 	default:
 		return 0, fmt.Errorf("expected number, got %T", val)
 	}
-	if math.IsNaN(f) || math.IsInf(f, 0) {
-		return 0, fmt.Errorf("non-finite numeric value")
+}
+
+// toInt64 converts a value to int64, handling float64, integer, and string representations.
+// Native integer types are preserved without a float64 round-trip so large values
+// are not corrupted. It rejects NaN, ±Inf, fractional values, and out-of-range values.
+func toInt64(val any) (int64, error) {
+	switch v := val.(type) {
+	case int:
+		return int64(v), nil
+	case int32:
+		return int64(v), nil
+	case int64:
+		return v, nil
+	case uint:
+		if uint64(v) > uint64(math.MaxInt64) {
+			return 0, fmt.Errorf("numeric value out of int64 range: %v", v)
+		}
+		return int64(v), nil
+	case uint32:
+		return int64(v), nil
+	case uint64:
+		if v > uint64(math.MaxInt64) {
+			return 0, fmt.Errorf("numeric value out of int64 range: %v", v)
+		}
+		return int64(v), nil
+	case float64:
+		return float64ToInt64(v)
+	case float32:
+		return float64ToInt64(float64(v))
+	case string:
+		i, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("invalid numeric value: %s", v)
+		}
+		return i, nil
+	case json.Number:
+		if i, err := v.Int64(); err == nil {
+			return i, nil
+		}
+		f, err := v.Float64()
+		if err != nil {
+			return 0, fmt.Errorf("invalid numeric value: %s", v)
+		}
+		return float64ToInt64(f)
+	default:
+		return 0, fmt.Errorf("expected number, got %T", val)
 	}
-	if f != math.Trunc(f) {
-		return 0, fmt.Errorf("non-integer numeric value: %v", f)
-	}
-	result := int64(f)
-	// Check round-trip to detect precision loss for large int64 values
-	if float64(result) != f {
-		return 0, fmt.Errorf("numeric value %v is too large to fit in int64", f)
-	}
-	return result, nil
 }
 
 // RequiredParam is a helper function that can be used to fetch a requested parameter from the request.
@@ -129,7 +204,7 @@ func RequiredParam[T comparable](args map[string]any, p string) (T, error) {
 // RequiredInt is a helper function that can be used to fetch a requested parameter from the request.
 // It does the following checks:
 // 1. Checks if the parameter is present in the request.
-// 2. Checks if the parameter is of the expected type (float64 or numeric string).
+// 2. Checks if the parameter is a valid integer (float64, native integer, or numeric string).
 // 3. Checks if the parameter is not empty, i.e: non-zero value
 func RequiredInt(args map[string]any, p string) (int, error) {
 	v, ok := args[p]
@@ -152,7 +227,7 @@ func RequiredInt(args map[string]any, p string) (int, error) {
 // RequiredBigInt is a helper function that can be used to fetch a requested parameter from the request.
 // It does the following checks:
 // 1. Checks if the parameter is present in the request.
-// 2. Checks if the parameter is of the expected type (float64 or numeric string).
+// 2. Checks if the parameter is a valid integer (float64, native integer, or numeric string).
 // 3. Checks if the parameter is not empty, i.e: non-zero value.
 // 4. Validates that the float64 value can be safely converted to int64 without truncation.
 func RequiredBigInt(args map[string]any, p string) (int64, error) {
@@ -196,7 +271,7 @@ func OptionalParam[T any](args map[string]any, p string) (T, error) {
 // OptionalIntParam is a helper function that can be used to fetch a requested parameter from the request.
 // It does the following checks:
 // 1. Checks if the parameter is present in the request, if not, it returns its zero-value
-// 2. If it is present, it checks if the parameter is of the expected type (float64 or numeric string) and returns it
+// 2. If it is present, it checks if the parameter is a valid integer (float64, native integer, or numeric string) and returns it
 func OptionalIntParam(args map[string]any, p string) (int, error) {
 	val, ok := args[p]
 	if !ok {
