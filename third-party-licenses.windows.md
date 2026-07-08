@@ -17,7 +17,7 @@ The following packages are included for the 386, amd64, arm64 architectures.
  - [github.com/github/github-mcp-server](https://pkg.go.dev/github.com/github/github-mcp-server) ([MIT](https://github.com/github/github-mcp-server/blob/HEAD/LICENSE))
  - [github.com/go-chi/chi/v5](https://pkg.go.dev/github.com/go-chi/chi/v5) ([MIT](https://github.com/go-chi/chi/blob/v5.3.0/LICENSE))
  - [github.com/go-viper/mapstructure/v2](https://pkg.go.dev/github.com/go-viper/mapstructure/v2) ([MIT](https://github.com/go-viper/mapstructure/blob/v2.5.0/LICENSE))
- - [github.com/google/go-github/v87/github](https://pkg.go.dev/github.com/google/go-github/v87/github) ([BSD-3-Clause](https://github.com/google/go-github/blob/v87.0.0/LICENSE))
+ - [github.com/google/go-github/v89/github](https://pkg.go.dev/github.com/google/go-github/v89/github) ([BSD-3-Clause](https://github.com/google/go-github/blob/v89.0.0/LICENSE))
  - [github.com/google/go-querystring/query](https://pkg.go.dev/github.com/google/go-querystring/query) ([BSD-3-Clause](https://github.com/google/go-querystring/blob/v1.2.0/LICENSE))
  - [github.com/google/jsonschema-go/jsonschema](https://pkg.go.dev/github.com/google/jsonschema-go/jsonschema) ([MIT](https://github.com/google/jsonschema-go/blob/v0.4.3/LICENSE))
  - [github.com/gorilla/css/scanner](https://pkg.go.dev/github.com/gorilla/css/scanner) ([BSD-3-Clause](https://github.com/gorilla/css/blob/v1.0.1/LICENSE))
