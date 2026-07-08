@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v89/github"
 
 	"github.com/github/github-mcp-server/pkg/sanitize"
 )
@@ -342,6 +342,32 @@ type MinimalIssue struct {
 	IssueType         string                   `json:"issue_type,omitempty"`
 	IssueFieldValues  []MinimalIssueFieldValue `json:"issue_field_values,omitempty"`
 	FieldValues       []MinimalFieldValue      `json:"field_values,omitempty"`
+
+	// Hierarchy relationship signals. HasParent and HasChildren are populated when
+	// hierarchy enrichment succeeds; SubIssuesSummary is populated when children exist,
+	// and Parent when a parent exists and may be surfaced (under lockdown an unverified
+	// parent reference is omitted while HasParent stays true).
+	HasParent        *bool                    `json:"has_parent,omitempty"`
+	HasChildren      *bool                    `json:"has_children,omitempty"`
+	Parent           *MinimalIssueRef         `json:"parent,omitempty"`
+	SubIssuesSummary *MinimalSubIssuesSummary `json:"sub_issues_summary,omitempty"`
+}
+
+// MinimalIssueRef is a compact reference to a related issue (e.g. a parent issue).
+// Its keys mirror the get_parent (GetIssueParent) response shape.
+type MinimalIssueRef struct {
+	Number     int    `json:"number"`
+	Title      string `json:"title"`
+	State      string `json:"state"`
+	URL        string `json:"url"`
+	Repository string `json:"repository,omitempty"`
+}
+
+// MinimalSubIssuesSummary holds the native GraphQL subIssuesSummary counts for an issue.
+type MinimalSubIssuesSummary struct {
+	Total            int `json:"total"`
+	Completed        int `json:"completed"`
+	PercentCompleted int `json:"percent_completed"`
 }
 
 // MinimalIssuesResponse is the trimmed output for a paginated list of issues.
