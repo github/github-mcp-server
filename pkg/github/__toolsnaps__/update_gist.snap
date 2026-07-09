@@ -1,5 +1,7 @@
 {
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Update Gist"
   },
   "description": "Update an existing gist",

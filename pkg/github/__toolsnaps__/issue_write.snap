@@ -9,6 +9,8 @@
     }
   },
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Create or update issue/pull request"
   },
   "description": "Create a new or update an existing issue in a GitHub repository.",

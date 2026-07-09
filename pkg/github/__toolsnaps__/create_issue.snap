@@ -1,7 +1,9 @@
 {
   "annotations": {
     "destructiveHint": false,
+    "idempotentHint": false,
     "openWorldHint": true,
+    "readOnlyHint": false,
     "title": "Create Issue"
   },
   "description": "Create a new issue in a GitHub repository with a title and optional body.",

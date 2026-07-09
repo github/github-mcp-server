@@ -1,5 +1,7 @@
 {
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Star repository"
   },
   "description": "Star a GitHub repository",

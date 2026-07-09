@@ -1,7 +1,9 @@
 {
   "annotations": {
     "destructiveHint": false,
+    "idempotentHint": false,
     "openWorldHint": true,
+    "readOnlyHint": false,
     "title": "Add Pull Request Review Comment"
   },
   "description": "Add a review comment to the current user's pending pull request review.",
