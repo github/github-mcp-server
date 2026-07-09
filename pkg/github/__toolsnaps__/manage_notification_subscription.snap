@@ -1,5 +1,6 @@
 {
   "annotations": {
+    "destructiveHint": false,
     "idempotentHint": false,
     "readOnlyHint": false,
     "title": "Manage notification subscription"

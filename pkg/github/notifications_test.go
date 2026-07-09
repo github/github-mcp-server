@@ -146,6 +146,9 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 
 	assert.Equal(t, "manage_notification_subscription", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	require.NotNil(t, tool.Annotations)
+	require.NotNil(t, tool.Annotations.DestructiveHint)
+	assert.False(t, *tool.Annotations.DestructiveHint)
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -282,6 +285,9 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 
 	assert.Equal(t, "manage_repository_notification_subscription", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	require.NotNil(t, tool.Annotations)
+	require.NotNil(t, tool.Annotations.DestructiveHint)
+	assert.False(t, *tool.Annotations.DestructiveHint)
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
