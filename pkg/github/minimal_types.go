@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v89/github"
 
 	"github.com/github/github-mcp-server/pkg/sanitize"
 )
