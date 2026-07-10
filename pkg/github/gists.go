@@ -13,7 +13,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v89/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -224,13 +224,12 @@ func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			files := make(map[github.GistFilename]github.GistFile)
-			files[github.GistFilename(filename)] = github.GistFile{
-				Filename: github.Ptr(filename),
-				Content:  github.Ptr(content),
+			files := make(map[github.GistFilename]*github.CreateGistFile)
+			files[github.GistFilename(filename)] = &github.CreateGistFile{
+				Content: content,
 			}
 
-			gist := &github.Gist{
+			gist := github.CreateGistRequest{
 				Files:       files,
 				Public:      github.Ptr(public),
 				Description: github.Ptr(description),
@@ -326,15 +325,23 @@ func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			files := make(map[github.GistFilename]github.GistFile)
-			files[github.GistFilename(filename)] = github.GistFile{
+			files := make(map[github.GistFilename]*github.UpdateGistFile)
+			files[github.GistFilename(filename)] = &github.UpdateGistFile{
 				Filename: github.Ptr(filename),
 				Content:  github.Ptr(content),
 			}
 
-			gist := &github.Gist{
+			// Only set Description when the caller actually provided it, so
+			// omitting it preserves the gist's existing description. Passing an
+			// explicit empty string still clears it.
+			var descriptionPtr *string
+			if _, ok := args["description"]; ok {
+				descriptionPtr = github.Ptr(description)
+			}
+
+			gist := github.UpdateGistRequest{
 				Files:       files,
-				Description: github.Ptr(description),
+				Description: descriptionPtr,
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -342,7 +349,7 @@ func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			updatedGist, resp, err := client.Gists.Edit(ctx, gistID, gist)
+			updatedGist, resp, err := client.Gists.Update(ctx, gistID, gist)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update gist", resp, err), nil, nil
 			}
