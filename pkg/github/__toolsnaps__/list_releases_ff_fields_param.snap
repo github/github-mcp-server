@@ -1,0 +1,55 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "List releases"
+  },
+  "description": "List releases in a GitHub repository",
+  "inputSchema": {
+    "properties": {
+      "fields": {
+        "description": "Subset of fields to return for each release. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' in particular drops the largest per-release data.",
+        "items": {
+          "enum": [
+            "id",
+            "tag_name",
+            "name",
+            "body",
+            "html_url",
+            "published_at",
+            "prerelease",
+            "draft",
+            "author"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page": {
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "list_releases"
+}

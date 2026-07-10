@@ -1658,6 +1658,18 @@ export GITHUB_MCP_SERVER_TITLE="GHES MCP Server"
 
 The exported Go API of this module should currently be considered unstable, and subject to breaking changes. In the future, we may offer stability; please file an issue if there is a use case where this would be valuable.
 
+## Contributing
+
+Contributions are welcome. Before opening a pull request, please read the [contributing guide](CONTRIBUTING.md) for setup, testing, linting, and documentation generation instructions.
+
+## Support
+
+For help using the GitHub MCP Server, see the [support guide](SUPPORT.md). If you have found a bug or want to request a feature, please search existing issues before opening a new one.
+
+## Security
+
+Please do not report security vulnerabilities through public issues. Follow the instructions in the [security policy](SECURITY.md) to report vulnerabilities responsibly.
+
 ## License
 
 This project is licensed under the terms of the MIT open source license. Please refer to [MIT](./LICENSE) for the full terms.
