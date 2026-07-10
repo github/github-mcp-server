@@ -30,8 +30,6 @@ func BenchmarkDataURICache(b *testing.B) {
 	})
 }
 
-// Run each ColdStart inventory separately with -benchtime=1x in a fresh
-// `go test` process so package-level cache state cannot cross-contaminate it.
 func BenchmarkIconsRegistrationColdStart(b *testing.B) {
 	benchmarkIconsRegistration(b, false)
 }
@@ -51,16 +49,19 @@ func benchmarkIconsRegistration(b *testing.B, warm bool) {
 				for _, icon := range inventory {
 					_ = Icons(icon)
 				}
-			} else {
-				dataURIs.mu.Lock()
-				dataURIs.values = nil
-				dataURIs.mu.Unlock()
 			}
 
 			batch := make([][]mcp.Icon, len(inventory))
 			b.ReportAllocs()
 			b.ResetTimer()
 			for b.Loop() {
+				if !warm {
+					b.StopTimer()
+					dataURIs.mu.Lock()
+					dataURIs.values = nil
+					dataURIs.mu.Unlock()
+					b.StartTimer()
+				}
 				for index, icon := range inventory {
 					batch[index] = Icons(icon)
 				}
