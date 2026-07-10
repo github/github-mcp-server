@@ -1596,6 +1596,11 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 				Description: "Sort order",
 				Enum:        []any{"asc", "desc"},
 			},
+			"minimal_output": {
+				Type:        "boolean",
+				Description: "Return minimal pull request search results (default: true). When false, returns the full GitHub API search payload.",
+				Default:     json.RawMessage(`true`),
+			},
 		},
 		Required: []string{"query"},
 	}
@@ -1614,8 +1619,50 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			result, err := searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests", ifcSearchPostProcessOption(ctx, deps))
-			return result, nil, err
+			minimalOutput, err := OptionalBoolParamWithDefault(args, "minimal_output", true)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if !minimalOutput {
+				result, err := searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests", ifcSearchPostProcessOption(ctx, deps))
+				return result, nil, err
+			}
+
+			query, opts, err := prepareSearchArgs(args, "pr")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to search pull requests: failed to get GitHub client", err), nil, nil
+			}
+			result, resp, err := client.Search.Issues(ctx, query, opts)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to search pull requests", err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to search pull requests: failed to read response body", err), nil, nil
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search pull requests", resp, body), nil, nil
+			}
+
+			r, err := json.Marshal(convertToMinimalSearchPullRequestsResult(result))
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to search pull requests: failed to marshal response", err), nil, nil
+			}
+
+			callResult := utils.NewToolResultText(string(r))
+			cfg := searchConfig{}
+			ifcSearchPostProcessOption(ctx, deps)(&cfg)
+			if cfg.postProcess != nil {
+				cfg.postProcess(ctx, result, callResult)
+			}
+			return callResult, nil, nil
 		})
 }
 

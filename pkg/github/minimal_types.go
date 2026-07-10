@@ -449,6 +449,38 @@ type MinimalSearchCommitsResult struct {
 	Items             []MinimalCommitSearchItem `json:"items"`
 }
 
+// MinimalSearchPullRequestsResult is the trimmed output type for pull request search results.
+type MinimalSearchPullRequestsResult struct {
+	TotalCount        int                            `json:"total_count"`
+	IncompleteResults bool                           `json:"incomplete_results"`
+	Items             []MinimalSearchPullRequestItem `json:"items"`
+}
+
+// MinimalSearchPullRequestItem is the trimmed output type for a single pull request search hit.
+type MinimalSearchPullRequestItem struct {
+	Number        int                            `json:"number"`
+	Title         string                         `json:"title"`
+	State         string                         `json:"state"`
+	Draft         bool                           `json:"draft,omitempty"`
+	User          string                         `json:"user,omitempty"`
+	CreatedAt     string                         `json:"created_at,omitempty"`
+	UpdatedAt     string                         `json:"updated_at,omitempty"`
+	HTMLURL       string                         `json:"html_url,omitempty"`
+	Repository    string                         `json:"repository,omitempty"`
+	RepositoryURL string                         `json:"repository_url,omitempty"`
+	Labels        []string                       `json:"labels,omitempty"`
+	Comments      int                            `json:"comments,omitempty"`
+	PullRequest   *MinimalSearchPullRequestLinks `json:"pull_request,omitempty"`
+}
+
+// MinimalSearchPullRequestLinks contains the PR-specific URLs already present on an issue search hit.
+type MinimalSearchPullRequestLinks struct {
+	URL      string `json:"url,omitempty"`
+	HTMLURL  string `json:"html_url,omitempty"`
+	DiffURL  string `json:"diff_url,omitempty"`
+	PatchURL string `json:"patch_url,omitempty"`
+}
+
 // MinimalFileContentResponse is the trimmed output type for create/update/delete file responses.
 type MinimalFileContentResponse struct {
 	Content *MinimalFileContent `json:"content,omitempty"`
@@ -1597,6 +1629,58 @@ func convertCommitResultToMinimalCommit(commit *github.CommitResult) MinimalComm
 	}
 
 	return item
+}
+
+func convertToMinimalSearchPullRequestsResult(result *github.IssuesSearchResult) MinimalSearchPullRequestsResult {
+	minimal := MinimalSearchPullRequestsResult{}
+	if result == nil {
+		return minimal
+	}
+
+	minimal.TotalCount = result.GetTotal()
+	minimal.IncompleteResults = result.GetIncompleteResults()
+	minimal.Items = make([]MinimalSearchPullRequestItem, 0, len(result.Issues))
+	for _, issue := range result.Issues {
+		if issue == nil {
+			continue
+		}
+		minimal.Items = append(minimal.Items, convertToMinimalSearchPullRequestItem(issue))
+	}
+
+	return minimal
+}
+
+func convertToMinimalSearchPullRequestItem(issue *github.Issue) MinimalSearchPullRequestItem {
+	minimal := MinimalSearchPullRequestItem{
+		Number:        issue.GetNumber(),
+		Title:         issue.GetTitle(),
+		State:         issue.GetState(),
+		Draft:         issue.GetDraft(),
+		User:          issue.GetUser().GetLogin(),
+		CreatedAt:     formatProjectTimestamp(issue.CreatedAt),
+		UpdatedAt:     formatProjectTimestamp(issue.UpdatedAt),
+		HTMLURL:       issue.GetHTMLURL(),
+		Repository:    issueRepositoryFullName(issue),
+		RepositoryURL: issue.GetRepositoryURL(),
+		Comments:      issue.GetComments(),
+	}
+
+	for _, label := range issue.Labels {
+		if label != nil {
+			minimal.Labels = append(minimal.Labels, label.GetName())
+		}
+	}
+
+	if links := issue.GetPullRequestLinks(); links != nil {
+		minimal.PullRequest = &MinimalSearchPullRequestLinks{
+			URL:      links.GetURL(),
+			HTMLURL:  links.GetHTMLURL(),
+			DiffURL:  links.GetDiffURL(),
+			PatchURL: links.GetPatchURL(),
+		}
+	}
+
+	return minimal
 }
 
 // MinimalPageInfo contains pagination cursor information.
