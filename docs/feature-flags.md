@@ -150,7 +150,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **update_issue_assignees** - Update Issue Assignees
   - **Required OAuth Scopes**: `repo`
-  - `assignees`: GitHub usernames to assign to this issue (string[], required)
+  - `assignees`: GitHub usernames to assign to this issue. ([], required)
   - `issue_number`: The issue number to update (number, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)
@@ -178,8 +178,12 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **update_issue_state** - Update Issue State
   - **Required OAuth Scopes**: `repo`
+  - `confidence`: How confident you are in this choice. Use 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal. (string, optional)
+  - `duplicate_of`: The issue number of the canonical issue this issue duplicates. Only valid when state_reason is 'duplicate'. Required when is_suggestion is true and state_reason is 'duplicate'. The issue number is resolved to a database ID before being sent to the API. (number, optional)
+  - `is_suggestion`: If true, this state change is sent to the API as a suggestion (suggest:true) rather than an applied change. Whether the change is applied or recorded as a proposal is determined by the API. (boolean, optional)
   - `issue_number`: The issue number to update (number, required)
   - `owner`: Repository owner (username or organization) (string, required)
+  - `rationale`: One concise sentence explaining what specifically about the issue led you to choose this state. State the concrete signal (e.g. 'The reported crash is fixed in v2.1' → completed). (string, optional)
   - `repo`: Repository name (string, required)
   - `state`: The new state for the issue (string, required)
   - `state_reason`: The reason for the state change (only for closed state) (string, optional)
@@ -306,7 +310,6 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **issue_dependency_read** - Read issue dependencies
   - **Required OAuth Scopes**: `repo`
-  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `issue_number`: The number of the issue (number, required)
   - `method`: The read operation to perform on a single issue's dependencies.
     Options are:
@@ -314,6 +317,7 @@ runtime behavior (such as output formatting) won't appear here.
     2. get_blocking - List the issues that this issue blocks.
      (string, required)
   - `owner`: The owner of the repository (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: The name of the repository (string, required)
 
