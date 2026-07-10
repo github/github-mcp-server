@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -17,6 +18,47 @@ var iconsFS embed.FS
 
 //go:embed required_icons.txt
 var requiredIconsTxt string
+
+type dataURIKey struct {
+	name  string
+	theme Theme
+}
+
+type dataURICache struct {
+	mu     sync.RWMutex
+	values map[dataURIKey]string
+}
+
+// This covers the current embedded variants without encoding them at startup.
+const initialDataURICacheCapacity = 64
+
+func (c *dataURICache) load(name string, theme Theme) string {
+	key := dataURIKey{name: name, theme: theme}
+	c.mu.RLock()
+	cached, ok := c.values[key]
+	c.mu.RUnlock()
+	if ok {
+		return cached
+	}
+
+	dataURI := readDataURI(name, theme)
+	if dataURI == "" {
+		return ""
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if cached, ok := c.values[key]; ok {
+		return cached
+	}
+	if c.values == nil {
+		c.values = make(map[dataURIKey]string, initialDataURICacheCapacity)
+	}
+	c.values[key] = dataURI
+	return dataURI
+}
+
+var dataURIs dataURICache
 
 // RequiredIcons returns the list of icon names from required_icons.txt.
 // This is the single source of truth for which icons should be embedded.
@@ -50,6 +92,10 @@ const (
 // - ThemeDark: light icons for dark backgrounds
 // If the icon is not found in the embedded filesystem, it returns an empty string.
 func DataURI(name string, theme Theme) string {
+	return dataURIs.load(name, theme)
+}
+
+func readDataURI(name string, theme Theme) string {
 	filename := fmt.Sprintf("icons/%s-%s.png", name, theme)
 	data, err := iconsFS.ReadFile(filename)
 	if err != nil {

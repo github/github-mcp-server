@@ -1,7 +1,9 @@
 package octicons
 
 import (
+	"io/fs"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -53,6 +55,65 @@ func TestDataURI(t *testing.T) {
 	}
 }
 
+func TestDataURIForEveryEmbeddedIcon(t *testing.T) {
+	paths, err := fs.Glob(iconsFS, "icons/*.png")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, paths)
+
+	for _, path := range paths {
+		filename := strings.TrimSuffix(strings.TrimPrefix(path, "icons/"), ".png")
+		separator := strings.LastIndexByte(filename, '-')
+		if separator <= 0 {
+			t.Errorf("cannot parse embedded icon path %q", path)
+			continue
+		}
+		name := filename[:separator]
+		theme := Theme(filename[separator+1:])
+		t.Run(filename, func(t *testing.T) {
+			assert.True(t, strings.HasPrefix(DataURI(name, theme), "data:image/png;base64,"))
+		})
+	}
+}
+
+func TestDataURICacheOnlyStoresSuccessfulReads(t *testing.T) {
+	var cache dataURICache
+	missingKey := dataURIKey{name: "nonexistent-icon", theme: ThemeLight}
+
+	assert.Empty(t, cache.load(missingKey.name, missingKey.theme))
+	assert.Nil(t, cache.values, "missing icons must not initialize the cache")
+	_, found := cache.values[missingKey]
+	assert.False(t, found, "missing icons must not be cached")
+
+	validKey := dataURIKey{name: "repo", theme: ThemeLight}
+	assert.NotEmpty(t, cache.load(validKey.name, validKey.theme))
+	_, found = cache.values[validKey]
+	assert.True(t, found, "successful reads should be cached")
+}
+
+func TestDataURICacheConcurrentFirstUse(t *testing.T) {
+	var cache dataURICache
+	want := readDataURI("repo", ThemeLight)
+	assert.NotEmpty(t, want)
+
+	const workers = 64
+	start := make(chan struct{})
+	results := make(chan string, workers)
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Go(func() {
+			<-start
+			results <- cache.load("repo", ThemeLight)
+		})
+	}
+
+	close(start)
+	wg.Wait()
+	close(results)
+	for result := range results {
+		assert.Equal(t, want, result)
+	}
+}
+
 func TestIcons(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -97,6 +158,23 @@ func TestIcons(t *testing.T) {
 			assert.Equal(t, mcp.IconThemeDark, result[1].Theme)
 		})
 	}
+}
+
+func TestIconsReturnsFreshSlice(t *testing.T) {
+	lightSource := DataURI("repo", ThemeLight)
+	darkSource := DataURI("repo", ThemeDark)
+
+	icons := Icons("repo")
+	icons[0] = mcp.Icon{}
+	icons[1].Source = "mutated"
+
+	fresh := Icons("repo")
+	assert.Equal(t, lightSource, fresh[0].Source)
+	assert.Equal(t, darkSource, fresh[1].Source)
+	assert.Equal(t, "image/png", fresh[0].MIMEType)
+	assert.Equal(t, "image/png", fresh[1].MIMEType)
+	assert.Equal(t, mcp.IconThemeLight, fresh[0].Theme)
+	assert.Equal(t, mcp.IconThemeDark, fresh[1].Theme)
 }
 
 func TestThemeConstants(t *testing.T) {
