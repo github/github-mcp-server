@@ -1294,7 +1294,6 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 		})
 }
 
-// ListPullRequests creates a tool to list and filter repository pull requests.
 // ListPullRequests creates a tool to list pull requests in a GitHub repository.
 // It is the FeatureFlagFieldsParam-enabled variant: it advertises the optional
 // `fields` parameter and filters each pull request to the requested subset. Both
@@ -1613,7 +1612,6 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 		})
 }
 
-// SearchPullRequests creates a tool to search for pull requests.
 // SearchPullRequests creates a tool to search for pull requests. It is the
 // FeatureFlagFieldsParam-enabled variant: it advertises the optional `fields`
 // parameter and filters each result to the requested subset. Both this and

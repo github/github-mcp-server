@@ -1605,7 +1605,6 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 	return utils.NewToolResultText(string(r)), nil
 }
 
-// SearchIssues creates a tool to search for issues.
 // SearchIssues creates a tool to search for issues. It is the
 // FeatureFlagFieldsParam-enabled variant: it advertises the optional `fields`
 // parameter and filters each result to the requested subset. Both this and
@@ -2663,8 +2662,6 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	return utils.NewToolResultText(string(r)), nil
 }
 
-// ListIssues creates a tool to list and filter repository issues. It exposes the
-// Issues 2.0 field_filters input plus field_values output enrichment.
 // ListIssues creates a tool to list issues in a GitHub repository. It is the
 // FeatureFlagFieldsParam-enabled variant: it advertises the optional `fields`
 // parameter and filters each issue to the requested subset. Both this and

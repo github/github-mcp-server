@@ -132,7 +132,6 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// ListCommits creates a tool to get commits of a branch in a repository.
 // ListCommits creates a tool to get the list of commits of a branch in a GitHub
 // repository. It is the FeatureFlagFieldsParam-enabled variant: it advertises
 // the optional `fields` parameter and filters each commit to the requested
@@ -1851,7 +1850,6 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// ListReleases creates a tool to list releases in a GitHub repository.
 // ListReleases creates a tool to list releases in a GitHub repository. It is the
 // FeatureFlagFieldsParam-enabled variant: it advertises the optional `fields`
 // parameter and filters each release to the requested subset. Both this and
