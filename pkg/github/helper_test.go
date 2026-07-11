@@ -107,6 +107,9 @@ const (
 	GetReposReleasesLatestByOwnerByRepo    = "GET /repos/{owner}/{repo}/releases/latest"
 	GetReposReleasesTagsByOwnerByRepoByTag = "GET /repos/{owner}/{repo}/releases/tags/{tag}"
 
+	// Commits endpoints
+	GetReposCompareByOwnerByRepoByBasehead = "GET /repos/{owner}/{repo}/compare/{basehead}"
+
 	// Code quality endpoints
 	GetReposCodeQualityFindingsByOwnerByRepoByFindingNumber = "GET /repos/{owner}/{repo}/code-quality/findings/{finding_number}"
 
