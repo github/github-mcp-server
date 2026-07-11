@@ -103,9 +103,13 @@ const (
 	PatchGistsByGistID = "PATCH /gists/{gist_id}"
 
 	// Releases endpoints
-	GetReposReleasesByOwnerByRepo          = "GET /repos/{owner}/{repo}/releases"
-	GetReposReleasesLatestByOwnerByRepo    = "GET /repos/{owner}/{repo}/releases/latest"
-	GetReposReleasesTagsByOwnerByRepoByTag = "GET /repos/{owner}/{repo}/releases/tags/{tag}"
+	GetReposReleasesByOwnerByRepo               = "GET /repos/{owner}/{repo}/releases"
+	GetReposReleasesLatestByOwnerByRepo         = "GET /repos/{owner}/{repo}/releases/latest"
+	GetReposReleasesTagsByOwnerByRepoByTag      = "GET /repos/{owner}/{repo}/releases/tags/{tag}"
+	PostReposReleasesByOwnerByRepo              = "POST /repos/{owner}/{repo}/releases"
+	PatchReposReleasesByOwnerByRepoByReleaseID  = "PATCH /repos/{owner}/{repo}/releases/{release_id}"
+	DeleteReposReleasesByOwnerByRepoByReleaseID = "DELETE /repos/{owner}/{repo}/releases/{release_id}"
+	PostReposReleasesGenerateNotesByOwnerByRepo = "POST /repos/{owner}/{repo}/releases/generate-notes"
 
 	// Code quality endpoints
 	GetReposCodeQualityFindingsByOwnerByRepoByFindingNumber = "GET /repos/{owner}/{repo}/code-quality/findings/{finding_number}"

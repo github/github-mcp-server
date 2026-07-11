@@ -1,0 +1,43 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Generate release notes"
+  },
+  "description": "Generate the name and body text for a release, based on merged pull requests since the last release, without creating or modifying a release",
+  "inputSchema": {
+    "properties": {
+      "configuration_file_path": {
+        "description": "Path to a release-notes configuration file in the repository, relative to the repository root (e.g., '.github/release.yml'), to use instead of the default configuration",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "previous_tag_name": {
+        "description": "The name of the previous tag to use as the starting point for the release notes. If omitted, GitHub uses the tag that immediately precedes tag_name chronologically.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "tag_name": {
+        "description": "The tag name for the release whose notes are being generated. This doesn't need to exist yet.",
+        "type": "string"
+      },
+      "target_commitish": {
+        "description": "Branch, tag, or commit SHA the Git tag is created from if tag_name doesn't already exist. Defaults to the repository's default branch.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "tag_name"
+    ],
+    "type": "object"
+  },
+  "name": "generate_release_notes"
+}

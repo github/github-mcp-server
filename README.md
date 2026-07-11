@@ -1260,6 +1260,20 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `sha`: The blob SHA of the file being replaced. Required if the file already exists. (string, optional)
 
+- **create_release** - Create release
+  - **Required OAuth Scopes**: `repo`
+  - `body`: Text describing the release. If generate_release_notes is true, this is prepended to the automatically generated notes. (string, optional)
+  - `discussion_category_name`: Name of a discussion category in the repository to start a discussion for the release in (string, optional)
+  - `draft`: Save the release as a draft instead of publishing it (boolean, optional)
+  - `generate_release_notes`: Whether to automatically generate the name and body for this release based on merged pull requests since the last release (boolean, optional)
+  - `make_latest`: Whether this release should be marked as the latest release for the repository (string, optional)
+  - `name`: Release title (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `prerelease`: Mark the release as a prerelease (boolean, optional)
+  - `repo`: Repository name (string, required)
+  - `tag_name`: Tag name for the release (e.g., 'v1.0.0'). Created automatically if it doesn't already exist. (string, required)
+  - `target_commitish`: Branch, tag, or commit SHA the Git tag is created from if tag_name doesn't already exist. Defaults to the repository's default branch. (string, optional)
+
 - **create_repository** - Create repository
   - **Required OAuth Scopes**: `repo`
   - `autoInit`: Initialize with README (boolean, optional)
@@ -1276,11 +1290,26 @@ The following sets of tools are available:
   - `path`: Path to the file to delete (string, required)
   - `repo`: Repository name (string, required)
 
+- **delete_release** - Delete release
+  - **Required OAuth Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `release_id`: The unique identifier of the release to delete (number, required)
+  - `repo`: Repository name (string, required)
+
 - **fork_repository** - Fork repository
   - **Required OAuth Scopes**: `repo`
   - `organization`: Organization to fork to (string, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+
+- **generate_release_notes** - Generate release notes
+  - **Required OAuth Scopes**: `repo`
+  - `configuration_file_path`: Path to a release-notes configuration file in the repository, relative to the repository root (e.g., '.github/release.yml'), to use instead of the default configuration (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `previous_tag_name`: The name of the previous tag to use as the starting point for the release notes. If omitted, GitHub uses the tag that immediately precedes tag_name chronologically. (string, optional)
+  - `repo`: Repository name (string, required)
+  - `tag_name`: The tag name for the release whose notes are being generated. This doesn't need to exist yet. (string, required)
+  - `target_commitish`: Branch, tag, or commit SHA the Git tag is created from if tag_name doesn't already exist. Defaults to the repository's default branch. (string, optional)
 
 - **get_commit** - Get commit details
   - **Required OAuth Scopes**: `repo`
@@ -1389,6 +1418,20 @@ The following sets of tools are available:
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Repository search query. Examples: 'machine learning in:name stars:>1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering. (string, required)
   - `sort`: Sort repositories by field, defaults to best match (string, optional)
+
+- **update_release** - Update release
+  - **Required OAuth Scopes**: `repo`
+  - `body`: Text describing the release (string, optional)
+  - `discussion_category_name`: Name of a discussion category in the repository to start a discussion for the release in. Can only be set once, when the release is published for the first time. (string, optional)
+  - `draft`: Whether the release should be a draft (unpublished) (boolean, optional)
+  - `make_latest`: Whether this release should be marked as the latest release for the repository (string, optional)
+  - `name`: Release title (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `prerelease`: Whether the release should be marked as a prerelease (boolean, optional)
+  - `release_id`: The unique identifier of the release to update (number, required)
+  - `repo`: Repository name (string, required)
+  - `tag_name`: New tag name for the release (string, optional)
+  - `target_commitish`: Branch, tag, or commit SHA the Git tag is created from if the tag doesn't already exist (string, optional)
 
 </details>
 

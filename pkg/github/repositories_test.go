@@ -5680,3 +5680,500 @@ func Test_ListRepositoryCollaborators(t *testing.T) {
 		})
 	}
 }
+
+func Test_CreateRelease(t *testing.T) {
+	serverTool := CreateRelease(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+
+	assert.Equal(t, "create_release", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "tag_name")
+	assert.Contains(t, schema.Properties, "target_commitish")
+	assert.Contains(t, schema.Properties, "name")
+	assert.Contains(t, schema.Properties, "body")
+	assert.Contains(t, schema.Properties, "draft")
+	assert.Contains(t, schema.Properties, "prerelease")
+	assert.Contains(t, schema.Properties, "make_latest")
+	assert.Contains(t, schema.Properties, "discussion_category_name")
+	assert.Contains(t, schema.Properties, "generate_release_notes")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "tag_name"})
+
+	mockRelease := &github.RepositoryRelease{
+		ID:      1,
+		TagName: "v1.0.0",
+		Name:    github.Ptr("Release v1.0.0"),
+		Body:    github.Ptr("Initial release"),
+		Draft:   false,
+		HTMLURL: "https://github.com/owner/repo/releases/tag/v1.0.0",
+	}
+
+	tests := []struct {
+		name            string
+		mockedClient    *http.Client
+		requestArgs     map[string]any
+		expectError     bool
+		expectedRelease *github.RepositoryRelease
+		expectedErrMsg  string
+	}{
+		{
+			name: "successful release creation with all parameters",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					PostReposReleasesByOwnerByRepo,
+					expectRequestBody(t, map[string]any{
+						"tag_name":                 "v1.0.0",
+						"target_commitish":         "main",
+						"name":                     "Release v1.0.0",
+						"body":                     "Initial release",
+						"draft":                    false,
+						"prerelease":               false,
+						"make_latest":              "true",
+						"discussion_category_name": "General",
+						"generate_release_notes":   false,
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockRelease),
+					),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":                    "owner",
+				"repo":                     "repo",
+				"tag_name":                 "v1.0.0",
+				"target_commitish":         "main",
+				"name":                     "Release v1.0.0",
+				"body":                     "Initial release",
+				"draft":                    false,
+				"prerelease":               false,
+				"make_latest":              "true",
+				"discussion_category_name": "General",
+				"generate_release_notes":   false,
+			},
+			expectError:     false,
+			expectedRelease: mockRelease,
+		},
+		{
+			name: "successful release creation with minimal parameters",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					PostReposReleasesByOwnerByRepo,
+					expectRequestBody(t, map[string]any{
+						"tag_name": "v1.0.0",
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockRelease),
+					),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":    "owner",
+				"repo":     "repo",
+				"tag_name": "v1.0.0",
+			},
+			expectError:     false,
+			expectedRelease: mockRelease,
+		},
+		{
+			name:           "missing tag_name parameter",
+			mockedClient:   NewMockedHTTPClient(),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo"},
+			expectError:    false,
+			expectedErrMsg: "missing required parameter: tag_name",
+		},
+		{
+			name: "release creation fails",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					PostReposReleasesByOwnerByRepo,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusUnprocessableEntity)
+						_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
+					}),
+				),
+			),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "tag_name": "v1.0.0"},
+			expectError:    false,
+			expectedErrMsg: "failed to create release",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+			require.NoError(t, err)
+
+			if tc.expectedErrMsg != "" {
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+
+			var returnedRelease github.RepositoryRelease
+			err = json.Unmarshal([]byte(textContent.Text), &returnedRelease)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expectedRelease.GetID(), returnedRelease.GetID())
+			assert.Equal(t, tc.expectedRelease.GetTagName(), returnedRelease.GetTagName())
+			assert.Equal(t, tc.expectedRelease.GetName(), returnedRelease.GetName())
+		})
+	}
+}
+
+func Test_UpdateRelease(t *testing.T) {
+	serverTool := UpdateRelease(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+
+	assert.Equal(t, "update_release", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "release_id")
+	assert.Contains(t, schema.Properties, "tag_name")
+	assert.Contains(t, schema.Properties, "name")
+	assert.Contains(t, schema.Properties, "body")
+	assert.Contains(t, schema.Properties, "draft")
+	assert.Contains(t, schema.Properties, "prerelease")
+	assert.Contains(t, schema.Properties, "make_latest")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "release_id"})
+
+	mockRelease := &github.RepositoryRelease{
+		ID:      123,
+		TagName: "v1.0.1",
+		Name:    github.Ptr("Release v1.0.1"),
+		Draft:   false,
+		HTMLURL: "https://github.com/owner/repo/releases/tag/v1.0.1",
+	}
+
+	tests := []struct {
+		name            string
+		mockedClient    *http.Client
+		requestArgs     map[string]any
+		expectError     bool
+		expectedRelease *github.RepositoryRelease
+		expectedErrMsg  string
+	}{
+		{
+			name: "successful release update",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					PatchReposReleasesByOwnerByRepoByReleaseID,
+					expectRequestBody(t, map[string]any{
+						"name":  "Release v1.0.1",
+						"draft": false,
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockRelease),
+					),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"release_id": float64(123),
+				"name":       "Release v1.0.1",
+				"draft":      false,
+			},
+			expectError:     false,
+			expectedRelease: mockRelease,
+		},
+		{
+			name:           "missing release_id parameter",
+			mockedClient:   NewMockedHTTPClient(),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "name": "New name"},
+			expectError:    false,
+			expectedErrMsg: "missing required parameter: release_id",
+		},
+		{
+			name:           "no update parameters provided",
+			mockedClient:   NewMockedHTTPClient(),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "release_id": float64(123)},
+			expectError:    false,
+			expectedErrMsg: "No update parameters provided.",
+		},
+		{
+			name: "release update fails",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					PatchReposReleasesByOwnerByRepoByReleaseID,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"release_id": float64(999),
+				"name":       "New name",
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to update release",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+			require.NoError(t, err)
+
+			if tc.expectedErrMsg != "" {
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+
+			var returnedRelease github.RepositoryRelease
+			err = json.Unmarshal([]byte(textContent.Text), &returnedRelease)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expectedRelease.GetID(), returnedRelease.GetID())
+			assert.Equal(t, tc.expectedRelease.GetName(), returnedRelease.GetName())
+		})
+	}
+}
+
+func Test_DeleteRelease(t *testing.T) {
+	serverTool := DeleteRelease(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+
+	assert.Equal(t, "delete_release", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "release_id")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "release_id"})
+	require.NotNil(t, tool.Annotations)
+	require.NotNil(t, tool.Annotations.DestructiveHint)
+	assert.True(t, *tool.Annotations.DestructiveHint)
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]any
+		expectError    bool
+		expectedErrMsg string
+	}{
+		{
+			name: "successful delete",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					DeleteReposReleasesByOwnerByRepoByReleaseID,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNoContent)
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"release_id": float64(123),
+			},
+			expectError: false,
+		},
+		{
+			name:           "missing release_id parameter",
+			mockedClient:   NewMockedHTTPClient(),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo"},
+			expectError:    false,
+			expectedErrMsg: "missing required parameter: release_id",
+		},
+		{
+			name: "delete fails",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					DeleteReposReleasesByOwnerByRepoByReleaseID,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"release_id": float64(999),
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to delete release",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			if tc.expectError || tc.expectedErrMsg != "" {
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+			assert.Contains(t, textContent.Text, "Successfully deleted release")
+		})
+	}
+}
+
+func Test_GenerateReleaseNotes(t *testing.T) {
+	serverTool := GenerateReleaseNotes(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+
+	assert.Equal(t, "generate_release_notes", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "tag_name")
+	assert.Contains(t, schema.Properties, "previous_tag_name")
+	assert.Contains(t, schema.Properties, "target_commitish")
+	assert.Contains(t, schema.Properties, "configuration_file_path")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "tag_name"})
+
+	mockNotes := &github.RepositoryReleaseNotes{
+		Name: "v1.1.0",
+		Body: "## What's Changed\n* Some fix by @octocat",
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]any
+		expectError    bool
+		expectedNotes  *github.RepositoryReleaseNotes
+		expectedErrMsg string
+	}{
+		{
+			name: "successful notes generation",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					PostReposReleasesGenerateNotesByOwnerByRepo,
+					expectRequestBody(t, map[string]any{
+						"tag_name":          "v1.1.0",
+						"previous_tag_name": "v1.0.0",
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockNotes),
+					),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":             "owner",
+				"repo":              "repo",
+				"tag_name":          "v1.1.0",
+				"previous_tag_name": "v1.0.0",
+			},
+			expectError:   false,
+			expectedNotes: mockNotes,
+		},
+		{
+			name:           "missing tag_name parameter",
+			mockedClient:   NewMockedHTTPClient(),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo"},
+			expectError:    false,
+			expectedErrMsg: "missing required parameter: tag_name",
+		},
+		{
+			name: "notes generation fails",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					PostReposReleasesGenerateNotesByOwnerByRepo,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusUnprocessableEntity)
+						_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
+					}),
+				),
+			),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "tag_name": "v1.1.0"},
+			expectError:    false,
+			expectedErrMsg: "failed to generate release notes",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+			require.NoError(t, err)
+
+			if tc.expectedErrMsg != "" {
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+
+			var returnedNotes github.RepositoryReleaseNotes
+			err = json.Unmarshal([]byte(textContent.Text), &returnedNotes)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expectedNotes.Name, returnedNotes.Name)
+			assert.Equal(t, tc.expectedNotes.Body, returnedNotes.Body)
+		})
+	}
+}

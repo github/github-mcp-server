@@ -2081,6 +2081,517 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 	)
 }
 
+// CreateRelease creates a tool to create a new release in a GitHub repository.
+func CreateRelease(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        "create_release",
+			Description: t("TOOL_CREATE_RELEASE_DESCRIPTION", "Create a new release in a GitHub repository"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_CREATE_RELEASE_USER_TITLE", "Create release"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"tag_name": {
+						Type:        "string",
+						Description: "Tag name for the release (e.g., 'v1.0.0'). Created automatically if it doesn't already exist.",
+					},
+					"target_commitish": {
+						Type:        "string",
+						Description: "Branch, tag, or commit SHA the Git tag is created from if tag_name doesn't already exist. Defaults to the repository's default branch.",
+					},
+					"name": {
+						Type:        "string",
+						Description: "Release title",
+					},
+					"body": {
+						Type:        "string",
+						Description: "Text describing the release. If generate_release_notes is true, this is prepended to the automatically generated notes.",
+					},
+					"draft": {
+						Type:        "boolean",
+						Description: "Save the release as a draft instead of publishing it",
+					},
+					"prerelease": {
+						Type:        "boolean",
+						Description: "Mark the release as a prerelease",
+					},
+					"make_latest": {
+						Type:        "string",
+						Enum:        []any{"true", "false", "legacy"},
+						Description: "Whether this release should be marked as the latest release for the repository",
+					},
+					"discussion_category_name": {
+						Type:        "string",
+						Description: "Name of a discussion category in the repository to start a discussion for the release in",
+					},
+					"generate_release_notes": {
+						Type:        "boolean",
+						Description: "Whether to automatically generate the name and body for this release based on merged pull requests since the last release",
+					},
+				},
+				Required: []string{"owner", "repo", "tag_name"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			tagName, err := RequiredParam[string](args, "tag_name")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			body := github.CreateReleaseRequest{TagName: tagName}
+
+			if targetCommitish, err := OptionalParam[string](args, "target_commitish"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if targetCommitish != "" {
+				body.TargetCommitish = github.Ptr(targetCommitish)
+			}
+			if name, err := OptionalParam[string](args, "name"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if name != "" {
+				body.Name = github.Ptr(name)
+			}
+			if releaseBody, err := OptionalParam[string](args, "body"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if releaseBody != "" {
+				body.Body = github.Ptr(releaseBody)
+			}
+			if draft, ok, err := OptionalParamOK[bool](args, "draft"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if ok {
+				body.Draft = github.Ptr(draft)
+			}
+			if prerelease, ok, err := OptionalParamOK[bool](args, "prerelease"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if ok {
+				body.Prerelease = github.Ptr(prerelease)
+			}
+			if makeLatest, err := OptionalParam[string](args, "make_latest"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if makeLatest != "" {
+				body.MakeLatest = github.Ptr(makeLatest)
+			}
+			if discussionCategoryName, err := OptionalParam[string](args, "discussion_category_name"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if discussionCategoryName != "" {
+				body.DiscussionCategoryName = github.Ptr(discussionCategoryName)
+			}
+			if generateReleaseNotes, ok, err := OptionalParamOK[bool](args, "generate_release_notes"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if ok {
+				body.GenerateReleaseNotes = github.Ptr(generateReleaseNotes)
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			release, resp, err := client.Repositories.CreateRelease(ctx, owner, repo, body)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create release", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusCreated {
+				respBody, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create release", resp, respBody), nil, nil
+			}
+
+			r, err := json.Marshal(release)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			result := utils.NewToolResultText(string(r))
+			// Releases are published by collaborators with push access, so
+			// integrity is trusted. A newly created release may be a draft,
+			// which is visible only to push-access users and not world-readable
+			// even on a public repo, so a draft forces private confidentiality.
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result,
+				func(isPrivate bool) ifc.SecurityLabel {
+					return ifc.LabelRelease(isPrivate, release.GetDraft())
+				})
+			return result, nil, nil
+		},
+	)
+}
+
+// UpdateRelease creates a tool to update an existing release in a GitHub repository.
+func UpdateRelease(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        "update_release",
+			Description: t("TOOL_UPDATE_RELEASE_DESCRIPTION", "Update an existing release in a GitHub repository"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_UPDATE_RELEASE_USER_TITLE", "Update release"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"release_id": {
+						Type:        "number",
+						Description: "The unique identifier of the release to update",
+					},
+					"tag_name": {
+						Type:        "string",
+						Description: "New tag name for the release",
+					},
+					"target_commitish": {
+						Type:        "string",
+						Description: "Branch, tag, or commit SHA the Git tag is created from if the tag doesn't already exist",
+					},
+					"name": {
+						Type:        "string",
+						Description: "Release title",
+					},
+					"body": {
+						Type:        "string",
+						Description: "Text describing the release",
+					},
+					"draft": {
+						Type:        "boolean",
+						Description: "Whether the release should be a draft (unpublished)",
+					},
+					"prerelease": {
+						Type:        "boolean",
+						Description: "Whether the release should be marked as a prerelease",
+					},
+					"make_latest": {
+						Type:        "string",
+						Enum:        []any{"true", "false", "legacy"},
+						Description: "Whether this release should be marked as the latest release for the repository",
+					},
+					"discussion_category_name": {
+						Type:        "string",
+						Description: "Name of a discussion category in the repository to start a discussion for the release in. Can only be set once, when the release is published for the first time.",
+					},
+				},
+				Required: []string{"owner", "repo", "release_id"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			releaseID, err := RequiredBigInt(args, "release_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			update := github.UpdateReleaseRequest{}
+			needsUpdate := false
+
+			if tagName, ok, err := OptionalParamOK[string](args, "tag_name"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if ok {
+				update.TagName = github.Ptr(tagName)
+				needsUpdate = true
+			}
+			if targetCommitish, ok, err := OptionalParamOK[string](args, "target_commitish"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if ok {
+				update.TargetCommitish = github.Ptr(targetCommitish)
+				needsUpdate = true
+			}
+			if name, ok, err := OptionalParamOK[string](args, "name"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if ok {
+				update.Name = github.Ptr(name)
+				needsUpdate = true
+			}
+			if releaseBody, ok, err := OptionalParamOK[string](args, "body"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if ok {
+				update.Body = github.Ptr(releaseBody)
+				needsUpdate = true
+			}
+			if draft, ok, err := OptionalParamOK[bool](args, "draft"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if ok {
+				update.Draft = github.Ptr(draft)
+				needsUpdate = true
+			}
+			if prerelease, ok, err := OptionalParamOK[bool](args, "prerelease"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if ok {
+				update.Prerelease = github.Ptr(prerelease)
+				needsUpdate = true
+			}
+			if makeLatest, ok, err := OptionalParamOK[string](args, "make_latest"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if ok {
+				update.MakeLatest = github.Ptr(makeLatest)
+				needsUpdate = true
+			}
+			if discussionCategoryName, ok, err := OptionalParamOK[string](args, "discussion_category_name"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if ok {
+				update.DiscussionCategoryName = github.Ptr(discussionCategoryName)
+				needsUpdate = true
+			}
+
+			if !needsUpdate {
+				return utils.NewToolResultError("No update parameters provided."), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			release, resp, err := client.Repositories.UpdateRelease(ctx, owner, repo, releaseID, update)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update release", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				respBody, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update release", resp, respBody), nil, nil
+			}
+
+			r, err := json.Marshal(release)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			result := utils.NewToolResultText(string(r))
+			// Releases are published by collaborators with push access, so
+			// integrity is trusted. An updated release may be a draft, which is
+			// visible only to push-access users and not world-readable even on a
+			// public repo, so a draft forces private confidentiality.
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result,
+				func(isPrivate bool) ifc.SecurityLabel {
+					return ifc.LabelRelease(isPrivate, release.GetDraft())
+				})
+			return result, nil, nil
+		},
+	)
+}
+
+// DeleteRelease creates a tool to delete a release from a GitHub repository.
+func DeleteRelease(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        "delete_release",
+			Description: t("TOOL_DELETE_RELEASE_DESCRIPTION", "Delete a release from a GitHub repository. This does not delete the underlying Git tag."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_DELETE_RELEASE_USER_TITLE", "Delete release"),
+				ReadOnlyHint:    false,
+				DestructiveHint: github.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"release_id": {
+						Type:        "number",
+						Description: "The unique identifier of the release to delete",
+					},
+				},
+				Required: []string{"owner", "repo", "release_id"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			releaseID, err := RequiredBigInt(args, "release_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			resp, err := client.Repositories.DeleteRelease(ctx, owner, repo, releaseID)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					fmt.Sprintf("failed to delete release %d", releaseID), resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusNoContent {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to delete release", resp, body), nil, nil
+			}
+
+			return utils.NewToolResultText(fmt.Sprintf("Successfully deleted release %d from %s/%s", releaseID, owner, repo)), nil, nil
+		},
+	)
+}
+
+// GenerateReleaseNotes creates a tool to generate release notes content for a GitHub repository, without creating a release.
+func GenerateReleaseNotes(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        "generate_release_notes",
+			Description: t("TOOL_GENERATE_RELEASE_NOTES_DESCRIPTION", "Generate the name and body text for a release, based on merged pull requests since the last release, without creating or modifying a release"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_GENERATE_RELEASE_NOTES_USER_TITLE", "Generate release notes"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"tag_name": {
+						Type:        "string",
+						Description: "The tag name for the release whose notes are being generated. This doesn't need to exist yet.",
+					},
+					"previous_tag_name": {
+						Type:        "string",
+						Description: "The name of the previous tag to use as the starting point for the release notes. If omitted, GitHub uses the tag that immediately precedes tag_name chronologically.",
+					},
+					"target_commitish": {
+						Type:        "string",
+						Description: "Branch, tag, or commit SHA the Git tag is created from if tag_name doesn't already exist. Defaults to the repository's default branch.",
+					},
+					"configuration_file_path": {
+						Type:        "string",
+						Description: "Path to a release-notes configuration file in the repository, relative to the repository root (e.g., '.github/release.yml'), to use instead of the default configuration",
+					},
+				},
+				Required: []string{"owner", "repo", "tag_name"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			tagName, err := RequiredParam[string](args, "tag_name")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			body := github.GenerateNotesRequest{TagName: tagName}
+			if previousTagName, err := OptionalParam[string](args, "previous_tag_name"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if previousTagName != "" {
+				body.PreviousTagName = github.Ptr(previousTagName)
+			}
+			if targetCommitish, err := OptionalParam[string](args, "target_commitish"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if targetCommitish != "" {
+				body.TargetCommitish = github.Ptr(targetCommitish)
+			}
+			if configurationFilePath, err := OptionalParam[string](args, "configuration_file_path"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			} else if configurationFilePath != "" {
+				body.ConfigurationFilePath = github.Ptr(configurationFilePath)
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			notes, resp, err := client.Repositories.GenerateReleaseNotes(ctx, owner, repo, body)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to generate release notes", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				respBody, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to generate release notes", resp, respBody), nil, nil
+			}
+
+			r, err := json.Marshal(notes)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			result := utils.NewToolResultText(string(r))
+			// Generated notes are assembled by GitHub from merged pull request
+			// titles and commit messages, which on a public repo can include
+			// text contributed via PRs from untrusted accounts. Confidentiality
+			// follows repo visibility.
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelCommitContents)
+			return result, nil, nil
+		},
+	)
+}
+
 func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
