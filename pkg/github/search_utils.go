@@ -45,6 +45,12 @@ type searchPostProcessFn func(ctx context.Context, result *github.IssuesSearchRe
 
 type searchConfig struct {
 	postProcess searchPostProcessFn
+	// fields, when non-empty, restricts each result item to the requested
+	// subset of fields. fieldsTool and fieldsDeps identify the calling tool and
+	// its dependencies so fields telemetry can be recorded.
+	fields     []string
+	fieldsTool string
+	fieldsDeps ToolDependencies
 }
 
 type searchOption func(*searchConfig)
@@ -53,6 +59,19 @@ type searchOption func(*searchConfig)
 // response. The callback may mutate the call result (e.g. to attach _meta.ifc).
 func withSearchPostProcess(fn searchPostProcessFn) searchOption {
 	return func(c *searchConfig) { c.postProcess = fn }
+}
+
+// withFieldsFiltering enables the optional `fields` response filtering for a
+// search tool. When fields is non-empty, each result item is reduced to the
+// requested subset while the total_count / incomplete_results wrapper is
+// preserved. tool and deps identify the caller so fields telemetry (adoption and
+// realized savings) can be recorded.
+func withFieldsFiltering(deps ToolDependencies, tool string, fields []string) searchOption {
+	return func(c *searchConfig) {
+		c.fieldsDeps = deps
+		c.fieldsTool = tool
+		c.fields = fields
+	}
 }
 
 // prepareSearchArgs resolves the search query string and REST search options from the tool args,
@@ -147,9 +166,28 @@ func searchHandler(
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), nil
 	}
 
-	r, err := json.Marshal(result)
+	filtered := false
+	var payload any = result
+	if len(cfg.fields) > 0 {
+		filteredItems, err := filterEachField(result.Issues, cfg.fields)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to filter results", err), nil
+		}
+		payload = map[string]any{
+			"total_count":        result.Total,
+			"incomplete_results": result.IncompleteResults,
+			"items":              filteredItems,
+		}
+		filtered = true
+	}
+
+	r, err := json.Marshal(payload)
 	if err != nil {
 		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), nil
+	}
+
+	if cfg.fieldsTool != "" {
+		recordFieldsUsageFor(ctx, cfg.fieldsDeps, cfg.fieldsTool, result, filtered, len(r))
 	}
 
 	callResult := utils.NewToolResultText(string(r))

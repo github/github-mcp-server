@@ -193,6 +193,9 @@ func (d BaseDeps) Logger(_ context.Context) *slog.Logger {
 
 // Metrics implements ToolDependencies.
 func (d BaseDeps) Metrics(ctx context.Context) metrics.Metrics {
+	if d.Obsv == nil {
+		return metrics.NewNoopMetrics()
+	}
 	return d.Obsv.Metrics(ctx)
 }
 
@@ -423,6 +426,9 @@ func (d *RequestDeps) Logger(_ context.Context) *slog.Logger {
 
 // Metrics implements ToolDependencies.
 func (d *RequestDeps) Metrics(ctx context.Context) metrics.Metrics {
+	if d.obsv == nil {
+		return metrics.NewNoopMetrics()
+	}
 	return d.obsv.Metrics(ctx)
 }
 
