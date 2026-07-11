@@ -574,7 +574,11 @@ func Test_ListPullRequests(t *testing.T) {
 	// Verify tool definition once
 	serverTool := ListPullRequests(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	// ListPullRequests is the FeatureFlagFieldsParam-enabled variant; it owns
+	// the _ff_<flag> snapshot. The canonical list_pull_requests.snap is owned by
+	// LegacyListPullRequests (see Test_LegacyListPullRequests_Definition).
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
+	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "list_pull_requests", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -588,6 +592,7 @@ func Test_ListPullRequests(t *testing.T) {
 	assert.Contains(t, schema.Properties, "direction")
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "fields")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	// Setup mock PRs for success case
@@ -820,7 +825,11 @@ func Test_MergePullRequest(t *testing.T) {
 func Test_SearchPullRequests(t *testing.T) {
 	serverTool := SearchPullRequests(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	// SearchPullRequests is the FeatureFlagFieldsParam-enabled variant; it owns
+	// the _ff_<flag> snapshot. The canonical search_pull_requests.snap is owned
+	// by LegacySearchPullRequests (see Test_LegacySearchPullRequests_Definition).
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
+	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "search_pull_requests", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -832,6 +841,7 @@ func Test_SearchPullRequests(t *testing.T) {
 	assert.Contains(t, schema.Properties, "order")
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "fields")
 	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
 	mockSearchResult := &github.IssuesSearchResult{

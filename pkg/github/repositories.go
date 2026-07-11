@@ -132,8 +132,76 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// ListCommits creates a tool to get commits of a branch in a repository.
+// ListCommits creates a tool to get the list of commits of a branch in a GitHub
+// repository. It is the FeatureFlagFieldsParam-enabled variant: it advertises
+// the optional `fields` parameter and filters each commit to the requested
+// subset. Both this and LegacyListCommits register under the tool name
+// "list_commits"; exactly one is active for any given request thanks to mutually
+// exclusive FeatureFlagEnable / FeatureFlagDisable annotations.
 func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := listCommitsTool(t, true)
+	st.FeatureFlagEnable = FeatureFlagFieldsParam
+	return st
+}
+
+// LegacyListCommits is the FeatureFlagFieldsParam-disabled variant of
+// list_commits. It exposes the original schema (no `fields` parameter) and never
+// filters results, so it acts as the kill switch when the flag is off. It owns
+// the canonical list_commits.snap; the flag-enabled variant owns
+// list_commits_ff_<flag>.snap. Delete this function when the flag is removed.
+func LegacyListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := listCommitsTool(t, false)
+	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
+	return st
+}
+
+// listCommitsTool builds the list_commits tool. When includeFields is true the
+// tool advertises the optional `fields` parameter, filters each commit to the
+// requested subset, and emits fields telemetry. When false it is the original
+// tool with no fields parameter and no filtering.
+func listCommitsTool(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"sha": {
+				Type:        "string",
+				Description: "Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA.",
+			},
+			"author": {
+				Type:        "string",
+				Description: "Author username or email address to filter commits by",
+			},
+			"path": {
+				Type:        "string",
+				Description: "Only commits containing this file path will be returned",
+			},
+			"since": {
+				Type:        "string",
+				Description: "Only commits after this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)",
+			},
+			"until": {
+				Type:        "string",
+				Description: "Only commits before this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)",
+			},
+		},
+		Required: []string{"owner", "repo"},
+	}
+	if includeFields {
+		schema.Properties["fields"] = fieldsSchemaProperty(
+			"Subset of fields to return for each commit. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields, e.g. just 'sha' and 'html_url'.",
+			listCommitsItemFieldEnum,
+		)
+	}
+	WithPagination(schema)
+
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -143,40 +211,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_LIST_COMMITS_USER_TITLE", "List commits"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: WithPagination(&jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner": {
-						Type:        "string",
-						Description: "Repository owner",
-					},
-					"repo": {
-						Type:        "string",
-						Description: "Repository name",
-					},
-					"sha": {
-						Type:        "string",
-						Description: "Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA.",
-					},
-					"author": {
-						Type:        "string",
-						Description: "Author username or email address to filter commits by",
-					},
-					"path": {
-						Type:        "string",
-						Description: "Only commits containing this file path will be returned",
-					},
-					"since": {
-						Type:        "string",
-						Description: "Only commits after this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)",
-					},
-					"until": {
-						Type:        "string",
-						Description: "Only commits before this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)",
-					},
-				},
-				Required: []string{"owner", "repo"},
-			}),
+			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -199,6 +234,13 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			path, err := OptionalParam[string](args, "path")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			var fields []string
+			if includeFields {
+				fields, err = OptionalStringArrayParam(args, "fields")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
 			}
 			sinceStr, err := OptionalParam[string](args, "since")
 			if err != nil {
@@ -269,9 +311,24 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 				minimalCommits[i] = convertToMinimalCommit(commit, commitDetailNone)
 			}
 
-			r, err := json.Marshal(minimalCommits)
+			filtered := false
+			var payload any = minimalCommits
+			if includeFields && len(fields) > 0 {
+				filteredCommits, err := filterEachField(minimalCommits, fields)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to filter commits", err), nil, nil
+				}
+				payload = filteredCommits
+				filtered = true
+			}
+
+			r, err := json.Marshal(payload)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			if includeFields {
+				recordFieldsUsageFor(ctx, deps, "list_commits", minimalCommits, filtered, len(r))
 			}
 
 			result := utils.NewToolResultText(string(r))
@@ -693,8 +750,69 @@ func FetchRepoIsPrivate(ctx context.Context, client *github.Client, owner, repo 
 	return r.GetPrivate(), nil
 }
 
-// GetFileContents creates a tool to get the contents of a file or directory from a GitHub repository.
+// GetFileContents creates a tool to get the contents of a file or directory from
+// a GitHub repository. It is the FeatureFlagFieldsParam-enabled variant: it
+// advertises the optional `fields` parameter and filters directory listings to
+// the requested subset. Both this and LegacyGetFileContents register under the
+// tool name "get_file_contents"; exactly one is active for any given request
+// thanks to mutually exclusive FeatureFlagEnable / FeatureFlagDisable annotations.
 func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := getFileContentsTool(t, true)
+	st.FeatureFlagEnable = FeatureFlagFieldsParam
+	return st
+}
+
+// LegacyGetFileContents is the FeatureFlagFieldsParam-disabled variant of
+// get_file_contents. It exposes the original schema (no `fields` parameter) and
+// never filters directory listings, so it acts as the kill switch when the flag
+// is off. It owns the canonical get_file_contents.snap; the flag-enabled variant
+// owns get_file_contents_ff_<flag>.snap. Delete this function when the flag is
+// removed.
+func LegacyGetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := getFileContentsTool(t, false)
+	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
+	return st
+}
+
+// getFileContentsTool builds the get_file_contents tool. When includeFields is
+// true the tool advertises the optional `fields` parameter, filters directory
+// listings to the requested subset, and emits fields telemetry. When false it is
+// the original tool with no fields parameter and no filtering.
+func getFileContentsTool(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner (username or organization)",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"path": {
+				Type:        "string",
+				Description: "Path to file/directory",
+				Default:     json.RawMessage(`"/"`),
+			},
+			"ref": {
+				Type:        "string",
+				Description: "Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head`",
+			},
+			"sha": {
+				Type:        "string",
+				Description: "Accepts optional commit SHA. If specified, it will be used instead of ref",
+			},
+		},
+		Required: []string{"owner", "repo"},
+	}
+	if includeFields {
+		schema.Properties["fields"] = fieldsSchemaProperty(
+			"Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'.",
+			fileContentFieldEnum,
+		)
+	}
+
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -704,33 +822,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Title:        t("TOOL_GET_FILE_CONTENTS_USER_TITLE", "Get file or directory contents"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner": {
-						Type:        "string",
-						Description: "Repository owner (username or organization)",
-					},
-					"repo": {
-						Type:        "string",
-						Description: "Repository name",
-					},
-					"path": {
-						Type:        "string",
-						Description: "Path to file/directory",
-						Default:     json.RawMessage(`"/"`),
-					},
-					"ref": {
-						Type:        "string",
-						Description: "Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head`",
-					},
-					"sha": {
-						Type:        "string",
-						Description: "Accepts optional commit SHA. If specified, it will be used instead of ref",
-					},
-				},
-				Required: []string{"owner", "repo"},
-			},
+			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -758,6 +850,14 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			sha, err := OptionalParam[string](args, "sha")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			var fields []string
+			if includeFields {
+				fields, err = OptionalStringArrayParam(args, "fields")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -883,9 +983,22 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
 			} else if dirContent != nil {
 				// file content or file SHA is nil which means it's a directory
-				r, err := json.Marshal(dirContent)
+				filtered := false
+				var payload any = dirContent
+				if includeFields && len(fields) > 0 {
+					filteredEntries, err := filterEachField(dirContent, fields)
+					if err != nil {
+						return utils.NewToolResultErrorFromErr("failed to filter directory contents", err), nil, nil
+					}
+					payload = filteredEntries
+					filtered = true
+				}
+				r, err := json.Marshal(payload)
 				if err != nil {
 					return utils.NewToolResultError("failed to marshal response"), nil, nil
+				}
+				if includeFields {
+					recordDirContentsFieldsUsage(ctx, deps, dirContent, filtered, len(r))
 				}
 				return attachIFC(utils.NewToolResultText(string(r))), nil, nil
 			}
@@ -893,6 +1006,12 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			return utils.NewToolResultError("failed to get file contents"), nil, nil
 		},
 	)
+}
+
+// recordDirContentsFieldsUsage emits fields telemetry for a get_file_contents
+// directory listing. sentBytes is the size of the payload actually returned.
+func recordDirContentsFieldsUsage(ctx context.Context, deps ToolDependencies, full []*github.RepositoryContent, filtered bool, sentBytes int) {
+	recordFieldsUsageFor(ctx, deps, "get_file_contents", full, filtered, sentBytes)
 }
 
 // ForkRepository creates a tool to fork a repository.
@@ -1731,8 +1850,56 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// ListReleases creates a tool to list releases in a GitHub repository.
+// ListReleases creates a tool to list releases in a GitHub repository. It is the
+// FeatureFlagFieldsParam-enabled variant: it advertises the optional `fields`
+// parameter and filters each release to the requested subset. Both this and
+// LegacyListReleases register under the tool name "list_releases"; exactly one is
+// active for any given request thanks to mutually exclusive FeatureFlagEnable /
+// FeatureFlagDisable annotations.
 func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := listReleasesTool(t, true)
+	st.FeatureFlagEnable = FeatureFlagFieldsParam
+	return st
+}
+
+// LegacyListReleases is the FeatureFlagFieldsParam-disabled variant of
+// list_releases. It exposes the original schema (no `fields` parameter) and never
+// filters results, so it acts as the kill switch when the flag is off. It owns
+// the canonical list_releases.snap; the flag-enabled variant owns
+// list_releases_ff_<flag>.snap. Delete this function when the flag is removed.
+func LegacyListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := listReleasesTool(t, false)
+	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
+	return st
+}
+
+// listReleasesTool builds the list_releases tool. When includeFields is true the
+// tool advertises the optional `fields` parameter, filters each release to the
+// requested subset, and emits fields telemetry. When false it is the original
+// tool with no fields parameter and no filtering.
+func listReleasesTool(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+		},
+		Required: []string{"owner", "repo"},
+	}
+	if includeFields {
+		schema.Properties["fields"] = fieldsSchemaProperty(
+			"Subset of fields to return for each release. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' in particular drops the largest per-release data.",
+			listReleasesItemFieldEnum,
+		)
+	}
+	WithPagination(schema)
+
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -1742,20 +1909,7 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_LIST_RELEASES_USER_TITLE", "List releases"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: WithPagination(&jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"owner": {
-						Type:        "string",
-						Description: "Repository owner",
-					},
-					"repo": {
-						Type:        "string",
-						Description: "Repository name",
-					},
-				},
-				Required: []string{"owner", "repo"},
-			}),
+			InputSchema: schema,
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -1766,6 +1920,13 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			var fields []string
+			if includeFields {
+				fields, err = OptionalStringArrayParam(args, "fields")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
@@ -1803,9 +1964,24 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 				}
 			}
 
-			r, err := json.Marshal(minimalReleases)
+			filtered := false
+			var payload any = minimalReleases
+			if includeFields && len(fields) > 0 {
+				filteredReleases, err := filterEachField(minimalReleases, fields)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to filter releases", err), nil, nil
+				}
+				payload = filteredReleases
+				filtered = true
+			}
+
+			r, err := json.Marshal(payload)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			if includeFields {
+				recordFieldsUsageFor(ctx, deps, "list_releases", minimalReleases, filtered, len(r))
 			}
 
 			result := utils.NewToolResultText(string(r))

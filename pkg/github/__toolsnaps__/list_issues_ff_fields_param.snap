@@ -1,0 +1,112 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "List issues"
+  },
+  "description": "List issues in a GitHub repository. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter.",
+  "inputSchema": {
+    "properties": {
+      "after": {
+        "description": "Cursor for pagination. Use the cursor from the previous response.",
+        "type": "string"
+      },
+      "direction": {
+        "description": "Order direction. If provided, the 'orderBy' also needs to be provided.",
+        "enum": [
+          "ASC",
+          "DESC"
+        ],
+        "type": "string"
+      },
+      "field_filters": {
+        "description": "Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date).",
+        "items": {
+          "properties": {
+            "field_name": {
+              "description": "Name of the custom field (e.g. \"Priority\"). Case-insensitive.",
+              "type": "string"
+            },
+            "value": {
+              "description": "Value to filter on. For single-select fields, the option name (e.g. \"P1\"). For dates, YYYY-MM-DD. For numbers, the numeric value as a string. For text, the text value.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "field_name",
+            "value"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "fields": {
+        "description": "Subset of fields to return for each issue. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' and 'field_values' in particular drops the largest per-result data.",
+        "items": {
+          "enum": [
+            "number",
+            "title",
+            "body",
+            "state",
+            "user",
+            "labels",
+            "comments",
+            "created_at",
+            "updated_at",
+            "field_values"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "labels": {
+        "description": "Filter by labels",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "orderBy": {
+        "description": "Order issues by field. If provided, the 'direction' also needs to be provided.",
+        "enum": [
+          "CREATED_AT",
+          "UPDATED_AT",
+          "COMMENTS"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "since": {
+        "description": "Filter by date (ISO 8601 timestamp)",
+        "type": "string"
+      },
+      "state": {
+        "description": "Filter by state, by default both open and closed issues are returned when not provided",
+        "enum": [
+          "OPEN",
+          "CLOSED"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "list_issues"
+}

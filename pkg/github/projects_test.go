@@ -364,6 +364,29 @@ func Test_ProjectsList_ListProjectItems(t *testing.T) {
 		require.True(t, ok)
 		assertMinimalPullRequestProjectItem(t, textContent.Text, item)
 	})
+
+	t.Run("rejects fields and field_names together", func(t *testing.T) {
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
+		client := mustNewGHClient(t, mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "list_project_items",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+			"fields":         []any{"100"},
+			"field_names":    []any{"Status"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "provide either 'fields' or 'field_names', not both")
+	})
 }
 
 func Test_detectOwnerType(t *testing.T) {
@@ -810,6 +833,30 @@ func Test_ProjectsGet_GetProjectItem(t *testing.T) {
 		require.True(t, result.IsError)
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "missing required parameter: item_id")
+	})
+
+	t.Run("rejects fields and field_names together", func(t *testing.T) {
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
+		client := mustNewGHClient(t, mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "get_project_item",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+			"item_id":        float64(1001),
+			"fields":         []any{"100"},
+			"field_names":    []any{"Status"},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "provide either 'fields' or 'field_names', not both")
 	})
 }
 
