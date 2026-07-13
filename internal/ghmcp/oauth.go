@@ -3,10 +3,13 @@ package ghmcp
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/github/github-mcp-server/internal/oauth"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -91,14 +94,14 @@ func (p *sessionPrompter) PromptForm(ctx context.Context, prompt oauth.Prompt) e
 type oauthAuthenticator interface {
 	HasToken() bool
 	Authenticate(ctx context.Context, prompter oauth.Prompter) (*oauth.Outcome, error)
-	AwaitToken(ctx context.Context) (*oauth.Outcome, error)
-	Cancel()
+	AwaitToken(ctx context.Context, flowID string) (*oauth.Outcome, error)
+	Cancel(flowID string) bool
 }
 
-// oauthElicitID is the stable key for the authorization elicitation in the
-// multi-round-trip flow. The client echoes it back in InputResponses when it
-// retries the tool call, so the middleware can recognize the user's response.
-const oauthElicitID = "github_authorization"
+// oauthElicitIDPrefix identifies authorization responses in the multi-round-trip
+// InputResponses map. The suffix is the manager's per-flow ID, which prevents a
+// delayed response from an older prompt from affecting a newer flow.
+const oauthElicitIDPrefix = "github_authorization:"
 
 // protocolVersionNoServerElicitation is the first MCP protocol version that
 // forbids server-initiated JSON-RPC requests (SEP-2322): from this version on
@@ -120,10 +123,11 @@ func serverMayInitiateElicitation(ss *mcp.ServerSession) bool {
 	return params == nil || params.ProtocolVersion < protocolVersionNoServerElicitation
 }
 
-// createOAuthMiddleware returns receiving middleware that authorizes the session
-// lazily, on the first tool call. Authorization is deferred until here (rather
-// than at startup) because the prompts depend on an initialized session whose
-// elicitation capabilities and protocol version are known.
+// createOAuthToolMiddleware returns tool-handler middleware that authorizes the
+// session lazily, on the first tool call. It runs inside the SDK's
+// Server.callTool handler so results returned here still receive SDK
+// finalization, including resultType: "input_required" for multi-round-trip
+// responses.
 //
 // When a token is already available the call proceeds untouched. Otherwise the
 // authorization flow runs, presenting its prompt over whichever channel the
@@ -132,22 +136,22 @@ func serverMayInitiateElicitation(ss *mcp.ServerSession) bool {
 // forbidden (SEP-2322), it uses multi-round-trip elicitation returned from the
 // tool call. Either way the last-resort channel returns the instruction as a
 // tool result and asks the user to retry.
-func createOAuthMiddleware(mgr oauthAuthenticator, logger *slog.Logger) func(next mcp.MethodHandler) mcp.MethodHandler {
-	return func(next mcp.MethodHandler) mcp.MethodHandler {
-		return func(ctx context.Context, method string, request mcp.Request) (mcp.Result, error) {
-			if method != "tools/call" || mgr.HasToken() {
-				return next(ctx, method, request)
+func createOAuthToolMiddleware(mgr oauthAuthenticator, logger *slog.Logger) inventory.ToolHandlerMiddleware {
+	return func(next mcp.ToolHandler) mcp.ToolHandler {
+		return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			if !serverMayInitiateElicitation(req.Session) {
+				if flowID, response, ok := authorizationElicitResponse(req.Params.InputResponses); ok {
+					return resumeMultiRoundTripAuthorization(ctx, mgr, next, req, flowID, response, logger)
+				}
 			}
 
-			callReq, ok := request.(*mcp.CallToolRequest)
-			if !ok {
-				return next(ctx, method, request)
+			if mgr.HasToken() {
+				return next(ctx, req)
 			}
-
-			if serverMayInitiateElicitation(callReq.Session) {
-				return authorizeViaServerElicitation(ctx, mgr, next, method, request, callReq, logger)
+			if serverMayInitiateElicitation(req.Session) {
+				return authorizeViaServerElicitation(ctx, mgr, next, req, logger)
 			}
-			return authorizeViaMultiRoundTrip(ctx, mgr, next, method, request, callReq, logger)
+			return startMultiRoundTripAuthorization(ctx, mgr, next, req, logger)
 		}
 	}
 }
@@ -155,8 +159,8 @@ func createOAuthMiddleware(mgr oauthAuthenticator, logger *slog.Logger) func(nex
 // authorizeViaServerElicitation drives authorization on legacy protocol versions
 // (before 2026-07-28), where the server may present the prompt itself via
 // server-initiated elicitation. It blocks until the token arrives, then proceeds.
-func authorizeViaServerElicitation(ctx context.Context, mgr oauthAuthenticator, next mcp.MethodHandler, method string, request mcp.Request, callReq *mcp.CallToolRequest, logger *slog.Logger) (mcp.Result, error) {
-	outcome, err := mgr.Authenticate(ctx, &sessionPrompter{session: callReq.Session})
+func authorizeViaServerElicitation(ctx context.Context, mgr oauthAuthenticator, next mcp.ToolHandler, req *mcp.CallToolRequest, logger *slog.Logger) (*mcp.CallToolResult, error) {
+	outcome, err := mgr.Authenticate(ctx, &sessionPrompter{session: req.Session})
 	if err != nil {
 		return nil, fmt.Errorf("github authorization failed: %w", err)
 	}
@@ -166,46 +170,28 @@ func authorizeViaServerElicitation(ctx context.Context, mgr oauthAuthenticator, 
 			Content: []mcp.Content{&mcp.TextContent{Text: outcome.UserAction.Message}},
 		}, nil
 	}
-	return next(ctx, method, request)
+	return next(ctx, req)
 }
 
-// authorizeViaMultiRoundTrip drives authorization on protocol version 2026-07-28
-// and later, where server-initiated requests are forbidden (SEP-2322). The first
-// tool call starts the flow and returns the authorization prompt as an
-// elicitation input request; the client presents it and retries the call with
-// the user's response, at which point we wait for the token and proceed.
-func authorizeViaMultiRoundTrip(ctx context.Context, mgr oauthAuthenticator, next mcp.MethodHandler, method string, request mcp.Request, callReq *mcp.CallToolRequest, logger *slog.Logger) (mcp.Result, error) {
-	// Retry: the client fulfilled the authorization elicitation and re-sent the
-	// call with the user's response.
-	if resp, ok := callReq.Params.InputResponses[oauthElicitID]; ok {
-		res, _ := resp.(*mcp.ElicitResult)
-		if res == nil || res.Action != "accept" {
-			// The user declined or dismissed the prompt; tear the flow down so it
-			// does not linger, and let them retry when they are ready.
-			mgr.Cancel()
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{&mcp.TextContent{Text: "GitHub authorization was declined. Retry when you're ready to authorize."}},
-			}, nil
+// authorizationElicitResponse finds the authorization response and extracts the
+// flow ID encoded in its input-request key.
+func authorizationElicitResponse(responses mcp.InputResponseMap) (string, *mcp.ElicitResult, bool) {
+	for id, response := range responses {
+		flowID, ok := strings.CutPrefix(id, oauthElicitIDPrefix)
+		if !ok || flowID == "" {
+			continue
 		}
-		outcome, err := mgr.AwaitToken(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("github authorization failed: %w", err)
-		}
-		if outcome != nil && outcome.UserAction != nil {
-			// The user acknowledged the prompt but has not finished authorizing;
-			// surface the instructions so they can complete it and retry.
-			logger.Info("surfacing github authorization instructions to user")
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{&mcp.TextContent{Text: outcome.UserAction.Message}},
-			}, nil
-		}
-		return next(ctx, method, request)
+		result, _ := response.(*mcp.ElicitResult)
+		return flowID, result, true
 	}
+	return "", nil, false
+}
 
-	// First attempt: start the flow. A nil prompter keeps the manager from
-	// initiating any elicitation itself (forbidden on this protocol); it opens a
-	// server-side browser when possible, otherwise returns the authorization
-	// instructions for us to present via multi-round-trip elicitation.
+// startMultiRoundTripAuthorization starts authorization on protocol version
+// 2026-07-28 or later. Server-initiated requests are forbidden there (SEP-2322),
+// so the prompt is returned as an elicitation input request for the client to
+// fulfill and retry.
+func startMultiRoundTripAuthorization(ctx context.Context, mgr oauthAuthenticator, next mcp.ToolHandler, req *mcp.CallToolRequest, logger *slog.Logger) (*mcp.CallToolResult, error) {
 	outcome, err := mgr.Authenticate(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("github authorization failed: %w", err)
@@ -213,13 +199,14 @@ func authorizeViaMultiRoundTrip(ctx context.Context, mgr oauthAuthenticator, nex
 	if outcome == nil || outcome.UserAction == nil {
 		// Already authorized (e.g. the server opened a browser and the flow
 		// completed); proceed.
-		return next(ctx, method, request)
+		return next(ctx, req)
 	}
 
-	elicit := authorizationElicitParams(outcome.UserAction, &sessionPrompter{session: callReq.Session})
-	if elicit == nil {
+	elicit := authorizationElicitParams(outcome.UserAction, &sessionPrompter{session: req.Session})
+	if elicit == nil || outcome.FlowID == "" {
 		// The client cannot present an elicitation (no capability, or no URL to
-		// show); fall back to returning the instructions as a tool result.
+		// show), or the flow cannot be correlated; fall back to returning the
+		// instructions as a tool result.
 		logger.Info("surfacing github authorization instructions to user")
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: outcome.UserAction.Message}},
@@ -227,9 +214,44 @@ func authorizeViaMultiRoundTrip(ctx context.Context, mgr oauthAuthenticator, nex
 	}
 	logger.Info("requesting github authorization via elicitation")
 	return &mcp.CallToolResult{
-		InputRequests: mcp.InputRequestMap{oauthElicitID: elicit},
-		RequestState:  "github-authorization-pending",
+		InputRequests: mcp.InputRequestMap{oauthElicitIDPrefix + outcome.FlowID: elicit},
 	}, nil
+}
+
+// resumeMultiRoundTripAuthorization handles the client's retry after it
+// fulfilled the authorization elicitation.
+func resumeMultiRoundTripAuthorization(ctx context.Context, mgr oauthAuthenticator, next mcp.ToolHandler, req *mcp.CallToolRequest, flowID string, response *mcp.ElicitResult, logger *slog.Logger) (*mcp.CallToolResult, error) {
+	if response == nil || response.Action != "accept" {
+		if !mgr.Cancel(flowID) {
+			return expiredAuthorizationResult(), nil
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "GitHub authorization was declined. Retry when you're ready to authorize."}},
+		}, nil
+	}
+
+	outcome, err := mgr.AwaitToken(ctx, flowID)
+	if errors.Is(err, oauth.ErrStaleAuthorizationFlow) {
+		return expiredAuthorizationResult(), nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("github authorization failed: %w", err)
+	}
+	if outcome != nil && outcome.UserAction != nil {
+		// The user acknowledged the prompt but has not finished authorizing;
+		// surface the instructions so they can complete it and retry.
+		logger.Info("surfacing github authorization instructions to user")
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: outcome.UserAction.Message}},
+		}, nil
+	}
+	return next(ctx, req)
+}
+
+func expiredAuthorizationResult() *mcp.CallToolResult {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: "This GitHub authorization prompt has expired. Retry the request to authorize again."}},
+	}
 }
 
 // authorizationElicitParams builds the elicitation that presents the
@@ -250,7 +272,7 @@ func authorizationElicitParams(ua *oauth.UserAction, p *sessionPrompter) *mcp.El
 	case p.CanPromptURL():
 		return &mcp.ElicitParams{Mode: "url", Message: message, URL: ua.URL, ElicitationID: rand.Text()}
 	case p.CanPromptForm():
-		return &mcp.ElicitParams{Mode: "form", Message: message}
+		return &mcp.ElicitParams{Mode: "form", Message: ua.Message}
 	default:
 		return nil
 	}
