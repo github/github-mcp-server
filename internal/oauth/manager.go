@@ -68,6 +68,7 @@ type Manager struct {
 	status           flowStatus
 	pending          *UserAction
 	done             chan struct{}
+	cancelFlow       context.CancelFunc // cancels the in-flight flow, if any
 	lastErr          error
 	refreshErrLogged bool // true once a refresh failure has been logged, reset on re-auth
 }
@@ -181,12 +182,55 @@ func (m *Manager) Authenticate(ctx context.Context, prompter Prompter) (*Outcome
 	m.mu.Unlock()
 
 	bgCtx, cancel := context.WithTimeout(context.Background(), DefaultAuthTimeout)
+	m.mu.Lock()
+	m.cancelFlow = cancel
+	m.mu.Unlock()
 	go m.runFlow(bgCtx, cancel, plan)
 
 	if plan.userAction != nil {
 		return &Outcome{UserAction: plan.userAction}, nil
 	}
 	return m.joinWait(ctx, done)
+}
+
+// AwaitToken blocks until the in-flight authorization flow yields a token, the
+// flow ends without one, or ctx is done. It is the resume half of the
+// multi-round-trip flow: a transport that presented the authorization prompt
+// itself (via elicitation returned from a tool call) calls this once the user
+// has acted, to wait for the background token acquisition to finish.
+//
+// It returns (nil, nil) once a token is available (proceed), (&Outcome{UserAction},
+// nil) when the user must still act out of band, or (nil, err) on failure.
+func (m *Manager) AwaitToken(ctx context.Context) (*Outcome, error) {
+	if m.AccessToken() != "" {
+		return nil, nil
+	}
+	m.mu.Lock()
+	done := m.done
+	m.mu.Unlock()
+	if done == nil {
+		// No flow is in flight; report whatever terminal state it left behind.
+		return m.outcomeAfterFlow()
+	}
+	select {
+	case <-done:
+		return m.outcomeAfterFlow()
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// Cancel aborts the in-flight authorization flow, if any. It is used when the
+// user declines the authorization prompt so the background flow (callback
+// listener or device poll) is torn down promptly rather than lingering until it
+// times out. It is a no-op when no flow is running.
+func (m *Manager) Cancel() {
+	m.mu.Lock()
+	cancel := m.cancelFlow
+	m.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 }
 
 // runFlow executes a prepared flow in the background and records the result. The
@@ -254,6 +298,7 @@ func (m *Manager) complete(tok *oauth2.Token, err error) {
 
 	m.status = statusIdle
 	m.pending = nil
+	m.cancelFlow = nil
 	if err != nil {
 		m.lastErr = err
 		m.logger.Debug("oauth flow failed", "error", err)
@@ -280,23 +325,30 @@ func (m *Manager) complete(tok *oauth2.Token, err error) {
 func (m *Manager) joinWait(ctx context.Context, done chan struct{}) (*Outcome, error) {
 	select {
 	case <-done:
-		if m.AccessToken() != "" {
-			return nil, nil
-		}
-		m.mu.Lock()
-		pending := m.pending
-		err := m.lastErr
-		m.mu.Unlock()
-		if pending != nil {
-			return &Outcome{UserAction: pending}, nil
-		}
-		if err != nil {
-			return nil, err
-		}
-		return nil, errors.New("authorization did not complete")
+		return m.outcomeAfterFlow()
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+}
+
+// outcomeAfterFlow reports the result once the flow's done channel has closed
+// (or when there is no flow in flight): a token to proceed (nil, nil), a pending
+// user action to surface, or the flow's error.
+func (m *Manager) outcomeAfterFlow() (*Outcome, error) {
+	if m.AccessToken() != "" {
+		return nil, nil
+	}
+	m.mu.Lock()
+	pending := m.pending
+	err := m.lastErr
+	m.mu.Unlock()
+	if pending != nil {
+		return &Outcome{UserAction: pending}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return nil, errors.New("authorization did not complete")
 }
 
 func (m *Manager) oauth2Config(redirectURL string) *oauth2.Config {
