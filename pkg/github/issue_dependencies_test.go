@@ -3,16 +3,32 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"strconv"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+const (
+	endpointBlockedBy = EndpointPattern("GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by")
+	endpointBlocking  = EndpointPattern("GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocking")
+	endpointAddBlock  = EndpointPattern("POST /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by")
+	endpointRemoveBlk = EndpointPattern("DELETE /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by/{issue_id}")
+	endpointGetIssue  = EndpointPattern("GET /repos/{owner}/{repo}/issues/{issue_number}")
+)
+
+// jsonHandler writes the given status code and JSON-encoded body.
+func jsonHandler(status int, body any) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(status)
+		_, _ = w.Write(MustMarshal(body))
+	}
+}
 
 func Test_IssueDependencyRead(t *testing.T) {
 	// Verify tool definition once (flag-gated variant snap)
@@ -29,124 +45,76 @@ func Test_IssueDependencyRead(t *testing.T) {
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
 	assert.Contains(t, schema.Properties, "issue_number")
+	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "perPage")
 	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "issue_number"})
 
-	blockedByQuery := githubv4mock.NewQueryMatcher(
-		struct {
-			Repository struct {
-				Issue struct {
-					BlockedBy dependencyConnection `graphql:"blockedBy(first: $first, after: $after)"`
-				} `graphql:"issue(number: $issueNumber)"`
-			} `graphql:"repository(owner: $owner, name: $repo)"`
-		}{},
-		map[string]any{
-			"owner":       githubv4.String("owner"),
-			"repo":        githubv4.String("repo"),
-			"issueNumber": githubv4.Int(123),
-			"first":       githubv4.Int(30),
-			"after":       (*githubv4.String)(nil),
+	blockedByIssues := []map[string]any{
+		{
+			"number":         7,
+			"title":          "Blocker",
+			"state":          "open",
+			"html_url":       "https://github.com/owner/repo/issues/7",
+			"repository_url": "https://api.github.com/repos/owner/repo",
 		},
-		githubv4mock.DataResponse(map[string]any{
-			"repository": map[string]any{
-				"issue": map[string]any{
-					"blockedBy": map[string]any{
-						"totalCount": 1,
-						"pageInfo": map[string]any{
-							"hasNextPage": false,
-							"endCursor":   "",
-						},
-						"nodes": []map[string]any{
-							{
-								"number":     7,
-								"title":      "Blocker",
-								"state":      "OPEN",
-								"url":        "https://github.com/owner/repo/issues/7",
-								"repository": map[string]any{"nameWithOwner": "owner/repo"},
-							},
-						},
-					},
-				},
-			},
-		}),
-	)
+	}
+	blockingIssues := []map[string]any{
+		{
+			"number":         8,
+			"title":          "Blocked A",
+			"state":          "open",
+			"html_url":       "https://github.com/owner/repo/issues/8",
+			"repository_url": "https://api.github.com/repos/owner/repo",
+		},
+		{
+			"number":         9,
+			"title":          "Blocked B",
+			"state":          "closed",
+			"html_url":       "https://github.com/owner/repo/issues/9",
+			"repository_url": "https://api.github.com/repos/owner/repo",
+		},
+	}
 
-	blockingQuery := githubv4mock.NewQueryMatcher(
-		struct {
-			Repository struct {
-				Issue struct {
-					Blocking dependencyConnection `graphql:"blocking(first: $first, after: $after)"`
-				} `graphql:"issue(number: $issueNumber)"`
-			} `graphql:"repository(owner: $owner, name: $repo)"`
-		}{},
-		map[string]any{
-			"owner":       githubv4.String("owner"),
-			"repo":        githubv4.String("repo"),
-			"issueNumber": githubv4.Int(123),
-			"first":       githubv4.Int(30),
-			"after":       (*githubv4.String)(nil),
-		},
-		githubv4mock.DataResponse(map[string]any{
-			"repository": map[string]any{
-				"issue": map[string]any{
-					"blocking": map[string]any{
-						"totalCount": 2,
-						"pageInfo": map[string]any{
-							"hasNextPage": true,
-							"endCursor":   "Y3Vyc29y",
-						},
-						"nodes": []map[string]any{
-							{
-								"number":     8,
-								"title":      "Blocked A",
-								"state":      "OPEN",
-								"url":        "https://github.com/owner/repo/issues/8",
-								"repository": map[string]any{"nameWithOwner": "owner/repo"},
-							},
-							{
-								"number":     9,
-								"title":      "Blocked B",
-								"state":      "CLOSED",
-								"url":        "https://github.com/owner/repo/issues/9",
-								"repository": map[string]any{"nameWithOwner": "owner/repo"},
-							},
-						},
-					},
-				},
-			},
-		}),
-	)
+	// A handler that also advertises a next page via the Link header.
+	blockingHandler := func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Link", `<https://api.github.com/repos/owner/repo/issues/123/dependencies/blocking?page=2>; rel="next"`)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(MustMarshal(blockingIssues))
+	}
 
 	tests := []struct {
 		name          string
 		method        string
-		matcher       githubv4mock.Matcher
-		expectError   bool
+		option        MockBackendOption
 		expectedCount int
 		expectedFirst int
+		expectedState string
 		expectedNext  bool
 	}{
 		{
 			name:          "get_blocked_by returns blockers",
 			method:        "get_blocked_by",
-			matcher:       blockedByQuery,
+			option:        WithRequestMatch(endpointBlockedBy, blockedByIssues),
 			expectedCount: 1,
 			expectedFirst: 7,
+			expectedState: "OPEN",
 			expectedNext:  false,
 		},
 		{
 			name:          "get_blocking returns blocked issues",
 			method:        "get_blocking",
-			matcher:       blockingQuery,
+			option:        WithRequestMatchHandler(endpointBlocking, blockingHandler),
 			expectedCount: 2,
 			expectedFirst: 8,
+			expectedState: "OPEN",
 			expectedNext:  true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(tc.matcher))
-			deps := BaseDeps{GQLClient: gqlClient}
+			client := mustNewGHClient(t, NewMockedHTTPClient(tc.option))
+			deps := BaseDeps{Client: client}
 			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(map[string]any{
@@ -161,17 +129,20 @@ func Test_IssueDependencyRead(t *testing.T) {
 
 			text := getTextResult(t, result)
 			var payload struct {
-				Issues []minimalDependencyIssue `json:"issues"`
-				Total  int                      `json:"totalCount"`
-				Page   struct {
-					HasNextPage bool   `json:"hasNextPage"`
-					EndCursor   string `json:"endCursor"`
+				Issues   []MinimalIssueRef `json:"issues"`
+				PageInfo struct {
+					HasNextPage bool `json:"hasNextPage"`
+					NextPage    int  `json:"nextPage"`
 				} `json:"pageInfo"`
 			}
 			require.NoError(t, json.Unmarshal([]byte(text.Text), &payload))
 			require.Len(t, payload.Issues, tc.expectedCount)
 			assert.Equal(t, tc.expectedFirst, payload.Issues[0].Number)
-			assert.Equal(t, tc.expectedNext, payload.Page.HasNextPage)
+			assert.Equal(t, "owner/repo", payload.Issues[0].Repository)
+			// State is normalized to upper case to match the GraphQL-sourced
+			// state used by other MinimalIssueRef producers (e.g. get_parent).
+			assert.Equal(t, tc.expectedState, payload.Issues[0].State)
+			assert.Equal(t, tc.expectedNext, payload.PageInfo.HasNextPage)
 		})
 	}
 }
@@ -179,31 +150,34 @@ func Test_IssueDependencyRead(t *testing.T) {
 func Test_IssueDependencyRead_Errors(t *testing.T) {
 	serverTool := IssueDependencyRead(translations.NullTranslationHelper)
 
-	t.Run("rejects page-based pagination", func(t *testing.T) {
-		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
-		deps := BaseDeps{GQLClient: gqlClient}
-		handler := serverTool.Handler(deps)
-		request := createMCPRequest(map[string]any{
-			"method":       "get_blocked_by",
-			"owner":        "owner",
-			"repo":         "repo",
-			"issue_number": float64(1),
-			"page":         float64(2),
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-		errText := getErrorResult(t, result)
-		assert.Contains(t, errText.Text, "cursor-based pagination")
-	})
-
 	t.Run("missing required param", func(t *testing.T) {
-		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
-		deps := BaseDeps{GQLClient: gqlClient}
+		client := mustNewGHClient(t, NewMockedHTTPClient())
+		deps := BaseDeps{Client: client}
 		handler := serverTool.Handler(deps)
 		request := createMCPRequest(map[string]any{
 			"method": "get_blocked_by",
 			"owner":  "owner",
 			"repo":   "repo",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		getErrorResult(t, result)
+	})
+
+	t.Run("API error is surfaced", func(t *testing.T) {
+		client := mustNewGHClient(t, NewMockedHTTPClient(
+			WithRequestMatchHandler(endpointBlockedBy, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+			})),
+		))
+		deps := BaseDeps{Client: client}
+		handler := serverTool.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":       "get_blocked_by",
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(123),
 		})
 		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
@@ -228,114 +202,82 @@ func Test_IssueDependencyWrite(t *testing.T) {
 	assert.Contains(t, schema.Properties, "related_issue_number")
 	assert.ElementsMatch(t, schema.Required, []string{"method", "type", "owner", "repo", "issue_number", "related_issue_number"})
 
-	resolveMatcher := func(subjectID, relatedID string) githubv4mock.Matcher {
-		return githubv4mock.NewQueryMatcher(
-			struct {
-				Subject struct {
-					Issue struct {
-						ID githubv4.ID
-					} `graphql:"issue(number: $subjectNumber)"`
-				} `graphql:"subject: repository(owner: $subjectOwner, name: $subjectRepo)"`
-				Related struct {
-					Issue struct {
-						ID githubv4.ID
-					} `graphql:"issue(number: $relatedNumber)"`
-				} `graphql:"related: repository(owner: $relatedOwner, name: $relatedRepo)"`
-			}{},
-			map[string]any{
-				"subjectOwner":  githubv4.String("owner"),
-				"subjectRepo":   githubv4.String("repo"),
-				"subjectNumber": githubv4.Int(1),
-				"relatedOwner":  githubv4.String("owner"),
-				"relatedRepo":   githubv4.String("repo"),
-				"relatedNumber": githubv4.Int(2),
-			},
-			githubv4mock.DataResponse(map[string]any{
-				"subject": map[string]any{"issue": map[string]any{"id": subjectID}},
-				"related": map[string]any{"issue": map[string]any{"id": relatedID}},
-			}),
-		)
+	// issue returned by the blocking-issue resolve GET; its id is what the
+	// dependency endpoints operate on.
+	resolvedIssue := func(number, id int) map[string]any {
+		return map[string]any{
+			"id":             id,
+			"number":         number,
+			"title":          "Resolved",
+			"state":          "open",
+			"html_url":       "https://github.com/owner/repo/issues/" + strconv.Itoa(number),
+			"repository_url": "https://api.github.com/repos/owner/repo",
+		}
 	}
-
-	type mutationIssue struct {
-		Number githubv4.Int
-		URL    githubv4.String
-	}
-
-	addMutation := func(issueID, blockingID string) githubv4mock.Matcher {
-		return githubv4mock.NewMutationMatcher(
-			struct {
-				AddBlockedBy struct {
-					Issue         mutationIssue
-					BlockingIssue mutationIssue
-				} `graphql:"addBlockedBy(input: $input)"`
-			}{},
-			AddBlockedByInput{IssueID: githubv4.ID(issueID), BlockingIssueID: githubv4.ID(blockingID)},
-			nil,
-			githubv4mock.DataResponse(map[string]any{
-				"addBlockedBy": map[string]any{
-					"issue":         map[string]any{"number": 1, "url": "https://github.com/owner/repo/issues/1"},
-					"blockingIssue": map[string]any{"number": 2, "url": "https://github.com/owner/repo/issues/2"},
-				},
-			}),
-		)
-	}
-
-	removeMutation := func(issueID, blockingID string) githubv4mock.Matcher {
-		return githubv4mock.NewMutationMatcher(
-			struct {
-				RemoveBlockedBy struct {
-					Issue         mutationIssue
-					BlockingIssue mutationIssue
-				} `graphql:"removeBlockedBy(input: $input)"`
-			}{},
-			RemoveBlockedByInput{IssueID: githubv4.ID(issueID), BlockingIssueID: githubv4.ID(blockingID)},
-			nil,
-			githubv4mock.DataResponse(map[string]any{
-				"removeBlockedBy": map[string]any{
-					"issue":         map[string]any{"number": 1, "url": "https://github.com/owner/repo/issues/1"},
-					"blockingIssue": map[string]any{"number": 2, "url": "https://github.com/owner/repo/issues/2"},
-				},
-			}),
-		)
+	// issue returned by the add/remove endpoints (the blocked issue).
+	blockedIssue := func(number int) map[string]any {
+		return map[string]any{
+			"number":         number,
+			"title":          "Blocked",
+			"state":          "open",
+			"html_url":       "https://github.com/owner/repo/issues/" + strconv.Itoa(number),
+			"repository_url": "https://api.github.com/repos/owner/repo",
+		}
 	}
 
 	tests := []struct {
 		name            string
 		method          string
 		relationship    string
-		matchers        []githubv4mock.Matcher
+		options         []MockBackendOption
 		expectedMessage string
+		expectedBlocked int
+		expectedBlockng int
 	}{
 		{
 			name:         "add blocked_by uses subject as blocked",
 			method:       "add",
 			relationship: "blocked_by",
-			// subject(1) is blocked by related(2): issueId=subject, blockingIssueId=related
-			matchers:        []githubv4mock.Matcher{resolveMatcher("I_subject", "I_related"), addMutation("I_subject", "I_related")},
+			// subject(1) is blocked by related(2): resolve related(2), block issue 1.
+			options: []MockBackendOption{
+				WithRequestMatch(endpointGetIssue, resolvedIssue(2, 1002)),
+				WithRequestMatchHandler(endpointAddBlock, jsonHandler(http.StatusCreated, blockedIssue(1))),
+			},
 			expectedMessage: "dependency added",
+			expectedBlocked: 1,
+			expectedBlockng: 2,
 		},
 		{
 			name:         "add blocking swaps roles",
 			method:       "add",
 			relationship: "blocking",
-			// subject(1) blocks related(2): issueId=related, blockingIssueId=subject
-			matchers:        []githubv4mock.Matcher{resolveMatcher("I_subject", "I_related"), addMutation("I_related", "I_subject")},
+			// subject(1) blocks related(2): resolve subject(1), block issue 2.
+			options: []MockBackendOption{
+				WithRequestMatch(endpointGetIssue, resolvedIssue(1, 1001)),
+				WithRequestMatchHandler(endpointAddBlock, jsonHandler(http.StatusCreated, blockedIssue(2))),
+			},
 			expectedMessage: "dependency added",
+			expectedBlocked: 2,
+			expectedBlockng: 1,
 		},
 		{
-			name:            "remove blocked_by",
-			method:          "remove",
-			relationship:    "blocked_by",
-			matchers:        []githubv4mock.Matcher{resolveMatcher("I_subject", "I_related"), removeMutation("I_subject", "I_related")},
+			name:         "remove blocked_by",
+			method:       "remove",
+			relationship: "blocked_by",
+			options: []MockBackendOption{
+				WithRequestMatch(endpointGetIssue, resolvedIssue(2, 1002)),
+				WithRequestMatch(endpointRemoveBlk, blockedIssue(1)),
+			},
 			expectedMessage: "dependency removed",
+			expectedBlocked: 1,
+			expectedBlockng: 2,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(tc.matchers...))
-			deps := BaseDeps{GQLClient: gqlClient}
+			client := mustNewGHClient(t, NewMockedHTTPClient(tc.options...))
+			deps := BaseDeps{Client: client}
 			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(map[string]any{
@@ -352,17 +294,21 @@ func Test_IssueDependencyWrite(t *testing.T) {
 
 			text := getTextResult(t, result)
 			var payload struct {
-				Message string `json:"message"`
+				Message       string          `json:"message"`
+				BlockedIssue  MinimalIssueRef `json:"blocked_issue"`
+				BlockingIssue MinimalIssueRef `json:"blocking_issue"`
 			}
 			require.NoError(t, json.Unmarshal([]byte(text.Text), &payload))
 			assert.Equal(t, tc.expectedMessage, payload.Message)
+			assert.Equal(t, tc.expectedBlocked, payload.BlockedIssue.Number)
+			assert.Equal(t, tc.expectedBlockng, payload.BlockingIssue.Number)
 		})
 	}
 
 	t.Run("self dependency fails before any API call", func(t *testing.T) {
-		// Register no matchers: the handler must return before resolving node IDs or mutating.
-		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
-		deps := BaseDeps{GQLClient: gqlClient}
+		// Register no handlers: the handler must return before resolving or mutating.
+		client := mustNewGHClient(t, NewMockedHTTPClient())
+		deps := BaseDeps{Client: client}
 		handler := serverTool.Handler(deps)
 
 		request := createMCPRequest(map[string]any{
@@ -414,8 +360,8 @@ func Test_IssueDependencyWrite_Validation(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
-			deps := BaseDeps{GQLClient: gqlClient}
+			client := mustNewGHClient(t, NewMockedHTTPClient())
+			deps := BaseDeps{Client: client}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.args)
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)

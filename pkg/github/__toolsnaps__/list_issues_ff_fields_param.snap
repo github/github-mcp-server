@@ -46,6 +46,25 @@
         },
         "type": "array"
       },
+      "fields": {
+        "description": "Subset of fields to return for each issue. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' and 'field_values' in particular drops the largest per-result data.",
+        "items": {
+          "enum": [
+            "number",
+            "title",
+            "body",
+            "state",
+            "user",
+            "labels",
+            "comments",
+            "created_at",
+            "updated_at",
+            "field_values"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
       "labels": {
         "description": "Filter by labels",
         "items": {

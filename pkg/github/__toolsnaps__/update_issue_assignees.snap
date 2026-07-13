@@ -6,13 +6,48 @@
     "readOnlyHint": false,
     "title": "Update Issue Assignees"
   },
-  "description": "Update the assignees of an existing issue. This replaces the current assignees with the provided list.",
+  "description": "Update the assignees of an existing issue. This replaces the current assignees with the provided list. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice.",
   "inputSchema": {
     "properties": {
       "assignees": {
-        "description": "GitHub usernames to assign to this issue",
+        "description": "GitHub usernames to assign to this issue.",
         "items": {
-          "type": "string"
+          "oneOf": [
+            {
+              "description": "GitHub username",
+              "type": "string"
+            },
+            {
+              "properties": {
+                "confidence": {
+                  "description": "How confident you are in this choice. Use 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal.",
+                  "enum": [
+                    "LOW",
+                    "MEDIUM",
+                    "HIGH"
+                  ],
+                  "type": "string"
+                },
+                "is_suggestion": {
+                  "description": "If true, this assignee is sent to the API as a suggestion (suggest:true) rather than an applied assignee. Whether the assignee is applied or recorded as a proposal is determined by the API.",
+                  "type": "boolean"
+                },
+                "login": {
+                  "description": "GitHub username",
+                  "type": "string"
+                },
+                "rationale": {
+                  "description": "One concise sentence explaining what specifically about the issue led you to choose this assignee. State the concrete signal (e.g. 'Authored the file the crash originates in').",
+                  "maxLength": 280,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "login"
+              ],
+              "type": "object"
+            }
+          ]
         },
         "type": "array"
       },

@@ -119,40 +119,16 @@ type issueFieldsOrgQuery struct {
 }
 
 // ListIssueFields creates a tool to list issue field definitions for a repository or organization.
-// ListIssueFields is the multi-select-aware variant of list_issue_fields —
-// its description mentions multi_select. ListIssueFieldsLegacy is served when
-// FeatureFlagIssueFieldsMultiSelect is off; its description does not mention
-// multi_select. Both register under the same tool name with mutually
-// exclusive feature-flag annotations.
 //
 // Note: the underlying GraphQL fragment unconditionally includes the
-// multi_select arm, so the OUTPUT will still surface multi-select fields if
-// the org has them (matching what the dotcom UI shows). Only the description
-// is gated.
-//
-// The two variants use DIFFERENT translation keys because the shared
-// TranslationHelper is first-write-wins on cache hits — if both variants used
-// the same key, the second one registered would inherit the first's cached
-// value at runtime, and the FF-off variant would leak the MS description.
+// multi_select arm, so the OUTPUT will surface multi-select fields if the org
+// has them (matching what the dotcom UI shows).
 func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool {
 	description := t(
 		"TOOL_LIST_ISSUE_FIELDS_DESCRIPTION",
 		"List issue fields for a repository or organization. Returns field definitions including name, type (text, number, date, single_select, multi_select), and for single_select and multi_select fields the list of valid option names. When repo is omitted, returns org-level fields directly.",
 	)
-	st := buildListIssueFields(t, description)
-	st.FeatureFlagEnable = FeatureFlagIssueFieldsMultiSelect
-	return st
-}
-
-// ListIssueFieldsLegacy is the FF-off variant of list_issue_fields.
-func ListIssueFieldsLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
-	description := t(
-		"TOOL_LIST_ISSUE_FIELDS_LEGACY_DESCRIPTION",
-		"List issue fields for a repository or organization. Returns field definitions including name, type (text, number, date, single_select), and for single_select fields the list of valid option names. When repo is omitted, returns org-level fields directly.",
-	)
-	st := buildListIssueFields(t, description)
-	st.FeatureFlagDisable = []string{FeatureFlagIssueFieldsMultiSelect}
-	return st
+	return buildListIssueFields(t, description)
 }
 
 func buildListIssueFields(t translations.TranslationHelperFunc, description string) inventory.ServerTool {

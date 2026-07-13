@@ -35,7 +35,7 @@ func Test_parseRawFieldFilters_MultiSelect(t *testing.T) {
 					"values":     []any{"Auth", "Billing"},
 				},
 			},
-		}, true)
+		})
 		require.NoError(t, err)
 		require.Len(t, filters, 1)
 		assert.Equal(t, "Components", filters[0].Name)
@@ -49,7 +49,7 @@ func Test_parseRawFieldFilters_MultiSelect(t *testing.T) {
 			"field_filters": []map[string]any{
 				{"field_name": "Components", "values": []string{"Auth"}},
 			},
-		}, true)
+		})
 		require.NoError(t, err)
 		require.Len(t, filters, 1)
 		assert.Equal(t, []string{"Auth"}, filters[0].Values)
@@ -64,7 +64,7 @@ func Test_parseRawFieldFilters_MultiSelect(t *testing.T) {
 					"values":     []any{"Auth"},
 				},
 			},
-		}, true)
+		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "provide either 'value' or 'values', not both")
 	})
@@ -74,7 +74,7 @@ func Test_parseRawFieldFilters_MultiSelect(t *testing.T) {
 			"field_filters": []any{
 				map[string]any{"field_name": "Components"},
 			},
-		}, true)
+		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "missing 'value'")
 	})
@@ -87,7 +87,7 @@ func Test_parseRawFieldFilters_MultiSelect(t *testing.T) {
 					"values":     []any{"Auth", 7},
 				},
 			},
-		}, true)
+		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "values must be an array of strings")
 	})
@@ -221,7 +221,7 @@ func Test_optionalIssueWriteFields_MultiSelect(t *testing.T) {
 					"field_option_names": []any{"Auth", "Billing"},
 				},
 			},
-		}, true)
+		})
 		require.NoError(t, err)
 		require.Len(t, fields, 1)
 		assert.Equal(t, "Components", fields[0].FieldName)
@@ -238,7 +238,7 @@ func Test_optionalIssueWriteFields_MultiSelect(t *testing.T) {
 					"field_option_names": []string{"Auth"},
 				},
 			},
-		}, true)
+		})
 		require.NoError(t, err)
 		require.Len(t, fields, 1)
 		assert.Equal(t, []string{"Auth"}, fields[0].FieldOptionNames)
@@ -252,7 +252,7 @@ func Test_optionalIssueWriteFields_MultiSelect(t *testing.T) {
 					"field_option_names": []any{},
 				},
 			},
-		}, true)
+		})
 		require.Error(t, err)
 		// An empty slice is a common "clear the field" guess; nudge callers to delete:true
 		// so the GraphQL deletion mutation runs instead of an unintentional no-op.
@@ -269,7 +269,7 @@ func Test_optionalIssueWriteFields_MultiSelect(t *testing.T) {
 					"field_option_names": []any{"Auth"},
 				},
 			},
-		}, true)
+		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot specify more than one of value, field_option_name, or field_option_names")
 	})
@@ -283,7 +283,7 @@ func Test_optionalIssueWriteFields_MultiSelect(t *testing.T) {
 					"field_option_names": []any{"Auth"},
 				},
 			},
-		}, true)
+		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot specify more than one of")
 	})
@@ -297,75 +297,10 @@ func Test_optionalIssueWriteFields_MultiSelect(t *testing.T) {
 					"field_option_names": []any{"Auth"},
 				},
 			},
-		}, true)
+		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot specify 'delete' together with")
 	})
-}
-
-// Test_optionalIssueWriteFields_LegacyRejectsFieldOptionNames covers the
-// legacy (FF-off) parser path. The legacy IssueWriteLegacy tool schema does
-// not advertise field_option_names at all, so any caller that passes the key
-// must get a neutral "not supported" error — not a message that mentions
-// multi-select or hints at how to clear the field, which would leak the
-// existence of the gated MS feature into the legacy surface.
-func Test_optionalIssueWriteFields_LegacyRejectsFieldOptionNames(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name string
-		args map[string]any
-	}{
-		{
-			name: "non-empty array",
-			args: map[string]any{
-				"issue_fields": []any{
-					map[string]any{
-						"field_name":         "Components",
-						"field_option_names": []any{"Auth", "Billing"},
-					},
-				},
-			},
-		},
-		{
-			// Empty array used to slip past the FF check because the
-			// `rawNames != nil` guard treated it as "absent", which sent the
-			// caller down the multi-select-flavoured "empty field_option_names
-			// — use 'delete: true' to clear the field" error path. Now the
-			// presence of the key alone is enough to reject in legacy mode.
-			name: "empty array",
-			args: map[string]any{
-				"issue_fields": []any{
-					map[string]any{
-						"field_name":         "Components",
-						"field_option_names": []any{},
-					},
-				},
-			},
-		},
-		{
-			name: "null value",
-			args: map[string]any{
-				"issue_fields": []any{
-					map[string]any{
-						"field_name":         "Components",
-						"field_option_names": nil,
-					},
-				},
-			},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := optionalIssueWriteFields(tc.args, false)
-			require.Error(t, err, "legacy mode must reject field_option_names regardless of value shape")
-			assert.Contains(t, err.Error(), "field_option_names is not supported in this build",
-				"error must be the neutral 'not supported' message, not a multi-select-flavoured one")
-			assert.NotContains(t, err.Error(), "multi-select")
-			assert.NotContains(t, err.Error(), "delete: true to clear",
-				"the 'use delete:true to clear' hint is a multi-select-specific message that must not appear in legacy mode")
-		})
-	}
 }
 
 func Test_resolveIssueRequestFieldValues_MultiSelect(t *testing.T) {
@@ -410,7 +345,7 @@ func Test_resolveIssueRequestFieldValues_MultiSelect(t *testing.T) {
 			FieldName:        "Components",
 			FieldOptionNames: []string{"Auth", "Billing"},
 		}}
-		vals, _, err := resolveIssueRequestFieldValues(context.Background(), newClient(), "owner", "repo", in, true)
+		vals, _, err := resolveIssueRequestFieldValues(context.Background(), newClient(), "owner", "repo", in)
 		require.NoError(t, err)
 		require.Len(t, vals, 1)
 		require.NotNil(t, vals[0].Value)
@@ -425,7 +360,7 @@ func Test_resolveIssueRequestFieldValues_MultiSelect(t *testing.T) {
 			FieldName:        "Components",
 			FieldOptionNames: []string{"auth", "BILLING"},
 		}}
-		vals, _, err := resolveIssueRequestFieldValues(context.Background(), newClient(), "owner", "repo", in, true)
+		vals, _, err := resolveIssueRequestFieldValues(context.Background(), newClient(), "owner", "repo", in)
 		require.NoError(t, err)
 		got, ok := vals[0].Value.([]string)
 		require.True(t, ok)
@@ -437,7 +372,7 @@ func Test_resolveIssueRequestFieldValues_MultiSelect(t *testing.T) {
 			FieldName:        "Components",
 			FieldOptionNames: []string{"Auth", "Nope"},
 		}}
-		_, _, err := resolveIssueRequestFieldValues(context.Background(), newClient(), "owner", "repo", in, true)
+		_, _, err := resolveIssueRequestFieldValues(context.Background(), newClient(), "owner", "repo", in)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Nope")
 	})
@@ -447,7 +382,7 @@ func Test_resolveIssueRequestFieldValues_MultiSelect(t *testing.T) {
 			FieldName:       "Components",
 			FieldOptionName: "Auth",
 		}}
-		_, _, err := resolveIssueRequestFieldValues(context.Background(), newClient(), "owner", "repo", in, true)
+		_, _, err := resolveIssueRequestFieldValues(context.Background(), newClient(), "owner", "repo", in)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "field_option_name cannot be used")
 		assert.Contains(t, err.Error(), "field_option_names")
@@ -458,7 +393,7 @@ func Test_resolveIssueRequestFieldValues_MultiSelect(t *testing.T) {
 			FieldName: "Components",
 			Value:     "Auth,Billing",
 		}}
-		_, _, err := resolveIssueRequestFieldValues(context.Background(), newClient(), "owner", "repo", in, true)
+		_, _, err := resolveIssueRequestFieldValues(context.Background(), newClient(), "owner", "repo", in)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "multi_select")
 	})
@@ -468,7 +403,7 @@ func Test_resolveIssueRequestFieldValues_MultiSelect(t *testing.T) {
 			FieldName: "Components",
 			Delete:    true,
 		}}
-		vals, deletions, err := resolveIssueRequestFieldValues(context.Background(), newClient(), "owner", "repo", in, true)
+		vals, deletions, err := resolveIssueRequestFieldValues(context.Background(), newClient(), "owner", "repo", in)
 		require.NoError(t, err)
 		assert.Empty(t, vals)
 		require.Len(t, deletions, 1)
@@ -476,4 +411,3 @@ func Test_resolveIssueRequestFieldValues_MultiSelect(t *testing.T) {
 			"the resolver returns the database field ID; the REST DELETE endpoint takes this integer in its URL path")
 	})
 }
-

@@ -15,20 +15,13 @@ import (
 )
 
 func Test_ListIssueFields(t *testing.T) {
-	// Verify tool definitions. The MS-aware variant owns the _ff_<flag> snap;
-	// the legacy variant owns the canonical list_issue_fields.snap.
+	// list_issue_fields is a single ungated tool that owns the canonical
+	// list_issue_fields.snap. Multi-select is unconditional.
 	serverTool := ListIssueFields(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueFieldsMultiSelect, tool))
-	assert.Equal(t, FeatureFlagIssueFieldsMultiSelect, serverTool.FeatureFlagEnable, "ListIssueFields is the multi-select-aware variant and must be gated on the FF")
-	assert.Contains(t, tool.Description, "multi_select", "the MS-aware description must mention multi_select")
-
-	legacyServerTool := ListIssueFieldsLegacy(translations.NullTranslationHelper)
-	legacyTool := legacyServerTool.Tool
-	require.NoError(t, toolsnaps.Test(legacyTool.Name, legacyTool))
-	assert.Empty(t, legacyServerTool.FeatureFlagEnable, "ListIssueFieldsLegacy must not require any flag to be enabled")
-	assert.ElementsMatch(t, []string{FeatureFlagIssueFieldsMultiSelect}, legacyServerTool.FeatureFlagDisable, "ListIssueFieldsLegacy must be hidden when the multi-select flag is on")
-	assert.NotContains(t, legacyTool.Description, "multi_select", "the legacy description must not advertise multi_select")
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	assert.Empty(t, serverTool.FeatureFlagEnable, "ListIssueFields must not require any flag to be enabled")
+	assert.Contains(t, tool.Description, "multi_select", "the description must mention multi_select")
 
 	assert.Equal(t, "list_issue_fields", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -315,39 +308,4 @@ func Test_ListIssueFields(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Test_ListIssueFields_LegacyDoesNotLeakMSDescriptionUnderRealTranslationHelper
-// pins the fix for the translation-key collision bug. The real translation
-// helper is first-write-wins on cache hits: if both the MS and legacy variants
-// use the same translation key, the second registration inherits the first
-// registration's cached description regardless of the fallback passed in.
-//
-// AllTools() calls the MS variant first, so under the bug the legacy variant
-// silently gets the MS description at runtime — leaking "multi_select" into
-// what should be a legacy-only surface. This test simulates the real helper's
-// cache behaviour and asserts the two descriptions actually differ.
-func Test_ListIssueFields_LegacyDoesNotLeakMSDescriptionUnderRealTranslationHelper(t *testing.T) {
-	// Mimic the caching behaviour of translations.TranslationHelper (see
-	// pkg/translations/translations.go): first-write-wins keyed by key name.
-	cache := map[string]string{}
-	firstWriteWins := func(key, defaultValue string) string {
-		if v, ok := cache[key]; ok {
-			return v
-		}
-		cache[key] = defaultValue
-		return defaultValue
-	}
-
-	// Call in registration order: MS variant first, legacy second. This is
-	// what AllTools() does — see tools.go.
-	msDesc := ListIssueFields(firstWriteWins).Tool.Description
-	legacyDesc := ListIssueFieldsLegacy(firstWriteWins).Tool.Description
-
-	require.NotEqual(t, msDesc, legacyDesc,
-		"the MS and legacy variants MUST use different translation keys so the real TranslationHelper's first-write-wins cache doesn't leak the MS description into the legacy variant")
-	assert.Contains(t, msDesc, "multi_select",
-		"MS variant description must advertise multi_select")
-	assert.NotContains(t, legacyDesc, "multi_select",
-		"legacy variant description must not advertise multi_select — that would leak the gated feature")
 }

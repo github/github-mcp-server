@@ -20,7 +20,7 @@
         "type": "string"
       },
       "field_filters": {
-        "description": "Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date).",
+        "description": "Filter by custom issue field values. Each entry takes a field_name and either 'value' (text, number, YYYY-MM-DD date, or single-select option name) or 'values' (multi-select option names). For multi-select fields, all listed values must be set on an issue for it to match (AND semantics) — to match any-of, make multiple list_issues calls and union the results.",
         "items": {
           "properties": {
             "field_name": {
@@ -28,13 +28,19 @@
               "type": "string"
             },
             "value": {
-              "description": "Value to filter on. For single-select fields, the option name (e.g. \"P1\"). For dates, YYYY-MM-DD. For numbers, the numeric value as a string. For text, the text value.",
+              "description": "Value to filter on for text, number, date, or single-select fields. For single-select, the option name (e.g. \"P1\"). For dates, YYYY-MM-DD. For numbers, the numeric value as a string. For text, the text value. Cannot be combined with 'values'.",
               "type": "string"
+            },
+            "values": {
+              "description": "Option names to filter on for multi-select fields. Matches issues that have ALL of these options set (AND semantics). To match any-of, make multiple list_issues calls. Cannot be combined with 'value'.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
             }
           },
           "required": [
-            "field_name",
-            "value"
+            "field_name"
           ],
           "type": "object"
         },

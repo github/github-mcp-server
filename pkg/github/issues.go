@@ -14,11 +14,12 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v89/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -255,11 +256,8 @@ type IssueFieldValueFragment struct {
 	} `graphql:"... on IssueFieldTextValue"`
 }
 
-// optionalIssueWriteFields parses the `issue_fields` parameter. When
-// multiSelectEnabled is false, the `field_option_names` slot is rejected (the
-// legacy variant of the tool does not advertise it in its schema; this guards
-// against callers passing it anyway through some out-of-band path).
-func optionalIssueWriteFields(args map[string]any, multiSelectEnabled bool) ([]issueWriteFieldInput, error) {
+// optionalIssueWriteFields parses the `issue_fields` parameter.
+func optionalIssueWriteFields(args map[string]any) ([]issueWriteFieldInput, error) {
 	issueFieldsRaw, exists := args["issue_fields"]
 	if !exists {
 		return nil, nil
@@ -295,14 +293,6 @@ func optionalIssueWriteFields(args map[string]any, multiSelectEnabled bool) ([]i
 
 		var fieldOptionNames []string
 		_, hasNamesKey := itemMap["field_option_names"]
-		if hasNamesKey && !multiSelectEnabled {
-			// Legacy variant doesn't advertise field_option_names at all.
-			// Reject any presence of the key — even with an empty value or
-			// null — so the error message stays neutral instead of leaking
-			// multi-select wording (e.g. "use 'delete: true' to clear the
-			// field") into the legacy surface.
-			return nil, fmt.Errorf("field_option_names is not supported in this build")
-		}
 		if rawNames := itemMap["field_option_names"]; hasNamesKey && rawNames != nil {
 			parsed, err := parseStringSlice(rawNames)
 			if err != nil {
@@ -363,11 +353,7 @@ func optionalIssueWriteFields(args map[string]any, multiSelectEnabled bool) ([]i
 // the user-supplied issueWriteFieldInputs into the REST-shaped values + the
 // list of field IDs the caller should clear via the dedicated REST DELETE
 // endpoint after the PATCH.
-//
-// When multiSelectEnabled is false, any field whose dataType is multi_select is
-// rejected at this entry point. The legacy tool variant's schema doesn't allow
-// multi-select inputs in the first place, so this is defence-in-depth.
-func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueFields []issueWriteFieldInput, multiSelectEnabled bool) ([]*github.IssueRequestFieldValue, []int64, error) {
+func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueFields []issueWriteFieldInput) ([]*github.IssueRequestFieldValue, []int64, error) {
 	if len(issueFields) == 0 {
 		return nil, nil, nil
 	}
@@ -433,10 +419,6 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 		fieldID := parseFullDatabaseID(fullDatabaseIDStr)
 		if fieldID == 0 {
 			return nil, nil, fmt.Errorf("issue field %q is missing fullDatabaseId", fieldInput.FieldName)
-		}
-
-		if !multiSelectEnabled && strings.EqualFold(dataType, "multi_select") {
-			return nil, nil, fmt.Errorf("issue field %q is multi_select, which is not supported in this build", fieldInput.FieldName)
 		}
 
 		if fieldInput.Delete {
@@ -740,14 +722,13 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 		Properties: map[string]*jsonschema.Schema{
 			"method": {
 				Type: "string",
-				Description: `The read operation to perform on a single issue.
-Options are:
-1. get - Get details of a specific issue.
-2. get_comments - Get issue comments.
-3. get_sub_issues - Get sub-issues (children) of the issue.
-4. get_parent - Get the parent issue, if this issue is a sub-issue of another.
-5. get_labels - Get labels assigned to the issue.
-`,
+				Description: "The read operation to perform on a single issue.\n" +
+					"Options are:\n" +
+					"1. get - Get issue details. Also returns best-effort hierarchy flags (`has_parent`, `has_children`); `parent` and `sub_issues_summary` are optional relationship summaries.\n" +
+					"2. get_comments - Get issue comments.\n" +
+					"3. get_sub_issues - Get sub-issues (children) of the issue.\n" +
+					"4. get_parent - Get the parent issue, if this issue is a sub-issue of another.\n" +
+					"5. get_labels - Get labels assigned to the issue.\n",
 				Enum: []any{"get", "get_comments", "get_sub_issues", "get_parent", "get_labels"},
 			},
 			"owner": {
@@ -829,7 +810,7 @@ Options are:
 				result, err := GetSubIssues(ctx, client, deps, owner, repo, issueNumber, pagination)
 				return attachIFC(result), nil, err
 			case "get_parent":
-				result, err := GetIssueParent(ctx, gqlClient, owner, repo, issueNumber)
+				result, err := GetIssueParent(ctx, gqlClient, deps, owner, repo, issueNumber)
 				return attachIFC(result), nil, err
 			case "get_labels":
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
@@ -890,18 +871,67 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 	minimalIssue := convertToMinimalIssue(issue)
 
 	// Always drop the verbose REST IssueFieldValues; enrich with the GraphQL
-	// field_values view instead.
+	// field_values view and the hierarchy relationship signals instead. The
+	// enrichment is best-effort: a failure here must never fail `get`.
 	minimalIssue.IssueFieldValues = nil
 	if issue != nil && issue.NodeID != nil && *issue.NodeID != "" {
 		gqlClient, err := deps.GetGQLClient(ctx)
 		if err == nil {
-			if fieldValuesByID, err := fetchIssueFieldValuesByNodeID(ctx, gqlClient, []*github.Issue{issue}); err == nil {
-				minimalIssue.FieldValues = fieldValuesByID[*issue.NodeID]
+			if enrichment, err := fetchIssueReadEnrichment(ctx, gqlClient, *issue.NodeID); err == nil {
+				applyIssueReadEnrichment(ctx, &minimalIssue, enrichment, cache, flags.LockdownMode)
 			}
 		}
 	}
 
 	return MarshalledTextResult(minimalIssue), nil
+}
+
+// applyIssueReadEnrichment populates the hierarchy relationship signals (has_parent/has_children,
+// parent, sub_issues_summary) and field_values onto the minimal issue. In lockdown mode the parent
+// reference is omitted unless the parent content can be verified as safe; has_parent and the numeric
+// counts are structural routing signals and are always safe to surface.
+func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, enrichment *issueReadEnrichment, cache *lockdown.RepoAccessCache, lockdownMode bool) {
+	if enrichment == nil {
+		return
+	}
+
+	minimalIssue.FieldValues = enrichment.FieldValues
+	minimalIssue.HasParent = ToBoolPtr(enrichment.Parent != nil)
+	minimalIssue.HasChildren = ToBoolPtr(enrichment.SubIssuesSummary.Total > 0)
+
+	if parent := enrichment.Parent; parent != nil {
+		// Surface the parent reference only when it is safe to expose. Under lockdown an
+		// unverified (possibly cross-repo) parent is omitted entirely, mirroring how unsafe
+		// comments and sub-issues are filtered out. has_parent still routes an agent to
+		// get_parent if it needs to follow up.
+		if !lockdownMode || isSafeParentContent(ctx, cache, parent) {
+			ref := parent.Ref
+			minimalIssue.Parent = &ref
+		}
+	}
+
+	if enrichment.SubIssuesSummary.Total > 0 {
+		summary := enrichment.SubIssuesSummary
+		minimalIssue.SubIssuesSummary = &summary
+	}
+}
+
+// isSafeParentContent reports whether the parent issue reference can be exposed under lockdown mode.
+// It fails closed: any inability to positively verify safe content (missing cache, missing author,
+// unparseable repository, or a lookup error) results in the parent reference being omitted.
+func isSafeParentContent(ctx context.Context, cache *lockdown.RepoAccessCache, parent *issueReadParent) bool {
+	if cache == nil || parent.AuthorLogin == "" {
+		return false
+	}
+	owner, repo, ok := strings.Cut(parent.Ref.Repository, "/")
+	if !ok || owner == "" || repo == "" {
+		return false
+	}
+	safe, err := cache.IsSafeContent(ctx, parent.AuthorLogin, owner, repo)
+	if err != nil {
+		return false
+	}
+	return safe
 }
 
 func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
@@ -1028,18 +1058,31 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 	return utils.NewToolResultText(string(r)), nil
 }
 
-// GetIssueParent returns the parent issue of the given issue, or a null parent
-// when the issue is not a sub-issue of any other issue. It reads the GraphQL
-// Issue.parent field, the upward counterpart to the downward get_sub_issues read.
-func GetIssueParent(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+// GetIssueParent returns the parent issue of the given issue, or a null
+// parent when the issue is not a sub-issue. It reads the GraphQL
+// Issue.parent field, the upward counterpart to get_sub_issues.
+//
+// The parent title is always sanitized (it may be cross-repo). Under
+// lockdown mode the parent is only returned when its author has push
+// access to the parent repo (mirroring GetIssue); otherwise it is omitted.
+func GetIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDependencies, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+	cache, err := deps.GetRepoAccessCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+	}
+	flags := deps.GetFlags(ctx)
+
 	var query struct {
 		Repository struct {
 			Issue struct {
 				Parent *struct {
-					Number     githubv4.Int
-					Title      githubv4.String
-					State      githubv4.String
-					URL        githubv4.String
+					Number githubv4.Int
+					Title  githubv4.String
+					State  githubv4.String
+					URL    githubv4.String
+					Author struct {
+						Login githubv4.String
+					}
 					Repository struct {
 						NameWithOwner githubv4.String
 					}
@@ -1063,10 +1106,27 @@ func GetIssueParent(ctx context.Context, client *githubv4.Client, owner string, 
 		return MarshalledTextResult(map[string]any{"parent": nil}), nil
 	}
 
+	if flags.LockdownMode {
+		if cache == nil {
+			return nil, fmt.Errorf("lockdown cache is not configured")
+		}
+		// Fail closed: omit the parent if anything needed for the safe-content
+		// check is missing or unverifiable.
+		parentAuthorLogin := string(parent.Author.Login)
+		parentOwner, parentRepo, ok := strings.Cut(string(parent.Repository.NameWithOwner), "/")
+		if parentAuthorLogin == "" || !ok || parentOwner == "" || parentRepo == "" {
+			return MarshalledTextResult(map[string]any{"parent": nil}), nil
+		}
+		isSafeContent, err := cache.IsSafeContent(ctx, parentAuthorLogin, parentOwner, parentRepo)
+		if err != nil || !isSafeContent {
+			return MarshalledTextResult(map[string]any{"parent": nil}), nil
+		}
+	}
+
 	return MarshalledTextResult(map[string]any{
 		"parent": map[string]any{
 			"number":     int(parent.Number),
-			"title":      string(parent.Title),
+			"title":      sanitize.Sanitize(string(parent.Title)),
 			"state":      string(parent.State),
 			"url":        string(parent.URL),
 			"repository": string(parent.Repository.NameWithOwner),
@@ -1441,12 +1501,12 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Properties: map[string]*jsonschema.Schema{
 					"method": {
 						Type: "string",
-						Description: `The action to perform on a single sub-issue
-Options are:
-- 'add' - add a sub-issue to a parent issue in a GitHub repository.
-- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
-- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
-				`,
+						Description: "The action to perform on a single sub-issue\n" +
+							"Options are:\n" +
+							"- 'add' - add a sub-issue to a parent issue in a GitHub repository.\n" +
+							"- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.\n" +
+							"- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.\n" +
+							"Writes issue hierarchy. To move a sub-issue to a new parent, use `add` with `replace_parent=true`; there is no writable parent field.\n",
 					},
 					"owner": {
 						Type:        "string",
@@ -1654,8 +1714,34 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 	return utils.NewToolResultText(string(r)), nil
 }
 
-// SearchIssues creates a tool to search for issues.
+// SearchIssues creates a tool to search for issues. It is the
+// FeatureFlagFieldsParam-enabled variant: it advertises the optional `fields`
+// parameter and filters each result to the requested subset. Both this and
+// LegacySearchIssues register under the tool name "search_issues"; exactly one is
+// active for any given request thanks to mutually exclusive FeatureFlagEnable /
+// FeatureFlagDisable annotations.
 func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := searchIssuesTool(t, true)
+	st.FeatureFlagEnable = FeatureFlagFieldsParam
+	return st
+}
+
+// LegacySearchIssues is the FeatureFlagFieldsParam-disabled variant of
+// search_issues. It exposes the original schema (no `fields` parameter) and never
+// filters results, so it acts as the kill switch when the flag is off. It owns
+// the canonical search_issues.snap; the flag-enabled variant owns
+// search_issues_ff_<flag>.snap. Delete this function when the flag is removed.
+func LegacySearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := searchIssuesTool(t, false)
+	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
+	return st
+}
+
+// searchIssuesTool builds the search_issues tool. When includeFields is true the
+// tool advertises the optional `fields` parameter, filters each result to the
+// requested subset, and emits fields telemetry. When false it is the original
+// tool with no fields parameter and no filtering.
+func searchIssuesTool(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1696,6 +1782,12 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 		Required: []string{"query"},
 	}
+	if includeFields {
+		schema.Properties["fields"] = fieldsSchemaProperty(
+			"Subset of fields to return for each issue result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data.",
+			searchIssuesItemFieldEnum,
+		)
+	}
 	WithPagination(schema)
 
 	return NewTool(
@@ -1711,7 +1803,15 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			result, err := searchIssuesHandler(ctx, deps, args, ifcSearchPostProcessOption(ctx, deps))
+			options := []searchOption{ifcSearchPostProcessOption(ctx, deps)}
+			if includeFields {
+				fields, err := OptionalStringArrayParam(args, "fields")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				options = append(options, withFieldsFiltering(deps, "search_issues", fields))
+			}
+			result, err := searchIssuesHandler(ctx, deps, args, options...)
 			return result, nil, err
 		})
 }
@@ -1885,6 +1985,98 @@ func fetchIssueFieldValuesByNodeID(ctx context.Context, gqlClient *githubv4.Clie
 	return result, nil
 }
 
+// issueReadEnrichmentQuery fetches, in a single GraphQL round-trip, the custom field values,
+// parent reference, and sub-issue summary counts for the issues identified by their node IDs.
+// It powers the issue_read `get` relationship signals without adding extra round-trips.
+type issueReadEnrichmentQuery struct {
+	Nodes []struct {
+		Issue struct {
+			ID               githubv4.ID
+			IssueFieldValues struct {
+				Nodes []IssueFieldValueFragment
+			} `graphql:"issueFieldValues(first: 25)"`
+			Parent *struct {
+				Number githubv4.Int
+				Title  githubv4.String
+				State  githubv4.String
+				URL    githubv4.String
+				Author struct {
+					Login githubv4.String
+				}
+				Repository struct {
+					NameWithOwner githubv4.String
+				}
+			}
+			SubIssuesSummary struct {
+				Total            githubv4.Int
+				Completed        githubv4.Int
+				PercentCompleted githubv4.Int
+			}
+		} `graphql:"... on Issue"`
+	} `graphql:"nodes(ids: $ids)"`
+}
+
+// issueReadParent is the parent reference plus the metadata needed to make a lockdown
+// safe-content decision about whether the (possibly cross-repo) parent title may be exposed.
+type issueReadParent struct {
+	Ref         MinimalIssueRef
+	AuthorLogin string
+}
+
+// issueReadEnrichment is the flattened result of the issue_read `get` enrichment query.
+type issueReadEnrichment struct {
+	FieldValues      []MinimalFieldValue
+	Parent           *issueReadParent
+	SubIssuesSummary MinimalSubIssuesSummary
+}
+
+// fetchIssueReadEnrichment runs one GraphQL nodes() query for the given issue node ID and returns
+// its field values, parent reference, and sub-issue summary counts. The parent title is sanitized
+// here because it may originate from a different repository.
+func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, nodeID string) (*issueReadEnrichment, error) {
+	var q issueReadEnrichmentQuery
+	if err := gqlClient.Query(ctx, &q, map[string]any{"ids": []githubv4.ID{githubv4.ID(nodeID)}}); err != nil {
+		return nil, err
+	}
+
+	enrichment := &issueReadEnrichment{}
+	for _, n := range q.Nodes {
+		idStr, ok := n.Issue.ID.(string)
+		if !ok || idStr != nodeID {
+			continue
+		}
+
+		vals := make([]MinimalFieldValue, 0, len(n.Issue.IssueFieldValues.Nodes))
+		for _, fv := range n.Issue.IssueFieldValues.Nodes {
+			if m, ok := fragmentToMinimalFieldValue(fv); ok {
+				vals = append(vals, m)
+			}
+		}
+		enrichment.FieldValues = vals
+
+		if p := n.Issue.Parent; p != nil {
+			enrichment.Parent = &issueReadParent{
+				Ref: MinimalIssueRef{
+					Number:     int(p.Number),
+					Title:      sanitize.Sanitize(string(p.Title)),
+					State:      string(p.State),
+					URL:        string(p.URL),
+					Repository: string(p.Repository.NameWithOwner),
+				},
+				AuthorLogin: string(p.Author.Login),
+			}
+		}
+
+		enrichment.SubIssuesSummary = MinimalSubIssuesSummary{
+			Total:            int(n.Issue.SubIssuesSummary.Total),
+			Completed:        int(n.Issue.SubIssuesSummary.Completed),
+			PercentCompleted: int(n.Issue.SubIssuesSummary.PercentCompleted),
+		}
+		break
+	}
+	return enrichment, nil
+}
+
 // searchIssuesHandler runs the REST issues search, enriches each hit with custom field values
 // fetched via a single follow-up GraphQL nodes() query, and applies any post-process options
 // (e.g. IFC labelling).
@@ -1941,16 +2133,36 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 		Items:             items,
 	}
 
-	r, err := json.Marshal(response)
-	if err != nil {
-		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), nil
-	}
-
-	callResult := utils.NewToolResultText(string(r))
 	cfg := searchConfig{}
 	for _, opt := range options {
 		opt(&cfg)
 	}
+
+	filtered := false
+	var payload any = response
+	if len(cfg.fields) > 0 {
+		filteredItems, err := filterEachField(response.Items, cfg.fields)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to filter results", err), nil
+		}
+		payload = map[string]any{
+			"total_count":        response.Total,
+			"incomplete_results": response.IncompleteResults,
+			"items":              filteredItems,
+		}
+		filtered = true
+	}
+
+	r, err := json.Marshal(payload)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), nil
+	}
+
+	if cfg.fieldsTool != "" {
+		recordFieldsUsageFor(ctx, cfg.fieldsDeps, cfg.fieldsTool, response, filtered, len(r))
+	}
+
+	callResult := utils.NewToolResultText(string(r))
 	if cfg.postProcess != nil {
 		cfg.postProcess(ctx, result, callResult)
 	}
@@ -2015,14 +2227,9 @@ func issueWriteAwaitingFormResult(method, owner, repo string, issueNumber int) *
 	return utils.NewToolResultAwaitingFormSubmission(msg)
 }
 
-// IssueWrite is the multi-select-aware variant of issue_write — its schema
-// advertises the `field_option_names` slot on `issue_fields[]` items and its
-// resolver accepts multi-select fields. IssueWriteLegacy is served when
-// FeatureFlagIssueFieldsMultiSelect is off; it has no `field_option_names`
-// slot and rejects multi-select fields at the resolver. Both register under
-// the tool name "issue_write" with mutually exclusive feature-flag annotations
-// so exactly one is active at a time. When the flag is removed, delete
-// IssueWriteLegacy outright and drop the feature-flag fields on IssueWrite.
+// IssueWrite is the consolidated issue_write tool. Its schema advertises the
+// `field_option_names` slot on `issue_fields[]` items and its resolver accepts
+// multi-select fields. It is disabled when the granular issue tools are enabled.
 func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
@@ -2252,7 +2459,7 @@ Options are:
 			}
 
 			var issueFields []issueWriteFieldInput
-			issueFields, err = optionalIssueWriteFields(args, true)
+			issueFields, err = optionalIssueWriteFields(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -2270,7 +2477,7 @@ Options are:
 			var issueFieldValues []*github.IssueRequestFieldValue
 			var fieldIDsToDelete []int64
 			if len(issueFields) > 0 {
-				issueFieldValues, fieldIDsToDelete, err = resolveIssueRequestFieldValues(ctx, gqlClient, owner, repo, issueFields, true)
+				issueFieldValues, fieldIDsToDelete, err = resolveIssueRequestFieldValues(ctx, gqlClient, owner, repo, issueFields)
 				if err != nil {
 					return utils.NewToolResultError(fmt.Sprintf("failed to resolve issue_fields: %v", err)), nil, nil
 				}
@@ -2295,7 +2502,6 @@ Options are:
 			}
 		})
 	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}
-	st.FeatureFlagEnable = FeatureFlagIssueFieldsMultiSelect
 	return st
 }
 
@@ -2575,32 +2781,37 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	return utils.NewToolResultText(string(r)), nil
 }
 
-// ListIssues is the multi-select-aware variant — its `field_filters` schema
-// includes the `values` slot for multi-select option filters and the
-// description text advertises multi-select filtering. ListIssuesLegacy is
-// served when FeatureFlagIssueFieldsMultiSelect is off; it has no `values`
-// slot and its description does not mention multi-select. The underlying
-// handler is shared and accepts either schema shape.
+// ListIssues creates a tool to list issues in a GitHub repository. It is the
+// FeatureFlagFieldsParam-enabled variant: it advertises the optional `fields`
+// parameter and filters each issue to the requested subset. Both this and
+// LegacyListIssues register under the tool name "list_issues"; exactly one is
+// active for any given request thanks to mutually exclusive FeatureFlagEnable /
+// FeatureFlagDisable annotations.
 func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := buildListIssues(t, true)
-	st.FeatureFlagEnable = FeatureFlagIssueFieldsMultiSelect
+	st.FeatureFlagEnable = FeatureFlagFieldsParam
 	return st
 }
 
-// ListIssuesLegacy is the FF-off variant of list_issues.
-func ListIssuesLegacy(t translations.TranslationHelperFunc) inventory.ServerTool {
+// LegacyListIssues is the FeatureFlagFieldsParam-disabled variant of list_issues.
+// It exposes the schema without the `fields` parameter and never filters
+// results, so it acts as the kill switch when the flag is off. It owns the
+// canonical list_issues.snap; the flag-enabled variant owns
+// list_issues_ff_<flag>.snap. Delete this function when the flag is removed.
+func LegacyListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := buildListIssues(t, false)
-	st.FeatureFlagDisable = []string{FeatureFlagIssueFieldsMultiSelect}
+	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
 	return st
 }
 
-func buildListIssues(t translations.TranslationHelperFunc, multiSelectEnabled bool) inventory.ServerTool {
-	fieldFiltersDescription := "Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date)."
-	valueDescription := "Value to filter on. For single-select fields, the option name (e.g. \"P1\"). For dates, YYYY-MM-DD. For numbers, the numeric value as a string. For text, the text value."
-	if multiSelectEnabled {
-		fieldFiltersDescription = "Filter by custom issue field values. Each entry takes a field_name and either 'value' (text, number, YYYY-MM-DD date, or single-select option name) or 'values' (multi-select option names). For multi-select fields, all listed values must be set on an issue for it to match (AND semantics) — to match any-of, make multiple list_issues calls and union the results."
-		valueDescription = "Value to filter on for text, number, date, or single-select fields. For single-select, the option name (e.g. \"P1\"). For dates, YYYY-MM-DD. For numbers, the numeric value as a string. For text, the text value. Cannot be combined with 'values'."
-	}
+// buildListIssues builds the list_issues tool. The `field_filters` schema always
+// advertises the `values` slot for multi-select option filters. When
+// includeFields is true the tool also advertises the optional `fields`
+// parameter, filters each issue to the requested subset, and emits fields
+// telemetry; when false it has no `fields` parameter and does no filtering.
+func buildListIssues(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
+	fieldFiltersDescription := "Filter by custom issue field values. Each entry takes a field_name and either 'value' (text, number, YYYY-MM-DD date, or single-select option name) or 'values' (multi-select option names). For multi-select fields, all listed values must be set on an issue for it to match (AND semantics) — to match any-of, make multiple list_issues calls and union the results."
+	valueDescription := "Value to filter on for text, number, date, or single-select fields. For single-select, the option name (e.g. \"P1\"). For dates, YYYY-MM-DD. For numbers, the numeric value as a string. For text, the text value. Cannot be combined with 'values'."
 
 	fieldFilterItemProps := map[string]*jsonschema.Schema{
 		"field_name": {
@@ -2611,24 +2822,18 @@ func buildListIssues(t translations.TranslationHelperFunc, multiSelectEnabled bo
 			Type:        "string",
 			Description: valueDescription,
 		},
-	}
-	if multiSelectEnabled {
-		fieldFilterItemProps["values"] = &jsonschema.Schema{
+		"values": {
 			Type:        "array",
 			Description: "Option names to filter on for multi-select fields. Matches issues that have ALL of these options set (AND semantics). To match any-of, make multiple list_issues calls. Cannot be combined with 'value'.",
 			Items: &jsonschema.Schema{
 				Type: "string",
 			},
-		}
+		},
 	}
 
-	// Legacy variant requires `value` outright (its schema has no `values` slot).
-	// MS-aware variant only requires `field_name` because either `value` or
-	// `values` is acceptable; the parser enforces exactly-one-of at runtime.
-	fieldFilterRequired := []string{"field_name", "value"}
-	if multiSelectEnabled {
-		fieldFilterRequired = []string{"field_name"}
-	}
+	// Only field_name is required because either `value` or `values` is
+	// acceptable; the parser enforces exactly-one-of at runtime.
+	fieldFilterRequired := []string{"field_name"}
 
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -2683,6 +2888,12 @@ func buildListIssues(t translations.TranslationHelperFunc, multiSelectEnabled bo
 		},
 		Required: []string{"owner", "repo"},
 	}
+	if includeFields {
+		schema.Properties["fields"] = fieldsSchemaProperty(
+			"Subset of fields to return for each issue. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' and 'field_values' in particular drops the largest per-result data.",
+			listIssuesItemFieldEnum,
+		)
+	}
 	WithCursorPagination(schema)
 
 	st := NewTool(
@@ -2705,6 +2916,14 @@ func buildListIssues(t translations.TranslationHelperFunc, multiSelectEnabled bo
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			var fields []string
+			if includeFields {
+				fields, err = OptionalStringArrayParam(args, "fields")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
 			}
 
 			// Set optional parameters if provided
@@ -2775,7 +2994,7 @@ func buildListIssues(t translations.TranslationHelperFunc, multiSelectEnabled bo
 			}
 			hasLabels := len(labels) > 0
 
-			rawFilters, err := parseRawFieldFilters(args, multiSelectEnabled)
+			rawFilters, err := parseRawFieldFilters(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -2876,7 +3095,31 @@ func buildListIssues(t translations.TranslationHelperFunc, multiSelectEnabled bo
 				isPrivate = queryResult.GetIsPrivate()
 			}
 
-			result := MarshalledTextResult(resp)
+			filtered := false
+			var payload any = resp
+			if includeFields && len(fields) > 0 {
+				filteredIssues, err := filterEachField(resp.Issues, fields)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to filter issues", err), nil, nil
+				}
+				payload = map[string]any{
+					"issues":     filteredIssues,
+					"totalCount": resp.TotalCount,
+					"pageInfo":   resp.PageInfo,
+				}
+				filtered = true
+			}
+
+			r, err := json.Marshal(payload)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+
+			if includeFields {
+				recordFieldsUsageFor(ctx, deps, "list_issues", resp, filtered, len(r))
+			}
+
+			result := utils.NewToolResultText(string(r))
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelListIssues(isPrivate))
 			return result, nil, nil
 		})
@@ -2898,10 +3141,7 @@ type rawFieldFilter struct {
 // coercion happens later in resolveFieldFilters once we know each field's data_type.
 // Each entry must supply exactly one of `value` (scalar — text/number/date/single_select)
 // or `values` (array — multi_select).
-// parseRawFieldFilters parses the field_filters argument. When
-// multiSelectEnabled is false, any `values` slot is rejected at the entry
-// point (the legacy ListIssues schema does not advertise it).
-func parseRawFieldFilters(args map[string]any, multiSelectEnabled bool) ([]rawFieldFilter, error) {
+func parseRawFieldFilters(args map[string]any) ([]rawFieldFilter, error) {
 	raw, ok := args["field_filters"]
 	if !ok {
 		return nil, nil
@@ -2942,9 +3182,6 @@ func parseRawFieldFilters(args map[string]any, multiSelectEnabled bool) ([]rawFi
 		}
 
 		if rawValues, present := entry["values"]; present {
-			if !multiSelectEnabled {
-				return nil, fmt.Errorf("field_filters entry %q: 'values' is not supported in this build", fieldName)
-			}
 			values, err := parseStringSlice(rawValues)
 			if err != nil {
 				return nil, fmt.Errorf("field_filters entry %q: values must be an array of strings: %s", fieldName, err.Error())
@@ -2957,10 +3194,7 @@ func parseRawFieldFilters(args map[string]any, multiSelectEnabled bool) ([]rawFi
 		case filter.HasValue && filter.HasValues:
 			return nil, fmt.Errorf("field_filters entry %q: provide either 'value' or 'values', not both", fieldName)
 		case !filter.HasValue && !filter.HasValues:
-			if multiSelectEnabled {
-				return nil, fmt.Errorf("field_filters entry %q: missing 'value' (for text/number/date/single_select) or 'values' (for multi_select)", fieldName)
-			}
-			return nil, fmt.Errorf("field_filters entry %q: missing 'value'", fieldName)
+			return nil, fmt.Errorf("field_filters entry %q: missing 'value' (for text/number/date/single_select) or 'values' (for multi_select)", fieldName)
 		}
 
 		filters = append(filters, filter)
