@@ -26,4 +26,13 @@ func Test_authorLockdownResult(t *testing.T) {
 		assert.True(t, result.IsError)
 		assert.Contains(t, getErrorResult(t, result).Text, lockdownIssueRestrictedMessage)
 	})
+
+	t.Run("lookup failure returns tool-result error", func(t *testing.T) {
+		cache := stubRepoAccessCache(nil, time.Minute)
+		result, err := authorLockdownResult(context.Background(), cache, "owner", "repo", "author", lockdownIssueRestrictedMessage)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.True(t, result.IsError)
+		assert.Contains(t, getErrorResult(t, result).Text, "failed to check lockdown mode")
+	})
 }
