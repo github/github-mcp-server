@@ -1742,7 +1742,6 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 			SHA: github.Ptr("abcd1234"),
 			Ref: github.Ptr("feature-branch"),
 		},
-		User: &github.User{Login: github.Ptr("prauthor")},
 	}
 
 	// Setup mock check runs for success case
@@ -1829,7 +1828,11 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 		{
 			name: "lockdown enabled - author lacks push access",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, &github.PullRequest{
+					Number: github.Ptr(42),
+					Head:   &github.PullRequestBranch{SHA: github.Ptr("abcd1234")},
+					User:   &github.User{Login: github.Ptr("reader")},
+				}),
 			}),
 			requestArgs: map[string]any{
 				"method":     "get_check_runs",
@@ -1845,7 +1848,11 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 		{
 			name: "lockdown enabled - author has push access",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposPullsByOwnerByRepoByPullNumber:     mockResponse(t, http.StatusOK, mockPR),
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, &github.PullRequest{
+					Number: github.Ptr(42),
+					Head:   &github.PullRequestBranch{SHA: github.Ptr("abcd1234")},
+					User:   &github.User{Login: github.Ptr("writer")},
+				}),
 				GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockCheckRuns),
 			}),
 			requestArgs: map[string]any{
