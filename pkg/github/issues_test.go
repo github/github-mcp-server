@@ -3686,10 +3686,61 @@ func Test_GetIssueLabels(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number"})
 
+	labelsMockClient := func(authorLogin string) *http.Client {
+		return githubv4mock.NewMockedHTTPClient(
+			githubv4mock.NewQueryMatcher(
+				struct {
+					Repository struct {
+						Issue struct {
+							Author struct {
+								Login githubv4.String
+							}
+							Labels struct {
+								Nodes []struct {
+									ID          githubv4.ID
+									Name        githubv4.String
+									Color       githubv4.String
+									Description githubv4.String
+								}
+								TotalCount githubv4.Int
+							} `graphql:"labels(first: 100)"`
+						} `graphql:"issue(number: $issueNumber)"`
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}{},
+				map[string]any{
+					"owner":       githubv4.String("owner"),
+					"repo":        githubv4.String("repo"),
+					"issueNumber": githubv4.Int(123),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"repository": map[string]any{
+						"issue": map[string]any{
+							"author": map[string]any{
+								"login": githubv4.String(authorLogin),
+							},
+							"labels": map[string]any{
+								"nodes": []any{
+									map[string]any{
+										"id":          githubv4.ID("label-1"),
+										"name":        githubv4.String("bug"),
+										"color":       githubv4.String("d73a4a"),
+										"description": githubv4.String("Something isn't working"),
+									},
+								},
+								"totalCount": githubv4.Int(1),
+							},
+						},
+					},
+				}),
+			),
+		)
+	}
+
 	tests := []struct {
 		name               string
 		requestArgs        map[string]any
 		mockedClient       *http.Client
+		lockdownEnabled    bool
 		expectToolError    bool
 		expectedToolErrMsg string
 	}{
@@ -3701,47 +3752,32 @@ func Test_GetIssueLabels(t *testing.T) {
 				"repo":         "repo",
 				"issue_number": float64(123),
 			},
-			mockedClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							Issue struct {
-								Labels struct {
-									Nodes []struct {
-										ID          githubv4.ID
-										Name        githubv4.String
-										Color       githubv4.String
-										Description githubv4.String
-									}
-									TotalCount githubv4.Int
-								} `graphql:"labels(first: 100)"`
-							} `graphql:"issue(number: $issueNumber)"`
-						} `graphql:"repository(owner: $owner, name: $repo)"`
-					}{},
-					map[string]any{
-						"owner":       githubv4.String("owner"),
-						"repo":        githubv4.String("repo"),
-						"issueNumber": githubv4.Int(123),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"issue": map[string]any{
-								"labels": map[string]any{
-									"nodes": []any{
-										map[string]any{
-											"id":          githubv4.ID("label-1"),
-											"name":        githubv4.String("bug"),
-											"color":       githubv4.String("d73a4a"),
-											"description": githubv4.String("Something isn't working"),
-										},
-									},
-									"totalCount": githubv4.Int(1),
-								},
-							},
-						},
-					}),
-				),
-			),
+			mockedClient:    labelsMockClient("author"),
+			expectToolError: false,
+		},
+		{
+			name: "lockdown enabled - author lacks push access",
+			requestArgs: map[string]any{
+				"method":       "get_labels",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+			},
+			mockedClient:       labelsMockClient("external-user"),
+			lockdownEnabled:    true,
+			expectToolError:    true,
+			expectedToolErrMsg: "access to issue details is restricted by lockdown mode",
+		},
+		{
+			name: "lockdown enabled - author has push access",
+			requestArgs: map[string]any{
+				"method":       "get_labels",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+			},
+			mockedClient:    labelsMockClient("maintainer"),
+			lockdownEnabled: true,
 			expectToolError: false,
 		},
 	}
@@ -3750,11 +3786,17 @@ func Test_GetIssueLabels(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			gqlClient := githubv4.NewClient(tc.mockedClient)
 			client := mustNewGHClient(t, nil)
+
+			var restClient *github.Client
+			if tc.lockdownEnabled {
+				restClient = mockRESTPermissionServer(t, "read", map[string]string{"maintainer": "write"})
+			}
+
 			deps := BaseDeps{
 				Client:          client,
 				GQLClient:       gqlClient,
-				RepoAccessCache: stubRepoAccessCache(nil, 15*time.Minute),
-				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+				RepoAccessCache: stubRepoAccessCache(restClient, 15*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled}),
 			}
 			handler := serverTool.Handler(deps)
 

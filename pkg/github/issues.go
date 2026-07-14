@@ -704,7 +704,7 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 				result, err := GetIssueParent(ctx, gqlClient, deps, owner, repo, issueNumber)
 				return attachIFC(result), nil, err
 			case "get_labels":
-				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
+				result, err := GetIssueLabels(ctx, gqlClient, deps, owner, repo, issueNumber)
 				return attachIFC(result), nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -1015,11 +1015,20 @@ func GetIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDepen
 	}), nil
 }
 
-func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+func GetIssueLabels(ctx context.Context, client *githubv4.Client, deps ToolDependencies, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+	cache, err := deps.GetRepoAccessCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+	}
+	flags := deps.GetFlags(ctx)
+
 	// Get current labels on the issue using GraphQL
 	var query struct {
 		Repository struct {
 			Issue struct {
+				Author struct {
+					Login githubv4.String
+				}
 				Labels struct {
 					Nodes []struct {
 						ID          githubv4.ID
@@ -1041,6 +1050,12 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 
 	if err := client.Query(ctx, &query, vars); err != nil {
 		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to get issue labels", err), nil
+	}
+
+	if flags.LockdownMode {
+		if restricted, err := authorLockdownResult(ctx, cache, owner, repo, string(query.Repository.Issue.Author.Login), lockdownIssueRestrictedMessage); restricted != nil || err != nil {
+			return restricted, err
+		}
 	}
 
 	// Extract label information
