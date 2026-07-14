@@ -123,13 +123,13 @@ Possible options:
 				result, err := GetPullRequest(ctx, client, deps, owner, repo, pullNumber)
 				return attachIFC(result), nil, err
 			case "get_diff":
-				result, err := GetPullRequestDiff(ctx, client, owner, repo, pullNumber)
+				result, err := GetPullRequestDiff(ctx, client, deps, owner, repo, pullNumber)
 				return attachIFC(result), nil, err
 			case "get_status":
 				result, err := GetPullRequestStatus(ctx, client, owner, repo, pullNumber)
 				return attachIFC(result), nil, err
 			case "get_files":
-				result, err := GetPullRequestFiles(ctx, client, owner, repo, pullNumber, pagination)
+				result, err := GetPullRequestFiles(ctx, client, deps, owner, repo, pullNumber, pagination)
 				return attachIFC(result), nil, err
 			case "get_commits":
 				result, err := GetPullRequestCommits(ctx, client, owner, repo, pullNumber, pagination)
@@ -152,7 +152,7 @@ Possible options:
 				result, err := GetIssueComments(ctx, client, deps, owner, repo, pullNumber, pagination)
 				return attachIFC(result), nil, err
 			case "get_check_runs":
-				result, err := GetPullRequestCheckRuns(ctx, client, owner, repo, pullNumber, pagination)
+				result, err := GetPullRequestCheckRuns(ctx, client, deps, owner, repo, pullNumber, pagination)
 				return attachIFC(result), nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -206,7 +206,40 @@ func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDepende
 	return MarshalledTextResult(minimalPR), nil
 }
 
-func GetPullRequestDiff(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+// enforcePullRequestLockdown returns a restricted tool result when lockdown mode is
+// enabled and the pull request author is not a safe content source for owner/repo,
+// and (nil, nil) otherwise. It fetches the pull request to resolve the author and is
+// a no-op that performs no request when lockdown mode is disabled.
+func enforcePullRequestLockdown(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+	if !deps.GetFlags(ctx).LockdownMode {
+		return nil, nil
+	}
+	cache, err := deps.GetRepoAccessCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+	}
+	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get pull request", resp, err), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
+	}
+
+	return authorLockdownResult(ctx, cache, owner, repo, pr.GetUser().GetLogin(), lockdownPullRequestRestrictedMessage)
+}
+
+func GetPullRequestDiff(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+	if restricted, err := enforcePullRequestLockdown(ctx, client, deps, owner, repo, pullNumber); restricted != nil || err != nil {
+		return restricted, err
+	}
+
 	raw, resp, err := client.PullRequests.GetRaw(
 		ctx,
 		owner,
@@ -282,7 +315,7 @@ func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, rep
 	return utils.NewToolResultText(string(r)), nil
 }
 
-func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
 	// First get the PR to get the head SHA
 	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
 	if err != nil {
@@ -300,6 +333,16 @@ func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, 
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
+	}
+
+	if deps.GetFlags(ctx).LockdownMode {
+		cache, err := deps.GetRepoAccessCache(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+		}
+		if restricted, err := authorLockdownResult(ctx, cache, owner, repo, pr.GetUser().GetLogin(), lockdownPullRequestRestrictedMessage); restricted != nil || err != nil {
+			return restricted, err
+		}
 	}
 
 	// Get check runs for the head SHA
@@ -347,7 +390,11 @@ func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, 
 	return utils.NewToolResultText(string(r)), nil
 }
 
-func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetPullRequestFiles(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	if restricted, err := enforcePullRequestLockdown(ctx, client, deps, owner, repo, pullNumber); restricted != nil || err != nil {
+		return restricted, err
+	}
+
 	opts := &github.ListOptions{
 		PerPage: pagination.PerPage,
 		Page:    pagination.Page,
@@ -552,17 +599,18 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, deps Tool
 		filteredReviews := make([]*github.PullRequestReview, 0, len(reviews))
 		for _, review := range reviews {
 			login := review.GetUser().GetLogin()
-			if login != "" {
-				isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
-				if err != nil {
-					return nil, fmt.Errorf("failed to check lockdown mode: %w", err)
-				}
-				if isSafeContent {
-					filteredReviews = append(filteredReviews, review)
-				}
-				reviews = filteredReviews
+			if login == "" {
+				continue
+			}
+			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
+			if err != nil {
+				return nil, fmt.Errorf("failed to check lockdown mode: %w", err)
+			}
+			if isSafeContent {
+				filteredReviews = append(filteredReviews, review)
 			}
 		}
+		reviews = filteredReviews
 	}
 
 	minimalReviews := make([]MinimalPullRequestReview, 0, len(reviews))
