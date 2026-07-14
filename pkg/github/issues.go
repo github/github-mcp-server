@@ -734,18 +734,8 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 	}
 
 	if flags.LockdownMode {
-		if cache == nil {
-			return nil, fmt.Errorf("lockdown cache is not configured")
-		}
-		login := issue.GetUser().GetLogin()
-		if login != "" {
-			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
-			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
-			}
-			if !isSafeContent {
-				return utils.NewToolResultError("access to issue details is restricted by lockdown mode"), nil
-			}
+		if restricted, err := authorLockdownResult(ctx, cache, owner, repo, issue.GetUser().GetLogin(), lockdownIssueRestrictedMessage); restricted != nil || err != nil {
+			return restricted, err
 		}
 	}
 

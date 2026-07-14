@@ -53,12 +53,14 @@ func Test_GetPullRequest(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]any
-		expectError    bool
-		expectedPR     *github.PullRequest
-		expectedErrMsg string
+		name            string
+		mockedClient    *http.Client
+		requestArgs     map[string]any
+		expectError     bool
+		expectedPR      *github.PullRequest
+		expectedErrMsg  string
+		lockdownEnabled bool
+		restPermission  string
 	}{
 		{
 			name: "successful PR fetch",
@@ -91,6 +93,38 @@ func Test_GetPullRequest(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to get pull request",
 		},
+		{
+			name: "lockdown enabled - user lacks push access",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:     true,
+			expectedErrMsg:  "access to pull request is restricted by lockdown mode",
+			lockdownEnabled: true,
+			restPermission:  "read",
+		},
+		{
+			name: "lockdown enabled - private repository",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get",
+				"owner":      "owner2",
+				"repo":       "repo2",
+				"pullNumber": float64(42),
+			},
+			expectError:     false,
+			expectedPR:      mockPR,
+			lockdownEnabled: true,
+			restPermission:  "none",
+		},
 	}
 
 	for _, tc := range tests {
@@ -98,11 +132,17 @@ func Test_GetPullRequest(t *testing.T) {
 			// Setup client with mock
 			client := mustNewGHClient(t, tc.mockedClient)
 			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
+
+			var restClient *github.Client
+			if tc.restPermission != "" {
+				restClient = mockRESTPermissionServer(t, tc.restPermission, nil)
+			}
+
 			deps := BaseDeps{
 				Client:          client,
 				GQLClient:       gqlClient,
-				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
-				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+				RepoAccessCache: stubRepoAccessCache(restClient, 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled}),
 			}
 			handler := serverTool.Handler(deps)
 

@@ -196,19 +196,8 @@ func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDepende
 	}
 
 	if ff.LockdownMode {
-		if cache == nil {
-			return nil, fmt.Errorf("lockdown cache is not configured")
-		}
-		login := pr.GetUser().GetLogin()
-		if login != "" {
-			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
-			if err != nil {
-				return nil, fmt.Errorf("failed to check content removal: %w", err)
-			}
-
-			if !isSafeContent {
-				return utils.NewToolResultError("access to pull request is restricted by lockdown mode"), nil
-			}
+		if restricted, err := authorLockdownResult(ctx, cache, owner, repo, pr.GetUser().GetLogin(), lockdownPullRequestRestrictedMessage); restricted != nil || err != nil {
+			return restricted, err
 		}
 	}
 
