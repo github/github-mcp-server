@@ -2234,7 +2234,6 @@ Options are:
 								},
 								"delete": {
 									Type: "boolean",
-									Enum: []any{true},
 									Description: "Set to true to clear this field's current value on the " +
 										"issue. Cannot be combined with 'value' or 'field_option_name'.",
 								},
