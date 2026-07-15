@@ -1,16 +1,149 @@
 package github
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v89/github"
+	"github.com/google/jsonschema-go/jsonschema"
 
 	"github.com/github/github-mcp-server/pkg/sanitize"
 )
+
+// codeSearchItemFieldEnum lists the selectable fields for search_code result
+// items, matching the JSON field names of MinimalCodeResult. The repository and
+// text_matches fields are the heaviest, so omitting them is the main lever for
+// shrinking large result sets.
+var codeSearchItemFieldEnum = []any{"name", "path", "sha", "repository", "text_matches"}
+
+// fileContentFieldEnum lists the selectable fields for get_file_contents
+// directory listings, matching the JSON field names of
+// github.RepositoryContent that appear for directory entries. Only applied when
+// the requested path is a directory; ignored for single files.
+var fileContentFieldEnum = []any{"type", "name", "path", "size", "sha", "url", "git_url", "html_url", "download_url"}
+
+// listIssuesItemFieldEnum lists the selectable fields for list_issues result
+// items, matching the JSON field names MinimalIssue actually populates via the
+// list_issues GraphQL fragment (fragmentToMinimalIssue). Fields that only the
+// REST conversion sets (for example html_url, reactions, issue_field_values) are
+// never emitted here and are intentionally omitted. The body and field_values
+// fields are the heaviest, so omitting them is the main lever for shrinking large
+// result sets.
+var listIssuesItemFieldEnum = []any{
+	"number", "title", "body", "state", "user", "labels",
+	"comments", "created_at", "updated_at", "field_values",
+}
+
+// listPullRequestsItemFieldEnum lists the selectable fields for
+// list_pull_requests result items, matching the JSON field names of
+// MinimalPullRequest. The body field is the heaviest, so omitting it is the main
+// lever for shrinking large result sets.
+var listPullRequestsItemFieldEnum = []any{
+	"number", "title", "body", "state", "draft", "merged", "mergeable_state",
+	"html_url", "user", "labels", "assignees", "requested_reviewers", "merged_by",
+	"head", "base", "additions", "deletions", "changed_files", "commits",
+	"comments", "created_at", "updated_at", "closed_at", "merged_at", "milestone",
+}
+
+// listCommitsItemFieldEnum lists the selectable fields for list_commits result
+// items, matching the JSON field names MinimalCommit populates for list_commits.
+// list_commits requests commits without per-file detail (commitDetailNone), so
+// the stats and files fields are never emitted and are intentionally omitted
+// here. The commit field (message plus author/committer metadata) is the
+// heaviest, so omitting it is the main lever for shrinking large result sets.
+var listCommitsItemFieldEnum = []any{
+	"sha", "html_url", "commit", "author", "committer",
+}
+
+// listReleasesItemFieldEnum lists the selectable fields for list_releases result
+// items, matching the JSON field names of MinimalRelease. The body field is the
+// heaviest, so omitting it is the main lever for shrinking large result sets.
+var listReleasesItemFieldEnum = []any{
+	"id", "tag_name", "name", "body", "html_url", "published_at",
+	"prerelease", "draft", "author",
+}
+
+// searchIssuesItemFieldEnum lists the selectable fields for search_issues result
+// items. Items are full github.Issue objects enriched with normalized
+// field_values, so this is a curated subset of the most useful JSON field names.
+// The body, reactions, and labels fields are the heaviest, so omitting them is
+// the main lever for shrinking large result sets.
+var searchIssuesItemFieldEnum = []any{
+	"number", "title", "body", "state", "state_reason", "draft", "locked",
+	"html_url", "user", "author_association", "labels", "assignee", "assignees",
+	"milestone", "comments", "reactions", "created_at", "updated_at", "closed_at",
+	"closed_by", "type", "repository_url", "pull_request", "field_values",
+}
+
+// searchPullRequestsItemFieldEnum lists the selectable fields for
+// search_pull_requests result items. Issue search returns pull requests as
+// github.Issue objects, so this is a curated subset of those JSON field names.
+// The body, reactions, and labels fields are the heaviest, so omitting them is
+// the main lever for shrinking large result sets.
+var searchPullRequestsItemFieldEnum = []any{
+	"number", "title", "body", "state", "state_reason", "draft", "locked",
+	"html_url", "user", "author_association", "labels", "assignee", "assignees",
+	"milestone", "comments", "reactions", "created_at", "updated_at", "closed_at",
+	"closed_by", "pull_request", "repository_url",
+}
+
+// filterFields marshals v to a JSON object and returns a map containing only the
+// requested fields. Fields that are unknown or absent from the JSON (for example
+// empty values dropped via omitempty) are skipped.
+func filterFields(v any, fields []string) (map[string]any, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber() // preserve integer precision for fields such as IDs
+	var object map[string]any
+	if err := decoder.Decode(&object); err != nil {
+		return nil, err
+	}
+
+	picked := make(map[string]any, len(fields))
+	for _, field := range fields {
+		if value, ok := object[field]; ok {
+			picked[field] = value
+		}
+	}
+	return picked, nil
+}
+
+// filterEachField applies filterFields to every item, returning a slice in which
+// each element contains only the requested fields.
+func filterEachField[T any](items []T, fields []string) ([]map[string]any, error) {
+	filtered := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		picked, err := filterFields(item, fields)
+		if err != nil {
+			return nil, err
+		}
+		filtered = append(filtered, picked)
+	}
+	return filtered, nil
+}
+
+// fieldsSchemaProperty builds the optional `fields` array parameter shared by
+// every fields-enabled tool: an array of strings constrained to the given enum
+// of selectable field names, with a per-tool description.
+func fieldsSchemaProperty(description string, enum []any) *jsonschema.Schema {
+	return &jsonschema.Schema{
+		Type:        "array",
+		Description: description,
+		Items: &jsonschema.Schema{
+			Type: "string",
+			Enum: enum,
+		},
+	}
+}
 
 // MinimalUser is the output type for user and organization search results.
 type MinimalUser struct {
@@ -342,6 +475,32 @@ type MinimalIssue struct {
 	IssueType         string                   `json:"issue_type,omitempty"`
 	IssueFieldValues  []MinimalIssueFieldValue `json:"issue_field_values,omitempty"`
 	FieldValues       []MinimalFieldValue      `json:"field_values,omitempty"`
+
+	// Hierarchy relationship signals. HasParent and HasChildren are populated when
+	// hierarchy enrichment succeeds; SubIssuesSummary is populated when children exist,
+	// and Parent when a parent exists and may be surfaced (under lockdown an unverified
+	// parent reference is omitted while HasParent stays true).
+	HasParent        *bool                    `json:"has_parent,omitempty"`
+	HasChildren      *bool                    `json:"has_children,omitempty"`
+	Parent           *MinimalIssueRef         `json:"parent,omitempty"`
+	SubIssuesSummary *MinimalSubIssuesSummary `json:"sub_issues_summary,omitempty"`
+}
+
+// MinimalIssueRef is a compact reference to a related issue (e.g. a parent issue).
+// Its keys mirror the get_parent (GetIssueParent) response shape.
+type MinimalIssueRef struct {
+	Number     int    `json:"number"`
+	Title      string `json:"title"`
+	State      string `json:"state"`
+	URL        string `json:"url"`
+	Repository string `json:"repository,omitempty"`
+}
+
+// MinimalSubIssuesSummary holds the native GraphQL subIssuesSummary counts for an issue.
+type MinimalSubIssuesSummary struct {
+	Total            int `json:"total"`
+	Completed        int `json:"completed"`
+	PercentCompleted int `json:"percent_completed"`
 }
 
 // MinimalIssuesResponse is the trimmed output for a paginated list of issues.

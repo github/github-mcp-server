@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v89/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -1294,8 +1294,35 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 		})
 }
 
-// ListPullRequests creates a tool to list and filter repository pull requests.
+// ListPullRequests creates a tool to list pull requests in a GitHub repository.
+// It is the FeatureFlagFieldsParam-enabled variant: it advertises the optional
+// `fields` parameter and filters each pull request to the requested subset. Both
+// this and LegacyListPullRequests register under the tool name
+// "list_pull_requests"; exactly one is active for any given request thanks to
+// mutually exclusive FeatureFlagEnable / FeatureFlagDisable annotations.
 func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := listPullRequestsTool(t, true)
+	st.FeatureFlagEnable = FeatureFlagFieldsParam
+	return st
+}
+
+// LegacyListPullRequests is the FeatureFlagFieldsParam-disabled variant of
+// list_pull_requests. It exposes the original schema (no `fields` parameter) and
+// never filters results, so it acts as the kill switch when the flag is off. It
+// owns the canonical list_pull_requests.snap; the flag-enabled variant owns
+// list_pull_requests_ff_<flag>.snap. Delete this function when the flag is
+// removed.
+func LegacyListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := listPullRequestsTool(t, false)
+	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
+	return st
+}
+
+// listPullRequestsTool builds the list_pull_requests tool. When includeFields is
+// true the tool advertises the optional `fields` parameter, filters each pull
+// request to the requested subset, and emits fields telemetry. When false it is
+// the original tool with no fields parameter and no filtering.
+func listPullRequestsTool(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1332,6 +1359,12 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			},
 		},
 		Required: []string{"owner", "repo"},
+	}
+	if includeFields {
+		schema.Properties["fields"] = fieldsSchemaProperty(
+			"Subset of fields to return for each pull request. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' in particular drops the largest per-result data.",
+			listPullRequestsItemFieldEnum,
+		)
 	}
 	WithPagination(schema)
 
@@ -1375,6 +1408,13 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			direction, err := OptionalParam[string](args, "direction")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			var fields []string
+			if includeFields {
+				fields, err = OptionalStringArrayParam(args, "fields")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
@@ -1435,9 +1475,24 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				}
 			}
 
-			r, err := json.Marshal(minimalPRs)
+			filtered := false
+			var payload any = minimalPRs
+			if includeFields && len(fields) > 0 {
+				filteredPRs, err := filterEachField(minimalPRs, fields)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to filter pull requests", err), nil, nil
+				}
+				payload = filteredPRs
+				filtered = true
+			}
+
+			r, err := json.Marshal(payload)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+
+			if includeFields {
+				recordFieldsUsageFor(ctx, deps, "list_pull_requests", minimalPRs, filtered, len(r))
 			}
 
 			result := utils.NewToolResultText(string(r))
@@ -1557,8 +1612,35 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 		})
 }
 
-// SearchPullRequests creates a tool to search for pull requests.
+// SearchPullRequests creates a tool to search for pull requests. It is the
+// FeatureFlagFieldsParam-enabled variant: it advertises the optional `fields`
+// parameter and filters each result to the requested subset. Both this and
+// LegacySearchPullRequests register under the tool name "search_pull_requests";
+// exactly one is active for any given request thanks to mutually exclusive
+// FeatureFlagEnable / FeatureFlagDisable annotations.
 func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := searchPullRequestsTool(t, true)
+	st.FeatureFlagEnable = FeatureFlagFieldsParam
+	return st
+}
+
+// LegacySearchPullRequests is the FeatureFlagFieldsParam-disabled variant of
+// search_pull_requests. It exposes the original schema (no `fields` parameter)
+// and never filters results, so it acts as the kill switch when the flag is off.
+// It owns the canonical search_pull_requests.snap; the flag-enabled variant owns
+// search_pull_requests_ff_<flag>.snap. Delete this function when the flag is
+// removed.
+func LegacySearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := searchPullRequestsTool(t, false)
+	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
+	return st
+}
+
+// searchPullRequestsTool builds the search_pull_requests tool. When
+// includeFields is true the tool advertises the optional `fields` parameter,
+// filters each result to the requested subset, and emits fields telemetry. When
+// false it is the original tool with no fields parameter and no filtering.
+func searchPullRequestsTool(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1599,6 +1681,12 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 		},
 		Required: []string{"query"},
 	}
+	if includeFields {
+		schema.Properties["fields"] = fieldsSchemaProperty(
+			"Subset of fields to return for each pull request result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data.",
+			searchPullRequestsItemFieldEnum,
+		)
+	}
 	WithPagination(schema)
 
 	return NewTool(
@@ -1614,7 +1702,15 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			result, err := searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests", ifcSearchPostProcessOption(ctx, deps))
+			options := []searchOption{ifcSearchPostProcessOption(ctx, deps)}
+			if includeFields {
+				fields, err := OptionalStringArrayParam(args, "fields")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				options = append(options, withFieldsFiltering(deps, "search_pull_requests", fields))
+			}
+			result, err := searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests", options...)
 			return result, nil, err
 		})
 }

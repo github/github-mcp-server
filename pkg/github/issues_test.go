@@ -18,7 +18,7 @@ import (
 	transportpkg "github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v89/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -47,6 +47,18 @@ func newRepoAccessHTTPClient() *http.Client {
 	}
 
 	return &http.Client{Transport: &repoAccessMockTransport{responses: responses}}
+}
+
+const issueReadEnrichmentQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}},parent{number,title,state,url,author{login},repository{nameWithOwner}},subIssuesSummary{total,completed,percentCompleted}}}}"
+
+// newIssueReadEnrichmentMatcher builds a matcher for the issue_read `get` enrichment query for a
+// single issue node ID.
+func newIssueReadEnrichmentMatcher(nodeID string, response githubv4mock.GQLResponse) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		issueReadEnrichmentQueryString,
+		map[string]any{"ids": []any{nodeID}},
+		response,
+	)
 }
 
 func (rt *repoAccessMockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -495,9 +507,6 @@ func Test_GetIssue_FieldValues_Enriched(t *testing.T) {
 		GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssueWithFields),
 	})
 
-	gqlVars := map[string]any{
-		"ids": []any{"I_node_99"},
-	}
 	gqlResponse := githubv4mock.DataResponse(map[string]any{
 		"nodes": []map[string]any{
 			{
@@ -516,12 +525,13 @@ func Test_GetIssue_FieldValues_Enriched(t *testing.T) {
 						},
 					},
 				},
+				"parent":           nil,
+				"subIssuesSummary": map[string]any{"total": 0, "completed": 0, "percentCompleted": 0},
 			},
 		},
 	})
 
-	const nodesQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}}}}"
-	matcher := githubv4mock.NewQueryMatcher(nodesQueryString, gqlVars, gqlResponse)
+	matcher := newIssueReadEnrichmentMatcher("I_node_99", gqlResponse)
 	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
 
 	cache := stubRepoAccessCache(nil, 15*time.Minute)
@@ -558,13 +568,255 @@ func Test_GetIssue_FieldValues_Enriched(t *testing.T) {
 	assert.Equal(t, "P1", returnedIssue.FieldValues[0].Value)
 	assert.Equal(t, "estimate", returnedIssue.FieldValues[1].Field)
 	assert.Equal(t, "2.5", returnedIssue.FieldValues[1].Value)
+
+	// With no parent and no sub-issues, the routing booleans are explicit false and the
+	// optional relationship payloads are omitted.
+	assert.Equal(t, github.Ptr(false), returnedIssue.HasParent, "has_parent should be false without a parent")
+	assert.Equal(t, github.Ptr(false), returnedIssue.HasChildren, "has_children should be false without sub-issues")
+	assert.Nil(t, returnedIssue.Parent, "parent should be omitted when there is no parent")
+	assert.Nil(t, returnedIssue.SubIssuesSummary, "sub_issues_summary should be omitted with no sub-issues")
+}
+
+func Test_GetIssue_HierarchyEnrichment(t *testing.T) {
+	mockIssue := &github.Issue{
+		Number:  github.Ptr(2990),
+		NodeID:  github.Ptr("I_node_2990"),
+		Title:   github.Ptr("Child issue"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/2990"),
+		User:    &github.User{Login: github.Ptr("author")},
+	}
+
+	parentNode := map[string]any{
+		"number": 2820,
+		"title":  "Parent issue",
+		"state":  "OPEN",
+		"url":    "https://github.com/owner/repo/issues/2820",
+		"author": map[string]any{"login": "parentauthor"},
+		"repository": map[string]any{
+			"nameWithOwner": "owner/repo",
+		},
+	}
+
+	tests := []struct {
+		name           string
+		parent         any
+		summary        map[string]any
+		lockdown       bool
+		assertResponse func(t *testing.T, issue MinimalIssue)
+	}{
+		{
+			name:    "parent and children present",
+			parent:  parentNode,
+			summary: map[string]any{"total": 4, "completed": 1, "percentCompleted": 25},
+			assertResponse: func(t *testing.T, issue MinimalIssue) {
+				assert.Equal(t, github.Ptr(true), issue.HasParent)
+				assert.Equal(t, github.Ptr(true), issue.HasChildren)
+				require.NotNil(t, issue.Parent)
+				assert.Equal(t, 2820, issue.Parent.Number)
+				assert.Equal(t, "Parent issue", issue.Parent.Title)
+				assert.Equal(t, "OPEN", issue.Parent.State)
+				assert.Equal(t, "owner/repo", issue.Parent.Repository)
+				require.NotNil(t, issue.SubIssuesSummary)
+				assert.Equal(t, 4, issue.SubIssuesSummary.Total)
+				assert.Equal(t, 1, issue.SubIssuesSummary.Completed)
+				assert.Equal(t, 25, issue.SubIssuesSummary.PercentCompleted)
+			},
+		},
+		{
+			name:    "no parent omits parent and sets has_parent false",
+			parent:  nil,
+			summary: map[string]any{"total": 0, "completed": 0, "percentCompleted": 0},
+			assertResponse: func(t *testing.T, issue MinimalIssue) {
+				assert.Equal(t, github.Ptr(false), issue.HasParent)
+				assert.Nil(t, issue.Parent)
+			},
+		},
+		{
+			name:    "has_children is false when total is zero even with completed nonzero",
+			parent:  nil,
+			summary: map[string]any{"total": 0, "completed": 1, "percentCompleted": 0},
+			assertResponse: func(t *testing.T, issue MinimalIssue) {
+				assert.Equal(t, github.Ptr(false), issue.HasChildren)
+				assert.Nil(t, issue.SubIssuesSummary)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
+			})
+
+			gqlResponse := githubv4mock.DataResponse(map[string]any{
+				"nodes": []map[string]any{
+					{
+						"id":               "I_node_2990",
+						"issueFieldValues": map[string]any{"nodes": []map[string]any{}},
+						"parent":           tc.parent,
+						"subIssuesSummary": tc.summary,
+					},
+				},
+			})
+			matcher := newIssueReadEnrichmentMatcher("I_node_2990", gqlResponse)
+			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+
+			deps := BaseDeps{
+				Client:          mustNewGHClient(t, restClient),
+				GQLClient:       gqlClient,
+				RepoAccessCache: stubRepoAccessCache(nil, 15*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdown}),
+			}
+			serverTool := IssueRead(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(map[string]any{
+				"method":       "get",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(2990),
+			})
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.False(t, result.IsError, "expected result to not be an error")
+
+			var returnedIssue MinimalIssue
+			require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returnedIssue))
+			tc.assertResponse(t, returnedIssue)
+		})
+	}
+}
+
+func Test_GetIssue_HierarchyEnrichment_Lockdown(t *testing.T) {
+	mockIssue := &github.Issue{
+		Number:  github.Ptr(2990),
+		NodeID:  github.Ptr("I_node_2990"),
+		Title:   github.Ptr("Child issue"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/2990"),
+		User:    &github.User{Login: github.Ptr("author")},
+	}
+
+	parentNode := map[string]any{
+		"number": 2820,
+		"title":  "Sensitive parent title",
+		"state":  "OPEN",
+		"url":    "https://github.com/owner/repo/issues/2820",
+		"author": map[string]any{"login": "parentauthor"},
+		"repository": map[string]any{
+			"nameWithOwner": "owner/repo",
+		},
+	}
+
+	// In lockdown mode the issue's own author must be verified as safe (mirrors the existing
+	// REST lockdown gate). The repo-access cache performs push-access checks against its own
+	// REST client: the issue author ("author") has write access, while the parent author
+	// ("parentauthor") only has read access and so cannot be verified as safe. The parent
+	// reference is therefore omitted entirely, while has_parent stays true so an agent can
+	// still route to get_parent.
+	restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
+	})
+	permClient := mockRESTPermissionServer(t, "read", map[string]string{"author": "write"})
+
+	gqlResponse := githubv4mock.DataResponse(map[string]any{
+		"nodes": []map[string]any{
+			{
+				"id":               "I_node_2990",
+				"issueFieldValues": map[string]any{"nodes": []map[string]any{}},
+				"parent":           parentNode,
+				"subIssuesSummary": map[string]any{"total": 0, "completed": 0, "percentCompleted": 0},
+			},
+		},
+	})
+	matcher := newIssueReadEnrichmentMatcher("I_node_2990", gqlResponse)
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+
+	deps := BaseDeps{
+		Client:          mustNewGHClient(t, restClient),
+		GQLClient:       gqlClient,
+		RepoAccessCache: stubRepoAccessCache(permClient, 15*time.Minute),
+		Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": true}),
+	}
+	serverTool := IssueRead(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":       "get",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(2990),
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.IsError, "expected result to not be an error")
+
+	var returnedIssue MinimalIssue
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returnedIssue))
+
+	require.Nil(t, returnedIssue.Parent, "parent reference should be omitted under lockdown when it cannot be verified safe")
+	assert.Equal(t, github.Ptr(true), returnedIssue.HasParent, "has_parent should still be true so agents can route to get_parent")
+}
+
+func Test_GetIssue_HierarchyEnrichment_QueryFailureReturnsBaseIssue(t *testing.T) {
+	mockIssue := &github.Issue{
+		Number:  github.Ptr(2990),
+		NodeID:  github.Ptr("I_node_2990"),
+		Title:   github.Ptr("Child issue"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/2990"),
+		User:    &github.User{Login: github.Ptr("author")},
+	}
+
+	restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
+	})
+
+	matcher := newIssueReadEnrichmentMatcher("I_node_2990", githubv4mock.ErrorResponse("enrichment failed"))
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+
+	deps := BaseDeps{
+		Client:          mustNewGHClient(t, restClient),
+		GQLClient:       gqlClient,
+		RepoAccessCache: stubRepoAccessCache(nil, 15*time.Minute),
+		Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+	}
+	serverTool := IssueRead(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":       "get",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(2990),
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	// Relationship enrichment must never fail `get`: the base issue is still returned.
+	require.False(t, result.IsError, "enrichment failure should not fail get")
+
+	var returnedIssue MinimalIssue
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returnedIssue))
+	assert.Equal(t, 2990, returnedIssue.Number)
+	assert.Nil(t, returnedIssue.HasParent)
+	assert.Nil(t, returnedIssue.HasChildren)
+	assert.Nil(t, returnedIssue.Parent)
+	assert.Nil(t, returnedIssue.SubIssuesSummary)
 }
 
 func Test_SearchIssues(t *testing.T) {
 	// Verify tool definition once
 	serverTool := SearchIssues(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	// SearchIssues is the FeatureFlagFieldsParam-enabled variant; it owns the
+	// _ff_<flag> snapshot. The canonical search_issues.snap is owned by
+	// LegacySearchIssues (see Test_LegacySearchIssues_Definition).
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
+	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "search_issues", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -575,6 +827,7 @@ func Test_SearchIssues(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "order")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "perPage")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "page")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "fields")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"query"})
 
 	// Setup mock search results
@@ -1644,8 +1897,11 @@ func Test_ListIssues(t *testing.T) {
 	// Verify tool definition
 	serverTool := ListIssues(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Empty(t, serverTool.FeatureFlagEnable)
+	// ListIssues is the FeatureFlagFieldsParam-enabled variant; it owns the
+	// _ff_<flag> snapshot. The canonical list_issues.snap is owned by
+	// LegacyListIssues (see Test_LegacyListIssues_Definition).
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
+	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "list_issues", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -1658,6 +1914,7 @@ func Test_ListIssues(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "since")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "after")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "perPage")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "fields")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo"})
 
 	// Mock issues data
@@ -3529,10 +3786,13 @@ func Test_GetIssueParent(t *testing.T) {
 		Repository struct {
 			Issue struct {
 				Parent *struct {
-					Number     githubv4.Int
-					Title      githubv4.String
-					State      githubv4.String
-					URL        githubv4.String
+					Number githubv4.Int
+					Title  githubv4.String
+					State  githubv4.String
+					URL    githubv4.String
+					Author struct {
+						Login githubv4.String
+					}
 					Repository struct {
 						NameWithOwner githubv4.String
 					}
@@ -3547,9 +3807,32 @@ func Test_GetIssueParent(t *testing.T) {
 		"issueNumber": githubv4.Int(123),
 	}
 
+	parentResponse := func(authorLogin string) githubv4mock.GQLResponse {
+		return githubv4mock.DataResponse(map[string]any{
+			"repository": map[string]any{
+				"issue": map[string]any{
+					"parent": map[string]any{
+						"number": githubv4.Int(42),
+						"title":  githubv4.String("Parent\u202e issue"),
+						"state":  githubv4.String("OPEN"),
+						"url":    githubv4.String("https://github.com/owner/repo/issues/42"),
+						"author": map[string]any{
+							"login": githubv4.String(authorLogin),
+						},
+						"repository": map[string]any{
+							"nameWithOwner": githubv4.String("owner/repo"),
+						},
+					},
+				},
+			},
+		})
+	}
+
 	tests := []struct {
 		name            string
 		mockedClient    *http.Client
+		lockdownEnabled bool
+		restOverrides   map[string]string
 		expectToolError bool
 		expectedText    string
 	}{
@@ -3559,24 +3842,10 @@ func Test_GetIssueParent(t *testing.T) {
 				githubv4mock.NewQueryMatcher(
 					parentMatcherStruct,
 					vars,
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"issue": map[string]any{
-								"parent": map[string]any{
-									"number": githubv4.Int(42),
-									"title":  githubv4.String("Parent issue"),
-									"state":  githubv4.String("OPEN"),
-									"url":    githubv4.String("https://github.com/owner/repo/issues/42"),
-									"repository": map[string]any{
-										"nameWithOwner": githubv4.String("owner/repo"),
-									},
-								},
-							},
-						},
-					}),
+					parentResponse("author"),
 				),
 			),
-			expectedText: `"number":42`,
+			expectedText: `"title":"Parent issue"`,
 		},
 		{
 			name: "issue has no parent",
@@ -3606,17 +3875,48 @@ func Test_GetIssueParent(t *testing.T) {
 			),
 			expectToolError: true,
 		},
+		{
+			name: "lockdown enabled - parent author has push access",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					parentMatcherStruct,
+					vars,
+					parentResponse("maintainer"),
+				),
+			),
+			lockdownEnabled: true,
+			restOverrides:   map[string]string{"maintainer": "write"},
+			expectedText:    `"title":"Parent issue"`,
+		},
+		{
+			name: "lockdown enabled - parent author lacks push access",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					parentMatcherStruct,
+					vars,
+					parentResponse("externaluser"),
+				),
+			),
+			lockdownEnabled: true,
+			restOverrides:   map[string]string{"externaluser": "read"},
+			expectedText:    `"parent":null`,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			gqlClient := githubv4.NewClient(tc.mockedClient)
 			client := mustNewGHClient(t, nil)
+
+			var restClient *github.Client
+			if tc.lockdownEnabled {
+				restClient = mockRESTPermissionServer(t, "read", tc.restOverrides)
+			}
 			deps := BaseDeps{
 				Client:          client,
 				GQLClient:       gqlClient,
-				RepoAccessCache: stubRepoAccessCache(nil, 15*time.Minute),
-				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+				RepoAccessCache: stubRepoAccessCache(restClient, 15*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled}),
 			}
 			handler := serverTool.Handler(deps)
 
