@@ -2132,6 +2132,85 @@ func Test_GetPullRequestStatusChecks(t *testing.T) {
 	}
 }
 
+func Test_GetPullRequestStatusChecks_Pagination(t *testing.T) {
+	mockPR := &github.PullRequest{
+		Number: github.Ptr(42),
+		Head:   &github.PullRequestBranch{SHA: github.Ptr("abcd1234")},
+	}
+
+	// Combined status served across two pages.
+	statusPages := map[string]*github.CombinedStatus{
+		"": {
+			State:    github.Ptr("pending"),
+			Statuses: []*github.RepoStatus{{State: github.Ptr("success"), Context: github.Ptr("ci/one")}},
+		},
+		"2": {
+			State:    github.Ptr("pending"),
+			Statuses: []*github.RepoStatus{{State: github.Ptr("pending"), Context: github.Ptr("ci/two")}},
+		},
+	}
+	// Check runs served across two pages.
+	checkPages := map[string]*github.ListCheckRunsResults{
+		"":  {Total: github.Ptr(2), CheckRuns: []*github.CheckRun{{Name: github.Ptr("build")}}},
+		"2": {Total: github.Ptr(2), CheckRuns: []*github.CheckRun{{Name: github.Ptr("test")}}},
+	}
+
+	// paginatedHandler returns page 1 with a Link rel="next" header pointing at
+	// page 2, and page 2 without a Link header, mirroring the GitHub REST API.
+	paginatedHandler := func(pages map[string]any) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			page := r.URL.Query().Get("page")
+			if page == "" {
+				next := *r.URL
+				q := next.Query()
+				q.Set("page", "2")
+				next.RawQuery = q.Encode()
+				w.Header().Set("Link", "<https://api.github.com"+next.RequestURI()+">; rel=\"next\"")
+			}
+			w.WriteHeader(http.StatusOK)
+			b, _ := json.Marshal(pages[page])
+			_, _ = w.Write(b)
+		}
+	}
+
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+		GetReposCommitsStatusByOwnerByRepoByRef: paginatedHandler(map[string]any{
+			"": statusPages[""], "2": statusPages["2"],
+		}),
+		GetReposCommitsCheckRunsByOwnerByRepoByRef: paginatedHandler(map[string]any{
+			"": checkPages[""], "2": checkPages["2"],
+		}),
+	}))
+
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	deps := BaseDeps{
+		Client:          client,
+		RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
+		Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":     "get_status_checks",
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(42),
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	var returned MinimalStatusChecks
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returned))
+
+	// Both pages of statuses and check runs must be aggregated.
+	require.Len(t, returned.Statuses, 2)
+	require.Len(t, returned.CheckRuns, 2)
+	assert.Equal(t, 4, returned.TotalCount)
+	assert.Equal(t, "pending", returned.CombinedState)
+}
+
 func Test_UpdatePullRequestBranch(t *testing.T) {
 	// Verify tool definition once
 	serverTool := UpdatePullRequestBranch(translations.NullTranslationHelper)

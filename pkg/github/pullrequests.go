@@ -388,11 +388,12 @@ func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, 
 	return utils.NewToolResultText(string(r)), nil
 }
 
-func GetPullRequestReviewers(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
-	reviewers, resp, err := client.PullRequests.ListReviewers(ctx, owner, repo, pullNumber)
-	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get pull request reviewers", resp, err), nil
-	}
+// closeStatusResponse closes the response body and, for any non-200 status,
+// returns a tool error result. It returns (nil, nil) when the response is OK so
+// the caller can proceed. Closing the body synchronously here (rather than via a
+// deferred closure over a reused resp variable) avoids leaking earlier response
+// bodies when several API calls are made in sequence.
+func closeStatusResponse(ctx context.Context, resp *github.Response, message string) (*mcp.CallToolResult, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
@@ -400,7 +401,19 @@ func GetPullRequestReviewers(ctx context.Context, client *github.Client, owner, 
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request reviewers", resp, body), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, message, resp, body), nil
+	}
+
+	return nil, nil
+}
+
+func GetPullRequestReviewers(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+	reviewers, resp, err := client.PullRequests.ListReviewers(ctx, owner, repo, pullNumber)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get pull request reviewers", resp, err), nil
+	}
+	if errResult, err := closeStatusResponse(ctx, resp, "failed to get pull request reviewers"); err != nil || errResult != nil {
+		return errResult, err
 	}
 
 	result := MinimalPRReviewers{}
@@ -431,62 +444,65 @@ func GetPullRequestStatusChecks(ctx context.Context, client *github.Client, owne
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get pull request", resp, err), nil
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
-		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
+	if errResult, err := closeStatusResponse(ctx, resp, "failed to get pull request"); err != nil || errResult != nil {
+		return errResult, err
 	}
 
 	sha := pr.GetHead().GetSHA()
 
-	combinedStatus, resp, err := client.Repositories.GetCombinedStatus(ctx, owner, repo, sha, nil)
-	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get combined status", resp, err), nil
-	}
-	defer func() { _ = resp.Body.Close() }()
+	result := MinimalStatusChecks{}
 
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
+	// Page through the combined commit statuses so the unified view is complete
+	// rather than limited to the first page.
+	statusOpts := &github.ListOptions{PerPage: 100}
+	for {
+		combinedStatus, resp, err := client.Repositories.GetCombinedStatus(ctx, owner, repo, sha, statusOpts)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get combined status", resp, err), nil
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get combined status", resp, body), nil
+		if errResult, err := closeStatusResponse(ctx, resp, "failed to get combined status"); err != nil || errResult != nil {
+			return errResult, err
+		}
+
+		// The combined state is identical across pages; capture it once.
+		if result.CombinedState == "" {
+			result.CombinedState = combinedStatus.GetState()
+		}
+
+		for _, s := range combinedStatus.Statuses {
+			result.Statuses = append(result.Statuses, MinimalCommitStatus{
+				State:       s.GetState(),
+				Context:     s.GetContext(),
+				Description: s.GetDescription(),
+				TargetURL:   s.GetTargetURL(),
+			})
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+		statusOpts.Page = resp.NextPage
 	}
 
-	checkRuns, resp, err := client.Checks.ListCheckRunsForRef(ctx, owner, repo, sha, nil)
-	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get check runs", resp, err), nil
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
+	// Page through the check runs for the same reason.
+	checkOpts := &github.ListCheckRunsOptions{ListOptions: github.ListOptions{PerPage: 100}}
+	for {
+		checkRuns, resp, err := client.Checks.ListCheckRunsForRef(ctx, owner, repo, sha, checkOpts)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get check runs", resp, err), nil
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get check runs", resp, body), nil
-	}
-
-	result := MinimalStatusChecks{
-		CombinedState: combinedStatus.GetState(),
-	}
-
-	for _, s := range combinedStatus.Statuses {
-		ms := MinimalCommitStatus{
-			State:       s.GetState(),
-			Context:     s.GetContext(),
-			Description: s.GetDescription(),
-			TargetURL:   s.GetTargetURL(),
+		if errResult, err := closeStatusResponse(ctx, resp, "failed to get check runs"); err != nil || errResult != nil {
+			return errResult, err
 		}
-		result.Statuses = append(result.Statuses, ms)
-	}
 
-	for _, cr := range checkRuns.CheckRuns {
-		result.CheckRuns = append(result.CheckRuns, convertToMinimalCheckRun(cr))
+		for _, cr := range checkRuns.CheckRuns {
+			result.CheckRuns = append(result.CheckRuns, convertToMinimalCheckRun(cr))
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+		checkOpts.Page = resp.NextPage
 	}
 
 	result.TotalCount = len(result.Statuses) + len(result.CheckRuns)
