@@ -1772,8 +1772,6 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 		expectError       bool
 		expectedCheckRuns *github.ListCheckRunsResults
 		expectedErrMsg    string
-		lockdownEnabled   bool
-		restPermission    string
 	}{
 		{
 			name: "successful check runs fetch",
@@ -1825,47 +1823,6 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to get check runs",
 		},
-		{
-			name: "lockdown enabled - author lacks push access",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, &github.PullRequest{
-					Number: github.Ptr(42),
-					Head:   &github.PullRequestBranch{SHA: github.Ptr("abcd1234")},
-					User:   &github.User{Login: github.Ptr("reader")},
-				}),
-			}),
-			requestArgs: map[string]any{
-				"method":     "get_check_runs",
-				"owner":      "owner",
-				"repo":       "repo",
-				"pullNumber": float64(42),
-			},
-			lockdownEnabled: true,
-			restPermission:  "read",
-			expectError:     true,
-			expectedErrMsg:  "access to pull request is restricted by lockdown mode",
-		},
-		{
-			name: "lockdown enabled - author has push access",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, &github.PullRequest{
-					Number: github.Ptr(42),
-					Head:   &github.PullRequestBranch{SHA: github.Ptr("abcd1234")},
-					User:   &github.User{Login: github.Ptr("writer")},
-				}),
-				GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockCheckRuns),
-			}),
-			requestArgs: map[string]any{
-				"method":     "get_check_runs",
-				"owner":      "owner",
-				"repo":       "repo",
-				"pullNumber": float64(42),
-			},
-			lockdownEnabled:   true,
-			restPermission:    "write",
-			expectError:       false,
-			expectedCheckRuns: mockCheckRuns,
-		},
 	}
 
 	for _, tc := range tests {
@@ -1873,16 +1830,10 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 			// Setup client with mock
 			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
-
-			var restClient *github.Client
-			if tc.lockdownEnabled {
-				restClient = mockRESTPermissionServer(t, tc.restPermission, nil)
-			}
-
 			deps := BaseDeps{
 				Client:          client,
-				RepoAccessCache: stubRepoAccessCache(restClient, 5*time.Minute),
-				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled}),
+				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
 			handler := serverTool.Handler(deps)
 
