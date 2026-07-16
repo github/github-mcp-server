@@ -152,7 +152,7 @@ Possible options:
 				result, err := GetIssueComments(ctx, client, deps, owner, repo, pullNumber, pagination)
 				return attachIFC(result), nil, err
 			case "get_check_runs":
-				result, err := GetPullRequestCheckRuns(ctx, client, deps, owner, repo, pullNumber, pagination)
+				result, err := GetPullRequestCheckRuns(ctx, client, owner, repo, pullNumber, pagination)
 				return attachIFC(result), nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -315,7 +315,7 @@ func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, rep
 	return utils.NewToolResultText(string(r)), nil
 }
 
-func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
 	// First get the PR to get the head SHA
 	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
 	if err != nil {
@@ -333,16 +333,6 @@ func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, deps To
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
-	}
-
-	if deps.GetFlags(ctx).LockdownMode {
-		cache, err := deps.GetRepoAccessCache(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get repo access cache: %w", err)
-		}
-		if restricted, err := authorLockdownResult(ctx, cache, owner, repo, pr.GetUser().GetLogin(), lockdownPullRequestRestrictedMessage); restricted != nil || err != nil {
-			return restricted, err
-		}
 	}
 
 	// Get check runs for the head SHA
