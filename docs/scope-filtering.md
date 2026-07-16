@@ -89,7 +89,6 @@ A tool's declared scopes are **all required** (logical AND), and each one may be
 - **Organization roles.** A *security manager* (or similar) org role grants access orthogonally to OAuth scopes and is invisible to scope filtering.
 - **Other token types.** Fine-grained PATs, OAuth, and GitHub App tokens use different permission models; filtering is skipped for them entirely (gated to `ghp_`), which is fail-open by design.
 
-These cases are deferred to runtime API enforcement. If precise sibling-OR modeling is ever needed, the extension point is making the required scopes a list of OR-groups (AND across groups, OR within a group) — deliberately not built yet.
 
 ## Classic vs Fine-Grained Personal Access Tokens
 
