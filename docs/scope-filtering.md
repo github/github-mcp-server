@@ -84,7 +84,7 @@ Scope filtering is a **best-effort UX convenience** for classic PATs (`ghp_`) on
 
 A tool's declared scopes are **all required** (logical AND), and each one may be satisfied directly or by an ancestor scope from the [hierarchy](#scope-hierarchy). Some ways a tool can legitimately be used cannot be determined from OAuth scopes alone, so the scope model intentionally does not fully capture them:
 
-- **Public vs. private repositories.** Which scope suffices can depend on the target repository, which isn't known when tools are filtered. For example, code scanning alerts on **public** repos are readable with `public_repo`, while **private** repos need `security_events` (or `repo`).
+- **Public vs. private repositories.** Which scope suffices can depend on the target repository, which isn't known when tools are filtered. Public repos are readable with the implicit `public_repo` scope all tokens have, while **private** repos need `security_events` or `repo`.
 - **Sibling-OR alternatives.** `security_events` and `public_repo` are *siblings* under `repo` (not parent/child), so token hierarchy expansion can't treat one as satisfying the other. A `public_repo`-only token may therefore have the security tools (code scanning, secret scanning, Dependabot, security advisories) hidden even though it could read public-repo data.
 - **Organization roles.** A *security manager* (or similar) org role grants access orthogonally to OAuth scopes and is invisible to scope filtering.
 - **Other token types.** Fine-grained PATs, OAuth, and GitHub App tokens use different permission models; filtering is skipped for them entirely (gated to `ghp_`), which is fail-open by design.
