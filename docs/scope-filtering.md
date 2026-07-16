@@ -106,7 +106,7 @@ A tool's declared scopes are **all required** (logical AND), and each one may be
 |---------|-------|----------|
 | Missing expected tools | Token lacks required scope | [Edit your PAT's scopes](https://github.com/settings/tokens) in GitHub settings |
 | All tools visible despite limited PAT | Scope detection failed | Check logs for warnings about scope fetching |
-| "Insufficient permissions" errors | Tool visible but scope insufficient | Expected in some cases (fail-open, public/private ambiguity, org roles, or scope detection skipped). The API enforces the real boundary—grant the needed scope or access |
+| "Insufficient permissions" errors | Tool visible but scope insufficient | This shouldn't happen with scope filtering; report as bug |
 
 > **Tip:** You can adjust the scopes of an existing classic PAT at any time via [GitHub's token settings](https://github.com/settings/tokens). After updating scopes, restart the MCP server to pick up the changes.
 
