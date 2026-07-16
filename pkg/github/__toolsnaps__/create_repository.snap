@@ -1,5 +1,7 @@
 {
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Create repository"
   },
   "description": "Create a new GitHub repository in your account or specified organization",

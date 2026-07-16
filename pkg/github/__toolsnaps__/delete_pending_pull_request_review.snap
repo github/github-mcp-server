@@ -1,7 +1,9 @@
 {
   "annotations": {
     "destructiveHint": true,
+    "idempotentHint": false,
     "openWorldHint": true,
+    "readOnlyHint": false,
     "title": "Delete Pending Pull Request Review"
   },
   "description": "Delete a pending pull request review.",

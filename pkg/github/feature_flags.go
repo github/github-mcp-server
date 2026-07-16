@@ -16,6 +16,21 @@ const FeatureFlagIFCLabels = "ifc_labels"
 // is not advertised by default, keeping the tool surface small unless opted in.
 const FeatureFlagFileBlame = "file_blame"
 
+// FeatureFlagIssueDependencies is the feature flag name for the issue dependency
+// tools (issue_dependency_read / issue_dependency_write), which read and edit an
+// issue's blocked-by / blocking relationships. It is gated so these tools are not
+// advertised in the default surface, keeping the fixed tool-schema cost small
+// unless explicitly opted in.
+const FeatureFlagIssueDependencies = "issue_dependencies"
+
+// FeatureFlagFieldsParam is the feature flag name for the optional `fields`
+// parameter on selected read tools (for example search_code and
+// get_file_contents). When enabled, those tools advertise `fields` and filter
+// each result to the requested subset, reducing response size. It is gated so
+// the feature can be rolled out gradually and disabled as a kill switch without
+// a redeploy.
+const FeatureFlagFieldsParam = "fields_param"
+
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag or X-MCP-Features HTTP header.
 // Only flags in this list are accepted; unknown flags are silently ignored.
@@ -27,6 +42,8 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagIssuesGranular,
 	FeatureFlagPullRequestsGranular,
 	FeatureFlagFileBlame,
+	FeatureFlagIssueDependencies,
+	FeatureFlagFieldsParam,
 }
 
 // InsidersFeatureFlags is the list of feature flags that insiders mode enables.
@@ -37,6 +54,8 @@ var InsidersFeatureFlags = []string{
 	MCPAppsFeatureFlag,
 	FeatureFlagCSVOutput,
 	FeatureFlagFileBlame,
+	FeatureFlagIssueDependencies,
+	FeatureFlagFieldsParam,
 }
 
 // FeatureFlags defines runtime feature toggles that adjust tool behavior.

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v89/github"
 	"github.com/shurcooL/githubv4"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -182,8 +182,11 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		// Repository tools
 		SearchRepositories(t),
 		GetFileContents(t),
+		LegacyGetFileContents(t),
 		ListCommits(t),
+		LegacyListCommits(t),
 		SearchCode(t),
+		LegacySearchCode(t),
 		SearchCommits(t),
 		GetCommit(t),
 		GetFileBlame(t),
@@ -191,6 +194,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListTags(t),
 		GetTag(t),
 		ListReleases(t),
+		LegacyListReleases(t),
 		GetLatestRelease(t),
 		GetReleaseByTag(t),
 		CreateOrUpdateFile(t),
@@ -210,12 +214,16 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		// Issue tools
 		IssueRead(t),
 		SearchIssues(t),
+		LegacySearchIssues(t),
 		ListIssues(t),
+		LegacyListIssues(t),
 		ListIssueTypes(t),
 		ListIssueFields(t),
 		IssueWrite(t),
 		AddIssueComment(t),
 		SubIssueWrite(t),
+		IssueDependencyRead(t),
+		IssueDependencyWrite(t),
 
 		// User tools
 		SearchUsers(t),
@@ -226,7 +234,9 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		// Pull request tools
 		PullRequestRead(t),
 		ListPullRequests(t),
+		LegacyListPullRequests(t),
 		SearchPullRequests(t),
+		LegacySearchPullRequests(t),
 		MergePullRequest(t),
 		UpdatePullRequestBranch(t),
 		CreatePullRequest(t),
@@ -314,6 +324,8 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GranularRemoveSubIssue(t),
 		GranularReprioritizeSubIssue(t),
 		GranularSetIssueFields(t),
+		GranularAddIssueReaction(t),
+		GranularAddIssueCommentReaction(t),
 
 		// Granular pull request tools (feature-flagged, replace consolidated update_pull_request/pull_request_review_write)
 		GranularUpdatePullRequestTitle(t),
@@ -327,6 +339,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GranularAddPullRequestReviewComment(t),
 		GranularResolveReviewThread(t),
 		GranularUnresolveReviewThread(t),
+		GranularAddPullRequestReviewCommentReaction(t),
 	})
 }
 

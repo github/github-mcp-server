@@ -18,7 +18,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	gogithub "github.com/google/go-github/v87/github"
+	gogithub "github.com/google/go-github/v89/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
@@ -193,6 +193,9 @@ func (d BaseDeps) Logger(_ context.Context) *slog.Logger {
 
 // Metrics implements ToolDependencies.
 func (d BaseDeps) Metrics(ctx context.Context) metrics.Metrics {
+	if d.Obsv == nil {
+		return metrics.NewNoopMetrics()
+	}
 	return d.Obsv.Metrics(ctx)
 }
 
@@ -423,6 +426,9 @@ func (d *RequestDeps) Logger(_ context.Context) *slog.Logger {
 
 // Metrics implements ToolDependencies.
 func (d *RequestDeps) Metrics(ctx context.Context) metrics.Metrics {
+	if d.obsv == nil {
+		return metrics.NewNoopMetrics()
+	}
 	return d.obsv.Metrics(ctx)
 }
 

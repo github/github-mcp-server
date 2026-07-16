@@ -1,5 +1,7 @@
 {
   "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
     "title": "Manage repository notification subscription"
   },
   "description": "Manage a repository notification subscription: ignore, watch, or delete repository notifications subscription for the provided repository.",

@@ -15,7 +15,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v89/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -27,7 +27,11 @@ func Test_GetFileContents(t *testing.T) {
 	// Verify tool definition once
 	serverTool := GetFileContents(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	// GetFileContents is the FeatureFlagFieldsParam-enabled variant; it owns the
+	// _ff_<flag> snapshot. The canonical get_file_contents.snap is owned by
+	// LegacyGetFileContents (see Test_LegacyGetFileContents_Definition).
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
+	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -39,6 +43,7 @@ func Test_GetFileContents(t *testing.T) {
 	assert.Contains(t, schema.Properties, "path")
 	assert.Contains(t, schema.Properties, "ref")
 	assert.Contains(t, schema.Properties, "sha")
+	assert.Contains(t, schema.Properties, "fields")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	// Mock response for raw content
@@ -478,6 +483,134 @@ func Test_GetFileContents(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_GetFileContents_DirectoryFieldFiltering(t *testing.T) {
+	mockDirContent := []*github.RepositoryContent{
+		{
+			Type:        github.Ptr("file"),
+			Name:        github.Ptr("README.md"),
+			Path:        github.Ptr("README.md"),
+			SHA:         github.Ptr("abc123"),
+			Size:        github.Ptr(42),
+			URL:         github.Ptr("https://api.github.com/repos/owner/repo/contents/README.md"),
+			HTMLURL:     github.Ptr("https://github.com/owner/repo/blob/main/README.md"),
+			DownloadURL: github.Ptr("https://raw.githubusercontent.com/owner/repo/main/README.md"),
+		},
+		{
+			Type:    github.Ptr("dir"),
+			Name:    github.Ptr("src"),
+			Path:    github.Ptr("src"),
+			SHA:     github.Ptr("def456"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/tree/main/src"),
+		},
+	}
+
+	serverTool := GetFileContents(translations.NullTranslationHelper)
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
+		GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
+		GetReposContentsByOwnerByRepoByPath: expectQueryParams(t, map[string]string{}).andThen(
+			mockResponse(t, http.StatusOK, mockDirContent),
+		),
+		GetRawReposContentsByOwnerByRepoByPath: expectQueryParams(t, map[string]string{"branch": "main"}).andThen(
+			mockResponse(t, http.StatusNotFound, nil),
+		),
+	}))
+	deps := BaseDeps{Client: client}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":  "owner",
+		"repo":   "repo",
+		"path":   "src/",
+		"fields": []any{"name", "type"},
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+
+	// Each directory entry is reduced to the requested fields only; heavier
+	// fields such as html_url and download_url are dropped.
+	var returned []map[string]any
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &returned))
+	require.Len(t, returned, len(mockDirContent))
+	for _, entry := range returned {
+		require.Len(t, entry, 2)
+		assert.Contains(t, entry, "name")
+		assert.Contains(t, entry, "type")
+	}
+
+	assert.NotContains(t, textContent.Text, "html_url")
+	assert.NotContains(t, textContent.Text, "download_url")
+}
+
+func Test_LegacyGetFileContents_Definition(t *testing.T) {
+	serverTool := LegacyGetFileContents(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	// LegacyGetFileContents is the FeatureFlagFieldsParam-disabled variant and
+	// owns the canonical get_file_contents.snap (no `fields`).
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.Equal(t, []string{FeatureFlagFieldsParam}, serverTool.FeatureFlagDisable)
+
+	assert.Equal(t, "get_file_contents", tool.Name)
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.NotContains(t, schema.Properties, "fields")
+}
+
+func Test_GetFileContents_DirectoryFieldsTelemetry(t *testing.T) {
+	mockDirContent := []*github.RepositoryContent{
+		{
+			Type:        github.Ptr("file"),
+			Name:        github.Ptr("README.md"),
+			Path:        github.Ptr("README.md"),
+			SHA:         github.Ptr("abc123"),
+			Size:        github.Ptr(42),
+			URL:         github.Ptr("https://api.github.com/repos/owner/repo/contents/README.md"),
+			HTMLURL:     github.Ptr("https://github.com/owner/repo/blob/main/README.md"),
+			DownloadURL: github.Ptr("https://raw.githubusercontent.com/owner/repo/main/README.md"),
+		},
+	}
+
+	serverTool := GetFileContents(translations.NullTranslationHelper)
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
+		GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
+		GetReposContentsByOwnerByRepoByPath: expectQueryParams(t, map[string]string{}).andThen(
+			mockResponse(t, http.StatusOK, mockDirContent),
+		),
+		GetRawReposContentsByOwnerByRepoByPath: expectQueryParams(t, map[string]string{"branch": "main"}).andThen(
+			mockResponse(t, http.StatusNotFound, nil),
+		),
+	}))
+	deps, rec := depsWithRecordingMetrics(t, BaseDeps{Client: client})
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":  "owner",
+		"repo":   "repo",
+		"path":   "src/",
+		"fields": []any{"name", "type"},
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	call, ok := rec.increment(metricFieldsToolCall)
+	require.True(t, ok)
+	assert.Equal(t, "get_file_contents", call.tags["tool"])
+	assert.Equal(t, "true", call.tags["filtered"])
+
+	full, ok := rec.counter(metricFieldsBytesFull)
+	require.True(t, ok)
+	sent, ok := rec.counter(metricFieldsBytesSent)
+	require.True(t, ok)
+	assert.Greater(t, full.value, sent.value, "filtering should remove bytes")
 }
 
 func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
@@ -1269,7 +1402,11 @@ func Test_ListCommits(t *testing.T) {
 	// Verify tool definition once
 	serverTool := ListCommits(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	// ListCommits is the FeatureFlagFieldsParam-enabled variant; it owns the
+	// _ff_<flag> snapshot. The canonical list_commits.snap is owned by
+	// LegacyListCommits (see Test_LegacyListCommits_Definition).
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
+	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -1285,6 +1422,7 @@ func Test_ListCommits(t *testing.T) {
 	assert.Contains(t, schema.Properties, "until")
 	assert.Contains(t, schema.Properties, "page")
 	assert.Contains(t, schema.Properties, "perPage")
+	assert.Contains(t, schema.Properties, "fields")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	// Setup mock commits for success case
@@ -3506,7 +3644,11 @@ func Test_GetTag(t *testing.T) {
 func Test_ListReleases(t *testing.T) {
 	serverTool := ListReleases(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	// ListReleases is the FeatureFlagFieldsParam-enabled variant; it owns the
+	// _ff_<flag> snapshot. The canonical list_releases.snap is owned by
+	// LegacyListReleases (see Test_LegacyListReleases_Definition).
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
+	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -3515,17 +3657,18 @@ func Test_ListReleases(t *testing.T) {
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "fields")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	mockReleases := []*github.RepositoryRelease{
 		{
-			ID:      github.Ptr(int64(1)),
-			TagName: github.Ptr("v1.0.0"),
+			ID:      1,
+			TagName: "v1.0.0",
 			Name:    github.Ptr("First Release"),
 		},
 		{
-			ID:      github.Ptr(int64(2)),
-			TagName: github.Ptr("v0.9.0"),
+			ID:      2,
+			TagName: "v0.9.0",
 			Name:    github.Ptr("Beta Release"),
 		},
 	}
@@ -3596,7 +3739,7 @@ func Test_ListReleases(t *testing.T) {
 			require.NoError(t, err)
 			assert.Len(t, returnedReleases, len(tc.expectedResult))
 			for i := range returnedReleases {
-				assert.Equal(t, *tc.expectedResult[i].TagName, returnedReleases[i].TagName)
+				assert.Equal(t, tc.expectedResult[i].TagName, returnedReleases[i].TagName)
 			}
 		})
 	}
@@ -3617,8 +3760,8 @@ func Test_GetLatestRelease(t *testing.T) {
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	mockRelease := &github.RepositoryRelease{
-		ID:      github.Ptr(int64(1)),
-		TagName: github.Ptr("v1.0.0"),
+		ID:      1,
+		TagName: "v1.0.0",
 		Name:    github.Ptr("First Release"),
 	}
 
@@ -3686,7 +3829,7 @@ func Test_GetLatestRelease(t *testing.T) {
 			var returnedRelease github.RepositoryRelease
 			err = json.Unmarshal([]byte(textContent.Text), &returnedRelease)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedResult.TagName, *returnedRelease.TagName)
+			assert.Equal(t, tc.expectedResult.TagName, returnedRelease.TagName)
 		})
 	}
 }
@@ -3707,8 +3850,8 @@ func Test_GetReleaseByTag(t *testing.T) {
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "tag"})
 
 	mockRelease := &github.RepositoryRelease{
-		ID:      github.Ptr(int64(1)),
-		TagName: github.Ptr("v1.0.0"),
+		ID:      1,
+		TagName: "v1.0.0",
 		Name:    github.Ptr("Release v1.0.0"),
 		Body:    github.Ptr("This is the first stable release."),
 		Assets: []*github.ReleaseAsset{
@@ -3848,8 +3991,8 @@ func Test_GetReleaseByTag(t *testing.T) {
 			err = json.Unmarshal([]byte(textContent.Text), &returnedRelease)
 			require.NoError(t, err)
 
-			assert.Equal(t, *tc.expectedResult.ID, *returnedRelease.ID)
-			assert.Equal(t, *tc.expectedResult.TagName, *returnedRelease.TagName)
+			assert.Equal(t, tc.expectedResult.ID, returnedRelease.ID)
+			assert.Equal(t, tc.expectedResult.TagName, returnedRelease.TagName)
 			assert.Equal(t, *tc.expectedResult.Name, *returnedRelease.Name)
 			if tc.expectedResult.Body != nil {
 				assert.Equal(t, *tc.expectedResult.Body, *returnedRelease.Body)
@@ -3875,10 +4018,10 @@ func Test_GetReleaseByTag_IFC_FeatureFlag(t *testing.T) {
 
 	makeRelease := func(draft bool) *github.RepositoryRelease {
 		return &github.RepositoryRelease{
-			ID:      github.Ptr(int64(1)),
-			TagName: github.Ptr("v1.0.0"),
+			ID:      1,
+			TagName: "v1.0.0",
 			Name:    github.Ptr("v1.0.0"),
-			Draft:   github.Ptr(draft),
+			Draft:   draft,
 		}
 	}
 

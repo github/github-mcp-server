@@ -12,7 +12,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	gogithub "github.com/google/go-github/v87/github"
+	gogithub "github.com/google/go-github/v89/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -752,6 +752,88 @@ func GranularUnresolveReviewThread(t translations.TranslationHelperFunc) invento
 
 			result, err := ResolveReviewThread(ctx, gqlClient, threadID, false)
 			return result, nil, err
+		},
+	)
+	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	return st
+}
+
+// GranularAddPullRequestReviewCommentReaction adds a reaction to a pull request review comment.
+func GranularAddPullRequestReviewCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataPullRequests,
+		mcp.Tool{
+			Name:        "add_pull_request_review_comment_reaction",
+			Description: t("TOOL_ADD_PULL_REQUEST_REVIEW_COMMENT_REACTION_DESCRIPTION", "Add a reaction to a pull request review comment."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_ADD_PULL_REQUEST_REVIEW_COMMENT_REACTION_USER_TITLE", "Add Pull Request Review Comment Reaction"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"comment_id": {
+						Type:        "number",
+						Description: "The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"content": {
+						Type:        "string",
+						Description: "The emoji reaction type",
+						Enum:        []any{"+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes"},
+					},
+				},
+				Required: []string{"owner", "repo", "comment_id", "content"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			commentID, err := RequiredBigInt(args, "comment_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			content, err := RequiredParam[string](args, "content")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			reaction, resp, err := client.Reactions.CreatePullRequestCommentReaction(ctx, owner, repo, commentID, content)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reaction to pull request review comment", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			r, err := json.Marshal(MinimalResponse{
+				ID:  fmt.Sprintf("%d", reaction.GetID()),
+				URL: fmt.Sprintf("%srepos/%s/%s/pulls/comments/%d/reactions/%d", client.BaseURL(), owner, repo, commentID, reaction.GetID()),
+			})
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular

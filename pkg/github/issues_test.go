@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 	transportpkg "github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v89/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -46,6 +47,18 @@ func newRepoAccessHTTPClient() *http.Client {
 	}
 
 	return &http.Client{Transport: &repoAccessMockTransport{responses: responses}}
+}
+
+const issueReadEnrichmentQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}},parent{number,title,state,url,author{login},repository{nameWithOwner}},subIssuesSummary{total,completed,percentCompleted}}}}"
+
+// newIssueReadEnrichmentMatcher builds a matcher for the issue_read `get` enrichment query for a
+// single issue node ID.
+func newIssueReadEnrichmentMatcher(nodeID string, response githubv4mock.GQLResponse) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		issueReadEnrichmentQueryString,
+		map[string]any{"ids": []any{nodeID}},
+		response,
+	)
 }
 
 func (rt *repoAccessMockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -494,9 +507,6 @@ func Test_GetIssue_FieldValues_Enriched(t *testing.T) {
 		GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssueWithFields),
 	})
 
-	gqlVars := map[string]any{
-		"ids": []any{"I_node_99"},
-	}
 	gqlResponse := githubv4mock.DataResponse(map[string]any{
 		"nodes": []map[string]any{
 			{
@@ -515,12 +525,13 @@ func Test_GetIssue_FieldValues_Enriched(t *testing.T) {
 						},
 					},
 				},
+				"parent":           nil,
+				"subIssuesSummary": map[string]any{"total": 0, "completed": 0, "percentCompleted": 0},
 			},
 		},
 	})
 
-	const nodesQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}}}}"
-	matcher := githubv4mock.NewQueryMatcher(nodesQueryString, gqlVars, gqlResponse)
+	matcher := newIssueReadEnrichmentMatcher("I_node_99", gqlResponse)
 	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
 
 	cache := stubRepoAccessCache(nil, 15*time.Minute)
@@ -557,123 +568,255 @@ func Test_GetIssue_FieldValues_Enriched(t *testing.T) {
 	assert.Equal(t, "P1", returnedIssue.FieldValues[0].Value)
 	assert.Equal(t, "estimate", returnedIssue.FieldValues[1].Field)
 	assert.Equal(t, "2.5", returnedIssue.FieldValues[1].Value)
+
+	// With no parent and no sub-issues, the routing booleans are explicit false and the
+	// optional relationship payloads are omitted.
+	assert.Equal(t, github.Ptr(false), returnedIssue.HasParent, "has_parent should be false without a parent")
+	assert.Equal(t, github.Ptr(false), returnedIssue.HasChildren, "has_children should be false without sub-issues")
+	assert.Nil(t, returnedIssue.Parent, "parent should be omitted when there is no parent")
+	assert.Nil(t, returnedIssue.SubIssuesSummary, "sub_issues_summary should be omitted with no sub-issues")
 }
 
-func Test_AddIssueComment(t *testing.T) {
-	// Verify tool definition once
-	serverTool := AddIssueComment(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+func Test_GetIssue_HierarchyEnrichment(t *testing.T) {
+	mockIssue := &github.Issue{
+		Number:  github.Ptr(2990),
+		NodeID:  github.Ptr("I_node_2990"),
+		Title:   github.Ptr("Child issue"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/2990"),
+		User:    &github.User{Login: github.Ptr("author")},
+	}
 
-	assert.Equal(t, "add_issue_comment", tool.Name)
-	assert.NotEmpty(t, tool.Description)
-
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "body")
-	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "issue_number", "body"})
-
-	// Setup mock comment for success case
-	mockComment := &github.IssueComment{
-		ID:   github.Ptr(int64(123)),
-		Body: github.Ptr("This is a test comment"),
-		User: &github.User{
-			Login: github.Ptr("testuser"),
+	parentNode := map[string]any{
+		"number": 2820,
+		"title":  "Parent issue",
+		"state":  "OPEN",
+		"url":    "https://github.com/owner/repo/issues/2820",
+		"author": map[string]any{"login": "parentauthor"},
+		"repository": map[string]any{
+			"nameWithOwner": "owner/repo",
 		},
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42#issuecomment-123"),
 	}
 
 	tests := []struct {
-		name            string
-		mockedClient    *http.Client
-		requestArgs     map[string]any
-		expectError     bool
-		expectedComment *github.IssueComment
-		expectedErrMsg  string
+		name           string
+		parent         any
+		summary        map[string]any
+		lockdown       bool
+		assertResponse func(t *testing.T, issue MinimalIssue)
 	}{
 		{
-			name: "successful comment creation",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockComment),
-			}),
-			requestArgs: map[string]any{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(42),
-				"body":         "This is a test comment",
+			name:    "parent and children present",
+			parent:  parentNode,
+			summary: map[string]any{"total": 4, "completed": 1, "percentCompleted": 25},
+			assertResponse: func(t *testing.T, issue MinimalIssue) {
+				assert.Equal(t, github.Ptr(true), issue.HasParent)
+				assert.Equal(t, github.Ptr(true), issue.HasChildren)
+				require.NotNil(t, issue.Parent)
+				assert.Equal(t, 2820, issue.Parent.Number)
+				assert.Equal(t, "Parent issue", issue.Parent.Title)
+				assert.Equal(t, "OPEN", issue.Parent.State)
+				assert.Equal(t, "owner/repo", issue.Parent.Repository)
+				require.NotNil(t, issue.SubIssuesSummary)
+				assert.Equal(t, 4, issue.SubIssuesSummary.Total)
+				assert.Equal(t, 1, issue.SubIssuesSummary.Completed)
+				assert.Equal(t, 25, issue.SubIssuesSummary.PercentCompleted)
 			},
-			expectError:     false,
-			expectedComment: mockComment,
 		},
 		{
-			name: "comment creation fails",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusUnprocessableEntity)
-					_, _ = w.Write([]byte(`{"message": "Invalid request"}`))
-				}),
-			}),
-			requestArgs: map[string]any{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(42),
-				"body":         "",
+			name:    "no parent omits parent and sets has_parent false",
+			parent:  nil,
+			summary: map[string]any{"total": 0, "completed": 0, "percentCompleted": 0},
+			assertResponse: func(t *testing.T, issue MinimalIssue) {
+				assert.Equal(t, github.Ptr(false), issue.HasParent)
+				assert.Nil(t, issue.Parent)
 			},
-			expectError:    false,
-			expectedErrMsg: "missing required parameter: body",
+		},
+		{
+			name:    "has_children is false when total is zero even with completed nonzero",
+			parent:  nil,
+			summary: map[string]any{"total": 0, "completed": 1, "percentCompleted": 0},
+			assertResponse: func(t *testing.T, issue MinimalIssue) {
+				assert.Equal(t, github.Ptr(false), issue.HasChildren)
+				assert.Nil(t, issue.SubIssuesSummary)
+			},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
-			client := mustNewGHClient(t, tc.mockedClient)
+			restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
+			})
+
+			gqlResponse := githubv4mock.DataResponse(map[string]any{
+				"nodes": []map[string]any{
+					{
+						"id":               "I_node_2990",
+						"issueFieldValues": map[string]any{"nodes": []map[string]any{}},
+						"parent":           tc.parent,
+						"subIssuesSummary": tc.summary,
+					},
+				},
+			})
+			matcher := newIssueReadEnrichmentMatcher("I_node_2990", gqlResponse)
+			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+
 			deps := BaseDeps{
-				Client: client,
+				Client:          mustNewGHClient(t, restClient),
+				GQLClient:       gqlClient,
+				RepoAccessCache: stubRepoAccessCache(nil, 15*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdown}),
 			}
+			serverTool := IssueRead(translations.NullTranslationHelper)
 			handler := serverTool.Handler(deps)
 
-			// Create call request
-			request := createMCPRequest(tc.requestArgs)
-
-			// Call handler
+			request := createMCPRequest(map[string]any{
+				"method":       "get",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(2990),
+			})
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-
-			// Verify results
-			if tc.expectError {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expectedErrMsg)
-				return
-			}
-
-			if tc.expectedErrMsg != "" {
-				require.NotNil(t, result)
-				textContent := getTextResult(t, result)
-				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
-				return
-			}
-
 			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.False(t, result.IsError, "expected result to not be an error")
 
-			// Parse the result and get the text content if no error
-			textContent := getTextResult(t, result)
-
-			// Unmarshal and verify the result contains minimal response
-			var minimalResponse MinimalResponse
-			err = json.Unmarshal([]byte(textContent.Text), &minimalResponse)
-			require.NoError(t, err)
-			assert.Equal(t, fmt.Sprintf("%d", tc.expectedComment.GetID()), minimalResponse.ID)
-			assert.Equal(t, tc.expectedComment.GetHTMLURL(), minimalResponse.URL)
+			var returnedIssue MinimalIssue
+			require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returnedIssue))
+			tc.assertResponse(t, returnedIssue)
 		})
 	}
+}
+
+func Test_GetIssue_HierarchyEnrichment_Lockdown(t *testing.T) {
+	mockIssue := &github.Issue{
+		Number:  github.Ptr(2990),
+		NodeID:  github.Ptr("I_node_2990"),
+		Title:   github.Ptr("Child issue"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/2990"),
+		User:    &github.User{Login: github.Ptr("author")},
+	}
+
+	parentNode := map[string]any{
+		"number": 2820,
+		"title":  "Sensitive parent title",
+		"state":  "OPEN",
+		"url":    "https://github.com/owner/repo/issues/2820",
+		"author": map[string]any{"login": "parentauthor"},
+		"repository": map[string]any{
+			"nameWithOwner": "owner/repo",
+		},
+	}
+
+	// In lockdown mode the issue's own author must be verified as safe (mirrors the existing
+	// REST lockdown gate). The repo-access cache performs push-access checks against its own
+	// REST client: the issue author ("author") has write access, while the parent author
+	// ("parentauthor") only has read access and so cannot be verified as safe. The parent
+	// reference is therefore omitted entirely, while has_parent stays true so an agent can
+	// still route to get_parent.
+	restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
+	})
+	permClient := mockRESTPermissionServer(t, "read", map[string]string{"author": "write"})
+
+	gqlResponse := githubv4mock.DataResponse(map[string]any{
+		"nodes": []map[string]any{
+			{
+				"id":               "I_node_2990",
+				"issueFieldValues": map[string]any{"nodes": []map[string]any{}},
+				"parent":           parentNode,
+				"subIssuesSummary": map[string]any{"total": 0, "completed": 0, "percentCompleted": 0},
+			},
+		},
+	})
+	matcher := newIssueReadEnrichmentMatcher("I_node_2990", gqlResponse)
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+
+	deps := BaseDeps{
+		Client:          mustNewGHClient(t, restClient),
+		GQLClient:       gqlClient,
+		RepoAccessCache: stubRepoAccessCache(permClient, 15*time.Minute),
+		Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": true}),
+	}
+	serverTool := IssueRead(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":       "get",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(2990),
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.IsError, "expected result to not be an error")
+
+	var returnedIssue MinimalIssue
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returnedIssue))
+
+	require.Nil(t, returnedIssue.Parent, "parent reference should be omitted under lockdown when it cannot be verified safe")
+	assert.Equal(t, github.Ptr(true), returnedIssue.HasParent, "has_parent should still be true so agents can route to get_parent")
+}
+
+func Test_GetIssue_HierarchyEnrichment_QueryFailureReturnsBaseIssue(t *testing.T) {
+	mockIssue := &github.Issue{
+		Number:  github.Ptr(2990),
+		NodeID:  github.Ptr("I_node_2990"),
+		Title:   github.Ptr("Child issue"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/2990"),
+		User:    &github.User{Login: github.Ptr("author")},
+	}
+
+	restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
+	})
+
+	matcher := newIssueReadEnrichmentMatcher("I_node_2990", githubv4mock.ErrorResponse("enrichment failed"))
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+
+	deps := BaseDeps{
+		Client:          mustNewGHClient(t, restClient),
+		GQLClient:       gqlClient,
+		RepoAccessCache: stubRepoAccessCache(nil, 15*time.Minute),
+		Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+	}
+	serverTool := IssueRead(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":       "get",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(2990),
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	// Relationship enrichment must never fail `get`: the base issue is still returned.
+	require.False(t, result.IsError, "enrichment failure should not fail get")
+
+	var returnedIssue MinimalIssue
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returnedIssue))
+	assert.Equal(t, 2990, returnedIssue.Number)
+	assert.Nil(t, returnedIssue.HasParent)
+	assert.Nil(t, returnedIssue.HasChildren)
+	assert.Nil(t, returnedIssue.Parent)
+	assert.Nil(t, returnedIssue.SubIssuesSummary)
 }
 
 func Test_SearchIssues(t *testing.T) {
 	// Verify tool definition once
 	serverTool := SearchIssues(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	// SearchIssues is the FeatureFlagFieldsParam-enabled variant; it owns the
+	// _ff_<flag> snapshot. The canonical search_issues.snap is owned by
+	// LegacySearchIssues (see Test_LegacySearchIssues_Definition).
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
+	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "search_issues", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -684,6 +827,7 @@ func Test_SearchIssues(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "order")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "perPage")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "page")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "fields")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"query"})
 
 	// Setup mock search results
@@ -1655,9 +1799,10 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
 
-	t.Run("UI client with labels skips form and executes directly", func(t *testing.T) {
-		// The form does not collect labels, so a call carrying them must bypass
-		// the form rather than silently drop them.
+	t.Run("UI client with labels routes through UI form", func(t *testing.T) {
+		// labels is now a form param (the issue-write view prefills and renders
+		// a label selector), so a call carrying them must route to the form
+		// rather than execute directly.
 		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"method": "create",
 			"owner":  "owner",
@@ -1669,90 +1814,9 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
-		assert.NotContains(t, textContent.Text, "interactive form has been shown",
-			"labels should skip UI form")
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
-			"labels call should execute directly and return issue URL")
-	})
-
-	t.Run("UI client with show_ui=false skips form and executes directly", func(t *testing.T) {
-		// show_ui=false is the explicit, model-facing way to opt out of the
-		// form. It must bypass the form even when every other condition would
-		// route the call there (UI capability, MCP Apps flag on, no
-		// _ui_submitted, only form params present).
-		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
-			"method":  "create",
-			"owner":   "owner",
-			"repo":    "repo",
-			"title":   "Test",
-			"show_ui": false,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.NotContains(t, textContent.Text, "interactive form has been shown",
-			"show_ui=false should skip UI form")
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
-			"show_ui=false call should execute directly and return issue URL")
-	})
-
-	t.Run("UI client with show_ui=true returns form message", func(t *testing.T) {
-		// show_ui=true is the explicit, redundant-with-the-default way to ask
-		// for the form. It must still route through the form and must not be
-		// treated as a non-form parameter that would trigger the safety-net
-		// bypass.
-		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
-			"method":  "create",
-			"owner":   "owner",
-			"repo":    "repo",
-			"title":   "Test",
-			"show_ui": true,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "interactive form has been shown",
-			"show_ui=true should still route through the form")
-	})
-
-	t.Run("UI client with show_ui=false and _ui_submitted=true executes directly", func(t *testing.T) {
-		// _ui_submitted and show_ui=false are two ways to say "execute
-		// directly". When both are set there must be no conflict — the call
-		// still executes directly.
-		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
-			"method":        "create",
-			"owner":         "owner",
-			"repo":          "repo",
-			"title":         "Test",
-			"show_ui":       false,
-			"_ui_submitted": true,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
-			"show_ui=false + _ui_submitted should execute directly")
-	})
-
-	t.Run("non-UI client with show_ui=false executes directly (no regression)", func(t *testing.T) {
-		// show_ui is irrelevant when the client does not support UI; the call
-		// must execute directly exactly as it does today.
-		request := createMCPRequest(map[string]any{
-			"method":  "create",
-			"owner":   "owner",
-			"repo":    "repo",
-			"title":   "Test",
-			"show_ui": false,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
-			"non-UI client should execute directly regardless of show_ui")
+		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for creating a new issue",
+			"labels should route through UI form")
+		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
 	})
 }
 
@@ -1766,23 +1830,22 @@ func Test_issueWriteHasNonFormParams(t *testing.T) {
 	}{
 		{name: "no params", args: map[string]any{}, want: false},
 		{name: "only form params", args: map[string]any{"method": "create", "owner": "o", "repo": "r", "title": "t", "body": "b", "issue_number": float64(1), "_ui_submitted": true}, want: false},
-		{name: "show_ui true is a form param", args: map[string]any{"title": "t", "show_ui": true}, want: false},
-		{name: "show_ui false is a form param", args: map[string]any{"title": "t", "show_ui": false}, want: false},
-		{name: "labels present", args: map[string]any{"title": "t", "labels": []any{"bug"}}, want: true},
-		{name: "assignees present", args: map[string]any{"title": "t", "assignees": []any{"octocat"}}, want: true},
-		{name: "milestone present", args: map[string]any{"title": "t", "milestone": float64(2)}, want: true},
-		{name: "type present", args: map[string]any{"title": "t", "type": "Bug"}, want: true},
+		{name: "labels present", args: map[string]any{"title": "t", "labels": []any{"bug"}}, want: false},
+		{name: "assignees present", args: map[string]any{"title": "t", "assignees": []any{"octocat"}}, want: false},
+		{name: "milestone present", args: map[string]any{"title": "t", "milestone": float64(2)}, want: false},
+		{name: "type present", args: map[string]any{"title": "t", "type": "Bug"}, want: false},
 		{name: "issue_fields present", args: map[string]any{"issue_fields": []any{map[string]any{"field_name": "Priority"}}}, want: false},
 		{name: "state present", args: map[string]any{"state": "closed"}, want: false},
 		{name: "state_reason present", args: map[string]any{"state_reason": "completed"}, want: false},
 		{name: "duplicate_of present", args: map[string]any{"duplicate_of": float64(7)}, want: false},
+		{name: "unknown non-schema param present", args: map[string]any{"title": "t", "not_a_real_param": "x"}, want: true},
 		{name: "nil value is ignored", args: map[string]any{"issue_fields": nil}, want: false},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, issueWriteHasNonFormParams(tc.args))
+			assert.Equal(t, tc.want, hasNonFormParams(tc.args, issueWriteFormParams))
 		})
 	}
 }
@@ -1796,13 +1859,11 @@ func Test_issueWriteSchemaClassification(t *testing.T) {
 	t.Parallel()
 
 	// Schema properties the MCP App form cannot represent — their presence
-	// must trigger the safety-net bypass via issueWriteHasNonFormParams.
-	knownNonForm := map[string]struct{}{
-		"assignees": {},
-		"labels":    {},
-		"milestone": {},
-		"type":      {},
-	}
+	// must trigger the safety-net bypass via hasNonFormParams. The
+	// form currently collects every schema property, so this allowlist is
+	// empty; add a property here only if it is added to the schema without
+	// corresponding form support.
+	knownNonForm := map[string]struct{}{}
 
 	cases := []struct {
 		name string
@@ -1836,8 +1897,11 @@ func Test_ListIssues(t *testing.T) {
 	// Verify tool definition
 	serverTool := ListIssues(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Empty(t, serverTool.FeatureFlagEnable)
+	// ListIssues is the FeatureFlagFieldsParam-enabled variant; it owns the
+	// _ff_<flag> snapshot. The canonical list_issues.snap is owned by
+	// LegacyListIssues (see Test_LegacyListIssues_Definition).
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
+	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "list_issues", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -1850,6 +1914,7 @@ func Test_ListIssues(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "since")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "after")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "perPage")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "fields")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo"})
 
 	// Mock issues data
@@ -3721,10 +3786,13 @@ func Test_GetIssueParent(t *testing.T) {
 		Repository struct {
 			Issue struct {
 				Parent *struct {
-					Number     githubv4.Int
-					Title      githubv4.String
-					State      githubv4.String
-					URL        githubv4.String
+					Number githubv4.Int
+					Title  githubv4.String
+					State  githubv4.String
+					URL    githubv4.String
+					Author struct {
+						Login githubv4.String
+					}
 					Repository struct {
 						NameWithOwner githubv4.String
 					}
@@ -3739,9 +3807,32 @@ func Test_GetIssueParent(t *testing.T) {
 		"issueNumber": githubv4.Int(123),
 	}
 
+	parentResponse := func(authorLogin string) githubv4mock.GQLResponse {
+		return githubv4mock.DataResponse(map[string]any{
+			"repository": map[string]any{
+				"issue": map[string]any{
+					"parent": map[string]any{
+						"number": githubv4.Int(42),
+						"title":  githubv4.String("Parent\u202e issue"),
+						"state":  githubv4.String("OPEN"),
+						"url":    githubv4.String("https://github.com/owner/repo/issues/42"),
+						"author": map[string]any{
+							"login": githubv4.String(authorLogin),
+						},
+						"repository": map[string]any{
+							"nameWithOwner": githubv4.String("owner/repo"),
+						},
+					},
+				},
+			},
+		})
+	}
+
 	tests := []struct {
 		name            string
 		mockedClient    *http.Client
+		lockdownEnabled bool
+		restOverrides   map[string]string
 		expectToolError bool
 		expectedText    string
 	}{
@@ -3751,24 +3842,10 @@ func Test_GetIssueParent(t *testing.T) {
 				githubv4mock.NewQueryMatcher(
 					parentMatcherStruct,
 					vars,
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"issue": map[string]any{
-								"parent": map[string]any{
-									"number": githubv4.Int(42),
-									"title":  githubv4.String("Parent issue"),
-									"state":  githubv4.String("OPEN"),
-									"url":    githubv4.String("https://github.com/owner/repo/issues/42"),
-									"repository": map[string]any{
-										"nameWithOwner": githubv4.String("owner/repo"),
-									},
-								},
-							},
-						},
-					}),
+					parentResponse("author"),
 				),
 			),
-			expectedText: `"number":42`,
+			expectedText: `"title":"Parent issue"`,
 		},
 		{
 			name: "issue has no parent",
@@ -3798,17 +3875,48 @@ func Test_GetIssueParent(t *testing.T) {
 			),
 			expectToolError: true,
 		},
+		{
+			name: "lockdown enabled - parent author has push access",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					parentMatcherStruct,
+					vars,
+					parentResponse("maintainer"),
+				),
+			),
+			lockdownEnabled: true,
+			restOverrides:   map[string]string{"maintainer": "write"},
+			expectedText:    `"title":"Parent issue"`,
+		},
+		{
+			name: "lockdown enabled - parent author lacks push access",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					parentMatcherStruct,
+					vars,
+					parentResponse("externaluser"),
+				),
+			),
+			lockdownEnabled: true,
+			restOverrides:   map[string]string{"externaluser": "read"},
+			expectedText:    `"parent":null`,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			gqlClient := githubv4.NewClient(tc.mockedClient)
 			client := mustNewGHClient(t, nil)
+
+			var restClient *github.Client
+			if tc.lockdownEnabled {
+				restClient = mockRESTPermissionServer(t, "read", tc.restOverrides)
+			}
 			deps := BaseDeps{
 				Client:          client,
 				GQLClient:       gqlClient,
-				RepoAccessCache: stubRepoAccessCache(nil, 15*time.Minute),
-				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+				RepoAccessCache: stubRepoAccessCache(restClient, 15*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled}),
 			}
 			handler := serverTool.Handler(deps)
 
@@ -4287,6 +4395,263 @@ func Test_GetSubIssues(t *testing.T) {
 						assert.Equal(t, *tc.expectedSubIssues[i].Body, *subIssue.Body)
 					}
 				}
+
+			}
+		})
+	}
+}
+
+func TestAddIssueComment(t *testing.T) {
+	t.Parallel()
+
+	serverTool := AddIssueComment(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "add_issue_comment", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "issue_number")
+	assert.Contains(t, schema.Properties, "comment_id")
+	assert.Contains(t, schema.Properties, "body")
+	assert.Contains(t, schema.Properties, "reaction")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "issue_number"})
+
+	mockComment := &github.IssueComment{
+		ID:      github.Ptr(int64(456)),
+		Body:    github.Ptr("This is a comment"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42#issuecomment-456"),
+	}
+	mockReaction := &github.Reaction{
+		ID:      github.Ptr(int64(789)),
+		Content: github.Ptr("heart"),
+	}
+	mockIssueComment := &github.IssueComment{
+		ID:       github.Ptr(int64(999)),
+		IssueURL: github.Ptr("https://api.github.com/repos/owner/repo/issues/42"),
+	}
+	commentCreatedAfterReactionFailure := &atomic.Bool{}
+
+	tests := []struct {
+		name               string
+		mockedClient       *http.Client
+		requestArgs        map[string]any
+		expectToolError    bool
+		expectedToolErrMsg string
+		unexpectedCall     *atomic.Bool
+	}{
+		{
+			name: "successful comment on issue",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockComment),
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"body":         "This is a comment",
+			},
+		},
+		{
+			name: "successful reaction to issue",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesReactionsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockReaction),
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"reaction":     "heart",
+			},
+		},
+		{
+			name: "successful reaction to issue comment",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesCommentByOwnerByRepoByCommentID:            mockResponse(t, http.StatusOK, mockIssueComment),
+				PostReposIssuesCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusCreated, mockReaction),
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(999),
+				"reaction":     "heart",
+			},
+		},
+		{
+			name: "issue comment reaction requires matching issue_number",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesCommentByOwnerByRepoByCommentID: mockResponse(t, http.StatusOK, &github.IssueComment{
+					ID:       github.Ptr(int64(999)),
+					IssueURL: github.Ptr("https://api.github.com/repos/owner/repo/issues/43"),
+				}),
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(999),
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "comment_id does not belong to issue_number 42",
+		},
+		{
+			name: "issue comment lookup fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesCommentByOwnerByRepoByCommentID: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				},
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(999),
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to get issue comment",
+		},
+		{
+			name: "successful comment and reaction to issue",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesCommentsByOwnerByRepoByIssueNumber:  mockResponse(t, http.StatusCreated, mockComment),
+				PostReposIssuesReactionsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockReaction),
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"body":         "This is a comment",
+				"reaction":     "heart",
+			},
+		},
+		{
+			name: "missing body and reaction",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "at least one of body or reaction is required",
+		},
+		{
+			name: "missing issue_number for reaction",
+			requestArgs: map[string]any{
+				"owner":    "owner",
+				"repo":     "repo",
+				"reaction": "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: issue_number",
+		},
+		{
+			name: "missing issue_number for body",
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"body":  "This is a comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: issue_number",
+		},
+		{
+			name: "comment_id without reaction",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(999),
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "comment_id can only be provided when reaction is provided",
+		},
+		{
+			name: "negative comment_id",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(-1),
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "comment_id must be greater than 0",
+		},
+		{
+			name: "comment_id with body",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(999),
+				"body":         "This is a comment",
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "comment_id cannot be combined with body",
+		},
+		{
+			name: "does not create comment when reaction fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesReactionsByOwnerByRepoByIssueNumber: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+					_, _ = w.Write([]byte(`{"message": "server error"}`))
+				},
+				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: func(w http.ResponseWriter, _ *http.Request) {
+					commentCreatedAfterReactionFailure.Store(true)
+					w.WriteHeader(http.StatusCreated)
+					responseData, _ := json.Marshal(mockComment)
+					_, _ = w.Write(responseData)
+				},
+			}),
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"body":         "This is a comment",
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to add reaction to issue",
+			unexpectedCall:     commentCreatedAfterReactionFailure,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			if tc.expectToolError {
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedToolErrMsg)
+				if tc.unexpectedCall != nil {
+					assert.False(t, tc.unexpectedCall.Load())
+				}
+				return
+			}
+
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+			if _, ok := tc.requestArgs["body"]; ok {
+				assert.Contains(t, textContent.Text, "456")
+			}
+			if _, ok := tc.requestArgs["reaction"]; ok {
+				assert.Contains(t, textContent.Text, "789")
 			}
 		})
 	}

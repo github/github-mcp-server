@@ -4,13 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v89/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -52,12 +54,14 @@ func Test_GetPullRequest(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]any
-		expectError    bool
-		expectedPR     *github.PullRequest
-		expectedErrMsg string
+		name            string
+		mockedClient    *http.Client
+		requestArgs     map[string]any
+		expectError     bool
+		expectedPR      *github.PullRequest
+		expectedErrMsg  string
+		lockdownEnabled bool
+		restPermission  string
 	}{
 		{
 			name: "successful PR fetch",
@@ -90,6 +94,38 @@ func Test_GetPullRequest(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to get pull request",
 		},
+		{
+			name: "lockdown enabled - user lacks push access",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:     true,
+			expectedErrMsg:  "access to pull request is restricted by lockdown mode",
+			lockdownEnabled: true,
+			restPermission:  "read",
+		},
+		{
+			name: "lockdown enabled - private repository",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get",
+				"owner":      "owner2",
+				"repo":       "repo2",
+				"pullNumber": float64(42),
+			},
+			expectError:     false,
+			expectedPR:      mockPR,
+			lockdownEnabled: true,
+			restPermission:  "none",
+		},
 	}
 
 	for _, tc := range tests {
@@ -97,11 +133,17 @@ func Test_GetPullRequest(t *testing.T) {
 			// Setup client with mock
 			client := mustNewGHClient(t, tc.mockedClient)
 			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
+
+			var restClient *github.Client
+			if tc.restPermission != "" {
+				restClient = mockRESTPermissionServer(t, tc.restPermission, nil)
+			}
+
 			deps := BaseDeps{
 				Client:          client,
 				GQLClient:       gqlClient,
-				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
-				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+				RepoAccessCache: stubRepoAccessCache(restClient, 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled}),
 			}
 			handler := serverTool.Handler(deps)
 
@@ -573,7 +615,11 @@ func Test_ListPullRequests(t *testing.T) {
 	// Verify tool definition once
 	serverTool := ListPullRequests(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	// ListPullRequests is the FeatureFlagFieldsParam-enabled variant; it owns
+	// the _ff_<flag> snapshot. The canonical list_pull_requests.snap is owned by
+	// LegacyListPullRequests (see Test_LegacyListPullRequests_Definition).
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
+	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "list_pull_requests", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -587,6 +633,7 @@ func Test_ListPullRequests(t *testing.T) {
 	assert.Contains(t, schema.Properties, "direction")
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "fields")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	// Setup mock PRs for success case
@@ -819,7 +866,11 @@ func Test_MergePullRequest(t *testing.T) {
 func Test_SearchPullRequests(t *testing.T) {
 	serverTool := SearchPullRequests(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	// SearchPullRequests is the FeatureFlagFieldsParam-enabled variant; it owns
+	// the _ff_<flag> snapshot. The canonical search_pull_requests.snap is owned
+	// by LegacySearchPullRequests (see Test_LegacySearchPullRequests_Definition).
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
+	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
 
 	assert.Equal(t, "search_pull_requests", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -831,6 +882,7 @@ func Test_SearchPullRequests(t *testing.T) {
 	assert.Contains(t, schema.Properties, "order")
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "fields")
 	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
 	mockSearchResult := &github.IssuesSearchResult{
@@ -1141,12 +1193,14 @@ func Test_GetPullRequestFiles(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]any
-		expectError    bool
-		expectedFiles  []*github.CommitFile
-		expectedErrMsg string
+		name            string
+		mockedClient    *http.Client
+		requestArgs     map[string]any
+		expectError     bool
+		expectedFiles   []*github.CommitFile
+		expectedErrMsg  string
+		lockdownEnabled bool
+		restPermission  string
 	}{
 		{
 			name: "successful files fetch",
@@ -1210,6 +1264,64 @@ func Test_GetPullRequestFiles(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to get pull request files",
 		},
+		{
+			name: "lockdown enabled - author lacks push access",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, &github.PullRequest{
+					Number: github.Ptr(42),
+					User:   &github.User{Login: github.Ptr("reader")},
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_files",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			lockdownEnabled: true,
+			restPermission:  "read",
+			expectError:     true,
+			expectedErrMsg:  "access to pull request is restricted by lockdown mode",
+		},
+		{
+			name: "lockdown enabled - author has push access",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, &github.PullRequest{
+					Number: github.Ptr(42),
+					User:   &github.User{Login: github.Ptr("writer")},
+				}),
+				GetReposPullsFilesByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockFiles),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_files",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			lockdownEnabled: true,
+			restPermission:  "write",
+			expectError:     false,
+			expectedFiles:   mockFiles,
+		},
+		{
+			name: "lockdown enabled - pull request fetch fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_files",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(999),
+			},
+			lockdownEnabled: true,
+			restPermission:  "read",
+			expectError:     true,
+			expectedErrMsg:  "failed to get pull request",
+		},
 	}
 
 	for _, tc := range tests {
@@ -1217,10 +1329,16 @@ func Test_GetPullRequestFiles(t *testing.T) {
 			// Setup client with mock
 			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
+
+			var restClient *github.Client
+			if tc.lockdownEnabled {
+				restClient = mockRESTPermissionServer(t, tc.restPermission, nil)
+			}
+
 			deps := BaseDeps{
 				Client:          client,
-				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
-				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+				RepoAccessCache: stubRepoAccessCache(restClient, 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled}),
 			}
 			handler := serverTool.Handler(deps)
 
@@ -2378,6 +2496,33 @@ func Test_GetPullRequestReviews(t *testing.T) {
 			},
 			lockdownEnabled: true,
 		},
+		{
+			name: "lockdown enabled filters reviews with empty author login",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsReviewsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, []*github.PullRequestReview{
+					{
+						ID:    github.Ptr(int64(2040)),
+						State: github.Ptr("APPROVED"),
+						Body:  github.Ptr("Ghost review"),
+						User:  &github.User{Login: github.Ptr("")},
+					},
+					{
+						ID:    github.Ptr(int64(2041)),
+						State: github.Ptr("COMMENTED"),
+						Body:  github.Ptr("Another ghost review"),
+					},
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_reviews",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:     false,
+			expectedReviews: []*github.PullRequestReview{},
+			lockdownEnabled: true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -2686,89 +2831,6 @@ func Test_CreatePullRequest_MCPAppsFeature_UIGate(t *testing.T) {
 		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
 			"non-form param call should execute directly and return PR URL")
 	})
-
-	t.Run("UI client with show_ui=false skips form and executes directly", func(t *testing.T) {
-		// show_ui=false is the explicit, model-facing way to opt out of the
-		// form. It must bypass the form even when every other condition would
-		// route the call there (UI capability, MCP Apps flag on, no
-		// _ui_submitted, only form params present).
-		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
-			"owner":   "owner",
-			"repo":    "repo",
-			"title":   "Test PR",
-			"head":    "feature",
-			"base":    "main",
-			"show_ui": false,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.NotContains(t, textContent.Text, "interactive form has been shown",
-			"show_ui=false should skip UI form")
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
-			"show_ui=false call should execute directly and return PR URL")
-	})
-
-	t.Run("UI client with show_ui=true returns form message", func(t *testing.T) {
-		// show_ui=true must still route through the form and must not be
-		// treated as a non-form parameter that would trigger the safety-net
-		// bypass.
-		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
-			"owner":   "owner",
-			"repo":    "repo",
-			"title":   "Test PR",
-			"head":    "feature",
-			"base":    "main",
-			"show_ui": true,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "interactive form has been shown",
-			"show_ui=true should still route through the form")
-	})
-
-	t.Run("UI client with show_ui=false and _ui_submitted=true executes directly", func(t *testing.T) {
-		// _ui_submitted and show_ui=false are two ways to say "execute
-		// directly". When both are set there must be no conflict — the call
-		// still executes directly.
-		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
-			"owner":         "owner",
-			"repo":          "repo",
-			"title":         "Test PR",
-			"head":          "feature",
-			"base":          "main",
-			"show_ui":       false,
-			"_ui_submitted": true,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
-			"show_ui=false + _ui_submitted should execute directly")
-	})
-
-	t.Run("non-UI client with show_ui=false executes directly (no regression)", func(t *testing.T) {
-		// show_ui is irrelevant when the client does not support UI; the call
-		// must execute directly exactly as it does today.
-		request := createMCPRequest(map[string]any{
-			"owner":   "owner",
-			"repo":    "repo",
-			"title":   "Test PR",
-			"head":    "feature",
-			"base":    "main",
-			"show_ui": false,
-		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-
-		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
-			"non-UI client should execute directly regardless of show_ui")
-	})
 }
 
 // Test_UpdatePullRequest_MCPAppsFeature_UIGate verifies the form-routing
@@ -2876,9 +2938,7 @@ func Test_pullRequestWriteHasNonFormParams(t *testing.T) {
 		want bool
 	}{
 		{name: "no params", args: map[string]any{}, want: false},
-		{name: "only form params", args: map[string]any{"owner": "o", "repo": "r", "title": "t", "body": "b", "head": "h", "base": "b", "draft": true, "maintainer_can_modify": false, "reviewers": []any{"octocat"}, "show_ui": true, "_ui_submitted": true}, want: false},
-		{name: "show_ui true is a form param", args: map[string]any{"title": "t", "show_ui": true}, want: false},
-		{name: "show_ui false is a form param", args: map[string]any{"title": "t", "show_ui": false}, want: false},
+		{name: "only form params", args: map[string]any{"owner": "o", "repo": "r", "title": "t", "body": "b", "head": "h", "base": "b", "draft": true, "maintainer_can_modify": false, "reviewers": []any{"octocat"}, "_ui_submitted": true}, want: false},
 		{name: "unknown param present", args: map[string]any{"title": "t", "unknown_param": "value"}, want: true},
 		{name: "nil value is ignored", args: map[string]any{"reviewers": nil}, want: false},
 	}
@@ -2886,7 +2946,7 @@ func Test_pullRequestWriteHasNonFormParams(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, pullRequestWriteHasNonFormParams(tc.args))
+			assert.Equal(t, tc.want, hasNonFormParams(tc.args, pullRequestWriteFormParams))
 		})
 	}
 }
@@ -3517,6 +3577,30 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 			),
 		},
 		{
+			name: "missing required parameter owner",
+			requestArgs: map[string]any{
+				"repo":        "gated-probe",
+				"pullNumber":  float64(1),
+				"path":        "f.go",
+				"body":        "x",
+				"subjectType": "LINE",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: owner",
+		},
+		{
+			name: "missing required parameter path",
+			requestArgs: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"pullNumber":  float64(42),
+				"body":        "This is a test comment",
+				"subjectType": "LINE",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: path",
+		},
+		{
 			name: "thread ID is nil - invalid line number",
 			requestArgs: map[string]any{
 				"owner":       "owner",
@@ -3844,10 +3928,30 @@ index 5d6e7b2..8a4f5c3 100644
 +
 +This is a new section added in the pull request.`
 
+	// Under lockdown the diff path first fetches the PR as JSON to resolve the
+	// author, then the raw diff; branch on the Accept header to serve both.
+	prOrDiffHandler := func(authorLogin string) http.HandlerFunc {
+		mockPR := &github.PullRequest{
+			Number: github.Ptr(42),
+			User:   &github.User{Login: github.Ptr(authorLogin)},
+		}
+		return func(w http.ResponseWriter, r *http.Request) {
+			if strings.Contains(r.Header.Get("Accept"), "diff") {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(stubbedDiff))
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(mockPR)
+		}
+	}
+
 	tests := []struct {
 		name               string
 		requestArgs        map[string]any
 		mockedClient       *http.Client
+		lockdownEnabled    bool
+		restPermission     string
 		expectToolError    bool
 		expectedToolErrMsg string
 	}{
@@ -3866,6 +3970,37 @@ index 5d6e7b2..8a4f5c3 100644
 			}),
 			expectToolError: false,
 		},
+		{
+			name: "lockdown enabled - author lacks push access",
+			requestArgs: map[string]any{
+				"method":     "get_diff",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: prOrDiffHandler("reader"),
+			}),
+			lockdownEnabled:    true,
+			restPermission:     "read",
+			expectToolError:    true,
+			expectedToolErrMsg: "access to pull request is restricted by lockdown mode",
+		},
+		{
+			name: "lockdown enabled - author has push access",
+			requestArgs: map[string]any{
+				"method":     "get_diff",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: prOrDiffHandler("writer"),
+			}),
+			lockdownEnabled: true,
+			restPermission:  "write",
+			expectToolError: false,
+		},
 	}
 
 	for _, tc := range tests {
@@ -3875,10 +4010,16 @@ index 5d6e7b2..8a4f5c3 100644
 			// Setup client with mock
 			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
+
+			var restClient *github.Client
+			if tc.lockdownEnabled {
+				restClient = mockRESTPermissionServer(t, tc.restPermission, nil)
+			}
+
 			deps := BaseDeps{
 				Client:          client,
-				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
-				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+				RepoAccessCache: stubRepoAccessCache(restClient, 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled}),
 			}
 			handler := serverTool.Handler(deps)
 
@@ -3991,7 +4132,8 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 	assert.Contains(t, schema.Properties, "pullNumber")
 	assert.Contains(t, schema.Properties, "commentId")
 	assert.Contains(t, schema.Properties, "body")
-	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "pullNumber", "commentId", "body"})
+	assert.Contains(t, schema.Properties, "reaction")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "commentId"})
 
 	// Setup mock reply comment for success case
 	mockReplyComment := &github.PullRequestComment{
@@ -4005,6 +4147,11 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 		CreatedAt: &github.Timestamp{Time: time.Now()},
 		UpdatedAt: &github.Timestamp{Time: time.Now()},
 	}
+	mockReaction := &github.Reaction{
+		ID:      github.Ptr(int64(789)),
+		Content: github.Ptr("rocket"),
+	}
+	replyCreatedAfterReactionFailure := &atomic.Bool{}
 
 	tests := []struct {
 		name               string
@@ -4012,6 +4159,7 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 		requestArgs        map[string]any
 		expectToolError    bool
 		expectedToolErrMsg string
+		unexpectedCall     *atomic.Bool
 	}{
 		{
 			name: "successful reply to pull request comment",
@@ -4053,12 +4201,24 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 			expectedToolErrMsg: "missing required parameter: repo",
 		},
 		{
-			name: "missing required parameter pullNumber",
+			name: "missing required parameter pullNumber when replying",
 			requestArgs: map[string]any{
 				"owner":     "owner",
 				"repo":      "repo",
 				"commentId": float64(123),
 				"body":      "This is a reply to the comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: pullNumber",
+		},
+		{
+			name: "missing required parameter pullNumber when replying with reaction",
+			requestArgs: map[string]any{
+				"owner":     "owner",
+				"repo":      "repo",
+				"commentId": float64(123),
+				"body":      "This is a reply to the comment",
+				"reaction":  "rocket",
 			},
 			expectToolError:    true,
 			expectedToolErrMsg: "missing required parameter: pullNumber",
@@ -4075,7 +4235,18 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 			expectedToolErrMsg: "missing required parameter: commentId",
 		},
 		{
-			name: "missing required parameter body",
+			name: "negative commentId",
+			requestArgs: map[string]any{
+				"owner":     "owner",
+				"repo":      "repo",
+				"commentId": float64(-123),
+				"reaction":  "rocket",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "commentId must be greater than 0",
+		},
+		{
+			name: "missing body and reaction",
 			requestArgs: map[string]any{
 				"owner":      "owner",
 				"repo":       "repo",
@@ -4083,7 +4254,38 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 				"commentId":  float64(123),
 			},
 			expectToolError:    true,
-			expectedToolErrMsg: "missing required parameter: body",
+			expectedToolErrMsg: "at least one of body or reaction is required",
+		},
+		{
+			name: "successful reaction to pull request comment",
+			requestArgs: map[string]any{
+				"owner":     "owner",
+				"repo":      "repo",
+				"commentId": float64(123),
+				"reaction":  "rocket",
+			},
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusCreated, mockReaction),
+			}),
+		},
+		{
+			name: "successful reply and reaction to pull request comment",
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"commentId":  float64(123),
+				"body":       "This is a reply to the comment",
+				"reaction":   "rocket",
+			},
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsCommentsByOwnerByRepoByPullNumber: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusCreated)
+					responseData, _ := json.Marshal(mockReplyComment)
+					_, _ = w.Write(responseData)
+				},
+				PostReposPullsCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusCreated, mockReaction),
+			}),
 		},
 		{
 			name: "API error when adding reply",
@@ -4102,6 +4304,32 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 			},
 			expectToolError:    true,
 			expectedToolErrMsg: "failed to add reply to pull request comment",
+		},
+		{
+			name: "does not create reply when reaction fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsCommentsReactionsByOwnerByRepoByCommentID: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+					_, _ = w.Write([]byte(`{"message": "server error"}`))
+				},
+				PostReposPullsCommentsByOwnerByRepoByPullNumber: func(w http.ResponseWriter, _ *http.Request) {
+					replyCreatedAfterReactionFailure.Store(true)
+					w.WriteHeader(http.StatusCreated)
+					responseData, _ := json.Marshal(mockReplyComment)
+					_, _ = w.Write(responseData)
+				},
+			}),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"commentId":  float64(123),
+				"body":       "This is a reply to the comment",
+				"reaction":   "rocket",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to add reaction to pull request review comment",
+			unexpectedCall:     replyCreatedAfterReactionFailure,
 		},
 	}
 
@@ -4128,13 +4356,21 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 				require.True(t, result.IsError)
 				errorContent := getErrorResult(t, result)
 				assert.Contains(t, errorContent.Text, tc.expectedToolErrMsg)
+				if tc.unexpectedCall != nil {
+					assert.False(t, tc.unexpectedCall.Load())
+				}
 				return
 			}
 
 			// Parse the result and verify it's not an error
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
-			assert.Contains(t, textContent.Text, "This is a reply to the comment")
+			if _, ok := tc.requestArgs["body"]; ok {
+				assert.Contains(t, textContent.Text, "This is a reply to the comment")
+			}
+			if _, ok := tc.requestArgs["reaction"]; ok {
+				assert.Contains(t, textContent.Text, "789")
+			}
 		})
 	}
 }
