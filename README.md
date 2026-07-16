@@ -1154,6 +1154,12 @@ The following sets of tools are available:
   - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], optional)
   - `title`: PR title (string, required)
 
+- **get_pull_request_metadata_batch** - Get batch pull request metadata
+  - **Required OAuth Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `pullNumbers`: Explicit pull request numbers to hydrate. Accepts up to 25 items. (integer[], required)
+  - `repo`: Repository name (string, required)
+
 - **list_pull_requests** - List pull requests
   - **Required OAuth Scopes**: `repo`
   - `base`: Filter by base branch (string, optional)
