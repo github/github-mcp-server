@@ -429,15 +429,15 @@ func Test_UpdatePullRequest(t *testing.T) {
 
 func Test_UpdatePullRequest_Draft(t *testing.T) {
 	tests := []struct {
-		name                 string
-		initialDraftState    bool
-		requestedDraftState  bool
-		expectedActionCalls  int
-		expectedFinalDraft   bool
-		getStatusCode        int
-		actionStatusCode     int
-		expectError          bool
-		expectedErrContains  string
+		name                string
+		initialDraftState   bool
+		requestedDraftState bool
+		expectedActionCalls int
+		expectedFinalDraft  bool
+		getStatusCode       int
+		actionStatusCode    int
+		expectError         bool
+		expectedErrContains string
 	}{
 		{
 			name:                "successful draft update to ready for review",

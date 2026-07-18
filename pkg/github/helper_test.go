@@ -313,6 +313,12 @@ func mockResponse(t *testing.T, code int, body any) http.HandlerFunc {
 	}
 }
 
+func writeJSONResponse(t *testing.T, w http.ResponseWriter, code int, body any) {
+	t.Helper()
+	w.WriteHeader(code)
+	require.NoError(t, json.NewEncoder(w).Encode(body))
+}
+
 // createMCPRequest is a helper function to create a MCP request with the given arguments.
 func createMCPRequest(args any) mcp.CallToolRequest {
 	// convert args to map[string]interface{} and serialize to JSON
