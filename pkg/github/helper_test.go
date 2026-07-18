@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	gogithub "github.com/google/go-github/v87/github"
+	gogithub "github.com/google/go-github/v89/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	testifymock "github.com/stretchr/testify/mock"

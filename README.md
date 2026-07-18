@@ -1069,7 +1069,8 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `read:project`
   - **Accepted OAuth Scopes**: `project`, `read:project`
   - `field_id`: The field's ID. Required for 'get_project_field' method. (number, optional)
-  - `fields`: Specific list of field IDs to include in the response when getting a project item (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. Only used for 'get_project_item' method. (string[], optional)
+  - `field_names`: Specific list of field names to include in the response when getting a project item (e.g. ["Status", "Priority"]). Resolved server-side to field IDs — pass this instead of 'fields' when you only know the human-readable names. Mutually exclusive with 'fields' — provide one, not both. Only used for 'get_project_item' method. (string[], optional)
+  - `fields`: Specific list of field IDs to include in the response when getting a project item (e.g. ["102589", "985201", "169875"]). If neither 'fields' nor 'field_names' is provided, only the title field is included. Mutually exclusive with 'field_names' — provide one, not both. Only used for 'get_project_item' method. (string[], optional)
   - `item_id`: The item's ID. Required for 'get_project_item' method. (number, optional)
   - `method`: The method to execute (string, required)
   - `owner`: The owner (user or organization login). The name is not case sensitive. (string, optional)
@@ -1082,7 +1083,8 @@ The following sets of tools are available:
   - **Accepted OAuth Scopes**: `project`, `read:project`
   - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
   - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
-  - `fields`: Field IDs to include when listing project items (e.g. ["102589", "985201"]). CRITICAL: Always provide to get field values. Without this, only titles returned. Only used for 'list_project_items' method. (string[], optional)
+  - `field_names`: Field names to include when listing project items (e.g. ["Status", "Priority"]). Resolved server-side to field IDs — pass this instead of 'fields' when you only know the human-readable names. Names that fail to resolve return a structured error. Mutually exclusive with 'fields' — provide one, not both. Only used for 'list_project_items' method. (string[], optional)
+  - `fields`: Field IDs to include when listing project items (e.g. ["102589", "985201"]). CRITICAL: Always provide to get field values. Without this (and without 'field_names'), only titles returned. Mutually exclusive with 'field_names' — provide one, not both. Only used for 'list_project_items' method. (string[], optional)
   - `method`: The action to perform (string, required)
   - `owner`: The owner (user or organization login). The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (user or org). If not provided, will automatically try both. (string, optional)
@@ -1094,10 +1096,10 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `project`
   - `body`: The body of the status update (markdown). Used for 'create_project_status_update' method. (string, optional)
   - `field_name`: The name of the iteration field (e.g. 'Sprint'). Required for 'create_iteration_field' method. (string, optional)
-  - `issue_number`: The issue number (use when item_type is 'issue' for 'add_project_item' method). Provide either issue_number or pull_request_number. (number, optional)
-  - `item_id`: The project item ID. Required for 'update_project_item' and 'delete_project_item' methods. (number, optional)
-  - `item_owner`: The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method. (string, optional)
-  - `item_repo`: The name of the repository containing the issue or pull request. Required for 'add_project_item' method. (string, optional)
+  - `issue_number`: The issue number. Required for 'add_project_item' when item_type is 'issue'. Also accepted by 'update_project_item' to resolve the item by issue number (combine with item_owner and item_repo). (number, optional)
+  - `item_id`: The project item ID. Required for 'delete_project_item'. For 'update_project_item', provide either item_id, or (item_owner + item_repo + issue_number) to resolve the item by issue. (number, optional)
+  - `item_owner`: The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method. Also accepted by 'update_project_item' when resolving the item by issue number. (string, optional)
+  - `item_repo`: The name of the repository containing the issue or pull request. Required for 'add_project_item' method. Also accepted by 'update_project_item' when resolving the item by issue number. (string, optional)
   - `item_type`: The item's type, either issue or pull_request. Required for 'add_project_item' method. (string, optional)
   - `iteration_duration`: Duration in days for iterations of the field (e.g. 7 for weekly, 14 for bi-weekly). Required for 'create_iteration_field' method. (number, optional)
   - `iterations`: Custom iterations for 'create_iteration_field' method. Only set this when you need iterations with varying durations, breaks between them, or specific titles. Otherwise omit it: GitHub auto-creates three iterations of 'iteration_duration' days starting on 'start_date', which is the right choice for most cases. (object[], optional)
@@ -1110,7 +1112,7 @@ The following sets of tools are available:
   - `status`: The status of the project. Used for 'create_project_status_update' method. (string, optional)
   - `target_date`: The target date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method. (string, optional)
   - `title`: The project title. Required for 'create_project' method. (string, optional)
-  - `updated_field`: Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {"id": 123456, "value": "New Value"}. Required for 'update_project_item' method. (object, optional)
+  - `updated_field`: Object describing the field to update and its new value. Required for 'update_project_item'. Two shapes are accepted: (1) by ID — {"id": 123456, "value": "..."}; (2) by name — {"name": "Status", "value": "In Progress"}. For single-select fields, option-name resolution requires the by-name shape; on the by-ID shape, pass the option ID. Set value to null to clear the field. (object, optional)
 
 </details>
 
@@ -1655,6 +1657,18 @@ export GITHUB_MCP_SERVER_TITLE="GHES MCP Server"
 ## Library Usage
 
 The exported Go API of this module should currently be considered unstable, and subject to breaking changes. In the future, we may offer stability; please file an issue if there is a use case where this would be valuable.
+
+## Contributing
+
+Contributions are welcome. Before opening a pull request, please read the [contributing guide](CONTRIBUTING.md) for setup, testing, linting, and documentation generation instructions.
+
+## Support
+
+For help using the GitHub MCP Server, see the [support guide](SUPPORT.md). If you have found a bug or want to request a feature, please search existing issues before opening a new one.
+
+## Security
+
+Please do not report security vulnerabilities through public issues. Follow the instructions in the [security policy](SECURITY.md) to report vulnerabilities responsibly.
 
 ## License
 

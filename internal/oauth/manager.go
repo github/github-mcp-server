@@ -2,6 +2,7 @@ package oauth
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -20,6 +21,10 @@ const DefaultAuthTimeout = 5 * time.Minute
 // stalled GitHub token endpoint cannot block a tool call indefinitely.
 const tokenRefreshTimeout = 30 * time.Second
 
+// ErrStaleAuthorizationFlow indicates that a prompt response belongs to an
+// authorization flow that is no longer current.
+var ErrStaleAuthorizationFlow = errors.New("authorization prompt has expired")
+
 // flowStatus tracks the manager's single-flight authorization state.
 type flowStatus int
 
@@ -37,6 +42,11 @@ type Outcome struct {
 	// flow continues in the background; the user should retry once they have
 	// completed it.
 	UserAction *UserAction
+
+	// FlowID correlates a user action with the authorization flow that produced
+	// it. Callers must pass it back to AwaitToken or Cancel so a delayed response
+	// cannot affect a newer flow.
+	FlowID string
 }
 
 // UserAction is an instruction for the user to complete authorization out of
@@ -65,9 +75,12 @@ type Manager struct {
 
 	mu               sync.Mutex
 	source           oauth2.TokenSource // refreshing source, set once authorized
+	tokenGeneration  uint64             // increments whenever source is replaced
 	status           flowStatus
+	flowID           string
 	pending          *UserAction
 	done             chan struct{}
+	cancelFlow       context.CancelFunc // cancels the in-flight flow, if any
 	lastErr          error
 	refreshErrLogged bool // true once a refresh failure has been logged, reset on re-auth
 }
@@ -93,11 +106,21 @@ func NewManager(cfg Config, logger *slog.Logger) *Manager {
 // re-authorization is required). It is cheap to call repeatedly: the underlying
 // token source caches and only refreshes when the token has expired.
 func (m *Manager) AccessToken() string {
+	token, _ := m.accessToken()
+	return token
+}
+
+// accessToken returns the token together with the generation of the source it
+// checked. Authenticate uses the generation to detect a source installed while
+// token validation was in progress, without repeating a potentially blocking
+// refresh request.
+func (m *Manager) accessToken() (string, uint64) {
 	m.mu.Lock()
 	src := m.source
+	generation := m.tokenGeneration
 	m.mu.Unlock()
 	if src == nil {
-		return ""
+		return "", generation
 	}
 	// Refresh (if needed) happens here, off the lock, because ReuseTokenSource may
 	// make a blocking network call and holding m.mu would serialize every tool call.
@@ -109,17 +132,17 @@ func (m *Manager) AccessToken() string {
 		// prompt. The oauth2 error carries the token endpoint's response, not the
 		// access or refresh token.
 		m.mu.Lock()
-		if !m.refreshErrLogged {
+		if m.tokenGeneration == generation && !m.refreshErrLogged {
 			m.refreshErrLogged = true
 			m.logger.Warn("OAuth token refresh failed; re-authorization required", "error", err)
 		}
 		m.mu.Unlock()
-		return ""
+		return "", generation
 	}
 	if !tok.Valid() {
-		return ""
+		return "", generation
 	}
-	return tok.AccessToken
+	return tok.AccessToken, generation
 }
 
 // HasToken reports whether a valid token is currently available.
@@ -137,63 +160,142 @@ func (m *Manager) HasToken() bool {
 // Only one flow runs at a time. Concurrent callers either join a running secure
 // flow, receive the pending user action, or are told to retry shortly.
 func (m *Manager) Authenticate(ctx context.Context, prompter Prompter) (*Outcome, error) {
-	if m.AccessToken() != "" {
-		return nil, nil
-	}
+	var flowID string
+	var done chan struct{}
+	for {
+		token, checkedTokenGeneration := m.accessToken()
+		if token != "" {
+			return nil, nil
+		}
 
-	m.mu.Lock()
-	switch m.status {
-	case statusAwaitingUser:
-		ua := m.pending
-		m.mu.Unlock()
-		return &Outcome{UserAction: ua}, nil
-	case statusStarting:
-		m.mu.Unlock()
-		return &Outcome{UserAction: &UserAction{
-			Message: "GitHub authorization is already in progress. Please retry your request in a few seconds.",
-		}}, nil
-	case statusInProgress:
-		done := m.done
-		m.mu.Unlock()
-		return m.joinWait(ctx, done)
-	}
+		m.mu.Lock()
+		switch m.status {
+		case statusAwaitingUser:
+			ua := m.pending
+			flowID := m.flowID
+			m.mu.Unlock()
+			return &Outcome{UserAction: ua, FlowID: flowID}, nil
+		case statusStarting:
+			flowID := m.flowID
+			m.mu.Unlock()
+			return &Outcome{UserAction: &UserAction{
+				Message: "GitHub authorization is already in progress. Please retry your request in a few seconds.",
+			}, FlowID: flowID}, nil
+		case statusInProgress:
+			done := m.done
+			flowID := m.flowID
+			m.mu.Unlock()
+			return m.joinWait(ctx, done, flowID)
+		}
 
-	// Idle: this call owns the new flow.
-	m.status = statusStarting
-	m.lastErr = nil
-	m.done = make(chan struct{})
-	done := m.done
-	m.mu.Unlock()
+		// A flow may have installed a token while the source above was being
+		// checked. Retry if the source changed before claiming the idle state.
+		if m.tokenGeneration != checkedTokenGeneration {
+			m.mu.Unlock()
+			continue
+		}
+
+		// Idle: this call owns the new flow.
+		m.status = statusStarting
+		m.flowID = rand.Text()
+		flowID = m.flowID
+		m.lastErr = nil
+		m.done = make(chan struct{})
+		done = m.done
+		m.mu.Unlock()
+		break
+	}
 
 	plan, err := m.begin(prompter)
 	if err != nil {
-		m.complete(nil, err)
+		m.complete(flowID, nil, err)
 		return nil, err
 	}
 
+	bgCtx, cancel := context.WithTimeout(context.Background(), DefaultAuthTimeout)
 	m.mu.Lock()
+	if m.flowID != flowID {
+		m.mu.Unlock()
+		cancel()
+		return nil, ErrStaleAuthorizationFlow
+	}
 	if plan.userAction != nil {
 		m.status = statusAwaitingUser
 		m.pending = plan.userAction
 	} else {
 		m.status = statusInProgress
 	}
+	m.cancelFlow = cancel
 	m.mu.Unlock()
-
-	bgCtx, cancel := context.WithTimeout(context.Background(), DefaultAuthTimeout)
-	go m.runFlow(bgCtx, cancel, plan)
+	go m.runFlow(bgCtx, cancel, flowID, plan)
 
 	if plan.userAction != nil {
-		return &Outcome{UserAction: plan.userAction}, nil
+		return &Outcome{UserAction: plan.userAction, FlowID: flowID}, nil
 	}
-	return m.joinWait(ctx, done)
+	return m.joinWait(ctx, done, flowID)
+}
+
+// AwaitToken blocks until the in-flight authorization flow yields a token, the
+// flow ends without one, or ctx is done. It is the resume half of the
+// multi-round-trip flow: a transport that presented the authorization prompt
+// itself (via elicitation returned from a tool call) calls this once the user
+// has acted, to wait for the background token acquisition to finish.
+//
+// It returns (nil, nil) once a token is available (proceed), (&Outcome{UserAction},
+// nil) when the user must still act out of band, or (nil, err) on failure.
+func (m *Manager) AwaitToken(ctx context.Context, flowID string) (*Outcome, error) {
+	m.mu.Lock()
+	if flowID == "" || flowID != m.flowID {
+		m.mu.Unlock()
+		return nil, ErrStaleAuthorizationFlow
+	}
+	done := m.done
+	m.mu.Unlock()
+	if m.AccessToken() != "" {
+		return nil, nil
+	}
+	if done == nil {
+		// No flow is in flight; report whatever terminal state it left behind.
+		return m.outcomeAfterFlow(flowID)
+	}
+	select {
+	case <-done:
+		return m.outcomeAfterFlow(flowID)
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// Cancel retires the matching authorization flow and aborts its background
+// callback listener or device poll. It returns false if flowID is stale.
+func (m *Manager) Cancel(flowID string) bool {
+	m.mu.Lock()
+	if flowID == "" || flowID != m.flowID {
+		m.mu.Unlock()
+		return false
+	}
+	cancel := m.cancelFlow
+	m.status = statusIdle
+	m.flowID = ""
+	m.pending = nil
+	m.cancelFlow = nil
+	m.lastErr = context.Canceled
+	if m.done != nil {
+		close(m.done)
+		m.done = nil
+	}
+	m.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	return true
 }
 
 // runFlow executes a prepared flow in the background and records the result. The
 // optional display prompt runs concurrently: a decline (or other failure) aborts
 // the flow, while an undeliverable prompt degrades to the manual fallback without
 // tearing the flow down, so the user can still authorize out of band.
-func (m *Manager) runFlow(ctx context.Context, cancel context.CancelFunc, plan *flowPlan) {
+func (m *Manager) runFlow(ctx context.Context, cancel context.CancelFunc, flowID string, plan *flowPlan) {
 	defer cancel()
 
 	if plan.display != nil {
@@ -212,7 +314,7 @@ func (m *Manager) runFlow(ctx context.Context, cancel context.CancelFunc, plan *
 				// prompt. Surface the manual instructions instead of failing, and
 				// keep the background flow alive so the user can still authorize.
 				m.logger.Debug("authorization prompt undeliverable; falling back to manual instructions", "reason", err)
-				m.fallBackToUserAction(plan.fallback)
+				m.fallBackToUserAction(flowID, plan.fallback)
 			default:
 				// A user decline (ErrPromptDeclined) or any other prompt failure
 				// ends the flow.
@@ -223,17 +325,17 @@ func (m *Manager) runFlow(ctx context.Context, cancel context.CancelFunc, plan *
 	}
 
 	tok, err := plan.run(ctx)
-	m.complete(tok, err)
+	m.complete(flowID, tok, err)
 }
 
 // fallBackToUserAction promotes a running secure flow to the manual user-action
 // channel after its prompt could not be delivered. The background flow keeps
 // running, so the user can complete authorization out of band and retry. It is a
 // no-op if the flow has already resolved.
-func (m *Manager) fallBackToUserAction(ua *UserAction) {
+func (m *Manager) fallBackToUserAction(flowID string, ua *UserAction) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.status != statusInProgress {
+	if m.flowID != flowID || m.status != statusInProgress {
 		return
 	}
 	m.status = statusAwaitingUser
@@ -248,12 +350,16 @@ func (m *Manager) fallBackToUserAction(ua *UserAction) {
 
 // complete records the flow result, installing a refreshing token source on
 // success, and wakes any joined callers.
-func (m *Manager) complete(tok *oauth2.Token, err error) {
+func (m *Manager) complete(flowID string, tok *oauth2.Token, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.flowID != flowID {
+		return
+	}
 
 	m.status = statusIdle
 	m.pending = nil
+	m.cancelFlow = nil
 	if err != nil {
 		m.lastErr = err
 		m.logger.Debug("oauth flow failed", "error", err)
@@ -265,6 +371,7 @@ func (m *Manager) complete(tok *oauth2.Token, err error) {
 		// client so a stalled token endpoint can't block a tool call forever.
 		refreshCtx := context.WithValue(context.Background(), oauth2.HTTPClient, &http.Client{Timeout: tokenRefreshTimeout})
 		m.source = m.refreshConfig.TokenSource(refreshCtx, tok)
+		m.tokenGeneration++
 		m.refreshErrLogged = false
 		m.logger.Info("github authorization complete")
 	}
@@ -277,26 +384,37 @@ func (m *Manager) complete(tok *oauth2.Token, err error) {
 // joinWait blocks until the running flow finishes or ctx is cancelled. If the
 // flow was promoted to the manual channel while waiting (its prompt could not be
 // delivered), it returns that user action rather than an error.
-func (m *Manager) joinWait(ctx context.Context, done chan struct{}) (*Outcome, error) {
+func (m *Manager) joinWait(ctx context.Context, done chan struct{}, flowID string) (*Outcome, error) {
 	select {
 	case <-done:
-		if m.AccessToken() != "" {
-			return nil, nil
-		}
-		m.mu.Lock()
-		pending := m.pending
-		err := m.lastErr
-		m.mu.Unlock()
-		if pending != nil {
-			return &Outcome{UserAction: pending}, nil
-		}
-		if err != nil {
-			return nil, err
-		}
-		return nil, errors.New("authorization did not complete")
+		return m.outcomeAfterFlow(flowID)
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+}
+
+// outcomeAfterFlow reports the result once the flow's done channel has closed
+// (or when there is no flow in flight): a token to proceed (nil, nil), a pending
+// user action to surface, or the flow's error.
+func (m *Manager) outcomeAfterFlow(flowID string) (*Outcome, error) {
+	m.mu.Lock()
+	if flowID == "" || flowID != m.flowID {
+		m.mu.Unlock()
+		return nil, ErrStaleAuthorizationFlow
+	}
+	pending := m.pending
+	err := m.lastErr
+	m.mu.Unlock()
+	if m.AccessToken() != "" {
+		return nil, nil
+	}
+	if pending != nil {
+		return &Outcome{UserAction: pending, FlowID: flowID}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return nil, errors.New("authorization did not complete")
 }
 
 func (m *Manager) oauth2Config(redirectURL string) *oauth2.Config {
