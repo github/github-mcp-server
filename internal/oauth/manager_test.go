@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 )
 
 // newManager wires a Manager to the fake GitHub server. By default the browser
@@ -167,6 +168,7 @@ func TestAuthenticateLastDitchUserAction(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, out)
 	require.NotNil(t, out.UserAction)
+	require.NotEmpty(t, out.FlowID)
 	assert.NotEmpty(t, out.UserAction.URL)
 	assert.Contains(t, out.UserAction.Message, "open this URL")
 	assert.Contains(t, out.UserAction.Message, securityAdvisory,
@@ -178,10 +180,125 @@ func TestAuthenticateLastDitchUserAction(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, out2.UserAction)
 	assert.Equal(t, out.UserAction.URL, out2.UserAction.URL)
+	assert.Equal(t, out.FlowID, out2.FlowID)
 
 	// The user opens the URL out of band; the background flow then completes.
 	require.NoError(t, browserGet(out.UserAction.URL))
 	assert.Equal(t, "gho_access", waitForToken(t, m))
+}
+
+func TestAwaitTokenCompletesCurrentFlow(t *testing.T) {
+	f := newFakeGitHub(t)
+	m := newManager(t, f)
+	m.openURL = func(string) error { return errors.New("no browser") }
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	out, err := m.Authenticate(ctx, nil)
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	require.NotNil(t, out.UserAction)
+	require.NotEmpty(t, out.FlowID)
+
+	authDone := make(chan error, 1)
+	go func() {
+		authDone <- browserGet(out.UserAction.URL)
+	}()
+
+	awaited, err := m.AwaitToken(ctx, out.FlowID)
+	require.NoError(t, err)
+	assert.Nil(t, awaited)
+	require.NoError(t, <-authDone)
+	assert.Equal(t, "gho_access", m.AccessToken())
+}
+
+func TestCancelAndAwaitTokenAreFlowScoped(t *testing.T) {
+	f := newFakeGitHub(t)
+	m := newManager(t, f)
+	m.openURL = func(string) error { return errors.New("no browser") }
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	first, err := m.Authenticate(ctx, nil)
+	require.NoError(t, err)
+	require.NotNil(t, first)
+	require.NotEmpty(t, first.FlowID)
+
+	assert.True(t, m.Cancel(first.FlowID), "the current flow should be cancelled")
+	second, err := m.Authenticate(ctx, nil)
+	require.NoError(t, err)
+	require.NotNil(t, second)
+	require.NotNil(t, second.UserAction)
+	require.NotEmpty(t, second.FlowID)
+	require.NotEqual(t, first.FlowID, second.FlowID)
+
+	assert.False(t, m.Cancel(first.FlowID), "a stale decline must not cancel the newer flow")
+	_, err = m.AwaitToken(ctx, first.FlowID)
+	assert.ErrorIs(t, err, ErrStaleAuthorizationFlow)
+
+	authDone := make(chan error, 1)
+	go func() {
+		authDone <- browserGet(second.UserAction.URL)
+	}()
+	awaited, err := m.AwaitToken(ctx, second.FlowID)
+	require.NoError(t, err)
+	assert.Nil(t, awaited)
+	require.NoError(t, <-authDone)
+	assert.Equal(t, "gho_access", m.AccessToken())
+}
+
+type blockingTokenSource struct {
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (s *blockingTokenSource) Token() (*oauth2.Token, error) {
+	s.once.Do(func() { close(s.entered) })
+	<-s.release
+	return nil, errors.New("stale token source failed")
+}
+
+func TestAuthenticateRechecksTokenBeforeStartingFlow(t *testing.T) {
+	f := newFakeGitHub(t)
+	m := newManager(t, f)
+	staleSource := &blockingTokenSource{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+
+	m.mu.Lock()
+	m.source = staleSource
+	m.status = statusInProgress
+	m.flowID = "existing-flow"
+	m.done = make(chan struct{})
+	m.mu.Unlock()
+
+	type result struct {
+		out *Outcome
+		err error
+	}
+	authResult := make(chan result, 1)
+	go func() {
+		out, err := m.Authenticate(context.Background(), nil)
+		authResult <- result{out: out, err: err}
+	}()
+
+	<-staleSource.entered
+	m.complete("existing-flow", &oauth2.Token{
+		AccessToken: "installed-token",
+		TokenType:   "bearer",
+		Expiry:      time.Now().Add(time.Hour),
+	}, nil)
+	close(staleSource.release)
+
+	got := <-authResult
+	require.NoError(t, got.err)
+	assert.Nil(t, got.out)
+	assert.Equal(t, "installed-token", m.AccessToken())
+	assert.Empty(t, f.recordedGrants(), "a completed concurrent flow must not trigger a redundant authorization")
 }
 
 func TestAuthenticateDeviceFlow(t *testing.T) {

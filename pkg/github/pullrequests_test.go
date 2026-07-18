@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -53,12 +54,14 @@ func Test_GetPullRequest(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]any
-		expectError    bool
-		expectedPR     *github.PullRequest
-		expectedErrMsg string
+		name            string
+		mockedClient    *http.Client
+		requestArgs     map[string]any
+		expectError     bool
+		expectedPR      *github.PullRequest
+		expectedErrMsg  string
+		lockdownEnabled bool
+		restPermission  string
 	}{
 		{
 			name: "successful PR fetch",
@@ -91,6 +94,38 @@ func Test_GetPullRequest(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to get pull request",
 		},
+		{
+			name: "lockdown enabled - user lacks push access",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:     true,
+			expectedErrMsg:  "access to pull request is restricted by lockdown mode",
+			lockdownEnabled: true,
+			restPermission:  "read",
+		},
+		{
+			name: "lockdown enabled - private repository",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get",
+				"owner":      "owner2",
+				"repo":       "repo2",
+				"pullNumber": float64(42),
+			},
+			expectError:     false,
+			expectedPR:      mockPR,
+			lockdownEnabled: true,
+			restPermission:  "none",
+		},
 	}
 
 	for _, tc := range tests {
@@ -98,11 +133,17 @@ func Test_GetPullRequest(t *testing.T) {
 			// Setup client with mock
 			client := mustNewGHClient(t, tc.mockedClient)
 			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
+
+			var restClient *github.Client
+			if tc.restPermission != "" {
+				restClient = mockRESTPermissionServer(t, tc.restPermission, nil)
+			}
+
 			deps := BaseDeps{
 				Client:          client,
 				GQLClient:       gqlClient,
-				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
-				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+				RepoAccessCache: stubRepoAccessCache(restClient, 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled}),
 			}
 			handler := serverTool.Handler(deps)
 
@@ -1152,12 +1193,14 @@ func Test_GetPullRequestFiles(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]any
-		expectError    bool
-		expectedFiles  []*github.CommitFile
-		expectedErrMsg string
+		name            string
+		mockedClient    *http.Client
+		requestArgs     map[string]any
+		expectError     bool
+		expectedFiles   []*github.CommitFile
+		expectedErrMsg  string
+		lockdownEnabled bool
+		restPermission  string
 	}{
 		{
 			name: "successful files fetch",
@@ -1221,6 +1264,64 @@ func Test_GetPullRequestFiles(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to get pull request files",
 		},
+		{
+			name: "lockdown enabled - author lacks push access",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, &github.PullRequest{
+					Number: github.Ptr(42),
+					User:   &github.User{Login: github.Ptr("reader")},
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_files",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			lockdownEnabled: true,
+			restPermission:  "read",
+			expectError:     true,
+			expectedErrMsg:  "access to pull request is restricted by lockdown mode",
+		},
+		{
+			name: "lockdown enabled - author has push access",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, &github.PullRequest{
+					Number: github.Ptr(42),
+					User:   &github.User{Login: github.Ptr("writer")},
+				}),
+				GetReposPullsFilesByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockFiles),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_files",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			lockdownEnabled: true,
+			restPermission:  "write",
+			expectError:     false,
+			expectedFiles:   mockFiles,
+		},
+		{
+			name: "lockdown enabled - pull request fetch fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_files",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(999),
+			},
+			lockdownEnabled: true,
+			restPermission:  "read",
+			expectError:     true,
+			expectedErrMsg:  "failed to get pull request",
+		},
 	}
 
 	for _, tc := range tests {
@@ -1228,10 +1329,16 @@ func Test_GetPullRequestFiles(t *testing.T) {
 			// Setup client with mock
 			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
+
+			var restClient *github.Client
+			if tc.lockdownEnabled {
+				restClient = mockRESTPermissionServer(t, tc.restPermission, nil)
+			}
+
 			deps := BaseDeps{
 				Client:          client,
-				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
-				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+				RepoAccessCache: stubRepoAccessCache(restClient, 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled}),
 			}
 			handler := serverTool.Handler(deps)
 
@@ -2387,6 +2494,33 @@ func Test_GetPullRequestReviews(t *testing.T) {
 					User:  &github.User{Login: github.Ptr("maintainer")},
 				},
 			},
+			lockdownEnabled: true,
+		},
+		{
+			name: "lockdown enabled filters reviews with empty author login",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsReviewsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, []*github.PullRequestReview{
+					{
+						ID:    github.Ptr(int64(2040)),
+						State: github.Ptr("APPROVED"),
+						Body:  github.Ptr("Ghost review"),
+						User:  &github.User{Login: github.Ptr("")},
+					},
+					{
+						ID:    github.Ptr(int64(2041)),
+						State: github.Ptr("COMMENTED"),
+						Body:  github.Ptr("Another ghost review"),
+					},
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_reviews",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:     false,
+			expectedReviews: []*github.PullRequestReview{},
 			lockdownEnabled: true,
 		},
 	}
@@ -3794,10 +3928,30 @@ index 5d6e7b2..8a4f5c3 100644
 +
 +This is a new section added in the pull request.`
 
+	// Under lockdown the diff path first fetches the PR as JSON to resolve the
+	// author, then the raw diff; branch on the Accept header to serve both.
+	prOrDiffHandler := func(authorLogin string) http.HandlerFunc {
+		mockPR := &github.PullRequest{
+			Number: github.Ptr(42),
+			User:   &github.User{Login: github.Ptr(authorLogin)},
+		}
+		return func(w http.ResponseWriter, r *http.Request) {
+			if strings.Contains(r.Header.Get("Accept"), "diff") {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(stubbedDiff))
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(mockPR)
+		}
+	}
+
 	tests := []struct {
 		name               string
 		requestArgs        map[string]any
 		mockedClient       *http.Client
+		lockdownEnabled    bool
+		restPermission     string
 		expectToolError    bool
 		expectedToolErrMsg string
 	}{
@@ -3816,6 +3970,37 @@ index 5d6e7b2..8a4f5c3 100644
 			}),
 			expectToolError: false,
 		},
+		{
+			name: "lockdown enabled - author lacks push access",
+			requestArgs: map[string]any{
+				"method":     "get_diff",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: prOrDiffHandler("reader"),
+			}),
+			lockdownEnabled:    true,
+			restPermission:     "read",
+			expectToolError:    true,
+			expectedToolErrMsg: "access to pull request is restricted by lockdown mode",
+		},
+		{
+			name: "lockdown enabled - author has push access",
+			requestArgs: map[string]any{
+				"method":     "get_diff",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: prOrDiffHandler("writer"),
+			}),
+			lockdownEnabled: true,
+			restPermission:  "write",
+			expectToolError: false,
+		},
 	}
 
 	for _, tc := range tests {
@@ -3825,10 +4010,16 @@ index 5d6e7b2..8a4f5c3 100644
 			// Setup client with mock
 			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
+
+			var restClient *github.Client
+			if tc.lockdownEnabled {
+				restClient = mockRESTPermissionServer(t, tc.restPermission, nil)
+			}
+
 			deps := BaseDeps{
 				Client:          client,
-				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
-				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+				RepoAccessCache: stubRepoAccessCache(restClient, 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled}),
 			}
 			handler := serverTool.Handler(deps)
 

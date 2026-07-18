@@ -55,6 +55,7 @@ var InsidersFeatureFlags = []string{
 	FeatureFlagCSVOutput,
 	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,
+	FeatureFlagFieldsParam,
 }
 
 // FeatureFlags defines runtime feature toggles that adjust tool behavior.

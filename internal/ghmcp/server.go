@@ -314,36 +314,33 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	// For OAuth, the token is resolved lazily: empty until the user authorizes
 	// on the first tool call, then refreshed for the rest of the session.
 	var tokenProvider func() string
+	var toolHandlerMiddleware []inventory.ToolHandlerMiddleware
 	if cfg.OAuthManager != nil {
 		tokenProvider = cfg.OAuthManager.AccessToken
+		toolHandlerMiddleware = append(toolHandlerMiddleware, createOAuthToolMiddleware(cfg.OAuthManager, logger))
 	}
 
 	ghServer, err := NewStdioMCPServer(ctx, github.MCPServerConfig{
-		Version:           cfg.Version,
-		Host:              cfg.Host,
-		Token:             cfg.Token,
-		EnabledToolsets:   cfg.EnabledToolsets,
-		EnabledTools:      cfg.EnabledTools,
-		EnabledFeatures:   cfg.EnabledFeatures,
-		ReadOnly:          cfg.ReadOnly,
-		Translator:        t,
-		ContentWindowSize: cfg.ContentWindowSize,
-		LockdownMode:      cfg.LockdownMode,
-		InsidersMode:      cfg.InsidersMode,
-		ExcludeTools:      cfg.ExcludeTools,
-		Logger:            logger,
-		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
-		TokenScopes:       tokenScopes,
-		TokenProvider:     tokenProvider,
+		Version:               cfg.Version,
+		Host:                  cfg.Host,
+		Token:                 cfg.Token,
+		EnabledToolsets:       cfg.EnabledToolsets,
+		EnabledTools:          cfg.EnabledTools,
+		EnabledFeatures:       cfg.EnabledFeatures,
+		ReadOnly:              cfg.ReadOnly,
+		Translator:            t,
+		ContentWindowSize:     cfg.ContentWindowSize,
+		LockdownMode:          cfg.LockdownMode,
+		InsidersMode:          cfg.InsidersMode,
+		ExcludeTools:          cfg.ExcludeTools,
+		Logger:                logger,
+		RepoAccessTTL:         cfg.RepoAccessCacheTTL,
+		TokenScopes:           tokenScopes,
+		TokenProvider:         tokenProvider,
+		ToolHandlerMiddleware: toolHandlerMiddleware,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
-	}
-
-	// With OAuth, intercept tool calls to run the authorization flow on first
-	// use, before the handler tries to call GitHub with an empty token.
-	if cfg.OAuthManager != nil {
-		ghServer.AddReceivingMiddleware(createOAuthMiddleware(cfg.OAuthManager, logger))
 	}
 
 	if cfg.ExportTranslations {
