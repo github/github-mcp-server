@@ -28,6 +28,7 @@ import (
 	gogithub "github.com/google/go-github/v89/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
+	"golang.org/x/oauth2"
 )
 
 // githubClients holds all the GitHub API clients created for a server instance.
@@ -257,6 +258,9 @@ type StdioServerConfig struct {
 	// are hidden. The default set is the full supported list, which hides
 	// nothing; an explicit, narrower list filters accordingly.
 	OAuthScopes []string
+
+	// GitHubAppTokenSource, when non-nil, supplies the GitHub App installation token.
+	GitHubAppTokenSource oauth2.TokenSource
 }
 
 // RunStdioServer is not concurrent safe.
@@ -318,6 +322,14 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	if cfg.OAuthManager != nil {
 		tokenProvider = cfg.OAuthManager.AccessToken
 		toolHandlerMiddleware = append(toolHandlerMiddleware, createOAuthToolMiddleware(cfg.OAuthManager, logger))
+	} else if cfg.GitHubAppTokenSource != nil {
+		tokenProvider = func() string {
+			tok, err := cfg.GitHubAppTokenSource.Token()
+			if err != nil {
+				return ""
+			}
+			return tok.AccessToken
+		}
 	}
 
 	ghServer, err := NewStdioMCPServer(ctx, github.MCPServerConfig{

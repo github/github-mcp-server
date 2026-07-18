@@ -13,9 +13,11 @@ import (
 	"github.com/github/github-mcp-server/pkg/github"
 	ghhttp "github.com/github/github-mcp-server/pkg/http"
 	ghoauth "github.com/github/github-mcp-server/pkg/http/oauth"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"golang.org/x/oauth2"
 )
 
 // These variables are set by the build process using ldflags.
@@ -39,6 +41,22 @@ var (
 			token := viper.GetString("personal_access_token")
 			oauthClientID := viper.GetString("oauth-client-id")
 			oauthClientSecret := viper.GetString("oauth-client-secret")
+
+			// Check GitHub App configuration
+			appID := viper.GetInt64("app-id")
+			appInstallationID := viper.GetInt64("app-installation-id")
+			appPrivateKey := viper.GetString("app-private-key")
+			appPrivateKeyPath := viper.GetString("app-private-key-path")
+
+			var appTokenSource oauth2.TokenSource
+			if appID != 0 && appInstallationID != 0 {
+				var err error
+				appTokenSource, err = utils.NewGitHubAppTokenSource(appID, appInstallationID, []byte(appPrivateKey), appPrivateKeyPath, viper.GetString("host"))
+				if err != nil {
+					return err
+				}
+			}
+
 			// Fall back to the build-time baked-in client (official releases) when none is
 			// configured explicitly. The baked-in app is registered on github.com, so it is
 			// only applied to the default host; GHES/ghe.com users must bring their own
@@ -50,8 +68,8 @@ var (
 				oauthClientID = buildinfo.OAuthClientID
 				oauthClientSecret = buildinfo.OAuthClientSecret
 			}
-			if token == "" && oauthClientID == "" {
-				return errors.New("authentication required: set GITHUB_PERSONAL_ACCESS_TOKEN, or pass --oauth-client-id to log in via OAuth")
+			if token == "" && oauthClientID == "" && appTokenSource == nil {
+				return errors.New("authentication required: set GITHUB_PERSONAL_ACCESS_TOKEN, pass --oauth-client-id to log in via OAuth, or configure GitHub App credentials")
 			}
 
 			// If you're wondering why we're not using viper.GetStringSlice("toolsets"),
@@ -110,13 +128,14 @@ var (
 				InsidersMode:         viper.GetBool("insiders"),
 				ExcludeTools:         excludeTools,
 				RepoAccessCacheTTL:   &ttl,
+				GitHubAppTokenSource: appTokenSource,
 			}
 
-			// When no static token is provided, log in via OAuth using the given
+			// When no static token or GitHub App TokenSource is set, log in via OAuth using the given
 			// client. The requested scopes default to the full supported set
 			// (which filters out no tools); an explicit, narrower --oauth-scopes
 			// both narrows the grant and hides tools needing other scopes.
-			if token == "" {
+			if token == "" && appTokenSource == nil {
 				scopes := ghoauth.SupportedScopes
 				if viper.IsSet("oauth-scopes") {
 					if err := viper.UnmarshalKey("oauth-scopes", &scopes); err != nil {
@@ -172,6 +191,21 @@ var (
 				}
 			}
 
+			// Check GitHub App configuration for HTTP mode
+			appID := viper.GetInt64("app-id")
+			appInstallationID := viper.GetInt64("app-installation-id")
+			appPrivateKey := viper.GetString("app-private-key")
+			appPrivateKeyPath := viper.GetString("app-private-key-path")
+
+			var appTokenSource oauth2.TokenSource
+			if appID != 0 && appInstallationID != 0 {
+				var err error
+				appTokenSource, err = utils.NewGitHubAppTokenSource(appID, appInstallationID, []byte(appPrivateKey), appPrivateKeyPath, viper.GetString("host"))
+				if err != nil {
+					return err
+				}
+			}
+
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			httpConfig := ghhttp.ServerConfig{
 				Version:              version,
@@ -194,6 +228,7 @@ var (
 				EnabledFeatures:      enabledFeatures,
 				InsidersMode:         viper.GetBool("insiders"),
 				TrustProxyHeaders:    viper.GetBool("trust-proxy-headers"),
+				GitHubAppTokenSource: appTokenSource,
 			}
 
 			return ghhttp.RunHTTPServer(httpConfig)
@@ -221,6 +256,12 @@ func init() {
 	rootCmd.PersistentFlags().Bool("lockdown-mode", false, "Enable lockdown mode")
 	rootCmd.PersistentFlags().Bool("insiders", false, "Enable insiders features")
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
+
+	// GitHub App flags
+	rootCmd.PersistentFlags().Int64("app-id", 0, "GitHub App ID")
+	rootCmd.PersistentFlags().Int64("app-installation-id", 0, "GitHub App Installation ID")
+	rootCmd.PersistentFlags().String("app-private-key", "", "GitHub App Private Key PEM content")
+	rootCmd.PersistentFlags().String("app-private-key-path", "", "Path to GitHub App Private Key PEM file")
 
 	// stdio-specific OAuth flags. Provide --oauth-client-id (instead of a token)
 	// to log in via the browser-based OAuth flow on first use. Works for both
@@ -252,6 +293,10 @@ func init() {
 	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
 	_ = viper.BindPFlag("insiders", rootCmd.PersistentFlags().Lookup("insiders"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
+	_ = viper.BindPFlag("app-id", rootCmd.PersistentFlags().Lookup("app-id"))
+	_ = viper.BindPFlag("app-installation-id", rootCmd.PersistentFlags().Lookup("app-installation-id"))
+	_ = viper.BindPFlag("app-private-key", rootCmd.PersistentFlags().Lookup("app-private-key"))
+	_ = viper.BindPFlag("app-private-key-path", rootCmd.PersistentFlags().Lookup("app-private-key-path"))
 	_ = viper.BindPFlag("oauth-client-id", stdioCmd.Flags().Lookup("oauth-client-id"))
 	_ = viper.BindPFlag("oauth-client-secret", stdioCmd.Flags().Lookup("oauth-client-secret"))
 	_ = viper.BindPFlag("oauth-scopes", stdioCmd.Flags().Lookup("oauth-scopes"))

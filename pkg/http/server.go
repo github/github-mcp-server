@@ -25,6 +25,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
+	"golang.org/x/oauth2"
 )
 
 type ServerConfig struct {
@@ -100,6 +101,9 @@ type ServerConfig struct {
 
 	// InsidersMode expands to the curated set of feature flags enabled for insiders.
 	InsidersMode bool
+
+	// GitHubAppTokenSource, when non-nil, supplies the GitHub App installation token.
+	GitHubAppTokenSource oauth2.TokenSource
 }
 
 func RunHTTPServer(cfg ServerConfig) error {
@@ -153,6 +157,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 		cfg.ContentWindowSize,
 		featureChecker,
 		obs,
+		cfg.GitHubAppTokenSource,
 	)
 
 	// Initialize the global tool scope map

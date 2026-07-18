@@ -21,6 +21,7 @@ import (
 	gogithub "github.com/google/go-github/v89/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
+	"golang.org/x/oauth2"
 )
 
 // depsContextKey is the context key for ToolDependencies.
@@ -267,12 +268,13 @@ func NewToolFromHandler(
 
 type RequestDeps struct {
 	// Static dependencies
-	apiHosts          utils.APIHostResolver
-	version           string
-	lockdownMode      bool
-	RepoAccessOpts    []lockdown.RepoAccessOption
-	T                 translations.TranslationHelperFunc
-	ContentWindowSize int
+	apiHosts             utils.APIHostResolver
+	version              string
+	lockdownMode         bool
+	RepoAccessOpts       []lockdown.RepoAccessOption
+	T                    translations.TranslationHelperFunc
+	ContentWindowSize    int
+	gitHubAppTokenSource oauth2.TokenSource
 
 	// Feature flag checker for runtime checks
 	featureChecker inventory.FeatureFlagChecker
@@ -291,27 +293,41 @@ func NewRequestDeps(
 	contentWindowSize int,
 	featureChecker inventory.FeatureFlagChecker,
 	obsv observability.Exporters,
+	gitHubAppTokenSource oauth2.TokenSource,
 ) *RequestDeps {
 	return &RequestDeps{
-		apiHosts:          apiHosts,
-		version:           version,
-		lockdownMode:      lockdownMode,
-		RepoAccessOpts:    repoAccessOpts,
-		T:                 t,
-		ContentWindowSize: contentWindowSize,
-		featureChecker:    featureChecker,
-		obsv:              obsv,
+		apiHosts:             apiHosts,
+		version:              version,
+		lockdownMode:         lockdownMode,
+		RepoAccessOpts:       repoAccessOpts,
+		T:                    t,
+		ContentWindowSize:    contentWindowSize,
+		featureChecker:       featureChecker,
+		obsv:                 obsv,
+		gitHubAppTokenSource: gitHubAppTokenSource,
 	}
+}
+
+func (d *RequestDeps) resolveToken(ctx context.Context) (string, error) {
+	if tokenInfo, ok := ghcontext.GetTokenInfo(ctx); ok {
+		return tokenInfo.Token, nil
+	}
+	if d.gitHubAppTokenSource != nil {
+		tok, err := d.gitHubAppTokenSource.Token()
+		if err != nil {
+			return "", fmt.Errorf("failed to get default token from GitHub App source: %w", err)
+		}
+		return tok.AccessToken, nil
+	}
+	return "", fmt.Errorf("no token info in context and no default token source configured")
 }
 
 // GetClient implements ToolDependencies.
 func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
-	// extract the token from the context
-	tokenInfo, ok := ghcontext.GetTokenInfo(ctx)
-	if !ok {
-		return nil, fmt.Errorf("no token info in context")
+	token, err := d.resolveToken(ctx)
+	if err != nil {
+		return nil, err
 	}
-	token := tokenInfo.Token
 
 	baseRestURL, err := d.apiHosts.BaseRESTURL(ctx)
 	if err != nil {
@@ -336,12 +352,15 @@ func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
 
 // GetGQLClient implements ToolDependencies.
 func (d *RequestDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error) {
-	// extract the token from the context
-	tokenInfo, ok := ghcontext.GetTokenInfo(ctx)
-	if !ok {
-		return nil, fmt.Errorf("no token info in context")
+	token, err := d.resolveToken(ctx)
+	if err != nil {
+		return nil, err
 	}
-	token := tokenInfo.Token
+
+	graphqlURL, err := d.apiHosts.GraphqlURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get GraphQL URL: %w", err)
+	}
 
 	// Construct GraphQL client
 	// We use NewEnterpriseClient unconditionally since we already parsed the API host
@@ -354,11 +373,6 @@ func (d *RequestDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error
 			},
 			Token: token,
 		},
-	}
-
-	graphqlURL, err := d.apiHosts.GraphqlURL(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get GraphQL URL: %w", err)
 	}
 
 	gqlClient := githubv4.NewEnterpriseClient(graphqlURL.String(), gqlHTTPClient)

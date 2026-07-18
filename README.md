@@ -183,8 +183,13 @@ GitHub Enterprise Server does not support remote server hosting. Please refer to
 1. To run the server in a container, you will need to have [Docker](https://www.docker.com/) installed.
 2. Once Docker is installed, you will also need to ensure Docker is running. The Docker image is available at `ghcr.io/github/github-mcp-server`. The image is public; if you get errors on pull, you may have an expired token and need to `docker logout ghcr.io`.
 3. **Authentication.** On github.com you don't need to create anything up front — the one-click buttons above log you in with OAuth on first use (a browser-based flow; the token is kept in memory only). The Docker buttons publish a fixed callback port (`127.0.0.1:8085`) so the container's login callback is reachable. See **[Local Server OAuth Login](docs/oauth-login.md)** for how it works, headless/device-code fallback, and bringing your own OAuth or GitHub App (required for GitHub Enterprise Server and `ghe.com`).
-
    Prefer a token? You can still authenticate with a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new) by setting `GITHUB_PERSONAL_ACCESS_TOKEN` instead (it takes precedence over OAuth). The MCP server can use many of the GitHub APIs, so enable the permissions that you feel comfortable granting your AI tools (to learn more about access tokens, please check out the [documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
+
+   **Using GitHub App Authentication.** Alternatively, you can run the server as a GitHub App installation. This is recommended for automated environments or enterprise deployments. Set the following environment variables (or pass the corresponding CLI flags):
+   - `GITHUB_APP_ID` (or `--app-id`): The GitHub App ID.
+   - `GITHUB_APP_INSTALLATION_ID` (or `--app-installation-id`): The App installation ID.
+   - `GITHUB_APP_PRIVATE_KEY` (or `--app-private-key`): The RSA private key PEM block string.
+   - `GITHUB_APP_PRIVATE_KEY_PATH` (or `--app-private-key-path`): Alternatively, the file path to the RSA private key PEM file.
 
 <details><summary><b>Handling PATs Securely</b></summary>
 
