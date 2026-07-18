@@ -494,6 +494,8 @@ func Test_UpdatePullRequest_Draft(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			getCalls := 0
 			actionCalls := 0
+			convertToDraftCalls := 0
+			readyForReviewCalls := 0
 
 			restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposPullsByOwnerByRepoByPullNumber: func(w http.ResponseWriter, _ *http.Request) {
@@ -522,10 +524,12 @@ func Test_UpdatePullRequest_Draft(t *testing.T) {
 				},
 				PostReposPullsByOwnerByRepoByPullNumberReadyForReview: func(w http.ResponseWriter, _ *http.Request) {
 					actionCalls++
+					readyForReviewCalls++
 					writeJSONResponse(t, w, tc.actionStatusCode, map[string]any{"message": "forbidden"})
 				},
 				PostReposPullsByOwnerByRepoByPullNumberConvertToDraft: func(w http.ResponseWriter, _ *http.Request) {
 					actionCalls++
+					convertToDraftCalls++
 					writeJSONResponse(t, w, tc.actionStatusCode, map[string]any{"message": "forbidden"})
 				},
 			}))
@@ -548,6 +552,18 @@ func Test_UpdatePullRequest_Draft(t *testing.T) {
 				errorContent := getErrorResult(t, result)
 				assert.Contains(t, errorContent.Text, tc.expectedErrContains)
 				assert.Equal(t, tc.expectedActionCalls, actionCalls)
+				if tc.expectedActionCalls == 1 {
+					if tc.requestedDraftState {
+						assert.Equal(t, 1, convertToDraftCalls)
+						assert.Equal(t, 0, readyForReviewCalls)
+					} else {
+						assert.Equal(t, 0, convertToDraftCalls)
+						assert.Equal(t, 1, readyForReviewCalls)
+					}
+				} else {
+					assert.Equal(t, 0, convertToDraftCalls)
+					assert.Equal(t, 0, readyForReviewCalls)
+				}
 				return
 			}
 			require.False(t, result.IsError)
@@ -558,6 +574,18 @@ func Test_UpdatePullRequest_Draft(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, "https://github.com/owner/repo/pull/42", updateResp.URL)
 			assert.Equal(t, tc.expectedActionCalls, actionCalls)
+			if tc.expectedActionCalls == 1 {
+				if tc.requestedDraftState {
+					assert.Equal(t, 1, convertToDraftCalls)
+					assert.Equal(t, 0, readyForReviewCalls)
+				} else {
+					assert.Equal(t, 0, convertToDraftCalls)
+					assert.Equal(t, 1, readyForReviewCalls)
+				}
+			} else {
+				assert.Equal(t, 0, convertToDraftCalls)
+				assert.Equal(t, 0, readyForReviewCalls)
+			}
 		})
 	}
 }
