@@ -288,6 +288,11 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		PullRequestReviewWriteWithResolutionReason(t, opts...),
 		AddCommentToPendingReview(t),
 		AddReplyToPullRequestComment(t),
+		GetStack(t),
+		ListStacks(t),
+		LinkStack(t),
+		UpdateStack(t),
+		DissolveStack(t),
 
 		// Copilot tools
 		AssignCopilotToIssue(t),
