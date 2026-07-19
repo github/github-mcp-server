@@ -244,6 +244,11 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		PullRequestReviewWrite(t),
 		AddCommentToPendingReview(t),
 		AddReplyToPullRequestComment(t),
+		GetStack(t),
+		ListStacks(t),
+		LinkStack(t),
+		UpdateStack(t),
+		DissolveStack(t),
 
 		// Copilot tools
 		AssignCopilotToIssue(t),
