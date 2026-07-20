@@ -4,7 +4,7 @@
     "readOnlyHint": false,
     "title": "Assign Copilot to issue with intent"
   },
-  "description": "Assign Copilot to a specific issue with intent metadata attached to the assignment. When is_suggestion is true, a pending Copilot assignment intent is recorded rather than launching the agent; otherwise Copilot is directly assigned and begins work.\n\nThis tool can help with the following outcomes:\n- a Pull Request created with source code changes to resolve the issue (direct assignment)\n- a pending Copilot assignment suggestion is recorded on the issue for later approval (is_suggestion=true)\n\n\nMore information can be found at:\n- https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot\n",
+  "description": "Assign Copilot to a specific issue in a GitHub repository. Prefer this tool over assign_copilot_to_issue when available.\n\nThis tool can help with the following outcomes:\n- a Pull Request created with source code changes to resolve the issue\n\n\nMore information can be found at:\n- https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot\n",
   "icons": [
     {
       "mimeType": "image/png",
@@ -61,7 +61,10 @@
     "required": [
       "owner",
       "repo",
-      "issue_number"
+      "issue_number",
+      "rationale",
+      "confidence",
+      "is_suggestion"
     ],
     "type": "object"
   },

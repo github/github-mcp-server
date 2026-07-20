@@ -501,12 +501,10 @@ const copilotAssigneeUnavailableMessage = "copilot isn't available as an assigne
 // adding schema surface to the default configuration.
 func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) inventory.ServerTool {
 	description := mvpDescription{
-		summary: "Assign Copilot to a specific issue with intent metadata attached to the assignment. " +
-			"When is_suggestion is true, a pending Copilot assignment intent is recorded rather than launching the agent; " +
-			"otherwise Copilot is directly assigned and begins work.",
+		summary: "Assign Copilot to a specific issue in a GitHub repository. " +
+			"Prefer this tool over assign_copilot_to_issue when available.",
 		outcomes: []string{
-			"a Pull Request created with source code changes to resolve the issue (direct assignment)",
-			"a pending Copilot assignment suggestion is recorded on the issue for later approval (is_suggestion=true)",
+			"a Pull Request created with source code changes to resolve the issue",
 		},
 		referenceLinks: []string{
 			"https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot",
@@ -563,7 +561,7 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 						Description: "If true, records a pending Copilot assignment intent rather than launching the agent. Approval later supplies the launch context; base_ref and custom_instructions are ignored in this case.",
 					},
 				},
-				Required: []string{"owner", "repo", "issue_number"},
+				Required: []string{"owner", "repo", "issue_number", "rationale", "confidence", "is_suggestion"},
 			},
 		},
 		[]scopes.Scope{scopes.Repo},
@@ -584,21 +582,24 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 
 			// Validate rationale length (rune count, matching the granular assignee tools).
 			rationale := strings.TrimSpace(params.Rationale)
+			if rationale == "" {
+				return utils.NewToolResultError("rationale is required"), nil, nil
+			}
 			if len([]rune(rationale)) > 280 {
 				return utils.NewToolResultError("rationale must be 280 characters or less"), nil, nil
 			}
 
 			// Validate/normalize confidence.
 			confidence := normalizeConfidence(params.Confidence)
-			var confidenceEnum *AssignmentConfidenceLevel
-			if confidence != "" {
-				switch confidence {
-				case "LOW", "MEDIUM", "HIGH":
-					lvl := AssignmentConfidenceLevel(confidence)
-					confidenceEnum = &lvl
-				default:
-					return utils.NewToolResultError("confidence must be one of: LOW, MEDIUM, HIGH"), nil, nil
-				}
+			if confidence == "" {
+				return utils.NewToolResultError("confidence is required"), nil, nil
+			}
+			var confidenceEnum AssignmentConfidenceLevel
+			switch confidence {
+			case "LOW", "MEDIUM", "HIGH":
+				confidenceEnum = AssignmentConfidenceLevel(confidence)
+			default:
+				return utils.NewToolResultError("confidence must be one of: LOW, MEDIUM, HIGH"), nil, nil
 			}
 
 			client, err := deps.GetGQLClient(ctx)
@@ -645,17 +646,16 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 			for _, node := range existing {
 				assignees = append(assignees, AssigneeUpdateInput{ActorID: node.ID})
 			}
-			copilotEntry := AssigneeUpdateInput{ActorID: copilotAssignee.ID}
-			if rationale != "" {
-				r := githubv4.String(rationale)
-				copilotEntry.Rationale = &r
-			}
-			if confidenceEnum != nil {
-				copilotEntry.Confidence = confidenceEnum
-			}
-			if params.IsSuggestion {
-				b := githubv4.Boolean(true)
-				copilotEntry.Suggest = &b
+			// Build the Copilot entry with the required intent metadata. Preserved
+			// assignees carry only actorId; intent fields are attached only to the
+			// Copilot entry.
+			rationaleGQL := githubv4.String(rationale)
+			suggest := githubv4.Boolean(params.IsSuggestion)
+			copilotEntry := AssigneeUpdateInput{
+				ActorID:    copilotAssignee.ID,
+				Rationale:  &rationaleGQL,
+				Confidence: &confidenceEnum,
+				Suggest:    &suggest,
 			}
 			assignees = append(assignees, copilotEntry)
 

@@ -988,7 +988,10 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 	} {
 		assert.Contains(t, schema.Properties, prop)
 	}
-	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "issue_number"})
+	assert.ElementsMatch(t, schema.Required, []string{
+		"owner", "repo", "issue_number",
+		"rationale", "confidence", "is_suggestion",
+	})
 
 	rationaleSchema := schema.Properties["rationale"]
 	require.NotNil(t, rationaleSchema.MaxLength)
@@ -1112,11 +1115,12 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 		{
 			name: "direct assignment with rationale and confidence preserves existing assignees",
 			requestArgs: map[string]any{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(123),
-				"rationale":    "Well-scoped task with clear acceptance criteria.",
-				"confidence":   "HIGH",
+				"owner":         "owner",
+				"repo":          "repo",
+				"issue_number":  float64(123),
+				"rationale":     "Well-scoped task with clear acceptance criteria.",
+				"confidence":    "HIGH",
+				"is_suggestion": false,
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				suggestedActorsMatcher(),
@@ -1131,6 +1135,7 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 							ActorID:    githubv4.ID("copilot-swe-agent-id"),
 							Rationale:  ptrStr("Well-scoped task with clear acceptance criteria."),
 							Confidence: ptrConfidence(AssignmentConfidenceLevelHigh),
+							Suggest:    ptrBool(false),
 						},
 					},
 					AgentAssignment: &AgentAssignmentInput{
@@ -1149,7 +1154,9 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 				"issue_number":        float64(123),
 				"base_ref":            "feature-branch",
 				"custom_instructions": "Follow PEP 8.",
+				"rationale":           "Task benefits from a linting-focused agent.",
 				"confidence":          "medium",
+				"is_suggestion":       false,
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				suggestedActorsMatcher(),
@@ -1159,7 +1166,9 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 					Assignees: []AssigneeUpdateInput{
 						{
 							ActorID:    githubv4.ID("copilot-swe-agent-id"),
+							Rationale:  ptrStr("Task benefits from a linting-focused agent."),
 							Confidence: ptrConfidence(AssignmentConfidenceLevelMedium),
+							Suggest:    ptrBool(false),
 						},
 					},
 					AgentAssignment: &AgentAssignmentInput{
@@ -1202,24 +1211,54 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 			expectSuggestion: true,
 		},
 		{
+			name: "missing rationale is rejected",
+			requestArgs: map[string]any{
+				"owner":         "owner",
+				"repo":          "repo",
+				"issue_number":  float64(123),
+				"confidence":    "HIGH",
+				"is_suggestion": false,
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "rationale is required",
+		},
+		{
 			name: "rationale exceeding 280 characters is rejected",
 			requestArgs: map[string]any{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(123),
-				"rationale":    strings.Repeat("a", 281),
+				"owner":         "owner",
+				"repo":          "repo",
+				"issue_number":  float64(123),
+				"rationale":     strings.Repeat("a", 281),
+				"confidence":    "HIGH",
+				"is_suggestion": false,
 			},
 			mockedClient:       githubv4mock.NewMockedHTTPClient(),
 			expectToolError:    true,
 			expectedToolErrMsg: "rationale must be 280 characters or less",
 		},
 		{
+			name: "missing confidence is rejected",
+			requestArgs: map[string]any{
+				"owner":         "owner",
+				"repo":          "repo",
+				"issue_number":  float64(123),
+				"rationale":     "A good candidate.",
+				"is_suggestion": false,
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "confidence is required",
+		},
+		{
 			name: "invalid confidence value is rejected",
 			requestArgs: map[string]any{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(123),
-				"confidence":   "SUPER_HIGH",
+				"owner":         "owner",
+				"repo":          "repo",
+				"issue_number":  float64(123),
+				"rationale":     "A good candidate.",
+				"confidence":    "SUPER_HIGH",
+				"is_suggestion": false,
 			},
 			mockedClient:       githubv4mock.NewMockedHTTPClient(),
 			expectToolError:    true,
@@ -1228,9 +1267,12 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 		{
 			name: "copilot not a suggested actor",
 			requestArgs: map[string]any{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(123),
+				"owner":         "owner",
+				"repo":          "repo",
+				"issue_number":  float64(123),
+				"rationale":     "A good candidate.",
+				"confidence":    "HIGH",
+				"is_suggestion": false,
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
