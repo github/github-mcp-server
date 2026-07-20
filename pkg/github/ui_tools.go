@@ -96,7 +96,7 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 			case "reviewers":
 				return uiGetReviewers(ctx, deps, args, owner)
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: labels, assignees, milestones, issue_types, branches, issue_fields, reviewers", method)), nil, nil
 			}
 		})
 	st.FeatureFlagEnable = MCPAppsFeatureFlag
