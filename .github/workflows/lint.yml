@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: Build UI
         uses: ./.github/actions/build-ui
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.25'
       - name: golangci-lint
