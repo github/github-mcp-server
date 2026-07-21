@@ -71,6 +71,27 @@ func statusFieldNode(nodeID string, databaseID int, name string, options []map[s
 	}
 }
 
+// iterationFieldNode is an iteration field response node for use in mock data.
+func iterationFieldNode(nodeID string, databaseID int, name string) map[string]any {
+	return map[string]any{
+		"id":         nodeID,
+		"databaseId": databaseID,
+		"name":       name,
+		"dataType":   "ITERATION",
+	}
+}
+
+// genericFieldNode is a plain field response node (neither single-select nor
+// iteration, e.g. TEXT or NUMBER) for use in mock data.
+func genericFieldNode(nodeID string, databaseID int, name, dataType string) map[string]any {
+	return map[string]any{
+		"id":         nodeID,
+		"databaseId": databaseID,
+		"name":       name,
+		"dataType":   dataType,
+	}
+}
+
 func fieldsResponse(nodes []map[string]any) map[string]any {
 	return map[string]any{
 		"organization": map[string]any{
@@ -109,12 +130,49 @@ func Test_ResolveProjectFieldByName_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, field)
 	assert.Equal(t, "12345", field.ID)
+	assert.Equal(t, "PVTSSF_lADOBBcDeFg123", field.NodeID)
 	assert.Equal(t, "SINGLE_SELECT", field.DataType)
 	assert.Len(t, field.Options, 3)
 
 	optionID, err := resolveSingleSelectOptionByName(field, "In Progress")
 	require.NoError(t, err)
 	assert.Equal(t, "OPT_b", optionID)
+}
+
+func Test_ResolveProjectFieldByName_NodeIDsForAllVariants(t *testing.T) {
+	mocked := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 7),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				statusFieldNode("PVTSSF_single1", 111, "Status", []map[string]any{
+					{"id": "OPT_a", "name": "Todo"},
+				}),
+				iterationFieldNode("PVTIF_iteration1", 222, "Sprint"),
+				genericFieldNode("PVTF_text1", 333, "Notes", "TEXT"),
+			})),
+		),
+	)
+	gql := githubv4.NewClient(mocked)
+
+	variants := []struct {
+		fieldName    string
+		expectedType string
+		wantNodeID   string
+	}{
+		{"Status", "SINGLE_SELECT", "PVTSSF_single1"},
+		{"Sprint", "ITERATION", "PVTIF_iteration1"},
+		{"Notes", "TEXT", "PVTF_text1"},
+	}
+	for _, v := range variants {
+		t.Run(v.fieldName, func(t *testing.T) {
+			field, err := resolveProjectFieldByName(context.Background(), gql, "octo-org", "org", 7, v.fieldName, v.expectedType)
+			require.NoError(t, err)
+			require.NotNil(t, field)
+			assert.Equal(t, v.wantNodeID, field.NodeID)
+			assert.Equal(t, v.expectedType, field.DataType)
+		})
+	}
 }
 
 func Test_ResolveProjectFieldByName_NotFound_ReturnsStructuredError(t *testing.T) {
@@ -243,7 +301,7 @@ func (t *requestCountingTransport) RoundTrip(req *http.Request) (*http.Response,
 	return t.inner.RoundTrip(req)
 }
 
-func Test_ResolveProjectItemIDByIssueNumber_Success(t *testing.T) {
+func Test_ResolveProjectItemByIssueNumber_Success(t *testing.T) {
 	mocked := githubv4mock.NewMockedHTTPClient(
 		// project node id lookup (org)
 		githubv4mock.NewQueryMatcher(
