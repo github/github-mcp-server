@@ -1261,6 +1261,16 @@ The following sets of tools are available:
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/repo-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/repo-light.png"><img src="pkg/octicons/icons/repo-light.png" width="20" height="20" alt="repo"></picture> Repositories</summary>
 
+- **compare_commits** - Compare two commits
+  - **Required OAuth Scopes**: `repo`
+  - `base`: Base branch, tag, or commit SHA to compare from (string, required)
+  - `detail`: Level of detail to include for changed files. "none" omits stats and files entirely. "stats" (default) includes per-file metadata: filename, status, and lines-of-code counts (additions, deletions, changes), with no patch content. "full_patch" additionally includes the unified diff content for each file and can be very large. (string, optional)
+  - `head`: Head branch, tag, or commit SHA to compare to (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+
 - **create_branch** - Create branch
   - **Required OAuth Scopes**: `repo`
   - `branch`: Name for new branch (string, required)

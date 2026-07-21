@@ -275,6 +275,24 @@ type MinimalCommit struct {
 	Files     []MinimalCommitFile `json:"files,omitempty"`
 }
 
+// MinimalCommitsComparison is the trimmed output type for a two-commit
+// comparison (compare_commits), mirroring github.CommitsComparison with
+// commits trimmed down to MinimalCommit.
+type MinimalCommitsComparison struct {
+	Status          string              `json:"status,omitempty"`
+	AheadBy         int                 `json:"ahead_by"`
+	BehindBy        int                 `json:"behind_by"`
+	TotalCommits    int                 `json:"total_commits"`
+	BaseCommit      *MinimalCommit      `json:"base_commit,omitempty"`
+	MergeBaseCommit *MinimalCommit      `json:"merge_base_commit,omitempty"`
+	Commits         []MinimalCommit     `json:"commits,omitempty"`
+	Files           []MinimalCommitFile `json:"files,omitempty"`
+	HTMLURL         string              `json:"html_url,omitempty"`
+	PermalinkURL    string              `json:"permalink_url,omitempty"`
+	DiffURL         string              `json:"diff_url,omitempty"`
+	PatchURL        string              `json:"patch_url,omitempty"`
+}
+
 // MinimalRepoRef is a lightweight reference to a repository, used when a
 // result needs to identify which repository it belongs to (for example, in
 // cross-repo commit search results).
@@ -1652,6 +1670,60 @@ func convertToMinimalCommit(commit *github.RepositoryCommit, detail commitDetail
 	}
 
 	return minimalCommit
+}
+
+// convertToMinimalCommitsComparison converts a two-commit comparison
+// (compare_commits) to its trimmed form. The base/merge-base/head commits are
+// always converted without per-file detail (commitDetailNone), matching how
+// convertToMinimalCommit is used for list_commits, since the compare API
+// doesn't populate per-commit file data. detail instead controls the
+// top-level Files list, which holds the actual diff between base and head.
+func convertToMinimalCommitsComparison(comp *github.CommitsComparison, detail commitDetail) MinimalCommitsComparison {
+	minimalComparison := MinimalCommitsComparison{
+		Status:       comp.GetStatus(),
+		AheadBy:      comp.GetAheadBy(),
+		BehindBy:     comp.GetBehindBy(),
+		TotalCommits: comp.GetTotalCommits(),
+		HTMLURL:      comp.GetHTMLURL(),
+		PermalinkURL: comp.GetPermalinkURL(),
+		DiffURL:      comp.GetDiffURL(),
+		PatchURL:     comp.GetPatchURL(),
+	}
+
+	if comp.BaseCommit != nil {
+		baseCommit := convertToMinimalCommit(comp.BaseCommit, commitDetailNone)
+		minimalComparison.BaseCommit = &baseCommit
+	}
+	if comp.MergeBaseCommit != nil {
+		mergeBaseCommit := convertToMinimalCommit(comp.MergeBaseCommit, commitDetailNone)
+		minimalComparison.MergeBaseCommit = &mergeBaseCommit
+	}
+
+	if len(comp.Commits) > 0 {
+		minimalComparison.Commits = make([]MinimalCommit, len(comp.Commits))
+		for i, commit := range comp.Commits {
+			minimalComparison.Commits[i] = convertToMinimalCommit(commit, commitDetailNone)
+		}
+	}
+
+	if detail != commitDetailNone && len(comp.Files) > 0 {
+		minimalComparison.Files = make([]MinimalCommitFile, 0, len(comp.Files))
+		for _, file := range comp.Files {
+			minimalFile := MinimalCommitFile{
+				Filename:  file.GetFilename(),
+				Status:    file.GetStatus(),
+				Additions: file.GetAdditions(),
+				Deletions: file.GetDeletions(),
+				Changes:   file.GetChanges(),
+			}
+			if detail == commitDetailFullPatch {
+				minimalFile.Patch = file.GetPatch()
+			}
+			minimalComparison.Files = append(minimalComparison.Files, minimalFile)
+		}
+	}
+
+	return minimalComparison
 }
 
 // convertCommitResultToMinimalCommit converts a GitHub API commit search

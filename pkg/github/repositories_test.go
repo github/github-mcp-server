@@ -5680,3 +5680,178 @@ func Test_ListRepositoryCollaborators(t *testing.T) {
 		})
 	}
 }
+
+func Test_CompareCommits(t *testing.T) {
+	serverTool := CompareCommits(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+
+	assert.Equal(t, "compare_commits", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "base")
+	assert.Contains(t, schema.Properties, "head")
+	assert.Contains(t, schema.Properties, "detail")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "base", "head"})
+
+	mockComparison := &github.CommitsComparison{
+		Status:       github.Ptr("ahead"),
+		AheadBy:      github.Ptr(2),
+		BehindBy:     github.Ptr(0),
+		TotalCommits: github.Ptr(2),
+		BaseCommit: &github.RepositoryCommit{
+			SHA:     github.Ptr("base-sha"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/commit/base-sha"),
+			Commit:  &github.Commit{Message: github.Ptr("base commit")},
+		},
+		Commits: []*github.RepositoryCommit{
+			{
+				SHA:     github.Ptr("commit-sha-1"),
+				HTMLURL: github.Ptr("https://github.com/owner/repo/commit/commit-sha-1"),
+				Commit:  &github.Commit{Message: github.Ptr("first commit")},
+			},
+			{
+				SHA:     github.Ptr("commit-sha-2"),
+				HTMLURL: github.Ptr("https://github.com/owner/repo/commit/commit-sha-2"),
+				Commit:  &github.Commit{Message: github.Ptr("second commit")},
+			},
+		},
+		Files: []*github.CommitFile{
+			{
+				Filename:  github.Ptr("main.go"),
+				Status:    github.Ptr("modified"),
+				Additions: github.Ptr(5),
+				Deletions: github.Ptr(1),
+				Changes:   github.Ptr(6),
+				Patch:     github.Ptr("@@ -1,1 +1,5 @@"),
+			},
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]any
+		expectError    bool
+		expectedErrMsg string
+		verify         func(t *testing.T, comparison MinimalCommitsComparison)
+	}{
+		{
+			name: "successful comparison with default detail",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatch(GetReposCompareByOwnerByRepoByBasehead, mockComparison),
+			),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"base":  "main",
+				"head":  "feature",
+			},
+			expectError: false,
+			verify: func(t *testing.T, comparison MinimalCommitsComparison) {
+				assert.Equal(t, "ahead", comparison.Status)
+				assert.Equal(t, 2, comparison.AheadBy)
+				assert.Len(t, comparison.Commits, 2)
+				assert.Equal(t, "commit-sha-1", comparison.Commits[0].SHA)
+				require.Len(t, comparison.Files, 1)
+				assert.Equal(t, "main.go", comparison.Files[0].Filename)
+				// Default detail is "stats": no patch content.
+				assert.Empty(t, comparison.Files[0].Patch)
+			},
+		},
+		{
+			name: "successful comparison with full_patch detail",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatch(GetReposCompareByOwnerByRepoByBasehead, mockComparison),
+			),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"base":   "main",
+				"head":   "feature",
+				"detail": "full_patch",
+			},
+			expectError: false,
+			verify: func(t *testing.T, comparison MinimalCommitsComparison) {
+				require.Len(t, comparison.Files, 1)
+				assert.Equal(t, "@@ -1,1 +1,5 @@", comparison.Files[0].Patch)
+			},
+		},
+		{
+			name: "successful comparison with none detail omits files",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatch(GetReposCompareByOwnerByRepoByBasehead, mockComparison),
+			),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"base":   "main",
+				"head":   "feature",
+				"detail": "none",
+			},
+			expectError: false,
+			verify: func(t *testing.T, comparison MinimalCommitsComparison) {
+				assert.Empty(t, comparison.Files)
+			},
+		},
+		{
+			name:           "missing base parameter",
+			mockedClient:   NewMockedHTTPClient(),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo", "head": "feature"},
+			expectError:    false,
+			expectedErrMsg: "missing required parameter: base",
+		},
+		{
+			name: "comparison fails",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetReposCompareByOwnerByRepoByBasehead,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"base":  "main",
+				"head":  "does-not-exist",
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to compare commits",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			if tc.expectedErrMsg != "" {
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+
+			var comparison MinimalCommitsComparison
+			err = json.Unmarshal([]byte(textContent.Text), &comparison)
+			require.NoError(t, err)
+
+			tc.verify(t, comparison)
+		})
+	}
+}

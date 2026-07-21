@@ -341,6 +341,125 @@ func listCommitsTool(t translations.TranslationHelperFunc, includeFields bool) i
 	)
 }
 
+// CompareCommits creates a tool to compare two commits, branches, or tags in a GitHub repository.
+func CompareCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"base": {
+				Type:        "string",
+				Description: "Base branch, tag, or commit SHA to compare from",
+			},
+			"head": {
+				Type:        "string",
+				Description: "Head branch, tag, or commit SHA to compare to",
+			},
+			"detail": {
+				Type:        "string",
+				Enum:        []any{"none", "stats", "full_patch"},
+				Description: "Level of detail to include for changed files. \"none\" omits stats and files entirely. \"stats\" (default) includes per-file metadata: filename, status, and lines-of-code counts (additions, deletions, changes), with no patch content. \"full_patch\" additionally includes the unified diff content for each file and can be very large.",
+				Default:     json.RawMessage(`"stats"`),
+			},
+		},
+		Required: []string{"owner", "repo", "base", "head"},
+	}
+	WithPagination(schema)
+
+	return NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        "compare_commits",
+			Description: t("TOOL_COMPARE_COMMITS_DESCRIPTION", "Compare two commits, branches, or tags in a GitHub repository, returning the ahead/behind commit counts, the list of commits unique to head, and the files changed between them"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_COMPARE_COMMITS_USER_TITLE", "Compare two commits"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: schema,
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			base, err := RequiredParam[string](args, "base")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			head, err := RequiredParam[string](args, "head")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			detailRaw, err := OptionalParam[string](args, "detail")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			detail, err := parseCommitDetail(detailRaw)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			pagination, err := OptionalPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			opts := &github.ListOptions{
+				Page:    pagination.Page,
+				PerPage: pagination.PerPage,
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			comparison, resp, err := client.Repositories.CompareCommits(ctx, owner, repo, base, head, opts)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					fmt.Sprintf("failed to compare commits: %s...%s", base, head),
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to compare commits", resp, body), nil, nil
+			}
+
+			minimalComparison := convertToMinimalCommitsComparison(comparison, detail)
+
+			r, err := json.Marshal(minimalComparison)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			result := utils.NewToolResultText(string(r))
+			// Commit content is reachable from the repo's history; integrity
+			// follows the same public-untrusted / private-trusted rule as file
+			// contents. Confidentiality follows repo visibility.
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelCommitContents)
+			return result, nil, nil
+		},
+	)
+}
+
 // ListBranches creates a tool to list branches in a GitHub repository.
 func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
