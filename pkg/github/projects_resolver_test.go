@@ -204,6 +204,7 @@ type resolveItemByIssueQuery struct {
 		Issue struct {
 			ProjectItems struct {
 				Nodes []struct {
+					ID             githubv4.ID
 					FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
 					Project        struct {
 						ID githubv4.ID
@@ -220,6 +221,7 @@ type resolveItemByIssuePageQuery struct {
 		Issue struct {
 			ProjectItems struct {
 				Nodes []struct {
+					ID             githubv4.ID
 					FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
 					Project        struct {
 						ID githubv4.ID
@@ -282,6 +284,7 @@ func Test_ResolveProjectItemIDByIssueNumber_Success(t *testing.T) {
 									"project":        map[string]any{"id": "PVT_other"},
 								},
 								map[string]any{
+									"id":             "PVTI_target",
 									"fullDatabaseId": "4242",
 									"project":        map[string]any{"id": "PVT_project1"},
 								},
@@ -300,12 +303,13 @@ func Test_ResolveProjectItemIDByIssueNumber_Success(t *testing.T) {
 	)
 	gql := githubv4.NewClient(mocked)
 
-	itemID, err := resolveProjectItemIDByIssueNumber(context.Background(), gql, "octo-org", "org", 1, "octo-issue-owner", "repo", 123)
+	nodeID, itemID, err := resolveProjectItemByIssueNumber(context.Background(), gql, "octo-org", "org", 1, "octo-issue-owner", "repo", 123)
 	require.NoError(t, err)
+	assert.Equal(t, "PVTI_target", nodeID)
 	assert.Equal(t, int64(4242), itemID)
 }
 
-func Test_ResolveProjectItemIDByIssueNumber_TargetOnSecondPage(t *testing.T) {
+func Test_ResolveProjectItemByIssueNumber_TargetOnSecondPage(t *testing.T) {
 	mocked := githubv4mock.NewMockedHTTPClient(
 		githubv4mock.NewQueryMatcher(
 			struct {
@@ -367,6 +371,7 @@ func Test_ResolveProjectItemIDByIssueNumber_TargetOnSecondPage(t *testing.T) {
 						"projectItems": map[string]any{
 							"nodes": []any{
 								map[string]any{
+									"id":             "PVTI_target",
 									"fullDatabaseId": "4242",
 									"project":        map[string]any{"id": "PVT_project1"},
 								},
@@ -385,8 +390,9 @@ func Test_ResolveProjectItemIDByIssueNumber_TargetOnSecondPage(t *testing.T) {
 	)
 	gql := githubv4.NewClient(mocked)
 
-	itemID, err := resolveProjectItemIDByIssueNumber(context.Background(), gql, "octo-org", "org", 1, "octo-issue-owner", "repo", 123)
+	nodeID, itemID, err := resolveProjectItemByIssueNumber(context.Background(), gql, "octo-org", "org", 1, "octo-issue-owner", "repo", 123)
 	require.NoError(t, err)
+	assert.Equal(t, "PVTI_target", nodeID)
 	assert.Equal(t, int64(4242), itemID)
 }
 

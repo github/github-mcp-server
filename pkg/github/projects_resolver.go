@@ -20,10 +20,11 @@ type ResolvedFieldOption struct {
 	Name string
 }
 
-// ResolvedField is a project field resolved by name; Options is only set when
-// DataType == "SINGLE_SELECT".
+// ResolvedField contains a project's numeric database ID, GraphQL node ID, and
+// type-specific options.
 type ResolvedField struct {
 	ID       string
+	NodeID   string
 	Name     string
 	DataType string
 	Options  []ResolvedFieldOption
@@ -117,6 +118,7 @@ func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner
 				}
 				all = append(all, ResolvedField{
 					ID:       fmt.Sprintf("%d", n.ProjectV2SingleSelectField.DatabaseID),
+					NodeID:   fmt.Sprintf("%v", n.ProjectV2SingleSelectField.ID),
 					Name:     string(n.ProjectV2SingleSelectField.Name),
 					DataType: string(n.ProjectV2SingleSelectField.DataType),
 					Options:  opts,
@@ -124,12 +126,14 @@ func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner
 			case n.ProjectV2IterationField.ID != nil:
 				all = append(all, ResolvedField{
 					ID:       fmt.Sprintf("%d", n.ProjectV2IterationField.DatabaseID),
+					NodeID:   fmt.Sprintf("%v", n.ProjectV2IterationField.ID),
 					Name:     string(n.ProjectV2IterationField.Name),
 					DataType: string(n.ProjectV2IterationField.DataType),
 				})
 			case n.ProjectV2Field.ID != nil:
 				all = append(all, ResolvedField{
 					ID:       fmt.Sprintf("%d", n.ProjectV2Field.DatabaseID),
+					NodeID:   fmt.Sprintf("%v", n.ProjectV2Field.ID),
 					Name:     string(n.ProjectV2Field.Name),
 					DataType: string(n.ProjectV2Field.DataType),
 				})
@@ -266,13 +270,22 @@ func resolveSingleSelectOptionByName(field *ResolvedField, optionName string) (s
 // project item's full database ID in one GraphQL hop. Returns a structured
 // error if the issue is not an item on the project.
 func resolveProjectItemIDByIssueNumber(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, issueOwner, issueRepo string, issueNumber int) (int64, error) {
+	_, itemID, err := resolveProjectItemByIssueNumber(ctx, gqlClient, owner, ownerType, projectNumber, issueOwner, issueRepo, issueNumber)
+	return itemID, err
+}
+
+func resolveProjectItemByIssueNumber(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, issueOwner, issueRepo string, issueNumber int) (nodeID string, itemID int64, err error) {
 	projectID, err := resolveProjectNodeID(ctx, gqlClient, owner, ownerType, projectNumber)
 	if err != nil {
-		return 0, err
+		return "", 0, err
 	}
+	return resolveProjectItemByIssueNumberWithProjectID(ctx, gqlClient, projectID, issueOwner, issueRepo, issueNumber)
+}
 
+func resolveProjectItemByIssueNumberWithProjectID(ctx context.Context, gqlClient *githubv4.Client, projectID githubv4.ID, issueOwner, issueRepo string, issueNumber int) (nodeID string, itemID int64, err error) {
 	type projectItemsConnection struct {
 		Nodes []struct {
+			ID             githubv4.ID
 			FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
 			Project        struct {
 				ID githubv4.ID
@@ -296,18 +309,18 @@ func resolveProjectItemIDByIssueNumber(ctx context.Context, gqlClient *githubv4.
 	}
 
 	if err := gqlClient.Query(ctx, &firstPageQuery, vars); err != nil {
-		return 0, fmt.Errorf("failed to resolve project item for %s/%s#%d: %w", issueOwner, issueRepo, issueNumber, err)
+		return "", 0, fmt.Errorf("failed to resolve project item for %s/%s#%d: %w", issueOwner, issueRepo, issueNumber, err)
 	}
 
 	projectItems := firstPageQuery.Repository.Issue.ProjectItems
 	for {
 		for _, item := range projectItems.Nodes {
 			if item.Project.ID == projectID {
-				itemID, parseErr := parseInt64(string(item.FullDatabaseID))
+				parsedItemID, parseErr := parseInt64(string(item.FullDatabaseID))
 				if parseErr != nil {
-					return 0, fmt.Errorf("project item ID %q is not an integer: %w", string(item.FullDatabaseID), parseErr)
+					return "", 0, fmt.Errorf("project item ID %q is not an integer: %w", string(item.FullDatabaseID), parseErr)
 				}
-				return itemID, nil
+				return fmt.Sprintf("%v", item.ID), parsedItemID, nil
 			}
 		}
 
@@ -324,12 +337,12 @@ func resolveProjectItemIDByIssueNumber(ctx context.Context, gqlClient *githubv4.
 		}
 		vars["after"] = projectItems.PageInfo.EndCursor
 		if err := gqlClient.Query(ctx, &nextPageQuery, vars); err != nil {
-			return 0, fmt.Errorf("failed to resolve project item for %s/%s#%d: %w", issueOwner, issueRepo, issueNumber, err)
+			return "", 0, fmt.Errorf("failed to resolve project item for %s/%s#%d: %w", issueOwner, issueRepo, issueNumber, err)
 		}
 		projectItems = nextPageQuery.Repository.Issue.ProjectItems
 	}
 
-	return 0, ghErrors.NewStructuredResolutionError(
+	return "", 0, ghErrors.NewStructuredResolutionError(
 		"item_not_in_project",
 		fmt.Sprintf("%s/%s#%d", issueOwner, issueRepo, issueNumber),
 		"the issue exists but is not an item on the named project; add it first via add_project_item",
