@@ -39,6 +39,12 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 			wantEnabled:    true,
 		},
 		{
+			name:           "MCP Apps form deferral opt-out accepted from header",
+			flagName:       github.MCPAppsDisableFormDeferralFeatureFlag,
+			headerFeatures: []string{github.MCPAppsDisableFormDeferralFeatureFlag},
+			wantEnabled:    true,
+		},
+		{
 			name:           "unknown flag in header is ignored",
 			flagName:       "unknown_flag",
 			headerFeatures: []string{"unknown_flag"},
@@ -73,6 +79,12 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 			flagName:     github.MCPAppsFeatureFlag,
 			insidersMode: true,
 			wantEnabled:  true,
+		},
+		{
+			name:         "insiders mode does not disable MCP Apps form deferral",
+			flagName:     github.MCPAppsDisableFormDeferralFeatureFlag,
+			insidersMode: true,
+			wantEnabled:  false,
 		},
 		{
 			name:           "static feature is enabled without header",

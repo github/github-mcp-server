@@ -63,13 +63,15 @@ func hasNonFormParams(args map[string]any, formParams map[string]struct{}) bool 
 // shared by the form-backed write tools (create_pull_request,
 // update_pull_request, issue_write). It reports whether a call should be handed
 // off to its MCP App form instead of executing now: defer only when MCP Apps
-// are enabled, the client can render UI, the call is not itself a form
-// submission, and every supplied parameter can be represented by the form
-// (formParams is the tool's form-parameter allowlist). When it returns false
-// the handler executes directly; the host may still render the tool's view,
-// which renders the result rather than an input form.
+// are enabled, form deferral has not been disabled, the client can render UI,
+// the call is not itself a form submission, and every supplied parameter can
+// be represented by the form (formParams is the tool's form-parameter
+// allowlist). When it returns false the handler executes directly; the host may
+// still render the tool's view, which renders the result rather than an input
+// form.
 func shouldDeferToForm(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any, formParams map[string]struct{}) bool {
 	return deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) &&
+		!deps.IsFeatureEnabled(ctx, MCPAppsDisableFormDeferralFeatureFlag) &&
 		clientSupportsUI(ctx, req) &&
 		!uiSubmitted(args) &&
 		!hasNonFormParams(args, formParams)

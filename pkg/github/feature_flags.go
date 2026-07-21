@@ -5,6 +5,10 @@ import "slices"
 // MCPAppsFeatureFlag is the feature flag name for MCP Apps (interactive UI forms).
 const MCPAppsFeatureFlag = "remote_mcp_ui_apps"
 
+// MCPAppsDisableFormDeferralFeatureFlag disables handing write-tool calls off
+// to MCP App forms while preserving MCP Apps UI metadata and result views.
+const MCPAppsDisableFormDeferralFeatureFlag = "mcp_apps_disable_form_deferral"
+
 // FeatureFlagCSVOutput is the feature flag name for CSV output on list tools.
 const FeatureFlagCSVOutput = "csv_output"
 
@@ -37,6 +41,7 @@ const FeatureFlagFieldsParam = "fields_param"
 // This is the single source of truth for which flags are user-controllable.
 var AllowedFeatureFlags = []string{
 	MCPAppsFeatureFlag,
+	MCPAppsDisableFormDeferralFeatureFlag,
 	FeatureFlagCSVOutput,
 	FeatureFlagIFCLabels,
 	FeatureFlagIssuesGranular,

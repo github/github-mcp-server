@@ -156,6 +156,11 @@ func TestResolveFeatureFlags(t *testing.T) {
 			expectedFlags:   []string{MCPAppsFeatureFlag},
 		},
 		{
+			name:            "MCP Apps form deferral can be disabled directly",
+			enabledFeatures: []string{MCPAppsDisableFormDeferralFeatureFlag},
+			expectedFlags:   []string{MCPAppsDisableFormDeferralFeatureFlag},
+		},
+		{
 			name:            "fields param is not enabled by default",
 			enabledFeatures: nil,
 			unexpectedFlags: []string{FeatureFlagFieldsParam},
@@ -182,6 +187,12 @@ func TestResolveFeatureFlags(t *testing.T) {
 			enabledFeatures: nil,
 			insidersMode:    true,
 			unexpectedFlags: []string{FeatureFlagIFCLabels},
+		},
+		{
+			name:            "insiders mode does not disable MCP Apps form deferral",
+			enabledFeatures: nil,
+			insidersMode:    true,
+			unexpectedFlags: []string{MCPAppsDisableFormDeferralFeatureFlag},
 		},
 		{
 			name:            "ifc_labels can be directly enabled",

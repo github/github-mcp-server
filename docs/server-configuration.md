@@ -396,6 +396,17 @@ See [Insiders Features](./insiders-features.md) for a full list of what's availa
 
 MCP Apps is enabled by [Insiders Mode](#insiders-mode), or independently via the `remote_mcp_ui_apps` feature flag.
 
+To keep MCP App result views enabled while making write tools execute directly
+instead of first opening an interactive form, also enable the
+`mcp_apps_disable_form_deferral` feature flag. For the remote server, send both
+flags in the request header:
+
+```http
+X-MCP-Features: remote_mcp_ui_apps,mcp_apps_disable_form_deferral
+```
+
+For the local server, pass both flags to `--features`.
+
 **Supported tools:**
 
 | Tool | Description |
