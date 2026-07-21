@@ -1,0 +1,68 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Update release"
+  },
+  "description": "Update an existing release in a GitHub repository",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "Text describing the release",
+        "type": "string"
+      },
+      "discussion_category_name": {
+        "description": "Name of a discussion category in the repository to start a discussion for the release in. Can only be set once, when the release is published for the first time.",
+        "type": "string"
+      },
+      "draft": {
+        "description": "Whether the release should be a draft (unpublished)",
+        "type": "boolean"
+      },
+      "make_latest": {
+        "description": "Whether this release should be marked as the latest release for the repository",
+        "enum": [
+          "true",
+          "false",
+          "legacy"
+        ],
+        "type": "string"
+      },
+      "name": {
+        "description": "Release title",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "prerelease": {
+        "description": "Whether the release should be marked as a prerelease",
+        "type": "boolean"
+      },
+      "release_id": {
+        "description": "The unique identifier of the release to update",
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "tag_name": {
+        "description": "New tag name for the release",
+        "type": "string"
+      },
+      "target_commitish": {
+        "description": "Branch, tag, or commit SHA the Git tag is created from if the tag doesn't already exist",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "release_id"
+    ],
+    "type": "object"
+  },
+  "name": "update_release"
+}

@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Delete release"
+  },
+  "description": "Delete a release from a GitHub repository. This does not delete the underlying Git tag.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "release_id": {
+        "description": "The unique identifier of the release to delete",
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "release_id"
+    ],
+    "type": "object"
+  },
+  "name": "delete_release"
+}

@@ -1,0 +1,68 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Create release"
+  },
+  "description": "Create a new release in a GitHub repository",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "Text describing the release. If generate_release_notes is true, this is prepended to the automatically generated notes.",
+        "type": "string"
+      },
+      "discussion_category_name": {
+        "description": "Name of a discussion category in the repository to start a discussion for the release in",
+        "type": "string"
+      },
+      "draft": {
+        "description": "Save the release as a draft instead of publishing it",
+        "type": "boolean"
+      },
+      "generate_release_notes": {
+        "description": "Whether to automatically generate the name and body for this release based on merged pull requests since the last release",
+        "type": "boolean"
+      },
+      "make_latest": {
+        "description": "Whether this release should be marked as the latest release for the repository",
+        "enum": [
+          "true",
+          "false",
+          "legacy"
+        ],
+        "type": "string"
+      },
+      "name": {
+        "description": "Release title",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "prerelease": {
+        "description": "Mark the release as a prerelease",
+        "type": "boolean"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "tag_name": {
+        "description": "Tag name for the release (e.g., 'v1.0.0'). Created automatically if it doesn't already exist.",
+        "type": "string"
+      },
+      "target_commitish": {
+        "description": "Branch, tag, or commit SHA the Git tag is created from if tag_name doesn't already exist. Defaults to the repository's default branch.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "tag_name"
+    ],
+    "type": "object"
+  },
+  "name": "create_release"
+}
