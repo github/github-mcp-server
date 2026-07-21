@@ -158,7 +158,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 			"a Pull Request created with source code changes to resolve the issue",
 		},
 		referenceLinks: []string{
-			"https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot",
+			"https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent",
 		},
 	}
 
@@ -273,7 +273,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 			// If we didn't find the copilot bot, we can't proceed any further.
 			if copilotAssignee == nil {
 				// The e2e tests depend upon this specific message to skip the test.
-				return utils.NewToolResultError("copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information."), nil, nil
+				return utils.NewToolResultError("copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent for more information."), nil, nil
 			}
 
 			// Next, get the issue ID and repository ID
@@ -488,7 +488,7 @@ func findCopilotSuggestedActor(ctx context.Context, client *githubv4.Client, own
 // copilotAssigneeUnavailableMessage is returned when the copilot-swe-agent bot
 // is not among the repository's suggested actors. The e2e tests depend on this
 // exact message to skip the test.
-const copilotAssigneeUnavailableMessage = "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information."
+const copilotAssigneeUnavailableMessage = "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent for more information."
 
 // AssignCopilotToIssueWithIntent assigns Copilot to an issue using the
 // object-form assignees API, which allows intent metadata (rationale,
@@ -507,7 +507,7 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 			"a Pull Request created with source code changes to resolve the issue",
 		},
 		referenceLinks: []string{
-			"https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot",
+			"https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent",
 		},
 	}
 
@@ -566,6 +566,13 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, request *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			// Presence-check is_suggestion before decoding: mapstructure defaults a
+			// missing bool to false, which would silently launch Copilot instead of
+			// recording a suggestion. Require callers to make the choice explicit.
+			if _, ok := args["is_suggestion"]; !ok {
+				return utils.NewToolResultError("is_suggestion is required"), nil, nil
+			}
+
 			var params struct {
 				Owner              string `mapstructure:"owner"`
 				Repo               string `mapstructure:"repo"`
@@ -640,10 +647,15 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 			}
 
 			// Build object-form assignees: preserved assignees carry only actorId;
-			// the copilot entry carries any intent metadata provided.
+			// the copilot entry carries the intent metadata. Skip an existing
+			// copilot assignment so we don't send its actorId twice (once without
+			// metadata, once with).
 			existing := getIssueQuery.Repository.Issue.Assignees.Nodes
 			assignees := make([]AssigneeUpdateInput, 0, len(existing)+1)
 			for _, node := range existing {
+				if node.ID == copilotAssignee.ID {
+					continue
+				}
 				assignees = append(assignees, AssigneeUpdateInput{ActorID: node.ID})
 			}
 			// Build the Copilot entry with the required intent metadata. Preserved

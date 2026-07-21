@@ -1085,7 +1085,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 	textContent, ok = resp.Content[0].(*mcp.TextContent)
 	require.True(t, ok, "expected content to be of type TextContent")
 
-	possibleExpectedFailure := "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information."
+	possibleExpectedFailure := "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent for more information."
 	if resp.IsError && textContent.Text == possibleExpectedFailure {
 		t.Skip("skipping because copilot wasn't available as an assignee on this issue, it's likely that the owner doesn't have copilot enabled in their settings")
 	}
@@ -1186,7 +1186,7 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 	textContent, ok = resp.Content[0].(*mcp.TextContent)
 	require.True(t, ok, "expected content to be of type TextContent")
 
-	possibleExpectedFailure := "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information."
+	possibleExpectedFailure := "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent for more information."
 	if resp.IsError && textContent.Text == possibleExpectedFailure {
 		t.Skip("skipping because copilot wasn't available as an assignee on this issue, it's likely that the owner doesn't have copilot enabled in their settings")
 	}

@@ -582,7 +582,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 				),
 			),
 			expectToolError:    true,
-			expectedToolErrMsg: "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information.",
+			expectedToolErrMsg: "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent for more information.",
 		},
 		{
 			name: "successful assignment with base_ref specified",
@@ -1211,6 +1211,42 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 			expectSuggestion: true,
 		},
 		{
+			name: "existing copilot assignee is deduplicated from preserved assignees",
+			requestArgs: map[string]any{
+				"owner":         "owner",
+				"repo":          "repo",
+				"issue_number":  float64(123),
+				"rationale":     "Already assigned; refreshing intent.",
+				"confidence":    "HIGH",
+				"is_suggestion": false,
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				suggestedActorsMatcher(),
+				getIssueMatcher([]any{
+					map[string]any{"id": githubv4.ID("existing-assignee-id")},
+					map[string]any{"id": githubv4.ID("copilot-swe-agent-id")},
+				}),
+				// Expect copilot to appear only once, carrying the intent metadata.
+				mutationMatcher(UpdateIssueInput{
+					ID: githubv4.ID("test-issue-id"),
+					Assignees: []AssigneeUpdateInput{
+						{ActorID: githubv4.ID("existing-assignee-id")},
+						{
+							ActorID:    githubv4.ID("copilot-swe-agent-id"),
+							Rationale:  ptrStr("Already assigned; refreshing intent."),
+							Confidence: ptrConfidence(AssignmentConfidenceLevelHigh),
+							Suggest:    ptrBool(false),
+						},
+					},
+					AgentAssignment: &AgentAssignmentInput{
+						CustomAgent:        ptrStr(""),
+						CustomInstructions: ptrStr(""),
+						TargetRepositoryID: githubv4.ID("test-repo-id"),
+					},
+				}),
+			),
+		},
+		{
 			name: "missing rationale is rejected",
 			requestArgs: map[string]any{
 				"owner":         "owner",
@@ -1249,6 +1285,19 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 			mockedClient:       githubv4mock.NewMockedHTTPClient(),
 			expectToolError:    true,
 			expectedToolErrMsg: "confidence is required",
+		},
+		{
+			name: "missing is_suggestion is rejected",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"rationale":    "A good candidate.",
+				"confidence":   "HIGH",
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "is_suggestion is required",
 		},
 		{
 			name: "invalid confidence value is rejected",
