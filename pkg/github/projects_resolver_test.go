@@ -215,6 +215,32 @@ type resolveItemByIssueQuery struct {
 	} `graphql:"repository(owner: $issueOwner, name: $issueRepo)"`
 }
 
+type resolveItemByIssuePageQuery struct {
+	Repository struct {
+		Issue struct {
+			ProjectItems struct {
+				Nodes []struct {
+					FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+					Project        struct {
+						ID githubv4.ID
+					}
+				}
+				PageInfo PageInfoFragment
+			} `graphql:"projectItems(first: 50, after: $after, includeArchived: true)"`
+		} `graphql:"issue(number: $issueNumber)"`
+	} `graphql:"repository(owner: $issueOwner, name: $issueRepo)"`
+}
+
+type requestCountingTransport struct {
+	inner http.RoundTripper
+	count int
+}
+
+func (t *requestCountingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	t.count++
+	return t.inner.RoundTrip(req)
+}
+
 func Test_ResolveProjectItemIDByIssueNumber_Success(t *testing.T) {
 	mocked := githubv4mock.NewMockedHTTPClient(
 		// project node id lookup (org)
@@ -265,6 +291,91 @@ func Test_ResolveProjectItemIDByIssueNumber_Success(t *testing.T) {
 								"hasPreviousPage": false,
 								"startCursor":     "",
 								"endCursor":       "",
+							},
+						},
+					},
+				},
+			}),
+		),
+	)
+	gql := githubv4.NewClient(mocked)
+
+	itemID, err := resolveProjectItemIDByIssueNumber(context.Background(), gql, "octo-org", "org", 1, "octo-issue-owner", "repo", 123)
+	require.NoError(t, err)
+	assert.Equal(t, int64(4242), itemID)
+}
+
+func Test_ResolveProjectItemIDByIssueNumber_TargetOnSecondPage(t *testing.T) {
+	mocked := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			struct {
+				Organization struct {
+					ProjectV2 struct {
+						ID githubv4.ID
+					} `graphql:"projectV2(number: $projectNumber)"`
+				} `graphql:"organization(login: $owner)"`
+			}{},
+			map[string]any{
+				"owner":         githubv4.String("octo-org"),
+				"projectNumber": githubv4.Int(1),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"organization": map[string]any{
+					"projectV2": map[string]any{"id": "PVT_project1"},
+				},
+			}),
+		),
+		githubv4mock.NewQueryMatcher(
+			resolveItemByIssueQuery{},
+			map[string]any{
+				"issueOwner":  githubv4.String("octo-issue-owner"),
+				"issueRepo":   githubv4.String("repo"),
+				"issueNumber": githubv4.Int(123),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"issue": map[string]any{
+						"projectItems": map[string]any{
+							"nodes": []any{
+								map[string]any{
+									"fullDatabaseId": "9999",
+									"project":        map[string]any{"id": "PVT_other"},
+								},
+							},
+							"pageInfo": map[string]any{
+								"hasNextPage":     true,
+								"hasPreviousPage": false,
+								"startCursor":     "first",
+								"endCursor":       "page-one",
+							},
+						},
+					},
+				},
+			}),
+		),
+		githubv4mock.NewQueryMatcher(
+			resolveItemByIssuePageQuery{},
+			map[string]any{
+				"issueOwner":  githubv4.String("octo-issue-owner"),
+				"issueRepo":   githubv4.String("repo"),
+				"issueNumber": githubv4.Int(123),
+				"after":       githubv4.String("page-one"),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"issue": map[string]any{
+						"projectItems": map[string]any{
+							"nodes": []any{
+								map[string]any{
+									"fullDatabaseId": "4242",
+									"project":        map[string]any{"id": "PVT_project1"},
+								},
+							},
+							"pageInfo": map[string]any{
+								"hasNextPage":     false,
+								"hasPreviousPage": true,
+								"startCursor":     "page-two",
+								"endCursor":       "page-two",
 							},
 						},
 					},
@@ -340,6 +451,97 @@ func Test_ResolveProjectItemIDByIssueNumber_NotInProject(t *testing.T) {
 	assert.Equal(t, "item_not_in_project", msg["error"])
 }
 
+func Test_ResolveProjectItemIDByIssueNumber_NotInProjectAfterMultiplePages(t *testing.T) {
+	mocked := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			struct {
+				Organization struct {
+					ProjectV2 struct {
+						ID githubv4.ID
+					} `graphql:"projectV2(number: $projectNumber)"`
+				} `graphql:"organization(login: $owner)"`
+			}{},
+			map[string]any{
+				"owner":         githubv4.String("octo-org"),
+				"projectNumber": githubv4.Int(1),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"organization": map[string]any{
+					"projectV2": map[string]any{"id": "PVT_project1"},
+				},
+			}),
+		),
+		githubv4mock.NewQueryMatcher(
+			resolveItemByIssueQuery{},
+			map[string]any{
+				"issueOwner":  githubv4.String("octo-issue-owner"),
+				"issueRepo":   githubv4.String("repo"),
+				"issueNumber": githubv4.Int(123),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"issue": map[string]any{
+						"projectItems": map[string]any{
+							"nodes": []any{
+								map[string]any{
+									"fullDatabaseId": "9999",
+									"project":        map[string]any{"id": "PVT_other"},
+								},
+							},
+							"pageInfo": map[string]any{
+								"hasNextPage":     true,
+								"hasPreviousPage": false,
+								"startCursor":     "first",
+								"endCursor":       "page-one",
+							},
+						},
+					},
+				},
+			}),
+		),
+		githubv4mock.NewQueryMatcher(
+			resolveItemByIssuePageQuery{},
+			map[string]any{
+				"issueOwner":  githubv4.String("octo-issue-owner"),
+				"issueRepo":   githubv4.String("repo"),
+				"issueNumber": githubv4.Int(123),
+				"after":       githubv4.String("page-one"),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"issue": map[string]any{
+						"projectItems": map[string]any{
+							"nodes": []any{
+								map[string]any{
+									"fullDatabaseId": "8888",
+									"project":        map[string]any{"id": "PVT_another"},
+								},
+							},
+							"pageInfo": map[string]any{
+								"hasNextPage":     false,
+								"hasPreviousPage": true,
+								"startCursor":     "page-two",
+								"endCursor":       "page-two",
+							},
+						},
+					},
+				},
+			}),
+		),
+	)
+	countingTransport := &requestCountingTransport{inner: mocked.Transport}
+	mocked.Transport = countingTransport
+	gql := githubv4.NewClient(mocked)
+
+	_, err := resolveProjectItemIDByIssueNumber(context.Background(), gql, "octo-org", "org", 1, "octo-issue-owner", "repo", 123)
+	require.Error(t, err)
+	assert.Equal(t, 3, countingTransport.count)
+
+	var msg map[string]any
+	require.NoError(t, json.Unmarshal([]byte(err.Error()), &msg))
+	assert.Equal(t, "item_not_in_project", msg["error"])
+}
+
 func Test_ResolveFieldNamesToIDs_Success(t *testing.T) {
 	mocked := githubv4mock.NewMockedHTTPClient(
 		githubv4mock.NewQueryMatcher(
@@ -358,7 +560,7 @@ func Test_ResolveFieldNamesToIDs_Success(t *testing.T) {
 	assert.Equal(t, []int64{100, 200}, ids)
 }
 
-// Field and single-select option name matching is case-insensitive so agents passing lowercase 
+// Field and single-select option name matching is case-insensitive so agents passing lowercase
 // names like "status" or "in progress" resolve to "Status" and "In Progress" respectively.
 func Test_ResolveProjectFieldByName_CaseInsensitive(t *testing.T) {
 	mocked := githubv4mock.NewMockedHTTPClient(

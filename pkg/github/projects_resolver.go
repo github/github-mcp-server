@@ -271,18 +271,20 @@ func resolveProjectItemIDByIssueNumber(ctx context.Context, gqlClient *githubv4.
 		return 0, err
 	}
 
-	var query struct {
+	type projectItemsConnection struct {
+		Nodes []struct {
+			FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+			Project        struct {
+				ID githubv4.ID
+			}
+		}
+		PageInfo PageInfoFragment
+	}
+
+	var firstPageQuery struct {
 		Repository struct {
 			Issue struct {
-				ProjectItems struct {
-					Nodes []struct {
-						FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
-						Project        struct {
-							ID githubv4.ID
-						}
-					}
-					PageInfo PageInfoFragment
-				} `graphql:"projectItems(first: 50, includeArchived: true)"`
+				ProjectItems projectItemsConnection `graphql:"projectItems(first: 50, includeArchived: true)"`
 			} `graphql:"issue(number: $issueNumber)"`
 		} `graphql:"repository(owner: $issueOwner, name: $issueRepo)"`
 	}
@@ -293,18 +295,38 @@ func resolveProjectItemIDByIssueNumber(ctx context.Context, gqlClient *githubv4.
 		"issueNumber": githubv4.Int(int32(issueNumber)), //nolint:gosec // Issue numbers are small
 	}
 
-	if err := gqlClient.Query(ctx, &query, vars); err != nil {
+	if err := gqlClient.Query(ctx, &firstPageQuery, vars); err != nil {
 		return 0, fmt.Errorf("failed to resolve project item for %s/%s#%d: %w", issueOwner, issueRepo, issueNumber, err)
 	}
 
-	for _, item := range query.Repository.Issue.ProjectItems.Nodes {
-		if item.Project.ID == projectID {
-			itemID, parseErr := parseInt64(string(item.FullDatabaseID))
-			if parseErr != nil {
-				return 0, fmt.Errorf("project item ID %q is not an integer: %w", string(item.FullDatabaseID), parseErr)
+	projectItems := firstPageQuery.Repository.Issue.ProjectItems
+	for {
+		for _, item := range projectItems.Nodes {
+			if item.Project.ID == projectID {
+				itemID, parseErr := parseInt64(string(item.FullDatabaseID))
+				if parseErr != nil {
+					return 0, fmt.Errorf("project item ID %q is not an integer: %w", string(item.FullDatabaseID), parseErr)
+				}
+				return itemID, nil
 			}
-			return itemID, nil
 		}
+
+		if !projectItems.PageInfo.HasNextPage {
+			break
+		}
+
+		var nextPageQuery struct {
+			Repository struct {
+				Issue struct {
+					ProjectItems projectItemsConnection `graphql:"projectItems(first: 50, after: $after, includeArchived: true)"`
+				} `graphql:"issue(number: $issueNumber)"`
+			} `graphql:"repository(owner: $issueOwner, name: $issueRepo)"`
+		}
+		vars["after"] = projectItems.PageInfo.EndCursor
+		if err := gqlClient.Query(ctx, &nextPageQuery, vars); err != nil {
+			return 0, fmt.Errorf("failed to resolve project item for %s/%s#%d: %w", issueOwner, issueRepo, issueNumber, err)
+		}
+		projectItems = nextPageQuery.Repository.Issue.ProjectItems
 	}
 
 	return 0, ghErrors.NewStructuredResolutionError(

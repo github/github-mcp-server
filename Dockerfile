@@ -35,7 +35,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -o /bin/github-mcp-server ./cmd/github-mcp-server
 
 # Make a stage to run the app
-FROM gcr.io/distroless/base-debian12@sha256:9c05cfd65f41c93a909ea67eb05b920a3b838780ea55df5421d48295d98ff957
+FROM gcr.io/distroless/base-debian12@sha256:348dac1808083ccc3366399d6db835875b4eaf7c9b694783f5a3f353c4b58a28
 
 # Add required MCP server annotation
 LABEL io.modelcontextprotocol.server.name="io.github.github/github-mcp-server"
