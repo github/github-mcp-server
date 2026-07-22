@@ -32,6 +32,7 @@ const (
 	ProjectStatusUpdateCreateFailedError = "failed to create project status update"
 	ProjectResolveIDFailedError          = "failed to resolve project ID"
 	MaxProjectsPerPage                   = 50
+	maxProjectItemsPerBatch              = 50
 )
 
 // Method constants for consolidated project tools
