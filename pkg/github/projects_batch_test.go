@@ -4,15 +4,108 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
+	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// fieldNode is a generic project field response node for use in mock data,
+// covering data types beyond SINGLE_SELECT (statusFieldNode in
+// projects_resolver_test.go is fixed to SINGLE_SELECT). See the comment on
+// listAllProjectFields's inline-fragment decoding: the underlying jsonutil
+// decoder populates id/databaseId/name/dataType identically across all three
+// ProjectV2*Field fragments for a flat node object, so a single flat map
+// (with "options" only where relevant) is sufficient regardless of dataType.
+func fieldNode(nodeID string, databaseID int, name, dataType string) map[string]any {
+	return map[string]any{
+		"id":         nodeID,
+		"databaseId": databaseID,
+		"name":       name,
+		"dataType":   dataType,
+	}
+}
+
+// projectIDMatcher returns the githubv4mock matcher for the org project-node-ID
+// resolution query issued once per update_project_items call.
+func projectIDMatcher(owner string, projectNumber int, projectNodeID string) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		struct {
+			Organization struct {
+				ProjectV2 struct {
+					ID githubv4.ID
+				} `graphql:"projectV2(number: $projectNumber)"`
+			} `graphql:"organization(login: $owner)"`
+		}{},
+		map[string]any{
+			"owner":         githubv4.String(owner),
+			"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec
+		},
+		githubv4mock.DataResponse(map[string]any{
+			"organization": map[string]any{
+				"projectV2": map[string]any{"id": projectNodeID},
+			},
+		}),
+	)
+}
+
+// mutationAwareTransport routes GraphQL requests to a fixed query-matcher
+// transport (e.g. githubv4mock.NewMockedHTTPClient's Transport) for ordinary
+// queries/lookups, and to a sequenced, call-counted responder for mutation
+// requests, so end-to-end tests can assert on aliased-mutation call counts and
+// per-call variables without needing to hand-construct the exact minified
+// mutation query text that reflect.StructOf produces.
+type mutationAwareTransport struct {
+	t               *testing.T
+	queries         http.RoundTripper
+	mutationRespond func(callIndex int, req capturedGraphQLRequest) (status int, body string)
+	queryCalls      []capturedGraphQLRequest
+	mutationCalls   []capturedGraphQLRequest
+}
+
+func (m *mutationAwareTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	raw, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	_ = req.Body.Close()
+
+	var parsed struct {
+		Query     string         `json:"query"`
+		Variables map[string]any `json:"variables"`
+	}
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return nil, err
+	}
+
+	if !strings.HasPrefix(strings.TrimSpace(parsed.Query), "mutation") {
+		m.queryCalls = append(m.queryCalls, capturedGraphQLRequest{Query: parsed.Query, Variables: parsed.Variables})
+		req.Body = io.NopCloser(strings.NewReader(string(raw)))
+		return m.queries.RoundTrip(req)
+	}
+
+	captured := capturedGraphQLRequest{Query: parsed.Query, Variables: parsed.Variables}
+	idx := len(m.mutationCalls)
+	m.mutationCalls = append(m.mutationCalls, captured)
+	if m.mutationRespond == nil {
+		m.t.Fatalf("unexpected mutation call #%d (query: %s)", idx, parsed.Query)
+	}
+	status, body := m.mutationRespond(idx, captured)
+	return &http.Response{
+		StatusCode: status,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     make(http.Header),
+	}, nil
+}
 
 func Test_UpdateProjectItemsBatch_TopLevelGuards(t *testing.T) {
 	tooMany := make([]any, maxProjectItemsPerBatch+1)
@@ -43,6 +136,692 @@ func Test_UpdateProjectItemsBatch_TopLevelGuards(t *testing.T) {
 			assert.Contains(t, getErrorResult(t, result).Text, tt.wantErr)
 		})
 	}
+}
+
+func Test_UpdateProjectItemsBatch_InvalidSharedValueIsTopLevelError(t *testing.T) {
+	queryTransport := githubv4mock.NewMockedHTTPClient(
+		projectIDMatcher("octo-org", 1, "PVT_project1"),
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 1),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				statusFieldNode("PVTSSF_status", 101, "Status", []map[string]any{
+					{"id": "OPT_todo", "name": "Todo"},
+				}),
+			})),
+		),
+	)
+	transport := &mutationAwareTransport{
+		t:       t,
+		queries: queryTransport.Transport,
+		mutationRespond: func(_ int, _ capturedGraphQLRequest) (int, string) {
+			t.Fatal("invalid shared values must fail before writes")
+			return http.StatusInternalServerError, ""
+		},
+	}
+
+	result, structured, err := updateProjectItemsBatch(
+		t.Context(),
+		nil,
+		newTestGQLClient(transport),
+		"octo-org",
+		"org",
+		1,
+		map[string]any{
+			"updated_field": map[string]any{"name": "Status", "value": "Missing"},
+			"items":         []any{map[string]any{"node_id": "PVTI_item1"}},
+		},
+	)
+	require.NoError(t, err)
+	assert.Nil(t, structured)
+	var response map[string]any
+	require.NoError(t, json.Unmarshal([]byte(getErrorResult(t, result).Text), &response))
+	assert.Equal(t, "option_not_found", response["error"])
+	assert.Equal(t, "Missing", response["name"])
+	assert.Equal(t, []any{map[string]any{"name": "Todo"}}, response["candidates"])
+	assert.Empty(t, transport.mutationCalls)
+}
+
+func Test_ProjectsWrite_UpdateProjectItems_NodeIDBypassesRESTLookup(t *testing.T) {
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+
+	queryTransport := githubv4mock.NewMockedHTTPClient(
+		projectIDMatcher("octo-org", 1, "PVT_project1"),
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 1),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
+			})),
+		),
+	)
+
+	transport := &mutationAwareTransport{
+		t:       t,
+		queries: queryTransport.Transport,
+		mutationRespond: func(_ int, req capturedGraphQLRequest) (int, string) {
+			assert.Contains(t, req.Query, "updateProjectV2ItemFieldValue")
+			return http.StatusOK, mutationDataResponse(t, map[int]struct{ NodeID, FullDatabaseID string }{
+				0: {NodeID: "PVTI_item1", FullDatabaseID: "1001"},
+			})
+		},
+	}
+	gqlClient := newTestGQLClient(transport)
+
+	// No REST handlers registered at all: if the implementation ever fell back
+	// to a REST lookup for a node_id-addressed item, this would 404.
+	restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
+
+	deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
+	handler := toolDef.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":         "update_project_items",
+		"owner":          "octo-org",
+		"owner_type":     "org",
+		"project_number": float64(1),
+		"updated_field":  map[string]any{"name": "Notes", "value": "hello"},
+		"items": []any{
+			map[string]any{"node_id": "PVTI_item1"},
+		},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, getTextResult(t, result).Text)
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+	assert.Equal(t, float64(1), response["succeeded"])
+	assert.Equal(t, float64(0), response["failed"])
+	assert.Equal(t, float64(0), response["unknown"])
+}
+
+func Test_ProjectsWrite_UpdateProjectItems_NumericItemIDDeduplicatesRESTLookup(t *testing.T) {
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+
+	queryTransport := githubv4mock.NewMockedHTTPClient(
+		projectIDMatcher("octo-org", 1, "PVT_project1"),
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 1),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
+			})),
+		),
+	)
+	transport := &mutationAwareTransport{
+		t:       t,
+		queries: queryTransport.Transport,
+		mutationRespond: func(_ int, req capturedGraphQLRequest) (int, string) {
+			require.Len(t, req.Variables, 1)
+			assert.Equal(t, "PVTF_notes", req.Variables["input"].(map[string]any)["fieldId"])
+			return http.StatusOK, mutationDataResponse(t, map[int]struct{ NodeID, FullDatabaseID string }{
+				0: {NodeID: "PVTI_item1001", FullDatabaseID: "1001"},
+			})
+		},
+	}
+	gqlClient := newTestGQLClient(transport)
+
+	var restCalls int32
+	restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetOrgsProjectsV2ItemsByProjectByItemID: func(w http.ResponseWriter, _ *http.Request) {
+			atomic.AddInt32(&restCalls, 1)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"id":1001,"node_id":"PVTI_item1001"}`))
+		},
+	}))
+
+	deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
+	handler := toolDef.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":         "update_project_items",
+		"owner":          "octo-org",
+		"owner_type":     "org",
+		"project_number": float64(1),
+		"updated_field":  map[string]any{"name": "Notes", "value": "hello"},
+		"items": []any{
+			map[string]any{"item_id": float64(1001)},
+			map[string]any{"item_id": float64(1001)},
+		},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, getTextResult(t, result).Text)
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+	assert.Equal(t, float64(1), response["succeeded"])
+	assert.Equal(t, float64(1), response["failed"])
+	assert.Equal(t, int32(1), atomic.LoadInt32(&restCalls), "the same numeric item_id must only be resolved once")
+	results := response["results"].([]any)
+	assert.Equal(t, "duplicate_target", results[1].(map[string]any)["error"].(map[string]any)["code"])
+}
+
+func Test_ProjectsWrite_UpdateProjectItems_IssueRefPaginationIsDeduplicated(t *testing.T) {
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+
+	queryTransport := githubv4mock.NewMockedHTTPClient(
+		projectIDMatcher("octo-org", 1, "PVT_project1"),
+		githubv4mock.NewQueryMatcher(
+			resolveItemByIssueQuery{},
+			map[string]any{
+				"issueOwner":  githubv4.String("github"),
+				"issueRepo":   githubv4.String("planning-tracking"),
+				"issueNumber": githubv4.Int(123),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"issue": map[string]any{
+						"projectItems": map[string]any{
+							"nodes": []any{
+								map[string]any{
+									"id":             "PVTI_other",
+									"fullDatabaseId": "9999",
+									"project":        map[string]any{"id": "PVT_other"},
+								},
+							},
+							"pageInfo": map[string]any{
+								"hasNextPage": true, "hasPreviousPage": false,
+								"startCursor": "page-one", "endCursor": "page-one",
+							},
+						},
+					},
+				},
+			}),
+		),
+		githubv4mock.NewQueryMatcher(
+			resolveItemByIssuePageQuery{},
+			map[string]any{
+				"issueOwner":  githubv4.String("github"),
+				"issueRepo":   githubv4.String("planning-tracking"),
+				"issueNumber": githubv4.Int(123),
+				"after":       githubv4.String("page-one"),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"issue": map[string]any{
+						"projectItems": map[string]any{
+							"nodes": []any{
+								map[string]any{
+									"id":             "PVTI_item2002",
+									"fullDatabaseId": "2002",
+									"project":        map[string]any{"id": "PVT_project1"},
+								},
+							},
+							"pageInfo": map[string]any{
+								"hasNextPage": false, "hasPreviousPage": true,
+								"startCursor": "page-two", "endCursor": "page-two",
+							},
+						},
+					},
+				},
+			}),
+		),
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 1),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
+			})),
+		),
+	)
+	transport := &mutationAwareTransport{
+		t:       t,
+		queries: queryTransport.Transport,
+		mutationRespond: func(_ int, req capturedGraphQLRequest) (int, string) {
+			require.Len(t, req.Variables, 1)
+			assert.Equal(t, "PVTI_item2002", req.Variables["input"].(map[string]any)["itemId"])
+			assert.Equal(t, "PVTF_notes", req.Variables["input"].(map[string]any)["fieldId"])
+			return http.StatusOK, mutationDataResponse(t, map[int]struct{ NodeID, FullDatabaseID string }{
+				0: {NodeID: "PVTI_item2002", FullDatabaseID: "2002"},
+			})
+		},
+	}
+	gqlClient := newTestGQLClient(transport)
+	restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
+
+	deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
+	handler := toolDef.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":         "update_project_items",
+		"owner":          "octo-org",
+		"owner_type":     "org",
+		"project_number": float64(1),
+		"updated_field":  map[string]any{"name": "Notes", "value": "hello"},
+		"items": []any{
+			map[string]any{
+				"item_owner": "github", "item_repo": "planning-tracking", "issue_number": float64(123),
+			},
+			map[string]any{
+				"item_owner": "github", "item_repo": "planning-tracking", "issue_number": float64(123),
+			},
+		},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, getTextResult(t, result).Text)
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+	assert.Equal(t, float64(1), response["succeeded"])
+	assert.Equal(t, float64(1), response["failed"])
+	results := response["results"].([]any)
+	item := results[0].(map[string]any)["item"].(map[string]any)
+	assert.Equal(t, "PVTI_item2002", item["node_id"])
+	assert.Equal(t, "2002", item["full_database_id"])
+	assert.Equal(t, "duplicate_target", results[1].(map[string]any)["error"].(map[string]any)["code"])
+	issueResolutionCalls := 0
+	for _, call := range transport.queryCalls {
+		if strings.Contains(call.Query, "projectItems") {
+			issueResolutionCalls++
+		}
+	}
+	assert.Equal(t, 2, issueResolutionCalls, "duplicate issue refs should share one two-page resolution chain")
+	assert.Len(t, transport.queryCalls, 4, "expected project, fields, and two issue-page queries")
+}
+
+func Test_ProjectsWrite_UpdateProjectItems_DuplicateTargetRejected(t *testing.T) {
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+
+	queryTransport := githubv4mock.NewMockedHTTPClient(
+		projectIDMatcher("octo-org", 1, "PVT_project1"),
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 1),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
+			})),
+		),
+	)
+	transport := &mutationAwareTransport{
+		t:       t,
+		queries: queryTransport.Transport,
+		mutationRespond: func(_ int, req capturedGraphQLRequest) (int, string) {
+			require.Len(t, req.Variables, 1)
+			assert.Equal(t, 1, strings.Count(req.Query, "updateProjectV2ItemFieldValue"))
+			assert.Equal(t, "PVTI_item1", req.Variables["input"].(map[string]any)["itemId"])
+			return http.StatusOK, mutationDataResponse(t, map[int]struct{ NodeID, FullDatabaseID string }{
+				0: {NodeID: "PVTI_item1", FullDatabaseID: "1001"},
+			})
+		},
+	}
+	gqlClient := newTestGQLClient(transport)
+	var restCalls int32
+	restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetOrgsProjectsV2ItemsByProjectByItemID: func(w http.ResponseWriter, _ *http.Request) {
+			atomic.AddInt32(&restCalls, 1)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":1001,"node_id":"PVTI_item1"}`))
+		},
+	}))
+
+	deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
+	handler := toolDef.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":         "update_project_items",
+		"owner":          "octo-org",
+		"owner_type":     "org",
+		"project_number": float64(1),
+		"updated_field":  map[string]any{"name": "Notes", "value": "hello"},
+		"items": []any{
+			map[string]any{"node_id": "PVTI_item1"},
+			map[string]any{"item_id": float64(1001)},
+		},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, getTextResult(t, result).Text)
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+	assert.Equal(t, float64(1), response["succeeded"])
+	assert.Equal(t, float64(1), response["failed"])
+
+	results := response["results"].([]any)
+	second := results[1].(map[string]any)
+	assert.Equal(t, "failed", second["status"])
+	assert.Equal(t, "duplicate_target", second["error"].(map[string]any)["code"])
+	assert.Equal(t, int32(1), atomic.LoadInt32(&restCalls))
+	assert.Len(t, transport.mutationCalls, 1)
+}
+
+func Test_ProjectsWrite_UpdateProjectItems_TwentyWritesIsOneMutationRequest(t *testing.T) {
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+	transport := chunkSizeTestRun(t, toolDef, 20)
+	assert.Len(t, transport.mutationCalls, 1)
+}
+
+func Test_ProjectsWrite_UpdateProjectItems_TwentyOneWritesIsTwoMutationRequests(t *testing.T) {
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+	transport := chunkSizeTestRun(t, toolDef, 21)
+	assert.Len(t, transport.mutationCalls, 2)
+}
+
+func Test_ProjectsWrite_UpdateProjectItems_MaximumWritesIsThreeMutationRequests(t *testing.T) {
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+	transport := chunkSizeTestRun(t, toolDef, maxProjectItemsPerBatch)
+	assert.Len(t, transport.mutationCalls, 3)
+}
+
+// chunkSizeTestRun runs an update_project_items call with itemCount node_id
+// items (all TEXT field updates), returning the mutationAwareTransport so the
+// caller can assert on how many aliased-mutation HTTP requests were made.
+func chunkSizeTestRun(t *testing.T, toolDef inventory.ServerTool, itemCount int) *mutationAwareTransport {
+	t.Helper()
+
+	queryTransport := githubv4mock.NewMockedHTTPClient(
+		projectIDMatcher("octo-org", 1, "PVT_project1"),
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 1),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
+			})),
+		),
+	)
+	transport := &mutationAwareTransport{
+		t:       t,
+		queries: queryTransport.Transport,
+		mutationRespond: func(_ int, req capturedGraphQLRequest) (int, string) {
+			// input (index 0) plus inputN for each additional alias in this chunk.
+			chunkSize := len(req.Variables)
+			ids := make(map[int]struct{ NodeID, FullDatabaseID string }, chunkSize)
+			for i := range chunkSize {
+				ids[i] = struct{ NodeID, FullDatabaseID string }{
+					NodeID:         "PVTI_chunk",
+					FullDatabaseID: "1",
+				}
+			}
+			return http.StatusOK, mutationDataResponse(t, ids)
+		},
+	}
+	gqlClient := newTestGQLClient(transport)
+	restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
+
+	items := make([]any, itemCount)
+	for i := range itemCount {
+		items[i] = map[string]any{"node_id": fmt.Sprintf("PVTI_item%d", i)}
+	}
+
+	deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
+	handler := toolDef.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":         "update_project_items",
+		"owner":          "octo-org",
+		"owner_type":     "org",
+		"project_number": float64(1),
+		"updated_field":  map[string]any{"name": "Notes", "value": "hello"},
+		"items":          items,
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, getTextResult(t, result).Text)
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+	assert.Equal(t, float64(itemCount), response["succeeded"])
+
+	return transport
+}
+
+func Test_ProjectsWrite_UpdateProjectItems_SharedNullClearsAllItemsInOrder(t *testing.T) {
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+
+	queryTransport := githubv4mock.NewMockedHTTPClient(
+		projectIDMatcher("octo-org", 1, "PVT_project1"),
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 1),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
+			})),
+		),
+	)
+	transport := &mutationAwareTransport{
+		t:       t,
+		queries: queryTransport.Transport,
+		mutationRespond: func(_ int, req capturedGraphQLRequest) (int, string) {
+			assert.Contains(t, req.Query, "clearProjectV2ItemFieldValue")
+			assert.NotContains(t, req.Query, "updateProjectV2ItemFieldValue")
+			for _, input := range req.Variables {
+				assert.NotContains(t, input.(map[string]any), "value")
+			}
+			return http.StatusOK, mutationDataResponse(t, map[int]struct{ NodeID, FullDatabaseID string }{
+				0: {NodeID: "PVTI_item0", FullDatabaseID: "1000"},
+				1: {NodeID: "PVTI_item1", FullDatabaseID: "1001"},
+				2: {NodeID: "PVTI_item2", FullDatabaseID: "1002"},
+			})
+		},
+	}
+	gqlClient := newTestGQLClient(transport)
+	restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
+
+	deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
+	handler := toolDef.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":         "update_project_items",
+		"owner":          "octo-org",
+		"owner_type":     "org",
+		"project_number": float64(1),
+		"updated_field":  map[string]any{"name": "Notes", "value": nil},
+		"items": []any{
+			map[string]any{"node_id": "PVTI_item0"},
+			map[string]any{"node_id": "PVTI_item1"},
+			map[string]any{"node_id": "PVTI_item2"},
+		},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, getTextResult(t, result).Text)
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+	assert.Equal(t, float64(3), response["succeeded"])
+
+	results := response["results"].([]any)
+	require.Len(t, results, 3)
+	for i, r := range results {
+		entry := r.(map[string]any)
+		assert.Equal(t, float64(i), entry["index"])
+		assert.Equal(t, "succeeded", entry["status"])
+		assert.Equal(t, fmt.Sprintf("%d", 1000+i), entry["item"].(map[string]any)["full_database_id"])
+	}
+	assert.Len(t, transport.mutationCalls, 1)
+}
+
+func Test_ProjectsWrite_UpdateProjectItems_TransportFailureAbortsLaterChunks(t *testing.T) {
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+
+	queryTransport := githubv4mock.NewMockedHTTPClient(
+		projectIDMatcher("octo-org", 1, "PVT_project1"),
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 1),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
+			})),
+		),
+	)
+	transport := &mutationAwareTransport{
+		t:       t,
+		queries: queryTransport.Transport,
+		mutationRespond: func(callIndex int, _ capturedGraphQLRequest) (int, string) {
+			if callIndex == 0 {
+				// Systemic transport-level failure: no data at all.
+				return http.StatusInternalServerError, `{"message":"internal server error"}`
+			}
+			t.Fatalf("chunk #%d must not execute after an ambiguous chunk-level failure", callIndex)
+			return http.StatusInternalServerError, ""
+		},
+	}
+	gqlClient := newTestGQLClient(transport)
+	restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
+
+	items := make([]any, 25)
+	for i := range 25 {
+		items[i] = map[string]any{"node_id": fmt.Sprintf("PVTI_item%d", i)}
+	}
+
+	deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
+	handler := toolDef.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":         "update_project_items",
+		"owner":          "octo-org",
+		"owner_type":     "org",
+		"project_number": float64(1),
+		"updated_field":  map[string]any{"name": "Notes", "value": "x"},
+		"items":          items,
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	// No item succeeded (all unknown after the abort), so IsError is set per
+	// the "no item succeeded" rule, even though nothing was deterministically
+	// rejected; the structured result (with unknown statuses) is still available.
+	assert.True(t, result.IsError)
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+	assert.Equal(t, float64(0), response["succeeded"])
+	assert.Equal(t, float64(25), response["unknown"])
+	assert.Len(t, transport.mutationCalls, 1, "only the first (failing) chunk should have been sent")
+
+	results := response["results"].([]any)
+	for _, r := range results {
+		assert.Equal(t, "unknown", r.(map[string]any)["status"])
+	}
+}
+
+func Test_ProjectsWrite_UpdateProjectItems_AllFailedSetsIsError(t *testing.T) {
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+	restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
+	mocked := githubv4mock.NewMockedHTTPClient(
+		projectIDMatcher("octo-org", 1, "PVT_project1"),
+	)
+	countingTransport := &requestCountingTransport{inner: mocked.Transport}
+	gqlClient := newTestGQLClient(countingTransport)
+
+	deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
+	handler := toolDef.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":         "update_project_items",
+		"owner":          "octo-org",
+		"owner_type":     "org",
+		"project_number": float64(1),
+		"updated_field":  map[string]any{"name": "Notes", "value": "x"},
+		"items": []any{
+			map[string]any{},
+			map[string]any{"node_id": ""},
+			map[string]any{"item_id": float64(0)},
+		},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.True(t, result.IsError, "IsError must be set when no item in the batch succeeds")
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+	assert.Equal(t, float64(0), response["succeeded"])
+	assert.Equal(t, float64(3), response["failed"])
+	assert.Zero(t, countingTransport.count, "an all-invalid batch should not perform GraphQL resolution")
+}
+
+func Test_ProjectsWrite_UpdateProjectItems_MixedOutcomeKeepsIsErrorFalse(t *testing.T) {
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+
+	queryTransport := githubv4mock.NewMockedHTTPClient(
+		projectIDMatcher("octo-org", 1, "PVT_project1"),
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 1),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
+			})),
+		),
+	)
+	transport := &mutationAwareTransport{
+		t:       t,
+		queries: queryTransport.Transport,
+		mutationRespond: func(_ int, _ capturedGraphQLRequest) (int, string) {
+			return http.StatusOK, mutationDataResponse(t, map[int]struct{ NodeID, FullDatabaseID string }{
+				0: {NodeID: "PVTI_item0", FullDatabaseID: "1000"},
+			})
+		},
+	}
+	gqlClient := newTestGQLClient(transport)
+	restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
+
+	deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
+	handler := toolDef.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":         "update_project_items",
+		"owner":          "octo-org",
+		"owner_type":     "org",
+		"project_number": float64(1),
+		"updated_field":  map[string]any{"name": "Notes", "value": "x"},
+		"items": []any{
+			map[string]any{"node_id": "PVTI_item0"},
+			map[string]any{}, // deterministic failure
+		},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.False(t, result.IsError, "mixed outcomes must keep IsError false so the structured result stays available")
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+	assert.Equal(t, float64(1), response["succeeded"])
+	assert.Equal(t, float64(1), response["failed"])
+}
+
+// Test_ProjectsWrite_UpdateProjectItems_EnterpriseClientWiring verifies the
+// batch mutation path works unchanged when gqlClient was constructed via
+// githubv4.NewEnterpriseClient (GHES), not just githubv4.NewClient: the
+// reflection-based mutation logic never assumes a specific endpoint and only
+// ever uses the injected client.
+func Test_ProjectsWrite_UpdateProjectItems_EnterpriseClientWiring(t *testing.T) {
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+
+	queryTransport := githubv4mock.NewMockedHTTPClient(
+		projectIDMatcher("octo-org", 1, "PVT_project1"),
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 1),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
+			})),
+		),
+	)
+	transport := &mutationAwareTransport{
+		t:       t,
+		queries: queryTransport.Transport,
+		mutationRespond: func(_ int, _ capturedGraphQLRequest) (int, string) {
+			return http.StatusOK, mutationDataResponse(t, map[int]struct{ NodeID, FullDatabaseID string }{
+				0: {NodeID: "PVTI_item0", FullDatabaseID: "1000"},
+			})
+		},
+	}
+	gqlClient := githubv4.NewEnterpriseClient("https://ghe.example.com/graphql", &http.Client{Transport: transport})
+	restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
+
+	deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
+	handler := toolDef.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":         "update_project_items",
+		"owner":          "octo-org",
+		"owner_type":     "org",
+		"project_number": float64(1),
+		"updated_field":  map[string]any{"name": "Notes", "value": "x"},
+		"items": []any{
+			map[string]any{"node_id": "PVTI_item0"},
+		},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, getTextResult(t, result).Text)
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+	assert.Equal(t, float64(1), response["succeeded"])
 }
 
 func Test_ParseItemRef_ExactlyOneFormRequired(t *testing.T) {

@@ -45,6 +45,7 @@ const (
 	projectsMethodGetProjectItem            = "get_project_item"
 	projectsMethodAddProjectItem            = "add_project_item"
 	projectsMethodUpdateProjectItem         = "update_project_item"
+	projectsMethodUpdateProjectItems        = "update_project_items"
 	projectsMethodDeleteProjectItem         = "delete_project_item"
 	projectsMethodListProjectStatusUpdates  = "list_project_status_updates"
 	projectsMethodGetProjectStatusUpdate    = "get_project_status_update"
@@ -491,13 +492,90 @@ Use this tool to get details about individual projects, project fields, and proj
 	return tool
 }
 
+func updateProjectItemsItemSchema() *jsonschema.Schema {
+	variant := func(required []string, properties map[string]*jsonschema.Schema) *jsonschema.Schema {
+		return &jsonschema.Schema{
+			Type:                 "object",
+			AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+			Properties:           properties,
+			Required:             required,
+		}
+	}
+
+	return &jsonschema.Schema{
+		Type: "object",
+		OneOf: []*jsonschema.Schema{
+			variant([]string{"node_id"}, map[string]*jsonschema.Schema{
+				"node_id": {
+					Type:        "string",
+					Description: "The project item's GraphQL node ID, as returned by 'list_project_items' or 'add_project_item'.",
+				},
+			}),
+			variant([]string{"item_id"}, map[string]*jsonschema.Schema{
+				"item_id": {
+					Type:        "integer",
+					Description: "The numeric project item ID.",
+				},
+			}),
+			variant([]string{"item_owner", "item_repo", "issue_number"}, map[string]*jsonschema.Schema{
+				"item_owner": {
+					Type:        "string",
+					Description: "Owner of the repository containing the issue.",
+				},
+				"item_repo": {
+					Type:        "string",
+					Description: "Repository containing the issue.",
+				},
+				"issue_number": {
+					Type:        "integer",
+					Description: "Issue number used to resolve the project item.",
+				},
+			}),
+		},
+	}
+}
+
+func projectUpdatedFieldSchema() *jsonschema.Schema {
+	value := &jsonschema.Schema{
+		Description: "The value to apply. Any JSON value is accepted; use null to clear the field.",
+	}
+	variant := func(required []string, properties map[string]*jsonschema.Schema) *jsonschema.Schema {
+		properties["value"] = value
+		return &jsonschema.Schema{
+			Type:                 "object",
+			AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+			Properties:           properties,
+			Required:             required,
+		}
+	}
+
+	return &jsonschema.Schema{
+		Type:        "object",
+		Description: "The field/value to apply, using {\"id\": 123, \"value\": ...} or {\"name\": \"Status\", \"value\": ...}; null clears the field. Required for 'update_project_item' and 'update_project_items', where one top-level field/value applies to every item in a batch. For 'update_project_item' SINGLE_SELECT fields, the name form accepts option names; the ID form expects an option ID.",
+		OneOf: []*jsonschema.Schema{
+			variant([]string{"id", "value"}, map[string]*jsonschema.Schema{
+				"id": {
+					Type:        "integer",
+					Description: "The numeric project field ID.",
+				},
+			}),
+			variant([]string{"name", "value"}, map[string]*jsonschema.Schema{
+				"name": {
+					Type:        "string",
+					Description: "The project field name. Matching is case-insensitive.",
+				},
+			}),
+		},
+	}
+}
+
 // ProjectsWrite returns the tool and handler for modifying GitHub Projects resources.
 func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	tool := NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "projects_write",
-			Description: t("TOOL_PROJECTS_WRITE_DESCRIPTION", "Create and manage GitHub Projects: create projects, add/update/delete items, create status updates, and add iteration fields."),
+			Description: t("TOOL_PROJECTS_WRITE_DESCRIPTION", "Create and manage GitHub Projects: create projects, add/update/delete items, bulk-update many items at once, create status updates, and add iteration fields."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_PROJECTS_WRITE_USER_TITLE", "Manage GitHub Projects"),
 				ReadOnlyHint:    false,
@@ -512,6 +590,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Enum: []any{
 							projectsMethodAddProjectItem,
 							projectsMethodUpdateProjectItem,
+							projectsMethodUpdateProjectItems,
 							projectsMethodDeleteProjectItem,
 							projectsMethodCreateProjectStatusUpdate,
 							projectsMethodCreateProject,
@@ -560,9 +639,11 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Type:        "number",
 						Description: "The pull request number (use when item_type is 'pull_request' for 'add_project_item' method). Provide either issue_number or pull_request_number.",
 					},
-					"updated_field": {
-						Type:        "object",
-						Description: "Object describing the field to update and its new value. Required for 'update_project_item'. Two shapes are accepted: (1) by ID — {\"id\": 123456, \"value\": \"...\"}; (2) by name — {\"name\": \"Status\", \"value\": \"In Progress\"}. For single-select fields, option-name resolution requires the by-name shape; on the by-ID shape, pass the option ID. Set value to null to clear the field.",
+					"updated_field": projectUpdatedFieldSchema(),
+					"items": {
+						Type:        "array",
+						Description: "The items to update with the top-level 'updated_field'. Required for 'update_project_items'; prefer it over calling 'update_project_item' in a loop. Each entry must match exactly one reference variant: 'node_id', numeric 'item_id', or 'item_owner' + 'item_repo' + 'issue_number'. Limit: " + strconv.Itoa(maxProjectItemsPerBatch) + " items per call.",
+						Items:       updateProjectItemsItemSchema(),
 					},
 					"body": {
 						Type:        "string",
@@ -723,6 +804,8 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					return utils.NewToolResultError("updated_field must be an object"), nil, nil
 				}
 				return updateProjectItem(ctx, client, gqlClient, owner, ownerType, projectNumber, itemID, fieldValue)
+			case projectsMethodUpdateProjectItems:
+				return updateProjectItemsBatch(ctx, client, gqlClient, owner, ownerType, projectNumber, args)
 			case projectsMethodDeleteProjectItem:
 				itemID, err := RequiredBigInt(args, "item_id")
 				if err != nil {
