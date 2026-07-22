@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
+	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/shurcooL/githubv4"
@@ -1131,6 +1132,32 @@ func Test_ResolveItemNodeIDsByNumericID_DeduplicatesOrgAndUserLookups(t *testing
 			assert.Equal(t, 1, calls)
 		})
 	}
+}
+
+func Test_BatchErrorFromResolution(t *testing.T) {
+	t.Run("generic wrapped error", func(t *testing.T) {
+		err := batchErrorFromResolution(fmt.Errorf("item lookup failed: %w", context.DeadlineExceeded))
+
+		assert.Equal(t, "resolution_failed", err.Code)
+		assert.Equal(t, "item lookup failed: context deadline exceeded", err.Message)
+	})
+
+	t.Run("structured error", func(t *testing.T) {
+		candidates := []any{map[string]any{"id": "PVTI_1"}}
+		structured := ghErrors.NewStructuredResolutionError(
+			"item_not_found",
+			"octo/repo#42",
+			"Check that the item belongs to the project.",
+			candidates,
+		)
+
+		err := batchErrorFromResolution(fmt.Errorf("resolve item: %w", structured))
+
+		assert.Equal(t, structured.Kind, err.Code)
+		assert.Equal(t, "item_not_found: octo/repo#42", err.Message)
+		assert.Equal(t, structured.Hint, err.Hint)
+		assert.Equal(t, candidates, err.Candidates)
+	})
 }
 
 func Test_ExecuteBatchWrites_AllAliasGraphQLErrorContinues(t *testing.T) {

@@ -765,7 +765,7 @@ func batchErrorFromResolution(err error) *batchItemError {
 		}
 	}
 	return &batchItemError{
-		Code:    "invalid_argument",
+		Code:    "resolution_failed",
 		Message: err.Error(),
 	}
 }
