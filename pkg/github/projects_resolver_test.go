@@ -71,6 +71,27 @@ func statusFieldNode(nodeID string, databaseID int, name string, options []map[s
 	}
 }
 
+// iterationFieldNode is an iteration field response node for use in mock data.
+func iterationFieldNode(nodeID string, databaseID int, name string) map[string]any {
+	return map[string]any{
+		"id":         nodeID,
+		"databaseId": databaseID,
+		"name":       name,
+		"dataType":   "ITERATION",
+	}
+}
+
+// genericFieldNode is a plain field response node (neither single-select nor
+// iteration, e.g. TEXT or NUMBER) for use in mock data.
+func genericFieldNode(nodeID string, databaseID int, name, dataType string) map[string]any {
+	return map[string]any{
+		"id":         nodeID,
+		"databaseId": databaseID,
+		"name":       name,
+		"dataType":   dataType,
+	}
+}
+
 func fieldsResponse(nodes []map[string]any) map[string]any {
 	return map[string]any{
 		"organization": map[string]any{
@@ -109,12 +130,49 @@ func Test_ResolveProjectFieldByName_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, field)
 	assert.Equal(t, "12345", field.ID)
+	assert.Equal(t, "PVTSSF_lADOBBcDeFg123", field.NodeID)
 	assert.Equal(t, "SINGLE_SELECT", field.DataType)
 	assert.Len(t, field.Options, 3)
 
 	optionID, err := resolveSingleSelectOptionByName(field, "In Progress")
 	require.NoError(t, err)
 	assert.Equal(t, "OPT_b", optionID)
+}
+
+func Test_ResolveProjectFieldByName_NodeIDsForAllVariants(t *testing.T) {
+	mocked := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 7),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				statusFieldNode("PVTSSF_single1", 111, "Status", []map[string]any{
+					{"id": "OPT_a", "name": "Todo"},
+				}),
+				iterationFieldNode("PVTIF_iteration1", 222, "Sprint"),
+				genericFieldNode("PVTF_text1", 333, "Notes", "TEXT"),
+			})),
+		),
+	)
+	gql := githubv4.NewClient(mocked)
+
+	variants := []struct {
+		fieldName    string
+		expectedType string
+		wantNodeID   string
+	}{
+		{"Status", "SINGLE_SELECT", "PVTSSF_single1"},
+		{"Sprint", "ITERATION", "PVTIF_iteration1"},
+		{"Notes", "TEXT", "PVTF_text1"},
+	}
+	for _, v := range variants {
+		t.Run(v.fieldName, func(t *testing.T) {
+			field, err := resolveProjectFieldByName(context.Background(), gql, "octo-org", "org", 7, v.fieldName, v.expectedType)
+			require.NoError(t, err)
+			require.NotNil(t, field)
+			assert.Equal(t, v.wantNodeID, field.NodeID)
+			assert.Equal(t, v.expectedType, field.DataType)
+		})
+	}
 }
 
 func Test_ResolveProjectFieldByName_NotFound_ReturnsStructuredError(t *testing.T) {
@@ -204,6 +262,7 @@ type resolveItemByIssueQuery struct {
 		Issue struct {
 			ProjectItems struct {
 				Nodes []struct {
+					ID             githubv4.ID
 					FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
 					Project        struct {
 						ID githubv4.ID
@@ -220,6 +279,7 @@ type resolveItemByIssuePageQuery struct {
 		Issue struct {
 			ProjectItems struct {
 				Nodes []struct {
+					ID             githubv4.ID
 					FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
 					Project        struct {
 						ID githubv4.ID
@@ -241,7 +301,7 @@ func (t *requestCountingTransport) RoundTrip(req *http.Request) (*http.Response,
 	return t.inner.RoundTrip(req)
 }
 
-func Test_ResolveProjectItemIDByIssueNumber_Success(t *testing.T) {
+func Test_ResolveProjectItemByIssueNumber_Success(t *testing.T) {
 	mocked := githubv4mock.NewMockedHTTPClient(
 		// project node id lookup (org)
 		githubv4mock.NewQueryMatcher(
@@ -282,6 +342,7 @@ func Test_ResolveProjectItemIDByIssueNumber_Success(t *testing.T) {
 									"project":        map[string]any{"id": "PVT_other"},
 								},
 								map[string]any{
+									"id":             "PVTI_target",
 									"fullDatabaseId": "4242",
 									"project":        map[string]any{"id": "PVT_project1"},
 								},
@@ -300,12 +361,13 @@ func Test_ResolveProjectItemIDByIssueNumber_Success(t *testing.T) {
 	)
 	gql := githubv4.NewClient(mocked)
 
-	itemID, err := resolveProjectItemIDByIssueNumber(context.Background(), gql, "octo-org", "org", 1, "octo-issue-owner", "repo", 123)
+	nodeID, itemID, err := resolveProjectItemByIssueNumber(context.Background(), gql, "octo-org", "org", 1, "octo-issue-owner", "repo", 123)
 	require.NoError(t, err)
+	assert.Equal(t, "PVTI_target", nodeID)
 	assert.Equal(t, int64(4242), itemID)
 }
 
-func Test_ResolveProjectItemIDByIssueNumber_TargetOnSecondPage(t *testing.T) {
+func Test_ResolveProjectItemByIssueNumber_TargetOnSecondPage(t *testing.T) {
 	mocked := githubv4mock.NewMockedHTTPClient(
 		githubv4mock.NewQueryMatcher(
 			struct {
@@ -367,6 +429,7 @@ func Test_ResolveProjectItemIDByIssueNumber_TargetOnSecondPage(t *testing.T) {
 						"projectItems": map[string]any{
 							"nodes": []any{
 								map[string]any{
+									"id":             "PVTI_target",
 									"fullDatabaseId": "4242",
 									"project":        map[string]any{"id": "PVT_project1"},
 								},
@@ -385,8 +448,9 @@ func Test_ResolveProjectItemIDByIssueNumber_TargetOnSecondPage(t *testing.T) {
 	)
 	gql := githubv4.NewClient(mocked)
 
-	itemID, err := resolveProjectItemIDByIssueNumber(context.Background(), gql, "octo-org", "org", 1, "octo-issue-owner", "repo", 123)
+	nodeID, itemID, err := resolveProjectItemByIssueNumber(context.Background(), gql, "octo-org", "org", 1, "octo-issue-owner", "repo", 123)
 	require.NoError(t, err)
+	assert.Equal(t, "PVTI_target", nodeID)
 	assert.Equal(t, int64(4242), itemID)
 }
 
