@@ -218,6 +218,36 @@ func Test_ExecuteAliasedMutation_TwoAliases_FirstInputWorkaround(t *testing.T) {
 	assert.True(t, outcomes[1].Populated)
 }
 
+func Test_ExecuteAliasedMutation_PreservesPartialDataWithGraphQLErrors(t *testing.T) {
+	transport := &sequencedGraphQLTransport{
+		t: t,
+		responses: []func(capturedGraphQLRequest) (int, string){
+			func(capturedGraphQLRequest) (int, string) {
+				data := map[string]any{
+					"item0": map[string]any{
+						"projectV2Item": map[string]any{
+							"id":             "PVTI_item0",
+							"fullDatabaseId": "1001",
+						},
+					},
+				}
+				return http.StatusOK, mutationErrorResponse(t, data, "item1 failed")
+			},
+		},
+	}
+
+	outcomes, err := executeAliasedMutation(t.Context(), newTestGQLClient(transport), batchMutationUpdate, inputsOfSize(2))
+	require.Error(t, err)
+	assert.True(t, isGraphQLResponseError(err))
+	require.Len(t, outcomes, 2)
+	assert.Equal(t, mutationAliasOutcome{
+		Populated:      true,
+		NodeID:         "PVTI_item0",
+		FullDatabaseID: "1001",
+	}, outcomes[0])
+	assert.Equal(t, mutationAliasOutcome{}, outcomes[1])
+}
+
 func Test_ExecuteAliasedMutation_TwentyAliases(t *testing.T) {
 	ids := make(map[int]struct{ NodeID, FullDatabaseID string }, 20)
 	for i := range 20 {
