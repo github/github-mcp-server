@@ -33,7 +33,7 @@ func newTestKey(t *testing.T) *rsa.PrivateKey {
 
 func pkcs1PEM(t *testing.T, key *rsa.PrivateKey) []byte {
 	t.Helper()
-	return pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	return pkcs1PEMBytes(key)
 }
 
 func pkcs8PEM(t *testing.T, key *rsa.PrivateKey) []byte {
@@ -47,19 +47,19 @@ func TestParsePrivateKey(t *testing.T) {
 	key := newTestKey(t)
 
 	t.Run("PKCS1", func(t *testing.T) {
-		got, err := ParsePrivateKey(pkcs1PEM(t, key))
+		got, err := parsePrivateKey(pkcs1PEM(t, key))
 		require.NoError(t, err)
 		assert.Equal(t, key.N, got.N)
 	})
 
 	t.Run("PKCS8", func(t *testing.T) {
-		got, err := ParsePrivateKey(pkcs8PEM(t, key))
+		got, err := parsePrivateKey(pkcs8PEM(t, key))
 		require.NoError(t, err)
 		assert.Equal(t, key.N, got.N)
 	})
 
 	t.Run("not PEM", func(t *testing.T) {
-		_, err := ParsePrivateKey([]byte("not a pem"))
+		_, err := parsePrivateKey([]byte("not a pem"))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no PEM block")
 	})
@@ -71,7 +71,7 @@ func TestParsePrivateKey(t *testing.T) {
 		require.NoError(t, err)
 		keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
 
-		_, err = ParsePrivateKey(keyPEM)
+		_, err = parsePrivateKey(keyPEM)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "want an RSA key")
 	})
@@ -79,24 +79,24 @@ func TestParsePrivateKey(t *testing.T) {
 
 func TestConfigValidate(t *testing.T) {
 	key := newTestKey(t)
-	base := Config{AppID: "123", InstallationID: "456", PrivateKey: key, BaseRESTURL: "https://api.github.com/"}
-	require.NoError(t, base.Validate())
+	base := Config{AppID: "123", InstallationID: "456", PrivateKeyPEM: pkcs1PEM(t, key), BaseRESTURL: "https://api.github.com/"}
+	require.NoError(t, base.validate())
 
 	tests := []struct {
 		name   string
 		mutate func(c *Config)
 		want   string
 	}{
-		{"missing app id", func(c *Config) { c.AppID = "" }, "App ID is required"},
+		{"missing app id", func(c *Config) { c.AppID = "" }, "App ID or client ID is required"},
 		{"missing installation id", func(c *Config) { c.InstallationID = "" }, "installation ID is required"},
-		{"missing private key", func(c *Config) { c.PrivateKey = nil }, "private key is required"},
+		{"missing private key", func(c *Config) { c.PrivateKeyPEM = nil }, "private key is required"},
 		{"missing base url", func(c *Config) { c.BaseRESTURL = "" }, "REST base URL is required"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := base
 			tt.mutate(&c)
-			err := c.Validate()
+			err := c.validate()
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.want)
 		})
@@ -132,10 +132,8 @@ func verifyJWT(t *testing.T, token string, pub *rsa.PublicKey) map[string]any {
 
 func TestMintJWT(t *testing.T) {
 	key := newTestKey(t)
-	cfg := Config{AppID: "my-app-id", PrivateKey: key}
-
 	now := time.Now()
-	token, err := cfg.mintJWT(now)
+	token, err := mintJWT("my-app-id", key, now)
 	require.NoError(t, err)
 
 	claims := verifyJWT(t, token, &key.PublicKey)
@@ -173,7 +171,18 @@ func installationServer(t *testing.T, pub *rsa.PublicKey, token string, expiresA
 }
 
 func newTestConfig(key *rsa.PrivateKey, baseURL string) Config {
-	return Config{AppID: "123", InstallationID: "456", PrivateKey: key, BaseRESTURL: baseURL + "/"}
+	return Config{AppID: "123", InstallationID: "456", PrivateKeyPEM: pkcs1PEMBytes(key), BaseRESTURL: baseURL + "/"}
+}
+
+func pkcs1PEMBytes(key *rsa.PrivateKey) []byte {
+	return pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+}
+
+func newTestTokenSource(t *testing.T, cfg Config, client *http.Client) *installationTokenSource {
+	t.Helper()
+	privateKey, err := parsePrivateKey(cfg.PrivateKeyPEM)
+	require.NoError(t, err)
+	return newInstallationTokenSource(cfg, privateKey, client)
 }
 
 func TestProviderFetchesToken(t *testing.T) {
@@ -184,7 +193,6 @@ func TestProviderFetchesToken(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "ghs_fresh", provider.AccessToken())
-	assert.True(t, provider.HasToken())
 	assert.Equal(t, int32(1), calls.Load())
 }
 
@@ -242,7 +250,7 @@ func TestProviderErrorIncludesStatus(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	source := newInstallationTokenSource(newTestConfig(key, srv.URL), srv.Client())
+	source := newTestTokenSource(t, newTestConfig(key, srv.URL), srv.Client())
 	_, err := source.Token()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "404")
@@ -252,20 +260,31 @@ func TestProviderErrorIncludesStatus(t *testing.T) {
 func TestNewProviderValidates(t *testing.T) {
 	_, err := NewProvider(Config{}, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "App ID is required")
+	assert.Contains(t, err.Error(), "App ID or client ID is required")
 }
 
-// Ensure the source returns an error rather than panicking on a token-less 201.
-func TestSourceRejectsEmptyToken(t *testing.T) {
+func TestSourceRejectsIncompleteTokenResponse(t *testing.T) {
 	key := newTestKey(t)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusCreated)
-		_, _ = fmt.Fprint(w, `{"expires_at":"2099-01-01T00:00:00Z"}`)
-	}))
-	t.Cleanup(srv.Close)
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "missing token", body: `{"expires_at":"2099-01-01T00:00:00Z"}`, want: "did not contain a token"},
+		{name: "missing expiry", body: `{"token":"ghs_token"}`, want: "did not contain an expiry"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusCreated)
+				_, _ = fmt.Fprint(w, tt.body)
+			}))
+			t.Cleanup(srv.Close)
 
-	source := newInstallationTokenSource(newTestConfig(key, srv.URL), srv.Client())
-	_, err := source.Token()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "did not contain a token")
+			source := newTestTokenSource(t, newTestConfig(key, srv.URL), srv.Client())
+			_, err := source.Token()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
 }

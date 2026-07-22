@@ -12,7 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/github/github-mcp-server/internal/githubapp"
 	"github.com/github/github-mcp-server/internal/oauth"
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
@@ -63,7 +62,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
 	}
 
-	// Construct REST client. When a TokenProvider is configured (OAuth), we
+	// Construct REST client. When a TokenProvider is configured, we
 	// authenticate via BearerAuthTransport and skip go-github's WithAuthToken:
 	// the latter installs its own round tripper that would pin the static token
 	// and shadow the dynamic one.
@@ -259,30 +258,20 @@ type StdioServerConfig struct {
 	// nothing; an explicit, narrower list filters accordingly.
 	OAuthScopes []string
 
-	// AppAuth, when non-nil, enables non-interactive GitHub App server-to-server
-	// authentication: the server mints and transparently refreshes installation
-	// access tokens from the app's private key, with no browser, device code, or
-	// elicitation. It suits headless deployments (CI, Kubernetes, background
-	// agents). It is mutually exclusive with a static Token and with
-	// OAuthManager. See internal/githubapp and docs/github-app-auth.md — this
-	// injects a high-privilege credential alongside the agent and should not be
-	// used without an independent security review.
-	AppAuth *githubapp.Config
+	// TokenProvider supplies a token for each GitHub API request.
+	TokenProvider func() string
 }
 
 // RunStdioServer is not concurrent safe.
 func RunStdioServer(cfg StdioServerConfig) error {
-	// A static token, OAuth login, and GitHub App auth are mutually exclusive:
-	// they disagree on how the token is sourced (static vs. lazy provider) and
-	// on scope filtering, so reject any ambiguous combination up front.
 	authModes := 0
-	for _, on := range []bool{cfg.Token != "", cfg.OAuthManager != nil, cfg.AppAuth != nil} {
+	for _, on := range []bool{cfg.Token != "", cfg.OAuthManager != nil, cfg.TokenProvider != nil} {
 		if on {
 			authModes++
 		}
 	}
 	if authModes > 1 {
-		return fmt.Errorf("choose exactly one authentication mode: a static Token, OAuthManager (OAuth login), or AppAuth (GitHub App)")
+		return fmt.Errorf("choose exactly one authentication mode: a static Token, OAuthManager, or TokenProvider")
 	}
 
 	// Create app context
@@ -307,20 +296,6 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
 
-	// GitHub App server-to-server auth mints installation tokens with no human
-	// in the loop. Build the provider here so it can use the configured logger.
-	var appProvider *githubapp.Provider
-	if cfg.AppAuth != nil {
-		// Surfaced loudly because this injects a high-privilege credential next
-		// to the agent; the detailed guidance lives in docs/github-app-auth.md.
-		logger.Warn("GitHub App server-to-server authentication is enabled; installation tokens minted here can act across every repository the app is installed on — review docs/github-app-auth.md and prefer least-privilege, repository-scoped installations")
-		provider, err := githubapp.NewProvider(*cfg.AppAuth, logger)
-		if err != nil {
-			return fmt.Errorf("failed to configure GitHub App authentication: %w", err)
-		}
-		appProvider = provider
-	}
-
 	// Determine the scope set used to filter tools. Classic PATs expose their
 	// granted scopes via the API; OAuth uses the requested scopes (the default
 	// set hides nothing, a narrower explicit set filters accordingly). Other
@@ -342,17 +317,11 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		logger.Debug("skipping scope filtering for non-PAT token")
 	}
 
-	// For OAuth or GitHub App auth, the token is resolved lazily by a provider:
-	// empty until the user authorizes (OAuth) or minted on demand and refreshed
-	// (App). A static PAT, by contrast, is passed through unchanged.
-	var tokenProvider func() string
+	tokenProvider := cfg.TokenProvider
 	var toolHandlerMiddleware []inventory.ToolHandlerMiddleware
-	switch {
-	case cfg.OAuthManager != nil:
+	if cfg.OAuthManager != nil {
 		tokenProvider = cfg.OAuthManager.AccessToken
 		toolHandlerMiddleware = append(toolHandlerMiddleware, createOAuthToolMiddleware(cfg.OAuthManager, logger))
-	case appProvider != nil:
-		tokenProvider = appProvider.AccessToken
 	}
 
 	ghServer, err := NewStdioMCPServer(ctx, github.MCPServerConfig{

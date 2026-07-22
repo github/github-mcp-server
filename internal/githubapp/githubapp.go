@@ -1,23 +1,4 @@
-// Package githubapp implements non-interactive GitHub App server-to-server
-// (s2s) authentication for the stdio server.
-//
-// Unlike the user-to-server OAuth flows in internal/oauth, this requires no
-// human: no browser, no device code, no elicitation. It signs a short-lived
-// JWT with the app's private key, exchanges it for an installation access
-// token, and transparently refreshes that token before it expires. That makes
-// it suitable for headless deployments — CI, Kubernetes, background agents.
-//
-// It only depends on the standard library and golang.org/x/oauth2.
-//
-// # Security
-//
-// This mode injects a long-lived, high-privilege credential (the app private
-// key) into an environment shared with an AI agent, and the installation
-// tokens it mints can act across every repository the app is installed on. It
-// was added by popular demand for non-interactive deployments, but exposing
-// credentials to agents — especially in the cloud — is dangerous and is not
-// recommended without an independent security review. See
-// docs/github-app-auth.md for the full guidance and least-privilege advice.
+// Package githubapp provides GitHub App installation access tokens.
 package githubapp
 
 import (
@@ -36,7 +17,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -45,48 +25,35 @@ import (
 )
 
 const (
-	// jwtLifetime is how long minted app JWTs are valid. GitHub rejects app JWTs
-	// whose exp is more than 10 minutes in the future; 9 minutes leaves headroom.
-	jwtLifetime = 9 * time.Minute
-
-	// clockSkew backdates the JWT iat to tolerate small clock differences
-	// between this host and GitHub, which would otherwise reject the JWT.
-	clockSkew = 60 * time.Second
-
-	// refreshBuffer refreshes installation tokens this long before their real
-	// expiry so an in-flight request never races the expiry boundary.
+	jwtLifetime   = 9 * time.Minute
+	clockSkew     = time.Minute
 	refreshBuffer = 5 * time.Minute
-
-	// httpTimeout bounds each call to the installation token endpoint so a
-	// stalled GitHub API cannot block a tool call indefinitely.
-	httpTimeout = 30 * time.Second
+	httpTimeout   = 30 * time.Second
 )
 
 // Config describes a GitHub App installation used for server-to-server auth.
 type Config struct {
-	// AppID is the GitHub App's App ID or client ID; it becomes the JWT issuer
-	// (iss). Both forms are accepted by GitHub.
+	// AppID is used as the JWT issuer. GitHub accepts an app ID or client ID.
 	AppID string
 
 	// InstallationID identifies the installation whose access token is minted.
 	InstallationID string
 
-	// PrivateKey signs the app JWT (RS256). Parse one with ParsePrivateKey.
-	PrivateKey *rsa.PrivateKey
+	// PrivateKeyPEM is the RSA key used to sign app JWTs.
+	PrivateKeyPEM []byte
 
 	// BaseRESTURL is the REST API base, e.g. https://api.github.com/ for
 	// github.com or https://HOST/api/v3/ for GitHub Enterprise Server.
 	BaseRESTURL string
 }
 
-// Validate reports whether the configuration is complete enough to mint tokens.
-func (c Config) Validate() error {
+func (c Config) validate() error {
 	switch {
 	case c.AppID == "":
-		return errors.New("GitHub App ID is required (GITHUB_APP_ID)")
+		return errors.New("GitHub App ID or client ID is required (GITHUB_APP_ID)")
 	case c.InstallationID == "":
 		return errors.New("GitHub App installation ID is required (GITHUB_APP_INSTALLATION_ID)")
-	case c.PrivateKey == nil:
+	case len(c.PrivateKeyPEM) == 0:
 		return errors.New("GitHub App private key is required (GITHUB_APP_PRIVATE_KEY_PATH or GITHUB_APP_PRIVATE_KEY)")
 	case c.BaseRESTURL == "":
 		return errors.New("GitHub App REST base URL is required")
@@ -94,10 +61,7 @@ func (c Config) Validate() error {
 	return nil
 }
 
-// ParsePrivateKey parses a PEM-encoded RSA private key in PKCS#1 ("RSA PRIVATE
-// KEY") or PKCS#8 ("PRIVATE KEY") form — the two formats GitHub issues for app
-// keys.
-func ParsePrivateKey(pemBytes []byte) (*rsa.PrivateKey, error) {
+func parsePrivateKey(pemBytes []byte) (*rsa.PrivateKey, error) {
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
 		return nil, errors.New("no PEM block found in private key")
@@ -116,14 +80,12 @@ func ParsePrivateKey(pemBytes []byte) (*rsa.PrivateKey, error) {
 	return key, nil
 }
 
-// mintJWT builds and signs a short-lived app JWT (RS256) for the configured
-// app, as required by the installation token endpoint.
-func (c Config) mintJWT(now time.Time) (string, error) {
+func mintJWT(appID string, privateKey *rsa.PrivateKey, now time.Time) (string, error) {
 	header := map[string]string{"alg": "RS256", "typ": "JWT"}
 	claims := map[string]any{
 		"iat": now.Add(-clockSkew).Unix(),
 		"exp": now.Add(jwtLifetime).Unix(),
-		"iss": c.AppID,
+		"iss": appID,
 	}
 
 	headerJSON, err := json.Marshal(header)
@@ -139,7 +101,7 @@ func (c Config) mintJWT(now time.Time) (string, error) {
 		base64.RawURLEncoding.EncodeToString(claimsJSON)
 
 	digest := sha256.Sum256([]byte(signingInput))
-	signature, err := rsa.SignPKCS1v15(rand.Reader, c.PrivateKey, crypto.SHA256, digest[:])
+	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, digest[:])
 	if err != nil {
 		return "", fmt.Errorf("signing JWT: %w", err)
 	}
@@ -147,25 +109,21 @@ func (c Config) mintJWT(now time.Time) (string, error) {
 	return signingInput + "." + base64.RawURLEncoding.EncodeToString(signature), nil
 }
 
-// installationTokenSource is an oauth2.TokenSource that mints GitHub App
-// installation access tokens. It performs no caching itself; wrap it in
-// oauth2.ReuseTokenSource (see NewProvider) for that.
 type installationTokenSource struct {
 	cfg        Config
+	privateKey *rsa.PrivateKey
 	httpClient *http.Client
 }
 
-func newInstallationTokenSource(cfg Config, httpClient *http.Client) *installationTokenSource {
+func newInstallationTokenSource(cfg Config, privateKey *rsa.PrivateKey, httpClient *http.Client) *installationTokenSource {
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: httpTimeout}
 	}
-	return &installationTokenSource{cfg: cfg, httpClient: httpClient}
+	return &installationTokenSource{cfg: cfg, privateKey: privateKey, httpClient: httpClient}
 }
 
-// Token mints a fresh installation access token. The returned token's Expiry is
-// set refreshBuffer before the real expiry so callers refresh early.
 func (s *installationTokenSource) Token() (*oauth2.Token, error) {
-	jwt, err := s.cfg.mintJWT(time.Now())
+	jwt, err := mintJWT(s.cfg.AppID, s.privateKey, time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -193,9 +151,10 @@ func (s *installationTokenSource) Token() (*oauth2.Token, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
-		// The error body is GitHub's JSON message (never the token); include a
-		// bounded snippet to make misconfiguration diagnosable.
-		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		snippet, readErr := io.ReadAll(io.LimitReader(resp.Body, 512))
+		if readErr != nil {
+			return nil, fmt.Errorf("installation token request failed: %s (reading response: %w)", resp.Status, readErr)
+		}
 		return nil, fmt.Errorf("installation token request failed: %s: %s", resp.Status, strings.TrimSpace(string(snippet)))
 	}
 
@@ -209,21 +168,17 @@ func (s *installationTokenSource) Token() (*oauth2.Token, error) {
 	if body.Token == "" {
 		return nil, errors.New("installation token response did not contain a token")
 	}
-
-	expiry := body.ExpiresAt
-	if !expiry.IsZero() {
-		expiry = expiry.Add(-refreshBuffer)
+	if body.ExpiresAt.IsZero() {
+		return nil, errors.New("installation token response did not contain an expiry")
 	}
 	return &oauth2.Token{
 		AccessToken: body.Token,
 		TokenType:   "token",
-		Expiry:      expiry,
+		Expiry:      body.ExpiresAt.Add(-refreshBuffer),
 	}, nil
 }
 
-// Provider supplies GitHub App installation access tokens, caching and
-// refreshing them transparently. Its AccessToken method mirrors
-// oauth.Manager.AccessToken so it can back BearerAuthTransport.TokenProvider.
+// Provider caches and refreshes GitHub App installation access tokens.
 type Provider struct {
 	source oauth2.TokenSource
 	logger *slog.Logger
@@ -232,26 +187,22 @@ type Provider struct {
 	errLogged bool
 }
 
-// NewProvider validates cfg and returns a Provider that mints and refreshes
-// installation tokens. A nil logger logs to stderr.
 func NewProvider(cfg Config, logger *slog.Logger) (*Provider, error) {
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	if logger == nil {
-		logger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+	privateKey, err := parsePrivateKey(cfg.PrivateKeyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("invalid GitHub App private key: %w", err)
 	}
-	// ReuseTokenSource caches the token and only calls the underlying source
-	// once the cached token is expired. Because Token() backdates Expiry by
-	// refreshBuffer, that refresh happens ~5 minutes before the real expiry.
-	source := oauth2.ReuseTokenSource(nil, newInstallationTokenSource(cfg, nil))
+	if logger == nil {
+		logger = slog.Default()
+	}
+	source := oauth2.ReuseTokenSource(nil, newInstallationTokenSource(cfg, privateKey, nil))
 	return &Provider{source: source, logger: logger}, nil
 }
 
-// AccessToken returns a currently valid installation access token, refreshing
-// it if needed, or "" if a token could not be obtained. A fetch failure is
-// logged once (until the next success) so a misconfiguration is visible without
-// flooding the log on every tool call.
+// AccessToken returns a cached token or refreshes it before expiry.
 func (p *Provider) AccessToken() string {
 	tok, err := p.source.Token()
 	if err != nil {
@@ -267,9 +218,4 @@ func (p *Provider) AccessToken() string {
 	p.errLogged = false
 	p.mu.Unlock()
 	return tok.AccessToken
-}
-
-// HasToken reports whether a valid token can currently be obtained.
-func (p *Provider) HasToken() bool {
-	return p.AccessToken() != ""
 }

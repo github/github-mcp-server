@@ -13,9 +13,7 @@ type BearerAuthTransport struct {
 	Token     string
 
 	// TokenProvider, when non-nil, supplies the bearer token for each request
-	// and takes precedence over Token. It backs OAuth, where the token is
-	// obtained after the client is built and is refreshed over the session's
-	// lifetime. It may return an empty string before authorization completes.
+	// and takes precedence over Token.
 	TokenProvider func() string
 }
 
@@ -25,8 +23,6 @@ func (t *BearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	if t.TokenProvider != nil {
 		token = t.TokenProvider()
 	}
-	// Before OAuth authorization completes the token is empty; send an
-	// unauthenticated request rather than an empty "Bearer " header.
 	if token != "" {
 		req.Header.Set(headers.AuthorizationHeader, "Bearer "+token)
 	}

@@ -15,12 +15,8 @@ pass `--oauth-client-id` (see [Bring your own app](#bring-your-own-app)).
 > `http` command have their own authentication; see
 > [Remote Server](remote-server.md).
 
-> **Running non-interactively?** OAuth still needs a human to complete the flow
-> once. For fully headless deployments (CI, Kubernetes, background agents),
-> authenticate as a GitHub App installation instead — see
-> [GitHub App Server-to-Server Authentication](github-app-auth.md). Note the
-> security warnings there: it keeps a high-privilege credential next to the
-> agent and is not recommended without an independent security review.
+> For non-interactive stdio deployments, see
+> [GitHub App authentication](github-app-auth.md).
 
 ## Contents
 

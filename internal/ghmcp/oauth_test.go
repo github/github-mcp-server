@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/githubapp"
 	"github.com/github/github-mcp-server/internal/oauth"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/headers"
@@ -539,10 +538,6 @@ func TestOAuthMultiRoundTripResultType(t *testing.T) {
 	assert.False(t, toolRan)
 }
 
-// TestRunStdioServerRejectsMultipleAuthModes verifies the mutually-exclusive
-// guard: supplying more than one of a static token, an OAuth manager, or GitHub
-// App auth is rejected before the server starts, rather than silently preferring
-// one for auth and another for scope filtering.
 func TestRunStdioServerRejectsMultipleAuthModes(t *testing.T) {
 	t.Parallel()
 
@@ -557,12 +552,12 @@ func TestRunStdioServerRejectsMultipleAuthModes(t *testing.T) {
 			cfg:  StdioServerConfig{Token: "ghp_static", OAuthManager: mgr},
 		},
 		{
-			name: "token and app",
-			cfg:  StdioServerConfig{Token: "ghp_static", AppAuth: &githubapp.Config{}},
+			name: "token and provider",
+			cfg:  StdioServerConfig{Token: "ghp_static", TokenProvider: func() string { return "token" }},
 		},
 		{
-			name: "oauth and app",
-			cfg:  StdioServerConfig{OAuthManager: mgr, AppAuth: &githubapp.Config{}},
+			name: "oauth and provider",
+			cfg:  StdioServerConfig{OAuthManager: mgr, TokenProvider: func() string { return "token" }},
 		},
 	}
 	for _, tt := range tests {
@@ -575,10 +570,8 @@ func TestRunStdioServerRejectsMultipleAuthModes(t *testing.T) {
 	}
 }
 
-// TestCreateGitHubClientsTokenProvider proves the OAuth wiring: when a
-// TokenProvider is configured the REST client authenticates with the provider's
-// current token on every request (and never pins a stale one), which is what the
-// lazy, refreshing OAuth token depends on.
+// TestCreateGitHubClientsTokenProvider verifies that clients resolve the
+// provider for every request instead of pinning a token.
 func TestCreateGitHubClientsTokenProvider(t *testing.T) {
 	t.Parallel()
 
