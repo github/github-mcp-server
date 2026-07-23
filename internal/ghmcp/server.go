@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -190,8 +191,63 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	}
 
 	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.restUATransp, clients.gqlHTTP))
+	ghServer.AddReceivingMiddleware(dedupeInitializeMiddleware())
 
 	return ghServer, nil
+}
+
+// dedupeInitializeMiddleware makes a repeated "initialize" call on an
+// already-initialized session return the original result instead of
+// erroring.
+//
+// go-sdk v1.7.0-pre.1 (picked up by github-mcp-server v1.6.0, see go.mod)
+// started rejecting a second "initialize" on the same session with
+// `duplicate "initialize" received" (upstream: TestServerRejectsDuplicateInitialize
+// in mcp/server_test.go, added to fix modelcontextprotocol/go-sdk#961). go-sdk
+// v1.6.1 and earlier (github-mcp-server v1.5.0) silently accepted repeat
+// calls, returning the same result every time. Some MCP clients resend
+// "initialize" on the same transport/session when a handshake is retried
+// (e.g. after a slow first response), relying on that old idempotent
+// behavior. Restore it here instead of depending on unreleased upstream
+// behavior, since the response for "initialize" is otherwise constant for
+// the lifetime of this server.
+func dedupeInitializeMiddleware() func(next mcp.MethodHandler) mcp.MethodHandler {
+	var (
+		mu     sync.Mutex
+		cached *mcp.InitializeResult
+	)
+
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, request mcp.Request) (mcp.Result, error) {
+			if method != "initialize" {
+				return next(ctx, method, request)
+			}
+
+			if sess, ok := request.GetSession().(*mcp.ServerSession); ok && sess.InitializeParams() != nil {
+				mu.Lock()
+				result := cached
+				mu.Unlock()
+				if result != nil {
+					return result, nil
+				}
+				// No cached result yet even though the session is already
+				// initialized: fall through and let the SDK produce its own
+				// error rather than guess at a response.
+			}
+
+			result, err := next(ctx, method, request)
+			if err == nil {
+				if initResult, ok := result.(*mcp.InitializeResult); ok {
+					mu.Lock()
+					if cached == nil {
+						cached = initResult
+					}
+					mu.Unlock()
+				}
+			}
+			return result, err
+		}
+	}
 }
 
 type StdioServerConfig struct {
