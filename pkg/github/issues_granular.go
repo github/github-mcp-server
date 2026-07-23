@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"net/url"
 	"strings"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -460,7 +462,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_labels",
-			Description: t("TOOL_UPDATE_ISSUE_LABELS_DESCRIPTION", "Update the labels of an existing issue. This replaces the current labels with the provided list. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
+			Description: t("TOOL_UPDATE_ISSUE_LABELS_DESCRIPTION", "Manage the labels on an existing issue. Use method 'replace' (default) to set the issue's labels to exactly the provided list, 'add' to add labels without removing existing ones, or 'remove' to remove specific labels without touching the rest. When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_LABELS_USER_TITLE", "Update Issue Labels"),
 				ReadOnlyHint:    false,
@@ -483,9 +485,15 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 						Description: "The issue number to update",
 						Minimum:     jsonschema.Ptr(1.0),
 					},
+					"method": {
+						Type:        "string",
+						Description: "How to apply the labels: 'replace' (default) sets the issue's labels to exactly the provided list, 'add' adds them while keeping the existing labels, and 'remove' removes the named labels without affecting the others.",
+						Enum:        []any{"replace", "add", "remove"},
+						Default:     json.RawMessage(`"replace"`),
+					},
 					"labels": {
 						Type:        "array",
-						Description: "Labels to apply to this issue.",
+						Description: "Labels to apply to this issue. For 'remove', only each label's name is used. The 'rationale', 'confidence', and 'is_suggestion' fields are only honored when method is 'replace'.",
 						Items: &jsonschema.Schema{
 							OneOf: []*jsonschema.Schema{
 								{Type: "string", Description: "Label name"},
@@ -537,6 +545,18 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			method, err := OptionalParam[string](args, "method")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			method = strings.ToLower(strings.TrimSpace(method))
+			if method == "" {
+				method = "replace"
+			}
+			if method != "replace" && method != "add" && method != "remove" {
+				return utils.NewToolResultError("method must be one of: replace, add, remove"), nil, nil
+			}
+
 			labelsRaw, ok := args["labels"]
 			if !ok {
 				return utils.NewToolResultError("missing required parameter: labels"), nil, nil
@@ -554,90 +574,224 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 				}
 			}
 
-			useObjectForm := false
-			payload := make([]any, 0, len(labelsSlice))
-			for _, item := range labelsSlice {
-				switch v := item.(type) {
-				case string:
-					payload = append(payload, v)
-				case map[string]any:
-					name, err := RequiredParam[string](v, "name")
-					if err != nil {
-						return utils.NewToolResultError("each label object must have a 'name' string"), nil, nil
-					}
-					rationale, err := OptionalParam[string](v, "rationale")
-					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
-					}
-					rationale = strings.TrimSpace(rationale)
-					if len([]rune(rationale)) > 280 {
-						return utils.NewToolResultError("label rationale must be 280 characters or less"), nil, nil
-					}
-					confidence, err := OptionalParam[string](v, "confidence")
-					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
-					}
-					confidence = normalizeConfidence(confidence)
-					if confidence != "" && confidence != "LOW" && confidence != "MEDIUM" && confidence != "HIGH" {
-						return utils.NewToolResultError("confidence must be one of: LOW, MEDIUM, HIGH"), nil, nil
-					}
-					isSuggestion, err := OptionalParam[bool](v, "is_suggestion")
-					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
-					}
-					if rationale == "" && !isSuggestion && confidence == "" {
-						payload = append(payload, name)
-					} else {
-						useObjectForm = true
-						payload = append(payload, labelWithIntent{Name: name, Rationale: rationale, Confidence: confidence, Suggest: isSuggestion})
-					}
-				default:
-					return utils.NewToolResultError("each label must be a string or an object with 'name' and optional 'rationale', 'confidence', and/or 'is_suggestion'"), nil, nil
-				}
-			}
-
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			var body any
-			if useObjectForm {
-				body = &labelsUpdateRequest{Labels: payload}
-			} else {
-				// Preserve the standard wire format when no rationale or suggest is supplied.
-				names := make([]string, len(payload))
-				for i, p := range payload {
-					names[i] = p.(string)
-				}
-				body = &github.IssueRequest{Labels: &names}
+			switch method {
+			case "add":
+				return addIssueLabels(ctx, deps, client, owner, repo, issueNumber, labelsSlice)
+			case "remove":
+				return removeIssueLabels(ctx, deps, client, owner, repo, issueNumber, labelsSlice)
+			default:
+				return replaceIssueLabels(ctx, deps, client, owner, repo, issueNumber, labelsSlice)
 			}
-
-			apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
-			req, err := client.NewRequest(ctx, "PATCH", apiURL, body)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to create request", err), nil, nil
-			}
-
-			issue := &github.Issue{}
-			resp, err := client.Do(req, issue)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue", resp, err), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			r, err := json.Marshal(MinimalResponse{
-				ID:  fmt.Sprintf("%d", issue.GetID()),
-				URL: issue.GetHTMLURL(),
-			})
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
-			}
-			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
 	st.FeatureFlagEnable = FeatureFlagIssuesGranular
 	return st
+}
+
+// issueLabelNames extracts plain label names from the labels argument, accepting
+// either bare strings or objects with a "name" field. It is used by the 'add'
+// and 'remove' methods, which only need the label name. Names are trimmed,
+// rejected if empty, and de-duplicated (preserving first-seen order) so callers
+// don't issue redundant API requests for the same label.
+func issueLabelNames(labelsSlice []any) ([]string, error) {
+	seen := make(map[string]struct{}, len(labelsSlice))
+	names := make([]string, 0, len(labelsSlice))
+	for _, item := range labelsSlice {
+		var name string
+		switch v := item.(type) {
+		case string:
+			name = v
+		case map[string]any:
+			n, err := RequiredParam[string](v, "name")
+			if err != nil {
+				return nil, fmt.Errorf("each label object must have a 'name' string")
+			}
+			name = n
+		default:
+			return nil, fmt.Errorf("each label must be a string or an object with a 'name'")
+		}
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return nil, fmt.Errorf("label name cannot be empty")
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+	}
+	return names, nil
+}
+
+// replaceIssueLabels sets the issue's labels to exactly the provided list,
+// optionally carrying per-label rationale/confidence/suggestion intent. It
+// returns the issue's resulting labels, matching the 'add' and 'remove'
+// methods so the tool's response shape is consistent across methods.
+func replaceIssueLabels(ctx context.Context, deps ToolDependencies, client *github.Client, owner, repo string, issueNumber int, labelsSlice []any) (*mcp.CallToolResult, any, error) {
+	useObjectForm := false
+	payload := make([]any, 0, len(labelsSlice))
+	for _, item := range labelsSlice {
+		switch v := item.(type) {
+		case string:
+			name := strings.TrimSpace(v)
+			if name == "" {
+				return utils.NewToolResultError("label name cannot be empty"), nil, nil
+			}
+			payload = append(payload, name)
+		case map[string]any:
+			name, err := RequiredParam[string](v, "name")
+			if err != nil {
+				return utils.NewToolResultError("each label object must have a 'name' string"), nil, nil
+			}
+			name = strings.TrimSpace(name)
+			if name == "" {
+				return utils.NewToolResultError("label name cannot be empty"), nil, nil
+			}
+			rationale, err := OptionalParam[string](v, "rationale")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			rationale = strings.TrimSpace(rationale)
+			if len([]rune(rationale)) > 280 {
+				return utils.NewToolResultError("label rationale must be 280 characters or less"), nil, nil
+			}
+			confidence, err := OptionalParam[string](v, "confidence")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			confidence = normalizeConfidence(confidence)
+			if confidence != "" && confidence != "LOW" && confidence != "MEDIUM" && confidence != "HIGH" {
+				return utils.NewToolResultError("confidence must be one of: LOW, MEDIUM, HIGH"), nil, nil
+			}
+			isSuggestion, err := OptionalParam[bool](v, "is_suggestion")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if rationale == "" && !isSuggestion && confidence == "" {
+				payload = append(payload, name)
+			} else {
+				useObjectForm = true
+				payload = append(payload, labelWithIntent{Name: name, Rationale: rationale, Confidence: confidence, Suggest: isSuggestion})
+			}
+		default:
+			return utils.NewToolResultError("each label must be a string or an object with 'name' and optional 'rationale', 'confidence', and/or 'is_suggestion'"), nil, nil
+		}
+	}
+
+	var body any
+	if useObjectForm {
+		body = &labelsUpdateRequest{Labels: payload}
+	} else {
+		// Preserve the standard wire format when no rationale or suggest is supplied.
+		names := make([]string, len(payload))
+		for i, p := range payload {
+			names[i] = p.(string)
+		}
+		body = &github.IssueRequest{Labels: &names}
+	}
+
+	apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
+	req, err := client.NewRequest(ctx, "PATCH", apiURL, body)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to create request", err), nil, nil
+	}
+
+	issue := &github.Issue{}
+	resp, err := client.Do(req, issue)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue", resp, err), nil, nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	r, err := json.Marshal(issue.Labels)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+	}
+
+	result := utils.NewToolResultText(string(r))
+	// Labels are structural repo metadata defined by collaborators
+	// (trusted); confidentiality follows repo visibility.
+	result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
+	return result, nil, nil
+}
+
+// addIssueLabels adds labels to an issue without removing any existing labels.
+func addIssueLabels(ctx context.Context, deps ToolDependencies, client *github.Client, owner, repo string, issueNumber int, labelsSlice []any) (*mcp.CallToolResult, any, error) {
+	names, err := issueLabelNames(labelsSlice)
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	if len(names) == 0 {
+		return utils.NewToolResultError("at least one label is required"), nil, nil
+	}
+
+	labels, resp, err := client.Issues.AddLabelsToIssue(ctx, owner, repo, issueNumber, names)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add labels to issue", resp, err), nil, nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	r, err := json.Marshal(labels)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+	}
+
+	result := utils.NewToolResultText(string(r))
+	// Labels are structural repo metadata defined by collaborators
+	// (trusted); confidentiality follows repo visibility.
+	result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
+	return result, nil, nil
+}
+
+// removeIssueLabels removes the named labels from an issue, leaving the rest in
+// place. Labels are removed one at a time; the issue's remaining labels after
+// the final removal are returned.
+func removeIssueLabels(ctx context.Context, deps ToolDependencies, client *github.Client, owner, repo string, issueNumber int, labelsSlice []any) (*mcp.CallToolResult, any, error) {
+	names, err := issueLabelNames(labelsSlice)
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	if len(names) == 0 {
+		return utils.NewToolResultError("at least one label is required"), nil, nil
+	}
+
+	var remaining []*github.Label
+	for _, name := range names {
+		// Build the DELETE request manually so the label name is URL-escaped.
+		// go-github's Issues.RemoveLabelForIssue interpolates the raw label
+		// into the path, so names containing spaces or slashes (e.g. "good
+		// first issue", "status/blocked") would produce a malformed URL or
+		// extra path segments. url.PathEscape keeps the label a single,
+		// correctly-encoded path segment.
+		apiURL := fmt.Sprintf("repos/%s/%s/issues/%d/labels/%s", owner, repo, issueNumber, url.PathEscape(name))
+		req, err := client.NewRequest(ctx, "DELETE", apiURL, nil)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr("failed to create request", err), nil, nil
+		}
+
+		// The API responds with the issue's remaining labels.
+		resp, err := client.Do(req, &remaining)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to remove label from issue", resp, err), nil, nil
+		}
+		_ = resp.Body.Close()
+	}
+
+	r, err := json.Marshal(remaining)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+	}
+
+	result := utils.NewToolResultText(string(r))
+	// Labels are structural repo metadata defined by collaborators
+	// (trusted); confidentiality follows repo visibility.
+	result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
+	return result, nil, nil
 }
 
 // GranularUpdateIssueMilestone creates a tool to update an issue's milestone.
