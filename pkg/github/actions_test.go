@@ -1,9 +1,13 @@
 package github
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
@@ -221,7 +225,11 @@ func Test_ActionsGet(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "owner")
 	assert.Contains(t, inputSchema.Properties, "repo")
 	assert.Contains(t, inputSchema.Properties, "resource_id")
-	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner", "repo", "resource_id"})
+	assert.Contains(t, inputSchema.Properties, "run_id")
+	assert.Contains(t, inputSchema.Properties, "artifact_name")
+	assert.Contains(t, inputSchema.Properties, "path")
+	assert.Contains(t, inputSchema.Properties, "max_bytes")
+	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner", "repo"})
 }
 
 func Test_ActionsGet_GetWorkflow(t *testing.T) {
@@ -308,6 +316,298 @@ func Test_ActionsGet_GetWorkflowRun(t *testing.T) {
 		assert.NotNil(t, response.ID)
 		assert.Equal(t, int64(12345), *response.ID)
 	})
+}
+
+func TestActionsGet_DownloadWorkflowArtifact_LegacyURL(t *testing.T) {
+	toolDef := ActionsGet(translations.NullTranslationHelper)
+
+	mockedClient := MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/repos/owner/repo/actions/artifacts/456/zip" {
+			w.Header().Set("Location", "https://example.com/artifacts/456.zip")
+			w.WriteHeader(http.StatusFound)
+			return
+		}
+
+		http.NotFound(w, r)
+	})
+
+	client := mustNewGHClient(t, mockedClient)
+	deps := BaseDeps{Client: client}
+	handler := toolDef.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":      "download_workflow_run_artifact",
+		"owner":       "owner",
+		"repo":        "repo",
+		"resource_id": "456",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+	var response map[string]any
+	err = json.Unmarshal([]byte(textContent.Text), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "https://example.com/artifacts/456.zip", response["download_url"])
+	assert.Equal(t, float64(456), response["artifact_id"])
+}
+
+func TestActionsGet_DownloadWorkflowArtifact_ByRunAndName(t *testing.T) {
+	toolDef := ActionsGet(translations.NullTranslationHelper)
+	archiveBytes := mustCreateArtifactZip(t, map[string][]byte{
+		"usage.jsonl": []byte("{\"count\":123}\n"),
+		"trace.bin":   {0x00, 0x01, 0x02},
+	})
+	archiveServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(archiveBytes)
+	}))
+	defer archiveServer.Close()
+
+	mockedClient := MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/owner/repo/actions/runs/123/artifacts":
+			artifacts := &github.ArtifactList{
+				TotalCount: github.Ptr(int64(2)),
+				Artifacts: []*github.Artifact{
+					{
+						ID:          github.Ptr(int64(456)),
+						Name:        github.Ptr("agent-artifacts"),
+						Expired:     github.Ptr(false),
+						SizeInBytes: github.Ptr(int64(len(archiveBytes))),
+					},
+					{
+						ID:   github.Ptr(int64(789)),
+						Name: github.Ptr("other-artifact"),
+					},
+				},
+			}
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(artifacts)
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/owner/repo/actions/artifacts/456/zip":
+			w.Header().Set("Location", archiveServer.URL+"/download.zip")
+			w.WriteHeader(http.StatusFound)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+
+	client := mustNewGHClient(t, mockedClient)
+	deps := BaseDeps{Client: client}
+	handler := toolDef.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":        "download_workflow_run_artifact",
+		"owner":         "owner",
+		"repo":          "repo",
+		"run_id":        float64(123),
+		"artifact_name": "agent-artifacts",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+	var response struct {
+		ArtifactID   int64  `json:"artifact_id"`
+		ArtifactName string `json:"artifact_name"`
+		Expired      bool   `json:"expired"`
+		SizeInBytes  int64  `json:"size_in_bytes"`
+		MaxBytes     int    `json:"max_bytes"`
+		Files        []struct {
+			Path                 string `json:"path"`
+			Size                 int64  `json:"size"`
+			Truncated            bool   `json:"truncated"`
+			Binary               bool   `json:"binary"`
+			Content              string `json:"content"`
+			ContentOmittedReason string `json:"content_omitted_reason"`
+		} `json:"files"`
+	}
+	err = json.Unmarshal([]byte(textContent.Text), &response)
+	require.NoError(t, err)
+	assert.Equal(t, int64(456), response.ArtifactID)
+	assert.Equal(t, "agent-artifacts", response.ArtifactName)
+	assert.False(t, response.Expired)
+	assert.Len(t, response.Files, 2)
+
+	filesByPath := map[string]struct {
+		Path                 string `json:"path"`
+		Size                 int64  `json:"size"`
+		Truncated            bool   `json:"truncated"`
+		Binary               bool   `json:"binary"`
+		Content              string `json:"content"`
+		ContentOmittedReason string `json:"content_omitted_reason"`
+	}{}
+	for _, file := range response.Files {
+		filesByPath[file.Path] = file
+	}
+
+	usageFile := filesByPath["usage.jsonl"]
+	assert.Equal(t, "{\"count\":123}\n", usageFile.Content)
+	assert.False(t, usageFile.Truncated)
+
+	binaryFile := filesByPath["trace.bin"]
+	assert.True(t, binaryFile.Binary)
+	assert.Empty(t, binaryFile.Content)
+}
+
+func TestActionsGet_DownloadWorkflowArtifact_PathFilteringAndTruncation(t *testing.T) {
+	toolDef := ActionsGet(translations.NullTranslationHelper)
+	archiveBytes := mustCreateArtifactZip(t, map[string][]byte{
+		"nested/result.txt": []byte("abcdefghij"),
+		"other.txt":         []byte("unused"),
+	})
+	archiveServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(archiveBytes)
+	}))
+	defer archiveServer.Close()
+
+	mockedClient := MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/owner/repo/actions/runs/123/artifacts":
+			artifacts := &github.ArtifactList{
+				TotalCount: github.Ptr(int64(1)),
+				Artifacts: []*github.Artifact{
+					{
+						ID:          github.Ptr(int64(456)),
+						Name:        github.Ptr("agent-artifacts"),
+						Expired:     github.Ptr(false),
+						SizeInBytes: github.Ptr(int64(len(archiveBytes))),
+					},
+				},
+			}
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(artifacts)
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/owner/repo/actions/artifacts/456/zip":
+			w.Header().Set("Location", archiveServer.URL+"/download.zip")
+			w.WriteHeader(http.StatusFound)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+
+	client := mustNewGHClient(t, mockedClient)
+	deps := BaseDeps{Client: client}
+	handler := toolDef.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":        "download_workflow_run_artifact",
+		"owner":         "owner",
+		"repo":          "repo",
+		"run_id":        float64(123),
+		"artifact_name": "agent-artifacts",
+		"path":          "nested/result.txt",
+		"max_bytes":     float64(4),
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+	var response struct {
+		Files []struct {
+			Path                 string `json:"path"`
+			Truncated            bool   `json:"truncated"`
+			Content              string `json:"content"`
+			ContentOmittedReason string `json:"content_omitted_reason"`
+		} `json:"files"`
+	}
+	err = json.Unmarshal([]byte(textContent.Text), &response)
+	require.NoError(t, err)
+	require.Len(t, response.Files, 1)
+	assert.Equal(t, "nested/result.txt", response.Files[0].Path)
+	assert.Equal(t, "abcd", response.Files[0].Content)
+	assert.True(t, response.Files[0].Truncated)
+	assert.Contains(t, response.Files[0].ContentOmittedReason, "truncated")
+}
+
+func TestActionsGet_DownloadWorkflowArtifact_MissingArtifact(t *testing.T) {
+	toolDef := ActionsGet(translations.NullTranslationHelper)
+
+	mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposActionsRunsArtifactsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			artifacts := &github.ArtifactList{
+				TotalCount: github.Ptr(int64(1)),
+				Artifacts: []*github.Artifact{
+					{
+						ID:   github.Ptr(int64(456)),
+						Name: github.Ptr("other-artifact"),
+					},
+				},
+			}
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(artifacts)
+		}),
+	})
+
+	client := mustNewGHClient(t, mockedClient)
+	deps := BaseDeps{Client: client}
+	handler := toolDef.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":        "download_workflow_run_artifact",
+		"owner":         "owner",
+		"repo":          "repo",
+		"run_id":        float64(123),
+		"artifact_name": "agent-artifacts",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(t, getTextResult(t, result).Text, "artifact \"agent-artifacts\" was not found")
+}
+
+func TestDownloadArtifactArchiveRejectsOversizedArchive(t *testing.T) {
+	archiveServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("12345"))
+	}))
+	defer archiveServer.Close()
+
+	archiveURL, err := url.Parse(archiveServer.URL + "/download.zip")
+	require.NoError(t, err)
+
+	_, resp, err := downloadArtifactArchive(context.Background(), archiveURL, 4)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "artifact archive exceeds maximum supported size")
+	require.NotNil(t, resp)
+	require.NoError(t, resp.Body.Close())
+}
+
+func TestReadWorkflowArtifactFileTruncatesAtUTF8Boundary(t *testing.T) {
+	archiveBytes := mustCreateArtifactZip(t, map[string][]byte{
+		"unicode.txt": []byte("abé"),
+	})
+	reader, err := zip.NewReader(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	require.NoError(t, err)
+	require.Len(t, reader.File, 1)
+
+	result, err := readWorkflowArtifactFile(reader.File[0], 2)
+	require.NoError(t, err)
+	assert.Equal(t, "ab", result.Content)
+	assert.True(t, result.Truncated)
+}
+
+func mustCreateArtifactZip(t *testing.T, files map[string][]byte) []byte {
+	t.Helper()
+
+	var archive bytes.Buffer
+	writer := zip.NewWriter(&archive)
+	for path, content := range files {
+		entry, err := writer.Create(path)
+		require.NoError(t, err)
+		_, err = entry.Write(content)
+		require.NoError(t, err)
+	}
+	require.NoError(t, writer.Close())
+
+	return archive.Bytes()
 }
 
 func Test_ActionsRunTrigger(t *testing.T) {

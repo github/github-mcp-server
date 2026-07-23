@@ -1,13 +1,18 @@
 package github
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/github/github-mcp-server/internal/profiler"
 	buffer "github.com/github/github-mcp-server/pkg/buffer"
@@ -25,6 +30,11 @@ import (
 const (
 	DescriptionRepositoryOwner = "Repository owner"
 	DescriptionRepositoryName  = "Repository name"
+)
+
+const (
+	defaultArtifactContentMaxBytes = 64 * 1024
+	maxArtifactArchiveBytes        = 32 * 1024 * 1024
 )
 
 // Method constants for consolidated actions tools
@@ -445,12 +455,30 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 						Description: `The unique identifier of the resource. This will vary based on the "method" provided, so ensure you provide the correct ID:
 - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'get_workflow' method.
 - Provide a workflow run ID for 'get_workflow_run', 'get_workflow_run_usage', and 'get_workflow_run_logs_url' methods.
-- Provide an artifact ID for 'download_workflow_run_artifact' method.
+- Provide an artifact ID for 'download_workflow_run_artifact' to get a temporary download URL, or omit it and use 'run_id' plus 'artifact_name' to return artifact contents.
 - Provide a job ID for 'get_workflow_job' method.
 `,
 					},
+					"run_id": {
+						Type:        "number",
+						Description: "Workflow run ID used with 'artifact_name' to resolve and extract an artifact for 'download_workflow_run_artifact'.",
+					},
+					"artifact_name": {
+						Type:        "string",
+						Description: "Exact workflow artifact name to resolve within 'run_id' for 'download_workflow_run_artifact'.",
+					},
+					"path": {
+						Type:        "string",
+						Description: "Optional exact file path inside the artifact ZIP to return for 'download_workflow_run_artifact'.",
+					},
+					"max_bytes": {
+						Type:        "number",
+						Description: "Maximum number of bytes of text content to return per file when extracting 'download_workflow_run_artifact'. Defaults to 65536.",
+						Minimum:     jsonschema.Ptr(1.0),
+						Default:     json.RawMessage(`65536`),
+					},
 				},
-				Required: []string{"method", "owner", "repo", "resource_id"},
+				Required: []string{"method", "owner", "repo"},
 			},
 		},
 		[]scopes.Scope{scopes.Repo},
@@ -468,10 +496,27 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			resourceID, err := RequiredParam[string](args, "resource_id")
+			resourceID, err := OptionalParam[string](args, "resource_id")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			runID, err := OptionalIntParam(args, "run_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			artifactName, err := OptionalParam[string](args, "artifact_name")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			artifactPath, err := OptionalParam[string](args, "path")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			maxBytes, err := OptionalIntParam(args, "max_bytes")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			_, hasMaxBytes := args["max_bytes"]
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -490,9 +535,42 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 			var parseErr error
 			switch method {
 			case actionsMethodGetWorkflow:
-				// Do nothing, we accept both a string workflow ID or filename
+				if resourceID == "" {
+					return utils.NewToolResultError(fmt.Sprintf("missing required parameter for method %s: resource_id", method)), nil, nil
+				}
+			case actionsMethodDownloadWorkflowArtifact:
+				if artifactName != "" {
+					if resourceID != "" {
+						return utils.NewToolResultError("resource_id cannot be combined with artifact_name for download_workflow_run_artifact"), nil, nil
+					}
+					if runID == 0 {
+						return utils.NewToolResultError("run_id is required when artifact_name is provided for download_workflow_run_artifact"), nil, nil
+					}
+					if hasMaxBytes && maxBytes < 1 {
+						return utils.NewToolResultError("max_bytes must be >= 1 when provided"), nil, nil
+					}
+				} else {
+					if resourceID == "" {
+						return utils.NewToolResultError(fmt.Sprintf("missing required parameter for method %s: resource_id", method)), nil, nil
+					}
+					if runID != 0 {
+						return utils.NewToolResultError("run_id requires artifact_name for download_workflow_run_artifact"), nil, nil
+					}
+					if artifactPath != "" {
+						return utils.NewToolResultError("path requires artifact_name for download_workflow_run_artifact"), nil, nil
+					}
+					if hasMaxBytes {
+						return utils.NewToolResultError("max_bytes requires artifact_name for download_workflow_run_artifact"), nil, nil
+					}
+					resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
+					if parseErr != nil {
+						return utils.NewToolResultError(fmt.Sprintf("invalid resource_id, must be an integer for method %s: %v", method, parseErr)), nil, nil
+					}
+				}
 			default:
-				// For other methods, resource ID must be an integer
+				if resourceID == "" {
+					return utils.NewToolResultError(fmt.Sprintf("missing required parameter for method %s: resource_id", method)), nil, nil
+				}
 				resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
 				if parseErr != nil {
 					return utils.NewToolResultError(fmt.Sprintf("invalid resource_id, must be an integer for method %s: %v", method, parseErr)), nil, nil
@@ -510,7 +588,13 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				result, payload, err := getWorkflowJob(ctx, client, owner, repo, resourceIDInt)
 				return attachIFC(result), payload, err
 			case actionsMethodDownloadWorkflowArtifact:
-				result, payload, err := downloadWorkflowArtifact(ctx, client, owner, repo, resourceIDInt)
+				result, payload, err := downloadWorkflowArtifact(ctx, client, owner, repo, resourceIDInt, workflowArtifactDownloadOptions{
+					RunID:        int64(runID),
+					ArtifactName: artifactName,
+					Path:         artifactPath,
+					MaxBytes:     maxBytes,
+					DefaultMax:   deps.GetContentWindowSize(),
+				})
 				return attachIFC(result), payload, err
 			case actionsMethodGetWorkflowRunUsage:
 				result, payload, err := getWorkflowRunUsage(ctx, client, owner, repo, resourceIDInt)
@@ -951,15 +1035,107 @@ func listWorkflowArtifacts(ctx context.Context, client *github.Client, owner, re
 	return utils.NewToolResultText(string(r)), nil, nil
 }
 
-func downloadWorkflowArtifact(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, any, error) {
+type workflowArtifactDownloadOptions struct {
+	RunID        int64
+	ArtifactName string
+	Path         string
+	MaxBytes     int
+	DefaultMax   int
+}
+
+type workflowArtifactFileResult struct {
+	Path                 string `json:"path"`
+	Size                 int64  `json:"size"`
+	Truncated            bool   `json:"truncated"`
+	Binary               bool   `json:"binary,omitempty"`
+	Content              string `json:"content,omitempty"`
+	ContentOmittedReason string `json:"content_omitted_reason,omitempty"`
+}
+
+type workflowArtifactContentResult struct {
+	ArtifactID   int64                        `json:"artifact_id"`
+	ArtifactName string                       `json:"artifact_name"`
+	Expired      bool                         `json:"expired"`
+	SizeInBytes  int64                        `json:"size_in_bytes"`
+	MaxBytes     int                          `json:"max_bytes"`
+	Files        []workflowArtifactFileResult `json:"files"`
+}
+
+func downloadWorkflowArtifact(ctx context.Context, client *github.Client, owner, repo string, resourceID int64, opts workflowArtifactDownloadOptions) (*mcp.CallToolResult, any, error) {
+	if opts.ArtifactName == "" {
+		return downloadWorkflowArtifactURL(ctx, client, owner, repo, resourceID)
+	}
+
+	maxBytes := opts.MaxBytes
+	if maxBytes <= 0 {
+		maxBytes = opts.DefaultMax
+	}
+	if maxBytes <= 0 {
+		maxBytes = defaultArtifactContentMaxBytes
+	}
+
+	artifact, resp, err := findWorkflowArtifactByName(ctx, client, owner, repo, opts.RunID, opts.ArtifactName)
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list workflow run artifacts", resp, err), nil, nil
+	}
+	if artifact == nil {
+		return utils.NewToolResultError(
+			fmt.Sprintf("artifact %q was not found in workflow run %d for %s/%s", opts.ArtifactName, opts.RunID, owner, repo),
+		), nil, nil
+	}
+
 	// Get the download URL for the artifact
+	downloadURL, resp, err := client.Actions.DownloadArtifact(ctx, owner, repo, artifact.GetID(), 1)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get artifact download URL", resp, err), nil, nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	archiveData, httpResp, err := downloadArtifactArchive(ctx, downloadURL, maxArtifactArchiveBytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to download artifact archive: %w", err)
+	}
+	if httpResp != nil {
+		defer func() { _ = httpResp.Body.Close() }()
+	}
+
+	files, matchedPath, err := extractWorkflowArtifactFiles(archiveData, opts.Path, maxBytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to extract artifact archive: %w", err)
+	}
+	if opts.Path != "" && !matchedPath {
+		return utils.NewToolResultError(
+			fmt.Sprintf("artifact %q in workflow run %d does not contain path %q", opts.ArtifactName, opts.RunID, opts.Path),
+		), nil, nil
+	}
+
+	result := workflowArtifactContentResult{
+		ArtifactID:   artifact.GetID(),
+		ArtifactName: artifact.GetName(),
+		Expired:      artifact.GetExpired(),
+		SizeInBytes:  artifact.GetSizeInBytes(),
+		MaxBytes:     maxBytes,
+		Files:        files,
+	}
+
+	r, err := json.Marshal(result)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(r)), nil, nil
+}
+
+func downloadWorkflowArtifactURL(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, any, error) {
 	url, resp, err := client.Actions.DownloadArtifact(ctx, owner, repo, resourceID, 1)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get artifact download URL", resp, err), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Create response with the download URL and information
 	result := map[string]any{
 		"download_url": url.String(),
 		"message":      "Artifact is available for download",
@@ -973,6 +1149,146 @@ func downloadWorkflowArtifact(ctx context.Context, client *github.Client, owner,
 	}
 
 	return utils.NewToolResultText(string(r)), nil, nil
+}
+
+func findWorkflowArtifactByName(ctx context.Context, client *github.Client, owner, repo string, runID int64, artifactName string) (*github.Artifact, *github.Response, error) {
+	opts := &github.ListOptions{
+		PerPage: 100,
+		Page:    1,
+	}
+
+	for {
+		artifacts, resp, err := client.Actions.ListWorkflowRunArtifacts(ctx, owner, repo, runID, opts)
+		if err != nil {
+			return nil, resp, err
+		}
+
+		for _, artifact := range artifacts.Artifacts {
+			if artifact.GetName() == artifactName {
+				return artifact, resp, nil
+			}
+		}
+
+		nextPage := resp.NextPage
+		_ = resp.Body.Close()
+		if nextPage == 0 {
+			return nil, resp, nil
+		}
+		opts.Page = nextPage
+	}
+}
+
+func downloadArtifactArchive(ctx context.Context, artifactURL *url.URL, maxArchiveBytes int64) ([]byte, *http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, artifactURL.String(), nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to build artifact archive request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req) //nolint:gosec
+	if err != nil {
+		return nil, resp, fmt.Errorf("failed to request artifact archive: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, resp, fmt.Errorf("failed to download artifact archive: HTTP %d", resp.StatusCode)
+		}
+		return nil, resp, fmt.Errorf("failed to download artifact archive: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxArchiveBytes+1))
+	if err != nil {
+		return nil, resp, fmt.Errorf("failed to read artifact archive: %w", err)
+	}
+	if int64(len(data)) > maxArchiveBytes {
+		return nil, resp, fmt.Errorf("artifact archive exceeds maximum supported size of %d bytes", maxArchiveBytes)
+	}
+
+	return data, resp, nil
+}
+
+func extractWorkflowArtifactFiles(archiveData []byte, pathFilter string, maxBytes int) ([]workflowArtifactFileResult, bool, error) {
+	reader, err := zip.NewReader(bytes.NewReader(archiveData), int64(len(archiveData)))
+	if err != nil {
+		return nil, false, err
+	}
+
+	files := make([]workflowArtifactFileResult, 0, len(reader.File))
+	matchedPath := pathFilter == ""
+
+	for _, f := range reader.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		if pathFilter != "" && f.Name != pathFilter {
+			continue
+		}
+
+		matchedPath = true
+		fileResult, err := readWorkflowArtifactFile(f, maxBytes)
+		if err != nil {
+			return nil, matchedPath, err
+		}
+		files = append(files, fileResult)
+	}
+
+	return files, matchedPath, nil
+}
+
+func readWorkflowArtifactFile(f *zip.File, maxBytes int) (workflowArtifactFileResult, error) {
+	result := workflowArtifactFileResult{
+		Path:      f.Name,
+		Size:      f.FileInfo().Size(),
+		Truncated: false,
+	}
+
+	rc, err := f.Open()
+	if err != nil {
+		return result, err
+	}
+	defer func() { _ = rc.Close() }()
+
+	previewLimit := max(int64(maxBytes)+1, int64(1))
+
+	content, err := io.ReadAll(io.LimitReader(rc, previewLimit))
+	if err != nil {
+		return result, err
+	}
+
+	if bytes.IndexByte(content, 0) >= 0 {
+		result.Binary = true
+		result.ContentOmittedReason = "binary or non-UTF-8 content"
+		return result, nil
+	}
+
+	if len(content) > maxBytes {
+		content = truncateUTF8(content[:maxBytes])
+		result.Truncated = true
+	}
+	if result.Size > int64(maxBytes) {
+		result.Truncated = true
+	}
+
+	if !utf8.Valid(content) {
+		result.Binary = true
+		result.ContentOmittedReason = "binary or non-UTF-8 content"
+		return result, nil
+	}
+
+	result.Content = string(content)
+	if result.Truncated {
+		result.ContentOmittedReason = fmt.Sprintf("content truncated to %d bytes", maxBytes)
+	}
+
+	return result, nil
+}
+
+func truncateUTF8(content []byte) []byte {
+	for len(content) > 0 && !utf8.Valid(content) {
+		content = content[:len(content)-1]
+	}
+	return content
 }
 
 func getWorkflowRunLogsURL(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, any, error) {
