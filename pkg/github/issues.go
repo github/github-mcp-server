@@ -1957,9 +1957,9 @@ func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, n
 	return enrichment, nil
 }
 
-// searchIssuesHandler runs the REST issues search, enriches each hit with custom field values
-// fetched via a single follow-up GraphQL nodes() query, and applies any post-process options
-// (e.g. IFC labelling).
+// searchIssuesHandler runs the REST issues search, enriches each hit (best-effort) with custom
+// field values fetched via a single follow-up GraphQL nodes() query, and applies any post-process
+// options (e.g. IFC labelling).
 func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[string]any, options ...searchOption) (*mcp.CallToolResult, error) {
 	const errorPrefix = "failed to search issues"
 
@@ -1986,15 +1986,18 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), nil
 	}
 
+	// The field value enrichment is best-effort: a failure here (e.g. a server whose
+	// GraphQL schema predates the issueFieldValues field) must never fail the search.
 	var fieldValuesByID map[string][]MinimalFieldValue
 	if len(result.Issues) > 0 {
 		gqlClient, err := deps.GetGQLClient(ctx)
 		if err != nil {
-			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub GraphQL client", err), nil
-		}
-		fieldValuesByID, err = fetchIssueFieldValuesByNodeID(ctx, gqlClient, result.Issues)
-		if err != nil {
-			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, errorPrefix+": failed to fetch issue field values", err), nil
+			_, _ = ghErrors.NewGitHubGraphQLErrorToCtx(ctx, errorPrefix+": failed to get GitHub GraphQL client", err)
+		} else {
+			fieldValuesByID, err = fetchIssueFieldValuesByNodeID(ctx, gqlClient, result.Issues)
+			if err != nil {
+				_, _ = ghErrors.NewGitHubGraphQLErrorToCtx(ctx, errorPrefix+": failed to fetch issue field values", err)
+			}
 		}
 	}
 

@@ -1420,6 +1420,63 @@ func Test_SearchIssues_FieldValuesEnrichment(t *testing.T) {
 	assert.Empty(t, response.Items[1].FieldValues)
 }
 
+func Test_SearchIssues_FieldValuesEnrichmentUnsupported(t *testing.T) {
+	// Verify search_issues still returns its REST hits when the server's GraphQL
+	// schema does not support the issueFieldValues enrichment.
+	serverTool := SearchIssues(translations.NullTranslationHelper)
+
+	mockSearchResult := &github.IssuesSearchResult{
+		Total:             github.Ptr(1),
+		IncompleteResults: github.Ptr(false),
+		Issues: []*github.Issue{
+			{
+				Number:  github.Ptr(42),
+				Title:   github.Ptr("Bug: Something is broken"),
+				State:   github.Ptr("open"),
+				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+				NodeID:  github.Ptr("I_node_42"),
+				User:    &github.User{Login: github.Ptr("user1")},
+			},
+		},
+	}
+
+	restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetSearchIssues: mockResponse(t, http.StatusOK, mockSearchResult),
+	})
+
+	gqlVars := map[string]any{
+		"ids": []any{"I_node_42"},
+	}
+	gqlResponse := githubv4mock.ErrorResponse("Field 'issueFieldValues' doesn't exist on type 'Issue'")
+
+	const nodesQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}}}}"
+	matcher := githubv4mock.NewQueryMatcher(nodesQueryString, gqlVars, gqlResponse)
+	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matcher))
+
+	deps := BaseDeps{
+		Client:    mustNewGHClient(t, restClient),
+		GQLClient: gqlClient,
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"query": "repo:owner/repo is:open",
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, "expected result to not be an error")
+
+	textContent := getTextResult(t, result)
+
+	var response SearchIssuesResponse
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &response))
+	require.Equal(t, 1, *response.Total)
+	require.Len(t, response.Items, 1)
+	assert.Equal(t, 42, *response.Items[0].Number)
+	assert.Empty(t, response.Items[0].FieldValues)
+}
+
 func Test_CreateIssue(t *testing.T) {
 	// Verify tool definition once
 	serverTool := IssueWrite(translations.NullTranslationHelper)
