@@ -413,8 +413,9 @@ func ManageNotificationSubscription(t translations.TranslationHelperFunc) invent
 			Name:        "manage_notification_subscription",
 			Description: t("TOOL_MANAGE_NOTIFICATION_SUBSCRIPTION_DESCRIPTION", "Manage a notification subscription: ignore, watch, or delete a notification thread subscription."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_MANAGE_NOTIFICATION_SUBSCRIPTION_USER_TITLE", "Manage notification subscription"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_MANAGE_NOTIFICATION_SUBSCRIPTION_USER_TITLE", "Manage notification subscription"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -509,8 +510,9 @@ func ManageRepositoryNotificationSubscription(t translations.TranslationHelperFu
 			Name:        "manage_repository_notification_subscription",
 			Description: t("TOOL_MANAGE_REPOSITORY_NOTIFICATION_SUBSCRIPTION_DESCRIPTION", "Manage a repository notification subscription: ignore, watch, or delete repository notifications subscription for the provided repository."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_MANAGE_REPOSITORY_NOTIFICATION_SUBSCRIPTION_USER_TITLE", "Manage repository notification subscription"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_MANAGE_REPOSITORY_NOTIFICATION_SUBSCRIPTION_USER_TITLE", "Manage repository notification subscription"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
