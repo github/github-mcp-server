@@ -590,8 +590,47 @@ func Test_GetDiscussion(t *testing.T) {
 	}
 }
 
+func Test_GetDiscussionRequiredParams(t *testing.T) {
+	t.Parallel()
+
+	toolDef := GetDiscussion(translations.NullTranslationHelper)
+	handler := toolDef.Handler(BaseDeps{GQLClient: githubv4.NewClient(githubv4mock.NewMockedHTTPClient())})
+
+	tests := []struct {
+		name           string
+		requestArgs    map[string]any
+		expectedErrMsg string
+	}{
+		{
+			name:           "missing owner",
+			requestArgs:    map[string]any{"repo": "repo", "discussionNumber": float64(1)},
+			expectedErrMsg: "missing required parameter: owner",
+		},
+		{
+			name:           "missing repo",
+			requestArgs:    map[string]any{"owner": "owner", "discussionNumber": float64(1)},
+			expectedErrMsg: "missing required parameter: repo",
+		},
+		{
+			name:           "missing discussionNumber",
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo"},
+			expectedErrMsg: "missing required parameter: discussionNumber",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := createMCPRequest(tc.requestArgs)
+			res, err := handler(ContextWithDeps(context.Background(), BaseDeps{}), &req)
+			require.NoError(t, err)
+			require.True(t, res.IsError)
+			assert.Contains(t, getTextResult(t, res).Text, tc.expectedErrMsg)
+		})
+	}
+}
+
 func Test_GetDiscussionWithStringNumber(t *testing.T) {
-	// Test that WeakDecode handles string discussionNumber from MCP clients
+	// Test that RequiredInt handles string discussionNumber from MCP clients
 	toolDef := GetDiscussion(translations.NullTranslationHelper)
 
 	qGetDiscussion := "query($discussionNumber:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){number,title,body,createdAt,closed,isAnswered,answerChosenAt,url,category{name}}}}"
@@ -723,8 +762,47 @@ func Test_GetDiscussionComments(t *testing.T) {
 	assert.Equal(t, "This is the second comment", response.Comments[1].Body)
 }
 
+func Test_GetDiscussionCommentsRequiredParams(t *testing.T) {
+	t.Parallel()
+
+	toolDef := GetDiscussionComments(translations.NullTranslationHelper)
+	handler := toolDef.Handler(BaseDeps{GQLClient: githubv4.NewClient(githubv4mock.NewMockedHTTPClient())})
+
+	tests := []struct {
+		name           string
+		requestArgs    map[string]any
+		expectedErrMsg string
+	}{
+		{
+			name:           "missing owner",
+			requestArgs:    map[string]any{"repo": "repo", "discussionNumber": float64(1)},
+			expectedErrMsg: "missing required parameter: owner",
+		},
+		{
+			name:           "missing repo",
+			requestArgs:    map[string]any{"owner": "owner", "discussionNumber": float64(1)},
+			expectedErrMsg: "missing required parameter: repo",
+		},
+		{
+			name:           "missing discussionNumber",
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo"},
+			expectedErrMsg: "missing required parameter: discussionNumber",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := createMCPRequest(tc.requestArgs)
+			res, err := handler(ContextWithDeps(context.Background(), BaseDeps{}), &req)
+			require.NoError(t, err)
+			require.True(t, res.IsError)
+			assert.Contains(t, getTextResult(t, res).Text, tc.expectedErrMsg)
+		})
+	}
+}
+
 func Test_GetDiscussionCommentsWithStringNumber(t *testing.T) {
-	// Test that WeakDecode handles string discussionNumber from MCP clients
+	// Test that RequiredInt handles string discussionNumber from MCP clients
 	toolDef := GetDiscussionComments(translations.NullTranslationHelper)
 
 	qGetComments := "query($after:String$discussionNumber:Int!$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){comments(first: $first, after: $after){nodes{id,body,isAnswer},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}}"
