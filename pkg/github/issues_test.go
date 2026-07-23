@@ -3950,6 +3950,10 @@ func Test_AddSubIssue(t *testing.T) {
 
 	assert.Equal(t, "sub_issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	// remove deletes a sub-issue link, so clients must treat the tool as
+	// destructive and confirm before running it.
+	require.NotNil(t, tool.Annotations.DestructiveHint, "sub_issue_write should set DestructiveHint")
+	assert.True(t, *tool.Annotations.DestructiveHint, "sub_issue_write should be destructive")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")

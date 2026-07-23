@@ -1907,8 +1907,9 @@ Available methods:
 - unresolve_thread: Unresolve a previously resolved review thread. Requires only "threadId" parameter. The owner, repo, and pullNumber parameters are not used for this method. Unresolving an already-unresolved thread is a no-op.
 `),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(true),
 			},
 			InputSchema: schema,
 		},
