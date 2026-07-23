@@ -1784,6 +1784,11 @@ func TestGranularSetIssueFields(t *testing.T) {
 							SingleSelectValue struct {
 								Name string
 							} `graphql:"... on IssueFieldSingleSelectValue"`
+							MultiSelectValue struct {
+								Options []struct {
+									Name string
+								}
+							} `graphql:"... on IssueFieldMultiSelectValue"`
 							DateValue struct {
 								Value string
 							} `graphql:"... on IssueFieldDateValue"`
@@ -1831,6 +1836,134 @@ func TestGranularSetIssueFields(t *testing.T) {
 		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
 		assert.False(t, result.IsError)
+	})
+
+	t.Run("successful set with multi select option ids", func(t *testing.T) {
+		matchers := []githubv4mock.Matcher{
+			githubv4mock.NewQueryMatcher(
+				struct {
+					Repository struct {
+						Issue struct {
+							ID githubv4.ID
+						} `graphql:"issue(number: $issueNumber)"`
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}{},
+				map[string]any{
+					"owner":       githubv4.String("owner"),
+					"repo":        githubv4.String("repo"),
+					"issueNumber": githubv4.Int(5),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"repository": map[string]any{
+						"issue": map[string]any{"id": "ISSUE_123"},
+					},
+				}),
+			),
+			githubv4mock.NewMutationMatcher(
+				struct {
+					SetIssueFieldValue struct {
+						Issue struct {
+							ID     githubv4.ID
+							Number githubv4.Int
+							URL    githubv4.String
+						}
+						IssueFieldValues []struct {
+							TextValue struct {
+								Value string
+							} `graphql:"... on IssueFieldTextValue"`
+							SingleSelectValue struct {
+								Name string
+							} `graphql:"... on IssueFieldSingleSelectValue"`
+							MultiSelectValue struct {
+								Options []struct {
+									Name string
+								}
+							} `graphql:"... on IssueFieldMultiSelectValue"`
+							DateValue struct {
+								Value string
+							} `graphql:"... on IssueFieldDateValue"`
+							NumberValue struct {
+								Value float64
+							} `graphql:"... on IssueFieldNumberValue"`
+						}
+					} `graphql:"setIssueFieldValue(input: $input)"`
+				}{},
+				SetIssueFieldValueInput{
+					IssueID: githubv4.ID("ISSUE_123"),
+					IssueFields: []IssueFieldCreateOrUpdateInput{
+						{
+							FieldID:              githubv4.ID("FIELD_1"),
+							MultiSelectOptionIDs: &[]githubv4.ID{githubv4.ID("OPT_1"), githubv4.ID("OPT_2")},
+						},
+					},
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"setIssueFieldValue": map[string]any{
+						"issue": map[string]any{
+							"id":     "ISSUE_123",
+							"number": 5,
+							"url":    "https://github.com/owner/repo/issues/5",
+						},
+					},
+				}),
+			),
+		}
+
+		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matchers...))
+		deps := BaseDeps{GQLClient: gqlClient}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{"field_id": "FIELD_1", "multi_select_option_ids": []any{"OPT_1", "OPT_2"}},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+	})
+
+	t.Run("multi select combined with single select returns error", func(t *testing.T) {
+		deps := BaseDeps{}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{"field_id": "FIELD_1", "single_select_option_id": "OPT_1", "multi_select_option_ids": []any{"OPT_2"}},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "each field must have exactly one value")
+	})
+
+	t.Run("multi select option ids must be strings", func(t *testing.T) {
+		deps := BaseDeps{}
+		serverTool := GranularSetIssueFields(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(5),
+			"fields": []any{
+				map[string]any{"field_id": "FIELD_1", "multi_select_option_ids": []any{"OPT_1", 42}},
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "multi_select_option_ids must be an array of strings")
 	})
 
 	t.Run("missing required parameter fields", func(t *testing.T) {
@@ -1959,6 +2092,11 @@ func TestGranularSetIssueFields(t *testing.T) {
 							SingleSelectValue struct {
 								Name string
 							} `graphql:"... on IssueFieldSingleSelectValue"`
+							MultiSelectValue struct {
+								Options []struct {
+									Name string
+								}
+							} `graphql:"... on IssueFieldMultiSelectValue"`
 							DateValue struct {
 								Value string
 							} `graphql:"... on IssueFieldDateValue"`
@@ -2073,6 +2211,11 @@ func TestGranularSetIssueFields(t *testing.T) {
 							SingleSelectValue struct {
 								Name string
 							} `graphql:"... on IssueFieldSingleSelectValue"`
+							MultiSelectValue struct {
+								Options []struct {
+									Name string
+								}
+							} `graphql:"... on IssueFieldMultiSelectValue"`
 							DateValue struct {
 								Value string
 							} `graphql:"... on IssueFieldDateValue"`
@@ -2187,6 +2330,11 @@ func TestGranularSetIssueFields(t *testing.T) {
 							SingleSelectValue struct {
 								Name string
 							} `graphql:"... on IssueFieldSingleSelectValue"`
+							MultiSelectValue struct {
+								Options []struct {
+									Name string
+								}
+							} `graphql:"... on IssueFieldMultiSelectValue"`
 							DateValue struct {
 								Value string
 							} `graphql:"... on IssueFieldDateValue"`
@@ -2278,6 +2426,11 @@ func TestGranularSetIssueFields(t *testing.T) {
 							SingleSelectValue struct {
 								Name string
 							} `graphql:"... on IssueFieldSingleSelectValue"`
+							MultiSelectValue struct {
+								Options []struct {
+									Name string
+								}
+							} `graphql:"... on IssueFieldMultiSelectValue"`
 							DateValue struct {
 								Value string
 							} `graphql:"... on IssueFieldDateValue"`
@@ -2370,6 +2523,11 @@ func TestGranularSetIssueFields(t *testing.T) {
 							SingleSelectValue struct {
 								Name string
 							} `graphql:"... on IssueFieldSingleSelectValue"`
+							MultiSelectValue struct {
+								Options []struct {
+									Name string
+								}
+							} `graphql:"... on IssueFieldMultiSelectValue"`
 							DateValue struct {
 								Value string
 							} `graphql:"... on IssueFieldDateValue"`

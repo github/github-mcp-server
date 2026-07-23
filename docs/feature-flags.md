@@ -57,7 +57,7 @@ runtime behavior (such as output formatting) won't appear here.
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
-  - `issue_fields`: Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', or 'delete: true'. (object[], optional)
+  - `issue_fields`: Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', 'field_option_names', or 'delete: true'. (object[], optional)
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
   - `method`: Write operation to perform on a single issue.
@@ -143,7 +143,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **set_issue_fields** - Set Issue Fields
   - **Required OAuth Scopes**: `repo`
-  - `fields`: Array of issue field values to set. Each element must have a 'field_id' (string, the GraphQL node ID of the field) and exactly one value field: 'text_value' for text fields, 'number_value' for number fields, 'date_value' (ISO 8601 date string) for date fields, or 'single_select_option_id' (the GraphQL node ID of the option) for single select fields. Set 'delete' to true to remove a field value. (object[], required)
+  - `fields`: Array of issue field values to set. Each element must have a 'field_id' (string, the GraphQL node ID of the field) and exactly one value field: 'text_value' for text fields, 'number_value' for number fields, 'date_value' (ISO 8601 date string) for date fields, 'single_select_option_id' (the GraphQL node ID of the option) for single select fields, or 'multi_select_option_ids' (an array of GraphQL node IDs) for multi select fields. Set 'delete' to true to remove a field value. (object[], required)
   - `issue_number`: The issue number to update (number, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `repo`: Repository name (string, required)
@@ -366,7 +366,7 @@ runtime behavior (such as output formatting) won't appear here.
   - **Required OAuth Scopes**: `repo`
   - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
-  - `field_filters`: Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date). (object[], optional)
+  - `field_filters`: Filter by custom issue field values. Each entry takes a field_name and either 'value' (text, number, YYYY-MM-DD date, or single-select option name) or 'values' (multi-select option names). For multi-select fields, all listed values must be set on an issue for it to match (AND semantics) — to match any-of, make multiple list_issues calls and union the results. (object[], optional)
   - `fields`: Subset of fields to return for each issue. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' and 'field_values' in particular drops the largest per-result data. (string[], optional)
   - `labels`: Filter by labels (string[], optional)
   - `orderBy`: Order issues by field. If provided, the 'direction' also needs to be provided. (string, optional)

@@ -768,6 +768,15 @@ func fragmentToMinimalFieldValue(fv IssueFieldValueFragment) (MinimalFieldValue,
 			Field: fv.SingleSelectValue.Field.Name(),
 			Value: string(fv.SingleSelectValue.Value),
 		}, true
+	case "IssueFieldMultiSelectValue":
+		values := make([]string, 0, len(fv.MultiSelectValue.Options))
+		for _, opt := range fv.MultiSelectValue.Options {
+			values = append(values, string(opt.Name))
+		}
+		return MinimalFieldValue{
+			Field:  fv.MultiSelectValue.Field.Name(),
+			Values: values,
+		}, true
 	case "IssueFieldTextValue":
 		return MinimalFieldValue{
 			Field: fv.TextValue.Field.Name(),
