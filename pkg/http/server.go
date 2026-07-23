@@ -17,6 +17,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
+	"github.com/github/github-mcp-server/pkg/http/servercard"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/observability"
@@ -197,6 +198,12 @@ func RunHTTPServer(cfg ServerConfig) error {
 		oauthHandler.RegisterRoutes(r)
 	})
 	logger.Info("OAuth protected resource endpoints registered", "baseURL", cfg.BaseURL)
+
+	r.Group(func(r chi.Router) {
+		// Register the public, no-auth MCP Server Card (SEP-2127) endpoint.
+		servercard.NewHandler(servercard.Config{Version: cfg.Version}).RegisterRoutes(r)
+	})
+	logger.Info("MCP Server Card endpoint registered", "path", servercard.Path)
 
 	addr := resolveListenAddress(cfg.ListenHost, cfg.Port)
 	httpSvr := http.Server{
