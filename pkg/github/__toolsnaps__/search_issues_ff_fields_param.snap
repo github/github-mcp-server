@@ -4,7 +4,7 @@
     "readOnlyHint": true,
     "title": "Search issues"
   },
-  "description": "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue",
+  "description": "Search for issues in GitHub repositories using natural-language semantic matching. Write the query as a natural-language description of what you're looking for (e.g. \"login fails after password reset\"); best for conceptual or paraphrased queries. Already scoped to is:issue. Avoid boolean OR operators, which fall back to lexical keyword search.",
   "inputSchema": {
     "properties": {
       "fields": {
@@ -64,7 +64,7 @@
         "type": "number"
       },
       "query": {
-        "description": "Search query using GitHub issues search syntax",
+        "description": "The search query. Write it as a natural-language description of what you're looking for (e.g. \"login fails after password reset\") rather than exact keywords or boolean operators.",
         "type": "string"
       },
       "repo": {
