@@ -739,18 +739,59 @@ type issueRefKey struct {
 }
 
 func resolveIssueRefs(ctx context.Context, gqlClient *githubv4.Client, projectID githubv4.ID, items []parsedBatchItem) map[issueRefKey]itemLookupResult {
-	out := make(map[issueRefKey]itemLookupResult)
+	seen := make(map[issueRefKey]struct{}, len(items))
+	var unique []issueRefKey
 	for _, it := range items {
 		if it.err != nil || it.refKind != batchRefIssue {
 			continue
 		}
 		key := issueRefKey{owner: it.issueOwner, repo: it.issueRepo, number: it.issueNumber}
-		if _, done := out[key]; done {
+		if _, dup := seen[key]; dup {
 			continue
 		}
-		nodeID, itemID, err := resolveProjectItemByIssueNumberWithProjectID(ctx, gqlClient, projectID, it.issueOwner, it.issueRepo, it.issueNumber)
-		out[key] = itemLookupResult{nodeID: nodeID, fullDatabaseID: itemID, err: err}
+		seen[key] = struct{}{}
+		unique = append(unique, key)
 	}
+
+	out := make(map[issueRefKey]itemLookupResult, len(unique))
+	if len(unique) == 0 {
+		return out
+	}
+
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, batchItemLookupConcurrency)
+
+	for _, key := range unique {
+		wg.Add(1)
+		go func(key issueRefKey) {
+			defer wg.Done()
+
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				mu.Lock()
+				out[key] = itemLookupResult{err: ctx.Err()}
+				mu.Unlock()
+				return
+			}
+			defer func() { <-sem }()
+
+			if ctx.Err() != nil {
+				mu.Lock()
+				out[key] = itemLookupResult{err: ctx.Err()}
+				mu.Unlock()
+				return
+			}
+
+			nodeID, itemID, err := resolveProjectItemByIssueNumberWithProjectID(ctx, gqlClient, projectID, key.owner, key.repo, key.number)
+
+			mu.Lock()
+			out[key] = itemLookupResult{nodeID: nodeID, fullDatabaseID: itemID, err: err}
+			mu.Unlock()
+		}(key)
+	}
+	wg.Wait()
 	return out
 }
 

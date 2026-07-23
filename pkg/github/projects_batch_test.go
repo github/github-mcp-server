@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -106,6 +109,137 @@ func (m *mutationAwareTransport) RoundTrip(req *http.Request) (*http.Response, e
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Header:     make(http.Header),
 	}, nil
+}
+
+type gatedIssueLookupTransport struct {
+	gate      <-chan struct{}
+	started   chan int
+	projectID string
+
+	mu     sync.Mutex
+	active int
+	peak   int
+	calls  map[int]int
+}
+
+func newGatedIssueLookupTransport(gate <-chan struct{}, projectID string) *gatedIssueLookupTransport {
+	return &gatedIssueLookupTransport{
+		gate:      gate,
+		started:   make(chan int, maxProjectItemsPerBatch),
+		projectID: projectID,
+		calls:     make(map[int]int),
+	}
+}
+
+func (t *gatedIssueLookupTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	raw, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	_ = req.Body.Close()
+
+	var parsed struct {
+		Variables map[string]any `json:"variables"`
+	}
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return nil, err
+	}
+	rawIssueNumber, ok := parsed.Variables["issueNumber"].(float64)
+	if !ok {
+		return nil, fmt.Errorf("issueNumber variable is missing or invalid")
+	}
+	issueNumber := int(rawIssueNumber)
+
+	t.mu.Lock()
+	t.calls[issueNumber]++
+	t.active++
+	t.peak = max(t.peak, t.active)
+	t.mu.Unlock()
+	defer func() {
+		t.mu.Lock()
+		t.active--
+		t.mu.Unlock()
+	}()
+
+	t.started <- issueNumber
+	select {
+	case <-t.gate:
+	case <-req.Context().Done():
+		return nil, req.Context().Err()
+	}
+
+	body, err := json.Marshal(map[string]any{
+		"data": map[string]any{
+			"repository": map[string]any{
+				"issue": map[string]any{
+					"projectItems": map[string]any{
+						"nodes": []any{
+							map[string]any{
+								"id":             fmt.Sprintf("PVTI_item%d", issueNumber),
+								"fullDatabaseId": fmt.Sprintf("%d", 1000+issueNumber),
+								"project":        map[string]any{"id": t.projectID},
+							},
+						},
+						"pageInfo": map[string]any{
+							"hasNextPage": false, "hasPreviousPage": false,
+							"startCursor": "page-one", "endCursor": "page-one",
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(string(body))),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+	}, nil
+}
+
+func (t *gatedIssueLookupTransport) snapshot() (active int, peak int, calls map[int]int) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	return t.active, t.peak, maps.Clone(t.calls)
+}
+
+func issueBatchItems(issueNumbers ...int) []parsedBatchItem {
+	items := make([]parsedBatchItem, 0, len(issueNumbers))
+	for index, issueNumber := range issueNumbers {
+		items = append(items, parsedBatchItem{
+			index:       index,
+			refKind:     batchRefIssue,
+			issueOwner:  "octo-org",
+			issueRepo:   "roadmap",
+			issueNumber: issueNumber,
+		})
+	}
+	return items
+}
+
+func waitForIssueLookups(ctx context.Context, t *testing.T, started <-chan int, count int) {
+	t.Helper()
+	for range count {
+		select {
+		case <-started:
+		case <-ctx.Done():
+			t.Fatalf("timed out waiting for %d issue lookups to start: %v", count, ctx.Err())
+		}
+	}
+}
+
+func waitForIssueLookupResults(ctx context.Context, t *testing.T, results <-chan map[issueRefKey]itemLookupResult) map[issueRefKey]itemLookupResult {
+	t.Helper()
+	select {
+	case resolved := <-results:
+		return resolved
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for issue lookups to finish: %v", ctx.Err())
+		return nil
+	}
 }
 
 func Test_UpdateProjectItemsBatch_TopLevelGuards(t *testing.T) {
@@ -1132,6 +1266,97 @@ func Test_ResolveItemNodeIDsByNumericID_DeduplicatesOrgAndUserLookups(t *testing
 			assert.Equal(t, 1, calls)
 		})
 	}
+}
+
+func Test_ResolveIssueRefs_DeduplicatesAndBoundsConcurrency(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	gate := make(chan struct{})
+	transport := newGatedIssueLookupTransport(gate, "PVT_project")
+	results := make(chan map[issueRefKey]itemLookupResult, 1)
+	go func() {
+		results <- resolveIssueRefs(
+			ctx,
+			newTestGQLClient(transport),
+			githubv4.ID("PVT_project"),
+			issueBatchItems(1, 2, 3, 4, 5, 6, 1),
+		)
+	}()
+
+	waitForIssueLookups(ctx, t, transport.started, batchItemLookupConcurrency)
+	active, peak, calls := transport.snapshot()
+	assert.Equal(t, batchItemLookupConcurrency, active)
+	assert.Equal(t, batchItemLookupConcurrency, peak)
+	assert.Len(t, calls, batchItemLookupConcurrency)
+
+	close(gate)
+	resolved := waitForIssueLookupResults(ctx, t, results)
+
+	require.Len(t, resolved, 6)
+	for issueNumber := 1; issueNumber <= 6; issueNumber++ {
+		key := issueRefKey{owner: "octo-org", repo: "roadmap", number: issueNumber}
+		result, ok := resolved[key]
+		require.True(t, ok)
+		require.NoError(t, result.err)
+		assert.Equal(t, fmt.Sprintf("PVTI_item%d", issueNumber), result.nodeID)
+		assert.Equal(t, int64(1000+issueNumber), result.fullDatabaseID)
+	}
+
+	active, peak, calls = transport.snapshot()
+	assert.Zero(t, active)
+	assert.Equal(t, batchItemLookupConcurrency, peak)
+	require.Len(t, calls, 6)
+	for issueNumber := 1; issueNumber <= 6; issueNumber++ {
+		assert.Equal(t, 1, calls[issueNumber])
+	}
+}
+
+func Test_ResolveIssueRefs_CancellationPopulatesWaitingRefs(t *testing.T) {
+	testCtx, stop := context.WithTimeout(t.Context(), 5*time.Second)
+	defer stop()
+	ctx, cancel := context.WithCancel(testCtx)
+	defer cancel()
+
+	gate := make(chan struct{})
+	defer close(gate)
+	transport := newGatedIssueLookupTransport(gate, "PVT_project")
+	results := make(chan map[issueRefKey]itemLookupResult, 1)
+	go func() {
+		results <- resolveIssueRefs(
+			ctx,
+			newTestGQLClient(transport),
+			githubv4.ID("PVT_project"),
+			issueBatchItems(1, 2, 3, 4, 5, 6, 7),
+		)
+	}()
+
+	waitForIssueLookups(testCtx, t, transport.started, batchItemLookupConcurrency)
+	_, peak, startedCalls := transport.snapshot()
+	require.Equal(t, batchItemLookupConcurrency, peak)
+	require.Len(t, startedCalls, batchItemLookupConcurrency)
+
+	cancel()
+	resolved := waitForIssueLookupResults(testCtx, t, results)
+
+	require.Len(t, resolved, 7)
+	waiting := 0
+	for issueNumber := 1; issueNumber <= 7; issueNumber++ {
+		key := issueRefKey{owner: "octo-org", repo: "roadmap", number: issueNumber}
+		result, ok := resolved[key]
+		require.True(t, ok)
+		require.ErrorIs(t, result.err, context.Canceled)
+		if _, started := startedCalls[issueNumber]; !started {
+			waiting++
+			assert.Equal(t, context.Canceled, result.err)
+		}
+	}
+	assert.Equal(t, 2, waiting)
+
+	active, peak, calls := transport.snapshot()
+	assert.Zero(t, active)
+	assert.Equal(t, batchItemLookupConcurrency, peak)
+	assert.Equal(t, startedCalls, calls)
 }
 
 func Test_BatchErrorFromResolution(t *testing.T) {
