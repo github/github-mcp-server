@@ -1,6 +1,7 @@
 package github
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"testing"
@@ -172,6 +173,34 @@ func Test_RequiredInt(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name:        "valid int parameter",
+			params:      map[string]any{"count": int(42)},
+			paramName:   "count",
+			expected:    42,
+			expectError: false,
+		},
+		{
+			name:        "valid int64 parameter",
+			params:      map[string]any{"count": int64(42)},
+			paramName:   "count",
+			expected:    42,
+			expectError: false,
+		},
+		{
+			name:        "valid json.Number parameter",
+			params:      map[string]any{"count": json.Number("42")},
+			paramName:   "count",
+			expected:    42,
+			expectError: false,
+		},
+		{
+			name:        "valid uint parameter",
+			params:      map[string]any{"count": uint(42)},
+			paramName:   "count",
+			expected:    42,
+			expectError: false,
+		},
+		{
 			name:        "missing parameter",
 			params:      map[string]any{},
 			paramName:   "count",
@@ -260,6 +289,51 @@ func Test_RequiredInt(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := RequiredInt(tc.params, tc.paramName)
+
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func Test_RequiredBigInt(t *testing.T) {
+	tests := []struct {
+		name        string
+		params      map[string]any
+		paramName   string
+		expected    int64
+		expectError bool
+	}{
+		{
+			name:        "valid int64 parameter without float64 precision loss",
+			params:      map[string]any{"count": int64(9007199254740993)},
+			paramName:   "count",
+			expected:    9007199254740993,
+			expectError: false,
+		},
+		{
+			name:        "valid json.Number parameter",
+			params:      map[string]any{"count": json.Number("9007199254740993")},
+			paramName:   "count",
+			expected:    9007199254740993,
+			expectError: false,
+		},
+		{
+			name:        "valid uint64 parameter",
+			params:      map[string]any{"count": uint64(42)},
+			paramName:   "count",
+			expected:    42,
+			expectError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := RequiredBigInt(tc.params, tc.paramName)
 
 			if tc.expectError {
 				assert.Error(t, err)
