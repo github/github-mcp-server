@@ -1,0 +1,31 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "openWorldHint": true,
+    "title": "Request CVE for repository security advisory"
+  },
+  "description": "Request a CVE ID from GitHub for a draft repository security advisory.",
+  "inputSchema": {
+    "properties": {
+      "ghsaId": {
+        "description": "GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx).",
+        "type": "string"
+      },
+      "owner": {
+        "description": "The owner of the repository.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "The name of the repository.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "ghsaId"
+    ],
+    "type": "object"
+  },
+  "name": "request_cve_for_repository_security_advisory"
+}

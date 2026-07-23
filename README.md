@@ -1440,6 +1440,21 @@ The following sets of tools are available:
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/shield-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/shield-light.png"><img src="pkg/octicons/icons/shield-light.png" width="20" height="20" alt="shield"></picture> Security Advisories</summary>
 
+- **create_repository_security_advisory** - Create repository security advisory
+  - **Required OAuth Scopes**: `security_events`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
+  - `credits`: Users credited for the advisory. (object[], optional)
+  - `cveId`: The CVE ID to assign to the advisory. (string, optional)
+  - `cvssVectorString`: The CVSS vector string for the advisory. Exactly one of severity or cvssVectorString is required. (string, optional)
+  - `cweIds`: Common Weakness Enumeration IDs (for example, ["CWE-79"]). (string[], optional)
+  - `description`: A detailed description of the security advisory. (string, required)
+  - `owner`: The owner of the repository. (string, required)
+  - `repo`: The name of the repository. (string, required)
+  - `severity`: The severity of the advisory. Exactly one of severity or cvssVectorString is required. (string, optional)
+  - `startPrivateFork`: Whether to create a temporary private fork for collaborating on a fix. (boolean, optional)
+  - `summary`: A short summary of the security advisory. (string, required)
+  - `vulnerabilities`: Affected products and version ranges. (object[], required)
+
 - **get_global_security_advisory** - Get a global security advisory
   - **Required OAuth Scopes**: `security_events`
   - **Accepted OAuth Scopes**: `repo`, `security_events`
@@ -1476,6 +1491,29 @@ The following sets of tools are available:
   - `repo`: The name of the repository. (string, required)
   - `sort`: Sort field. (string, optional)
   - `state`: Filter by advisory state. (string, optional)
+
+- **request_cve_for_repository_security_advisory** - Request CVE for repository security advisory
+  - **Required OAuth Scopes**: `security_events`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
+  - `ghsaId`: GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx). (string, required)
+  - `owner`: The owner of the repository. (string, required)
+  - `repo`: The name of the repository. (string, required)
+
+- **update_repository_security_advisory** - Update repository security advisory
+  - **Required OAuth Scopes**: `security_events`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
+  - `credits`: Users credited for the advisory. Omit to leave unchanged; empty arrays are rejected and clearing this field is not supported. (object[], optional)
+  - `cveId`: The CVE ID to assign to the advisory. (string, optional)
+  - `cvssVectorString`: The CVSS vector string for the advisory. Cannot be set together with severity. (string, optional)
+  - `cweIds`: Common Weakness Enumeration IDs (for example, ["CWE-79"]). Omit to leave unchanged; empty arrays are rejected and clearing this field is not supported. (string[], optional)
+  - `description`: A detailed description of the security advisory. (string, optional)
+  - `ghsaId`: GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx). (string, required)
+  - `owner`: The owner of the repository. (string, required)
+  - `repo`: The name of the repository. (string, required)
+  - `severity`: The severity of the advisory. Cannot be set together with cvssVectorString. (string, optional)
+  - `state`: The advisory state. Set to "published" to publish the advisory. (string, optional)
+  - `summary`: A short summary of the security advisory. (string, optional)
+  - `vulnerabilities`: Affected products and version ranges. (object[], optional)
 
 </details>
 
