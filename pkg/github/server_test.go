@@ -207,7 +207,7 @@ func TestNewServer_NameAndTitleViaTranslation(t *testing.T) {
 		{
 			name:          "defaults when using NullTranslationHelper",
 			translator:    translations.NullTranslationHelper,
-			expectedName:  "github-mcp-server",
+			expectedName:  "github",
 			expectedTitle: "GitHub MCP Server",
 		},
 		{
@@ -242,7 +242,7 @@ func TestNewServer_NameAndTitleViaTranslation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			srv := NewServer("v1.0.0", tt.translator("SERVER_NAME", "github-mcp-server"), tt.translator("SERVER_TITLE", "GitHub MCP Server"), nil)
+			srv := NewServer("v1.0.0", tt.translator("SERVER_NAME", "github"), tt.translator("SERVER_TITLE", "GitHub MCP Server"), nil)
 			require.NotNil(t, srv)
 
 			// Connect a client to retrieve the initialize result and verify ServerInfo.
