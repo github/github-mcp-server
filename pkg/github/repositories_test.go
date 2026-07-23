@@ -1155,6 +1155,131 @@ func Test_CreateBranch(t *testing.T) {
 	}
 }
 
+func Test_DeleteBranch(t *testing.T) {
+	// Verify tool definition once
+	serverTool := DeleteBranch(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+
+	assert.Equal(t, "delete_branch", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.False(t, tool.Annotations.ReadOnlyHint, "delete_branch must not be read-only")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "branch")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "branch"})
+
+	unprotectedBranch := &github.Branch{
+		Name:      github.Ptr("feature"),
+		Protected: github.Ptr(false),
+	}
+	protectedBranch := &github.Branch{
+		Name:      github.Ptr("main"),
+		Protected: github.Ptr(true),
+	}
+
+	tests := []struct {
+		name            string
+		mockedClient    *http.Client
+		requestArgs     map[string]any
+		expectError     bool
+		expectedErrMsg  string
+		expectedSuccess string
+	}{
+		{
+			name: "successful branch deletion",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposBranchesByOwnerByRepoByBranch: mockResponse(t, http.StatusOK, unprotectedBranch),
+				DeleteReposGitRefsByOwnerByRepoByRef:  mockResponse(t, http.StatusNoContent, nil),
+			}),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "feature",
+			},
+			expectError:     false,
+			expectedSuccess: `Successfully deleted branch "feature"`,
+		},
+		{
+			name: "refuses to delete protected branch",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposBranchesByOwnerByRepoByBranch: mockResponse(t, http.StatusOK, protectedBranch),
+			}),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "main",
+			},
+			expectError:    true,
+			expectedErrMsg: "protected and cannot be deleted",
+		},
+		{
+			name: "branch not found",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposBranchesByOwnerByRepoByBranch: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Branch not found"}`))
+				},
+			}),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "nonexistent",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get branch",
+		},
+		{
+			name: "fail to delete reference",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposBranchesByOwnerByRepoByBranch: mockResponse(t, http.StatusOK, unprotectedBranch),
+				DeleteReposGitRefsByOwnerByRepoByRef: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					_, _ = w.Write([]byte(`{"message": "Reference does not exist"}`))
+				},
+			}),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "feature",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to delete branch",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			if tc.expectError {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			textContent := getTextResult(t, result)
+			assert.Contains(t, textContent.Text, tc.expectedSuccess)
+		})
+	}
+}
+
 func Test_GetCommit(t *testing.T) {
 	// Verify tool definition once
 	serverTool := GetCommit(translations.NullTranslationHelper)
