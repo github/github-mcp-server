@@ -47,7 +47,7 @@ func TestGetToolScopeInfo(t *testing.T) {
 	assert.Nil(t, info)
 }
 
-func TestToolScopeInfo_HasAcceptedScope(t *testing.T) {
+func TestToolScopeInfo_Satisfies(t *testing.T) {
 	testCases := []struct {
 		name       string
 		scopeInfo  *ToolScopeInfo
@@ -91,6 +91,24 @@ func TestToolScopeInfo_HasAcceptedScope(t *testing.T) {
 			expected:   false,
 		},
 		{
+			name: "AND: repo-only does not satisfy {repo, read:org}",
+			scopeInfo: &ToolScopeInfo{
+				RequiredScopes: []string{"repo", "read:org"},
+				AcceptedScopes: []string{"public_repo", "read:org", "repo", "security_events", "write:org", "admin:org"},
+			},
+			userScopes: []string{"repo"},
+			expected:   false,
+		},
+		{
+			name: "AND: {repo, admin:org} satisfies {repo, read:org} via hierarchy",
+			scopeInfo: &ToolScopeInfo{
+				RequiredScopes: []string{"repo", "read:org"},
+				AcceptedScopes: []string{"public_repo", "read:org", "repo", "security_events", "write:org", "admin:org"},
+			},
+			userScopes: []string{"repo", "admin:org"},
+			expected:   true,
+		},
+		{
 			name: "no scope required",
 			scopeInfo: &ToolScopeInfo{
 				RequiredScopes: []string{},
@@ -115,7 +133,7 @@ func TestToolScopeInfo_HasAcceptedScope(t *testing.T) {
 			expected:   true,
 		},
 		{
-			name: "missing repo scope",
+			name: "missing repo scope (child does not satisfy parent)",
 			scopeInfo: &ToolScopeInfo{
 				RequiredScopes: []string{"repo"},
 				AcceptedScopes: []string{"repo"},
@@ -127,7 +145,7 @@ func TestToolScopeInfo_HasAcceptedScope(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := tc.scopeInfo.HasAcceptedScope(tc.userScopes...)
+			result := tc.scopeInfo.Satisfies(tc.userScopes...)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -138,7 +156,6 @@ func TestToolScopeInfo_MissingScopes(t *testing.T) {
 		name           string
 		scopeInfo      *ToolScopeInfo
 		userScopes     []string
-		expectedLen    int
 		expectedScopes []string
 	}{
 		{
@@ -148,17 +165,33 @@ func TestToolScopeInfo_MissingScopes(t *testing.T) {
 				AcceptedScopes: []string{"read:org", "write:org", "admin:org"},
 			},
 			userScopes:     []string{"read:org"},
-			expectedLen:    0,
 			expectedScopes: nil,
 		},
 		{
-			name: "missing scope",
+			name: "parent scope satisfies via hierarchy - no missing",
+			scopeInfo: &ToolScopeInfo{
+				RequiredScopes: []string{"read:org"},
+				AcceptedScopes: []string{"read:org", "write:org", "admin:org"},
+			},
+			userScopes:     []string{"admin:org"},
+			expectedScopes: nil,
+		},
+		{
+			name: "single missing scope",
 			scopeInfo: &ToolScopeInfo{
 				RequiredScopes: []string{"read:org"},
 				AcceptedScopes: []string{"read:org", "write:org", "admin:org"},
 			},
 			userScopes:     []string{"repo"},
-			expectedLen:    1,
+			expectedScopes: []string{"read:org"},
+		},
+		{
+			name: "AND: precise missing subset for {repo, read:org} with repo only",
+			scopeInfo: &ToolScopeInfo{
+				RequiredScopes: []string{"repo", "read:org"},
+				AcceptedScopes: []string{"public_repo", "read:org", "repo", "security_events", "write:org", "admin:org"},
+			},
+			userScopes:     []string{"repo"},
 			expectedScopes: []string{"read:org"},
 		},
 		{
@@ -168,14 +201,12 @@ func TestToolScopeInfo_MissingScopes(t *testing.T) {
 				AcceptedScopes: []string{},
 			},
 			userScopes:     []string{},
-			expectedLen:    0,
 			expectedScopes: nil,
 		},
 		{
 			name:           "nil scope info - no missing",
 			scopeInfo:      nil,
 			userScopes:     []string{},
-			expectedLen:    0,
 			expectedScopes: nil,
 		},
 	}
@@ -183,12 +214,7 @@ func TestToolScopeInfo_MissingScopes(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			missing := tc.scopeInfo.MissingScopes(tc.userScopes...)
-			assert.Len(t, missing, tc.expectedLen)
-			if tc.expectedScopes != nil {
-				for _, expected := range tc.expectedScopes {
-					assert.Contains(t, missing, expected)
-				}
-			}
+			assert.Equal(t, tc.expectedScopes, missing)
 		})
 	}
 }

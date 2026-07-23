@@ -37,6 +37,13 @@ var SupportedScopes = []string{
 	"project",
 	"gist",
 	"notifications",
+	// workflow is grantable (PATs carry it; OAuth can request it up front) but is
+	// intentionally not declared as a required scope on any tool, so the on-demand
+	// scope challenge never asks for it — workflow grants control over Actions
+	// workflow files and we don't auto-request it. There is deliberately no
+	// scopes.Workflow constant either. See
+	// TestAssumption_WorkflowScopeIsGrantableButNeverChallenged before wiring it
+	// to a tool.
 	"workflow",
 	"codespace",
 }
