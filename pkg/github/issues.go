@@ -1628,7 +1628,7 @@ func searchIssuesTool(t translations.TranslationHelperFunc, includeFields bool) 
 		Properties: map[string]*jsonschema.Schema{
 			"query": {
 				Type:        "string",
-				Description: "The search query. Write it as a natural-language description of what you're looking for (e.g. \"login fails after password reset\") rather than exact keywords or boolean operators.",
+				Description: "The search query. Write it as natural language for semantic and hybrid variants.",
 			},
 			"owner": {
 				Type:        "string",
@@ -1675,7 +1675,7 @@ func searchIssuesTool(t translations.TranslationHelperFunc, includeFields bool) 
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "search_issues",
-			Description: t("TOOL_SEARCH_ISSUES_DESCRIPTION", "Search for issues in GitHub repositories using natural-language semantic matching. Write the query as a natural-language description of what you're looking for (e.g. \"login fails after password reset\"); best for conceptual or paraphrased queries. Already scoped to is:issue. Avoid boolean OR operators, which fall back to lexical keyword search."),
+			Description: t("TOOL_SEARCH_ISSUES_DESCRIPTION", "Search issues using natural-language semantic matching. Best for conceptual or paraphrased queries (e.g. \"login fails after password reset\"). Already scoped to is:issue. Avoid boolean OR operators, which fall back to lexical search."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_SEARCH_ISSUES_USER_TITLE", "Search issues"),
 				ReadOnlyHint: true,
