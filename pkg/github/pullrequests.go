@@ -409,7 +409,45 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, deps ToolDe
 
 	minimalFiles := convertToMinimalPRFiles(files)
 
-	return MarshalledTextResult(minimalFiles), nil
+	type fileMeta struct {
+		Filename         string `json:"filename"`
+		Status           string `json:"status,omitempty"`
+		Additions        int    `json:"additions,omitempty"`
+		Deletions        int    `json:"deletions,omitempty"`
+		Changes          int    `json:"changes,omitempty"`
+		PreviousFilename string `json:"previous_filename,omitempty"`
+	}
+
+	metas := make([]fileMeta, len(minimalFiles))
+	for i, f := range minimalFiles {
+		metas[i] = fileMeta{
+			Filename:         f.Filename,
+			Status:           f.Status,
+			Additions:        f.Additions,
+			Deletions:        f.Deletions,
+			Changes:          f.Changes,
+			PreviousFilename: f.PreviousFilename,
+		}
+	}
+
+	metaJSON, err := json.Marshal(metas)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal file metadata: %w", err)
+	}
+
+	contents := []mcp.Content{
+		&mcp.TextContent{Text: string(metaJSON)},
+	}
+
+	for _, f := range minimalFiles {
+		if f.Patch != "" {
+			contents = append(contents, &mcp.TextContent{
+				Text: fmt.Sprintf("filename: %s\n%s", f.Filename, f.Patch),
+			})
+		}
+	}
+
+	return &mcp.CallToolResult{Content: contents}, nil
 }
 
 func GetPullRequestCommits(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {

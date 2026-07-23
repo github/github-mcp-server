@@ -14,6 +14,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v89/github"
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1360,20 +1361,45 @@ func Test_GetPullRequestFiles(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
-			textContent := getTextResult(t, result)
+			// Verify multi-content response
+			assert.NotNil(t, result)
+			require.Len(t, result.Content, 3) // 1 metadata + 2 patches
 
-			// Unmarshal and verify the result
-			var returnedFiles []MinimalPRFile
-			err = json.Unmarshal([]byte(textContent.Text), &returnedFiles)
+			// Verify Content[0] is metadata JSON
+			metaContent, ok := result.Content[0].(*mcp.TextContent)
+			require.True(t, ok, "expected first content to be TextContent")
+
+			var returnedMetas []map[string]any
+			err = json.Unmarshal([]byte(metaContent.Text), &returnedMetas)
 			require.NoError(t, err)
-			assert.Len(t, returnedFiles, len(tc.expectedFiles))
-			for i, file := range returnedFiles {
-				assert.Equal(t, tc.expectedFiles[i].GetFilename(), file.Filename)
-				assert.Equal(t, tc.expectedFiles[i].GetStatus(), file.Status)
-				assert.Equal(t, tc.expectedFiles[i].GetAdditions(), file.Additions)
-				assert.Equal(t, tc.expectedFiles[i].GetDeletions(), file.Deletions)
-			}
+			assert.Len(t, returnedMetas, len(tc.expectedFiles))
+
+			// Verify metadata content for first file
+			assert.Equal(t, "file1.go", returnedMetas[0]["filename"])
+			assert.Equal(t, "modified", returnedMetas[0]["status"])
+			assert.Equal(t, float64(10), returnedMetas[0]["additions"])
+			assert.Equal(t, float64(5), returnedMetas[0]["deletions"])
+			assert.Equal(t, float64(15), returnedMetas[0]["changes"])
+			assert.Nil(t, returnedMetas[0]["patch"], "metadata should not contain patch field")
+
+			// Verify metadata content for second file
+			assert.Equal(t, "file2.go", returnedMetas[1]["filename"])
+			assert.Equal(t, "added", returnedMetas[1]["status"])
+			assert.Equal(t, float64(20), returnedMetas[1]["additions"])
+			assert.Equal(t, float64(20), returnedMetas[1]["changes"])
+			assert.Nil(t, returnedMetas[1]["patch"], "metadata should not contain patch field")
+
+			// Verify Content[1] is patch for file1.go
+			patch1Content, ok := result.Content[1].(*mcp.TextContent)
+			require.True(t, ok, "expected second content to be TextContent")
+			assert.Contains(t, patch1Content.Text, "filename: file1.go")
+			assert.Contains(t, patch1Content.Text, "@@ -1,5 +1,10 @@")
+
+			// Verify Content[2] is patch for file2.go
+			patch2Content, ok := result.Content[2].(*mcp.TextContent)
+			require.True(t, ok, "expected third content to be TextContent")
+			assert.Contains(t, patch2Content.Text, "filename: file2.go")
+			assert.Contains(t, patch2Content.Text, "@@ -0,0 +1,20 @@")
 		})
 	}
 }
