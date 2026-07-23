@@ -707,7 +707,7 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
 				return attachIFC(result), nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: get, get_comments, get_sub_issues, get_parent, get_labels", method)), nil, nil
 			}
 		})
 }
@@ -1475,7 +1475,7 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				result, err := ReprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID)
 				return result, nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: add, remove, reprioritize", method)), nil, nil
 			}
 		})
 	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}

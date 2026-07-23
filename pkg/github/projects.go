@@ -296,10 +296,10 @@ Use this tool to list projects for a user or organization, or list project field
 					result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelProjectContent(isPrivate))
 					return result, payload, err
 				default:
-					return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+					return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: list_project_fields, list_project_items, list_project_status_updates", method)), nil, nil
 				}
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: list_projects, list_project_fields, list_project_items, list_project_status_updates", method)), nil, nil
 			}
 		},
 	)
@@ -483,7 +483,7 @@ Use this tool to get details about individual projects, project fields, and proj
 				}
 				return result, payload, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: get_project, get_project_field, get_project_item, get_project_status_update", method)), nil, nil
 			}
 		},
 	)
@@ -749,7 +749,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			case projectsMethodCreateIterationField:
 				return createIterationField(ctx, gqlClient, owner, ownerType, projectNumber, args)
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: add_project_item, update_project_item, delete_project_item, create_project_status_update, create_iteration_field, create_project", method)), nil, nil
 			}
 		},
 	)
