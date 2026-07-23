@@ -1873,6 +1873,344 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 	}
 }
 
+func Test_GetPullRequestReviewers(t *testing.T) {
+	// Verify tool definition once
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	mockReviewers := &github.Reviewers{
+		Users: []*github.User{
+			{Login: github.Ptr("octocat"), HTMLURL: github.Ptr("https://github.com/octocat")},
+		},
+		Teams: []*github.Team{
+			{Slug: github.Ptr("core-team"), Name: github.Ptr("Core Team"), HTMLURL: github.Ptr("https://github.com/orgs/owner/teams/core-team")},
+		},
+	}
+
+	tests := []struct {
+		name              string
+		mockedClient      *http.Client
+		requestArgs       map[string]any
+		expectError       bool
+		expectedReviewers *github.Reviewers
+		expectedErrMsg    string
+	}{
+		{
+			name: "successful reviewers fetch",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsRequestedReviewersByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockReviewers),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_reviewers",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:       false,
+			expectedReviewers: mockReviewers,
+		},
+		{
+			name: "reviewers fetch fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsRequestedReviewersByOwnerByRepoByPullNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_reviewers",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(999),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get pull request reviewers",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			serverTool := PullRequestRead(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client:          client,
+				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			if tc.expectError {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			textContent := getTextResult(t, result)
+
+			var returned MinimalPRReviewers
+			err = json.Unmarshal([]byte(textContent.Text), &returned)
+			require.NoError(t, err)
+
+			require.Len(t, returned.Users, len(tc.expectedReviewers.Users))
+			for i, u := range returned.Users {
+				assert.Equal(t, tc.expectedReviewers.Users[i].GetLogin(), u.Login)
+				assert.Equal(t, tc.expectedReviewers.Users[i].GetHTMLURL(), u.HTMLURL)
+			}
+			require.Len(t, returned.Teams, len(tc.expectedReviewers.Teams))
+			for i, tm := range returned.Teams {
+				assert.Equal(t, tc.expectedReviewers.Teams[i].GetSlug(), tm.Slug)
+				assert.Equal(t, tc.expectedReviewers.Teams[i].GetName(), tm.Name)
+				assert.Equal(t, tc.expectedReviewers.Teams[i].GetHTMLURL(), tm.HTMLURL)
+			}
+		})
+	}
+}
+
+func Test_GetPullRequestStatusChecks(t *testing.T) {
+	// Verify tool definition once
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	mockPR := &github.PullRequest{
+		Number: github.Ptr(42),
+		Head: &github.PullRequestBranch{
+			SHA: github.Ptr("abcd1234"),
+			Ref: github.Ptr("feature-branch"),
+		},
+	}
+
+	mockCombinedStatus := &github.CombinedStatus{
+		State: github.Ptr("success"),
+		Statuses: []*github.RepoStatus{
+			{
+				State:       github.Ptr("success"),
+				Context:     github.Ptr("atlantis/plan"),
+				Description: github.Ptr("Plan succeeded"),
+				TargetURL:   github.Ptr("https://atlantis.example.com/plan"),
+			},
+		},
+	}
+
+	mockCheckRuns := &github.ListCheckRunsResults{
+		Total: github.Ptr(1),
+		CheckRuns: []*github.CheckRun{
+			{
+				ID:         github.Ptr(int64(1)),
+				Name:       github.Ptr("build"),
+				Status:     github.Ptr("completed"),
+				Conclusion: github.Ptr("success"),
+			},
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]any
+		expectError    bool
+		expectedErrMsg string
+	}{
+		{
+			name: "successful status checks fetch",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber:     mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsStatusByOwnerByRepoByRef:    mockResponse(t, http.StatusOK, mockCombinedStatus),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockCheckRuns),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_status_checks",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError: false,
+		},
+		{
+			name: "PR fetch fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_status_checks",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(999),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get pull request",
+		},
+		{
+			name: "combined status fetch fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsStatusByOwnerByRepoByRef: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+					_, _ = w.Write([]byte(`{"message": "Internal Server Error"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_status_checks",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get combined status",
+		},
+		{
+			name: "check runs fetch fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber:  mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsStatusByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockCombinedStatus),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+					_, _ = w.Write([]byte(`{"message": "Internal Server Error"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_status_checks",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get check runs",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			serverTool := PullRequestRead(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client:          client,
+				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			if tc.expectError {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			textContent := getTextResult(t, result)
+
+			var returned MinimalStatusChecks
+			err = json.Unmarshal([]byte(textContent.Text), &returned)
+			require.NoError(t, err)
+
+			assert.Equal(t, mockCombinedStatus.GetState(), returned.CombinedState)
+			require.Len(t, returned.Statuses, len(mockCombinedStatus.Statuses))
+			assert.Equal(t, mockCombinedStatus.Statuses[0].GetContext(), returned.Statuses[0].Context)
+			require.Len(t, returned.CheckRuns, len(mockCheckRuns.CheckRuns))
+			assert.Equal(t, mockCheckRuns.CheckRuns[0].GetName(), returned.CheckRuns[0].Name)
+			assert.Equal(t, len(mockCombinedStatus.Statuses)+len(mockCheckRuns.CheckRuns), returned.TotalCount)
+		})
+	}
+}
+
+func Test_GetPullRequestStatusChecks_Pagination(t *testing.T) {
+	mockPR := &github.PullRequest{
+		Number: github.Ptr(42),
+		Head:   &github.PullRequestBranch{SHA: github.Ptr("abcd1234")},
+	}
+
+	// Combined status served across two pages.
+	statusPages := map[string]*github.CombinedStatus{
+		"": {
+			State:    github.Ptr("pending"),
+			Statuses: []*github.RepoStatus{{State: github.Ptr("success"), Context: github.Ptr("ci/one")}},
+		},
+		"2": {
+			State:    github.Ptr("pending"),
+			Statuses: []*github.RepoStatus{{State: github.Ptr("pending"), Context: github.Ptr("ci/two")}},
+		},
+	}
+	// Check runs served across two pages.
+	checkPages := map[string]*github.ListCheckRunsResults{
+		"":  {Total: github.Ptr(2), CheckRuns: []*github.CheckRun{{Name: github.Ptr("build")}}},
+		"2": {Total: github.Ptr(2), CheckRuns: []*github.CheckRun{{Name: github.Ptr("test")}}},
+	}
+
+	// paginatedHandler returns page 1 with a Link rel="next" header pointing at
+	// page 2, and page 2 without a Link header, mirroring the GitHub REST API.
+	paginatedHandler := func(pages map[string]any) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			page := r.URL.Query().Get("page")
+			if page == "" {
+				next := *r.URL
+				q := next.Query()
+				q.Set("page", "2")
+				next.RawQuery = q.Encode()
+				w.Header().Set("Link", "<https://api.github.com"+next.RequestURI()+">; rel=\"next\"")
+			}
+			w.WriteHeader(http.StatusOK)
+			b, _ := json.Marshal(pages[page])
+			_, _ = w.Write(b)
+		}
+	}
+
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+		GetReposCommitsStatusByOwnerByRepoByRef: paginatedHandler(map[string]any{
+			"": statusPages[""], "2": statusPages["2"],
+		}),
+		GetReposCommitsCheckRunsByOwnerByRepoByRef: paginatedHandler(map[string]any{
+			"": checkPages[""], "2": checkPages["2"],
+		}),
+	}))
+
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	deps := BaseDeps{
+		Client:          client,
+		RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
+		Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":     "get_status_checks",
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(42),
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	var returned MinimalStatusChecks
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returned))
+
+	// Both pages of statuses and check runs must be aggregated.
+	require.Len(t, returned.Statuses, 2)
+	require.Len(t, returned.CheckRuns, 2)
+	assert.Equal(t, 4, returned.TotalCount)
+	assert.Equal(t, "pending", returned.CombinedState)
+}
+
 func Test_UpdatePullRequestBranch(t *testing.T) {
 	// Verify tool definition once
 	serverTool := UpdatePullRequestBranch(translations.NullTranslationHelper)
