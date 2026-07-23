@@ -15,7 +15,6 @@ import (
 	gogithub "github.com/google/go-github/v89/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/shurcooL/githubv4"
 )
 
 // prUpdateTool is a helper to create single-field pull request update tools via REST.
@@ -218,57 +217,14 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			gqlClient, err := deps.GetGQLClient(ctx)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
-			}
-
-			// Get PR node ID
-			var prQuery struct {
-				Repository struct {
-					PullRequest struct {
-						ID githubv4.ID
-					} `graphql:"pullRequest(number: $number)"`
-				} `graphql:"repository(owner: $owner, name: $name)"`
-			}
-			if err := gqlClient.Query(ctx, &prQuery, map[string]any{
-				"owner":  githubv4.String(owner),
-				"name":   githubv4.String(repo),
-				"number": githubv4.Int(pullNumber), // #nosec G115 - PR numbers are always small positive integers
-			}); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get pull request", err), nil, nil
+			if result := updatePullRequestDraftState(ctx, deps, owner, repo, pullNumber, draft); result != nil {
+				return result, nil, nil
 			}
 
 			if draft {
-				var mutation struct {
-					ConvertPullRequestToDraft struct {
-						PullRequest struct {
-							ID      githubv4.ID
-							IsDraft githubv4.Boolean
-						}
-					} `graphql:"convertPullRequestToDraft(input: $input)"`
-				}
-				if err := gqlClient.Mutate(ctx, &mutation, githubv4.ConvertPullRequestToDraftInput{
-					PullRequestID: prQuery.Repository.PullRequest.ID,
-				}, nil); err != nil {
-					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to convert to draft", err), nil, nil
-				}
 				return utils.NewToolResultText("pull request converted to draft"), nil, nil
 			}
 
-			var mutation struct {
-				MarkPullRequestReadyForReview struct {
-					PullRequest struct {
-						ID      githubv4.ID
-						IsDraft githubv4.Boolean
-					}
-				} `graphql:"markPullRequestReadyForReview(input: $input)"`
-			}
-			if err := gqlClient.Mutate(ctx, &mutation, githubv4.MarkPullRequestReadyForReviewInput{
-				PullRequestID: prQuery.Repository.PullRequest.ID,
-			}, nil); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to mark ready for review", err), nil, nil
-			}
 			return utils.NewToolResultText("pull request marked as ready for review"), nil, nil
 		},
 	)
