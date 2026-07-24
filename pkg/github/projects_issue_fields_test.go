@@ -3,11 +3,14 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"net/http"
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
+	"github.com/github/github-mcp-server/pkg/http/headers"
+	transportpkg "github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/shurcooL/githubv4"
@@ -62,6 +65,52 @@ func issueFieldMutationResponse() map[string]any {
 			"issueFieldValues": []any{},
 		},
 	}
+}
+
+func issueProjectItemMatcher(issueNumber int, issueNodeID, itemNodeID string, itemID int) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		resolveItemByIssueQuery{},
+		map[string]any{
+			"issueOwner":  githubv4.String("octo-org"),
+			"issueRepo":   githubv4.String("roadmap"),
+			"issueNumber": githubv4.Int(int32(issueNumber)), //nolint:gosec
+		},
+		githubv4mock.DataResponse(map[string]any{
+			"repository": map[string]any{
+				"issue": map[string]any{
+					"id": issueNodeID,
+					"projectItems": map[string]any{
+						"nodes": []any{map[string]any{
+							"id":             itemNodeID,
+							"fullDatabaseId": fmt.Sprintf("%d", itemID),
+							"project":        map[string]any{"id": "PVT_project1"},
+						}},
+						"pageInfo": map[string]any{"hasNextPage": false},
+					},
+				},
+			},
+		}),
+	)
+}
+
+func projectItemIssueByNodeIDMatcher(itemNodeID string, itemID int, issueNodeID string) githubv4mock.Matcher {
+	matcher := githubv4mock.NewQueryMatcher(
+		batchProjectItemsByNodeIDQuery{},
+		map[string]any{"ids": []githubv4.ID{githubv4.ID(itemNodeID)}},
+		githubv4mock.DataResponse(map[string]any{
+			"nodes": []any{map[string]any{
+				"id":             itemNodeID,
+				"fullDatabaseId": fmt.Sprintf("%d", itemID),
+				"project":        map[string]any{"id": "PVT_project1"},
+				"content": map[string]any{
+					"__typename": "Issue",
+					"id":         issueNodeID,
+				},
+			}},
+		}),
+	)
+	matcher.Variables["ids"] = []any{itemNodeID}
+	return matcher
 }
 
 func Test_ResolveProjectFieldByName_AttachedIssueFields(t *testing.T) {
@@ -467,25 +516,198 @@ func Test_ProjectsWrite_UpdateProjectItem_StandardFieldNameStillUsesProjectsREST
 	require.False(t, result.IsError, getTextResult(t, result).Text)
 }
 
-func Test_UpdateProjectItemsBatch_RejectsAttachedIssueFields(t *testing.T) {
-	gql := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
-		projectIDMatcher("octo-org", 1, "PVT_project1"),
-		githubv4mock.NewQueryMatcher(
-			projectFieldsTestQuery{},
-			fieldsQueryVars("octo-org", 1),
-			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
-				attachedIssueFieldNode("PVTF_customer", 701, "IF_customer", "Customer", "TEXT", nil),
-			})),
-		),
-	))
+func Test_UpdateProjectItemsBatch_AttachedIssueFields(t *testing.T) {
+	tests := []struct {
+		name             string
+		fieldNode        map[string]any
+		fieldRef         map[string]any
+		value            any
+		item             map[string]any
+		extraMatchers    []githubv4mock.Matcher
+		restHandlers     map[string]http.HandlerFunc
+		issueNodeID      string
+		itemNodeID       string
+		itemID           int
+		expectedFieldID  string
+		expectedValueKey string
+		expectedValue    any
+	}{
+		{
+			name:             "issue reference",
+			fieldNode:        attachedIssueFieldNode("PVTF_customer", 701, "IF_customer", "Customer", "TEXT", nil),
+			fieldRef:         map[string]any{"name": "Customer"},
+			value:            "Acme",
+			item:             map[string]any{"item_owner": "octo-org", "item_repo": "roadmap", "issue_number": float64(5)},
+			extraMatchers:    []githubv4mock.Matcher{issueProjectItemMatcher(5, "I_5", "PVTI_5", 1005)},
+			restHandlers:     map[string]http.HandlerFunc{},
+			issueNodeID:      "I_5",
+			itemNodeID:       "PVTI_5",
+			itemID:           1005,
+			expectedFieldID:  "IF_customer",
+			expectedValueKey: "textValue",
+			expectedValue:    "Acme",
+		},
+		{
+			name:      "numeric item and field IDs clear",
+			fieldNode: attachedIssueFieldNode("PVTF_customer", 701, "IF_customer", "Customer", "TEXT", nil),
+			fieldRef:  map[string]any{"id": float64(701)},
+			value:     nil,
+			item:      map[string]any{"item_id": float64(1001)},
+			restHandlers: map[string]http.HandlerFunc{
+				GetOrgsProjectsV2ItemsByProjectByItemID: mockResponse(t, http.StatusOK, issueProjectItemFixture(nil)),
+			},
+			issueNodeID:      "I_123",
+			itemNodeID:       "PVTI_1",
+			itemID:           1001,
+			expectedFieldID:  "IF_customer",
+			expectedValueKey: "delete",
+			expectedValue:    true,
+		},
+		{
+			name: "project item node ID and single-select option name",
+			fieldNode: attachedIssueFieldNode("PVTSSF_risk", 704, "IF_risk", "Risk", "SINGLE_SELECT", []map[string]any{
+				{"id": "IFO_low", "name": "Low"},
+				{"id": "IFO_high", "name": "High"},
+			}),
+			fieldRef:         map[string]any{"name": "Risk"},
+			value:            "high",
+			item:             map[string]any{"node_id": "PVTI_1"},
+			extraMatchers:    []githubv4mock.Matcher{projectItemIssueByNodeIDMatcher("PVTI_1", 1001, "I_123")},
+			restHandlers:     map[string]http.HandlerFunc{},
+			issueNodeID:      "I_123",
+			itemNodeID:       "PVTI_1",
+			itemID:           1001,
+			expectedFieldID:  "IF_risk",
+			expectedValueKey: "singleSelectOptionId",
+			expectedValue:    "IFO_high",
+		},
+	}
 
-	result, _, err := updateProjectItemsBatch(context.Background(), nil, gql, "octo-org", "org", 1, map[string]any{
-		"updated_field": map[string]any{"name": "Customer", "value": "Acme"},
-		"items":         []any{map[string]any{"node_id": "PVTI_1"}},
-	})
-	require.NoError(t, err)
-	require.True(t, result.IsError)
-	text := getTextResult(t, result).Text
-	assert.Contains(t, text, "update_project_items does not support Issue Fields")
-	assert.Contains(t, text, "Use singular update_project_item")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			matchers := []githubv4mock.Matcher{
+				projectIDMatcher("octo-org", 1, "PVT_project1"),
+				githubv4mock.NewQueryMatcher(
+					projectFieldsTestQuery{},
+					fieldsQueryVars("octo-org", 1),
+					githubv4mock.DataResponse(fieldsResponse([]map[string]any{tt.fieldNode})),
+				),
+			}
+			matchers = append(matchers, tt.extraMatchers...)
+			queryTransport := githubv4mock.NewMockedHTTPClient(matchers...)
+			transport := &mutationAwareTransport{
+				t:       t,
+				queries: queryTransport.Transport,
+				mutationRespond: func(_ int, req capturedGraphQLRequest) (int, string) {
+					assert.Contains(t, req.Query, "setIssueFieldValue")
+					assert.NotContains(t, req.Query, "updateProjectV2ItemFieldValue")
+					assert.Equal(t, "issue_fields, repo_issue_fields, update_issue_suggestions", req.Headers.Get(headers.GraphQLFeaturesHeader))
+					input := req.Variables["input"].(map[string]any)
+					assert.Equal(t, tt.issueNodeID, input["issueId"])
+					issueFields := input["issueFields"].([]any)
+					require.Len(t, issueFields, 1)
+					field := issueFields[0].(map[string]any)
+					assert.Equal(t, tt.expectedFieldID, field["fieldId"])
+					assert.Equal(t, tt.expectedValue, field[tt.expectedValueKey])
+					return http.StatusOK, issueFieldMutationDataResponse(t, map[int]string{0: tt.issueNodeID})
+				},
+			}
+			updatedField := map[string]any{"value": tt.value}
+			maps.Copy(updatedField, tt.fieldRef)
+
+			result, _, err := updateProjectItemsBatch(
+				t.Context(),
+				mustNewGHClient(t, MockHTTPClientWithHandlers(tt.restHandlers)),
+				githubv4.NewClient(&http.Client{
+					Transport: &transportpkg.GraphQLFeaturesTransport{Transport: transport},
+				}),
+				"octo-org",
+				"org",
+				1,
+				map[string]any{
+					"updated_field": updatedField,
+					"items":         []any{tt.item},
+				},
+			)
+			require.NoError(t, err)
+			require.False(t, result.IsError, getTextResult(t, result).Text)
+
+			var response map[string]any
+			require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+			assert.Equal(t, float64(1), response["succeeded"])
+			item := response["results"].([]any)[0].(map[string]any)["item"].(map[string]any)
+			assert.Equal(t, tt.itemNodeID, item["node_id"])
+			assert.Equal(t, fmt.Sprintf("%d", tt.itemID), item["full_database_id"])
+		})
+	}
+}
+
+func Test_UpdateProjectItemsBatch_IssueFieldRejectsNonIssueContent(t *testing.T) {
+	tests := []struct {
+		name        string
+		contentType string
+		content     map[string]any
+	}{
+		{
+			name:        "pull request",
+			contentType: "PullRequest",
+			content:     map[string]any{"id": 2002, "node_id": "PR_123", "number": 5, "title": "PR"},
+		},
+		{
+			name:        "draft issue",
+			contentType: "DraftIssue",
+			content:     map[string]any{"id": 2003, "node_id": "DI_123", "title": "Draft"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			queryTransport := githubv4mock.NewMockedHTTPClient(
+				projectIDMatcher("octo-org", 1, "PVT_project1"),
+				githubv4mock.NewQueryMatcher(
+					projectFieldsTestQuery{},
+					fieldsQueryVars("octo-org", 1),
+					githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+						attachedIssueFieldNode("PVTF_customer", 701, "IF_customer", "Customer", "TEXT", nil),
+					})),
+				),
+			)
+			transport := &mutationAwareTransport{
+				t:       t,
+				queries: queryTransport.Transport,
+				mutationRespond: func(_ int, _ capturedGraphQLRequest) (int, string) {
+					t.Fatal("non-Issue content must fail before mutation")
+					return http.StatusInternalServerError, ""
+				},
+			}
+			rest := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2ItemsByProjectByItemID: mockResponse(t, http.StatusOK, map[string]any{
+					"id": 1001, "node_id": "PVTI_1", "content_type": tt.contentType, "content": tt.content,
+				}),
+			})
+
+			result, _, err := updateProjectItemsBatch(
+				t.Context(),
+				mustNewGHClient(t, rest),
+				newTestGQLClient(transport),
+				"octo-org",
+				"org",
+				1,
+				map[string]any{
+					"updated_field": map[string]any{"name": "Customer", "value": "Acme"},
+					"items":         []any{map[string]any{"item_id": float64(1001)}},
+				},
+			)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Empty(t, transport.mutationCalls)
+
+			var response map[string]any
+			require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+			entry := response["results"].([]any)[0].(map[string]any)
+			itemError := entry["error"].(map[string]any)
+			assert.Equal(t, "unsupported_item_type", itemError["code"])
+			assert.Contains(t, itemError["hint"], "only be updated on Issue project items")
+		})
+	}
 }

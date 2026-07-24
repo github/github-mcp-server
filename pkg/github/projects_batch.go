@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v89/github"
@@ -53,14 +54,16 @@ type resolvedBatchItem struct {
 	ref            map[string]any
 	nodeID         string
 	fullDatabaseID int64
+	issueNodeID    string
 }
 
 type batchWriteOperation struct {
-	gqlClient *githubv4.Client
-	kind      batchMutationKind
-	projectID githubv4.ID
-	fieldID   githubv4.ID
-	value     githubv4.ProjectV2FieldValue
+	gqlClient  *githubv4.Client
+	kind       batchMutationKind
+	projectID  githubv4.ID
+	fieldID    githubv4.ID
+	value      githubv4.ProjectV2FieldValue
+	issueField IssueFieldCreateOrUpdateInput
 }
 
 func updateProjectItemsBatch(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -119,18 +122,21 @@ func updateProjectItemsBatch(ctx context.Context, client *github.Client, gqlClie
 	if fieldErr != nil {
 		return batchTopLevelError(fieldErr), nil, nil
 	}
-	if field.IsIssueField {
-		return utils.NewToolResultError(fmt.Sprintf(
-			"field %q is an attached Issue Field; update_project_items does not support Issue Fields because they are values on Issue content. Use singular update_project_item for each Issue item",
-			field.Name,
-		)), nil, nil
-	}
 
 	kind := batchMutationUpdate
 	var value githubv4.ProjectV2FieldValue
-	if fieldSpec.value == nil {
+	var issueField IssueFieldCreateOrUpdateInput
+	switch {
+	case field.IsIssueField:
+		kind = batchMutationSetIssueField
+		resolvedIssueField, buildErr := buildIssueFieldUpdate(field, fieldSpec.value, fieldSpec.name != "")
+		if buildErr != nil {
+			return batchTopLevelError(buildErr), nil, nil
+		}
+		issueField = *resolvedIssueField
+	case fieldSpec.value == nil:
 		kind = batchMutationClear
-	} else {
+	default:
 		value, fieldErr = convertProjectFieldValue(field, fieldSpec.value)
 		if fieldErr != nil {
 			return batchTopLevelError(fieldErr), nil, nil
@@ -143,9 +149,10 @@ func updateProjectItemsBatch(ctx context.Context, client *github.Client, gqlClie
 			numericIDs = append(numericIDs, p.itemID)
 		}
 	}
-	itemIDLookups := resolveItemNodeIDsByNumericID(ctx, client, owner, ownerType, projectNumber, numericIDs)
+	itemIDLookups := resolveItemNodeIDsByNumericID(ctx, client, owner, ownerType, projectNumber, numericIDs, field.IsIssueField)
 
 	issueLookups := resolveIssueRefs(ctx, gqlClient, projectID, parsed)
+	nodeIDLookups := resolveItemIssuesByNodeID(ctx, gqlClient, projectID, parsed, field.IsIssueField)
 
 	var work []resolvedBatchItem
 	seenTargets := make(map[string]int)
@@ -155,7 +162,7 @@ func updateProjectItemsBatch(ctx context.Context, client *github.Client, gqlClie
 			continue
 		}
 
-		nodeID, fullDatabaseID, lookupErr := resolveItemReference(p, itemIDLookups, issueLookups)
+		nodeID, fullDatabaseID, issueNodeID, lookupErr := resolveItemReference(p, itemIDLookups, issueLookups, nodeIDLookups, field.IsIssueField)
 		if lookupErr != nil {
 			results[i] = batchItemResult{Index: i, Status: batchItemFailed, Ref: p.ref, Error: batchErrorFromResolution(lookupErr)}
 			continue
@@ -173,15 +180,18 @@ func updateProjectItemsBatch(ctx context.Context, client *github.Client, gqlClie
 		}
 
 		seenTargets[nodeID] = i
-		work = append(work, resolvedBatchItem{index: i, ref: p.ref, nodeID: nodeID, fullDatabaseID: fullDatabaseID})
+		work = append(work, resolvedBatchItem{
+			index: i, ref: p.ref, nodeID: nodeID, fullDatabaseID: fullDatabaseID, issueNodeID: issueNodeID,
+		})
 	}
 
 	executeBatchWrites(ctx, batchWriteOperation{
-		gqlClient: gqlClient,
-		kind:      kind,
-		projectID: projectID,
-		fieldID:   githubv4.ID(field.NodeID),
-		value:     value,
+		gqlClient:  gqlClient,
+		kind:       kind,
+		projectID:  projectID,
+		fieldID:    githubv4.ID(field.NodeID),
+		value:      value,
+		issueField: issueField,
 	}, work, results)
 
 	return newUpdateProjectItemsResult(results)
@@ -227,26 +237,40 @@ func newUpdateProjectItemsResult(results []batchItemResult) (*mcp.CallToolResult
 	return result, nil, nil
 }
 
-func resolveItemReference(p parsedBatchItem, itemIDLookups map[int64]itemLookupResult, issueLookups map[issueRefKey]itemLookupResult) (nodeID string, fullDatabaseID int64, err error) {
+func resolveItemReference(
+	p parsedBatchItem,
+	itemIDLookups map[int64]itemLookupResult,
+	issueLookups map[issueRefKey]itemLookupResult,
+	nodeIDLookups map[string]itemLookupResult,
+	requireIssue bool,
+) (nodeID string, fullDatabaseID int64, issueNodeID string, err error) {
+	var lookup itemLookupResult
 	switch p.refKind {
 	case batchRefNodeID:
-		return p.nodeID, 0, nil
-	case batchRefItemID:
-		lookup := itemIDLookups[p.itemID]
-		if lookup.err != nil {
-			return "", 0, lookup.err
+		if !requireIssue {
+			return p.nodeID, 0, "", nil
 		}
-		return lookup.nodeID, p.itemID, nil
+		lookup = nodeIDLookups[p.nodeID]
+	case batchRefItemID:
+		lookup = itemIDLookups[p.itemID]
 	case batchRefIssue:
 		key := issueRefKey{owner: p.issueOwner, repo: p.issueRepo, number: p.issueNumber}
-		lookup := issueLookups[key]
-		if lookup.err != nil {
-			return "", 0, lookup.err
-		}
-		return lookup.nodeID, lookup.fullDatabaseID, nil
+		lookup = issueLookups[key]
 	default:
-		return "", 0, fmt.Errorf("internal error: unrecognised item reference kind")
+		return "", 0, "", fmt.Errorf("internal error: unrecognised item reference kind")
 	}
+	if lookup.err != nil {
+		return "", 0, "", lookup.err
+	}
+	if requireIssue && lookup.issueNodeID == "" {
+		return "", 0, "", ghErrors.NewStructuredResolutionError(
+			"issue_field_metadata_unavailable",
+			lookup.nodeID,
+			"the project item did not include the underlying Issue node ID needed to update the Issue Field",
+			nil,
+		)
+	}
+	return lookup.nodeID, lookup.fullDatabaseID, lookup.issueNodeID, nil
 }
 
 // Transport, cancellation, or incomplete-data ambiguity stops later chunks;
@@ -263,13 +287,19 @@ func executeBatchWrites(ctx context.Context, operation batchWriteOperation, item
 
 		inputs := make([]githubv4.Input, len(chunk))
 		for i, item := range chunk {
-			if operation.kind == batchMutationClear {
+			switch operation.kind {
+			case batchMutationClear:
 				inputs[i] = githubv4.ClearProjectV2ItemFieldValueInput{
 					ProjectID: operation.projectID,
 					ItemID:    githubv4.ID(item.nodeID),
 					FieldID:   operation.fieldID,
 				}
-			} else {
+			case batchMutationSetIssueField:
+				inputs[i] = SetIssueFieldValueInput{
+					IssueID:     githubv4.ID(item.issueNodeID),
+					IssueFields: []IssueFieldCreateOrUpdateInput{operation.issueField},
+				}
+			default:
 				inputs[i] = githubv4.UpdateProjectV2ItemFieldValueInput{
 					ProjectID: operation.projectID,
 					ItemID:    githubv4.ID(item.nodeID),
@@ -279,19 +309,31 @@ func executeBatchWrites(ctx context.Context, operation batchWriteOperation, item
 			}
 		}
 
-		outcomes, mutateErr := executeAliasedMutation(ctx, operation.gqlClient, operation.kind, inputs)
+		mutationCtx := ctx
+		if operation.kind == batchMutationSetIssueField {
+			mutationCtx = ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields", "update_issue_suggestions")
+		}
+		outcomes, mutateErr := executeAliasedMutation(mutationCtx, operation.gqlClient, operation.kind, inputs)
 
 		populated := 0
 		for i, oc := range outcomes {
 			if oc.Populated {
 				populated++
+				nodeID := oc.NodeID
+				fullDatabaseID := oc.FullDatabaseID
+				if operation.kind == batchMutationSetIssueField {
+					nodeID = chunk[i].nodeID
+					if chunk[i].fullDatabaseID != 0 {
+						fullDatabaseID = fmt.Sprintf("%d", chunk[i].fullDatabaseID)
+					}
+				}
 				results[chunk[i].index] = batchItemResult{
 					Index:  chunk[i].index,
 					Status: batchItemSucceeded,
 					Ref:    chunk[i].ref,
 					Item: &batchItemIdentity{
-						NodeID:         oc.NodeID,
-						FullDatabaseID: oc.FullDatabaseID,
+						NodeID:         nodeID,
+						FullDatabaseID: fullDatabaseID,
 						ItemID:         chunk[i].fullDatabaseID,
 					},
 				}
@@ -635,12 +677,13 @@ func toFloat64(raw any) (float64, bool) {
 type itemLookupResult struct {
 	nodeID         string
 	fullDatabaseID int64
+	issueNodeID    string
 	err            error
 }
 
 // Numeric lookups are deduplicated and concurrency-bounded; individual failures
 // remain isolated while cancellation stops pending work.
-func resolveItemNodeIDsByNumericID(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, ids []int64) map[int64]itemLookupResult {
+func resolveItemNodeIDsByNumericID(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, ids []int64, requireIssue bool) map[int64]itemLookupResult {
 	seen := make(map[int64]struct{}, len(ids))
 	var unique []int64
 	for _, id := range ids {
@@ -683,11 +726,15 @@ func resolveItemNodeIDsByNumericID(ctx context.Context, client *github.Client, o
 			}
 
 			var item *github.ProjectV2Item
+			var resp *github.Response
 			var err error
 			if ownerType == "org" {
-				item, _, err = client.Projects.GetOrganizationProjectItem(ctx, owner, projectNumber, id, nil)
+				item, resp, err = client.Projects.GetOrganizationProjectItem(ctx, owner, projectNumber, id, nil)
 			} else {
-				item, _, err = client.Projects.GetUserProjectItem(ctx, owner, projectNumber, id, nil)
+				item, resp, err = client.Projects.GetUserProjectItem(ctx, owner, projectNumber, id, nil)
+			}
+			if resp != nil && resp.Body != nil {
+				_ = resp.Body.Close()
 			}
 
 			var res itemLookupResult
@@ -698,6 +745,14 @@ func resolveItemNodeIDsByNumericID(ctx context.Context, client *github.Client, o
 				res = itemLookupResult{err: fmt.Errorf("project item %d: response did not include a node id", id)}
 			default:
 				res = itemLookupResult{nodeID: *item.NodeID, fullDatabaseID: id}
+				if requireIssue {
+					issueID, issueErr := projectItemIssueNodeID(item)
+					if issueErr != nil {
+						res.err = issueErr
+					} else {
+						res.issueNodeID = fmt.Sprintf("%v", issueID)
+					}
+				}
 			}
 
 			mu.Lock()
@@ -713,6 +768,137 @@ type issueRefKey struct {
 	owner  string
 	repo   string
 	number int
+}
+
+type batchProjectItemIssueContent struct {
+	TypeName githubv4.String `graphql:"__typename"`
+	Issue    struct {
+		ID githubv4.ID
+	} `graphql:"... on Issue"`
+	PullRequest struct {
+		ID githubv4.ID
+	} `graphql:"... on PullRequest"`
+	DraftIssue struct {
+		ID githubv4.ID
+	} `graphql:"... on DraftIssue"`
+}
+
+type batchProjectItemIssueNode struct {
+	ID             githubv4.ID
+	FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+	Project        struct {
+		ID githubv4.ID
+	}
+	Content batchProjectItemIssueContent
+}
+
+type batchProjectItemsByNodeIDQuery struct {
+	Nodes []struct {
+		ProjectV2Item batchProjectItemIssueNode `graphql:"... on ProjectV2Item"`
+	} `graphql:"nodes(ids: $ids)"`
+}
+
+func resolveItemIssuesByNodeID(ctx context.Context, gqlClient *githubv4.Client, projectID githubv4.ID, items []parsedBatchItem, requireIssue bool) map[string]itemLookupResult {
+	if !requireIssue {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(items))
+	var ids []githubv4.ID
+	for _, item := range items {
+		if item.err != nil || item.refKind != batchRefNodeID {
+			continue
+		}
+		if _, exists := seen[item.nodeID]; exists {
+			continue
+		}
+		seen[item.nodeID] = struct{}{}
+		ids = append(ids, githubv4.ID(item.nodeID))
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+
+	var query batchProjectItemsByNodeIDQuery
+	if err := gqlClient.Query(ctx, &query, map[string]any{"ids": ids}); err != nil {
+		results := make(map[string]itemLookupResult, len(ids))
+		for _, id := range ids {
+			results[fmt.Sprintf("%v", id)] = itemLookupResult{err: fmt.Errorf("failed to inspect project item content: %w", err)}
+		}
+		return results
+	}
+
+	results := make(map[string]itemLookupResult, len(ids))
+	for _, node := range query.Nodes {
+		item := node.ProjectV2Item
+		nodeID := fmt.Sprintf("%v", item.ID)
+		if item.ID == nil {
+			continue
+		}
+		if item.Project.ID != projectID {
+			results[nodeID] = itemLookupResult{err: ghErrors.NewStructuredResolutionError(
+				"item_not_in_project",
+				nodeID,
+				"the project item does not belong to the named project",
+				nil,
+			)}
+			continue
+		}
+
+		issueNodeID, err := batchProjectItemIssueNodeID(item)
+		fullDatabaseID := int64(0)
+		if item.FullDatabaseID != "" {
+			var parseErr error
+			fullDatabaseID, parseErr = parseInt64(string(item.FullDatabaseID))
+			if parseErr != nil {
+				err = fmt.Errorf("project item %s has invalid full database ID %q: %w", nodeID, item.FullDatabaseID, parseErr)
+			}
+		}
+		results[nodeID] = itemLookupResult{
+			nodeID:         nodeID,
+			fullDatabaseID: fullDatabaseID,
+			issueNodeID:    issueNodeID,
+			err:            err,
+		}
+	}
+
+	for _, id := range ids {
+		nodeID := fmt.Sprintf("%v", id)
+		if _, exists := results[nodeID]; !exists {
+			results[nodeID] = itemLookupResult{err: fmt.Errorf("project item %s was not found", nodeID)}
+		}
+	}
+	return results
+}
+
+func batchProjectItemIssueNodeID(item batchProjectItemIssueNode) (string, error) {
+	switch item.Content.TypeName {
+	case "Issue":
+		if item.Content.Issue.ID == nil {
+			break
+		}
+		return fmt.Sprintf("%v", item.Content.Issue.ID), nil
+	case "PullRequest":
+		return "", ghErrors.NewStructuredResolutionError(
+			"unsupported_item_type",
+			"PullRequest",
+			"Issue Fields can only be updated on Issue project items, not pull requests or draft issues",
+			nil,
+		)
+	case "DraftIssue":
+		return "", ghErrors.NewStructuredResolutionError(
+			"unsupported_item_type",
+			"DraftIssue",
+			"Issue Fields can only be updated on Issue project items, not pull requests or draft issues",
+			nil,
+		)
+	}
+	return "", ghErrors.NewStructuredResolutionError(
+		"issue_field_metadata_unavailable",
+		fmt.Sprintf("%v", item.ID),
+		"the project item did not include the underlying Issue node ID needed to update the Issue Field",
+		nil,
+	)
 }
 
 func resolveIssueRefs(ctx context.Context, gqlClient *githubv4.Client, projectID githubv4.ID, items []parsedBatchItem) map[issueRefKey]itemLookupResult {
@@ -761,10 +947,10 @@ func resolveIssueRefs(ctx context.Context, gqlClient *githubv4.Client, projectID
 				return
 			}
 
-			nodeID, itemID, err := resolveProjectItemByIssueNumberWithProjectID(ctx, gqlClient, projectID, key.owner, key.repo, key.number)
+			nodeID, itemID, issueNodeID, err := resolveProjectItemByIssueNumberWithProjectID(ctx, gqlClient, projectID, key.owner, key.repo, key.number)
 
 			mu.Lock()
-			out[key] = itemLookupResult{nodeID: nodeID, fullDatabaseID: itemID, err: err}
+			out[key] = itemLookupResult{nodeID: nodeID, fullDatabaseID: itemID, issueNodeID: issueNodeID, err: err}
 			mu.Unlock()
 		}(key)
 	}

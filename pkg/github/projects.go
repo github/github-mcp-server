@@ -548,7 +548,7 @@ func projectUpdatedFieldSchema() *jsonschema.Schema {
 
 	return &jsonschema.Schema{
 		Type:        "object",
-		Description: "The field to update and its new value. Required for 'update_project_item' and 'update_project_items'. For 'update_project_items', one top-level field/value applies to every item. Set value to null to clear the field.",
+		Description: "The Project or attached Issue Field to update and its new value. Required for 'update_project_item' and 'update_project_items'. For 'update_project_items', one top-level field/value applies to every item. Set value to null to clear the field.",
 		OneOf: []*jsonschema.Schema{
 			variant([]string{"id", "value"}, map[string]*jsonschema.Schema{
 				"id": {
@@ -559,7 +559,7 @@ func projectUpdatedFieldSchema() *jsonschema.Schema {
 			variant([]string{"name", "value"}, map[string]*jsonschema.Schema{
 				"name": {
 					Type:        "string",
-					Description: "The case-insensitive field name. Supports standard Project fields. Singular 'update_project_item' also supports attached Issue Fields; 'update_project_items' does not.",
+					Description: "The case-insensitive Project or attached Issue Field name.",
 				},
 			}, "The new value, or null to clear the field. Use a string for TEXT, a finite number for NUMBER, a YYYY-MM-DD string for DATE, and an option name (case-insensitive) or option ID for SINGLE_SELECT."),
 		},

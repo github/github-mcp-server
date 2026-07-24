@@ -186,7 +186,7 @@
         "type": "string"
       },
       "updated_field": {
-        "description": "The field to update and its new value. Required for 'update_project_item' and 'update_project_items'. For 'update_project_items', one top-level field/value applies to every item. Set value to null to clear the field.",
+        "description": "The Project or attached Issue Field to update and its new value. Required for 'update_project_item' and 'update_project_items'. For 'update_project_items', one top-level field/value applies to every item. Set value to null to clear the field.",
         "oneOf": [
           {
             "additionalProperties": false,
@@ -209,7 +209,7 @@
             "additionalProperties": false,
             "properties": {
               "name": {
-                "description": "The case-insensitive field name. Supports standard Project fields. Singular 'update_project_item' also supports attached Issue Fields; 'update_project_items' does not.",
+                "description": "The case-insensitive Project or attached Issue Field name.",
                 "type": "string"
               },
               "value": {

@@ -264,6 +264,7 @@ func Test_ResolveSingleSelectOptionByName_WrongFieldType(t *testing.T) {
 type resolveItemByIssueQuery struct {
 	Repository struct {
 		Issue struct {
+			ID           githubv4.ID
 			ProjectItems struct {
 				Nodes []struct {
 					ID             githubv4.ID
@@ -281,6 +282,7 @@ type resolveItemByIssueQuery struct {
 type resolveItemByIssuePageQuery struct {
 	Repository struct {
 		Issue struct {
+			ID           githubv4.ID
 			ProjectItems struct {
 				Nodes []struct {
 					ID             githubv4.ID

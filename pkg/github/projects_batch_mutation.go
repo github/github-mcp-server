@@ -17,13 +17,18 @@ type batchMutationKind int
 const (
 	batchMutationUpdate batchMutationKind = iota
 	batchMutationClear
+	batchMutationSetIssueField
 )
 
 func (k batchMutationKind) fieldName() string {
-	if k == batchMutationClear {
+	switch k {
+	case batchMutationClear:
 		return "clearProjectV2ItemFieldValue"
+	case batchMutationSetIssueField:
+		return "setIssueFieldValue"
+	default:
+		return "updateProjectV2ItemFieldValue"
 	}
-	return "updateProjectV2ItemFieldValue"
 }
 
 type projectV2ItemMutationResult struct {
@@ -31,6 +36,19 @@ type projectV2ItemMutationResult struct {
 		ID             string
 		FullDatabaseID string `graphql:"fullDatabaseId"`
 	} `graphql:"projectV2Item"`
+}
+
+type issueFieldMutationResult struct {
+	Issue struct {
+		ID string
+	} `graphql:"issue"`
+}
+
+func (k batchMutationKind) resultType() reflect.Type {
+	if k == batchMutationSetIssueField {
+		return reflect.TypeFor[issueFieldMutationResult]()
+	}
+	return reflect.TypeFor[projectV2ItemMutationResult]()
 }
 
 type reflectedMutationTypeKey struct {
@@ -51,7 +69,7 @@ func buildAliasedMutationType(kind batchMutationKind, size int) reflect.Type {
 		return cached.(reflect.Type)
 	}
 
-	resultType := reflect.TypeFor[projectV2ItemMutationResult]()
+	resultType := kind.resultType()
 	fields := make([]reflect.StructField, size)
 	for i := range size {
 		varName := "input"
@@ -71,8 +89,8 @@ func buildAliasedMutationType(kind batchMutationKind, size int) reflect.Type {
 }
 
 type mutationAliasOutcome struct {
-	// Populated confirms this alias returned a project item, even when the
-	// response also contains GraphQL errors.
+	// Populated confirms this alias returned its target, even when the response
+	// also contains GraphQL errors.
 	Populated      bool
 	NodeID         string
 	FullDatabaseID string
@@ -105,14 +123,24 @@ func executeAliasedMutation(ctx context.Context, gqlClient *githubv4.Client, kin
 	outcomes := make([]mutationAliasOutcome, len(inputs))
 	elem := mutationPtr.Elem()
 	for i := range inputs {
-		result, ok := elem.Field(i).Interface().(projectV2ItemMutationResult)
-		if !ok || result.ProjectV2Item.ID == "" {
-			continue
-		}
-		outcomes[i] = mutationAliasOutcome{
-			Populated:      true,
-			NodeID:         result.ProjectV2Item.ID,
-			FullDatabaseID: result.ProjectV2Item.FullDatabaseID,
+		switch result := elem.Field(i).Interface().(type) {
+		case projectV2ItemMutationResult:
+			if result.ProjectV2Item.ID == "" {
+				continue
+			}
+			outcomes[i] = mutationAliasOutcome{
+				Populated:      true,
+				NodeID:         result.ProjectV2Item.ID,
+				FullDatabaseID: result.ProjectV2Item.FullDatabaseID,
+			}
+		case issueFieldMutationResult:
+			if result.Issue.ID == "" {
+				continue
+			}
+			outcomes[i] = mutationAliasOutcome{
+				Populated: true,
+				NodeID:    result.Issue.ID,
+			}
 		}
 	}
 	return outcomes, mutateErr

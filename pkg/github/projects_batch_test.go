@@ -92,12 +92,12 @@ func (m *mutationAwareTransport) RoundTrip(req *http.Request) (*http.Response, e
 	}
 
 	if !strings.HasPrefix(strings.TrimSpace(parsed.Query), "mutation") {
-		m.queryCalls = append(m.queryCalls, capturedGraphQLRequest{Query: parsed.Query, Variables: parsed.Variables})
+		m.queryCalls = append(m.queryCalls, capturedGraphQLRequest{Query: parsed.Query, Variables: parsed.Variables, Headers: req.Header.Clone()})
 		req.Body = io.NopCloser(strings.NewReader(string(raw)))
 		return m.queries.RoundTrip(req)
 	}
 
-	captured := capturedGraphQLRequest{Query: parsed.Query, Variables: parsed.Variables}
+	captured := capturedGraphQLRequest{Query: parsed.Query, Variables: parsed.Variables, Headers: req.Header.Clone()}
 	idx := len(m.mutationCalls)
 	m.mutationCalls = append(m.mutationCalls, captured)
 	if m.mutationRespond == nil {
@@ -1259,7 +1259,7 @@ func Test_ResolveItemNodeIDsByNumericID_DeduplicatesOrgAndUserLookups(t *testing
 				},
 			}))
 
-			resolved := resolveItemNodeIDsByNumericID(t.Context(), client, "octocat", tt.ownerType, 1, []int64{1001, 1001})
+			resolved := resolveItemNodeIDsByNumericID(t.Context(), client, "octocat", tt.ownerType, 1, []int64{1001, 1001}, false)
 
 			require.NoError(t, resolved[1001].err)
 			assert.Equal(t, "PVTI_item1001", resolved[1001].nodeID)
