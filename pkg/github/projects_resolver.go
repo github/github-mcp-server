@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/shurcooL/githubv4"
 )
@@ -23,11 +24,32 @@ type ResolvedFieldOption struct {
 // ResolvedField contains a project's numeric database ID, GraphQL node ID, and
 // type-specific options.
 type ResolvedField struct {
-	ID       string
-	NodeID   string
-	Name     string
-	DataType string
-	Options  []ResolvedFieldOption
+	ID               string
+	NodeID           string
+	Name             string
+	DataType         string
+	Options          []ResolvedFieldOption
+	IsIssueField     bool
+	IssueFieldNodeID string
+}
+
+type projectIssueFieldMetadata struct {
+	Text struct {
+		ID githubv4.ID
+	} `graphql:"... on IssueFieldText"`
+	Number struct {
+		ID githubv4.ID
+	} `graphql:"... on IssueFieldNumber"`
+	Date struct {
+		ID githubv4.ID
+	} `graphql:"... on IssueFieldDate"`
+	SingleSelect struct {
+		ID      githubv4.ID
+		Options []struct {
+			ID   githubv4.ID
+			Name githubv4.String
+		}
+	} `graphql:"... on IssueFieldSingleSelect"`
 }
 
 // projectFieldsQueryOrg fetches all fields on an org-owned project (paginated).
@@ -53,10 +75,12 @@ type projectFieldsQueryUser struct {
 type projectFieldsConnection struct {
 	Nodes []struct {
 		ProjectV2Field struct {
-			ID         githubv4.ID
-			DatabaseID githubv4.Int `graphql:"databaseId"`
-			Name       githubv4.String
-			DataType   githubv4.String
+			ID           githubv4.ID
+			DatabaseID   githubv4.Int `graphql:"databaseId"`
+			Name         githubv4.String
+			DataType     githubv4.String
+			IsIssueField githubv4.Boolean
+			IssueField   projectIssueFieldMetadata
 		} `graphql:"... on ProjectV2Field"`
 		ProjectV2IterationField struct {
 			ID         githubv4.ID
@@ -65,11 +89,13 @@ type projectFieldsConnection struct {
 			DataType   githubv4.String
 		} `graphql:"... on ProjectV2IterationField"`
 		ProjectV2SingleSelectField struct {
-			ID         githubv4.ID
-			DatabaseID githubv4.Int `graphql:"databaseId"`
-			Name       githubv4.String
-			DataType   githubv4.String
-			Options    []struct {
+			ID           githubv4.ID
+			DatabaseID   githubv4.Int `graphql:"databaseId"`
+			Name         githubv4.String
+			DataType     githubv4.String
+			IsIssueField githubv4.Boolean
+			IssueField   projectIssueFieldMetadata
+			Options      []struct {
 				ID   githubv4.String
 				Name githubv4.String
 			}
@@ -82,6 +108,7 @@ type projectFieldsConnection struct {
 func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int) ([]ResolvedField, error) {
 	all := []ResolvedField{}
 	var after *githubv4.String
+	ctx = ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
 
 	for {
 		vars := map[string]any{
@@ -112,16 +139,28 @@ func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner
 		for _, n := range conn.Nodes {
 			switch {
 			case n.ProjectV2SingleSelectField.ID != nil:
-				opts := make([]ResolvedFieldOption, 0, len(n.ProjectV2SingleSelectField.Options))
-				for _, o := range n.ProjectV2SingleSelectField.Options {
-					opts = append(opts, ResolvedFieldOption{ID: string(o.ID), Name: string(o.Name)})
+				field := n.ProjectV2SingleSelectField
+				opts := make([]ResolvedFieldOption, 0, len(field.Options))
+				issueFieldNodeID := ""
+				if field.IsIssueField {
+					opts = make([]ResolvedFieldOption, 0, len(field.IssueField.SingleSelect.Options))
+					issueFieldNodeID = issueFieldNodeIDForType(field.DataType, field.IssueField)
+					for _, o := range field.IssueField.SingleSelect.Options {
+						opts = append(opts, ResolvedFieldOption{ID: fmt.Sprintf("%v", o.ID), Name: string(o.Name)})
+					}
+				} else {
+					for _, o := range field.Options {
+						opts = append(opts, ResolvedFieldOption{ID: string(o.ID), Name: string(o.Name)})
+					}
 				}
 				all = append(all, ResolvedField{
-					ID:       fmt.Sprintf("%d", n.ProjectV2SingleSelectField.DatabaseID),
-					NodeID:   fmt.Sprintf("%v", n.ProjectV2SingleSelectField.ID),
-					Name:     string(n.ProjectV2SingleSelectField.Name),
-					DataType: string(n.ProjectV2SingleSelectField.DataType),
-					Options:  opts,
+					ID:               fmt.Sprintf("%d", field.DatabaseID),
+					NodeID:           fmt.Sprintf("%v", field.ID),
+					Name:             string(field.Name),
+					DataType:         string(field.DataType),
+					Options:          opts,
+					IsIssueField:     bool(field.IsIssueField),
+					IssueFieldNodeID: issueFieldNodeID,
 				})
 			case n.ProjectV2IterationField.ID != nil:
 				all = append(all, ResolvedField{
@@ -131,13 +170,17 @@ func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner
 					DataType: string(n.ProjectV2IterationField.DataType),
 				})
 			case n.ProjectV2Field.ID != nil:
+				field := n.ProjectV2Field
 				all = append(all, ResolvedField{
-					ID:       fmt.Sprintf("%d", n.ProjectV2Field.DatabaseID),
-					NodeID:   fmt.Sprintf("%v", n.ProjectV2Field.ID),
-					Name:     string(n.ProjectV2Field.Name),
-					DataType: string(n.ProjectV2Field.DataType),
+					ID:               fmt.Sprintf("%d", field.DatabaseID),
+					NodeID:           fmt.Sprintf("%v", field.ID),
+					Name:             string(field.Name),
+					DataType:         string(field.DataType),
+					IsIssueField:     bool(field.IsIssueField),
+					IssueFieldNodeID: issueFieldNodeIDForType(field.DataType, field.IssueField),
 				})
 			}
+
 		}
 
 		if !bool(conn.PageInfo.HasNextPage) {
@@ -148,6 +191,24 @@ func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner
 	}
 
 	return all, nil
+}
+
+func issueFieldNodeIDForType(dataType githubv4.String, metadata projectIssueFieldMetadata) string {
+	var id githubv4.ID
+	switch strings.ToUpper(string(dataType)) {
+	case "TEXT":
+		id = metadata.Text.ID
+	case "NUMBER":
+		id = metadata.Number.ID
+	case "DATE":
+		id = metadata.Date.ID
+	case "SINGLE_SELECT":
+		id = metadata.SingleSelect.ID
+	}
+	if id == nil {
+		return ""
+	}
+	return fmt.Sprintf("%v", id)
 }
 
 // resolveProjectFieldByName resolves a field by display name. Returns a

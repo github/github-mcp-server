@@ -21,10 +21,12 @@ type projectFieldsTestQuery struct {
 			Fields struct {
 				Nodes []struct {
 					ProjectV2Field struct {
-						ID         githubv4.ID
-						DatabaseID githubv4.Int `graphql:"databaseId"`
-						Name       githubv4.String
-						DataType   githubv4.String
+						ID           githubv4.ID
+						DatabaseID   githubv4.Int `graphql:"databaseId"`
+						Name         githubv4.String
+						DataType     githubv4.String
+						IsIssueField githubv4.Boolean
+						IssueField   projectIssueFieldMetadata
 					} `graphql:"... on ProjectV2Field"`
 					ProjectV2IterationField struct {
 						ID         githubv4.ID
@@ -33,11 +35,13 @@ type projectFieldsTestQuery struct {
 						DataType   githubv4.String
 					} `graphql:"... on ProjectV2IterationField"`
 					ProjectV2SingleSelectField struct {
-						ID         githubv4.ID
-						DatabaseID githubv4.Int `graphql:"databaseId"`
-						Name       githubv4.String
-						DataType   githubv4.String
-						Options    []struct {
+						ID           githubv4.ID
+						DatabaseID   githubv4.Int `graphql:"databaseId"`
+						Name         githubv4.String
+						DataType     githubv4.String
+						IsIssueField githubv4.Boolean
+						IssueField   projectIssueFieldMetadata
+						Options      []struct {
 							ID   githubv4.String
 							Name githubv4.String
 						}

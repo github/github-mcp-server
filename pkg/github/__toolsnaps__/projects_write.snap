@@ -186,7 +186,7 @@
         "type": "string"
       },
       "updated_field": {
-        "description": "The field/value to apply, using {\"id\": 123, \"value\": ...} or {\"name\": \"Status\", \"value\": ...}; null clears the field. Required for 'update_project_item' and 'update_project_items', where one top-level field/value applies to every item in a batch. For 'update_project_item' SINGLE_SELECT fields, the name form accepts option names; the ID form expects an option ID.",
+        "description": "The field/value to apply, using {\"id\": 123, \"value\": ...} or {\"name\": \"Status\", \"value\": ...}; null clears the field. Required for 'update_project_item' and 'update_project_items', where one top-level field/value applies to every item in a batch. For 'update_project_item', the name form supports attached Issue Fields on Issue items and accepts SINGLE_SELECT option names case-insensitively. Attached Issue Fields are not supported by 'update_project_items'; use singular 'update_project_item'. The ID form addresses standard Project fields and expects an option ID for SINGLE_SELECT.",
         "oneOf": [
           {
             "additionalProperties": false,

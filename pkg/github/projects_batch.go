@@ -119,6 +119,12 @@ func updateProjectItemsBatch(ctx context.Context, client *github.Client, gqlClie
 	if fieldErr != nil {
 		return batchTopLevelError(fieldErr), nil, nil
 	}
+	if field.IsIssueField {
+		return utils.NewToolResultError(fmt.Sprintf(
+			"field %q is an attached Issue Field; update_project_items does not support Issue Fields because they are values on Issue content. Use singular update_project_item for each Issue item",
+			field.Name,
+		)), nil, nil
+	}
 
 	kind := batchMutationUpdate
 	var value githubv4.ProjectV2FieldValue
