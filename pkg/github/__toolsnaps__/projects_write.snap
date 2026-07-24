@@ -186,17 +186,17 @@
         "type": "string"
       },
       "updated_field": {
-        "description": "The field/value to apply, using {\"id\": 123, \"value\": ...} or {\"name\": \"Status\", \"value\": ...}; null clears the field. Required for 'update_project_item' and 'update_project_items', where one top-level field/value applies to every item in a batch. For 'update_project_item', the name form supports attached Issue Fields on Issue items and accepts SINGLE_SELECT option names case-insensitively. Attached Issue Fields are not supported by 'update_project_items'; use singular 'update_project_item'. The ID form addresses standard Project fields and expects an option ID for SINGLE_SELECT.",
+        "description": "The field to update and its new value. Required for 'update_project_item' and 'update_project_items'. For 'update_project_items', one top-level field/value applies to every item. Set value to null to clear the field.",
         "oneOf": [
           {
             "additionalProperties": false,
             "properties": {
               "id": {
-                "description": "The numeric project field ID.",
+                "description": "The numeric ID of a standard Project field. Attached Issue Fields must be updated by name with singular 'update_project_item'.",
                 "type": "integer"
               },
               "value": {
-                "description": "The value to apply. Any JSON value is accepted; use null to clear the field."
+                "description": "The new value, or null to clear the field. For SINGLE_SELECT, use the option ID."
               }
             },
             "required": [
@@ -209,11 +209,11 @@
             "additionalProperties": false,
             "properties": {
               "name": {
-                "description": "The project field name. Matching is case-insensitive.",
+                "description": "The case-insensitive field name. Supports standard Project fields. Singular 'update_project_item' also supports attached Issue Fields; 'update_project_items' does not.",
                 "type": "string"
               },
               "value": {
-                "description": "The value to apply. Any JSON value is accepted; use null to clear the field."
+                "description": "The new value, or null to clear the field. Use a string for TEXT, a finite number for NUMBER, a YYYY-MM-DD string for DATE, and an option name (case-insensitive) or option ID for SINGLE_SELECT."
               }
             },
             "required": [

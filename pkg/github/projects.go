@@ -536,11 +536,8 @@ func updateProjectItemsItemSchema() *jsonschema.Schema {
 }
 
 func projectUpdatedFieldSchema() *jsonschema.Schema {
-	value := &jsonschema.Schema{
-		Description: "The value to apply. Any JSON value is accepted; use null to clear the field.",
-	}
-	variant := func(required []string, properties map[string]*jsonschema.Schema) *jsonschema.Schema {
-		properties["value"] = value
+	variant := func(required []string, properties map[string]*jsonschema.Schema, valueDescription string) *jsonschema.Schema {
+		properties["value"] = &jsonschema.Schema{Description: valueDescription}
 		return &jsonschema.Schema{
 			Type:                 "object",
 			AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
@@ -551,20 +548,20 @@ func projectUpdatedFieldSchema() *jsonschema.Schema {
 
 	return &jsonschema.Schema{
 		Type:        "object",
-		Description: "The field/value to apply, using {\"id\": 123, \"value\": ...} or {\"name\": \"Status\", \"value\": ...}; null clears the field. Required for 'update_project_item' and 'update_project_items', where one top-level field/value applies to every item in a batch. For 'update_project_item', the name form supports attached Issue Fields on Issue items and accepts SINGLE_SELECT option names case-insensitively. Attached Issue Fields are not supported by 'update_project_items'; use singular 'update_project_item'. The ID form addresses standard Project fields and expects an option ID for SINGLE_SELECT.",
+		Description: "The field to update and its new value. Required for 'update_project_item' and 'update_project_items'. For 'update_project_items', one top-level field/value applies to every item. Set value to null to clear the field.",
 		OneOf: []*jsonschema.Schema{
 			variant([]string{"id", "value"}, map[string]*jsonschema.Schema{
 				"id": {
 					Type:        "integer",
-					Description: "The numeric project field ID.",
+					Description: "The numeric ID of a standard Project field. Attached Issue Fields must be updated by name with singular 'update_project_item'.",
 				},
-			}),
+			}, "The new value, or null to clear the field. For SINGLE_SELECT, use the option ID."),
 			variant([]string{"name", "value"}, map[string]*jsonschema.Schema{
 				"name": {
 					Type:        "string",
-					Description: "The project field name. Matching is case-insensitive.",
+					Description: "The case-insensitive field name. Supports standard Project fields. Singular 'update_project_item' also supports attached Issue Fields; 'update_project_items' does not.",
 				},
-			}),
+			}, "The new value, or null to clear the field. Use a string for TEXT, a finite number for NUMBER, a YYYY-MM-DD string for DATE, and an option name (case-insensitive) or option ID for SINGLE_SELECT."),
 		},
 	}
 }
