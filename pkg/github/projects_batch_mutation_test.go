@@ -276,26 +276,6 @@ func Test_ExecuteAliasedMutation_IssueFieldAliases(t *testing.T) {
 	assert.Equal(t, mutationAliasOutcome{Populated: true, NodeID: "I_issue1"}, outcomes[1])
 }
 
-func Test_ExecuteAliasedMutation_IssueFieldPartialData(t *testing.T) {
-	transport := &sequencedGraphQLTransport{
-		t: t,
-		responses: []func(capturedGraphQLRequest) (int, string){
-			func(capturedGraphQLRequest) (int, string) {
-				data := map[string]any{
-					"item0": map[string]any{"issue": map[string]any{"id": "I_issue0"}},
-				}
-				return http.StatusOK, mutationErrorResponse(t, data, "item1 failed")
-			},
-		},
-	}
-
-	outcomes, err := executeAliasedMutation(t.Context(), newTestGQLClient(transport), batchMutationSetIssueField, issueFieldInputsOfSize(2))
-	require.Error(t, err)
-	assert.True(t, isGraphQLResponseError(err))
-	assert.Equal(t, mutationAliasOutcome{Populated: true, NodeID: "I_issue0"}, outcomes[0])
-	assert.Equal(t, mutationAliasOutcome{}, outcomes[1])
-}
-
 func Test_ExecuteAliasedMutation_PreservesPartialDataWithGraphQLErrors(t *testing.T) {
 	transport := &sequencedGraphQLTransport{
 		t: t,

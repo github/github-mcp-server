@@ -1133,7 +1133,7 @@ The following sets of tools are available:
   - `status`: The status of the project. Used for 'create_project_status_update' method. (string, optional)
   - `target_date`: The target date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method. (string, optional)
   - `title`: The project title. Required for 'create_project' method. (string, optional)
-  - `updated_field`: The Project or attached Issue Field to update and its new value. Required for 'update_project_item' and 'update_project_items'. For 'update_project_items', one top-level field/value applies to every item. Set value to null to clear the field. (object, optional)
+  - `updated_field`: The field/value to apply, using {"id": 123, "value": ...} or {"name": "Status", "value": ...}; null clears the field. Required for 'update_project_item' and 'update_project_items', where one top-level field/value applies to every item in a batch. (object, optional)
 
 </details>
 

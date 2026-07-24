@@ -139,27 +139,25 @@ func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner
 		for _, n := range conn.Nodes {
 			switch {
 			case n.ProjectV2SingleSelectField.ID != nil:
-				field := n.ProjectV2SingleSelectField
-				opts := make([]ResolvedFieldOption, 0, len(field.Options))
+				opts := make([]ResolvedFieldOption, 0, len(n.ProjectV2SingleSelectField.Options))
+				for _, o := range n.ProjectV2SingleSelectField.Options {
+					opts = append(opts, ResolvedFieldOption{ID: string(o.ID), Name: string(o.Name)})
+				}
 				issueFieldNodeID := ""
-				if field.IsIssueField {
-					opts = make([]ResolvedFieldOption, 0, len(field.IssueField.SingleSelect.Options))
-					issueFieldNodeID = issueFieldNodeIDForType(field.DataType, field.IssueField)
-					for _, o := range field.IssueField.SingleSelect.Options {
+				if n.ProjectV2SingleSelectField.IsIssueField {
+					opts = opts[:0]
+					issueFieldNodeID = issueFieldNodeIDForType(n.ProjectV2SingleSelectField.DataType, n.ProjectV2SingleSelectField.IssueField)
+					for _, o := range n.ProjectV2SingleSelectField.IssueField.SingleSelect.Options {
 						opts = append(opts, ResolvedFieldOption{ID: fmt.Sprintf("%v", o.ID), Name: string(o.Name)})
-					}
-				} else {
-					for _, o := range field.Options {
-						opts = append(opts, ResolvedFieldOption{ID: string(o.ID), Name: string(o.Name)})
 					}
 				}
 				all = append(all, ResolvedField{
-					ID:               fmt.Sprintf("%d", field.DatabaseID),
-					NodeID:           fmt.Sprintf("%v", field.ID),
-					Name:             string(field.Name),
-					DataType:         string(field.DataType),
+					ID:               fmt.Sprintf("%d", n.ProjectV2SingleSelectField.DatabaseID),
+					NodeID:           fmt.Sprintf("%v", n.ProjectV2SingleSelectField.ID),
+					Name:             string(n.ProjectV2SingleSelectField.Name),
+					DataType:         string(n.ProjectV2SingleSelectField.DataType),
 					Options:          opts,
-					IsIssueField:     bool(field.IsIssueField),
+					IsIssueField:     bool(n.ProjectV2SingleSelectField.IsIssueField),
 					IssueFieldNodeID: issueFieldNodeID,
 				})
 			case n.ProjectV2IterationField.ID != nil:
@@ -170,17 +168,15 @@ func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner
 					DataType: string(n.ProjectV2IterationField.DataType),
 				})
 			case n.ProjectV2Field.ID != nil:
-				field := n.ProjectV2Field
 				all = append(all, ResolvedField{
-					ID:               fmt.Sprintf("%d", field.DatabaseID),
-					NodeID:           fmt.Sprintf("%v", field.ID),
-					Name:             string(field.Name),
-					DataType:         string(field.DataType),
-					IsIssueField:     bool(field.IsIssueField),
-					IssueFieldNodeID: issueFieldNodeIDForType(field.DataType, field.IssueField),
+					ID:               fmt.Sprintf("%d", n.ProjectV2Field.DatabaseID),
+					NodeID:           fmt.Sprintf("%v", n.ProjectV2Field.ID),
+					Name:             string(n.ProjectV2Field.Name),
+					DataType:         string(n.ProjectV2Field.DataType),
+					IsIssueField:     bool(n.ProjectV2Field.IsIssueField),
+					IssueFieldNodeID: issueFieldNodeIDForType(n.ProjectV2Field.DataType, n.ProjectV2Field.IssueField),
 				})
 			}
-
 		}
 
 		if !bool(conn.PageInfo.HasNextPage) {
@@ -297,18 +293,6 @@ func resolveProjectFieldByID(ctx context.Context, gqlClient *githubv4.Client, ow
 	)
 }
 
-func projectFieldCandidates(fields []ResolvedField) []any {
-	candidates := make([]any, 0, len(fields))
-	for _, field := range fields {
-		candidates = append(candidates, map[string]any{
-			"id":        field.ID,
-			"name":      field.Name,
-			"data_type": field.DataType,
-		})
-	}
-	return candidates
-}
-
 // resolveSingleSelectOptionByName resolves an option name to its ID on a
 // SINGLE_SELECT field. Returns a structured error if not found or ambiguous.
 func resolveSingleSelectOptionByName(field *ResolvedField, optionName string) (string, error) {
@@ -360,16 +344,12 @@ func resolveSingleSelectOptionByName(field *ResolvedField, optionName string) (s
 }
 
 func resolveSingleSelectOptionByNameOrID(field *ResolvedField, value string) (string, error) {
-	optionID, err := resolveSingleSelectOptionByName(field, value)
-	if err == nil {
-		return optionID, nil
-	}
 	for _, option := range field.Options {
 		if option.ID == value {
 			return value, nil
 		}
 	}
-	return "", err
+	return resolveSingleSelectOptionByName(field, value)
 }
 
 // resolveProjectItemIDByIssueNumber resolves a (project, issue) pair to the

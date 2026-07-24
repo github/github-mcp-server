@@ -1294,7 +1294,6 @@ func SetIssueFieldValues(ctx context.Context, gqlClient *githubv4.Client, issueI
 		IssueID:     issueID,
 		IssueFields: issueFields,
 	}
-	ctx = ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields", "update_issue_suggestions")
 	if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
 		return MinimalResponse{}, err
 	}
@@ -1527,7 +1526,8 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue", err), nil, nil
 			}
 
-			response, err := SetIssueFieldValues(ctx, gqlClient, issueID, issueFields)
+			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "update_issue_suggestions")
+			response, err := SetIssueFieldValues(ctxWithFeatures, gqlClient, issueID, issueFields)
 			if err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to set issue field values", err), nil, nil
 			}

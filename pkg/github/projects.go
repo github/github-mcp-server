@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -536,7 +537,9 @@ func updateProjectItemsItemSchema() *jsonschema.Schema {
 }
 
 func projectUpdatedFieldSchema() *jsonschema.Schema {
-	value := &jsonschema.Schema{Description: "The field value."}
+	value := &jsonschema.Schema{
+		Description: "The value to apply. Any JSON value is accepted; use null to clear the field.",
+	}
 	variant := func(required []string, properties map[string]*jsonschema.Schema) *jsonschema.Schema {
 		properties["value"] = value
 		return &jsonschema.Schema{
@@ -549,18 +552,18 @@ func projectUpdatedFieldSchema() *jsonschema.Schema {
 
 	return &jsonschema.Schema{
 		Type:        "object",
-		Description: "The Project or attached Issue Field to update and its new value. Required for 'update_project_item' and 'update_project_items'. For 'update_project_items', one top-level field/value applies to every item. Set value to null to clear the field.",
+		Description: "The field/value to apply, using {\"id\": 123, \"value\": ...} or {\"name\": \"Status\", \"value\": ...}; null clears the field. Required for 'update_project_item' and 'update_project_items', where one top-level field/value applies to every item in a batch.",
 		OneOf: []*jsonschema.Schema{
 			variant([]string{"id", "value"}, map[string]*jsonschema.Schema{
 				"id": {
 					Type:        "integer",
-					Description: "The numeric Project field ID.",
+					Description: "The numeric project field ID.",
 				},
 			}),
 			variant([]string{"name", "value"}, map[string]*jsonschema.Schema{
 				"name": {
 					Type:        "string",
-					Description: "The case-insensitive Project or attached Issue Field name.",
+					Description: "The project field name. Matching is case-insensitive.",
 				},
 			}),
 		},
@@ -1267,7 +1270,8 @@ func updateProjectItem(ctx context.Context, client *github.Client, gqlClient *gi
 			}
 			return utils.NewToolResultError(resolveErr.Error()), nil, nil
 		}
-		response, mutationErr := SetIssueFieldValues(ctx, gqlClient, issueID, []IssueFieldCreateOrUpdateInput{*update.IssueField})
+		mutationCtx := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields", "update_issue_suggestions")
+		response, mutationErr := SetIssueFieldValues(mutationCtx, gqlClient, issueID, []IssueFieldCreateOrUpdateInput{*update.IssueField})
 		if mutationErr != nil {
 			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to update Issue Field", mutationErr), nil, nil
 		}
@@ -1309,36 +1313,6 @@ func updateProjectItem(ctx context.Context, client *github.Client, gqlClient *gi
 	}
 
 	return utils.NewToolResultText(string(r)), nil, nil
-}
-
-func projectItemIssueNodeID(item *github.ProjectV2Item) (githubv4.ID, error) {
-	if item == nil || item.ContentType == nil {
-		return "", ghErrors.NewStructuredResolutionError(
-			"issue_field_metadata_unavailable",
-			"",
-			"the project item response did not identify its content type; Issue Fields can only be updated on Issue items",
-			nil,
-		)
-	}
-
-	contentType := string(*item.ContentType)
-	if contentType != "Issue" {
-		return "", ghErrors.NewStructuredResolutionError(
-			"unsupported_item_type",
-			contentType,
-			"Issue Fields can only be updated on Issue project items, not pull requests or draft issues",
-			nil,
-		)
-	}
-	if item.Content == nil || item.Content.Issue == nil || item.Content.Issue.GetNodeID() == "" {
-		return "", ghErrors.NewStructuredResolutionError(
-			"issue_field_metadata_unavailable",
-			"Issue",
-			"the project item response did not include the underlying Issue node ID needed to update the Issue Field",
-			nil,
-		)
-	}
-	return githubv4.ID(item.Content.Issue.GetNodeID()), nil
 }
 
 func deleteProjectItem(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, itemID int64) (*mcp.CallToolResult, any, error) {
@@ -1768,76 +1742,6 @@ func buildUpdateProjectItem(ctx context.Context, gqlClient *githubv4.Client, own
 	}
 
 	return &resolvedProjectItemUpdate{Project: payload}, nil
-}
-
-func buildIssueFieldUpdate(field *ResolvedField, raw any) (*IssueFieldCreateOrUpdateInput, error) {
-	if field == nil || field.IssueFieldNodeID == "" {
-		name := ""
-		if field != nil {
-			name = field.Name
-		}
-		return nil, ghErrors.NewStructuredResolutionError(
-			"issue_field_metadata_unavailable",
-			name,
-			"the attached Project field did not include the underlying Issue Field node ID; refresh field metadata and retry",
-			nil,
-		)
-	}
-
-	input := &IssueFieldCreateOrUpdateInput{FieldID: githubv4.ID(field.IssueFieldNodeID)}
-	if raw == nil {
-		deleteValue := githubv4.Boolean(true)
-		input.Delete = &deleteValue
-		return input, nil
-	}
-
-	invalidValue := func(hint string) (*IssueFieldCreateOrUpdateInput, error) {
-		return nil, ghErrors.NewStructuredResolutionError("invalid_field_value", field.Name, hint, nil)
-	}
-
-	switch field.DataType {
-	case "TEXT":
-		value, ok := raw.(string)
-		if !ok {
-			return invalidValue(fmt.Sprintf("Issue Field %q is TEXT; value must be a string or null to clear it", field.Name))
-		}
-		input.TextValue = githubv4.NewString(githubv4.String(value))
-	case "NUMBER":
-		value, ok := toFloat64(raw)
-		if !ok {
-			return invalidValue(fmt.Sprintf("Issue Field %q is NUMBER; value must be a finite number or null to clear it", field.Name))
-		}
-		number := githubv4.Float(value)
-		input.NumberValue = &number
-	case "DATE":
-		value, ok := raw.(string)
-		if !ok {
-			return invalidValue(fmt.Sprintf("Issue Field %q is DATE; value must be a YYYY-MM-DD string or null to clear it", field.Name))
-		}
-		if _, err := time.Parse("2006-01-02", value); err != nil {
-			return invalidValue(fmt.Sprintf("Issue Field %q is DATE; value %q must use YYYY-MM-DD format", field.Name, value))
-		}
-		input.DateValue = githubv4.NewString(githubv4.String(value))
-	case "SINGLE_SELECT":
-		value, ok := raw.(string)
-		if !ok || value == "" {
-			return invalidValue(fmt.Sprintf("Issue Field %q is SINGLE_SELECT; value must be a non-empty option name or ID, or null to clear it", field.Name))
-		}
-		optionID, err := resolveSingleSelectOptionByNameOrID(field, value)
-		if err != nil {
-			return nil, err
-		}
-		id := githubv4.ID(optionID)
-		input.SingleSelectOptionID = &id
-	default:
-		return nil, ghErrors.NewStructuredResolutionError(
-			"unsupported_field_type",
-			field.Name,
-			fmt.Sprintf("Issue Field %q has unsupported data type %q; supported types are TEXT, NUMBER, DATE, and SINGLE_SELECT", field.Name, field.DataType),
-			nil,
-		)
-	}
-	return input, nil
 }
 
 func extractPaginationOptionsFromArgs(args map[string]any) (github.ListProjectsPaginationOptions, error) {

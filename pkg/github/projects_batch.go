@@ -162,7 +162,17 @@ func updateProjectItemsBatch(ctx context.Context, client *github.Client, gqlClie
 			continue
 		}
 
-		nodeID, fullDatabaseID, issueNodeID, lookupErr := resolveItemReference(p, itemIDLookups, issueLookups, nodeIDLookups, field.IsIssueField)
+		var (
+			nodeID         string
+			fullDatabaseID int64
+			issueNodeID    string
+			lookupErr      error
+		)
+		if field.IsIssueField {
+			nodeID, fullDatabaseID, issueNodeID, lookupErr = resolveIssueFieldItemReference(p, itemIDLookups, issueLookups, nodeIDLookups)
+		} else {
+			nodeID, fullDatabaseID, lookupErr = resolveItemReference(p, itemIDLookups, issueLookups)
+		}
 		if lookupErr != nil {
 			results[i] = batchItemResult{Index: i, Status: batchItemFailed, Ref: p.ref, Error: batchErrorFromResolution(lookupErr)}
 			continue
@@ -237,32 +247,49 @@ func newUpdateProjectItemsResult(results []batchItemResult) (*mcp.CallToolResult
 	return result, nil, nil
 }
 
-func resolveItemReference(
+func resolveItemReference(p parsedBatchItem, itemIDLookups map[int64]itemLookupResult, issueLookups map[issueRefKey]itemLookupResult) (nodeID string, fullDatabaseID int64, err error) {
+	switch p.refKind {
+	case batchRefNodeID:
+		return p.nodeID, 0, nil
+	case batchRefItemID:
+		lookup := itemIDLookups[p.itemID]
+		if lookup.err != nil {
+			return "", 0, lookup.err
+		}
+		return lookup.nodeID, p.itemID, nil
+	case batchRefIssue:
+		key := issueRefKey{owner: p.issueOwner, repo: p.issueRepo, number: p.issueNumber}
+		lookup := issueLookups[key]
+		if lookup.err != nil {
+			return "", 0, lookup.err
+		}
+		return lookup.nodeID, lookup.fullDatabaseID, nil
+	default:
+		return "", 0, fmt.Errorf("internal error: unrecognised item reference kind")
+	}
+}
+
+func resolveIssueFieldItemReference(
 	p parsedBatchItem,
 	itemIDLookups map[int64]itemLookupResult,
 	issueLookups map[issueRefKey]itemLookupResult,
 	nodeIDLookups map[string]itemLookupResult,
-	requireIssue bool,
 ) (nodeID string, fullDatabaseID int64, issueNodeID string, err error) {
 	var lookup itemLookupResult
 	switch p.refKind {
 	case batchRefNodeID:
-		if !requireIssue {
-			return p.nodeID, 0, "", nil
-		}
 		lookup = nodeIDLookups[p.nodeID]
 	case batchRefItemID:
 		lookup = itemIDLookups[p.itemID]
 	case batchRefIssue:
-		key := issueRefKey{owner: p.issueOwner, repo: p.issueRepo, number: p.issueNumber}
-		lookup = issueLookups[key]
+		lookup = issueLookups[issueRefKey{owner: p.issueOwner, repo: p.issueRepo, number: p.issueNumber}]
 	default:
 		return "", 0, "", fmt.Errorf("internal error: unrecognised item reference kind")
 	}
 	if lookup.err != nil {
 		return "", 0, "", lookup.err
 	}
-	if requireIssue && lookup.issueNodeID == "" {
+	if lookup.issueNodeID == "" {
 		return "", 0, "", ghErrors.NewStructuredResolutionError(
 			"issue_field_metadata_unavailable",
 			lookup.nodeID,
@@ -586,7 +613,36 @@ func resolveBatchProjectField(ctx context.Context, gqlClient *githubv4.Client, o
 	if spec.name != "" {
 		return resolveProjectFieldByName(ctx, gqlClient, owner, ownerType, projectNumber, spec.name, "")
 	}
-	return resolveProjectFieldByID(ctx, gqlClient, owner, ownerType, projectNumber, spec.id)
+
+	fields, err := listAllProjectFields(ctx, gqlClient, owner, ownerType, projectNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	id := fmt.Sprintf("%d", spec.id)
+	for _, field := range fields {
+		if field.ID == id {
+			return &field, nil
+		}
+	}
+	return nil, ghErrors.NewStructuredResolutionError(
+		"field_not_found",
+		id,
+		fmt.Sprintf("no project field with id %s on project %s#%d; see candidates for available fields", id, owner, projectNumber),
+		projectFieldCandidates(fields),
+	)
+}
+
+func projectFieldCandidates(fields []ResolvedField) []any {
+	candidates := make([]any, 0, len(fields))
+	for _, field := range fields {
+		candidates = append(candidates, map[string]any{
+			"id":        field.ID,
+			"name":      field.Name,
+			"data_type": field.DataType,
+		})
+	}
+	return candidates
 }
 
 func convertProjectFieldValue(field *ResolvedField, raw any) (githubv4.ProjectV2FieldValue, error) {
@@ -625,9 +681,20 @@ func convertProjectFieldValue(field *ResolvedField, raw any) (githubv4.ProjectV2
 		if !ok || s == "" {
 			return zero, fmt.Errorf("field %q is SINGLE_SELECT; value must be a non-empty string (option name or ID)", field.Name)
 		}
-		optID, err := resolveSingleSelectOptionByNameOrID(field, s)
-		if err != nil {
-			return zero, err
+		optID := s
+		if resolvedID, optErr := resolveSingleSelectOptionByName(field, s); optErr == nil {
+			optID = resolvedID
+		} else {
+			known := false
+			for _, opt := range field.Options {
+				if opt.ID == s {
+					known = true
+					break
+				}
+			}
+			if !known {
+				return zero, optErr
+			}
 		}
 		v := githubv4.String(optID)
 		return githubv4.ProjectV2FieldValue{SingleSelectOptionID: &v}, nil
@@ -715,15 +782,11 @@ func resolveItemNodeIDsByNumericID(ctx context.Context, client *github.Client, o
 			}
 
 			var item *github.ProjectV2Item
-			var resp *github.Response
 			var err error
 			if ownerType == "org" {
-				item, resp, err = client.Projects.GetOrganizationProjectItem(ctx, owner, projectNumber, id, nil)
+				item, _, err = client.Projects.GetOrganizationProjectItem(ctx, owner, projectNumber, id, nil)
 			} else {
-				item, resp, err = client.Projects.GetUserProjectItem(ctx, owner, projectNumber, id, nil)
-			}
-			if resp != nil && resp.Body != nil {
-				_ = resp.Body.Close()
+				item, _, err = client.Projects.GetUserProjectItem(ctx, owner, projectNumber, id, nil)
 			}
 
 			var res itemLookupResult
@@ -757,137 +820,6 @@ type issueRefKey struct {
 	owner  string
 	repo   string
 	number int
-}
-
-type batchProjectItemIssueContent struct {
-	TypeName githubv4.String `graphql:"__typename"`
-	Issue    struct {
-		ID githubv4.ID
-	} `graphql:"... on Issue"`
-	PullRequest struct {
-		ID githubv4.ID
-	} `graphql:"... on PullRequest"`
-	DraftIssue struct {
-		ID githubv4.ID
-	} `graphql:"... on DraftIssue"`
-}
-
-type batchProjectItemIssueNode struct {
-	ID             githubv4.ID
-	FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
-	Project        struct {
-		ID githubv4.ID
-	}
-	Content batchProjectItemIssueContent
-}
-
-type batchProjectItemsByNodeIDQuery struct {
-	Nodes []struct {
-		ProjectV2Item batchProjectItemIssueNode `graphql:"... on ProjectV2Item"`
-	} `graphql:"nodes(ids: $ids)"`
-}
-
-func resolveItemIssuesByNodeID(ctx context.Context, gqlClient *githubv4.Client, projectID githubv4.ID, items []parsedBatchItem, requireIssue bool) map[string]itemLookupResult {
-	if !requireIssue {
-		return nil
-	}
-
-	seen := make(map[string]struct{}, len(items))
-	var ids []githubv4.ID
-	for _, item := range items {
-		if item.err != nil || item.refKind != batchRefNodeID {
-			continue
-		}
-		if _, exists := seen[item.nodeID]; exists {
-			continue
-		}
-		seen[item.nodeID] = struct{}{}
-		ids = append(ids, githubv4.ID(item.nodeID))
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-
-	var query batchProjectItemsByNodeIDQuery
-	if err := gqlClient.Query(ctx, &query, map[string]any{"ids": ids}); err != nil {
-		results := make(map[string]itemLookupResult, len(ids))
-		for _, id := range ids {
-			results[fmt.Sprintf("%v", id)] = itemLookupResult{err: fmt.Errorf("failed to inspect project item content: %w", err)}
-		}
-		return results
-	}
-
-	results := make(map[string]itemLookupResult, len(ids))
-	for _, node := range query.Nodes {
-		item := node.ProjectV2Item
-		nodeID := fmt.Sprintf("%v", item.ID)
-		if item.ID == nil {
-			continue
-		}
-		if item.Project.ID != projectID {
-			results[nodeID] = itemLookupResult{err: ghErrors.NewStructuredResolutionError(
-				"item_not_in_project",
-				nodeID,
-				"the project item does not belong to the named project",
-				nil,
-			)}
-			continue
-		}
-
-		issueNodeID, err := batchProjectItemIssueNodeID(item)
-		fullDatabaseID := int64(0)
-		if item.FullDatabaseID != "" {
-			var parseErr error
-			fullDatabaseID, parseErr = parseInt64(string(item.FullDatabaseID))
-			if parseErr != nil {
-				err = fmt.Errorf("project item %s has invalid full database ID %q: %w", nodeID, item.FullDatabaseID, parseErr)
-			}
-		}
-		results[nodeID] = itemLookupResult{
-			nodeID:         nodeID,
-			fullDatabaseID: fullDatabaseID,
-			issueNodeID:    issueNodeID,
-			err:            err,
-		}
-	}
-
-	for _, id := range ids {
-		nodeID := fmt.Sprintf("%v", id)
-		if _, exists := results[nodeID]; !exists {
-			results[nodeID] = itemLookupResult{err: fmt.Errorf("project item %s was not found", nodeID)}
-		}
-	}
-	return results
-}
-
-func batchProjectItemIssueNodeID(item batchProjectItemIssueNode) (string, error) {
-	switch item.Content.TypeName {
-	case "Issue":
-		if item.Content.Issue.ID == nil {
-			break
-		}
-		return fmt.Sprintf("%v", item.Content.Issue.ID), nil
-	case "PullRequest":
-		return "", ghErrors.NewStructuredResolutionError(
-			"unsupported_item_type",
-			"PullRequest",
-			"Issue Fields can only be updated on Issue project items, not pull requests or draft issues",
-			nil,
-		)
-	case "DraftIssue":
-		return "", ghErrors.NewStructuredResolutionError(
-			"unsupported_item_type",
-			"DraftIssue",
-			"Issue Fields can only be updated on Issue project items, not pull requests or draft issues",
-			nil,
-		)
-	}
-	return "", ghErrors.NewStructuredResolutionError(
-		"issue_field_metadata_unavailable",
-		fmt.Sprintf("%v", item.ID),
-		"the project item did not include the underlying Issue node ID needed to update the Issue Field",
-		nil,
-	)
 }
 
 func resolveIssueRefs(ctx context.Context, gqlClient *githubv4.Client, projectID githubv4.ID, items []parsedBatchItem) map[issueRefKey]itemLookupResult {

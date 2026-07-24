@@ -186,17 +186,17 @@
         "type": "string"
       },
       "updated_field": {
-        "description": "The Project or attached Issue Field to update and its new value. Required for 'update_project_item' and 'update_project_items'. For 'update_project_items', one top-level field/value applies to every item. Set value to null to clear the field.",
+        "description": "The field/value to apply, using {\"id\": 123, \"value\": ...} or {\"name\": \"Status\", \"value\": ...}; null clears the field. Required for 'update_project_item' and 'update_project_items', where one top-level field/value applies to every item in a batch.",
         "oneOf": [
           {
             "additionalProperties": false,
             "properties": {
               "id": {
-                "description": "The numeric Project field ID.",
+                "description": "The numeric project field ID.",
                 "type": "integer"
               },
               "value": {
-                "description": "The field value."
+                "description": "The value to apply. Any JSON value is accepted; use null to clear the field."
               }
             },
             "required": [
@@ -209,11 +209,11 @@
             "additionalProperties": false,
             "properties": {
               "name": {
-                "description": "The case-insensitive Project or attached Issue Field name.",
+                "description": "The project field name. Matching is case-insensitive.",
                 "type": "string"
               },
               "value": {
-                "description": "The field value."
+                "description": "The value to apply. Any JSON value is accepted; use null to clear the field."
               }
             },
             "required": [

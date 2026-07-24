@@ -2428,7 +2428,7 @@ func TestGranularSetIssueFields(t *testing.T) {
 		require.False(t, result.IsError, getTextResult(t, result).Text)
 		// The last request captured is the mutation; the preceding issue ID
 		// query does not require the feature flag.
-		assert.Equal(t, "issue_fields, repo_issue_fields, update_issue_suggestions", spy.captured.Get(headers.GraphQLFeaturesHeader))
+		assert.Equal(t, "update_issue_suggestions", spy.captured.Get(headers.GraphQLFeaturesHeader))
 	})
 }
 
