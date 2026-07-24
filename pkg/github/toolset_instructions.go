@@ -1,6 +1,10 @@
 package github
 
-import "github.com/github/github-mcp-server/pkg/inventory"
+import (
+	"context"
+
+	"github.com/github/github-mcp-server/pkg/inventory"
+)
 
 // Toolset instruction functions - these generate context-aware instructions for each toolset.
 // They are called during inventory build to generate server instructions.
@@ -9,18 +13,31 @@ func generateContextToolsetInstructions(_ *inventory.Inventory) string {
 	return "Always call 'get_me' first to understand current user permissions and context."
 }
 
-func generateIssuesToolsetInstructions(_ *inventory.Inventory) string {
-	return `## Issues
+func generateIssuesToolsetInstructions(inv *inventory.Inventory) string {
+	instructions := `## Issues
 
-Check 'list_issue_types' first for organizations to use proper issue types. Use 'search_issues' before creating new issues to avoid duplicates. Always set 'state_reason' when closing issues.`
+Use 'search_issues' before creating new issues to avoid duplicates.`
+	if inv.HasAvailableTool(context.Background(), "issue_write") {
+		instructions += `
+
+Check 'list_issue_types' first for organizations to use proper issue types. Always set 'state_reason' when closing issues.`
+	}
+	return instructions
 }
 
 func generatePullRequestsToolsetInstructions(inv *inventory.Inventory) string {
-	instructions := `## Pull Requests
+	instructions := ""
+
+	if inv.HasAvailableTool(context.Background(), "pull_request_review_write") {
+		instructions = `## Pull Requests
 
 PR review workflow: Always use 'pull_request_review_write' with method 'create' to create a pending review, then 'add_comment_to_pending_review' to add comments, and finally 'pull_request_review_write' with method 'submit_pending' to submit the review for complex reviews with line-specific comments.`
+	}
 
-	if inv.HasToolset("repos") {
+	if inv.HasAvailableTool(context.Background(), "create_pull_request") && inv.HasToolset("repos") {
+		if instructions == "" {
+			instructions = "## Pull Requests"
+		}
 		instructions += `
 
 Before creating a pull request, search for pull request templates in the repository. Template files are called pull_request_template.md or they're located in '.github/PULL_REQUEST_TEMPLATE' directory. Use the template content to structure the PR description and then call create_pull_request tool.`

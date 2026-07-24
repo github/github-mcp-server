@@ -921,7 +921,7 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 }
 
 func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) inventory.ServerPrompt {
-	return inventory.NewServerPrompt(
+	return inventory.NewServerPromptWithRequiredTools(
 		ToolsetMetadataIssues,
 		mcp.Prompt{
 			Name:        "AssignCodingAgent",
@@ -979,5 +979,6 @@ func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) inventory.Ser
 				Messages: messages,
 			}, nil
 		},
+		"assign_copilot_to_issue",
 	)
 }

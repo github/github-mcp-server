@@ -11,7 +11,7 @@ import (
 
 // IssueToFixWorkflowPrompt provides a guided workflow for creating an issue and then generating a PR to fix it
 func IssueToFixWorkflowPrompt(t translations.TranslationHelperFunc) inventory.ServerPrompt {
-	return inventory.NewServerPrompt(
+	return inventory.NewServerPromptWithRequiredTools(
 		ToolsetMetadataIssues,
 		mcp.Prompt{
 			Name:        "issue_to_fix_workflow",
@@ -106,5 +106,8 @@ func IssueToFixWorkflowPrompt(t translations.TranslationHelperFunc) inventory.Se
 				Messages: messages,
 			}, nil
 		},
+		"issue_write",
+		"assign_copilot_to_issue",
+		"create_pull_request",
 	)
 }
