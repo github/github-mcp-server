@@ -1237,7 +1237,7 @@ func Test_ProjectsWrite_UpdateProjectItem(t *testing.T) {
 			Client: client,
 			GQLClient: githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
-					projectFieldsTestQuery{},
+					projectFieldsWithIssueFieldsTestQuery{},
 					fieldsQueryVars("octo-org", 1),
 					githubv4mock.DataResponse(fieldsResponse([]map[string]any{
 						genericFieldNode("PVTF_notes", 101, "Notes", "TEXT"),

@@ -86,7 +86,7 @@ func projectItemIssueByNodeIDMatcher(itemNodeID string, itemID int, issueNodeID 
 func Test_ResolveProjectFieldByID_AttachedIssueFieldMetadata(t *testing.T) {
 	queryTransport := githubv4mock.NewMockedHTTPClient(
 		githubv4mock.NewQueryMatcher(
-			projectFieldsTestQuery{},
+			projectFieldsWithIssueFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 7),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
 				attachedIssueFieldNode("PVTSSF_risk", 702, "IF_risk", "Risk", "SINGLE_SELECT", []map[string]any{
@@ -154,6 +154,7 @@ func Test_BuildIssueFieldUpdate_StructuredErrors(t *testing.T) {
 	}{
 		{"missing metadata", &ResolvedField{Name: "Customer", DataType: "TEXT", IsIssueField: true}, "Acme", "issue_field_metadata_unavailable"},
 		{"wrong value type", &ResolvedField{Name: "Customer", DataType: "TEXT", IsIssueField: true, IssueFieldNodeID: "IF_customer"}, 42.0, "invalid_field_value"},
+		{"unsupported type clear", &ResolvedField{Name: "Reviewers", DataType: "USER", IsIssueField: true}, nil, "unsupported_field_type"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -169,7 +170,7 @@ func Test_BuildIssueFieldUpdate_StructuredErrors(t *testing.T) {
 func Test_UpdateProjectItem_AttachedIssueField(t *testing.T) {
 	queryTransport := githubv4mock.NewMockedHTTPClient(
 		githubv4mock.NewQueryMatcher(
-			projectFieldsTestQuery{},
+			projectFieldsWithIssueFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 1),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
 				attachedIssueFieldNode("PVTSSF_risk", 704, "IF_risk", "Risk", "SINGLE_SELECT", []map[string]any{{"id": "IFO_high", "name": "High"}}),
@@ -225,15 +226,19 @@ func Test_ProjectItemReads_FieldNamesIncludeAttachedIssueFieldValues(t *testing.
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gql := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
+			queryTransport := githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					projectFieldsTestQuery{},
 					fieldsQueryVars("octo-org", 1),
 					githubv4mock.DataResponse(fieldsResponse([]map[string]any{
-						attachedIssueFieldNode("PVTF_customer", 701, "IF_customer", "Customer", "TEXT", nil),
+						genericFieldNode("PVTF_customer", 701, "Customer", "TEXT"),
 					})),
 				),
-			))
+			)
+			transport := &mutationAwareTransport{t: t, queries: queryTransport.Transport}
+			gql := githubv4.NewClient(&http.Client{
+				Transport: &transportpkg.GraphQLFeaturesTransport{Transport: transport},
+			})
 			rest := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				tt.route: func(w http.ResponseWriter, r *http.Request) {
 					assert.Equal(t, "701", r.URL.Query().Get("fields"))
@@ -255,6 +260,10 @@ func Test_ProjectItemReads_FieldNamesIncludeAttachedIssueFieldValues(t *testing.
 			require.False(t, result.IsError, getTextResult(t, result).Text)
 			assert.Contains(t, getTextResult(t, result).Text, `"name":"Customer"`)
 			assert.Contains(t, getTextResult(t, result).Text, `"value":"Acme"`)
+			require.Len(t, transport.queryCalls, 1)
+			assert.Empty(t, transport.queryCalls[0].Headers.Get(headers.GraphQLFeaturesHeader))
+			assert.NotContains(t, transport.queryCalls[0].Query, "isIssueField")
+			assert.NotContains(t, transport.queryCalls[0].Query, "issueField")
 		})
 	}
 }
@@ -329,7 +338,7 @@ func Test_UpdateProjectItemsBatch_AttachedIssueFields(t *testing.T) {
 			matchers := []githubv4mock.Matcher{
 				projectIDMatcher("octo-org", 1, "PVT_project1"),
 				githubv4mock.NewQueryMatcher(
-					projectFieldsTestQuery{}, fieldsQueryVars("octo-org", 1),
+					projectFieldsWithIssueFieldsTestQuery{}, fieldsQueryVars("octo-org", 1),
 					githubv4mock.DataResponse(fieldsResponse([]map[string]any{tt.fieldNode})),
 				),
 			}

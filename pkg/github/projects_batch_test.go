@@ -277,7 +277,7 @@ func Test_UpdateProjectItemsBatch_InvalidSharedValueIsTopLevelError(t *testing.T
 	queryTransport := githubv4mock.NewMockedHTTPClient(
 		projectIDMatcher("octo-org", 1, "PVT_project1"),
 		githubv4mock.NewQueryMatcher(
-			projectFieldsTestQuery{},
+			projectFieldsWithIssueFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 1),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
 				statusFieldNode("PVTSSF_status", 101, "Status", []map[string]any{
@@ -323,7 +323,7 @@ func Test_ProjectsWrite_UpdateProjectItems_NodeIDBypassesRESTLookup(t *testing.T
 	queryTransport := githubv4mock.NewMockedHTTPClient(
 		projectIDMatcher("octo-org", 1, "PVT_project1"),
 		githubv4mock.NewQueryMatcher(
-			projectFieldsTestQuery{},
+			projectFieldsWithIssueFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 1),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
 				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
@@ -376,7 +376,7 @@ func Test_ProjectsWrite_UpdateProjectItems_NumericItemIDDeduplicatesRESTLookup(t
 	queryTransport := githubv4mock.NewMockedHTTPClient(
 		projectIDMatcher("octo-org", 1, "PVT_project1"),
 		githubv4mock.NewQueryMatcher(
-			projectFieldsTestQuery{},
+			projectFieldsWithIssueFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 1),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
 				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
@@ -493,7 +493,7 @@ func Test_ProjectsWrite_UpdateProjectItems_IssueRefPaginationIsDeduplicated(t *t
 			}),
 		),
 		githubv4mock.NewQueryMatcher(
-			projectFieldsTestQuery{},
+			projectFieldsWithIssueFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 1),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
 				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
@@ -561,7 +561,7 @@ func Test_ProjectsWrite_UpdateProjectItems_DuplicateTargetRejected(t *testing.T)
 	queryTransport := githubv4mock.NewMockedHTTPClient(
 		projectIDMatcher("octo-org", 1, "PVT_project1"),
 		githubv4mock.NewQueryMatcher(
-			projectFieldsTestQuery{},
+			projectFieldsWithIssueFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 1),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
 				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
@@ -647,7 +647,7 @@ func chunkSizeTestRun(t *testing.T, toolDef inventory.ServerTool, itemCount int)
 	queryTransport := githubv4mock.NewMockedHTTPClient(
 		projectIDMatcher("octo-org", 1, "PVT_project1"),
 		githubv4mock.NewQueryMatcher(
-			projectFieldsTestQuery{},
+			projectFieldsWithIssueFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 1),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
 				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
@@ -705,7 +705,7 @@ func Test_ProjectsWrite_UpdateProjectItems_SharedNullClearsAllItemsInOrder(t *te
 	queryTransport := githubv4mock.NewMockedHTTPClient(
 		projectIDMatcher("octo-org", 1, "PVT_project1"),
 		githubv4mock.NewQueryMatcher(
-			projectFieldsTestQuery{},
+			projectFieldsWithIssueFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 1),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
 				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
@@ -770,7 +770,7 @@ func Test_ProjectsWrite_UpdateProjectItems_TransportFailureAbortsLaterChunks(t *
 	queryTransport := githubv4mock.NewMockedHTTPClient(
 		projectIDMatcher("octo-org", 1, "PVT_project1"),
 		githubv4mock.NewQueryMatcher(
-			projectFieldsTestQuery{},
+			projectFieldsWithIssueFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 1),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
 				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
@@ -866,7 +866,7 @@ func Test_ProjectsWrite_UpdateProjectItems_MixedOutcomeKeepsIsErrorFalse(t *test
 	queryTransport := githubv4mock.NewMockedHTTPClient(
 		projectIDMatcher("octo-org", 1, "PVT_project1"),
 		githubv4mock.NewQueryMatcher(
-			projectFieldsTestQuery{},
+			projectFieldsWithIssueFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 1),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
 				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
@@ -919,7 +919,7 @@ func Test_ProjectsWrite_UpdateProjectItems_EnterpriseClientWiring(t *testing.T) 
 	queryTransport := githubv4mock.NewMockedHTTPClient(
 		projectIDMatcher("octo-org", 1, "PVT_project1"),
 		githubv4mock.NewQueryMatcher(
-			projectFieldsTestQuery{},
+			projectFieldsWithIssueFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 1),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
 				fieldNode("PVTF_notes", 101, "Notes", "TEXT"),
@@ -1144,6 +1144,22 @@ func Test_ConvertProjectFieldValue_SingleSelect_ByOptionID(t *testing.T) {
 	assert.Equal(t, "OPT_1", string(*v.SingleSelectOptionID))
 }
 
+func Test_ConvertProjectFieldValue_SingleSelect_IDPrecedesName(t *testing.T) {
+	field := &ResolvedField{
+		Name:     "Status",
+		DataType: "SINGLE_SELECT",
+		Options: []ResolvedFieldOption{
+			{ID: "OPT_other", Name: "OPT_target"},
+			{ID: "OPT_target", Name: "Target"},
+		},
+	}
+
+	v, err := convertProjectFieldValue(field, "OPT_target")
+	require.NoError(t, err)
+	require.NotNil(t, v.SingleSelectOptionID)
+	assert.Equal(t, "OPT_target", string(*v.SingleSelectOptionID))
+}
+
 func Test_ConvertProjectFieldValue_SingleSelect_Unknown(t *testing.T) {
 	field := &ResolvedField{
 		Name:     "Status",
@@ -1190,7 +1206,7 @@ func Test_ResolveBatchProjectField_ByIDAndName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mocked := githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
-					projectFieldsTestQuery{},
+					projectFieldsWithIssueFieldsTestQuery{},
 					fieldsQueryVars("octo-org", 7),
 					githubv4mock.DataResponse(fieldsResponse([]map[string]any{
 						statusFieldNode("PVTF_status", 101, "Status", nil),
@@ -1209,7 +1225,7 @@ func Test_ResolveBatchProjectField_ByIDAndName(t *testing.T) {
 func Test_ResolveBatchProjectField_AmbiguousName(t *testing.T) {
 	mocked := githubv4mock.NewMockedHTTPClient(
 		githubv4mock.NewQueryMatcher(
-			projectFieldsTestQuery{},
+			projectFieldsWithIssueFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 7),
 			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
 				statusFieldNode("PVTSSF_status1", 101, "Status", nil),

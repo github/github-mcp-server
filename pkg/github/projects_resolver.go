@@ -75,6 +75,50 @@ type projectFieldsQueryUser struct {
 type projectFieldsConnection struct {
 	Nodes []struct {
 		ProjectV2Field struct {
+			ID         githubv4.ID
+			DatabaseID githubv4.Int `graphql:"databaseId"`
+			Name       githubv4.String
+			DataType   githubv4.String
+		} `graphql:"... on ProjectV2Field"`
+		ProjectV2IterationField struct {
+			ID         githubv4.ID
+			DatabaseID githubv4.Int `graphql:"databaseId"`
+			Name       githubv4.String
+			DataType   githubv4.String
+		} `graphql:"... on ProjectV2IterationField"`
+		ProjectV2SingleSelectField struct {
+			ID         githubv4.ID
+			DatabaseID githubv4.Int `graphql:"databaseId"`
+			Name       githubv4.String
+			DataType   githubv4.String
+			Options    []struct {
+				ID   githubv4.String
+				Name githubv4.String
+			}
+		} `graphql:"... on ProjectV2SingleSelectField"`
+	}
+	PageInfo PageInfoFragment
+}
+
+type projectFieldsWithIssueFieldsQueryOrg struct {
+	Organization struct {
+		ProjectV2 struct {
+			Fields projectFieldsWithIssueFieldsConnection `graphql:"fields(first: $first, after: $after)"`
+		} `graphql:"projectV2(number: $projectNumber)"`
+	} `graphql:"organization(login: $owner)"`
+}
+
+type projectFieldsWithIssueFieldsQueryUser struct {
+	User struct {
+		ProjectV2 struct {
+			Fields projectFieldsWithIssueFieldsConnection `graphql:"fields(first: $first, after: $after)"`
+		} `graphql:"projectV2(number: $projectNumber)"`
+	} `graphql:"user(login: $owner)"`
+}
+
+type projectFieldsWithIssueFieldsConnection struct {
+	Nodes []struct {
+		ProjectV2Field struct {
 			ID           githubv4.ID
 			DatabaseID   githubv4.Int `graphql:"databaseId"`
 			Name         githubv4.String
@@ -108,7 +152,6 @@ type projectFieldsConnection struct {
 func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int) ([]ResolvedField, error) {
 	all := []ResolvedField{}
 	var after *githubv4.String
-	ctx = ghcontext.WithGraphQLFeatures(ctx, "issue_fields")
 
 	for {
 		vars := map[string]any{
@@ -132,6 +175,86 @@ func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner
 			var q projectFieldsQueryUser
 			if err := gqlClient.Query(ctx, &q, vars); err != nil {
 				return nil, fmt.Errorf("failed to list project fields: %w", err)
+			}
+			conn = q.User.ProjectV2.Fields
+		}
+
+		for _, n := range conn.Nodes {
+			switch {
+			case n.ProjectV2SingleSelectField.ID != nil:
+				opts := make([]ResolvedFieldOption, 0, len(n.ProjectV2SingleSelectField.Options))
+				for _, o := range n.ProjectV2SingleSelectField.Options {
+					opts = append(opts, ResolvedFieldOption{ID: string(o.ID), Name: string(o.Name)})
+				}
+				all = append(all, ResolvedField{
+					ID:       fmt.Sprintf("%d", n.ProjectV2SingleSelectField.DatabaseID),
+					NodeID:   fmt.Sprintf("%v", n.ProjectV2SingleSelectField.ID),
+					Name:     string(n.ProjectV2SingleSelectField.Name),
+					DataType: string(n.ProjectV2SingleSelectField.DataType),
+					Options:  opts,
+				})
+			case n.ProjectV2IterationField.ID != nil:
+				all = append(all, ResolvedField{
+					ID:       fmt.Sprintf("%d", n.ProjectV2IterationField.DatabaseID),
+					NodeID:   fmt.Sprintf("%v", n.ProjectV2IterationField.ID),
+					Name:     string(n.ProjectV2IterationField.Name),
+					DataType: string(n.ProjectV2IterationField.DataType),
+				})
+			case n.ProjectV2Field.ID != nil:
+				all = append(all, ResolvedField{
+					ID:       fmt.Sprintf("%d", n.ProjectV2Field.DatabaseID),
+					NodeID:   fmt.Sprintf("%v", n.ProjectV2Field.ID),
+					Name:     string(n.ProjectV2Field.Name),
+					DataType: string(n.ProjectV2Field.DataType),
+				})
+			}
+		}
+
+		if !bool(conn.PageInfo.HasNextPage) {
+			break
+		}
+		end := conn.PageInfo.EndCursor
+		after = &end
+	}
+
+	return all, nil
+}
+
+func listAllProjectFieldsForUpdate(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int) ([]ResolvedField, error) {
+	fields, err := listAllProjectFieldsWithIssueFieldMetadata(ctx, gqlClient, owner, ownerType, projectNumber)
+	if err != nil && issueFieldSchemaUnavailable(err) {
+		return listAllProjectFields(ctx, gqlClient, owner, ownerType, projectNumber)
+	}
+	return fields, err
+}
+
+func listAllProjectFieldsWithIssueFieldMetadata(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int) ([]ResolvedField, error) {
+	all := []ResolvedField{}
+	var after *githubv4.String
+	ctx = ghcontext.WithGraphQLFeatures(ctx, "issue_fields")
+
+	for {
+		vars := map[string]any{
+			"owner":         githubv4.String(owner),
+			"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are small
+			"first":         githubv4.Int(resolverFieldsPageSize),
+			"after":         (*githubv4.String)(nil),
+		}
+		if after != nil {
+			vars["after"] = after
+		}
+
+		var conn projectFieldsWithIssueFieldsConnection
+		if ownerType == "org" {
+			var q projectFieldsWithIssueFieldsQueryOrg
+			if err := gqlClient.Query(ctx, &q, vars); err != nil {
+				return nil, fmt.Errorf("failed to list project fields with Issue Field metadata: %w", err)
+			}
+			conn = q.Organization.ProjectV2.Fields
+		} else {
+			var q projectFieldsWithIssueFieldsQueryUser
+			if err := gqlClient.Query(ctx, &q, vars); err != nil {
+				return nil, fmt.Errorf("failed to list project fields with Issue Field metadata: %w", err)
 			}
 			conn = q.User.ProjectV2.Fields
 		}
@@ -189,6 +312,25 @@ func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner
 	return all, nil
 }
 
+func issueFieldSchemaUnavailable(err error) bool {
+	message := err.Error()
+	for _, selection := range []struct {
+		fieldName string
+		typeName  string
+	}{
+		{"isIssueField", "ProjectV2Field"},
+		{"issueField", "ProjectV2Field"},
+		{"isIssueField", "ProjectV2SingleSelectField"},
+		{"issueField", "ProjectV2SingleSelectField"},
+	} {
+		if strings.Contains(message, fmt.Sprintf("Field '%s' doesn't exist on type '%s'", selection.fieldName, selection.typeName)) ||
+			strings.Contains(message, fmt.Sprintf(`Cannot query field "%s" on type "%s"`, selection.fieldName, selection.typeName)) {
+			return true
+		}
+	}
+	return false
+}
+
 func issueFieldNodeIDForType(dataType githubv4.String, metadata projectIssueFieldMetadata) string {
 	var id githubv4.ID
 	switch strings.ToUpper(string(dataType)) {
@@ -211,11 +353,21 @@ func issueFieldNodeIDForType(dataType githubv4.String, metadata projectIssueFiel
 // structured error on not-found, ambiguous, or wrong-data-type (when
 // expectedDataType is set) so the agent can self-correct.
 func resolveProjectFieldByName(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, fieldName, expectedDataType string) (*ResolvedField, error) {
+	return resolveProjectFieldByNameWithLister(ctx, gqlClient, owner, ownerType, projectNumber, fieldName, expectedDataType, listAllProjectFields)
+}
+
+func resolveProjectFieldForUpdateByName(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, fieldName, expectedDataType string) (*ResolvedField, error) {
+	return resolveProjectFieldByNameWithLister(ctx, gqlClient, owner, ownerType, projectNumber, fieldName, expectedDataType, listAllProjectFieldsForUpdate)
+}
+
+type projectFieldLister func(context.Context, *githubv4.Client, string, string, int) ([]ResolvedField, error)
+
+func resolveProjectFieldByNameWithLister(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, fieldName, expectedDataType string, listFields projectFieldLister) (*ResolvedField, error) {
 	if fieldName == "" {
 		return nil, fmt.Errorf("field name must not be empty")
 	}
 
-	all, err := listAllProjectFields(ctx, gqlClient, owner, ownerType, projectNumber)
+	all, err := listFields(ctx, gqlClient, owner, ownerType, projectNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +426,7 @@ func resolveProjectFieldByName(ctx context.Context, gqlClient *githubv4.Client, 
 }
 
 func resolveProjectFieldByID(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, fieldID int64) (*ResolvedField, error) {
-	all, err := listAllProjectFields(ctx, gqlClient, owner, ownerType, projectNumber)
+	all, err := listAllProjectFieldsForUpdate(ctx, gqlClient, owner, ownerType, projectNumber)
 	if err != nil {
 		return nil, err
 	}

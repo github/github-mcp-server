@@ -11,15 +11,31 @@ import (
 )
 
 func buildIssueFieldUpdate(field *ResolvedField, raw any) (*IssueFieldCreateOrUpdateInput, error) {
-	if field == nil || field.IssueFieldNodeID == "" {
-		name := ""
-		if field != nil {
-			name = field.Name
-		}
+	if field == nil {
 		return nil, ghErrors.NewStructuredResolutionError(
 			"issue_field_metadata_unavailable",
-			name,
-			"the attached Project field did not include the underlying Issue Field node ID; refresh field metadata and retry",
+			"",
+			"the attached Project field metadata is unavailable",
+			nil,
+		)
+	}
+
+	switch field.DataType {
+	case "TEXT", "NUMBER", "DATE", "SINGLE_SELECT":
+	default:
+		return nil, ghErrors.NewStructuredResolutionError(
+			"unsupported_field_type",
+			field.Name,
+			fmt.Sprintf("Issue Field %q has unsupported data type %q; supported types are TEXT, NUMBER, DATE, and SINGLE_SELECT", field.Name, field.DataType),
+			nil,
+		)
+	}
+
+	if field.IssueFieldNodeID == "" {
+		return nil, ghErrors.NewStructuredResolutionError(
+			"issue_field_metadata_unavailable",
+			field.Name,
+			"the attached Project field did not include the underlying Issue Field node ID",
 			nil,
 		)
 	}
@@ -69,13 +85,6 @@ func buildIssueFieldUpdate(field *ResolvedField, raw any) (*IssueFieldCreateOrUp
 		}
 		id := githubv4.ID(optionID)
 		input.SingleSelectOptionID = &id
-	default:
-		return nil, ghErrors.NewStructuredResolutionError(
-			"unsupported_field_type",
-			field.Name,
-			fmt.Sprintf("Issue Field %q has unsupported data type %q; supported types are TEXT, NUMBER, DATE, and SINGLE_SELECT", field.Name, field.DataType),
-			nil,
-		)
 	}
 	return input, nil
 }

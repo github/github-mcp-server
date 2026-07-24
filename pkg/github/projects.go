@@ -1705,7 +1705,7 @@ func buildUpdateProjectItem(ctx context.Context, gqlClient *githubv4.Client, own
 			return nil, fmt.Errorf("internal error: gqlClient is required to resolve updated_field.name")
 		}
 		var err error
-		resolved, err = resolveProjectFieldByName(ctx, gqlClient, owner, ownerType, projectNumber, fieldName, "")
+		resolved, err = resolveProjectFieldForUpdateByName(ctx, gqlClient, owner, ownerType, projectNumber, fieldName, "")
 		if err != nil {
 			return nil, err
 		}

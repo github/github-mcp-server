@@ -611,10 +611,10 @@ func parseBatchFieldSpec(raw any) (batchFieldSpec, error) {
 
 func resolveBatchProjectField(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, spec batchFieldSpec) (*ResolvedField, error) {
 	if spec.name != "" {
-		return resolveProjectFieldByName(ctx, gqlClient, owner, ownerType, projectNumber, spec.name, "")
+		return resolveProjectFieldForUpdateByName(ctx, gqlClient, owner, ownerType, projectNumber, spec.name, "")
 	}
 
-	fields, err := listAllProjectFields(ctx, gqlClient, owner, ownerType, projectNumber)
+	fields, err := listAllProjectFieldsForUpdate(ctx, gqlClient, owner, ownerType, projectNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -681,20 +681,9 @@ func convertProjectFieldValue(field *ResolvedField, raw any) (githubv4.ProjectV2
 		if !ok || s == "" {
 			return zero, fmt.Errorf("field %q is SINGLE_SELECT; value must be a non-empty string (option name or ID)", field.Name)
 		}
-		optID := s
-		if resolvedID, optErr := resolveSingleSelectOptionByName(field, s); optErr == nil {
-			optID = resolvedID
-		} else {
-			known := false
-			for _, opt := range field.Options {
-				if opt.ID == s {
-					known = true
-					break
-				}
-			}
-			if !known {
-				return zero, optErr
-			}
+		optID, err := resolveSingleSelectOptionByNameOrID(field, s)
+		if err != nil {
+			return zero, err
 		}
 		v := githubv4.String(optID)
 		return githubv4.ProjectV2FieldValue{SingleSelectOptionID: &v}, nil
