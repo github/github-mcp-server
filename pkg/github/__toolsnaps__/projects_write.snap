@@ -196,7 +196,7 @@
                 "type": "integer"
               },
               "value": {
-                "description": "The new value, or null to clear the field. For SINGLE_SELECT, use the option ID."
+                "description": "The field value."
               }
             },
             "required": [
@@ -213,7 +213,7 @@
                 "type": "string"
               },
               "value": {
-                "description": "The new value, or null to clear the field. Use a string for TEXT, a finite number for NUMBER, a YYYY-MM-DD string for DATE, and an option name (case-insensitive) or option ID for SINGLE_SELECT."
+                "description": "The field value."
               }
             },
             "required": [

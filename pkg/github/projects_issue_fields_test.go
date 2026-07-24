@@ -300,13 +300,13 @@ func Test_ProjectsWrite_UpdateProjectItem_AttachedIssueFieldTypes(t *testing.T) 
 			},
 		},
 		{
-			name: "single select by project field ID",
+			name: "single select option name by project field ID",
 			fieldNode: attachedIssueFieldNode("PVTSSF_risk", 704, "IF_risk", "Risk", "SINGLE_SELECT", []map[string]any{
 				{"id": "IFO_low", "name": "Low"},
 				{"id": "IFO_high", "name": "High"},
 			}),
 			fieldRef: map[string]any{"id": float64(704)},
-			value:    "IFO_high",
+			value:    "hIgH",
 			want: IssueFieldCreateOrUpdateInput{
 				FieldID:              githubv4.ID("IF_risk"),
 				SingleSelectOptionID: &optionID,
@@ -516,6 +516,47 @@ func Test_ProjectsWrite_UpdateProjectItem_StandardFieldNameStillUsesProjectsREST
 	require.False(t, result.IsError, getTextResult(t, result).Text)
 }
 
+func Test_ProjectsWrite_UpdateProjectItem_StandardFieldIDResolvesOptionName(t *testing.T) {
+	gql := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 1),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				statusFieldNode("PVTSSF_status", 101, "Status", []map[string]any{{"id": "OPT_doing", "name": "Doing"}}),
+			})),
+		),
+	))
+	rest := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PatchOrgsProjectsV2ItemsByProjectByItemID: func(w http.ResponseWriter, r *http.Request) {
+			var body struct {
+				Fields []struct {
+					ID    int64  `json:"id"`
+					Value string `json:"value"`
+				} `json:"fields"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			require.Len(t, body.Fields, 1)
+			require.Equal(t, int64(101), body.Fields[0].ID)
+			require.Equal(t, "OPT_doing", body.Fields[0].Value)
+			mockResponse(t, http.StatusOK, verbosePullRequestProjectItemFixture())(w, r)
+		},
+	})
+	deps := BaseDeps{Client: mustNewGHClient(t, rest), GQLClient: gql}
+	serverTool := ProjectsWrite(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":         projectsMethodUpdateProjectItem,
+		"owner":          "octo-org",
+		"owner_type":     "org",
+		"project_number": float64(1),
+		"item_id":        float64(1001),
+		"updated_field":  map[string]any{"id": float64(101), "value": "doing"},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, getTextResult(t, result).Text)
+}
+
 func Test_UpdateProjectItemsBatch_AttachedIssueFields(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -564,12 +605,12 @@ func Test_UpdateProjectItemsBatch_AttachedIssueFields(t *testing.T) {
 			expectedValue:    true,
 		},
 		{
-			name: "project item node ID and single-select option name",
+			name: "project item node ID and single-select option name by field ID",
 			fieldNode: attachedIssueFieldNode("PVTSSF_risk", 704, "IF_risk", "Risk", "SINGLE_SELECT", []map[string]any{
 				{"id": "IFO_low", "name": "Low"},
 				{"id": "IFO_high", "name": "High"},
 			}),
-			fieldRef:         map[string]any{"name": "Risk"},
+			fieldRef:         map[string]any{"id": float64(704)},
 			value:            "high",
 			item:             map[string]any{"node_id": "PVTI_1"},
 			extraMatchers:    []githubv4mock.Matcher{projectItemIssueByNodeIDMatcher("PVTI_1", 1001, "I_123")},

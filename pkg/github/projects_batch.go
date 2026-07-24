@@ -129,7 +129,7 @@ func updateProjectItemsBatch(ctx context.Context, client *github.Client, gqlClie
 	switch {
 	case field.IsIssueField:
 		kind = batchMutationSetIssueField
-		resolvedIssueField, buildErr := buildIssueFieldUpdate(field, fieldSpec.value, fieldSpec.name != "")
+		resolvedIssueField, buildErr := buildIssueFieldUpdate(field, fieldSpec.value)
 		if buildErr != nil {
 			return batchTopLevelError(buildErr), nil, nil
 		}
@@ -625,20 +625,9 @@ func convertProjectFieldValue(field *ResolvedField, raw any) (githubv4.ProjectV2
 		if !ok || s == "" {
 			return zero, fmt.Errorf("field %q is SINGLE_SELECT; value must be a non-empty string (option name or ID)", field.Name)
 		}
-		optID := s
-		if resolvedID, optErr := resolveSingleSelectOptionByName(field, s); optErr == nil {
-			optID = resolvedID
-		} else {
-			known := false
-			for _, opt := range field.Options {
-				if opt.ID == s {
-					known = true
-					break
-				}
-			}
-			if !known {
-				return zero, optErr
-			}
+		optID, err := resolveSingleSelectOptionByNameOrID(field, s)
+		if err != nil {
+			return zero, err
 		}
 		v := githubv4.String(optID)
 		return githubv4.ProjectV2FieldValue{SingleSelectOptionID: &v}, nil

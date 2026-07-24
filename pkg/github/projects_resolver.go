@@ -359,6 +359,19 @@ func resolveSingleSelectOptionByName(field *ResolvedField, optionName string) (s
 	}
 }
 
+func resolveSingleSelectOptionByNameOrID(field *ResolvedField, value string) (string, error) {
+	optionID, err := resolveSingleSelectOptionByName(field, value)
+	if err == nil {
+		return optionID, nil
+	}
+	for _, option := range field.Options {
+		if option.ID == value {
+			return value, nil
+		}
+	}
+	return "", err
+}
+
 // resolveProjectItemIDByIssueNumber resolves a (project, issue) pair to the
 // project item's full database ID in one GraphQL hop. Returns a structured
 // error if the issue is not an item on the project.

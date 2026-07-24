@@ -536,8 +536,9 @@ func updateProjectItemsItemSchema() *jsonschema.Schema {
 }
 
 func projectUpdatedFieldSchema() *jsonschema.Schema {
-	variant := func(required []string, properties map[string]*jsonschema.Schema, valueDescription string) *jsonschema.Schema {
-		properties["value"] = &jsonschema.Schema{Description: valueDescription}
+	value := &jsonschema.Schema{Description: "The field value."}
+	variant := func(required []string, properties map[string]*jsonschema.Schema) *jsonschema.Schema {
+		properties["value"] = value
 		return &jsonschema.Schema{
 			Type:                 "object",
 			AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
@@ -555,13 +556,13 @@ func projectUpdatedFieldSchema() *jsonschema.Schema {
 					Type:        "integer",
 					Description: "The numeric Project field ID.",
 				},
-			}, "The new value, or null to clear the field. For SINGLE_SELECT, use the option ID."),
+			}),
 			variant([]string{"name", "value"}, map[string]*jsonschema.Schema{
 				"name": {
 					Type:        "string",
 					Description: "The case-insensitive Project or attached Issue Field name.",
 				},
-			}, "The new value, or null to clear the field. Use a string for TEXT, a finite number for NUMBER, a YYYY-MM-DD string for DATE, and an option name (case-insensitive) or option ID for SINGLE_SELECT."),
+			}),
 		},
 	}
 }
@@ -1704,9 +1705,8 @@ func buildUpdateProjectItem(ctx context.Context, gqlClient *githubv4.Client, own
 	}
 
 	var (
-		fieldID        int64
-		resolved       *ResolvedField
-		resolvedByName bool
+		fieldID  int64
+		resolved *ResolvedField
 	)
 
 	if hasID {
@@ -1735,7 +1735,6 @@ func buildUpdateProjectItem(ctx context.Context, gqlClient *githubv4.Client, own
 		if err != nil {
 			return nil, err
 		}
-		resolvedByName = true
 		parsedID, parseErr := parseInt64(resolved.ID)
 		if parseErr != nil {
 			return nil, fmt.Errorf("resolved field %q has non-numeric ID %q; pass updated_field.id directly", resolved.Name, resolved.ID)
@@ -1744,31 +1743,20 @@ func buildUpdateProjectItem(ctx context.Context, gqlClient *githubv4.Client, own
 	}
 
 	if resolved.IsIssueField {
-		issueField, buildErr := buildIssueFieldUpdate(resolved, valueField, resolvedByName)
+		issueField, buildErr := buildIssueFieldUpdate(resolved, valueField)
 		if buildErr != nil {
 			return nil, buildErr
 		}
 		return &resolvedProjectItemUpdate{IssueField: issueField}, nil
 	}
 
-	// SINGLE_SELECT: resolve option name to ID; pass through if it's already a known option ID.
-	if resolvedByName && resolved.DataType == "SINGLE_SELECT" {
+	if resolved.DataType == "SINGLE_SELECT" {
 		if str, ok := valueField.(string); ok && str != "" {
-			if optID, optErr := resolveSingleSelectOptionByName(resolved, str); optErr == nil {
-				valueField = optID
-			} else {
-				// Fall back: if the string is already a known option ID, accept it.
-				known := false
-				for _, opt := range resolved.Options {
-					if opt.ID == str {
-						known = true
-						break
-					}
-				}
-				if !known {
-					return nil, optErr
-				}
+			optionID, optionErr := resolveSingleSelectOptionByNameOrID(resolved, str)
+			if optionErr != nil {
+				return nil, optionErr
 			}
+			valueField = optionID
 		}
 	}
 
@@ -1782,7 +1770,7 @@ func buildUpdateProjectItem(ctx context.Context, gqlClient *githubv4.Client, own
 	return &resolvedProjectItemUpdate{Project: payload}, nil
 }
 
-func buildIssueFieldUpdate(field *ResolvedField, raw any, resolveOptionName bool) (*IssueFieldCreateOrUpdateInput, error) {
+func buildIssueFieldUpdate(field *ResolvedField, raw any) (*IssueFieldCreateOrUpdateInput, error) {
 	if field == nil || field.IssueFieldNodeID == "" {
 		name := ""
 		if field != nil {
@@ -1835,33 +1823,9 @@ func buildIssueFieldUpdate(field *ResolvedField, raw any, resolveOptionName bool
 		if !ok || value == "" {
 			return invalidValue(fmt.Sprintf("Issue Field %q is SINGLE_SELECT; value must be a non-empty option name or ID, or null to clear it", field.Name))
 		}
-		optionID := value
-		if resolveOptionName {
-			var err error
-			optionID, err = resolveSingleSelectOptionByName(field, value)
-			if err != nil {
-				for _, option := range field.Options {
-					if option.ID == value {
-						optionID = value
-						err = nil
-						break
-					}
-				}
-				if err != nil {
-					return nil, err
-				}
-			}
-		} else {
-			known := false
-			for _, option := range field.Options {
-				if option.ID == value {
-					known = true
-					break
-				}
-			}
-			if !known {
-				return invalidValue(fmt.Sprintf("Issue Field %q is SINGLE_SELECT; when updated_field.id is used, value must be an option ID", field.Name))
-			}
+		optionID, err := resolveSingleSelectOptionByNameOrID(field, value)
+		if err != nil {
+			return nil, err
 		}
 		id := githubv4.ID(optionID)
 		input.SingleSelectOptionID = &id
