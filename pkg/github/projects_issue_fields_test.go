@@ -84,7 +84,7 @@ func projectItemIssueByNodeIDMatcher(itemNodeID string, itemID int, issueNodeID 
 }
 
 func Test_ResolveProjectFieldByID_AttachedIssueFieldMetadata(t *testing.T) {
-	gql := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
+	queryTransport := githubv4mock.NewMockedHTTPClient(
 		githubv4mock.NewQueryMatcher(
 			projectFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 7),
@@ -94,10 +94,16 @@ func Test_ResolveProjectFieldByID_AttachedIssueFieldMetadata(t *testing.T) {
 				}),
 			})),
 		),
-	))
+	)
+	transport := &mutationAwareTransport{t: t, queries: queryTransport.Transport}
+	gql := githubv4.NewClient(&http.Client{
+		Transport: &transportpkg.GraphQLFeaturesTransport{Transport: transport},
+	})
 
 	field, err := resolveProjectFieldByID(t.Context(), gql, "octo-org", "org", 7, 702)
 	require.NoError(t, err)
+	require.Len(t, transport.queryCalls, 1)
+	assert.Equal(t, "issue_fields", transport.queryCalls[0].Headers.Get(headers.GraphQLFeaturesHeader))
 	assert.Equal(t, "702", field.ID)
 	assert.Equal(t, "PVTSSF_risk", field.NodeID)
 	assert.Equal(t, "IF_risk", field.IssueFieldNodeID)
@@ -174,7 +180,7 @@ func Test_UpdateProjectItem_AttachedIssueField(t *testing.T) {
 		t: t, queries: queryTransport.Transport,
 		mutationRespond: func(_ int, req capturedGraphQLRequest) (int, string) {
 			assert.Contains(t, req.Query, "setIssueFieldValue")
-			assert.Equal(t, "issue_fields, repo_issue_fields, update_issue_suggestions", req.Headers.Get(headers.GraphQLFeaturesHeader))
+			assert.Equal(t, "update_issue_suggestions", req.Headers.Get(headers.GraphQLFeaturesHeader))
 			input := req.Variables["input"].(map[string]any)
 			assert.Equal(t, "I_123", input["issueId"])
 			assert.Equal(t, "IFO_high", input["issueFields"].([]any)[0].(map[string]any)["singleSelectOptionId"])
@@ -332,7 +338,7 @@ func Test_UpdateProjectItemsBatch_AttachedIssueFields(t *testing.T) {
 				t: t, queries: githubv4mock.NewMockedHTTPClient(matchers...).Transport,
 				mutationRespond: func(_ int, req capturedGraphQLRequest) (int, string) {
 					assert.Contains(t, req.Query, "setIssueFieldValue")
-					assert.Equal(t, "issue_fields, repo_issue_fields, update_issue_suggestions", req.Headers.Get(headers.GraphQLFeaturesHeader))
+					assert.Equal(t, "update_issue_suggestions", req.Headers.Get(headers.GraphQLFeaturesHeader))
 					input := req.Variables["input"].(map[string]any)
 					assert.Equal(t, tt.issueNodeID, input["issueId"])
 					field := input["issueFields"].([]any)[0].(map[string]any)

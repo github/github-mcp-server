@@ -1270,7 +1270,7 @@ func updateProjectItem(ctx context.Context, client *github.Client, gqlClient *gi
 			}
 			return utils.NewToolResultError(resolveErr.Error()), nil, nil
 		}
-		mutationCtx := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields", "update_issue_suggestions")
+		mutationCtx := ghcontext.WithGraphQLFeatures(ctx, "update_issue_suggestions")
 		response, mutationErr := SetIssueFieldValues(mutationCtx, gqlClient, issueID, []IssueFieldCreateOrUpdateInput{*update.IssueField})
 		if mutationErr != nil {
 			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to update Issue Field", mutationErr), nil, nil

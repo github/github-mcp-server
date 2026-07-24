@@ -92,7 +92,7 @@ func (m *mutationAwareTransport) RoundTrip(req *http.Request) (*http.Response, e
 	}
 
 	if !strings.HasPrefix(strings.TrimSpace(parsed.Query), "mutation") {
-		m.queryCalls = append(m.queryCalls, capturedGraphQLRequest{Query: parsed.Query, Variables: parsed.Variables})
+		m.queryCalls = append(m.queryCalls, capturedGraphQLRequest{Query: parsed.Query, Variables: parsed.Variables, Headers: req.Header.Clone()})
 		req.Body = io.NopCloser(strings.NewReader(string(raw)))
 		return m.queries.RoundTrip(req)
 	}

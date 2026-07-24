@@ -108,7 +108,7 @@ type projectFieldsConnection struct {
 func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int) ([]ResolvedField, error) {
 	all := []ResolvedField{}
 	var after *githubv4.String
-	ctx = ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
+	ctx = ghcontext.WithGraphQLFeatures(ctx, "issue_fields")
 
 	for {
 		vars := map[string]any{

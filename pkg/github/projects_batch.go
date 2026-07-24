@@ -338,7 +338,7 @@ func executeBatchWrites(ctx context.Context, operation batchWriteOperation, item
 
 		mutationCtx := ctx
 		if operation.kind == batchMutationSetIssueField {
-			mutationCtx = ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields", "update_issue_suggestions")
+			mutationCtx = ghcontext.WithGraphQLFeatures(ctx, "update_issue_suggestions")
 		}
 		outcomes, mutateErr := executeAliasedMutation(mutationCtx, operation.gqlClient, operation.kind, inputs)
 
