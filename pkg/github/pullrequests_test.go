@@ -51,6 +51,7 @@ func Test_GetPullRequest(t *testing.T) {
 		User: &github.User{
 			Login: github.Ptr("testuser"),
 		},
+		AuthorAssociation: github.Ptr("MEMBER"),
 	}
 
 	tests := []struct {
@@ -176,6 +177,7 @@ func Test_GetPullRequest(t *testing.T) {
 			assert.Equal(t, tc.expectedPR.GetTitle(), returnedPR.Title)
 			assert.Equal(t, tc.expectedPR.GetState(), returnedPR.State)
 			assert.Equal(t, tc.expectedPR.GetHTMLURL(), returnedPR.HTMLURL)
+			assert.Equal(t, tc.expectedPR.GetAuthorAssociation(), returnedPR.AuthorAssociation)
 		})
 	}
 }
@@ -639,16 +641,18 @@ func Test_ListPullRequests(t *testing.T) {
 	// Setup mock PRs for success case
 	mockPRs := []*github.PullRequest{
 		{
-			Number:  github.Ptr(42),
-			Title:   github.Ptr("First PR"),
-			State:   github.Ptr("open"),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
+			Number:            github.Ptr(42),
+			Title:             github.Ptr("First PR"),
+			State:             github.Ptr("open"),
+			HTMLURL:           github.Ptr("https://github.com/owner/repo/pull/42"),
+			AuthorAssociation: github.Ptr("OWNER"),
 		},
 		{
-			Number:  github.Ptr(43),
-			Title:   github.Ptr("Second PR"),
-			State:   github.Ptr("closed"),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/43"),
+			Number:            github.Ptr(43),
+			Title:             github.Ptr("Second PR"),
+			State:             github.Ptr("closed"),
+			HTMLURL:           github.Ptr("https://github.com/owner/repo/pull/43"),
+			AuthorAssociation: github.Ptr("CONTRIBUTOR"),
 		},
 	}
 
@@ -742,9 +746,11 @@ func Test_ListPullRequests(t *testing.T) {
 			assert.Equal(t, *tc.expectedPRs[0].Number, returnedPRs[0].Number)
 			assert.Equal(t, *tc.expectedPRs[0].Title, returnedPRs[0].Title)
 			assert.Equal(t, *tc.expectedPRs[0].State, returnedPRs[0].State)
+			assert.Equal(t, tc.expectedPRs[0].GetAuthorAssociation(), returnedPRs[0].AuthorAssociation)
 			assert.Equal(t, *tc.expectedPRs[1].Number, returnedPRs[1].Number)
 			assert.Equal(t, *tc.expectedPRs[1].Title, returnedPRs[1].Title)
 			assert.Equal(t, *tc.expectedPRs[1].State, returnedPRs[1].State)
+			assert.Equal(t, tc.expectedPRs[1].GetAuthorAssociation(), returnedPRs[1].AuthorAssociation)
 		})
 	}
 }
