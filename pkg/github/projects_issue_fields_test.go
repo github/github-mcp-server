@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"testing"
 
@@ -192,14 +193,24 @@ func Test_ProjectsWrite_UpdateProjectItem_AttachedIssueFieldTypes(t *testing.T) 
 	tests := []struct {
 		name      string
 		fieldNode map[string]any
-		fieldName string
+		fieldRef  map[string]any
 		value     any
 		want      IssueFieldCreateOrUpdateInput
 	}{
 		{
 			name:      "text",
 			fieldNode: attachedIssueFieldNode("PVTF_customer", 701, "IF_customer", "Customer", "TEXT", nil),
-			fieldName: "cUsToMeR",
+			fieldRef:  map[string]any{"name": "cUsToMeR"},
+			value:     "Acme",
+			want: IssueFieldCreateOrUpdateInput{
+				FieldID:   githubv4.ID("IF_customer"),
+				TextValue: githubv4.NewString(githubv4.String("Acme")),
+			},
+		},
+		{
+			name:      "text by project field ID",
+			fieldNode: attachedIssueFieldNode("PVTF_customer", 701, "IF_customer", "Customer", "TEXT", nil),
+			fieldRef:  map[string]any{"id": float64(701)},
 			value:     "Acme",
 			want: IssueFieldCreateOrUpdateInput{
 				FieldID:   githubv4.ID("IF_customer"),
@@ -209,7 +220,7 @@ func Test_ProjectsWrite_UpdateProjectItem_AttachedIssueFieldTypes(t *testing.T) 
 		{
 			name:      "number",
 			fieldNode: attachedIssueFieldNode("PVTF_score", 702, "IF_score", "Score", "NUMBER", nil),
-			fieldName: "Score",
+			fieldRef:  map[string]any{"name": "Score"},
 			value:     3.5,
 			want: IssueFieldCreateOrUpdateInput{
 				FieldID:     githubv4.ID("IF_score"),
@@ -219,7 +230,7 @@ func Test_ProjectsWrite_UpdateProjectItem_AttachedIssueFieldTypes(t *testing.T) 
 		{
 			name:      "date",
 			fieldNode: attachedIssueFieldNode("PVTF_due", 703, "IF_due", "Due", "DATE", nil),
-			fieldName: "Due",
+			fieldRef:  map[string]any{"name": "Due"},
 			value:     "2026-08-01",
 			want: IssueFieldCreateOrUpdateInput{
 				FieldID:   githubv4.ID("IF_due"),
@@ -232,8 +243,21 @@ func Test_ProjectsWrite_UpdateProjectItem_AttachedIssueFieldTypes(t *testing.T) 
 				{"id": "IFO_low", "name": "Low"},
 				{"id": "IFO_high", "name": "High"},
 			}),
-			fieldName: "rIsK",
-			value:     "hIgH",
+			fieldRef: map[string]any{"name": "rIsK"},
+			value:    "hIgH",
+			want: IssueFieldCreateOrUpdateInput{
+				FieldID:              githubv4.ID("IF_risk"),
+				SingleSelectOptionID: &optionID,
+			},
+		},
+		{
+			name: "single select by project field ID",
+			fieldNode: attachedIssueFieldNode("PVTSSF_risk", 704, "IF_risk", "Risk", "SINGLE_SELECT", []map[string]any{
+				{"id": "IFO_low", "name": "Low"},
+				{"id": "IFO_high", "name": "High"},
+			}),
+			fieldRef: map[string]any{"id": float64(704)},
+			value:    "IFO_high",
 			want: IssueFieldCreateOrUpdateInput{
 				FieldID:              githubv4.ID("IF_risk"),
 				SingleSelectOptionID: &optionID,
@@ -242,7 +266,7 @@ func Test_ProjectsWrite_UpdateProjectItem_AttachedIssueFieldTypes(t *testing.T) 
 		{
 			name:      "clear",
 			fieldNode: attachedIssueFieldNode("PVTF_customer", 701, "IF_customer", "Customer", "TEXT", nil),
-			fieldName: "Customer",
+			fieldRef:  map[string]any{"name": "Customer"},
 			value:     nil,
 			want: IssueFieldCreateOrUpdateInput{
 				FieldID: githubv4.ID("IF_customer"),
@@ -275,16 +299,15 @@ func Test_ProjectsWrite_UpdateProjectItem_AttachedIssueFieldTypes(t *testing.T) 
 			deps := BaseDeps{Client: mustNewGHClient(t, rest), GQLClient: gql}
 			serverTool := ProjectsWrite(translations.NullTranslationHelper)
 			handler := serverTool.Handler(deps)
+			updatedField := map[string]any{"value": tt.value}
+			maps.Copy(updatedField, tt.fieldRef)
 			request := createMCPRequest(map[string]any{
 				"method":         projectsMethodUpdateProjectItem,
 				"owner":          "octo-org",
 				"owner_type":     "org",
 				"project_number": float64(1),
 				"item_id":        float64(1001),
-				"updated_field": map[string]any{
-					"name":  tt.fieldName,
-					"value": tt.value,
-				},
+				"updated_field":  updatedField,
 			})
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)

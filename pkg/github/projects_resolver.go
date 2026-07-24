@@ -277,6 +277,38 @@ func resolveProjectFieldByName(ctx context.Context, gqlClient *githubv4.Client, 
 	return &field, nil
 }
 
+func resolveProjectFieldByID(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, fieldID int64) (*ResolvedField, error) {
+	all, err := listAllProjectFields(ctx, gqlClient, owner, ownerType, projectNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	id := strconv.FormatInt(fieldID, 10)
+	for _, field := range all {
+		if field.ID == id {
+			return &field, nil
+		}
+	}
+	return nil, ghErrors.NewStructuredResolutionError(
+		"field_not_found",
+		id,
+		fmt.Sprintf("no project field with id %s on project %s#%d; see candidates for available fields", id, owner, projectNumber),
+		projectFieldCandidates(all),
+	)
+}
+
+func projectFieldCandidates(fields []ResolvedField) []any {
+	candidates := make([]any, 0, len(fields))
+	for _, field := range fields {
+		candidates = append(candidates, map[string]any{
+			"id":        field.ID,
+			"name":      field.Name,
+			"data_type": field.DataType,
+		})
+	}
+	return candidates
+}
+
 // resolveSingleSelectOptionByName resolves an option name to its ID on a
 // SINGLE_SELECT field. Returns a structured error if not found or ambiguous.
 func resolveSingleSelectOptionByName(field *ResolvedField, optionName string) (string, error) {

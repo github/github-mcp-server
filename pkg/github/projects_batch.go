@@ -544,36 +544,7 @@ func resolveBatchProjectField(ctx context.Context, gqlClient *githubv4.Client, o
 	if spec.name != "" {
 		return resolveProjectFieldByName(ctx, gqlClient, owner, ownerType, projectNumber, spec.name, "")
 	}
-
-	fields, err := listAllProjectFields(ctx, gqlClient, owner, ownerType, projectNumber)
-	if err != nil {
-		return nil, err
-	}
-
-	id := fmt.Sprintf("%d", spec.id)
-	for _, field := range fields {
-		if field.ID == id {
-			return &field, nil
-		}
-	}
-	return nil, ghErrors.NewStructuredResolutionError(
-		"field_not_found",
-		id,
-		fmt.Sprintf("no project field with id %s on project %s#%d; see candidates for available fields", id, owner, projectNumber),
-		projectFieldCandidates(fields),
-	)
-}
-
-func projectFieldCandidates(fields []ResolvedField) []any {
-	candidates := make([]any, 0, len(fields))
-	for _, field := range fields {
-		candidates = append(candidates, map[string]any{
-			"id":        field.ID,
-			"name":      field.Name,
-			"data_type": field.DataType,
-		})
-	}
-	return candidates
+	return resolveProjectFieldByID(ctx, gqlClient, owner, ownerType, projectNumber, spec.id)
 }
 
 func convertProjectFieldValue(field *ResolvedField, raw any) (githubv4.ProjectV2FieldValue, error) {

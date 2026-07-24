@@ -1235,6 +1235,15 @@ func Test_ProjectsWrite_UpdateProjectItem(t *testing.T) {
 		client := mustNewGHClient(t, mockedClient)
 		deps := BaseDeps{
 			Client: client,
+			GQLClient: githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					projectFieldsTestQuery{},
+					fieldsQueryVars("octo-org", 1),
+					githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+						genericFieldNode("PVTF_notes", 101, "Notes", "TEXT"),
+					})),
+				),
+			)),
 		}
 		handler := toolDef.Handler(deps)
 		request := createMCPRequest(map[string]any{
