@@ -70,33 +70,36 @@ type projectFieldsQueryUser struct {
 	} `graphql:"user(login: $owner)"`
 }
 
-// projectFieldsConnection is a paginated list of project fields. We select `id`
-// to discriminate the union variant and `databaseId` for the numeric ID REST needs.
+type projectV2FieldSelection struct {
+	ID         githubv4.ID
+	DatabaseID githubv4.Int `graphql:"databaseId"`
+	Name       githubv4.String
+	DataType   githubv4.String
+}
+
+type projectV2SingleSelectOptionSelection struct {
+	ID   githubv4.String
+	Name githubv4.String
+}
+
+type projectV2SingleSelectFieldSelection struct {
+	ID         githubv4.ID
+	DatabaseID githubv4.Int `graphql:"databaseId"`
+	Name       githubv4.String
+	DataType   githubv4.String
+	Options    []projectV2SingleSelectOptionSelection
+}
+
+// projectFieldsNode selects `id` to discriminate the union variant and
+// `databaseId` for the numeric ID REST needs.
+type projectFieldsNode struct {
+	ProjectV2Field             projectV2FieldSelection             `graphql:"... on ProjectV2Field"`
+	ProjectV2IterationField    projectV2FieldSelection             `graphql:"... on ProjectV2IterationField"`
+	ProjectV2SingleSelectField projectV2SingleSelectFieldSelection `graphql:"... on ProjectV2SingleSelectField"`
+}
+
 type projectFieldsConnection struct {
-	Nodes []struct {
-		ProjectV2Field struct {
-			ID         githubv4.ID
-			DatabaseID githubv4.Int `graphql:"databaseId"`
-			Name       githubv4.String
-			DataType   githubv4.String
-		} `graphql:"... on ProjectV2Field"`
-		ProjectV2IterationField struct {
-			ID         githubv4.ID
-			DatabaseID githubv4.Int `graphql:"databaseId"`
-			Name       githubv4.String
-			DataType   githubv4.String
-		} `graphql:"... on ProjectV2IterationField"`
-		ProjectV2SingleSelectField struct {
-			ID         githubv4.ID
-			DatabaseID githubv4.Int `graphql:"databaseId"`
-			Name       githubv4.String
-			DataType   githubv4.String
-			Options    []struct {
-				ID   githubv4.String
-				Name githubv4.String
-			}
-		} `graphql:"... on ProjectV2SingleSelectField"`
-	}
+	Nodes    []projectFieldsNode
 	PageInfo PageInfoFragment
 }
 
@@ -117,35 +120,68 @@ type projectFieldsWithIssueFieldsQueryUser struct {
 }
 
 type projectFieldsWithIssueFieldsConnection struct {
-	Nodes []struct {
-		ProjectV2Field struct {
-			ID           githubv4.ID
-			DatabaseID   githubv4.Int `graphql:"databaseId"`
-			Name         githubv4.String
-			DataType     githubv4.String
-			IsIssueField githubv4.Boolean
-			IssueField   projectIssueFieldMetadata
-		} `graphql:"... on ProjectV2Field"`
-		ProjectV2IterationField struct {
-			ID         githubv4.ID
-			DatabaseID githubv4.Int `graphql:"databaseId"`
-			Name       githubv4.String
-			DataType   githubv4.String
-		} `graphql:"... on ProjectV2IterationField"`
-		ProjectV2SingleSelectField struct {
-			ID           githubv4.ID
-			DatabaseID   githubv4.Int `graphql:"databaseId"`
-			Name         githubv4.String
-			DataType     githubv4.String
-			IsIssueField githubv4.Boolean
-			IssueField   projectIssueFieldMetadata
-			Options      []struct {
-				ID   githubv4.String
-				Name githubv4.String
-			}
-		} `graphql:"... on ProjectV2SingleSelectField"`
-	}
+	Nodes    []projectFieldsWithIssueFieldsNode
 	PageInfo PageInfoFragment
+}
+
+type projectFieldsWithIssueFieldsNode struct {
+	ProjectV2Field struct {
+		projectV2FieldSelection
+		IsIssueField githubv4.Boolean
+		IssueField   projectIssueFieldMetadata
+	} `graphql:"... on ProjectV2Field"`
+	ProjectV2IterationField    projectV2FieldSelection `graphql:"... on ProjectV2IterationField"`
+	ProjectV2SingleSelectField struct {
+		projectV2SingleSelectFieldSelection
+		IsIssueField githubv4.Boolean
+		IssueField   projectIssueFieldMetadata
+	} `graphql:"... on ProjectV2SingleSelectField"`
+}
+
+func projectFieldsQueryVariables(owner string, projectNumber int, after *githubv4.String) map[string]any {
+	vars := map[string]any{
+		"owner":         githubv4.String(owner),
+		"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are small
+		"first":         githubv4.Int(resolverFieldsPageSize),
+		"after":         (*githubv4.String)(nil),
+	}
+	if after != nil {
+		vars["after"] = after
+	}
+	return vars
+}
+
+func resolvedProjectField(node projectFieldsNode) (ResolvedField, bool) {
+	switch {
+	case node.ProjectV2SingleSelectField.ID != nil:
+		options := make([]ResolvedFieldOption, 0, len(node.ProjectV2SingleSelectField.Options))
+		for _, option := range node.ProjectV2SingleSelectField.Options {
+			options = append(options, ResolvedFieldOption{ID: string(option.ID), Name: string(option.Name)})
+		}
+		return ResolvedField{
+			ID:       fmt.Sprintf("%d", node.ProjectV2SingleSelectField.DatabaseID),
+			NodeID:   fmt.Sprintf("%v", node.ProjectV2SingleSelectField.ID),
+			Name:     string(node.ProjectV2SingleSelectField.Name),
+			DataType: string(node.ProjectV2SingleSelectField.DataType),
+			Options:  options,
+		}, true
+	case node.ProjectV2IterationField.ID != nil:
+		return ResolvedField{
+			ID:       fmt.Sprintf("%d", node.ProjectV2IterationField.DatabaseID),
+			NodeID:   fmt.Sprintf("%v", node.ProjectV2IterationField.ID),
+			Name:     string(node.ProjectV2IterationField.Name),
+			DataType: string(node.ProjectV2IterationField.DataType),
+		}, true
+	case node.ProjectV2Field.ID != nil:
+		return ResolvedField{
+			ID:       fmt.Sprintf("%d", node.ProjectV2Field.DatabaseID),
+			NodeID:   fmt.Sprintf("%v", node.ProjectV2Field.ID),
+			Name:     string(node.ProjectV2Field.Name),
+			DataType: string(node.ProjectV2Field.DataType),
+		}, true
+	default:
+		return ResolvedField{}, false
+	}
 }
 
 // listAllProjectFields fetches every field on a project, paginating as needed.
@@ -154,15 +190,7 @@ func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner
 	var after *githubv4.String
 
 	for {
-		vars := map[string]any{
-			"owner":         githubv4.String(owner),
-			"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are small
-			"first":         githubv4.Int(resolverFieldsPageSize),
-			"after":         (*githubv4.String)(nil),
-		}
-		if after != nil {
-			vars["after"] = after
-		}
+		vars := projectFieldsQueryVariables(owner, projectNumber, after)
 
 		var conn projectFieldsConnection
 		if ownerType == "org" {
@@ -179,34 +207,9 @@ func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner
 			conn = q.User.ProjectV2.Fields
 		}
 
-		for _, n := range conn.Nodes {
-			switch {
-			case n.ProjectV2SingleSelectField.ID != nil:
-				opts := make([]ResolvedFieldOption, 0, len(n.ProjectV2SingleSelectField.Options))
-				for _, o := range n.ProjectV2SingleSelectField.Options {
-					opts = append(opts, ResolvedFieldOption{ID: string(o.ID), Name: string(o.Name)})
-				}
-				all = append(all, ResolvedField{
-					ID:       fmt.Sprintf("%d", n.ProjectV2SingleSelectField.DatabaseID),
-					NodeID:   fmt.Sprintf("%v", n.ProjectV2SingleSelectField.ID),
-					Name:     string(n.ProjectV2SingleSelectField.Name),
-					DataType: string(n.ProjectV2SingleSelectField.DataType),
-					Options:  opts,
-				})
-			case n.ProjectV2IterationField.ID != nil:
-				all = append(all, ResolvedField{
-					ID:       fmt.Sprintf("%d", n.ProjectV2IterationField.DatabaseID),
-					NodeID:   fmt.Sprintf("%v", n.ProjectV2IterationField.ID),
-					Name:     string(n.ProjectV2IterationField.Name),
-					DataType: string(n.ProjectV2IterationField.DataType),
-				})
-			case n.ProjectV2Field.ID != nil:
-				all = append(all, ResolvedField{
-					ID:       fmt.Sprintf("%d", n.ProjectV2Field.DatabaseID),
-					NodeID:   fmt.Sprintf("%v", n.ProjectV2Field.ID),
-					Name:     string(n.ProjectV2Field.Name),
-					DataType: string(n.ProjectV2Field.DataType),
-				})
+		for _, node := range conn.Nodes {
+			if field, ok := resolvedProjectField(node); ok {
+				all = append(all, field)
 			}
 		}
 
@@ -234,15 +237,7 @@ func listAllProjectFieldsWithIssueFieldMetadata(ctx context.Context, gqlClient *
 	ctx = ghcontext.WithGraphQLFeatures(ctx, "issue_fields")
 
 	for {
-		vars := map[string]any{
-			"owner":         githubv4.String(owner),
-			"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are small
-			"first":         githubv4.Int(resolverFieldsPageSize),
-			"after":         (*githubv4.String)(nil),
-		}
-		if after != nil {
-			vars["after"] = after
-		}
+		vars := projectFieldsQueryVariables(owner, projectNumber, after)
 
 		var conn projectFieldsWithIssueFieldsConnection
 		if ownerType == "org" {
@@ -259,47 +254,28 @@ func listAllProjectFieldsWithIssueFieldMetadata(ctx context.Context, gqlClient *
 			conn = q.User.ProjectV2.Fields
 		}
 
-		for _, n := range conn.Nodes {
-			switch {
-			case n.ProjectV2SingleSelectField.ID != nil:
-				opts := make([]ResolvedFieldOption, 0, len(n.ProjectV2SingleSelectField.Options))
-				for _, o := range n.ProjectV2SingleSelectField.Options {
-					opts = append(opts, ResolvedFieldOption{ID: string(o.ID), Name: string(o.Name)})
-				}
-				issueFieldNodeID := ""
-				if n.ProjectV2SingleSelectField.IsIssueField {
-					opts = opts[:0]
-					issueFieldNodeID = issueFieldNodeIDForType(n.ProjectV2SingleSelectField.DataType, n.ProjectV2SingleSelectField.IssueField)
-					for _, o := range n.ProjectV2SingleSelectField.IssueField.SingleSelect.Options {
-						opts = append(opts, ResolvedFieldOption{ID: fmt.Sprintf("%v", o.ID), Name: string(o.Name)})
-					}
-				}
-				all = append(all, ResolvedField{
-					ID:               fmt.Sprintf("%d", n.ProjectV2SingleSelectField.DatabaseID),
-					NodeID:           fmt.Sprintf("%v", n.ProjectV2SingleSelectField.ID),
-					Name:             string(n.ProjectV2SingleSelectField.Name),
-					DataType:         string(n.ProjectV2SingleSelectField.DataType),
-					Options:          opts,
-					IsIssueField:     bool(n.ProjectV2SingleSelectField.IsIssueField),
-					IssueFieldNodeID: issueFieldNodeID,
-				})
-			case n.ProjectV2IterationField.ID != nil:
-				all = append(all, ResolvedField{
-					ID:       fmt.Sprintf("%d", n.ProjectV2IterationField.DatabaseID),
-					NodeID:   fmt.Sprintf("%v", n.ProjectV2IterationField.ID),
-					Name:     string(n.ProjectV2IterationField.Name),
-					DataType: string(n.ProjectV2IterationField.DataType),
-				})
-			case n.ProjectV2Field.ID != nil:
-				all = append(all, ResolvedField{
-					ID:               fmt.Sprintf("%d", n.ProjectV2Field.DatabaseID),
-					NodeID:           fmt.Sprintf("%v", n.ProjectV2Field.ID),
-					Name:             string(n.ProjectV2Field.Name),
-					DataType:         string(n.ProjectV2Field.DataType),
-					IsIssueField:     bool(n.ProjectV2Field.IsIssueField),
-					IssueFieldNodeID: issueFieldNodeIDForType(n.ProjectV2Field.DataType, n.ProjectV2Field.IssueField),
-				})
+		for _, node := range conn.Nodes {
+			field, ok := resolvedProjectField(projectFieldsNode{
+				ProjectV2Field:             node.ProjectV2Field.projectV2FieldSelection,
+				ProjectV2IterationField:    node.ProjectV2IterationField,
+				ProjectV2SingleSelectField: node.ProjectV2SingleSelectField.projectV2SingleSelectFieldSelection,
+			})
+			if !ok {
+				continue
 			}
+
+			if field.DataType == "SINGLE_SELECT" && bool(node.ProjectV2SingleSelectField.IsIssueField) {
+				field.IsIssueField = true
+				field.IssueFieldNodeID = issueFieldNodeIDForType(field.DataType, node.ProjectV2SingleSelectField.IssueField)
+				field.Options = field.Options[:0]
+				for _, option := range node.ProjectV2SingleSelectField.IssueField.SingleSelect.Options {
+					field.Options = append(field.Options, ResolvedFieldOption{ID: fmt.Sprintf("%v", option.ID), Name: string(option.Name)})
+				}
+			} else if bool(node.ProjectV2Field.IsIssueField) {
+				field.IsIssueField = true
+				field.IssueFieldNodeID = issueFieldNodeIDForType(field.DataType, node.ProjectV2Field.IssueField)
+			}
+			all = append(all, field)
 		}
 
 		if !bool(conn.PageInfo.HasNextPage) {
@@ -328,12 +304,18 @@ func issueFieldSchemaUnavailable(err error) bool {
 			return true
 		}
 	}
+	for _, typeName := range []string{"IssueFieldText", "IssueFieldNumber", "IssueFieldDate", "IssueFieldSingleSelect"} {
+		if strings.Contains(message, fmt.Sprintf("No such type %s, so it can't be a fragment condition", typeName)) ||
+			strings.Contains(message, fmt.Sprintf(`Unknown type "%s".`, typeName)) {
+			return true
+		}
+	}
 	return false
 }
 
-func issueFieldNodeIDForType(dataType githubv4.String, metadata projectIssueFieldMetadata) string {
+func issueFieldNodeIDForType(dataType string, metadata projectIssueFieldMetadata) string {
 	var id githubv4.ID
-	switch strings.ToUpper(string(dataType)) {
+	switch strings.ToUpper(dataType) {
 	case "TEXT":
 		id = metadata.Text.ID
 	case "NUMBER":
@@ -347,13 +329,6 @@ func issueFieldNodeIDForType(dataType githubv4.String, metadata projectIssueFiel
 		return ""
 	}
 	return fmt.Sprintf("%v", id)
-}
-
-// resolveProjectFieldByName resolves a field by display name. Returns a
-// structured error on not-found, ambiguous, or wrong-data-type (when
-// expectedDataType is set) so the agent can self-correct.
-func resolveProjectFieldByName(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, fieldName, expectedDataType string) (*ResolvedField, error) {
-	return resolveProjectFieldByNameWithLister(ctx, gqlClient, owner, ownerType, projectNumber, fieldName, expectedDataType, listAllProjectFields)
 }
 
 func resolveProjectFieldForUpdateByName(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, fieldName, expectedDataType string) (*ResolvedField, error) {
