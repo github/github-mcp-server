@@ -103,6 +103,22 @@ func genericFieldNode(nodeID string, databaseID int, name, dataType string) map[
 	}
 }
 
+func attachedIssueFieldNode(projectNodeID string, projectDatabaseID int, issueFieldNodeID, name, dataType string, options []map[string]any) map[string]any {
+	node := map[string]any{
+		"id":           projectNodeID,
+		"databaseId":   projectDatabaseID,
+		"name":         name,
+		"dataType":     dataType,
+		"isIssueField": true,
+		"issueField":   map[string]any{"id": issueFieldNodeID},
+	}
+	if dataType == "SINGLE_SELECT" {
+		node["options"] = []any{}
+		node["issueField"].(map[string]any)["options"] = options
+	}
+	return node
+}
+
 func fieldsResponse(nodes []map[string]any) map[string]any {
 	return map[string]any{
 		"organization": map[string]any{
@@ -119,6 +135,36 @@ func fieldsResponse(nodes []map[string]any) map[string]any {
 			},
 		},
 	}
+}
+
+func Test_ResolveProjectFieldByID_AttachedIssueFieldMetadata(t *testing.T) {
+	queryTransport := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			projectFieldsWithIssueFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 7),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				attachedIssueFieldNode("PVTSSF_risk", 702, "IF_risk", "Risk", "SINGLE_SELECT", []map[string]any{
+					{"id": "IFO_low", "name": "Low"}, {"id": "IFO_high", "name": "High"},
+				}),
+			})),
+		),
+	)
+	transport := &mutationAwareTransport{t: t, queries: queryTransport.Transport}
+	gql := githubv4.NewClient(&http.Client{
+		Transport: &transportpkg.GraphQLFeaturesTransport{Transport: transport},
+	})
+
+	field, err := resolveProjectFieldByID(t.Context(), gql, "octo-org", "org", 7, 702)
+	require.NoError(t, err)
+	require.Len(t, transport.queryCalls, 1)
+	assert.Equal(t, "issue_fields", transport.queryCalls[0].Headers.Get(headers.GraphQLFeaturesHeader))
+	assert.Equal(t, "702", field.ID)
+	assert.Equal(t, "PVTSSF_risk", field.NodeID)
+	assert.Equal(t, "IF_risk", field.IssueFieldNodeID)
+	assert.True(t, field.IsIssueField)
+	assert.Equal(t, []ResolvedFieldOption{
+		{ID: "IFO_low", Name: "Low"}, {ID: "IFO_high", Name: "High"},
+	}, field.Options)
 }
 
 func Test_ResolveProjectFieldByName_Success(t *testing.T) {
