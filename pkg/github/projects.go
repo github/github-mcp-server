@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -551,7 +552,7 @@ func projectUpdatedFieldSchema() *jsonschema.Schema {
 
 	return &jsonschema.Schema{
 		Type:        "object",
-		Description: "The field/value to apply, using {\"id\": 123, \"value\": ...} or {\"name\": \"Status\", \"value\": ...}; null clears the field. Required for 'update_project_item' and 'update_project_items', where one top-level field/value applies to every item in a batch. For 'update_project_item' SINGLE_SELECT fields, the name form accepts option names; the ID form expects an option ID.",
+		Description: "The field/value to apply, using {\"id\": 123, \"value\": ...} or {\"name\": \"Status\", \"value\": ...}; null clears the field. Required for 'update_project_item' and 'update_project_items', where one top-level field/value applies to every item in a batch.",
 		OneOf: []*jsonschema.Schema{
 			variant([]string{"id", "value"}, map[string]*jsonschema.Schema{
 				"id": {
@@ -1191,7 +1192,7 @@ func getProjectField(ctx context.Context, client *github.Client, owner, ownerTyp
 	return utils.NewToolResultText(string(r)), nil, nil
 }
 
-func getProjectItem(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, itemID int64, fields []int64) (*mcp.CallToolResult, any, error) {
+func fetchProjectItem(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, itemID int64, fields []int64) (*github.ProjectV2Item, *github.Response, error) {
 	var resp *github.Response
 	var projectItem *github.ProjectV2Item
 	var opts *github.GetProjectItemOptions
@@ -1208,6 +1209,11 @@ func getProjectItem(ctx context.Context, client *github.Client, owner, ownerType
 	} else {
 		projectItem, resp, err = client.Projects.GetUserProjectItem(ctx, owner, projectNumber, itemID, opts)
 	}
+	return projectItem, resp, err
+}
+
+func getProjectItem(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, itemID int64, fields []int64) (*mcp.CallToolResult, any, error) {
+	projectItem, resp, err := fetchProjectItem(ctx, client, owner, ownerType, projectNumber, itemID, fields)
 
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -1235,7 +1241,7 @@ func getProjectItem(ctx context.Context, client *github.Client, owner, ownerType
 }
 
 func updateProjectItem(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, itemID int64, fieldValue map[string]any) (*mcp.CallToolResult, any, error) {
-	updatePayload, err := buildUpdateProjectItem(ctx, gqlClient, owner, ownerType, projectNumber, fieldValue)
+	update, err := buildUpdateProjectItem(ctx, gqlClient, owner, ownerType, projectNumber, fieldValue)
 	if err != nil {
 		var structured *ghErrors.StructuredResolutionError
 		if errors.As(err, &structured) {
@@ -1244,13 +1250,45 @@ func updateProjectItem(ctx context.Context, client *github.Client, gqlClient *gi
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
+	if update.IssueField != nil {
+		projectItem, resp, fetchErr := fetchProjectItem(ctx, client, owner, ownerType, projectNumber, itemID, nil)
+		if fetchErr != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to inspect project item content", resp, fetchErr), nil, nil
+		}
+		if resp != nil && resp.Body != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if resp == nil || resp.StatusCode != http.StatusOK {
+			return utils.NewToolResultError("failed to inspect project item content"), nil, nil
+		}
+
+		issueID, resolveErr := projectItemIssueNodeID(projectItem)
+		if resolveErr != nil {
+			var structured *ghErrors.StructuredResolutionError
+			if errors.As(resolveErr, &structured) {
+				return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
+			}
+			return utils.NewToolResultError(resolveErr.Error()), nil, nil
+		}
+		mutationCtx := ghcontext.WithGraphQLFeatures(ctx, "update_issue_suggestions")
+		response, mutationErr := SetIssueFieldValues(mutationCtx, gqlClient, issueID, []IssueFieldCreateOrUpdateInput{*update.IssueField})
+		if mutationErr != nil {
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to update Issue Field", mutationErr), nil, nil
+		}
+		r, marshalErr := json.Marshal(response)
+		if marshalErr != nil {
+			return nil, nil, fmt.Errorf("failed to marshal response: %w", marshalErr)
+		}
+		return utils.NewToolResultText(string(r)), nil, nil
+	}
+
 	var resp *github.Response
 	var updatedItem *github.ProjectV2Item
 
 	if ownerType == "org" {
-		updatedItem, resp, err = client.Projects.UpdateOrganizationProjectItem(ctx, owner, projectNumber, itemID, updatePayload)
+		updatedItem, resp, err = client.Projects.UpdateOrganizationProjectItem(ctx, owner, projectNumber, itemID, update.Project)
 	} else {
-		updatedItem, resp, err = client.Projects.UpdateUserProjectItem(ctx, owner, projectNumber, itemID, updatePayload)
+		updatedItem, resp, err = client.Projects.UpdateUserProjectItem(ctx, owner, projectNumber, itemID, update.Project)
 	}
 
 	if err != nil {
@@ -1614,8 +1652,122 @@ func validateAndConvertToInt64(value any) (int64, error) {
 	}
 }
 
-// buildUpdateProjectItem builds UpdateProjectItemOptions, resolving field names and SINGLE_SELECT option names server-side.
-func buildUpdateProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, input map[string]any) (*github.UpdateProjectItemOptions, error) {
+type resolvedProjectItemUpdate struct {
+	Project    *github.UpdateProjectItemOptions
+	IssueField *IssueFieldCreateOrUpdateInput
+}
+
+func buildIssueFieldUpdate(field *ResolvedField, raw any) (*IssueFieldCreateOrUpdateInput, error) {
+	if field == nil {
+		return nil, ghErrors.NewStructuredResolutionError(
+			"issue_field_metadata_unavailable",
+			"",
+			"the attached Project field metadata is unavailable",
+			nil,
+		)
+	}
+
+	switch field.DataType {
+	case "TEXT", "NUMBER", "DATE", "SINGLE_SELECT":
+	default:
+		return nil, ghErrors.NewStructuredResolutionError(
+			"unsupported_field_type",
+			field.Name,
+			fmt.Sprintf("Issue Field %q has unsupported data type %q; supported types are TEXT, NUMBER, DATE, and SINGLE_SELECT", field.Name, field.DataType),
+			nil,
+		)
+	}
+
+	if field.IssueFieldNodeID == "" {
+		return nil, ghErrors.NewStructuredResolutionError(
+			"issue_field_metadata_unavailable",
+			field.Name,
+			"the attached Project field did not include the underlying Issue Field node ID",
+			nil,
+		)
+	}
+
+	input := &IssueFieldCreateOrUpdateInput{FieldID: githubv4.ID(field.IssueFieldNodeID)}
+	if raw == nil {
+		deleteValue := githubv4.Boolean(true)
+		input.Delete = &deleteValue
+		return input, nil
+	}
+
+	invalidValue := func(hint string) (*IssueFieldCreateOrUpdateInput, error) {
+		return nil, ghErrors.NewStructuredResolutionError("invalid_field_value", field.Name, hint, nil)
+	}
+
+	switch field.DataType {
+	case "TEXT":
+		value, ok := raw.(string)
+		if !ok {
+			return invalidValue(fmt.Sprintf("Issue Field %q is TEXT; value must be a string or null to clear it", field.Name))
+		}
+		input.TextValue = githubv4.NewString(githubv4.String(value))
+	case "NUMBER":
+		value, ok := toFloat64(raw)
+		if !ok {
+			return invalidValue(fmt.Sprintf("Issue Field %q is NUMBER; value must be a finite number or null to clear it", field.Name))
+		}
+		number := githubv4.Float(value)
+		input.NumberValue = &number
+	case "DATE":
+		value, ok := raw.(string)
+		if !ok {
+			return invalidValue(fmt.Sprintf("Issue Field %q is DATE; value must be a YYYY-MM-DD string or null to clear it", field.Name))
+		}
+		if _, err := time.Parse("2006-01-02", value); err != nil {
+			return invalidValue(fmt.Sprintf("Issue Field %q is DATE; value %q must use YYYY-MM-DD format", field.Name, value))
+		}
+		input.DateValue = githubv4.NewString(githubv4.String(value))
+	case "SINGLE_SELECT":
+		value, ok := raw.(string)
+		if !ok || value == "" {
+			return invalidValue(fmt.Sprintf("Issue Field %q is SINGLE_SELECT; value must be a non-empty option name or ID, or null to clear it", field.Name))
+		}
+		optionID, err := resolveSingleSelectOptionByNameOrID(field, value)
+		if err != nil {
+			return nil, err
+		}
+		id := githubv4.ID(optionID)
+		input.SingleSelectOptionID = &id
+	}
+	return input, nil
+}
+
+func projectItemIssueNodeID(item *github.ProjectV2Item) (githubv4.ID, error) {
+	if item == nil || item.ContentType == nil {
+		return "", ghErrors.NewStructuredResolutionError(
+			"issue_field_metadata_unavailable",
+			"",
+			"the project item response did not identify its content type; Issue Fields can only be updated on Issue items",
+			nil,
+		)
+	}
+
+	contentType := string(*item.ContentType)
+	if contentType != "Issue" {
+		return "", ghErrors.NewStructuredResolutionError(
+			"unsupported_item_type",
+			contentType,
+			"Issue Fields can only be updated on Issue project items, not pull requests or draft issues",
+			nil,
+		)
+	}
+	if item.Content == nil || item.Content.Issue == nil || item.Content.Issue.GetNodeID() == "" {
+		return "", ghErrors.NewStructuredResolutionError(
+			"issue_field_metadata_unavailable",
+			"Issue",
+			"the project item response did not include the underlying Issue node ID needed to update the Issue Field",
+			nil,
+		)
+	}
+	return githubv4.ID(item.Content.Issue.GetNodeID()), nil
+}
+
+// buildUpdateProjectItem resolves the target field and builds the matching Project or Issue Field write.
+func buildUpdateProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, input map[string]any) (*resolvedProjectItemUpdate, error) {
 	if input == nil {
 		return nil, fmt.Errorf("updated_field must be an object")
 	}
@@ -1646,6 +1798,13 @@ func buildUpdateProjectItem(ctx context.Context, gqlClient *githubv4.Client, own
 		if err != nil {
 			return nil, fmt.Errorf("updated_field.id: %w", err)
 		}
+		if gqlClient == nil {
+			return nil, fmt.Errorf("internal error: gqlClient is required to resolve updated_field.id")
+		}
+		resolved, err = resolveProjectFieldByID(ctx, gqlClient, owner, ownerType, projectNumber, fieldID)
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		fieldName, ok := nameField.(string)
 		if !ok || fieldName == "" {
@@ -1655,7 +1814,7 @@ func buildUpdateProjectItem(ctx context.Context, gqlClient *githubv4.Client, own
 			return nil, fmt.Errorf("internal error: gqlClient is required to resolve updated_field.name")
 		}
 		var err error
-		resolved, err = resolveProjectFieldByName(ctx, gqlClient, owner, ownerType, projectNumber, fieldName, "")
+		resolved, err = resolveProjectFieldForUpdateByName(ctx, gqlClient, owner, ownerType, projectNumber, fieldName, "")
 		if err != nil {
 			return nil, err
 		}
@@ -1666,24 +1825,21 @@ func buildUpdateProjectItem(ctx context.Context, gqlClient *githubv4.Client, own
 		fieldID = parsedID
 	}
 
-	// SINGLE_SELECT: resolve option name to ID; pass through if it's already a known option ID.
-	if resolved != nil && resolved.DataType == "SINGLE_SELECT" {
+	if resolved.IsIssueField {
+		issueField, buildErr := buildIssueFieldUpdate(resolved, valueField)
+		if buildErr != nil {
+			return nil, buildErr
+		}
+		return &resolvedProjectItemUpdate{IssueField: issueField}, nil
+	}
+
+	if resolved.DataType == "SINGLE_SELECT" {
 		if str, ok := valueField.(string); ok && str != "" {
-			if optID, optErr := resolveSingleSelectOptionByName(resolved, str); optErr == nil {
-				valueField = optID
-			} else {
-				// Fall back: if the string is already a known option ID, accept it.
-				known := false
-				for _, opt := range resolved.Options {
-					if opt.ID == str {
-						known = true
-						break
-					}
-				}
-				if !known {
-					return nil, optErr
-				}
+			optionID, optionErr := resolveSingleSelectOptionByNameOrID(resolved, str)
+			if optionErr != nil {
+				return nil, optionErr
 			}
+			valueField = optionID
 		}
 	}
 
@@ -1694,7 +1850,7 @@ func buildUpdateProjectItem(ctx context.Context, gqlClient *githubv4.Client, own
 		}},
 	}
 
-	return payload, nil
+	return &resolvedProjectItemUpdate{Project: payload}, nil
 }
 
 func extractPaginationOptionsFromArgs(args map[string]any) (github.ListProjectsPaginationOptions, error) {

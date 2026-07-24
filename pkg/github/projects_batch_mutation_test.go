@@ -20,6 +20,7 @@ import (
 type capturedGraphQLRequest struct {
 	Query     string
 	Variables map[string]any
+	Headers   http.Header
 }
 
 // sequencedGraphQLTransport is a minimal fake http.RoundTripper for exercising
@@ -45,7 +46,7 @@ func (s *sequencedGraphQLTransport) RoundTrip(req *http.Request) (*http.Response
 	if err := json.Unmarshal(raw, &parsed); err != nil {
 		return nil, err
 	}
-	captured := capturedGraphQLRequest{Query: parsed.Query, Variables: parsed.Variables}
+	captured := capturedGraphQLRequest{Query: parsed.Query, Variables: parsed.Variables, Headers: req.Header.Clone()}
 	s.calls = append(s.calls, captured)
 
 	idx := len(s.calls) - 1
@@ -88,6 +89,19 @@ func mutationDataResponse(t *testing.T, ids map[int]struct{ NodeID, FullDatabase
 	return string(body)
 }
 
+func issueFieldMutationDataResponse(t *testing.T, ids map[int]string) string {
+	t.Helper()
+	data := make(map[string]any, len(ids))
+	for i, id := range ids {
+		data[fmt.Sprintf("item%d", i)] = map[string]any{
+			"issue": map[string]any{"id": id},
+		}
+	}
+	body, err := json.Marshal(map[string]any{"data": data})
+	require.NoError(t, err)
+	return string(body)
+}
+
 func mutationErrorResponse(t *testing.T, data map[string]any, message string) string {
 	t.Helper()
 	payload := map[string]any{
@@ -113,6 +127,20 @@ func inputsOfSize(n int) []githubv4.Input {
 			ItemID:    githubv4.ID(fmt.Sprintf("PVTI_item%d", i)),
 			FieldID:   githubv4.ID("PVTF_field"),
 			Value:     githubv4.ProjectV2FieldValue{Text: githubv4.NewString("v")},
+		}
+	}
+	return inputs
+}
+
+func issueFieldInputsOfSize(n int) []githubv4.Input {
+	inputs := make([]githubv4.Input, n)
+	for i := range n {
+		inputs[i] = SetIssueFieldValueInput{
+			IssueID: githubv4.ID(fmt.Sprintf("I_issue%d", i)),
+			IssueFields: []IssueFieldCreateOrUpdateInput{{
+				FieldID:   githubv4.ID("IF_field"),
+				TextValue: githubv4.NewString("v"),
+			}},
 		}
 	}
 	return inputs
@@ -152,6 +180,13 @@ func Test_BuildAliasedMutationType_ClearKindUsesClearMutation(t *testing.T) {
 	tag1 := typ.Field(1).Tag.Get("graphql")
 	assert.Equal(t, "item0: clearProjectV2ItemFieldValue(input: $input)", tag0)
 	assert.Equal(t, "item1: clearProjectV2ItemFieldValue(input: $input1)", tag1)
+}
+
+func Test_BuildAliasedMutationType_IssueFieldKindUsesSetIssueFieldValue(t *testing.T) {
+	typ := buildAliasedMutationType(batchMutationSetIssueField, 2)
+	assert.Equal(t, reflect.TypeFor[issueFieldMutationResult](), typ.Field(0).Type)
+	assert.Equal(t, "item0: setIssueFieldValue(input: $input)", typ.Field(0).Tag.Get("graphql"))
+	assert.Equal(t, "item1: setIssueFieldValue(input: $input1)", typ.Field(1).Tag.Get("graphql"))
 }
 
 func Test_BuildAliasedMutationType_CachedByKindAndSize(t *testing.T) {
@@ -209,6 +244,7 @@ func Test_ExecuteAliasedMutation_TwoAliases_FirstInputWorkaround(t *testing.T) {
 			},
 		},
 	}
+
 	gqlClient := newTestGQLClient(transport)
 
 	outcomes, err := executeAliasedMutation(context.Background(), gqlClient, batchMutationUpdate, inputsOfSize(2))
@@ -216,6 +252,28 @@ func Test_ExecuteAliasedMutation_TwoAliases_FirstInputWorkaround(t *testing.T) {
 	require.Len(t, outcomes, 2)
 	assert.True(t, outcomes[0].Populated)
 	assert.True(t, outcomes[1].Populated)
+}
+
+func Test_ExecuteAliasedMutation_IssueFieldAliases(t *testing.T) {
+	transport := &sequencedGraphQLTransport{
+		t: t,
+		responses: []func(capturedGraphQLRequest) (int, string){
+			func(req capturedGraphQLRequest) (int, string) {
+				assert.Contains(t, req.Query, "setIssueFieldValue")
+				assert.NotContains(t, req.Query, "updateProjectV2ItemFieldValue")
+				return http.StatusOK, issueFieldMutationDataResponse(t, map[int]string{
+					0: "I_issue0",
+					1: "I_issue1",
+				})
+			},
+		},
+	}
+
+	outcomes, err := executeAliasedMutation(t.Context(), newTestGQLClient(transport), batchMutationSetIssueField, issueFieldInputsOfSize(2))
+	require.NoError(t, err)
+	require.Len(t, outcomes, 2)
+	assert.Equal(t, mutationAliasOutcome{Populated: true, NodeID: "I_issue0"}, outcomes[0])
+	assert.Equal(t, mutationAliasOutcome{Populated: true, NodeID: "I_issue1"}, outcomes[1])
 }
 
 func Test_ExecuteAliasedMutation_PreservesPartialDataWithGraphQLErrors(t *testing.T) {
