@@ -49,6 +49,35 @@ Schemas use `anyOf`, never `oneOf`. `oneOf` requires exactly one branch to match
 
 ---
 
+## `structured_content_only`
+
+Requires `output_schemas`. On its own it does nothing.
+
+With `output_schemas` alone, a schema-bearing tool sends its payload **twice** — once as the serialized-JSON text block and once as `structuredContent`. That is what the spec asks for by default, but the reason is backwards compatibility: the text block exists so that clients which cannot read `structuredContent` can still recover the payload.
+
+A client that negotiated 2026-07-28 is not such a client. This flag drops the redundant text block for those clients, so the payload travels once:
+
+| Configuration | Serialized result |
+|---------------|-------------------|
+| no output schema | 272 bytes |
+| `output_schemas` | 405 bytes (+49%) |
+| `output_schemas,structured_content_only` | 254 bytes (−7%) |
+
+(Measured by `TestStructuredContentOnlyRoughlyHalvesTheResult` on a small payload.) The result is *smaller* than having no output schema at all, because a text block embeds JSON as an escaped string — every `"` becomes `\"` — while `structuredContent` carries it raw. The saving grows with payload size.
+
+`content` remains present as an empty array, since the schema still requires the field.
+
+The text block is kept, and nothing is dropped, whenever it is not genuinely redundant:
+
+- the client negotiated anything older than 2026-07-28, or its version could not be determined
+- the result is an error — error messages are never dropped
+- the tool returned something other than a single JSON text block (a raw diff, logs, file contents, a CSV-converted result, or a multi-part result)
+- the handler set `structuredContent` itself, so the server did not author the text/structured pairing and cannot assume they match
+
+This is a separate opt-in rather than automatic behaviour because negotiating 2026-07-28 does not *prove* a client reads `structuredContent` — no capability advertises it, and a client that ignored it would see an empty result. Enable it where the consumer is known to read structured output; code-execution hosts are the motivating case.
+
+---
+
 ## Tools affected by each flag
 
 The list below is regenerated from the Go source. For each user-controllable

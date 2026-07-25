@@ -25,6 +25,12 @@ const (
 	// and return structuredContent. The value must match
 	// github.FeatureFlagOutputSchemas.
 	outputSchemasFeatureFlag = "output_schemas"
+
+	// structuredContentOnlyFeatureFlag controls whether the now-duplicated
+	// serialized-JSON text block is dropped for clients that can read
+	// structuredContent. The value must match
+	// github.FeatureFlagStructuredContentOnly.
+	structuredContentOnlyFeatureFlag = "structured_content_only"
 )
 
 // ToolFilter is a function that determines if a tool should be included.

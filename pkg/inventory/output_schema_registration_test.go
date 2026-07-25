@@ -143,3 +143,77 @@ func TestRegistrationDoesNotMutateTheInventory(t *testing.T) {
 		"the schema belongs on ServerTool.OutputSchema until registration copies it onto a duplicate")
 	assert.Equal(t, schema, inv.AllTools()[0].OutputSchema)
 }
+
+// structured_content_only is meaningless alone: with no schema there is no
+// structuredContent to replace the text with, so stripping it would leave the
+// client with nothing.
+func TestStructuredContentOnlyRequiresOutputSchemas(t *testing.T) {
+	// A payload big enough that halving it is visible.
+	body := `{"number":1,"title":"a reasonably long issue title","state":"open"}`
+
+	tests := []struct {
+		name     string
+		flags    []string
+		wantText bool
+	}{
+		{"neither flag", nil, true},
+		{"only structured_content_only", []string{structuredContentOnlyFeatureFlag}, true},
+		{"only output_schemas", []string{outputSchemasFeatureFlag}, true},
+		{"both", []string{outputSchemasFeatureFlag, structuredContentOnlyFeatureFlag}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tool := toolReturning("t", body).
+				WithOutputSchema(json.RawMessage(`{"type":"object"}`))
+			inv := mustBuild(t, NewBuilder().SetTools([]ServerTool{tool}).
+				WithToolsets([]string{"all"}).
+				WithFeatureChecker(featureCheckerFor(tt.flags...)))
+
+			called, err := connectToInventory(t, inv).
+				CallTool(context.Background(), &mcp.CallToolParams{Name: "t"})
+			require.NoError(t, err)
+
+			if tt.wantText {
+				require.Len(t, called.Content, 1, "the payload must be reachable somewhere")
+				assert.JSONEq(t, body, called.Content[0].(*mcp.TextContent).Text)
+			} else {
+				assert.Empty(t, called.Content, "text is redundant once structuredContent carries it")
+				require.NotNil(t, called.StructuredContent, "...but only because structuredContent has it")
+			}
+		})
+	}
+}
+
+// Substantiates the claim: the same call carries the payload once rather than
+// twice. Measures the serialized result, which is what actually crosses the
+// wire. The in-memory client negotiates the SDK's latest version (2026-07-28),
+// so this exercises the new-client path.
+func TestStructuredContentOnlyRoughlyHalvesTheResult(t *testing.T) {
+	body := `{"number":1,"title":"a reasonably long issue title","state":"open","html_url":"https://github.com/o/r/issues/1"}`
+
+	sizeWith := func(flags ...string) int {
+		tool := toolReturning("t", body).WithOutputSchema(json.RawMessage(`{"type":"object"}`))
+		inv := mustBuild(t, NewBuilder().SetTools([]ServerTool{tool}).
+			WithToolsets([]string{"all"}).WithFeatureChecker(featureCheckerFor(flags...)))
+		called, err := connectToInventory(t, inv).
+			CallTool(context.Background(), &mcp.CallToolParams{Name: "t"})
+		require.NoError(t, err)
+		encoded, err := json.Marshal(called)
+		require.NoError(t, err)
+		return len(encoded)
+	}
+
+	doubled := sizeWith(outputSchemasFeatureFlag)
+	once := sizeWith(outputSchemasFeatureFlag, structuredContentOnlyFeatureFlag)
+	baseline := sizeWith()
+
+	t.Logf("baseline (no schema): %d bytes", baseline)
+	t.Logf("output_schemas only:  %d bytes  (%+d vs baseline)", doubled, doubled-baseline)
+	t.Logf("+ structured_only:    %d bytes  (%+d vs baseline)", once, once-baseline)
+
+	assert.Greater(t, doubled, baseline, "mirroring alone adds a second copy of the payload")
+	assert.Less(t, once, doubled, "dropping the redundant text must shrink the result")
+	assert.Less(t, once, baseline+len(body)/2,
+		"with the text gone the result should be close to a single copy of the payload")
+}

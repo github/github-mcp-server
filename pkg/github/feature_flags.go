@@ -47,6 +47,22 @@ const FeatureFlagFieldsParam = "fields_param"
 // inventory.OutputSchemaVersionGate.
 const FeatureFlagOutputSchemas = "output_schemas"
 
+// FeatureFlagStructuredContentOnly drops the serialized-JSON text block from
+// results whose structuredContent already carries the identical bytes, for
+// clients speaking protocol 2026-07-28 or later. Without it, a schema-bearing
+// tool sends the same JSON twice; with it, such a response is roughly halved.
+//
+// It requires FeatureFlagOutputSchemas — on its own it does nothing, because
+// without a declared schema no structuredContent is produced to replace the
+// text.
+//
+// This is a separate opt-in rather than automatic behaviour: negotiating
+// 2026-07-28 does not prove a client actually reads structuredContent (there
+// is no capability that advertises it), and a client that ignored it would
+// see an empty result. Enable it only where the consumer is known to read
+// structured output — code-execution hosts being the motivating case.
+const FeatureFlagStructuredContentOnly = "structured_content_only"
+
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag or X-MCP-Features HTTP header.
 // Only flags in this list are accepted; unknown flags are silently ignored.
@@ -62,6 +78,7 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagIssueDependencies,
 	FeatureFlagFieldsParam,
 	FeatureFlagOutputSchemas,
+	FeatureFlagStructuredContentOnly,
 }
 
 // InsidersFeatureFlags is the list of feature flags that insiders mode enables.

@@ -24,7 +24,11 @@ import (
 //
 // It applies only to tools that declared an OutputSchema. Tools without one are
 // untouched, so the wire format of the other ~120 tools is unchanged.
-func mirrorStructuredContent(next mcp.ToolHandler) mcp.ToolHandler {
+//
+// When omitRedundantText is set, the now-duplicated text block is dropped for
+// clients new enough to read structuredContent, halving the response instead of
+// doubling it. See dropRedundantTextContent.
+func mirrorStructuredContent(next mcp.ToolHandler, omitRedundantText bool) mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		res, err := next(ctx, req)
 		if err != nil || res == nil {
@@ -43,12 +47,44 @@ func mirrorStructuredContent(next mcp.ToolHandler) mcp.ToolHandler {
 		// Under 2025-11-25 and earlier, structuredContent is typed as a JSON
 		// object. Only send a non-object value to a client that can represent
 		// it. The text block is unaffected either way, so nothing is lost.
-		if !isJSONObjectBytes(raw) && req.ProtocolVersion() < ProtocolVersionNonObjectOutputSchemas {
+		newEnough := req.ProtocolVersion() >= ProtocolVersionNonObjectOutputSchemas
+		if !isJSONObjectBytes(raw) && !newEnough {
 			return res, err
 		}
 		res.StructuredContent = json.RawMessage(raw)
+		if omitRedundantText && newEnough {
+			dropRedundantTextContent(res)
+		}
 		return res, err
 	}
+}
+
+// dropRedundantTextContent removes the text block that structuredContent now
+// duplicates byte-for-byte.
+//
+// The spec's "a tool that returns structured content SHOULD also return the
+// serialized JSON in a TextContent block" is a backwards-compatibility clause.
+// The Go SDK says as much where it synthesises that block on its typed path:
+// the fallback exists "so that pre-SEP-2106 clients can recover the structured
+// payload from unstructured content" (mcp/server.go). A client that negotiated
+// 2026-07-28 is not such a client, so for those the block is pure duplication —
+// this server otherwise sends the same JSON twice, which works against
+// csv_output, minimal_output and the fields param, all of which exist to make
+// responses smaller.
+//
+// Callers must only reach here when structuredContent was mirrored from this
+// exact text, so nothing is lost: the bytes survive, they just travel once.
+//
+// content stays present as an empty array rather than being unset — the draft
+// schema still lists it in CallToolResult's required set, and the SDK
+// normalises an empty slice to `[]` rather than `null`.
+//
+// This is opt-in (see RegisterToolOptions.OmitRedundantTextContent) rather than
+// automatic, because negotiating 2026-07-28 does not prove a client actually
+// reads structuredContent — there is no capability that says so, and a client
+// that ignored it would see an empty result.
+func dropRedundantTextContent(res *mcp.CallToolResult) {
+	res.Content = []mcp.Content{}
 }
 
 // singleJSONTextBlock returns the bytes of the result's sole text content when
