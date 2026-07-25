@@ -7,31 +7,18 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// ProtocolVersionNonObjectOutputSchemas is the first MCP protocol revision that
-// permits a tool's outputSchema to have a root other than `{"type":"object"}`,
-// and correspondingly permits structuredContent to be any JSON value rather
-// than only a JSON object (SEP-2106).
-//
-// Under 2025-11-25 the normative schema typed outputSchema as a closed shape:
-//
-//	outputSchema?: { $schema?: string; type: "object";
-//	                 properties?: { [key: string]: object }; required?: string[]; }
-//
-// with the doc comment "Currently restricted to type: \"object\" at the root
-// level." Both the restriction and the closed shape were removed in
-// 2026-07-28, which types it as `{ $schema?: string; [key: string]: unknown }`
-// and describes it as "any valid JSON Schema 2020-12".
+// ProtocolVersionNonObjectOutputSchemas is the first MCP protocol revision
+// permitting a tool's outputSchema to have a root other than
+// `{"type":"object"}`, and structuredContent to be any JSON value rather than
+// only an object. Before it, the normative schema restricted outputSchema to
+// "type: \"object\" at the root level" (SEP-2106 lifted both).
 const ProtocolVersionNonObjectOutputSchemas = "2026-07-28"
 
-// HasObjectRootOutputSchema reports whether schema marshals to a JSON Schema
-// whose root declares `"type": "object"`. Such a schema is legal under every
-// protocol revision that supports outputSchema at all, so it needs no gating —
-// even when it uses composition keywords like anyOf internally.
-//
-// A schema that fails to marshal, or that declares any other root (a bare
-// anyOf, `"type": "array"`, a $ref) is reported as non-object-root and is
-// therefore gated. Failing closed is deliberate: an unmarshalable schema
-// should not be advertised to a client that may reject the whole tools/list.
+// HasObjectRootOutputSchema reports whether schema's root declares
+// `"type": "object"`, which needs no gating at any version — even when it uses
+// anyOf internally. Anything else (a bare anyOf, an array, a $ref) is gated,
+// as is a schema that fails to marshal: failing closed keeps an unparseable
+// schema from breaking a client's whole tools/list.
 func HasObjectRootOutputSchema(schema any) bool {
 	if schema == nil {
 		return false
@@ -58,11 +45,9 @@ func HasObjectRootOutputSchema(schema any) bool {
 //
 // Object-root schemas pass through untouched at every version.
 //
-// The middleware copies on write. The SDK's listTools appends the *same*
-// *mcp.Tool pointers it holds in its registry (mcp/server.go:936-939), so
-// mutating a tool in place here would strip the schema from the server's
-// stored definition and leak that to every later session on the same server.
-// Only tools that actually need gating are copied.
+// Copies on write: the SDK's listTools hands back the *same* *mcp.Tool
+// pointers it holds in its registry, so mutating one here would strip the
+// schema from the server's stored definition for every later session.
 func OutputSchemaVersionGate() mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
@@ -78,12 +63,10 @@ func OutputSchemaVersionGate() mcp.Middleware {
 			if !ok {
 				return res, err
 			}
-			// ProtocolVersion reads the per-request _meta for >= 2026-07-28
-			// clients (which no longer send initialize at all, per SEP-2575)
-			// and falls back to the session's InitializeParams for older ones.
-			// An empty version means we could not determine it; gate in that
-			// case, since only a client we know is new can be trusted with a
-			// non-object root.
+			// Reads the per-request _meta for >= 2026-07-28 clients (which no
+			// longer send initialize at all, per SEP-2575), falling back to
+			// the session's InitializeParams. Empty means undeterminable, so
+			// it gates.
 			if listReq.ProtocolVersion() >= ProtocolVersionNonObjectOutputSchemas {
 				return res, err
 			}
