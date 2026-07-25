@@ -16,11 +16,9 @@ import (
 // MustOutputSchema infers an output schema for T, panicking during package
 // initialization if inference fails.
 //
-// Unlike input schemas, an output schema root need not be `{"type":"object"}`:
-// from protocol version 2026-07-28 (SEP-2106) it may be any valid JSON Schema
-// 2020-12, including a bare array or a bare anyOf. Schemas whose root is not
-// an object are stripped per-request for older clients — see
-// inventory.OutputSchemaVersionGate — so inferring one here is safe.
+// Unlike input schemas, an output schema root need not be `{"type":"object"}`,
+// so T may be a slice or a scalar. Non-object roots are stripped per-request
+// for pre-2026-07-28 clients by inventory.OutputSchemaVersionGate.
 func MustOutputSchema[T any]() *jsonschema.Schema {
 	schema, err := jsonschema.For[T](nil)
 	if err != nil {
@@ -32,36 +30,21 @@ func MustOutputSchema[T any]() *jsonschema.Schema {
 
 // AnyOfSchema builds a union output schema over the given branches.
 //
-// It deliberately emits `anyOf` and never `oneOf`. `oneOf` requires that
-// EXACTLY ONE branch match, which is wrong for essentially every tool in this
-// package whose output shape varies by method:
-//
-//   - Branches are frequently structurally identical. All four of
-//     actions_run_trigger's non-run_workflow methods return the same
-//     {message, run_id, status, status_code} map, so a oneOf over them matches
-//     four branches and therefore always fails.
-//   - Empty collections are ambiguous. issue_read method=get_comments on an
-//     issue with no comments returns [], which vacuously satisfies every array
-//     branch.
-//   - Optional fields overlap. issue_read method=get on a sub-issue populates
-//     `parent`, which also satisfies the get_parent branch.
-//
-// anyOf ("at least one") accepts all three while still rejecting values that
-// match no branch, which is the useful half of the validation.
+// Always anyOf, never oneOf: oneOf requires EXACTLY ONE branch to match, and
+// these unions have structurally identical branches, empty arrays that satisfy
+// every array branch, and overlapping optional fields. anyOf still rejects
+// values matching no branch, which is the useful half of the validation.
+// TestAnyOfAcceptsAmbiguousPayloadsButStillRejectsGarbage demonstrates both.
 func AnyOfSchema(branches ...*jsonschema.Schema) *jsonschema.Schema {
 	return &jsonschema.Schema{AnyOf: branches}
 }
 
-// MustRawOutputSchema wraps a hand-authored JSON Schema document, panicking
-// during package initialization if it does not parse or does not resolve.
+// MustRawOutputSchema wraps a hand-authored JSON Schema document as raw bytes,
+// so it reaches the client exactly as written rather than through
+// jsonschema-go's struct coverage and field ordering.
 //
-// Hand-authored schemas are kept as json.RawMessage rather than
-// *jsonschema.Schema so they round-trip byte-for-byte to the client and
-// produce deterministic toolsnaps output, independent of jsonschema-go's
-// struct field coverage and marshaling order.
-//
-// Resolution is checked here (not just parsing) so a dangling $ref fails the
-// build rather than the request.
+// Resolution is checked, not just parsing, so a dangling $ref fails the build
+// rather than a request.
 func MustRawOutputSchema(raw string) json.RawMessage {
 	var parsed jsonschema.Schema
 	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
@@ -73,9 +56,8 @@ func MustRawOutputSchema(raw string) json.RawMessage {
 	return json.RawMessage(raw)
 }
 
-// outputSchemasEnabled reports whether the output_schemas feature is on for
-// this request. This is the rollout gate only; see canSendStructuredContent
-// for the protocol-legality gate.
+// outputSchemasEnabled is the rollout gate; canSendStructuredContent is the
+// separate protocol-legality gate.
 func outputSchemasEnabled(ctx context.Context, deps ToolDependencies) bool {
 	return deps.IsFeatureEnabled(ctx, FeatureFlagOutputSchemas)
 }
@@ -85,14 +67,10 @@ func isJSONObject(marshaled []byte) bool {
 	return bytes.HasPrefix(bytes.TrimLeft(marshaled, " \t\r\n"), []byte("{"))
 }
 
-// canSendStructuredContent reports whether a structuredContent value of the
-// given marshaled shape may legally be sent to this client.
-//
-// Under 2025-11-25 and earlier, structuredContent is typed
-// `{ [key: string]: unknown }` — a JSON object. 2026-07-28 widened it to
-// `unknown`, explicitly "any JSON value (object, array, string, number,
-// boolean, or null)". So an object is always safe; anything else requires the
-// newer protocol. req may be nil in tests, in which case only objects are sent.
+// canSendStructuredContent reports whether a structuredContent value of this
+// shape may legally be sent to this client. An object is always safe; anything
+// else needs 2026-07-28, which widened the field from an object to any JSON
+// value. A nil req (tests) sends objects only.
 func canSendStructuredContent(req *mcp.CallToolRequest, marshaled []byte) bool {
 	if isJSONObject(marshaled) {
 		return true
@@ -103,15 +81,10 @@ func canSendStructuredContent(req *mcp.CallToolRequest, marshaled []byte) bool {
 	return req.ProtocolVersion() >= inventory.ProtocolVersionNonObjectOutputSchemas
 }
 
-// structuredTextResult builds a tool result whose text content is the
-// serialized textValue — byte-identical to what the tool returned before
-// output schemas existed — and which additionally carries structured as
-// structuredContent when both gates allow it.
-//
-// The text block is always populated regardless of the gates. The spec calls
-// for this independently: "For backwards compatibility, a tool that returns
-// structured content SHOULD also return the serialized JSON in a TextContent
-// block."
+// structuredTextResult returns a result whose text content is the serialized
+// textValue — byte-identical to the pre-output-schema behaviour, and populated
+// regardless of the gates — plus structured as structuredContent when both the
+// feature flag and the client's protocol version allow it.
 func structuredTextResult(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, textValue, structured any) (*mcp.CallToolResult, error) {
 	data, err := json.Marshal(textValue)
 	if err != nil {
