@@ -35,6 +35,18 @@ const FeatureFlagIssueDependencies = "issue_dependencies"
 // a redeploy.
 const FeatureFlagFieldsParam = "fields_param"
 
+// FeatureFlagOutputSchemas is the feature flag name for MCP tool output
+// schemas. When enabled, tools that declare one advertise `outputSchema` and
+// return a matching `structuredContent` alongside the existing text result.
+// It is gated so the added tools/list payload is opt-in, and so it can be
+// switched off as a kill switch without a redeploy.
+//
+// Note this flag controls *rollout*, not protocol legality: which schema
+// shapes may be advertised to a given client is decided separately, per
+// request, from the negotiated protocol version. See
+// inventory.OutputSchemaVersionGate.
+const FeatureFlagOutputSchemas = "output_schemas"
+
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag or X-MCP-Features HTTP header.
 // Only flags in this list are accepted; unknown flags are silently ignored.
@@ -49,6 +61,7 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,
 	FeatureFlagFieldsParam,
+	FeatureFlagOutputSchemas,
 }
 
 // InsidersFeatureFlags is the list of feature flags that insiders mode enables.

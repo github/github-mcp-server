@@ -101,6 +101,11 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	// Add middlewares. Order matters - for example, the error context middleware should be applied last so that it runs FIRST (closest to the handler) to ensure all errors are captured,
 	// and any middleware that needs to read or modify the context should be before it.
 	ghServer.AddReceivingMiddleware(middleware...)
+	// Runs outermost of the three so it sees the final tools/list result: it
+	// removes output schemas whose root is not `{"type":"object"}` from
+	// responses to clients older than 2026-07-28, which cannot represent them.
+	// No-op when the output_schemas feature is off, since nothing declares one.
+	ghServer.AddReceivingMiddleware(inventory.OutputSchemaVersionGate())
 	ghServer.AddReceivingMiddleware(InjectDepsMiddleware(deps))
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 

@@ -22,6 +22,33 @@ end users. Insiders-only flags are not user-toggleable.
 
 ---
 
+## `output_schemas`
+
+Advertises MCP [`outputSchema`](https://modelcontextprotocol.io/specification/draft/server/tools) on tools that declare one, and returns a matching `structuredContent` alongside the existing text result. It gives clients and models a machine-readable contract for a tool's response — needed for code-execution workflows, which cannot generate typed bindings without it.
+
+The flag does not change any tool's inventory or input schema, so it does not appear in the generated list below. It also never changes the text content a tool returns: `structuredContent` carries the exact bytes of the existing serialized-JSON text block, which is the relationship the spec already describes ("a tool that returns structured content SHOULD also return the serialized JSON in a TextContent block").
+
+Tools that currently declare a schema are the ones whose response shape varies by their `method` argument: `actions_get`, `actions_list`, `actions_run_trigger`, `discussion_comment_write`, `issue_dependency_read`, `issue_read`, and `pull_request_read`. Their schemas live in [`pkg/github/output_schemas/`](../pkg/github/output_schemas/).
+
+### Interaction with the negotiated protocol version
+
+This flag controls *rollout*. It is independent of which schema shapes are *legal* for a given client, which is decided per request from the negotiated protocol version.
+
+Protocol revision 2025-11-25 typed `outputSchema` as a closed object shape, restricted to `type: "object"` at the root, and typed `structuredContent` as a JSON object. [SEP-2106](https://github.com/modelcontextprotocol/modelcontextprotocol) lifted both in 2026-07-28: an output schema may now be any valid JSON Schema 2020-12, and structured content may be any JSON value.
+
+So a union spanning objects and arrays — which is what `issue_read` and `pull_request_read` need — is only expressible from 2026-07-28 onward. The server handles this automatically:
+
+| Negotiated version | Object-root schemas | Non-object-root schemas |
+|--------------------|---------------------|-------------------------|
+| `>= 2026-07-28` | advertised | advertised |
+| older, or unknown | advertised | withheld |
+
+Non-object `structuredContent` is withheld from older clients on the same basis. The text content is unaffected in every case, so no client loses data — older ones simply do not gain the structured channel for those tools.
+
+Schemas use `anyOf`, never `oneOf`. `oneOf` requires exactly one branch to match, which fails on real payloads here: `actions_run_trigger` has four structurally identical branches, an empty array satisfies every array branch at once, and an `issue_read` `get` on a sub-issue also satisfies the `get_parent` branch.
+
+---
+
 ## Tools affected by each flag
 
 The list below is regenerated from the Go source. For each user-controllable

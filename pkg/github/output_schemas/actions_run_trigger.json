@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "description": "Result of a GitHub Actions run-trigger operation. Every method returns a JSON object whose shape depends on the method.",
+  "$defs": {
+    "message": {
+      "type": "string",
+      "description": "Human-readable confirmation of the operation that was performed."
+    },
+    "httpStatus": {
+      "type": "string",
+      "description": "HTTP status line returned by the GitHub API, e.g. \"204 No Content\" or \"202 Accepted\"."
+    },
+    "httpStatusCode": {
+      "type": "integer",
+      "description": "HTTP status code returned by the GitHub API, e.g. 204 or 202."
+    }
+  },
+  "anyOf": [
+    {
+      "title": "run_workflow",
+      "type": "object",
+      "description": "Returned by method=run_workflow: a workflow_dispatch event was created.",
+      "properties": {
+        "message": {
+          "$ref": "#/$defs/message"
+        },
+        "workflow_type": {
+          "type": "string",
+          "description": "How the workflow was addressed: \"workflow_id\" when the workflow_id argument parsed as a numeric ID, \"workflow_file\" when it was treated as a workflow file name.",
+          "enum": [
+            "workflow_id",
+            "workflow_file"
+          ]
+        },
+        "workflow_id": {
+          "type": "string",
+          "description": "The workflow ID or workflow file name exactly as supplied by the caller."
+        },
+        "ref": {
+          "type": "string",
+          "description": "The git reference (branch or tag) the workflow was dispatched against."
+        },
+        "inputs": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "The workflow inputs supplied by the caller, echoed back verbatim. Null when no inputs were provided."
+        },
+        "status": {
+          "$ref": "#/$defs/httpStatus"
+        },
+        "status_code": {
+          "$ref": "#/$defs/httpStatusCode"
+        }
+      },
+      "required": [
+        "message",
+        "workflow_type",
+        "workflow_id",
+        "ref",
+        "inputs",
+        "status",
+        "status_code"
+      ]
+    },
+    {
+      "title": "rerun_workflow_run, rerun_failed_jobs, cancel_workflow_run, delete_workflow_run_logs",
+      "type": "object",
+      "description": "Returned by method=rerun_workflow_run, rerun_failed_jobs, cancel_workflow_run and delete_workflow_run_logs. All four return the same acknowledgement shape; only the message text differs.",
+      "properties": {
+        "message": {
+          "$ref": "#/$defs/message"
+        },
+        "run_id": {
+          "type": "integer",
+          "description": "The workflow run ID the operation was applied to."
+        },
+        "status": {
+          "$ref": "#/$defs/httpStatus"
+        },
+        "status_code": {
+          "$ref": "#/$defs/httpStatusCode"
+        }
+      },
+      "required": [
+        "message",
+        "run_id",
+        "status",
+        "status_code"
+      ]
+    }
+  ]
+}

@@ -101,7 +101,12 @@ func convertJSONTextResultToCSV(result *mcp.CallToolResult) *mcp.CallToolResult 
 	}
 
 	result.Content = []mcp.Content{&mcp.TextContent{Text: csvText}}
-	result.StructuredContent = nil
+	// StructuredContent is deliberately preserved. content and
+	// structuredContent are independent channels: the CSV is the compact
+	// rendering for the model, while structuredContent remains the
+	// machine-readable result a client validates against the tool's
+	// outputSchema. Clearing it here would make csv_output silently disable
+	// output_schemas for every list_* tool.
 	return result
 }
 
