@@ -103,7 +103,7 @@
     },
     {
       "title": "get_status",
-      "description": "method=get_status: the GitHub combined commit status for the pull request head SHA, marshalled from *github.CombinedStatus with no minimal-type trimming. Every field is optional, so an empty object is valid. additionalProperties is false because the payload is a fixed Go struct with no custom marshaller: unknown GitHub API fields are dropped at unmarshal time and can never reach the client.",
+      "description": "method=get_status: the GitHub combined commit status for the pull request head SHA, marshalled from *github.CombinedStatus with no minimal-type trimming. Every field is optional, so an empty object is valid: every field of that struct is a pointer or slice tagged omitempty, so an all-nil value really does marshal to {} and no single key can be required. The anyOf below therefore reads \"empty, or carrying at least one recognised key\" — enough to reject an object made only of unrecognised keys, without forbidding unknown keys the way additionalProperties:false would. Forbidding them would couple this schema to go-github's exact struct layout, so the next version bump that adds a field would make the server emit a key its own schema rejects.",
       "type": "object",
       "properties": {
         "state": {
@@ -131,7 +131,47 @@
           "type": "string"
         }
       },
-      "additionalProperties": false
+      "anyOf": [
+        {
+          "description": "An all-nil *github.CombinedStatus marshals to {}. This branch keeps that reachable payload valid; it is the only reason {} validates against the whole union.",
+          "maxProperties": 0
+        },
+        {
+          "required": [
+            "state"
+          ]
+        },
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "sha"
+          ]
+        },
+        {
+          "required": [
+            "total_count"
+          ]
+        },
+        {
+          "required": [
+            "statuses"
+          ]
+        },
+        {
+          "required": [
+            "commit_url"
+          ]
+        },
+        {
+          "required": [
+            "repository_url"
+          ]
+        }
+      ]
     },
     {
       "title": "get_files",
@@ -553,7 +593,7 @@
     },
     "repoStatus": {
       "type": "object",
-      "description": "An individual commit status inside the combined status, marshalled from *github.RepoStatus. Like the parent it is a fixed Go struct, so no unlisted fields can appear.",
+      "description": "An individual commit status inside the combined status, marshalled from *github.RepoStatus. Like the parent it is all pointer fields tagged omitempty, so no key is guaranteed and an all-nil element marshals to {}. Same idiom as the parent: empty, or at least one recognised key. Unknown keys stay allowed so a go-github field addition cannot invalidate real output.",
       "properties": {
         "id": {
           "type": "integer"
@@ -589,7 +629,66 @@
           "type": "string"
         }
       },
-      "additionalProperties": false
+      "anyOf": [
+        {
+          "maxProperties": 0
+        },
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "state"
+          ]
+        },
+        {
+          "required": [
+            "target_url"
+          ]
+        },
+        {
+          "required": [
+            "description"
+          ]
+        },
+        {
+          "required": [
+            "context"
+          ]
+        },
+        {
+          "required": [
+            "avatar_url"
+          ]
+        },
+        {
+          "required": [
+            "creator"
+          ]
+        },
+        {
+          "required": [
+            "created_at"
+          ]
+        },
+        {
+          "required": [
+            "updated_at"
+          ]
+        }
+      ]
     }
   }
 }

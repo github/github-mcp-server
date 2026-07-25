@@ -80,13 +80,56 @@ func TestPolymorphicOutputSchemaRootKinds(t *testing.T) {
 func TestPolymorphicOutputSchemasRejectGarbage(t *testing.T) {
 	for tool, schema := range polymorphicSchemas() {
 		t.Run(tool, func(t *testing.T) {
-			var s jsonschema.Schema
-			require.NoError(t, json.Unmarshal(schema, &s))
-			resolved, err := s.Resolve(nil)
-			require.NoError(t, err)
+			resolved := resolveToolSchema(t, schema)
 			assert.Error(t, resolved.Validate("a bare string"))
 			assert.Error(t, resolved.Validate(float64(42)))
 			assert.Error(t, resolved.Validate(nil))
+		})
+	}
+}
+
+// A branch whose properties are all optional accepts any object at all, which
+// makes the whole union vacuous. The fix is anyOf over singleton required
+// ("at least one recognised field"), which stays permissive about UNKNOWN
+// fields — so a go-github bump that adds one cannot break it — while still
+// rejecting objects that look nothing like the documented shape.
+//
+// Deliberately not additionalProperties:false, which would reject unknown
+// fields and couple these schemas to go-github's exact struct layout.
+func TestPolymorphicOutputSchemasAreNotVacuous(t *testing.T) {
+	// An empty object is legitimately reachable for one tool: an all-nil
+	// *github.CombinedStatus (every field pointer+omitempty) marshals to {},
+	// so pull_request_read method=get_status can really return it. Anywhere
+	// else, {} means the schema is not constraining anything.
+	emptyObjectIsReal := map[string]bool{"pull_request_read": true}
+
+	for tool, schema := range polymorphicSchemas() {
+		t.Run(tool, func(t *testing.T) {
+			resolved := resolveToolSchema(t, schema)
+
+			assert.Error(t, resolved.Validate(map[string]any{"junk": 1}),
+				"an object with no recognised field must not validate")
+			assert.Error(t, resolved.Validate([]any{map[string]any{"junk": 1}}),
+				"an array of unrecognised objects must not validate")
+
+			if !emptyObjectIsReal[tool] {
+				assert.Error(t, resolved.Validate(map[string]any{}),
+					"{} must not validate unless a real payload can be empty")
+				assert.Error(t, resolved.Validate([]any{map[string]any{}}),
+					"[{}] must not validate unless a real payload can be empty")
+			}
+		})
+	}
+}
+
+// additionalProperties:false would make these schemas reject payloads the
+// server can legally emit the moment go-github adds a struct field. Use
+// anyOf-over-required for non-vacuity instead.
+func TestPolymorphicOutputSchemasDoNotForbidUnknownFields(t *testing.T) {
+	for tool, schema := range polymorphicSchemas() {
+		t.Run(tool, func(t *testing.T) {
+			assert.NotContains(t, string(schema), `"additionalProperties": false`)
+			assert.NotContains(t, string(schema), `"additionalProperties":false`)
 		})
 	}
 }
