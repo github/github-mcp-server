@@ -104,7 +104,7 @@ Options are:
 			}
 		})
 	st.FeatureFlagEnable = FeatureFlagIssueDependencies
-	return st
+	return st.WithOutputSchema(issueDependencyReadOutputSchema)
 }
 
 // GetIssueBlockedBy lists the issues that block the given issue.

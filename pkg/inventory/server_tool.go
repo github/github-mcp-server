@@ -58,6 +58,21 @@ type ServerTool struct {
 	// Tool is the MCP tool definition containing name, description, schema, etc.
 	Tool mcp.Tool
 
+	// OutputSchema is copied onto Tool.OutputSchema at registration time, but
+	// only when the output_schemas feature is enabled. Keeping it off
+	// Tool.OutputSchema until registration means the default tool surface —
+	// and the committed toolsnaps — stay unchanged for clients that have not
+	// opted in.
+	//
+	// Any value that JSON-marshals to a valid JSON Schema is accepted;
+	// json.RawMessage is preferred for hand-authored schemas because it
+	// round-trips byte-for-byte and keeps $defs/anyOf/$ref exactly as written.
+	//
+	// A schema whose root is not `{"type":"object"}` is only legal from
+	// protocol version 2026-07-28 onward (SEP-2106); such schemas are stripped
+	// per-request for older clients. See NonObjectRootOutputSchema.
+	OutputSchema any
+
 	// Toolset contains metadata about which toolset this tool belongs to.
 	Toolset ToolsetMetadata
 
@@ -110,17 +125,52 @@ func (st *ServerTool) Handler(deps any) mcp.ToolHandler {
 	return st.HandlerFunc(deps)
 }
 
+// WithOutputSchema returns a copy of the tool carrying a feature-gated output
+// schema. Chainable off the NewTool constructors at tool definition sites.
+func (st ServerTool) WithOutputSchema(schema any) ServerTool {
+	st.OutputSchema = schema
+	return st
+}
+
+// RegisterToolOptions controls optional, feature-gated registration behaviour.
+type RegisterToolOptions struct {
+	// IncludeOutputSchema attaches ServerTool.OutputSchema to the registered
+	// tool. Off by default so the tool surface is unchanged unless the
+	// output_schemas feature is enabled.
+	IncludeOutputSchema bool
+}
+
 // RegisterFunc registers the tool with the server using the provided dependencies.
 // Icons are automatically applied from the toolset metadata if not already set.
 // A shallow copy of the tool is made to avoid mutating the original ServerTool.
 // Panics if the tool has no handler - all tools should have handlers.
 func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
+	st.RegisterFuncWithOptions(s, deps, RegisterToolOptions{}, middleware...)
+}
+
+// RegisterFuncWithOptions is RegisterFunc with feature-gated metadata applied.
+func (st *ServerTool) RegisterFuncWithOptions(s *mcp.Server, deps any, opts RegisterToolOptions, middleware ...ToolHandlerMiddleware) {
 	handler := st.Handler(deps) // This will panic if HandlerFunc is nil
+	// Mirror the serialized text result into structuredContent for tools that
+	// declare an output schema. Wrapped before the caller's middleware so that
+	// middleware still sees, and can rewrite, the final result.
+	if opts.IncludeOutputSchema && st.OutputSchema != nil {
+		handler = mirrorStructuredContent(handler)
+	}
 	for i := len(middleware) - 1; i >= 0; i-- {
 		handler = middleware[i](handler)
 	}
 	// Make a shallow copy of the tool to avoid mutating the original
 	toolCopy := st.Tool
+	// Attach the output schema only when the feature is on. The else branch is
+	// not redundant: Tool literals never set OutputSchema themselves, but
+	// clearing it here keeps the invariant explicit and makes an accidental
+	// literal assignment fail closed rather than leak to every client.
+	if opts.IncludeOutputSchema {
+		toolCopy.OutputSchema = st.OutputSchema
+	} else {
+		toolCopy.OutputSchema = nil
+	}
 	// Apply icons from toolset metadata if tool doesn't have icons set
 	if len(toolCopy.Icons) == 0 {
 		toolCopy.Icons = st.Toolset.Icons()

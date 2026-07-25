@@ -1,0 +1,546 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "description": "Result of actions_get. The concrete shape depends on the `method` argument: each branch below corresponds to one method.",
+  "anyOf": [
+    {
+      "title": "get_workflow",
+      "description": "A single GitHub Actions workflow (GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}). All fields are omitted when absent from the API response.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "Workflow ID."
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "description": "Workflow name."
+        },
+        "path": {
+          "type": "string",
+          "description": "Path of the workflow file in the repository, e.g. .github/workflows/ci.yml."
+        },
+        "state": {
+          "type": "string",
+          "description": "Workflow state, e.g. active, disabled_manually."
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "url": {
+          "type": "string"
+        },
+        "html_url": {
+          "type": "string"
+        },
+        "badge_url": {
+          "type": "string"
+        }
+      }
+    },
+    {
+      "title": "get_workflow_run",
+      "description": "A single workflow run (GET /repos/{owner}/{repo}/actions/runs/{run_id}).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "Workflow run ID."
+        },
+        "name": {
+          "type": "string"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "head_branch": {
+          "type": "string"
+        },
+        "head_sha": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "run_number": {
+          "type": "integer"
+        },
+        "run_attempt": {
+          "type": "integer"
+        },
+        "event": {
+          "type": "string",
+          "description": "Event that triggered the run, e.g. push, pull_request, workflow_dispatch."
+        },
+        "display_title": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "description": "e.g. queued, in_progress, completed."
+        },
+        "conclusion": {
+          "type": "string",
+          "description": "e.g. success, failure, cancelled, skipped. Omitted while the run is not complete."
+        },
+        "workflow_id": {
+          "type": "integer"
+        },
+        "check_suite_id": {
+          "type": "integer"
+        },
+        "check_suite_node_id": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "html_url": {
+          "type": "string"
+        },
+        "pull_requests": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Pull request associated with the run."
+          }
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "run_started_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "jobs_url": {
+          "type": "string"
+        },
+        "logs_url": {
+          "type": "string"
+        },
+        "check_suite_url": {
+          "type": "string"
+        },
+        "artifacts_url": {
+          "type": "string"
+        },
+        "cancel_url": {
+          "type": "string"
+        },
+        "rerun_url": {
+          "type": "string"
+        },
+        "previous_attempt_url": {
+          "type": "string"
+        },
+        "head_commit": {
+          "$ref": "#/$defs/headCommit"
+        },
+        "workflow_url": {
+          "type": "string"
+        },
+        "repository": {
+          "$ref": "#/$defs/repository"
+        },
+        "head_repository": {
+          "$ref": "#/$defs/repository"
+        },
+        "actor": {
+          "$ref": "#/$defs/user"
+        },
+        "triggering_actor": {
+          "$ref": "#/$defs/user"
+        },
+        "referenced_workflows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/referencedWorkflow"
+          }
+        }
+      }
+    },
+    {
+      "title": "get_workflow_job",
+      "description": "A single workflow job (GET /repos/{owner}/{repo}/actions/jobs/{job_id}).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "Job ID."
+        },
+        "run_id": {
+          "type": "integer"
+        },
+        "run_url": {
+          "type": "string"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "head_branch": {
+          "type": "string"
+        },
+        "head_sha": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "html_url": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "description": "e.g. queued, in_progress, completed."
+        },
+        "conclusion": {
+          "type": "string",
+          "description": "e.g. success, failure, cancelled, skipped."
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "started_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "completed_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "name": {
+          "type": "string"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/taskStep"
+          }
+        },
+        "check_run_url": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Runner labels from the runs-on key of the workflow."
+        },
+        "runner_id": {
+          "type": "integer"
+        },
+        "runner_name": {
+          "type": "string"
+        },
+        "runner_group_id": {
+          "type": "integer"
+        },
+        "runner_group_name": {
+          "type": "string"
+        },
+        "run_attempt": {
+          "type": "integer"
+        },
+        "workflow_name": {
+          "type": "string"
+        }
+      }
+    },
+    {
+      "title": "download_workflow_run_artifact",
+      "description": "Temporary download location for a workflow run artifact. Built inline by the server, not returned verbatim by the GitHub API.",
+      "type": "object",
+      "properties": {
+        "download_url": {
+          "type": "string",
+          "description": "Short-lived URL that serves the artifact as a ZIP archive."
+        },
+        "message": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "artifact_id": {
+          "type": "integer",
+          "description": "The artifact ID that was requested."
+        }
+      },
+      "required": [
+        "download_url",
+        "message",
+        "note",
+        "artifact_id"
+      ]
+    },
+    {
+      "title": "get_workflow_run_logs_url",
+      "description": "Temporary download location for the complete logs of a workflow run. Built inline by the server, not returned verbatim by the GitHub API.",
+      "type": "object",
+      "properties": {
+        "logs_url": {
+          "type": "string",
+          "description": "Short-lived URL that serves all run logs as a ZIP archive."
+        },
+        "message": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "warning": {
+          "type": "string"
+        },
+        "optimization_tip": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "logs_url",
+        "message",
+        "note",
+        "warning",
+        "optimization_tip"
+      ]
+    },
+    {
+      "title": "get_workflow_run_usage",
+      "description": "Billable time for a workflow run (GET /repos/{owner}/{repo}/actions/runs/{run_id}/timing). Both fields are omitted when the API reports no usage, so an empty object is a valid response.",
+      "type": "object",
+      "properties": {
+        "billable": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Billable time keyed by runner environment, e.g. UBUNTU, MACOS, WINDOWS.",
+          "additionalProperties": {
+            "$ref": "#/$defs/workflowRunBill"
+          }
+        },
+        "run_duration_ms": {
+          "type": "integer"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "description": "RFC 3339 timestamp.",
+      "format": "date-time"
+    },
+    "user": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "GitHub user. Additional GitHub user fields may be present.",
+      "properties": {
+        "login": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "avatar_url": {
+          "type": "string"
+        },
+        "html_url": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      }
+    },
+    "repository": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "GitHub repository. Additional GitHub repository fields may be present.",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "full_name": {
+          "type": "string"
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "url": {
+          "type": "string"
+        },
+        "html_url": {
+          "type": "string"
+        },
+        "owner": {
+          "$ref": "#/$defs/user"
+        }
+      }
+    },
+    "headCommit": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Head commit of the workflow run.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "tree_id": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "distinct": {
+          "type": "boolean"
+        },
+        "timestamp": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "author": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "committer": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "added": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Only populated by webhook events; not returned by the workflow runs API."
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Only populated by webhook events; not returned by the workflow runs API."
+        },
+        "modified": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Only populated by webhook events; not returned by the workflow runs API."
+        }
+      }
+    },
+    "referencedWorkflow": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "ref": {
+          "type": "string"
+        }
+      }
+    },
+    "taskStep": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "One step of a workflow job.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "conclusion": {
+          "type": "string"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "started_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "completed_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "workflowRunBill": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Billable time for one runner environment.",
+      "properties": {
+        "total_ms": {
+          "type": "integer"
+        },
+        "jobs": {
+          "type": "integer"
+        },
+        "job_runs": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "job_id": {
+                "type": "integer"
+              },
+              "duration_ms": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

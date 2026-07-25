@@ -678,7 +678,7 @@ Options are:
 			default:
 				return utils.NewToolResultError("invalid method, must be one of: 'add', 'reply', 'update', 'delete', 'mark_answer', 'unmark_answer'"), nil, nil
 			}
-		})
+		}).WithOutputSchema(discussionCommentWriteOutputSchema)
 }
 
 func addDiscussionComment(ctx context.Context, client *githubv4.Client, args map[string]any) (*mcp.CallToolResult, any, error) {

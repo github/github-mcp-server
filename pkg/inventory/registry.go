@@ -219,9 +219,14 @@ func shouldStripMCPAppsMetadata(ctx context.Context, featureFlagEnabled bool) bo
 // user identity from ctx would otherwise see context.Background() and
 // falsely report the flag off, even when the actual request arrived on the
 // /insiders route.
+// Output schemas are likewise attached only when the output_schemas feature
+// flag is enabled for this request, for the same per-request-context reason.
 func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
+	opts := RegisterToolOptions{
+		IncludeOutputSchema: r.checkFeatureFlag(ctx, outputSchemasFeatureFlag),
+	}
 	for _, tool := range r.ToolsForRegistration(ctx) {
-		tool.RegisterFunc(s, deps, middleware...)
+		tool.RegisterFuncWithOptions(s, deps, opts, middleware...)
 	}
 }
 

@@ -401,7 +401,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 			}
 		},
 	)
-	return tool
+	return tool.WithOutputSchema(actionsListOutputSchema)
 }
 
 // ActionsGet returns the tool and handler for getting GitHub Actions resources.
@@ -523,7 +523,7 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 			}
 		},
 	)
-	return tool
+	return tool.WithOutputSchema(actionsGetOutputSchema)
 }
 
 // ActionsRunTrigger returns the tool and handler for triggering GitHub Actions workflows.
@@ -640,7 +640,7 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 			}
 		},
 	)
-	return tool
+	return tool.WithOutputSchema(actionsRunTriggerOutputSchema)
 }
 
 // ActionsGetJobLogs returns the tool and handler for getting workflow job logs.
