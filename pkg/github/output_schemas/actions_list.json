@@ -1,12 +1,24 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
-  "description": "Output of the actions_list tool. The shape depends on the `method` argument: `list_workflows`, `list_workflow_runs` and `list_workflow_run_artifacts` return the GitHub API list envelope directly, while `list_workflow_jobs` nests the envelope under a `jobs` key. Every field of every envelope is optional: go-github tags them `omitempty`, so an empty collection is reported as {\"total_count\":0} with the item array absent rather than as an empty array. Each branch forbids the other branches' discriminator keys so that a payload is checked against the branch it actually belongs to.",
+  "description": "Output of the actions_list tool. The shape depends on the `method` argument: `list_workflows`, `list_workflow_runs` and `list_workflow_run_artifacts` return the GitHub API list envelope directly, while `list_workflow_jobs` nests the envelope under a `jobs` key. Every field of every envelope is optional: go-github tags them `omitempty`, so an empty collection is reported as {\"total_count\":0} with the item array absent rather than as an empty array. Each branch forbids the other branches' discriminator keys so that a payload is checked against the branch it actually belongs to. Because every field is optional, each branch and each item type also carries an anyOf over singleton `required` — \"at least one recognised field must be present\" — so that the union is not vacuous. That idiom deliberately says nothing about UNKNOWN fields, so a go-github bump that adds a struct field cannot make the server emit a payload its own schema rejects; additionalProperties:false would, and is never used here.",
   "anyOf": [
     {
       "title": "list_workflows",
       "description": "method=list_workflows. Serialized github.Workflows.",
       "type": "object",
+      "anyOf": [
+        {
+          "required": [
+            "total_count"
+          ]
+        },
+        {
+          "required": [
+            "workflows"
+          ]
+        }
+      ],
       "properties": {
         "total_count": {
           "type": "integer",
@@ -27,6 +39,18 @@
       "title": "list_workflow_runs",
       "description": "method=list_workflow_runs. Serialized github.WorkflowRuns.",
       "type": "object",
+      "anyOf": [
+        {
+          "required": [
+            "total_count"
+          ]
+        },
+        {
+          "required": [
+            "workflow_runs"
+          ]
+        }
+      ],
       "properties": {
         "total_count": {
           "type": "integer",
@@ -56,6 +80,22 @@
             "object",
             "null"
           ],
+          "description": "The github.Jobs envelope, or null when go-github left the *Jobs pointer nil (empty response body). When it is an object it carries at least one recognised field, or is empty; maxProperties:0 keeps the genuinely-empty envelope reachable while still rejecting an object made only of unrecognised keys.",
+          "anyOf": [
+            {
+              "required": [
+                "total_count"
+              ]
+            },
+            {
+              "required": [
+                "jobs"
+              ]
+            },
+            {
+              "maxProperties": 0
+            }
+          ],
           "properties": {
             "total_count": {
               "type": "integer",
@@ -78,6 +118,18 @@
       "title": "list_workflow_run_artifacts",
       "description": "method=list_workflow_run_artifacts. Serialized github.ArtifactList.",
       "type": "object",
+      "anyOf": [
+        {
+          "required": [
+            "total_count"
+          ]
+        },
+        {
+          "required": [
+            "artifacts"
+          ]
+        }
+      ],
       "properties": {
         "total_count": {
           "type": "integer",
@@ -99,6 +151,58 @@
     "workflow": {
       "type": "object",
       "description": "A repository workflow definition (github.Workflow).",
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "path"
+          ]
+        },
+        {
+          "required": [
+            "state"
+          ]
+        },
+        {
+          "required": [
+            "created_at"
+          ]
+        },
+        {
+          "required": [
+            "updated_at"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "html_url"
+          ]
+        },
+        {
+          "required": [
+            "badge_url"
+          ]
+        }
+      ],
       "properties": {
         "id": {
           "type": "integer"
@@ -139,6 +243,183 @@
     "workflowRun": {
       "type": "object",
       "description": "A single workflow run (github.WorkflowRun).",
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "required": [
+            "head_branch"
+          ]
+        },
+        {
+          "required": [
+            "head_sha"
+          ]
+        },
+        {
+          "required": [
+            "path"
+          ]
+        },
+        {
+          "required": [
+            "run_number"
+          ]
+        },
+        {
+          "required": [
+            "run_attempt"
+          ]
+        },
+        {
+          "required": [
+            "event"
+          ]
+        },
+        {
+          "required": [
+            "display_title"
+          ]
+        },
+        {
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "required": [
+            "conclusion"
+          ]
+        },
+        {
+          "required": [
+            "workflow_id"
+          ]
+        },
+        {
+          "required": [
+            "check_suite_id"
+          ]
+        },
+        {
+          "required": [
+            "check_suite_node_id"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "html_url"
+          ]
+        },
+        {
+          "required": [
+            "pull_requests"
+          ]
+        },
+        {
+          "required": [
+            "created_at"
+          ]
+        },
+        {
+          "required": [
+            "updated_at"
+          ]
+        },
+        {
+          "required": [
+            "run_started_at"
+          ]
+        },
+        {
+          "required": [
+            "jobs_url"
+          ]
+        },
+        {
+          "required": [
+            "logs_url"
+          ]
+        },
+        {
+          "required": [
+            "check_suite_url"
+          ]
+        },
+        {
+          "required": [
+            "artifacts_url"
+          ]
+        },
+        {
+          "required": [
+            "cancel_url"
+          ]
+        },
+        {
+          "required": [
+            "rerun_url"
+          ]
+        },
+        {
+          "required": [
+            "previous_attempt_url"
+          ]
+        },
+        {
+          "required": [
+            "head_commit"
+          ]
+        },
+        {
+          "required": [
+            "workflow_url"
+          ]
+        },
+        {
+          "required": [
+            "repository"
+          ]
+        },
+        {
+          "required": [
+            "head_repository"
+          ]
+        },
+        {
+          "required": [
+            "actor"
+          ]
+        },
+        {
+          "required": [
+            "triggering_actor"
+          ]
+        },
+        {
+          "required": [
+            "referenced_workflows"
+          ]
+        }
+      ],
       "properties": {
         "id": {
           "type": "integer"
@@ -197,7 +478,44 @@
           "type": "array",
           "items": {
             "type": "object",
-            "description": "Pull request associated with the run (github.PullRequest)."
+            "description": "Pull request associated with the run (github.PullRequest). The API returns a reduced form of the pull request here, so only the keys it is known to carry are listed; unknown keys are still accepted.",
+            "anyOf": [
+              {
+                "required": [
+                  "id"
+                ]
+              },
+              {
+                "required": [
+                  "number"
+                ]
+              },
+              {
+                "required": [
+                  "url"
+                ]
+              },
+              {
+                "required": [
+                  "html_url"
+                ]
+              },
+              {
+                "required": [
+                  "node_id"
+                ]
+              },
+              {
+                "required": [
+                  "head"
+                ]
+              },
+              {
+                "required": [
+                  "base"
+                ]
+              }
+            ]
           }
         },
         "created_at": {
@@ -262,6 +580,123 @@
     "workflowJob": {
       "type": "object",
       "description": "A single job within a workflow run (github.WorkflowJob).",
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "run_id"
+          ]
+        },
+        {
+          "required": [
+            "run_url"
+          ]
+        },
+        {
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "required": [
+            "head_branch"
+          ]
+        },
+        {
+          "required": [
+            "head_sha"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "html_url"
+          ]
+        },
+        {
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "required": [
+            "conclusion"
+          ]
+        },
+        {
+          "required": [
+            "created_at"
+          ]
+        },
+        {
+          "required": [
+            "started_at"
+          ]
+        },
+        {
+          "required": [
+            "completed_at"
+          ]
+        },
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "steps"
+          ]
+        },
+        {
+          "required": [
+            "check_run_url"
+          ]
+        },
+        {
+          "required": [
+            "labels"
+          ]
+        },
+        {
+          "required": [
+            "runner_id"
+          ]
+        },
+        {
+          "required": [
+            "runner_name"
+          ]
+        },
+        {
+          "required": [
+            "runner_group_id"
+          ]
+        },
+        {
+          "required": [
+            "runner_group_name"
+          ]
+        },
+        {
+          "required": [
+            "run_attempt"
+          ]
+        },
+        {
+          "required": [
+            "workflow_name"
+          ]
+        }
+      ],
       "properties": {
         "id": {
           "type": "integer"
@@ -349,6 +784,38 @@
     "taskStep": {
       "type": "object",
       "description": "A step within a workflow job (github.TaskStep).",
+      "anyOf": [
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "required": [
+            "conclusion"
+          ]
+        },
+        {
+          "required": [
+            "number"
+          ]
+        },
+        {
+          "required": [
+            "started_at"
+          ]
+        },
+        {
+          "required": [
+            "completed_at"
+          ]
+        }
+      ],
       "properties": {
         "name": {
           "type": "string"
@@ -375,6 +842,68 @@
     "artifact": {
       "type": "object",
       "description": "An artifact produced by a workflow run (github.Artifact).",
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "size_in_bytes"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "archive_download_url"
+          ]
+        },
+        {
+          "required": [
+            "expired"
+          ]
+        },
+        {
+          "required": [
+            "created_at"
+          ]
+        },
+        {
+          "required": [
+            "updated_at"
+          ]
+        },
+        {
+          "required": [
+            "expires_at"
+          ]
+        },
+        {
+          "required": [
+            "digest"
+          ]
+        },
+        {
+          "required": [
+            "workflow_run"
+          ]
+        }
+      ],
       "properties": {
         "id": {
           "type": "integer"
@@ -421,6 +950,33 @@
     "artifactWorkflowRun": {
       "type": "object",
       "description": "The workflow run an artifact belongs to (github.ArtifactWorkflowRun).",
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "repository_id"
+          ]
+        },
+        {
+          "required": [
+            "head_repository_id"
+          ]
+        },
+        {
+          "required": [
+            "head_branch"
+          ]
+        },
+        {
+          "required": [
+            "head_sha"
+          ]
+        }
+      ],
       "properties": {
         "id": {
           "type": "integer"
@@ -442,6 +998,23 @@
     "referencedWorkflow": {
       "type": "object",
       "description": "A reusable workflow referenced by a run (github.ReferencedWorkflow).",
+      "anyOf": [
+        {
+          "required": [
+            "path"
+          ]
+        },
+        {
+          "required": [
+            "sha"
+          ]
+        },
+        {
+          "required": [
+            "ref"
+          ]
+        }
+      ],
       "properties": {
         "path": {
           "type": "string"
@@ -457,6 +1030,68 @@
     "headCommit": {
       "type": "object",
       "description": "The head commit of a workflow run (github.HeadCommit).",
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "sha"
+          ]
+        },
+        {
+          "required": [
+            "message"
+          ]
+        },
+        {
+          "required": [
+            "tree_id"
+          ]
+        },
+        {
+          "required": [
+            "timestamp"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "distinct"
+          ]
+        },
+        {
+          "required": [
+            "author"
+          ]
+        },
+        {
+          "required": [
+            "committer"
+          ]
+        },
+        {
+          "required": [
+            "added"
+          ]
+        },
+        {
+          "required": [
+            "removed"
+          ]
+        },
+        {
+          "required": [
+            "modified"
+          ]
+        }
+      ],
       "properties": {
         "id": {
           "type": "string"
@@ -481,10 +1116,10 @@
           "type": "boolean"
         },
         "author": {
-          "type": "object"
+          "$ref": "#/$defs/commitAuthor"
         },
         "committer": {
-          "type": "object"
+          "$ref": "#/$defs/commitAuthor"
         },
         "added": {
           "type": "array",
@@ -506,9 +1141,92 @@
         }
       }
     },
+    "commitAuthor": {
+      "type": "object",
+      "description": "Author or committer of the head commit (github.CommitAuthor). `username` is go-github's rename of the Login field and only appears on webhook-sourced payloads.",
+      "anyOf": [
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "email"
+          ]
+        },
+        {
+          "required": [
+            "date"
+          ]
+        },
+        {
+          "required": [
+            "username"
+          ]
+        }
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "username": {
+          "type": "string"
+        }
+      }
+    },
     "repository": {
       "type": "object",
       "description": "Repository the run belongs to (full github.Repository payload; only the most useful fields are described).",
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "full_name"
+          ]
+        },
+        {
+          "required": [
+            "private"
+          ]
+        },
+        {
+          "required": [
+            "html_url"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "owner"
+          ]
+        }
+      ],
       "properties": {
         "id": {
           "type": "integer"
@@ -539,6 +1257,38 @@
     "user": {
       "type": "object",
       "description": "A GitHub account (full github.User payload; only the most useful fields are described).",
+      "anyOf": [
+        {
+          "required": [
+            "login"
+          ]
+        },
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "required": [
+            "avatar_url"
+          ]
+        },
+        {
+          "required": [
+            "html_url"
+          ]
+        }
+      ],
       "properties": {
         "login": {
           "type": "string"

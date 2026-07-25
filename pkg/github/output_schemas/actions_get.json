@@ -5,7 +5,7 @@
   "anyOf": [
     {
       "title": "get_workflow",
-      "description": "A single GitHub Actions workflow (GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}). All fields are omitted when absent from the API response.",
+      "description": "A single GitHub Actions workflow (GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}). All fields are omitted when absent from the API response. Every field of the go-github struct is a pointer or slice with `omitempty`, so no key is guaranteed to survive marshalling and a plain `required` list would be wrong. Instead this branch uses anyOf over singleton `required` -- the object must carry at least one recognised key. That rejects `{}` and `{\"junk\":1}` while staying permissive about UNKNOWN keys, so a go-github bump that adds a struct field cannot make the server violate its own schema. The branch list is exactly the property set above, so no sparse-but-real payload can be rejected.",
       "type": "object",
       "properties": {
         "id": {
@@ -42,11 +42,63 @@
         "badge_url": {
           "type": "string"
         }
-      }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "path"
+          ]
+        },
+        {
+          "required": [
+            "state"
+          ]
+        },
+        {
+          "required": [
+            "created_at"
+          ]
+        },
+        {
+          "required": [
+            "updated_at"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "html_url"
+          ]
+        },
+        {
+          "required": [
+            "badge_url"
+          ]
+        }
+      ]
     },
     {
       "title": "get_workflow_run",
-      "description": "A single workflow run (GET /repos/{owner}/{repo}/actions/runs/{run_id}).",
+      "description": "A single workflow run (GET /repos/{owner}/{repo}/actions/runs/{run_id}). Every field of the go-github struct is a pointer or slice with `omitempty`, so no key is guaranteed to survive marshalling and a plain `required` list would be wrong. Instead this branch uses anyOf over singleton `required` -- the object must carry at least one recognised key. That rejects `{}` and `{\"junk\":1}` while staying permissive about UNKNOWN keys, so a go-github bump that adds a struct field cannot make the server violate its own schema. The branch list is exactly the property set above, so no sparse-but-real payload can be rejected.",
       "type": "object",
       "properties": {
         "id": {
@@ -168,11 +220,188 @@
             "$ref": "#/$defs/referencedWorkflow"
           }
         }
-      }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "required": [
+            "head_branch"
+          ]
+        },
+        {
+          "required": [
+            "head_sha"
+          ]
+        },
+        {
+          "required": [
+            "path"
+          ]
+        },
+        {
+          "required": [
+            "run_number"
+          ]
+        },
+        {
+          "required": [
+            "run_attempt"
+          ]
+        },
+        {
+          "required": [
+            "event"
+          ]
+        },
+        {
+          "required": [
+            "display_title"
+          ]
+        },
+        {
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "required": [
+            "conclusion"
+          ]
+        },
+        {
+          "required": [
+            "workflow_id"
+          ]
+        },
+        {
+          "required": [
+            "check_suite_id"
+          ]
+        },
+        {
+          "required": [
+            "check_suite_node_id"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "html_url"
+          ]
+        },
+        {
+          "required": [
+            "pull_requests"
+          ]
+        },
+        {
+          "required": [
+            "created_at"
+          ]
+        },
+        {
+          "required": [
+            "updated_at"
+          ]
+        },
+        {
+          "required": [
+            "run_started_at"
+          ]
+        },
+        {
+          "required": [
+            "jobs_url"
+          ]
+        },
+        {
+          "required": [
+            "logs_url"
+          ]
+        },
+        {
+          "required": [
+            "check_suite_url"
+          ]
+        },
+        {
+          "required": [
+            "artifacts_url"
+          ]
+        },
+        {
+          "required": [
+            "cancel_url"
+          ]
+        },
+        {
+          "required": [
+            "rerun_url"
+          ]
+        },
+        {
+          "required": [
+            "previous_attempt_url"
+          ]
+        },
+        {
+          "required": [
+            "head_commit"
+          ]
+        },
+        {
+          "required": [
+            "workflow_url"
+          ]
+        },
+        {
+          "required": [
+            "repository"
+          ]
+        },
+        {
+          "required": [
+            "head_repository"
+          ]
+        },
+        {
+          "required": [
+            "actor"
+          ]
+        },
+        {
+          "required": [
+            "triggering_actor"
+          ]
+        },
+        {
+          "required": [
+            "referenced_workflows"
+          ]
+        }
+      ]
     },
     {
       "title": "get_workflow_job",
-      "description": "A single workflow job (GET /repos/{owner}/{repo}/actions/jobs/{job_id}).",
+      "description": "A single workflow job (GET /repos/{owner}/{repo}/actions/jobs/{job_id}). Every field of the go-github struct is a pointer or slice with `omitempty`, so no key is guaranteed to survive marshalling and a plain `required` list would be wrong. Instead this branch uses anyOf over singleton `required` -- the object must carry at least one recognised key. That rejects `{}` and `{\"junk\":1}` while staying permissive about UNKNOWN keys, so a go-github bump that adds a struct field cannot make the server violate its own schema. The branch list is exactly the property set above, so no sparse-but-real payload can be rejected.",
       "type": "object",
       "properties": {
         "id": {
@@ -254,7 +483,124 @@
         "workflow_name": {
           "type": "string"
         }
-      }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "run_id"
+          ]
+        },
+        {
+          "required": [
+            "run_url"
+          ]
+        },
+        {
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "required": [
+            "head_branch"
+          ]
+        },
+        {
+          "required": [
+            "head_sha"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "html_url"
+          ]
+        },
+        {
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "required": [
+            "conclusion"
+          ]
+        },
+        {
+          "required": [
+            "created_at"
+          ]
+        },
+        {
+          "required": [
+            "started_at"
+          ]
+        },
+        {
+          "required": [
+            "completed_at"
+          ]
+        },
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "steps"
+          ]
+        },
+        {
+          "required": [
+            "check_run_url"
+          ]
+        },
+        {
+          "required": [
+            "labels"
+          ]
+        },
+        {
+          "required": [
+            "runner_id"
+          ]
+        },
+        {
+          "required": [
+            "runner_name"
+          ]
+        },
+        {
+          "required": [
+            "runner_group_id"
+          ]
+        },
+        {
+          "required": [
+            "runner_group_name"
+          ]
+        },
+        {
+          "required": [
+            "run_attempt"
+          ]
+        },
+        {
+          "required": [
+            "workflow_name"
+          ]
+        }
+      ]
     },
     {
       "title": "download_workflow_run_artifact",
@@ -315,7 +661,7 @@
     },
     {
       "title": "get_workflow_run_usage",
-      "description": "Billable time for a workflow run (GET /repos/{owner}/{repo}/actions/runs/{run_id}/timing). Both fields are omitted when the API reports no usage, so an empty object is a valid response.",
+      "description": "Billable time for a workflow run (GET /repos/{owner}/{repo}/actions/runs/{run_id}/timing). `run_duration_ms` is omitted when the API reports no duration, and `billable` may itself be an empty object when nothing was billable -- but the REST response always carries `billable`, and go-github marshals a present-but-empty map as `\"billable\":{}`, so this branch never marshals to `{}`. The anyOf over singleton `required` below therefore demands at least one of the two keys, without forbidding unknown keys.",
       "type": "object",
       "properties": {
         "billable": {
@@ -331,7 +677,19 @@
         "run_duration_ms": {
           "type": "integer"
         }
-      }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "billable"
+          ]
+        },
+        {
+          "required": [
+            "run_duration_ms"
+          ]
+        }
+      ]
     }
   ],
   "$defs": {
