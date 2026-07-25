@@ -138,6 +138,14 @@ type RegisterToolOptions struct {
 	// tool. Off by default so the tool surface is unchanged unless the
 	// output_schemas feature is enabled.
 	IncludeOutputSchema bool
+
+	// OmitRedundantTextContent drops the serialized-JSON text block from
+	// results whose structuredContent already carries the identical bytes,
+	// for clients speaking 2026-07-28 or later. Halves the response for
+	// schema-bearing tools instead of doubling it. Requires
+	// IncludeOutputSchema; on its own it does nothing, since without a schema
+	// no structuredContent is produced to replace the text.
+	OmitRedundantTextContent bool
 }
 
 // RegisterFunc registers the tool with the server using the provided dependencies.
@@ -155,7 +163,7 @@ func (st *ServerTool) RegisterFuncWithOptions(s *mcp.Server, deps any, opts Regi
 	// declare an output schema. Wrapped before the caller's middleware so that
 	// middleware still sees, and can rewrite, the final result.
 	if opts.IncludeOutputSchema && st.OutputSchema != nil {
-		handler = mirrorStructuredContent(handler)
+		handler = mirrorStructuredContent(handler, opts.OmitRedundantTextContent)
 	}
 	for i := len(middleware) - 1; i >= 0; i-- {
 		handler = middleware[i](handler)

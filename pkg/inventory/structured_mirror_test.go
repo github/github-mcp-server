@@ -14,7 +14,7 @@ func textResult(text string) *mcp.CallToolResult {
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}
 }
 
-func runMirror(t *testing.T, version string, res *mcp.CallToolResult) *mcp.CallToolResult {
+func runMirrorOpt(t *testing.T, version string, omitRedundantText bool, res *mcp.CallToolResult) *mcp.CallToolResult {
 	t.Helper()
 	params := &mcp.CallToolParamsRaw{}
 	if version != "" {
@@ -23,9 +23,14 @@ func runMirror(t *testing.T, version string, res *mcp.CallToolResult) *mcp.CallT
 	req := &mcp.CallToolRequest{Params: params}
 	out, err := mirrorStructuredContent(func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return res, nil
-	})(context.Background(), req)
+	}, omitRedundantText)(context.Background(), req)
 	require.NoError(t, err)
 	return out
+}
+
+func runMirror(t *testing.T, version string, res *mcp.CallToolResult) *mcp.CallToolResult {
+	t.Helper()
+	return runMirrorOpt(t, version, false, res)
 }
 
 func TestMirrorStructuredContent(t *testing.T) {
@@ -113,4 +118,76 @@ func TestMirrorStructuredContentIsByteExact(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(encoded), `9007199254740993`)
 	assert.Contains(t, string(encoded), `1.10`)
+}
+
+// The point of the feature: for a client that can read structuredContent, the
+// serialized-JSON text block is pure duplication, so the response carries the
+// bytes once instead of twice.
+func TestMirrorDropsRedundantTextForNewClients(t *testing.T) {
+	const body = `{"number":1,"title":"x"}`
+	got := runMirrorOpt(t, "2026-07-28", true, textResult(body))
+
+	raw, ok := got.StructuredContent.(json.RawMessage)
+	require.True(t, ok)
+	assert.Equal(t, body, string(raw), "the payload must survive intact in structuredContent")
+
+	assert.Empty(t, got.Content, "the duplicated text block should be gone")
+	assert.NotNil(t, got.Content, "content is required by the schema, so it must be [] and not null")
+}
+
+// A client that cannot read structuredContent must keep its text, or the
+// result would be empty for it.
+func TestMirrorKeepsTextForOlderClients(t *testing.T) {
+	const body = `{"number":1}`
+	got := runMirrorOpt(t, "2025-11-25", true, textResult(body))
+
+	require.Len(t, got.Content, 1, "an older client must still get the text block")
+	assert.Equal(t, body, got.Content[0].(*mcp.TextContent).Text)
+	require.NotNil(t, got.StructuredContent, "an object is still legal structuredContent for it")
+}
+
+func TestMirrorKeepsTextWhenVersionUnknown(t *testing.T) {
+	got := runMirrorOpt(t, "", true, textResult(`{"a":1}`))
+	require.Len(t, got.Content, 1, "unknown version must fail safe and keep the text")
+}
+
+// Text is only dropped when structuredContent actually replaced it. If the
+// mirror declined for any reason, the text is the only copy and must survive.
+func TestMirrorNeverDropsTextItDidNotReplace(t *testing.T) {
+	t.Run("non-JSON text", func(t *testing.T) {
+		got := runMirrorOpt(t, "2026-07-28", true, textResult("diff --git a/x b/x"))
+		require.Len(t, got.Content, 1)
+		assert.Nil(t, got.StructuredContent)
+	})
+
+	t.Run("error result", func(t *testing.T) {
+		res := textResult(`{"message":"boom"}`)
+		res.IsError = true
+		got := runMirrorOpt(t, "2026-07-28", true, res)
+		require.Len(t, got.Content, 1, "an error message must never be silently dropped")
+		assert.Nil(t, got.StructuredContent)
+	})
+
+	t.Run("handler set its own structured content", func(t *testing.T) {
+		res := textResult(`{"from":"text"}`)
+		res.StructuredContent = map[string]any{"from": "handler"}
+		got := runMirrorOpt(t, "2026-07-28", true, res)
+		require.Len(t, got.Content, 1,
+			"the mirror did not author this pairing, so it must not assume the text is redundant")
+	})
+
+	t.Run("multi-part result", func(t *testing.T) {
+		res := &mcp.CallToolResult{Content: []mcp.Content{
+			&mcp.TextContent{Text: `{"a":1}`}, &mcp.TextContent{Text: `{"b":2}`},
+		}}
+		got := runMirrorOpt(t, "2026-07-28", true, res)
+		require.Len(t, got.Content, 2)
+	})
+}
+
+// Opting out leaves the doubled-payload behaviour untouched.
+func TestMirrorKeepsTextWhenOptionDisabled(t *testing.T) {
+	got := runMirrorOpt(t, "2026-07-28", false, textResult(`{"a":1}`))
+	require.Len(t, got.Content, 1)
+	require.NotNil(t, got.StructuredContent)
 }
