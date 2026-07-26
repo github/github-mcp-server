@@ -802,6 +802,12 @@ func getWorkflowRun(ctx context.Context, client *github.Client, owner, repo stri
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get workflow run", resp, err), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
+	// go-github decodes into a *WorkflowRun, so a 200 carrying a null body
+	// leaves it nil and json.Marshal would emit the literal `null`. Report the
+	// anomaly rather than returning a payload no caller can use.
+	if workflowRun == nil {
+		return utils.NewToolResultError("workflow run response was empty"), nil, nil
+	}
 	r, err := json.Marshal(workflowRun)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal workflow run: %w", err)
@@ -815,6 +821,9 @@ func getWorkflowJob(ctx context.Context, client *github.Client, owner, repo stri
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get workflow job", resp, err), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if workflowJob == nil {
+		return utils.NewToolResultError("workflow job response was empty"), nil, nil
+	}
 	r, err := json.Marshal(workflowJob)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal workflow job: %w", err)
@@ -1007,6 +1016,9 @@ func getWorkflowRunUsage(ctx context.Context, client *github.Client, owner, repo
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	if usage == nil {
+		return utils.NewToolResultError("workflow run usage response was empty"), nil, nil
+	}
 	r, err := json.Marshal(usage)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
