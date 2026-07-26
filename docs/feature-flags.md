@@ -63,7 +63,16 @@ A client that negotiated 2026-07-28 is not such a client. This flag drops the re
 | `output_schemas` | 405 bytes (+49%) |
 | `output_schemas,structured_content_only` | 254 bytes (−7%) |
 
-(Measured by `TestStructuredContentOnlyRoughlyHalvesTheResult` on a small payload.) The result is *smaller* than having no output schema at all, because a text block embeds JSON as an escaped string — every `"` becomes `\"` — while `structuredContent` carries it raw. The saving grows with payload size.
+(Measured by `TestStructuredContentOnlyRoughlyHalvesTheResult` on a small payload.) The result is *smaller* than having no output schema at all, because a text block embeds JSON as an escaped string — every `"` becomes `\"` — while `structuredContent` carries it raw.
+
+The saving grows with payload size. Measured against the live GitHub API on `github/github-mcp-server`, comparing the full serialized `tools/call` result:
+
+| Call | `output_schemas` | `+ structured_content_only` |
+|------|------------------|-----------------------------|
+| `pull_request_read` `get_files` | 99,990 B | 48,999 B (−51%) |
+| `actions_list` `list_workflows` | 30,407 B | 15,839 B (−48%) |
+| `actions_get` `get_workflow_run` | 30,229 B | 15,801 B (−48%) |
+| `pull_request_read` `get_check_runs` | 10,551 B | 6,240 B (−41%) |
 
 `content` remains present as an empty array, since the schema still requires the field.
 
