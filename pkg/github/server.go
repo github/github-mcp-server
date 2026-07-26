@@ -69,8 +69,7 @@ type MCPServerConfig struct {
 	TokenScopes []string
 
 	// TokenProvider, when non-nil, supplies the GitHub token for each API
-	// request instead of the static Token. It backs OAuth login, where the
-	// token is obtained lazily on first use and refreshed thereafter.
+	// request instead of the static Token.
 	TokenProvider func() string
 
 	// ToolHandlerMiddleware wraps every registered tool handler. Unlike MCP
