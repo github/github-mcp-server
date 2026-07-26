@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "description": "Result of discussion_comment_write. The shape depends on the 'method' argument: comment mutations ('add', 'reply', 'update', 'delete') return the affected comment's node ID and URL; answer mutations ('mark_answer', 'unmark_answer') return the parent discussion's node ID and URL.",
+  "anyOf": [
+    {
+      "title": "add | reply | update | delete",
+      "type": "object",
+      "description": "Minimal identity of the discussion comment that was created, replied to, updated, or deleted.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "GraphQL node ID of the discussion comment."
+        },
+        "url": {
+          "type": "string",
+          "description": "HTML URL of the discussion comment."
+        }
+      },
+      "required": [
+        "id",
+        "url"
+      ]
+    },
+    {
+      "title": "mark_answer | unmark_answer",
+      "type": "object",
+      "description": "Minimal identity of the discussion whose answer was marked or unmarked.",
+      "properties": {
+        "discussionID": {
+          "type": "string",
+          "description": "GraphQL node ID of the discussion that contains the comment."
+        },
+        "discussionURL": {
+          "type": "string",
+          "description": "HTML URL of the discussion that contains the comment."
+        }
+      },
+      "required": [
+        "discussionID",
+        "discussionURL"
+      ]
+    }
+  ]
+}

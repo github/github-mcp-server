@@ -1,0 +1,508 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Output of the issue_read tool. The shape depends on the `method` argument: `get` returns a single minimal issue object, `get_comments` and `get_sub_issues` return bare JSON arrays, `get_parent` and `get_labels` return small wrapper objects.",
+  "anyOf": [
+    {
+      "title": "method=get",
+      "description": "A single issue as MinimalIssue, enriched with hierarchy signals and GraphQL field values. The verbose REST `issue_field_values` array is always dropped for this method.",
+      "type": "object",
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "state_reason": {
+          "type": "string"
+        },
+        "draft": {
+          "type": "boolean"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "html_url": {
+          "type": "string"
+        },
+        "user": {
+          "$ref": "#/$defs/minimalUser"
+        },
+        "author_association": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "assignees": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "milestone": {
+          "type": "string"
+        },
+        "comments": {
+          "type": "integer"
+        },
+        "reactions": {
+          "$ref": "#/$defs/minimalReactions"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "closed_at": {
+          "type": "string"
+        },
+        "closed_by": {
+          "type": "string"
+        },
+        "issue_type": {
+          "type": "string"
+        },
+        "field_values": {
+          "type": "array",
+          "description": "Custom issue field values resolved via GraphQL.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "field": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "values": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "field"
+            ]
+          }
+        },
+        "has_parent": {
+          "type": "boolean"
+        },
+        "has_children": {
+          "type": "boolean"
+        },
+        "parent": {
+          "$ref": "#/$defs/issueRef"
+        },
+        "sub_issues_summary": {
+          "type": "object",
+          "properties": {
+            "total": {
+              "type": "integer"
+            },
+            "completed": {
+              "type": "integer"
+            },
+            "percent_completed": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "total",
+            "completed",
+            "percent_completed"
+          ]
+        }
+      },
+      "required": [
+        "number",
+        "title",
+        "state"
+      ]
+    },
+    {
+      "title": "method=get_comments",
+      "description": "A bare array of trimmed issue comments (MinimalIssueComment). Always an array; empty when the issue has no comments or lockdown filtering removed them all.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "body": {
+            "type": "string"
+          },
+          "html_url": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/$defs/minimalUser"
+          },
+          "author_association": {
+            "type": "string"
+          },
+          "reactions": {
+            "$ref": "#/$defs/minimalReactions"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "html_url"
+        ]
+      }
+    },
+    {
+      "title": "method=get_sub_issues",
+      "description": "A bare array of full GitHub REST issue objects. go-github declares `type SubIssue Issue` (a defined type over Issue, not an alias), so items carry the complete REST issue payload rather than a trimmed type; every field is omitempty, so an item may be sparse. Always an array — empty when the issue has no sub-issues or lockdown filtering removed them all.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "description": "One sub-issue. Because every go-github Issue field is omitempty there is no single key guaranteed to survive marshalling, so instead of a `required` list this uses anyOf over singleton `required` — the item must carry at least one recognised issue key. That rejects `{}` and `{\"junk\":1}` without forbidding unknown keys, so a go-github bump that adds a struct field cannot make the server violate its own schema. The branch list is exactly the property set below, so no sparse-but-real sub-issue can be rejected.",
+        "anyOf": [
+          { "required": ["id"] },
+          { "required": ["node_id"] },
+          { "required": ["number"] },
+          { "required": ["state"] },
+          { "required": ["state_reason"] },
+          { "required": ["locked"] },
+          { "required": ["active_lock_reason"] },
+          { "required": ["title"] },
+          { "required": ["body"] },
+          { "required": ["draft"] },
+          { "required": ["author_association"] },
+          { "required": ["user"] },
+          { "required": ["assignee"] },
+          { "required": ["assignees"] },
+          { "required": ["closed_by"] },
+          { "required": ["labels"] },
+          { "required": ["milestone"] },
+          { "required": ["type"] },
+          { "required": ["reactions"] },
+          { "required": ["pull_request"] },
+          { "required": ["repository"] },
+          { "required": ["pinned_comment"] },
+          { "required": ["performed_via_github_app"] },
+          { "required": ["issue_dependencies_summary"] },
+          { "required": ["sub_issues_summary"] },
+          { "required": ["issue_field_values"] },
+          { "required": ["text_matches"] },
+          { "required": ["comments"] },
+          { "required": ["created_at"] },
+          { "required": ["updated_at"] },
+          { "required": ["closed_at"] },
+          { "required": ["url"] },
+          { "required": ["html_url"] },
+          { "required": ["comments_url"] },
+          { "required": ["events_url"] },
+          { "required": ["labels_url"] },
+          { "required": ["repository_url"] },
+          { "required": ["parent_issue_url"] }
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "state_reason": {
+            "type": "string"
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "active_lock_reason": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "draft": {
+            "type": "boolean"
+          },
+          "author_association": {
+            "type": "string"
+          },
+          "user": {
+            "type": "object"
+          },
+          "assignee": {
+            "type": "object"
+          },
+          "assignees": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "closed_by": {
+            "type": "object"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "milestone": {
+            "type": "object"
+          },
+          "type": {
+            "type": "object"
+          },
+          "reactions": {
+            "type": "object"
+          },
+          "pull_request": {
+            "type": "object"
+          },
+          "repository": {
+            "type": "object"
+          },
+          "pinned_comment": {
+            "type": "object"
+          },
+          "performed_via_github_app": {
+            "type": "object"
+          },
+          "issue_dependencies_summary": {
+            "type": "object"
+          },
+          "sub_issues_summary": {
+            "type": "object"
+          },
+          "issue_field_values": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "text_matches": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "comments": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "closed_at": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "html_url": {
+            "type": "string"
+          },
+          "comments_url": {
+            "type": "string"
+          },
+          "events_url": {
+            "type": "string"
+          },
+          "labels_url": {
+            "type": "string"
+          },
+          "repository_url": {
+            "type": "string"
+          },
+          "parent_issue_url": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "title": "method=get_parent",
+      "description": "Wrapper object whose single `parent` key is null when the issue has no parent, or when lockdown mode cannot verify the parent as safe content.",
+      "type": "object",
+      "properties": {
+        "parent": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/issueRef"
+            }
+          ]
+        }
+      },
+      "required": [
+        "parent"
+      ]
+    },
+    {
+      "title": "method=get_labels",
+      "description": "Wrapper object with the labels currently applied to the issue (GraphQL, first 100) and the total label count.",
+      "type": "object",
+      "properties": {
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "color": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "color",
+              "description"
+            ]
+          }
+        },
+        "totalCount": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "labels",
+        "totalCount"
+      ]
+    }
+  ],
+  "$defs": {
+    "minimalUser": {
+      "type": "object",
+      "description": "Trimmed user reference (MinimalUser).",
+      "properties": {
+        "login": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "profile_url": {
+          "type": "string"
+        },
+        "avatar_url": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "login"
+      ]
+    },
+    "minimalReactions": {
+      "type": "object",
+      "description": "Reaction counts (MinimalReactions). Every count key is always present when the object is emitted.",
+      "properties": {
+        "total_count": {
+          "type": "integer"
+        },
+        "+1": {
+          "type": "integer"
+        },
+        "-1": {
+          "type": "integer"
+        },
+        "laugh": {
+          "type": "integer"
+        },
+        "confused": {
+          "type": "integer"
+        },
+        "heart": {
+          "type": "integer"
+        },
+        "hooray": {
+          "type": "integer"
+        },
+        "rocket": {
+          "type": "integer"
+        },
+        "eyes": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total_count",
+        "+1",
+        "-1",
+        "laugh",
+        "confused",
+        "heart",
+        "hooray",
+        "rocket",
+        "eyes"
+      ]
+    },
+    "issueRef": {
+      "type": "object",
+      "description": "Compact reference to a related issue. Used for `parent` in both method=get (MinimalIssueRef, where `repository` is omitted when empty) and method=get_parent (an inline map that always sets `repository`).",
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "number",
+        "title",
+        "state",
+        "url"
+      ]
+    }
+  }
+}

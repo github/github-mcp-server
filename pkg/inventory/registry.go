@@ -219,9 +219,20 @@ func shouldStripMCPAppsMetadata(ctx context.Context, featureFlagEnabled bool) bo
 // user identity from ctx would otherwise see context.Background() and
 // falsely report the flag off, even when the actual request arrived on the
 // /insiders route.
+// Output schemas are likewise attached only when the output_schemas feature
+// flag is enabled for this request, for the same per-request-context reason.
 func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
+	includeOutputSchema := r.checkFeatureFlag(ctx, outputSchemasFeatureFlag)
+	opts := RegisterToolOptions{
+		IncludeOutputSchema: includeOutputSchema,
+		// Meaningless without a schema to produce structuredContent from, so
+		// it is deliberately conjoined rather than independent: enabling only
+		// structured_content_only must never strip text with nothing to
+		// replace it.
+		OmitRedundantTextContent: includeOutputSchema && r.checkFeatureFlag(ctx, structuredContentOnlyFeatureFlag),
+	}
 	for _, tool := range r.ToolsForRegistration(ctx) {
-		tool.RegisterFunc(s, deps, middleware...)
+		tool.RegisterFuncWithOptions(s, deps, opts, middleware...)
 	}
 }
 

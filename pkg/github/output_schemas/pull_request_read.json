@@ -1,0 +1,694 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Output of the pull_request_read tool. The shape depends on the `method` argument: each anyOf branch is titled with the method that produces it. anyOf (never oneOf) is required because branches overlap: an empty array satisfies every array branch, and objects whose optional fields are all absent satisfy several object branches. Note: method=get_diff returns the raw unified diff as text content only and emits no structuredContent, so no string branch appears here.",
+  "anyOf": [
+    {
+      "title": "get",
+      "description": "method=get: a single pull request, trimmed to MinimalPullRequest.",
+      "type": "object",
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "draft": {
+          "type": "boolean"
+        },
+        "merged": {
+          "type": "boolean"
+        },
+        "mergeable_state": {
+          "type": "string"
+        },
+        "html_url": {
+          "type": "string"
+        },
+        "user": {
+          "$ref": "#/$defs/minimalUser"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "assignees": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requested_reviewers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "merged_by": {
+          "type": "string"
+        },
+        "head": {
+          "$ref": "#/$defs/minimalPRBranch"
+        },
+        "base": {
+          "$ref": "#/$defs/minimalPRBranch"
+        },
+        "additions": {
+          "type": "integer"
+        },
+        "deletions": {
+          "type": "integer"
+        },
+        "changed_files": {
+          "type": "integer"
+        },
+        "commits": {
+          "type": "integer"
+        },
+        "comments": {
+          "type": "integer"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "closed_at": {
+          "type": "string"
+        },
+        "merged_at": {
+          "type": "string"
+        },
+        "milestone": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "number",
+        "title",
+        "state",
+        "draft",
+        "merged",
+        "html_url"
+      ]
+    },
+    {
+      "title": "get_status",
+      "description": "method=get_status: the GitHub combined commit status for the pull request head SHA, marshalled from *github.CombinedStatus with no minimal-type trimming. Every field is optional, so an empty object is valid: every field of that struct is a pointer or slice tagged omitempty, so an all-nil value really does marshal to {} and no single key can be required. The anyOf below therefore reads \"empty, or carrying at least one recognised key\" — enough to reject an object made only of unrecognised keys, without forbidding unknown keys the way additionalProperties:false would. Forbidding them would couple this schema to go-github's exact struct layout, so the next version bump that adds a field would make the server emit a key its own schema rejects.",
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "total_count": {
+          "type": "integer"
+        },
+        "statuses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/repoStatus"
+          }
+        },
+        "commit_url": {
+          "type": "string"
+        },
+        "repository_url": {
+          "type": "string"
+        }
+      },
+      "anyOf": [
+        {
+          "description": "An all-nil *github.CombinedStatus marshals to {}. This branch keeps that reachable payload valid; it is the only reason {} validates against the whole union.",
+          "maxProperties": 0
+        },
+        {
+          "required": [
+            "state"
+          ]
+        },
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "sha"
+          ]
+        },
+        {
+          "required": [
+            "total_count"
+          ]
+        },
+        {
+          "required": [
+            "statuses"
+          ]
+        },
+        {
+          "required": [
+            "commit_url"
+          ]
+        },
+        {
+          "required": [
+            "repository_url"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "get_files",
+      "description": "method=get_files: files changed in the pull request, trimmed to MinimalPRFile. Empty when the requested page has no files.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/minimalPRFile"
+      }
+    },
+    {
+      "title": "get_commits",
+      "description": "method=get_commits: commits on the pull request, trimmed to MinimalPullRequestCommit. Empty when the requested page has no commits.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/minimalPullRequestCommit"
+      }
+    },
+    {
+      "title": "get_review_comments",
+      "description": "method=get_review_comments: review threads with their comments, plus GraphQL cursor pagination info.",
+      "type": "object",
+      "properties": {
+        "review_threads": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/minimalReviewThread"
+          }
+        },
+        "totalCount": {
+          "type": "integer"
+        },
+        "pageInfo": {
+          "$ref": "#/$defs/minimalPageInfo"
+        }
+      },
+      "required": [
+        "review_threads",
+        "totalCount",
+        "pageInfo"
+      ]
+    },
+    {
+      "title": "get_reviews",
+      "description": "method=get_reviews: reviews on the pull request, trimmed to MinimalPullRequestReview. Empty when the requested page has no reviews.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/minimalPullRequestReview"
+      }
+    },
+    {
+      "title": "get_comments",
+      "description": "method=get_comments: issue-style comments on the pull request, trimmed to MinimalIssueComment. Empty when the requested page has no comments.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/minimalIssueComment"
+      }
+    },
+    {
+      "title": "get_check_runs",
+      "description": "method=get_check_runs: check runs for the pull request head SHA, trimmed to MinimalCheckRunsResult.",
+      "type": "object",
+      "properties": {
+        "total_count": {
+          "type": "integer"
+        },
+        "check_runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/minimalCheckRun"
+          }
+        }
+      },
+      "required": [
+        "total_count",
+        "check_runs"
+      ]
+    }
+  ],
+  "$defs": {
+    "minimalUser": {
+      "type": "object",
+      "description": "Trimmed user (MinimalUser).",
+      "properties": {
+        "login": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "profile_url": {
+          "type": "string"
+        },
+        "avatar_url": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "login"
+      ]
+    },
+    "minimalPRBranch": {
+      "type": "object",
+      "description": "Trimmed pull request head/base reference (MinimalPRBranch).",
+      "properties": {
+        "ref": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "repo": {
+          "type": "object",
+          "properties": {
+            "full_name": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "full_name"
+          ]
+        }
+      },
+      "required": [
+        "ref",
+        "sha"
+      ]
+    },
+    "minimalCommitAuthor": {
+      "type": "object",
+      "description": "Trimmed commit author (MinimalCommitAuthor); every field is optional.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        }
+      }
+    },
+    "minimalReactions": {
+      "type": "object",
+      "description": "Trimmed reaction summary (MinimalReactions).",
+      "properties": {
+        "total_count": {
+          "type": "integer"
+        },
+        "+1": {
+          "type": "integer"
+        },
+        "-1": {
+          "type": "integer"
+        },
+        "laugh": {
+          "type": "integer"
+        },
+        "confused": {
+          "type": "integer"
+        },
+        "heart": {
+          "type": "integer"
+        },
+        "hooray": {
+          "type": "integer"
+        },
+        "rocket": {
+          "type": "integer"
+        },
+        "eyes": {
+          "type": "integer"
+        }
+      }
+    },
+    "minimalPRFile": {
+      "type": "object",
+      "properties": {
+        "filename": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "additions": {
+          "type": "integer"
+        },
+        "deletions": {
+          "type": "integer"
+        },
+        "changes": {
+          "type": "integer"
+        },
+        "patch": {
+          "type": "string"
+        },
+        "previous_filename": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "filename"
+      ]
+    },
+    "minimalPullRequestCommit": {
+      "type": "object",
+      "properties": {
+        "sha": {
+          "type": "string"
+        },
+        "html_url": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/$defs/minimalCommitAuthor"
+        }
+      },
+      "required": [
+        "sha"
+      ]
+    },
+    "minimalPullRequestReview": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "state": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "html_url": {
+          "type": "string"
+        },
+        "user": {
+          "$ref": "#/$defs/minimalUser"
+        },
+        "commit_id": {
+          "type": "string"
+        },
+        "submitted_at": {
+          "type": "string"
+        },
+        "author_association": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "state",
+        "html_url"
+      ]
+    },
+    "minimalIssueComment": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "body": {
+          "type": "string"
+        },
+        "html_url": {
+          "type": "string"
+        },
+        "user": {
+          "$ref": "#/$defs/minimalUser"
+        },
+        "author_association": {
+          "type": "string"
+        },
+        "reactions": {
+          "$ref": "#/$defs/minimalReactions"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "html_url"
+      ]
+    },
+    "minimalReviewComment": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "line": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "author": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "html_url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "html_url"
+      ]
+    },
+    "minimalReviewThread": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "is_resolved": {
+          "type": "boolean"
+        },
+        "is_outdated": {
+          "type": "boolean"
+        },
+        "is_collapsed": {
+          "type": "boolean"
+        },
+        "comments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/minimalReviewComment"
+          }
+        },
+        "total_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "is_resolved",
+        "is_outdated",
+        "is_collapsed",
+        "comments",
+        "total_count"
+      ]
+    },
+    "minimalPageInfo": {
+      "type": "object",
+      "properties": {
+        "hasNextPage": {
+          "type": "boolean"
+        },
+        "hasPreviousPage": {
+          "type": "boolean"
+        },
+        "startCursor": {
+          "type": "string"
+        },
+        "endCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "hasNextPage",
+        "hasPreviousPage"
+      ]
+    },
+    "minimalCheckRun": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "conclusion": {
+          "type": "string"
+        },
+        "html_url": {
+          "type": "string"
+        },
+        "details_url": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": "string"
+        },
+        "completed_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "status"
+      ]
+    },
+    "repoStatus": {
+      "type": "object",
+      "description": "An individual commit status inside the combined status, marshalled from *github.RepoStatus. Like the parent it is all pointer fields tagged omitempty, so no key is guaranteed and an all-nil element marshals to {}. Same idiom as the parent: empty, or at least one recognised key. Unknown keys stay allowed so a go-github field addition cannot invalidate real output.",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "target_url": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "context": {
+          "type": "string"
+        },
+        "avatar_url": {
+          "type": "string"
+        },
+        "creator": {
+          "type": "object"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "anyOf": [
+        {
+          "maxProperties": 0
+        },
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "state"
+          ]
+        },
+        {
+          "required": [
+            "target_url"
+          ]
+        },
+        {
+          "required": [
+            "description"
+          ]
+        },
+        {
+          "required": [
+            "context"
+          ]
+        },
+        {
+          "required": [
+            "avatar_url"
+          ]
+        },
+        {
+          "required": [
+            "creator"
+          ]
+        },
+        {
+          "required": [
+            "created_at"
+          ]
+        },
+        {
+          "required": [
+            "updated_at"
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -14,10 +14,24 @@ var (
 	ErrUnknownTools = errors.New("unknown tools specified in WithTools")
 )
 
-// mcpAppsFeatureFlag is the feature flag name that controls MCP Apps UI metadata.
-// This is defined here to avoid importing pkg/github (which imports pkg/inventory).
-// The value must match github.MCPAppsFeatureFlag.
-const mcpAppsFeatureFlag = "remote_mcp_ui_apps"
+// These are defined here to avoid importing pkg/github (which imports
+// pkg/inventory). The values must match their github package counterparts.
+const (
+	// mcpAppsFeatureFlag is the feature flag name that controls MCP Apps UI metadata.
+	// The value must match github.MCPAppsFeatureFlag.
+	mcpAppsFeatureFlag = "remote_mcp_ui_apps"
+
+	// outputSchemasFeatureFlag controls whether tools advertise outputSchema
+	// and return structuredContent. The value must match
+	// github.FeatureFlagOutputSchemas.
+	outputSchemasFeatureFlag = "output_schemas"
+
+	// structuredContentOnlyFeatureFlag controls whether the now-duplicated
+	// serialized-JSON text block is dropped for clients that can read
+	// structuredContent. The value must match
+	// github.FeatureFlagStructuredContentOnly.
+	structuredContentOnlyFeatureFlag = "structured_content_only"
+)
 
 // ToolFilter is a function that determines if a tool should be included.
 // Returns true if the tool should be included, false to exclude it.

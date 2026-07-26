@@ -22,6 +22,71 @@ end users. Insiders-only flags are not user-toggleable.
 
 ---
 
+## `output_schemas`
+
+Advertises MCP [`outputSchema`](https://modelcontextprotocol.io/specification/draft/server/tools) on tools that declare one, and returns a matching `structuredContent` alongside the existing text result. It gives clients and models a machine-readable contract for a tool's response — needed for code-execution workflows, which cannot generate typed bindings without it.
+
+The flag does not change any tool's inventory or input schema, so it does not appear in the generated list below. It also never changes the text content a tool returns: `structuredContent` carries the exact bytes of the existing serialized-JSON text block, which is the relationship the spec already describes ("a tool that returns structured content SHOULD also return the serialized JSON in a TextContent block").
+
+Tools that currently declare a schema are the ones whose response shape varies by their `method` argument: `actions_get`, `actions_list`, `actions_run_trigger`, `discussion_comment_write`, `issue_dependency_read`, `issue_read`, and `pull_request_read`. Their schemas live in [`pkg/github/output_schemas/`](../pkg/github/output_schemas/).
+
+### Interaction with the negotiated protocol version
+
+This flag controls *rollout*. It is independent of which schema shapes are *legal* for a given client, which is decided per request from the negotiated protocol version.
+
+Protocol revision 2025-11-25 typed `outputSchema` as a closed object shape, restricted to `type: "object"` at the root, and typed `structuredContent` as a JSON object. [SEP-2106](https://github.com/modelcontextprotocol/modelcontextprotocol) lifted both in 2026-07-28: an output schema may now be any valid JSON Schema 2020-12, and structured content may be any JSON value.
+
+So a union spanning objects and arrays — which is what `issue_read` and `pull_request_read` need — is only expressible from 2026-07-28 onward. The server handles this automatically:
+
+| Negotiated version | Object-root schemas | Non-object-root schemas |
+|--------------------|---------------------|-------------------------|
+| `>= 2026-07-28` | advertised | advertised |
+| older, or unknown | advertised | withheld |
+
+Non-object `structuredContent` is withheld from older clients on the same basis. The text content is unaffected in every case, so no client loses data — older ones simply do not gain the structured channel for those tools.
+
+Schemas use `anyOf`, never `oneOf`. `oneOf` requires exactly one branch to match, which fails on real payloads here: `actions_run_trigger` has four structurally identical branches, an empty array satisfies every array branch at once, and an `issue_read` `get` on a sub-issue also satisfies the `get_parent` branch.
+
+---
+
+## `structured_content_only`
+
+Requires `output_schemas`. On its own it does nothing.
+
+With `output_schemas` alone, a schema-bearing tool sends its payload **twice** — once as the serialized-JSON text block and once as `structuredContent`. That is what the spec asks for by default, but the reason is backwards compatibility: the text block exists so that clients which cannot read `structuredContent` can still recover the payload.
+
+A client that negotiated 2026-07-28 is not such a client. This flag drops the redundant text block for those clients, so the payload travels once:
+
+| Configuration | Serialized result |
+|---------------|-------------------|
+| no output schema | 272 bytes |
+| `output_schemas` | 405 bytes (+49%) |
+| `output_schemas,structured_content_only` | 254 bytes (−7%) |
+
+(Measured by `TestStructuredContentOnlyRoughlyHalvesTheResult` on a small payload.) The result is *smaller* than having no output schema at all, because a text block embeds JSON as an escaped string — every `"` becomes `\"` — while `structuredContent` carries it raw.
+
+The saving grows with payload size. Measured against the live GitHub API on `github/github-mcp-server`, comparing the full serialized `tools/call` result:
+
+| Call | `output_schemas` | `+ structured_content_only` |
+|------|------------------|-----------------------------|
+| `pull_request_read` `get_files` | 99,990 B | 48,999 B (−51%) |
+| `actions_list` `list_workflows` | 30,407 B | 15,839 B (−48%) |
+| `actions_get` `get_workflow_run` | 30,229 B | 15,801 B (−48%) |
+| `pull_request_read` `get_check_runs` | 10,551 B | 6,240 B (−41%) |
+
+`content` remains present as an empty array, since the schema still requires the field.
+
+The text block is kept, and nothing is dropped, whenever it is not genuinely redundant:
+
+- the client negotiated anything older than 2026-07-28, or its version could not be determined
+- the result is an error — error messages are never dropped
+- the tool returned something other than a single JSON text block (a raw diff, logs, file contents, a CSV-converted result, or a multi-part result)
+- the handler set `structuredContent` itself, so the server did not author the text/structured pairing and cannot assume they match
+
+This is a separate opt-in rather than automatic behaviour because negotiating 2026-07-28 does not *prove* a client reads `structuredContent` — no capability advertises it, and a client that ignored it would see an empty result. Enable it where the consumer is known to read structured output; code-execution hosts are the motivating case.
+
+---
+
 ## Tools affected by each flag
 
 The list below is regenerated from the Go source. For each user-controllable
