@@ -17,7 +17,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
-	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -185,16 +184,6 @@ func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDepende
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
 	}
 
-	// sanitize title/body on response
-	if pr != nil {
-		if pr.Title != nil {
-			pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
-		}
-		if pr.Body != nil {
-			pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
-		}
-	}
-
 	if ff.LockdownMode {
 		if restricted, err := authorLockdownResult(ctx, cache, owner, repo, pr.GetUser().GetLogin(), lockdownPullRequestRestrictedMessage); restricted != nil || err != nil {
 			return restricted, err
@@ -307,7 +296,7 @@ func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, rep
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get combined status", resp, body), nil
 	}
 
-	r, err := json.Marshal(status)
+	r, err := json.Marshal(sanitizedCombinedStatusCopy(status))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
@@ -1298,6 +1287,7 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add reply to pull request comment", resp, bodyBytes), nil, nil
 				}
 			}
+			comment = sanitizedPullRequestCommentCopy(comment)
 
 			var result any
 			switch {
@@ -1420,6 +1410,9 @@ func listPullRequestsTool(t translations.TranslationHelperFunc, includeFields bo
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			if err := validateEnumParam("state", state, "open", "closed", "all"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			head, err := OptionalParam[string](args, "head")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -1432,8 +1425,14 @@ func listPullRequestsTool(t translations.TranslationHelperFunc, includeFields bo
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			if err := validateEnumParam("sort", sort, "created", "updated", "popularity", "long-running"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			direction, err := OptionalParam[string](args, "direction")
 			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if err := validateEnumParam("direction", direction, "asc", "desc"); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			var fields []string
@@ -1480,19 +1479,6 @@ func listPullRequestsTool(t translations.TranslationHelperFunc, includeFields bo
 					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list pull requests", resp, bodyBytes), nil, nil
-			}
-
-			// sanitize title/body on each PR
-			for _, pr := range prs {
-				if pr == nil {
-					continue
-				}
-				if pr.Title != nil {
-					pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
-				}
-				if pr.Body != nil {
-					pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
-				}
 			}
 
 			minimalPRs := make([]MinimalPullRequest, 0, len(prs))

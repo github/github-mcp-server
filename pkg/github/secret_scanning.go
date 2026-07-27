@@ -85,7 +85,7 @@ func GetSecretScanningAlert(t translations.TranslationHelperFunc) inventory.Serv
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get alert", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(alert)
+			r, err := json.Marshal(sanitizedSecretScanningAlertCopy(alert))
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal alert: %w", err)
 			}
@@ -156,12 +156,18 @@ func ListSecretScanningAlerts(t translations.TranslationHelperFunc) inventory.Se
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			if err := validateEnumParam("state", state, "open", "resolved"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			secretType, err := OptionalParam[string](args, "secret_type")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			resolution, err := OptionalParam[string](args, "resolution")
 			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if err := validateEnumParam("resolution", resolution, "false_positive", "wont_fix", "revoked", "pattern_edited", "pattern_deleted", "used_in_tests"); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
@@ -200,7 +206,7 @@ func ListSecretScanningAlerts(t translations.TranslationHelperFunc) inventory.Se
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(alerts)
+			r, err := json.Marshal(sanitizedSecretScanningAlertsCopy(alerts))
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal alerts: %w", err)
 			}

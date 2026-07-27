@@ -68,8 +68,14 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			if err := validateEnumParam("sort", sort, "stars", "forks", "help-wanted-issues", "updated"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			order, err := OptionalParam[string](args, "order")
 			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if err := validateEnumParam("order", order, "asc", "desc"); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
@@ -116,33 +122,7 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 			if minimalOutput {
 				minimalRepos := make([]MinimalRepository, 0, len(result.Repositories))
 				for _, repo := range result.Repositories {
-					minimalRepo := MinimalRepository{
-						ID:            repo.GetID(),
-						Name:          repo.GetName(),
-						FullName:      repo.GetFullName(),
-						Description:   repo.GetDescription(),
-						HTMLURL:       repo.GetHTMLURL(),
-						Language:      repo.GetLanguage(),
-						Stars:         repo.GetStargazersCount(),
-						Forks:         repo.GetForksCount(),
-						OpenIssues:    repo.GetOpenIssuesCount(),
-						Private:       repo.GetPrivate(),
-						Fork:          repo.GetFork(),
-						Archived:      repo.GetArchived(),
-						DefaultBranch: repo.GetDefaultBranch(),
-					}
-
-					if repo.UpdatedAt != nil {
-						minimalRepo.UpdatedAt = repo.UpdatedAt.Format("2006-01-02T15:04:05Z")
-					}
-					if repo.CreatedAt != nil {
-						minimalRepo.CreatedAt = repo.CreatedAt.Format("2006-01-02T15:04:05Z")
-					}
-					if repo.Topics != nil {
-						minimalRepo.Topics = repo.Topics
-					}
-
-					minimalRepos = append(minimalRepos, minimalRepo)
+					minimalRepos = append(minimalRepos, convertToMinimalRepository(repo))
 				}
 
 				minimalResult := &MinimalSearchRepositoriesResult{
@@ -156,7 +136,7 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 					return utils.NewToolResultErrorFromErr("failed to marshal minimal response", err), nil, nil
 				}
 			} else {
-				r, err = json.Marshal(result)
+				r, err = json.Marshal(sanitizedRepositoriesSearchResultCopy(result))
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to marshal full response", err), nil, nil
 				}
@@ -229,6 +209,7 @@ func searchCodeTool(t translations.TranslationHelperFunc, includeFields bool) in
 			"sort": {
 				Type:        "string",
 				Description: "Sort field ('indexed' only)",
+				Enum:        []any{"indexed"},
 			},
 			"order": {
 				Type:        "string",
@@ -267,8 +248,14 @@ func searchCodeTool(t translations.TranslationHelperFunc, includeFields bool) in
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			if err := validateEnumParam("sort", sort, "indexed"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			order, err := OptionalParam[string](args, "order")
 			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if err := validateEnumParam("order", order, "asc", "desc"); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			var fields []string
@@ -391,8 +378,14 @@ func userOrOrgHandler(ctx context.Context, accountType string, deps ToolDependen
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
+	if err := validateEnumParam("sort", sort, "followers", "repositories", "joined"); err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
 	order, err := OptionalParam[string](args, "order")
 	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	if err := validateEnumParam("order", order, "asc", "desc"); err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 	pagination, err := OptionalPaginationParams(args)
@@ -601,8 +594,14 @@ func SearchCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			if err := validateEnumParam("sort", sort, "author-date", "committer-date"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			order, err := OptionalParam[string](args, "order")
 			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if err := validateEnumParam("order", order, "asc", "desc"); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)

@@ -62,19 +62,32 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 			expectedAdvisories: []*github.GlobalSecurityAdvisory{mockAdvisory},
 		},
 		{
-			name: "invalid severity value",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetAdvisories: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusBadRequest)
-					_, _ = w.Write([]byte(`{"message": "Bad Request"}`))
-				}),
-			}),
+			name:         "invalid type is rejected before request",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"type": "private",
+			},
+			expectError:    true,
+			expectedErrMsg: "type must be one of: reviewed, malware, unreviewed",
+		},
+		{
+			name:         "invalid ecosystem is rejected before request",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"ecosystem": "cargo",
+			},
+			expectError:    true,
+			expectedErrMsg: "ecosystem must be one of: actions, composer, erlang, go, maven, npm, nuget, other, pip, pub, rubygems, rust",
+		},
+		{
+			name:         "invalid severity value",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"type":     "reviewed",
 				"severity": "extreme",
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to list global security advisories",
+			expectedErrMsg: "severity must be one of: unknown, low, medium, high, critical",
 		},
 		{
 			name: "API error handling",
@@ -105,8 +118,13 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 
 			// Verify results
 			if tc.expectError {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				if err != nil {
+					assert.Contains(t, err.Error(), tc.expectedErrMsg)
+					return
+				}
+				require.NotNil(t, result)
+				require.True(t, result.IsError)
+				assert.Contains(t, getErrorResult(t, result).Text, tc.expectedErrMsg)
 				return
 			}
 
@@ -260,6 +278,11 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 		Summary:     github.Ptr("Repo advisory one"),
 		Description: github.Ptr("First repo advisory."),
 		Severity:    github.Ptr("high"),
+		CollaboratingTeams: []*github.Team{{
+			Name:        github.Ptr(baselineUnsafeText),
+			Description: github.Ptr(baselineUnsafeText),
+			Slug:        github.Ptr("security<script>"),
+		}},
 	}
 	adv2 := &github.SecurityAdvisory{
 		GHSAID:      github.Ptr("GHSA-2222-2222-2222"),
@@ -318,6 +341,39 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 			expectedAdvisories: []*github.SecurityAdvisory{adv1},
 		},
 		{
+			name:         "invalid direction is rejected before request",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"owner":     "owner",
+				"repo":      "repo",
+				"direction": "sideways",
+			},
+			expectError:    true,
+			expectedErrMsg: "direction must be one of: asc, desc",
+		},
+		{
+			name:         "invalid sort is rejected before request",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"sort":  "severity",
+			},
+			expectError:    true,
+			expectedErrMsg: "sort must be one of: created, updated, published",
+		},
+		{
+			name:         "invalid state is rejected before request",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"state": "withdrawn",
+			},
+			expectError:    true,
+			expectedErrMsg: "state must be one of: triage, draft, published, closed",
+		},
+		{
 			name: "advisories listing fails",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposSecurityAdvisoriesByOwnerByRepo: expect(t, expectations{
@@ -348,8 +404,13 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			if tc.expectError {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				if err != nil {
+					assert.Contains(t, err.Error(), tc.expectedErrMsg)
+					return
+				}
+				require.NotNil(t, result)
+				require.True(t, result.IsError)
+				assert.Contains(t, getErrorResult(t, result).Text, tc.expectedErrMsg)
 				return
 			}
 
@@ -366,7 +427,13 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 				assert.Equal(t, *tc.expectedAdvisories[i].Summary, *advisory.Summary)
 				assert.Equal(t, *tc.expectedAdvisories[i].Description, *advisory.Description)
 				assert.Equal(t, *tc.expectedAdvisories[i].Severity, *advisory.Severity)
+				if len(tc.expectedAdvisories[i].CollaboratingTeams) > 0 {
+					assert.Equal(t, sanitizeOutputText(tc.expectedAdvisories[i].CollaboratingTeams[0].GetName()), advisory.CollaboratingTeams[0].GetName())
+					assert.Equal(t, sanitizeOutputText(tc.expectedAdvisories[i].CollaboratingTeams[0].GetDescription()), advisory.CollaboratingTeams[0].GetDescription())
+					assert.Equal(t, tc.expectedAdvisories[i].CollaboratingTeams[0].GetSlug(), advisory.CollaboratingTeams[0].GetSlug())
+				}
 			}
+			assert.Equal(t, baselineUnsafeText, adv1.CollaboratingTeams[0].GetName())
 		})
 	}
 }
@@ -575,6 +642,16 @@ func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
 			expectedAdvisories: []*github.SecurityAdvisory{adv1},
 		},
 		{
+			name:         "invalid state is rejected before request",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"org":   "octo",
+				"state": "withdrawn",
+			},
+			expectError:    true,
+			expectedErrMsg: "state must be one of: triage, draft, published, closed",
+		},
+		{
 			name: "listing fails",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetOrgsSecurityAdvisoriesByOrg: expect(t, expectations{
@@ -604,8 +681,13 @@ func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			if tc.expectError {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				if err != nil {
+					assert.Contains(t, err.Error(), tc.expectedErrMsg)
+					return
+				}
+				require.NotNil(t, result)
+				require.True(t, result.IsError)
+				assert.Contains(t, getErrorResult(t, result).Text, tc.expectedErrMsg)
 				return
 			}
 

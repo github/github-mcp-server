@@ -820,7 +820,7 @@ func Test_ListDiscussionCategories(t *testing.T) {
 		"repository": map[string]any{
 			"discussionCategories": map[string]any{
 				"nodes": []map[string]any{
-					{"id": "123", "name": "CategoryOne"},
+					{"id": "123", "name": baselineUnsafeText},
 					{"id": "456", "name": "CategoryTwo"},
 				},
 				"pageInfo": map[string]any{
@@ -873,7 +873,7 @@ func Test_ListDiscussionCategories(t *testing.T) {
 			expectError:   false,
 			expectedCount: 2,
 			expectedCategories: []map[string]string{
-				{"id": "123", "name": "CategoryOne"},
+				{"id": "123", "name": sanitizeOutputText(baselineUnsafeText)},
 				{"id": "456", "name": "CategoryTwo"},
 			},
 		},

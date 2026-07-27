@@ -65,6 +65,20 @@ type NodeFragment struct {
 	URL githubv4.String `graphql:"url"`
 }
 
+type discussionDetailFragment struct {
+	Number         githubv4.Int
+	Title          githubv4.String
+	Body           githubv4.String
+	CreatedAt      githubv4.DateTime
+	Closed         githubv4.Boolean
+	IsAnswered     githubv4.Boolean
+	AnswerChosenAt *githubv4.DateTime
+	URL            githubv4.String `graphql:"url"`
+	Category       struct {
+		Name githubv4.String
+	} `graphql:"category"`
+}
+
 type PageInfoFragment struct {
 	HasNextPage     bool
 	HasPreviousPage bool
@@ -99,7 +113,7 @@ type WithCategoryNoOrder struct {
 func fragmentToDiscussion(fragment NodeFragment) *github.Discussion {
 	return &github.Discussion{
 		Number:    github.Ptr(int(fragment.Number)),
-		Title:     github.Ptr(string(fragment.Title)),
+		Title:     github.Ptr(sanitizeOutputText(string(fragment.Title))),
 		HTMLURL:   github.Ptr(string(fragment.URL)),
 		CreatedAt: &github.Timestamp{Time: fragment.CreatedAt.Time},
 		UpdatedAt: &github.Timestamp{Time: fragment.UpdatedAt.Time},
@@ -107,8 +121,37 @@ func fragmentToDiscussion(fragment NodeFragment) *github.Discussion {
 			Login: github.Ptr(string(fragment.Author.Login)),
 		},
 		DiscussionCategory: &github.DiscussionCategory{
-			Name: github.Ptr(string(fragment.Category.Name)),
+			Name: github.Ptr(sanitizeOutputText(string(fragment.Category.Name))),
 		},
+	}
+}
+
+func discussionDetailResponse(d discussionDetailFragment) map[string]any {
+	response := map[string]any{
+		"number":     int(d.Number),
+		"title":      sanitizeOutputText(string(d.Title)),
+		"body":       sanitizeOutputText(string(d.Body)),
+		"url":        string(d.URL),
+		"closed":     bool(d.Closed),
+		"isAnswered": bool(d.IsAnswered),
+		"createdAt":  d.CreatedAt.Time,
+		"category": map[string]any{
+			"name": sanitizeOutputText(string(d.Category.Name)),
+		},
+	}
+
+	if d.AnswerChosenAt != nil {
+		response["answerChosenAt"] = d.AnswerChosenAt.Time
+	}
+
+	return response
+}
+
+func convertToMinimalDiscussionComment(id githubv4.ID, body githubv4.String, isAnswer githubv4.Boolean) MinimalDiscussionComment {
+	return MinimalDiscussionComment{
+		ID:       fmt.Sprintf("%v", id),
+		Body:     sanitizeOutputText(string(body)),
+		IsAnswer: bool(isAnswer),
 	}
 }
 
@@ -329,19 +372,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			var q struct {
 				Repository struct {
-					Discussion struct {
-						Number         githubv4.Int
-						Title          githubv4.String
-						Body           githubv4.String
-						CreatedAt      githubv4.DateTime
-						Closed         githubv4.Boolean
-						IsAnswered     githubv4.Boolean
-						AnswerChosenAt *githubv4.DateTime
-						URL            githubv4.String `graphql:"url"`
-						Category       struct {
-							Name githubv4.String
-						} `graphql:"category"`
-					} `graphql:"discussion(number: $discussionNumber)"`
+					Discussion discussionDetailFragment `graphql:"discussion(number: $discussionNumber)"`
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
 			vars := map[string]any{
@@ -352,29 +383,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err := client.Query(ctx, &q, vars); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			d := q.Repository.Discussion
-
-			// Build response as map to include fields not present in go-github's Discussion struct.
-			// The go-github library's Discussion type lacks isAnswered and answerChosenAt fields,
-			// so we use map[string]interface{} for the response (consistent with other functions
-			// like ListDiscussions and GetDiscussionComments).
-			response := map[string]any{
-				"number":     int(d.Number),
-				"title":      string(d.Title),
-				"body":       string(d.Body),
-				"url":        string(d.URL),
-				"closed":     bool(d.Closed),
-				"isAnswered": bool(d.IsAnswered),
-				"createdAt":  d.CreatedAt.Time,
-				"category": map[string]any{
-					"name": string(d.Category.Name),
-				},
-			}
-
-			// Add optional timestamp fields if present
-			if d.AnswerChosenAt != nil {
-				response["answerChosenAt"] = d.AnswerChosenAt.Time
-			}
+			response := discussionDetailResponse(q.Repository.Discussion)
 
 			out, err := json.Marshal(response)
 			if err != nil {
@@ -520,18 +529,10 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
 				for _, c := range q.Repository.Discussion.Comments.Nodes {
-					comment := MinimalDiscussionComment{
-						ID:              fmt.Sprintf("%v", c.ID),
-						Body:            string(c.Body),
-						IsAnswer:        bool(c.IsAnswer),
-						ReplyTotalCount: c.Replies.TotalCount,
-					}
+					comment := convertToMinimalDiscussionComment(c.ID, c.Body, c.IsAnswer)
+					comment.ReplyTotalCount = c.Replies.TotalCount
 					for _, r := range c.Replies.Nodes {
-						comment.Replies = append(comment.Replies, MinimalDiscussionComment{
-							ID:       fmt.Sprintf("%v", r.ID),
-							Body:     string(r.Body),
-							IsAnswer: bool(r.IsAnswer),
-						})
+						comment.Replies = append(comment.Replies, convertToMinimalDiscussionComment(r.ID, r.Body, r.IsAnswer))
 					}
 					comments = append(comments, comment)
 				}
@@ -562,11 +563,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
 				for _, c := range q.Repository.Discussion.Comments.Nodes {
-					comments = append(comments, MinimalDiscussionComment{
-						ID:       fmt.Sprintf("%v", c.ID),
-						Body:     string(c.Body),
-						IsAnswer: bool(c.IsAnswer),
-					})
+					comments = append(comments, convertToMinimalDiscussionComment(c.ID, c.Body, c.IsAnswer))
 				}
 				pageInfo = q.Repository.Discussion.Comments.PageInfo
 				totalCount = q.Repository.Discussion.Comments.TotalCount
@@ -1077,7 +1074,7 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 			for _, c := range q.Repository.DiscussionCategories.Nodes {
 				categories = append(categories, map[string]string{
 					"id":   fmt.Sprint(c.ID),
-					"name": string(c.Name),
+					"name": sanitizeOutputText(string(c.Name)),
 				})
 			}
 

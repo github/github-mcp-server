@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -60,9 +61,9 @@ func TestGetLabel(t *testing.T) {
 						"repository": map[string]any{
 							"label": map[string]any{
 								"id":          githubv4.ID("test-label-id"),
-								"name":        githubv4.String("bug"),
+								"name":        githubv4.String(baselineUnsafeText),
 								"color":       githubv4.String("d73a4a"),
-								"description": githubv4.String("Something isn't working"),
+								"description": githubv4.String(baselineUnsafeText),
 							},
 						},
 					}),
@@ -133,6 +134,13 @@ func TestGetLabel(t *testing.T) {
 				}
 			} else {
 				assert.False(t, result.IsError)
+				var label struct {
+					Name        string `json:"name"`
+					Description string `json:"description"`
+				}
+				require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &label))
+				assert.Equal(t, sanitizeOutputText(baselineUnsafeText), label.Name)
+				assert.Equal(t, sanitizeOutputText(baselineUnsafeText), label.Description)
 			}
 		})
 	}
@@ -188,9 +196,9 @@ func TestListLabels(t *testing.T) {
 								"nodes": []any{
 									map[string]any{
 										"id":          githubv4.ID("label-1"),
-										"name":        githubv4.String("bug"),
+										"name":        githubv4.String(baselineUnsafeText),
 										"color":       githubv4.String("d73a4a"),
-										"description": githubv4.String("Something isn't working"),
+										"description": githubv4.String(baselineUnsafeText),
 									},
 									map[string]any{
 										"id":          githubv4.ID("label-2"),
@@ -231,6 +239,16 @@ func TestListLabels(t *testing.T) {
 				}
 			} else {
 				assert.False(t, result.IsError)
+				var response struct {
+					Labels []struct {
+						Name        string `json:"name"`
+						Description string `json:"description"`
+					} `json:"labels"`
+				}
+				require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+				require.NotEmpty(t, response.Labels)
+				assert.Equal(t, sanitizeOutputText(baselineUnsafeText), response.Labels[0].Name)
+				assert.Equal(t, sanitizeOutputText(baselineUnsafeText), response.Labels[0].Description)
 			}
 		})
 	}
@@ -256,6 +274,7 @@ func TestWriteLabel(t *testing.T) {
 		mockedClient       *http.Client
 		expectToolError    bool
 		expectedToolErrMsg string
+		expectedOutput     string
 	}{
 		{
 			name: "successful label creation",
@@ -304,13 +323,14 @@ func TestWriteLabel(t *testing.T) {
 						"createLabel": map[string]any{
 							"label": map[string]any{
 								"id":   githubv4.ID("new-label-id"),
-								"name": githubv4.String("new-label"),
+								"name": githubv4.String(baselineUnsafeText),
 							},
 						},
 					}),
 				),
 			),
 			expectToolError: false,
+			expectedOutput:  sanitizeOutputText(baselineUnsafeText),
 		},
 		{
 			name: "create label without color",
@@ -377,13 +397,14 @@ func TestWriteLabel(t *testing.T) {
 						"updateLabel": map[string]any{
 							"label": map[string]any{
 								"id":   githubv4.ID("bug-label-id"),
-								"name": githubv4.String("defect"),
+								"name": githubv4.String(baselineUnsafeText),
 							},
 						},
 					}),
 				),
 			),
 			expectToolError: false,
+			expectedOutput:  sanitizeOutputText(baselineUnsafeText),
 		},
 		{
 			name: "update label without any changes",
@@ -484,6 +505,11 @@ func TestWriteLabel(t *testing.T) {
 				}
 			} else {
 				assert.False(t, result.IsError)
+				if tc.expectedOutput != "" {
+					textContent := getTextResult(t, result)
+					assert.Contains(t, textContent.Text, tc.expectedOutput)
+					assert.NotContains(t, textContent.Text, "<script>")
+				}
 			}
 		})
 	}

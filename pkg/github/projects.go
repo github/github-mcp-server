@@ -134,7 +134,7 @@ func convertToMinimalStatusUpdate(node statusUpdateNode) MinimalProjectStatusUpd
 
 	return MinimalProjectStatusUpdate{
 		ID:         fmt.Sprintf("%v", node.ID),
-		Body:       derefString(node.Body),
+		Body:       sanitizeOutputText(derefString(node.Body)),
 		Status:     derefString(node.Status),
 		CreatedAt:  node.CreatedAt.Time.Format(time.RFC3339),
 		StartDate:  derefString(node.StartDate),
@@ -926,7 +926,7 @@ func listProjectFields(ctx context.Context, client *github.Client, args map[stri
 	defer func() { _ = resp.Body.Close() }()
 
 	response := map[string]any{
-		"fields":   projectFields,
+		"fields":   sanitizedProjectV2FieldsCopy(projectFields),
 		"pageInfo": buildPageInfo(resp),
 	}
 
@@ -1099,7 +1099,7 @@ func getProjectField(ctx context.Context, client *github.Client, owner, ownerTyp
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get project field", resp, body), nil, nil
 	}
-	r, err := json.Marshal(projectField)
+	r, err := json.Marshal(sanitizedProjectV2FieldCopy(projectField))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
@@ -1880,7 +1880,7 @@ func createIterationField(ctx context.Context, gqlClient *githubv4.Client, owner
 	for _, iter := range field.Configuration.Iterations {
 		iterResults = append(iterResults, map[string]any{
 			"id":         iter.ID,
-			"title":      iter.Title,
+			"title":      sanitizeOutputText(iter.Title),
 			"start_date": iter.StartDate,
 			"duration":   iter.Duration,
 		})
@@ -1888,7 +1888,7 @@ func createIterationField(ctx context.Context, gqlClient *githubv4.Client, owner
 
 	result := map[string]any{
 		"id":   field.ID,
-		"name": field.Name,
+		"name": sanitizeOutputText(field.Name),
 		"configuration": map[string]any{
 			"iterations": iterResults,
 		},

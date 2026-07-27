@@ -359,6 +359,7 @@ func Test_SearchCode(t *testing.T) {
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.Contains(t, schema.Properties, "page")
 	assert.Contains(t, schema.Properties, "fields")
+	assert.Equal(t, []any{"indexed"}, schema.Properties["sort"].Enum)
 	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
 	// Setup mock search results
@@ -443,6 +444,16 @@ func Test_SearchCode(t *testing.T) {
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
+		},
+		{
+			name:         "invalid sort is rejected before search",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"query": "fmt.Println language:go",
+				"sort":  "updated",
+			},
+			expectError:    true,
+			expectedErrMsg: "sort must be one of: indexed",
 		},
 		{
 			name: "search code fails",
@@ -789,6 +800,26 @@ func Test_SearchUsers(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to search users",
 		},
+		{
+			name:         "invalid sort is rejected before search",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"query": "octocat",
+				"sort":  "stars",
+			},
+			expectError:    true,
+			expectedErrMsg: "sort must be one of: followers, repositories, joined",
+		},
+		{
+			name:         "invalid order is rejected before search",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"query": "octocat",
+				"order": "newest",
+			},
+			expectError:    true,
+			expectedErrMsg: "order must be one of: asc, desc",
+		},
 	}
 
 	for _, tc := range tests {
@@ -952,6 +983,26 @@ func Test_SearchOrgs(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to search orgs",
 		},
+		{
+			name:         "invalid sort is rejected before search",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"query": "github",
+				"sort":  "stars",
+			},
+			expectError:    true,
+			expectedErrMsg: "sort must be one of: followers, repositories, joined",
+		},
+		{
+			name:         "invalid order is rejected before search",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"query": "github",
+				"order": "newest",
+			},
+			expectError:    true,
+			expectedErrMsg: "order must be one of: asc, desc",
+		},
 	}
 
 	for _, tc := range tests {
@@ -1026,9 +1077,9 @@ func Test_SearchCommits(t *testing.T) {
 				SHA:     github.Ptr("abc123commit"),
 				HTMLURL: github.Ptr("https://github.com/owner/repo/commit/abc123commit"),
 				Commit: &github.Commit{
-					Message: github.Ptr("Initial commit"),
+					Message: github.Ptr(baselineUnsafeText),
 					Author: &github.CommitAuthor{
-						Name:  github.Ptr("Author Name"),
+						Name:  github.Ptr(baselineUnsafeText),
 						Email: github.Ptr("author@example.com"),
 						Date:  &github.Timestamp{Time: now},
 					},
@@ -1102,6 +1153,26 @@ func Test_SearchCommits(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to search commits",
 		},
+		{
+			name:         "invalid sort is rejected before search",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"query": "repo:owner/repo fix",
+				"sort":  "updated",
+			},
+			expectError:    true,
+			expectedErrMsg: "sort must be one of: author-date, committer-date",
+		},
+		{
+			name:         "invalid order is rejected before search",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"query": "repo:owner/repo fix",
+				"order": "newest",
+			},
+			expectError:    true,
+			expectedErrMsg: "order must be one of: asc, desc",
+		},
 	}
 
 	for _, tc := range tests {
@@ -1134,8 +1205,8 @@ func Test_SearchCommits(t *testing.T) {
 			assert.Equal(t, tc.expectedResult.GetTotal(), returnedResult.TotalCount)
 			assert.Len(t, returnedResult.Items, len(tc.expectedResult.Commits))
 			assert.Equal(t, *tc.expectedResult.Commits[0].SHA, returnedResult.Items[0].SHA)
-			assert.Equal(t, *tc.expectedResult.Commits[0].Commit.Message, returnedResult.Items[0].Commit.Message)
-			assert.Equal(t, *tc.expectedResult.Commits[0].Commit.Author.Name, returnedResult.Items[0].Commit.Author.Name)
+			assert.Equal(t, sanitizeCommitMessage(tc.expectedResult.Commits[0].Commit.GetMessage()), returnedResult.Items[0].Commit.Message)
+			assert.Equal(t, sanitizeOutputText(tc.expectedResult.Commits[0].Commit.Author.GetName()), returnedResult.Items[0].Commit.Author.Name)
 			assert.Equal(t, now.Format(time.RFC3339), returnedResult.Items[0].Commit.Author.Date)
 			assert.Equal(t, *tc.expectedResult.Commits[0].Author.Login, returnedResult.Items[0].Author.Login)
 
@@ -1144,6 +1215,7 @@ func Test_SearchCommits(t *testing.T) {
 			require.NotNil(t, returnedResult.Items[0].Repository)
 			assert.Equal(t, "owner/repo", returnedResult.Items[0].Repository.FullName)
 			assert.Equal(t, "https://github.com/owner/repo", returnedResult.Items[0].Repository.HTMLURL)
+			assert.Equal(t, baselineUnsafeText, mockSearchResult.Commits[0].Commit.GetMessage())
 
 			// Second commit has no resolved GitHub user for author/committer
 			// and no commit-level author block — the handler must not panic

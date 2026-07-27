@@ -210,6 +210,28 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 			expectedAlerts: mockAlerts,
 		},
 		{
+			name:         "invalid state is rejected before request",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"state": "archived",
+			},
+			expectError:    true,
+			expectedErrMsg: "state must be one of: open, closed, dismissed, fixed",
+		},
+		{
+			name:         "invalid severity is rejected before request",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"owner":    "owner",
+				"repo":     "repo",
+				"severity": "extreme",
+			},
+			expectError:    true,
+			expectedErrMsg: "severity must be one of: critical, high, medium, low, warning, note, error",
+		},
+		{
 			name: "alerts listing fails",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposCodeScanningAlertsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

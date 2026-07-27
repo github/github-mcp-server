@@ -85,7 +85,7 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get alert", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(alert)
+			r, err := json.Marshal(sanitizedDependabotAlertCopy(alert))
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal alert", err), nil, err
 			}
@@ -153,8 +153,14 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			if err := validateEnumParam("state", state, "open", "fixed", "dismissed", "auto_dismissed"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			severity, err := OptionalParam[string](args, "severity")
 			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if err := validateEnumParam("severity", severity, "low", "medium", "high", "critical"); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
@@ -194,7 +200,7 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 			}
 
 			response := map[string]any{
-				"alerts":   alerts,
+				"alerts":   sanitizedDependabotAlertsCopy(alerts),
 				"pageInfo": buildPageInfo(resp),
 			}
 

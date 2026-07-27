@@ -739,16 +739,6 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 		}
 	}
 
-	// Sanitize title/body on response
-	if issue != nil {
-		if issue.Title != nil {
-			issue.Title = github.Ptr(sanitize.Sanitize(*issue.Title))
-		}
-		if issue.Body != nil {
-			issue.Body = github.Ptr(sanitize.Sanitize(*issue.Body))
-		}
-	}
-
 	minimalIssue := convertToMinimalIssue(issue)
 
 	// Always drop the verbose REST IssueFieldValues; enrich with the GraphQL
@@ -931,7 +921,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 		subIssues = filteredSubIssues
 	}
 
-	r, err := json.Marshal(subIssues)
+	r, err := json.Marshal(sanitizedSubIssuesCopy(subIssues))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
@@ -1048,9 +1038,9 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 	for i, label := range query.Repository.Issue.Labels.Nodes {
 		issueLabels[i] = map[string]any{
 			"id":          fmt.Sprintf("%v", label.ID),
-			"name":        string(label.Name),
+			"name":        sanitizeOutputText(string(label.Name)),
 			"color":       string(label.Color),
-			"description": string(label.Description),
+			"description": sanitizeOutputText(string(label.Description)),
 		}
 	}
 
@@ -1131,7 +1121,7 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list issue types", resp, body), nil, nil
 				}
 
-				r, err := json.Marshal(issueTypes)
+				r, err := json.Marshal(sanitizedIssueTypesCopy(issueTypes))
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to marshal issue types", err), nil, nil
 				}
@@ -1155,7 +1145,7 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list issue types", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(issueTypes)
+			r, err := json.Marshal(sanitizedIssueTypesCopy(issueTypes))
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal issue types", err), nil, nil
 			}
@@ -1507,7 +1497,7 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add sub-issue", resp, body), nil
 	}
 
-	r, err := json.Marshal(subIssue)
+	r, err := json.Marshal(sanitizedSubIssueCopy(subIssue))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
@@ -1538,7 +1528,7 @@ func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, re
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to remove sub-issue", resp, body), nil
 	}
 
-	r, err := json.Marshal(subIssue)
+	r, err := json.Marshal(sanitizedSubIssueCopy(subIssue))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
@@ -1587,7 +1577,7 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to reprioritize sub-issue", resp, body), nil
 	}
 
-	r, err := json.Marshal(subIssue)
+	r, err := json.Marshal(sanitizedSubIssueCopy(subIssue))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
@@ -1788,7 +1778,7 @@ type SearchIssueResult struct {
 // MarshalJSON serializes SearchIssueResult, suppressing the raw issue_field_values from the
 // embedded REST response in favour of the normalized field_values populated via GraphQL enrichment.
 func (r SearchIssueResult) MarshalJSON() ([]byte, error) {
-	issueBytes, err := json.Marshal(r.Issue)
+	issueBytes, err := json.Marshal(sanitizedIssueCopy(r.Issue))
 	if err != nil {
 		return nil, err
 	}

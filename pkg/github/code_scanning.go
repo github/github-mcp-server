@@ -84,7 +84,7 @@ func GetCodeScanningAlert(t translations.TranslationHelperFunc) inventory.Server
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get alert", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(alert)
+			r, err := json.Marshal(sanitizedCodeScanningAlertCopy(alert))
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal alert", err), nil, nil
 			}
@@ -164,8 +164,14 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			if err := validateEnumParam("state", state, "open", "closed", "dismissed", "fixed"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			severity, err := OptionalParam[string](args, "severity")
 			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if err := validateEnumParam("severity", severity, "critical", "high", "medium", "low", "warning", "note", "error"); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			toolName, err := OptionalParam[string](args, "tool_name")
@@ -209,7 +215,7 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(alerts)
+			r, err := json.Marshal(sanitizedCodeScanningAlertsCopy(alerts))
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal alerts", err), nil, nil
 			}

@@ -1174,9 +1174,9 @@ func Test_GetCommit(t *testing.T) {
 	mockCommit := &github.RepositoryCommit{
 		SHA: github.Ptr("abc123def456"),
 		Commit: &github.Commit{
-			Message: github.Ptr("First commit"),
+			Message: github.Ptr(baselineUnsafeText),
 			Author: &github.CommitAuthor{
-				Name:  github.Ptr("Test User"),
+				Name:  github.Ptr(baselineUnsafeText),
 				Email: github.Ptr("test@example.com"),
 				Date:  &github.Timestamp{Time: time.Now().Add(-48 * time.Hour)},
 			},
@@ -1277,9 +1277,11 @@ func Test_GetCommit(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, *tc.expectedCommit.SHA, *returnedCommit.SHA)
-			assert.Equal(t, *tc.expectedCommit.Commit.Message, *returnedCommit.Commit.Message)
+			assert.Equal(t, sanitizeCommitMessage(tc.expectedCommit.Commit.GetMessage()), returnedCommit.Commit.GetMessage())
+			assert.Equal(t, sanitizeOutputText(tc.expectedCommit.Commit.Author.GetName()), returnedCommit.Commit.Author.GetName())
 			assert.Equal(t, *tc.expectedCommit.Author.Login, *returnedCommit.Author.Login)
 			assert.Equal(t, *tc.expectedCommit.HTMLURL, *returnedCommit.HTMLURL)
+			assert.Equal(t, baselineUnsafeText, mockCommit.Commit.GetMessage())
 		})
 	}
 }
@@ -1430,9 +1432,9 @@ func Test_ListCommits(t *testing.T) {
 		{
 			SHA: github.Ptr("abc123def456"),
 			Commit: &github.Commit{
-				Message: github.Ptr("First commit"),
+				Message: github.Ptr(baselineUnsafeText),
 				Author: &github.CommitAuthor{
-					Name:  github.Ptr("Test User"),
+					Name:  github.Ptr(baselineUnsafeText),
 					Email: github.Ptr("test@example.com"),
 					Date:  &github.Timestamp{Time: time.Now().Add(-48 * time.Hour)},
 				},
@@ -1690,7 +1692,10 @@ func Test_ListCommits(t *testing.T) {
 				assert.Equal(t, tc.expectedCommits[i].GetSHA(), commit.SHA)
 				assert.Equal(t, tc.expectedCommits[i].GetHTMLURL(), commit.HTMLURL)
 				if tc.expectedCommits[i].Commit != nil {
-					assert.Equal(t, tc.expectedCommits[i].Commit.GetMessage(), commit.Commit.Message)
+					assert.Equal(t, sanitizeCommitMessage(tc.expectedCommits[i].Commit.GetMessage()), commit.Commit.Message)
+					if tc.expectedCommits[i].Commit.Author != nil {
+						assert.Equal(t, sanitizeOutputText(tc.expectedCommits[i].Commit.Author.GetName()), commit.Commit.Author.Name)
+					}
 				}
 				if tc.expectedCommits[i].Author != nil {
 					assert.Equal(t, tc.expectedCommits[i].Author.GetLogin(), commit.Author.Login)
@@ -1736,9 +1741,9 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		},
 		Commit: github.Commit{
 			SHA:     github.Ptr("def456abc789"),
-			Message: github.Ptr("Add example file"),
+			Message: github.Ptr(baselineUnsafeText),
 			Author: &github.CommitAuthor{
-				Name:  github.Ptr("Test User"),
+				Name:  github.Ptr(baselineUnsafeText),
 				Email: github.Ptr("test@example.com"),
 				Date:  &github.Timestamp{Time: time.Now()},
 			},
@@ -2058,12 +2063,12 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 
 			// Verify commit
 			assert.Equal(t, tc.expectedContent.Commit.GetSHA(), returnedContent.Commit.SHA)
-			assert.Equal(t, tc.expectedContent.Commit.GetMessage(), returnedContent.Commit.Message)
+			assert.Equal(t, sanitizeCommitMessage(tc.expectedContent.Commit.GetMessage()), returnedContent.Commit.Message)
 			assert.Equal(t, tc.expectedContent.Commit.GetHTMLURL(), returnedContent.Commit.HTMLURL)
 
 			// Verify commit author
 			require.NotNil(t, returnedContent.Commit.Author)
-			assert.Equal(t, tc.expectedContent.Commit.Author.GetName(), returnedContent.Commit.Author.Name)
+			assert.Equal(t, sanitizeOutputText(tc.expectedContent.Commit.Author.GetName()), returnedContent.Commit.Author.Name)
 			assert.Equal(t, tc.expectedContent.Commit.Author.GetEmail(), returnedContent.Commit.Author.Email)
 			assert.NotEmpty(t, returnedContent.Commit.Author.Date)
 		})
@@ -3164,7 +3169,7 @@ func Test_DeleteFile(t *testing.T) {
 
 	mockNewCommit := &github.Commit{
 		SHA:     github.Ptr("jkl012"),
-		Message: github.Ptr("Delete example file"),
+		Message: github.Ptr(baselineUnsafeText),
 		HTMLURL: github.Ptr("https://github.com/owner/repo/commit/jkl012"),
 	}
 
@@ -3304,6 +3309,8 @@ func Test_DeleteFile(t *testing.T) {
 			commitSHA, ok := commit["sha"].(string)
 			require.True(t, ok)
 			assert.Equal(t, tc.expectedCommitSHA, commitSHA)
+			assert.Equal(t, sanitizeOutputText(baselineUnsafeText), commit["message"])
+			assert.Equal(t, baselineUnsafeText, mockNewCommit.GetMessage())
 		})
 	}
 }
@@ -4556,7 +4563,7 @@ func Test_ListStarredRepositories(t *testing.T) {
 				ID:              github.Ptr(int64(12345)),
 				Name:            github.Ptr("awesome-repo"),
 				FullName:        github.Ptr("owner/awesome-repo"),
-				Description:     github.Ptr("An awesome repository"),
+				Description:     github.Ptr(baselineUnsafeText),
 				HTMLURL:         github.Ptr("https://github.com/owner/awesome-repo"),
 				Language:        github.Ptr("Go"),
 				StargazersCount: github.Ptr(100),
@@ -4631,6 +4638,24 @@ func Test_ListStarredRepositories(t *testing.T) {
 			expectedCount: 2,
 		},
 		{
+			name:         "invalid sort is rejected before request",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"sort": "pushed",
+			},
+			expectError:    true,
+			expectedErrMsg: "sort must be one of: created, updated",
+		},
+		{
+			name:         "invalid direction is rejected before request",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"direction": "sideways",
+			},
+			expectError:    true,
+			expectedErrMsg: "direction must be one of: asc, desc",
+		},
+		{
 			name: "list fails",
 			mockedClient: NewMockedHTTPClient(
 				WithRequestMatchHandler(
@@ -4664,7 +4689,9 @@ func Test_ListStarredRepositories(t *testing.T) {
 
 			// Verify results
 			if tc.expectError {
+				require.NoError(t, err)
 				require.NotNil(t, result)
+				require.True(t, result.IsError)
 				textResult, ok := result.Content[0].(*mcp.TextContent)
 				require.True(t, ok, "Expected text content")
 				assert.Contains(t, textResult.Text, tc.expectedErrMsg)
@@ -4684,6 +4711,8 @@ func Test_ListStarredRepositories(t *testing.T) {
 				if tc.expectedCount > 0 {
 					assert.Equal(t, "awesome-repo", returnedRepos[0].Name)
 					assert.Equal(t, "owner/awesome-repo", returnedRepos[0].FullName)
+					assert.Equal(t, sanitizeOutputText(baselineUnsafeText), returnedRepos[0].Description)
+					assert.Equal(t, baselineUnsafeText, mockStarredRepos[0].Repository.GetDescription())
 				}
 			}
 		})
@@ -4948,10 +4977,10 @@ func Test_GetFileBlame(t *testing.T) {
 											"startingLine": 1, "endingLine": 5, "age": 2,
 											"commit": map[string]any{
 												"oid":           "abc123def456",
-												"message":       "Initial commit\n\nLong body that should not appear in the response.",
+												"message":       baselineUnsafeText + "\nLong body that should not appear in the response.",
 												"committedDate": "2024-01-01T12:00:00Z",
 												"author": map[string]any{
-													"name": "John Doe", "email": "john@example.com",
+													"name": baselineUnsafeText, "email": "john@example.com",
 													"user": map[string]any{"login": "johndoe", "url": "https://github.com/johndoe"},
 												},
 											},
@@ -4961,10 +4990,10 @@ func Test_GetFileBlame(t *testing.T) {
 											"startingLine": 6, "endingLine": 7, "age": 2,
 											"commit": map[string]any{
 												"oid":           "abc123def456",
-												"message":       "Initial commit\n\nLong body that should not appear in the response.",
+												"message":       baselineUnsafeText + "\nLong body that should not appear in the response.",
 												"committedDate": "2024-01-01T12:00:00Z",
 												"author": map[string]any{
-													"name": "John Doe", "email": "john@example.com",
+													"name": baselineUnsafeText, "email": "john@example.com",
 													"user": map[string]any{"login": "johndoe", "url": "https://github.com/johndoe"},
 												},
 											},
@@ -5011,7 +5040,9 @@ func Test_GetFileBlame(t *testing.T) {
 				require.Contains(t, br.Commits, "abc123def456")
 				require.Contains(t, br.Commits, "def456ghi789")
 				// Multi-line message must be reduced to its headline.
-				assert.Equal(t, "Initial commit", br.Commits["abc123def456"].MessageHeadline)
+				assert.Equal(t, sanitizeOutputText(strings.SplitN(baselineUnsafeText, "\n", 2)[0]), br.Commits["abc123def456"].MessageHeadline)
+				assert.Equal(t, sanitizeOutputText(baselineUnsafeText), br.Commits["abc123def456"].Author.Name)
+				assert.Equal(t, "john@example.com", br.Commits["abc123def456"].Author.Email)
 				assert.NotContains(t, result, "Long body that should not appear")
 				// Login/URL pointers populated.
 				require.NotNil(t, br.Commits["abc123def456"].Author.Login)
@@ -5408,7 +5439,7 @@ func Test_GetFileBlame(t *testing.T) {
 			path string
 			want string
 		}{
-			{"empty", "   ", "must not be empty"},
+			{"empty", "", "missing required parameter: path"},
 			{"absolute", "/etc/passwd", "must be relative"},
 			{"traversal", "src/../../../etc/passwd", "must not contain '..'"},
 			{"control char", "src/\x00bad.go", "control characters"},

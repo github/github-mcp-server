@@ -114,22 +114,66 @@ func Test_ActionsList_ListWorkflows(t *testing.T) {
 	}
 }
 
+func unsafeWorkflowRunFixture() *github.WorkflowRun {
+	return &github.WorkflowRun{
+		ID:           github.Ptr(int64(12345)),
+		Name:         github.Ptr(baselineUnsafeText),
+		DisplayTitle: github.Ptr(baselineUnsafeText),
+		HeadBranch:   github.Ptr("feature/exact<script>"),
+		HeadSHA:      github.Ptr("abc123"),
+		HeadCommit: &github.HeadCommit{
+			Message: github.Ptr(baselineUnsafeText),
+			Author: &github.CommitAuthor{
+				Name:  github.Ptr(baselineUnsafeText),
+				Email: github.Ptr("author@example.com"),
+			},
+			Added: []string{"src/exact<script>.go"},
+		},
+		PullRequests: []*github.PullRequest{{
+			Title:     github.Ptr(baselineUnsafeText),
+			Body:      github.Ptr(baselineUnsafeText),
+			Labels:    []*github.Label{{Name: github.Ptr(baselineUnsafeText), Description: github.Ptr(baselineUnsafeText)}},
+			Milestone: &github.Milestone{Title: github.Ptr(baselineUnsafeText), Description: github.Ptr(baselineUnsafeText)},
+			Head:      &github.PullRequestBranch{Repo: &github.Repository{Description: github.Ptr(baselineUnsafeText)}},
+			Base:      &github.PullRequestBranch{Repo: &github.Repository{Description: github.Ptr(baselineUnsafeText)}},
+		}},
+		Repository:     &github.Repository{Description: github.Ptr(baselineUnsafeText)},
+		HeadRepository: &github.Repository{Description: github.Ptr(baselineUnsafeText)},
+		Status:         github.Ptr("completed"),
+		Conclusion:     github.Ptr("success"),
+	}
+}
+
+func assertSanitizedWorkflowRun(t *testing.T, run *github.WorkflowRun) {
+	t.Helper()
+	expected := sanitizeOutputText(baselineUnsafeText)
+	assert.Equal(t, expected, run.GetName())
+	assert.Equal(t, expected, run.GetDisplayTitle())
+	assert.Equal(t, expected, run.HeadCommit.GetMessage())
+	assert.Equal(t, expected, run.HeadCommit.Author.GetName())
+	assert.Equal(t, "author@example.com", run.HeadCommit.Author.GetEmail())
+	assert.Equal(t, []string{"src/exact<script>.go"}, run.HeadCommit.Added)
+	assert.Equal(t, expected, run.PullRequests[0].GetTitle())
+	assert.Equal(t, expected, run.PullRequests[0].Labels[0].GetName())
+	assert.Equal(t, expected, run.PullRequests[0].Milestone.GetTitle())
+	assert.Equal(t, expected, run.PullRequests[0].Head.Repo.GetDescription())
+	assert.Equal(t, expected, run.PullRequests[0].Base.Repo.GetDescription())
+	assert.Equal(t, expected, run.Repository.GetDescription())
+	assert.Equal(t, expected, run.HeadRepository.GetDescription())
+	assert.Equal(t, "feature/exact<script>", run.GetHeadBranch())
+	assert.Equal(t, "abc123", run.GetHeadSHA())
+}
+
 func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 	toolDef := ActionsList(translations.NullTranslationHelper)
 
 	t.Run("successful workflow runs list", func(t *testing.T) {
+		workflowRun := unsafeWorkflowRunFixture()
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetReposActionsWorkflowsRunsByOwnerByRepoByWorkflowID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				runs := &github.WorkflowRuns{
-					TotalCount: github.Ptr(1),
-					WorkflowRuns: []*github.WorkflowRun{
-						{
-							ID:         github.Ptr(int64(123)),
-							Name:       github.Ptr("CI"),
-							Status:     github.Ptr("completed"),
-							Conclusion: github.Ptr("success"),
-						},
-					},
+					TotalCount:   github.Ptr(1),
+					WorkflowRuns: []*github.WorkflowRun{workflowRun},
 				}
 				w.WriteHeader(http.StatusOK)
 				_ = json.NewEncoder(w).Encode(runs)
@@ -158,6 +202,9 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
 		assert.NotNil(t, response.TotalCount)
+		require.Len(t, response.WorkflowRuns, 1)
+		assertSanitizedWorkflowRun(t, response.WorkflowRuns[0])
+		assert.Equal(t, baselineUnsafeText, workflowRun.GetName())
 	})
 
 	t.Run("list all workflow runs without resource_id", func(t *testing.T) {
@@ -207,6 +254,55 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 2, *response.TotalCount)
 	})
+}
+
+func Test_ActionsList_ListWorkflowJobs(t *testing.T) {
+	toolDef := ActionsList(translations.NullTranslationHelper)
+	workflowJob := &github.WorkflowJob{
+		ID:              github.Ptr(int64(123)),
+		Name:            github.Ptr(baselineUnsafeText),
+		WorkflowName:    github.Ptr(baselineUnsafeText),
+		RunnerName:      github.Ptr(baselineUnsafeText),
+		RunnerGroupName: github.Ptr(baselineUnsafeText),
+		Steps:           []*github.TaskStep{{Name: github.Ptr(baselineUnsafeText)}},
+	}
+	mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposActionsRunsJobsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(&github.Jobs{
+				TotalCount: github.Ptr(1),
+				Jobs:       []*github.WorkflowJob{workflowJob},
+			})
+		}),
+	})
+
+	client := mustNewGHClient(t, mockedClient)
+	deps := BaseDeps{Client: client}
+	handler := toolDef.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":      "list_workflow_jobs",
+		"owner":       "owner",
+		"repo":        "repo",
+		"resource_id": "123",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	var response struct {
+		Jobs *github.Jobs `json:"jobs"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+	require.NotNil(t, response.Jobs)
+	require.Len(t, response.Jobs.Jobs, 1)
+	returnedJob := response.Jobs.Jobs[0]
+	assert.Equal(t, sanitizeOutputText(baselineUnsafeText), returnedJob.GetName())
+	assert.Equal(t, sanitizeOutputText(baselineUnsafeText), returnedJob.GetWorkflowName())
+	assert.Equal(t, baselineUnsafeText, returnedJob.GetRunnerName())
+	assert.Equal(t, baselineUnsafeText, returnedJob.GetRunnerGroupName())
+	assert.Equal(t, sanitizeOutputText(baselineUnsafeText), returnedJob.Steps[0].GetName())
+	assert.Equal(t, baselineUnsafeText, workflowJob.GetName())
+	assert.Equal(t, baselineUnsafeText, workflowJob.GetRunnerName())
 }
 
 func Test_ActionsGet(t *testing.T) {
@@ -271,16 +367,11 @@ func Test_ActionsGet_GetWorkflowRun(t *testing.T) {
 	toolDef := ActionsGet(translations.NullTranslationHelper)
 
 	t.Run("successful workflow run get", func(t *testing.T) {
+		workflowRun := unsafeWorkflowRunFixture()
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetReposActionsRunsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				run := &github.WorkflowRun{
-					ID:         github.Ptr(int64(12345)),
-					Name:       github.Ptr("CI"),
-					Status:     github.Ptr("completed"),
-					Conclusion: github.Ptr("success"),
-				}
 				w.WriteHeader(http.StatusOK)
-				_ = json.NewEncoder(w).Encode(run)
+				_ = json.NewEncoder(w).Encode(workflowRun)
 			}),
 		})
 
@@ -307,6 +398,8 @@ func Test_ActionsGet_GetWorkflowRun(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, response.ID)
 		assert.Equal(t, int64(12345), *response.ID)
+		assertSanitizedWorkflowRun(t, &response)
+		assert.Equal(t, baselineUnsafeText, workflowRun.GetName())
 	})
 }
 

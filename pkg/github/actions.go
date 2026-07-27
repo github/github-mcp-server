@@ -84,7 +84,7 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 			// Continue with other jobs even if one fails
 			jobResult = map[string]any{
 				"job_id":   job.GetID(),
-				"job_name": job.GetName(),
+				"job_name": sanitizeOutputText(job.GetName()),
 				"error":    err.Error(),
 			}
 			// Enable reporting of status codes and error causes
@@ -139,7 +139,7 @@ func getJobLogData(ctx context.Context, client *github.Client, owner, repo strin
 		"job_id": jobID,
 	}
 	if jobName != "" {
-		result["job_name"] = jobName
+		result["job_name"] = sanitizeOutputText(jobName)
 	}
 
 	if returnContent {
@@ -788,7 +788,7 @@ func getWorkflow(ctx context.Context, client *github.Client, owner, repo, resour
 	}
 
 	defer func() { _ = resp.Body.Close() }()
-	r, err := json.Marshal(workflow)
+	r, err := json.Marshal(sanitizedWorkflowCopy(workflow))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal workflow: %w", err)
 	}
@@ -802,7 +802,7 @@ func getWorkflowRun(ctx context.Context, client *github.Client, owner, repo stri
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get workflow run", resp, err), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
-	r, err := json.Marshal(workflowRun)
+	r, err := json.Marshal(sanitizedWorkflowRunCopy(workflowRun))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal workflow run: %w", err)
 	}
@@ -815,7 +815,7 @@ func getWorkflowJob(ctx context.Context, client *github.Client, owner, repo stri
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get workflow job", resp, err), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
-	r, err := json.Marshal(workflowJob)
+	r, err := json.Marshal(sanitizedWorkflowJobCopy(workflowJob))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal workflow job: %w", err)
 	}
@@ -834,7 +834,7 @@ func listWorkflows(ctx context.Context, client *github.Client, owner, repo strin
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	r, err := json.Marshal(workflows)
+	r, err := json.Marshal(sanitizedWorkflowsCopy(workflows))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal workflows: %w", err)
 	}
@@ -884,7 +884,7 @@ func listWorkflowRuns(ctx context.Context, client *github.Client, args map[strin
 	}
 
 	defer func() { _ = resp.Body.Close() }()
-	r, err := json.Marshal(workflowRuns)
+	r, err := json.Marshal(sanitizedWorkflowRunsCopy(workflowRuns))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal workflow runs: %w", err)
 	}
@@ -919,7 +919,7 @@ func listWorkflowJobs(ctx context.Context, client *github.Client, args map[strin
 	}
 
 	response := map[string]any{
-		"jobs": workflowJobs,
+		"jobs": sanitizedWorkflowJobsCopy(workflowJobs),
 	}
 
 	defer func() { _ = resp.Body.Close() }()

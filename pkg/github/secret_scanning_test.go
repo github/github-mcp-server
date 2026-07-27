@@ -217,6 +217,28 @@ func Test_ListSecretScanningAlerts(t *testing.T) {
 			expectedAlerts: []*github.SecretScanningAlert{&openAlert},
 		},
 		{
+			name:         "invalid state is rejected before request",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"state": "dismissed",
+			},
+			expectError:    true,
+			expectedErrMsg: "state must be one of: open, resolved",
+		},
+		{
+			name:         "invalid resolution is rejected before request",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"resolution": "ignored",
+			},
+			expectError:    true,
+			expectedErrMsg: "resolution must be one of: false_positive, wont_fix, revoked, pattern_edited, pattern_deleted, used_in_tests",
+		},
+		{
 			name: "alerts listing fails",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposSecretScanningAlertsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

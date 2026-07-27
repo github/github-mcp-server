@@ -105,8 +105,26 @@ func prepareSearchArgs(args map[string]any, searchType string) (string, *github.
 	if err != nil {
 		return "", nil, err
 	}
+	if err := validateEnumParam("sort", sort,
+		"comments",
+		"reactions",
+		"reactions-+1",
+		"reactions--1",
+		"reactions-smile",
+		"reactions-thinking_face",
+		"reactions-heart",
+		"reactions-tada",
+		"interactions",
+		"created",
+		"updated",
+	); err != nil {
+		return "", nil, err
+	}
 	order, err := OptionalParam[string](args, "order")
 	if err != nil {
+		return "", nil, err
+	}
+	if err := validateEnumParam("order", order, "asc", "desc"); err != nil {
 		return "", nil, err
 	}
 	pagination, err := OptionalPaginationParams(args)
@@ -166,16 +184,17 @@ func searchHandler(
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), nil
 	}
 
+	sanitizedResult := sanitizedIssuesSearchResultCopy(result)
 	filtered := false
-	var payload any = result
+	var payload any = sanitizedResult
 	if len(cfg.fields) > 0 {
-		filteredItems, err := filterEachField(result.Issues, cfg.fields)
+		filteredItems, err := filterEachField(sanitizedResult.Issues, cfg.fields)
 		if err != nil {
 			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to filter results", err), nil
 		}
 		payload = map[string]any{
-			"total_count":        result.Total,
-			"incomplete_results": result.IncompleteResults,
+			"total_count":        sanitizedResult.Total,
+			"incomplete_results": sanitizedResult.IncompleteResults,
 			"items":              filteredItems,
 		}
 		filtered = true
@@ -187,7 +206,7 @@ func searchHandler(
 	}
 
 	if cfg.fieldsTool != "" {
-		recordFieldsUsageFor(ctx, cfg.fieldsDeps, cfg.fieldsTool, result, filtered, len(r))
+		recordFieldsUsageFor(ctx, cfg.fieldsDeps, cfg.fieldsTool, sanitizedResult, filtered, len(r))
 	}
 
 	callResult := utils.NewToolResultText(string(r))

@@ -32,6 +32,9 @@
       },
       "sort": {
         "description": "Sort field ('indexed' only)",
+        "enum": [
+          "indexed"
+        ],
         "type": "string"
       }
     },

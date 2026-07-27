@@ -618,11 +618,58 @@ type MinimalPullRequestReview struct {
 
 // Helper functions
 
+func sanitizeOutputText(s string) string {
+	return sanitize.Sanitize(s)
+}
+
+func sanitizeOutputValue(value any) any {
+	switch v := value.(type) {
+	case string:
+		return sanitizeOutputText(v)
+	case []string:
+		sanitized := make([]string, len(v))
+		for i, item := range v {
+			sanitized[i] = sanitizeOutputText(item)
+		}
+		return sanitized
+	default:
+		return v
+	}
+}
+
+func convertToMinimalRepository(repo *github.Repository) MinimalRepository {
+	minimalRepo := MinimalRepository{
+		ID:            repo.GetID(),
+		Name:          repo.GetName(),
+		FullName:      repo.GetFullName(),
+		Description:   sanitizeOutputText(repo.GetDescription()),
+		HTMLURL:       repo.GetHTMLURL(),
+		Language:      repo.GetLanguage(),
+		Stars:         repo.GetStargazersCount(),
+		Forks:         repo.GetForksCount(),
+		OpenIssues:    repo.GetOpenIssuesCount(),
+		Private:       repo.GetPrivate(),
+		Fork:          repo.GetFork(),
+		Archived:      repo.GetArchived(),
+		DefaultBranch: repo.GetDefaultBranch(),
+	}
+	if repo.UpdatedAt != nil {
+		minimalRepo.UpdatedAt = repo.UpdatedAt.Format("2006-01-02T15:04:05Z")
+	}
+	if repo.CreatedAt != nil {
+		minimalRepo.CreatedAt = repo.CreatedAt.Format("2006-01-02T15:04:05Z")
+	}
+	if repo.Topics != nil {
+		minimalRepo.Topics = repo.Topics
+	}
+	return minimalRepo
+}
+
 func convertToMinimalPullRequestReview(review *github.PullRequestReview) MinimalPullRequestReview {
 	m := MinimalPullRequestReview{
 		ID:                review.GetID(),
 		State:             review.GetState(),
-		Body:              review.GetBody(),
+		Body:              sanitizeOutputText(review.GetBody()),
 		HTMLURL:           review.GetHTMLURL(),
 		User:              convertToMinimalUser(review.GetUser()),
 		CommitID:          review.GetCommitID(),
@@ -639,8 +686,8 @@ func convertToMinimalPullRequestReview(review *github.PullRequestReview) Minimal
 func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 	m := MinimalIssue{
 		Number:            issue.GetNumber(),
-		Title:             issue.GetTitle(),
-		Body:              issue.GetBody(),
+		Title:             sanitizeOutputText(issue.GetTitle()),
+		Body:              sanitizeOutputText(issue.GetBody()),
 		State:             issue.GetState(),
 		StateReason:       issue.GetStateReason(),
 		Draft:             issue.GetDraft(),
@@ -663,7 +710,7 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 
 	for _, label := range issue.Labels {
 		if label != nil {
-			m.Labels = append(m.Labels, label.GetName())
+			m.Labels = append(m.Labels, sanitizeOutputText(label.GetName()))
 		}
 	}
 
@@ -678,11 +725,11 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 	}
 
 	if milestone := issue.GetMilestone(); milestone != nil {
-		m.Milestone = milestone.GetTitle()
+		m.Milestone = sanitizeOutputText(milestone.GetTitle())
 	}
 
 	if issueType := issue.GetType(); issueType != nil {
-		m.IssueType = issueType.GetName()
+		m.IssueType = sanitizeOutputText(issueType.GetName())
 	}
 
 	for _, fv := range issue.IssueFieldValues {
@@ -693,12 +740,12 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 			IssueFieldID: fv.IssueFieldID,
 			NodeID:       fv.NodeID,
 			DataType:     fv.DataType,
-			Value:        fv.Value,
+			Value:        sanitizeOutputValue(fv.Value),
 		}
 		if opt := fv.SingleSelectOption; opt != nil {
 			mfv.SingleSelectOption = &MinimalIssueFieldValueSingleSelectOption{
 				ID:    opt.ID,
-				Name:  opt.Name,
+				Name:  sanitizeOutputText(opt.Name),
 				Color: opt.Color,
 			}
 		}
@@ -725,8 +772,8 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 	m := MinimalIssue{
 		Number:    int(fragment.Number),
-		Title:     sanitize.Sanitize(string(fragment.Title)),
-		Body:      sanitize.Sanitize(string(fragment.Body)),
+		Title:     sanitizeOutputText(string(fragment.Title)),
+		Body:      sanitizeOutputText(string(fragment.Body)),
 		State:     string(fragment.State),
 		Comments:  int(fragment.Comments.TotalCount),
 		CreatedAt: fragment.CreatedAt.Format(time.RFC3339),
@@ -737,7 +784,7 @@ func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 	}
 
 	for _, label := range fragment.Labels.Nodes {
-		m.Labels = append(m.Labels, string(label.Name))
+		m.Labels = append(m.Labels, sanitizeOutputText(string(label.Name)))
 	}
 
 	for _, fv := range fragment.IssueFieldValues.Nodes {
@@ -755,23 +802,23 @@ func fragmentToMinimalFieldValue(fv IssueFieldValueFragment) (MinimalFieldValue,
 	switch fv.TypeName {
 	case "IssueFieldDateValue":
 		return MinimalFieldValue{
-			Field: fv.DateValue.Field.Name(),
+			Field: sanitizeOutputText(fv.DateValue.Field.Name()),
 			Value: string(fv.DateValue.Value),
 		}, true
 	case "IssueFieldNumberValue":
 		return MinimalFieldValue{
-			Field: fv.NumberValue.Field.Name(),
+			Field: sanitizeOutputText(fv.NumberValue.Field.Name()),
 			Value: strconv.FormatFloat(float64(fv.NumberValue.Value), 'f', -1, 64),
 		}, true
 	case "IssueFieldSingleSelectValue":
 		return MinimalFieldValue{
-			Field: fv.SingleSelectValue.Field.Name(),
-			Value: string(fv.SingleSelectValue.Value),
+			Field: sanitizeOutputText(fv.SingleSelectValue.Field.Name()),
+			Value: sanitizeOutputText(string(fv.SingleSelectValue.Value)),
 		}, true
 	case "IssueFieldTextValue":
 		return MinimalFieldValue{
-			Field: fv.TextValue.Field.Name(),
-			Value: string(fv.TextValue.Value),
+			Field: sanitizeOutputText(fv.TextValue.Field.Name()),
+			Value: sanitizeOutputText(string(fv.TextValue.Value)),
 		}, true
 	}
 	return MinimalFieldValue{}, false
@@ -798,7 +845,7 @@ func convertToMinimalIssuesResponse(fragment IssueQueryFragment) MinimalIssuesRe
 func convertToMinimalIssueComment(comment *github.IssueComment) MinimalIssueComment {
 	m := MinimalIssueComment{
 		ID:                comment.GetID(),
-		Body:              comment.GetBody(),
+		Body:              sanitizeOutputText(comment.GetBody()),
 		HTMLURL:           comment.GetHTMLURL(),
 		User:              convertToMinimalUser(comment.GetUser()),
 		AuthorAssociation: comment.GetAuthorAssociation(),
@@ -847,13 +894,13 @@ func convertToMinimalFileContentResponse(resp *github.RepositoryContentResponse)
 
 	m.Commit = &MinimalFileCommit{
 		SHA:     resp.Commit.GetSHA(),
-		Message: resp.Commit.GetMessage(),
+		Message: sanitizeCommitMessage(resp.Commit.GetMessage()),
 		HTMLURL: resp.Commit.GetHTMLURL(),
 	}
 
 	if author := resp.Commit.Author; author != nil {
 		m.Commit.Author = &MinimalCommitAuthor{
-			Name:  author.GetName(),
+			Name:  sanitizeOutputText(author.GetName()),
 			Email: author.GetEmail(),
 		}
 		if author.Date != nil {
@@ -867,8 +914,8 @@ func convertToMinimalFileContentResponse(resp *github.RepositoryContentResponse)
 func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
 	m := MinimalPullRequest{
 		Number:         pr.GetNumber(),
-		Title:          pr.GetTitle(),
-		Body:           pr.GetBody(),
+		Title:          sanitizeOutputText(pr.GetTitle()),
+		Body:           sanitizeOutputText(pr.GetBody()),
 		State:          pr.GetState(),
 		Draft:          pr.GetDraft(),
 		Merged:         pr.GetMerged(),
@@ -897,7 +944,7 @@ func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
 
 	for _, label := range pr.Labels {
 		if label != nil {
-			m.Labels = append(m.Labels, label.GetName())
+			m.Labels = append(m.Labels, sanitizeOutputText(label.GetName()))
 		}
 	}
 
@@ -926,7 +973,7 @@ func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
 	}
 
 	if milestone := pr.GetMilestone(); milestone != nil {
-		m.Milestone = milestone.GetTitle()
+		m.Milestone = sanitizeOutputText(milestone.GetTitle())
 	}
 
 	return m
@@ -945,7 +992,7 @@ func convertToMinimalPRBranch(branch *github.PullRequestBranch) *MinimalPRBranch
 	if repo := branch.GetRepo(); repo != nil {
 		b.Repo = &MinimalPRBranchRepo{
 			FullName:    repo.GetFullName(),
-			Description: repo.GetDescription(),
+			Description: sanitizeOutputText(repo.GetDescription()),
 		}
 	}
 
@@ -962,15 +1009,15 @@ func convertToMinimalProject(fullProject *github.ProjectV2) *MinimalProject {
 		NodeID:           github.Ptr(fullProject.GetNodeID()),
 		Owner:            convertToMinimalUser(fullProject.GetOwner()),
 		Creator:          convertToMinimalUser(fullProject.GetCreator()),
-		Title:            github.Ptr(fullProject.GetTitle()),
-		Description:      github.Ptr(fullProject.GetDescription()),
+		Title:            github.Ptr(sanitizeOutputText(fullProject.GetTitle())),
+		Description:      github.Ptr(sanitizeOutputText(fullProject.GetDescription())),
 		Public:           github.Ptr(fullProject.GetPublic()),
 		ClosedAt:         github.Ptr(fullProject.GetClosedAt()),
 		CreatedAt:        github.Ptr(fullProject.GetCreatedAt()),
 		UpdatedAt:        github.Ptr(fullProject.GetUpdatedAt()),
 		DeletedAt:        github.Ptr(fullProject.GetDeletedAt()),
 		Number:           github.Ptr(fullProject.GetNumber()),
-		ShortDescription: github.Ptr(fullProject.GetShortDescription()),
+		ShortDescription: github.Ptr(sanitizeOutputText(fullProject.GetShortDescription())),
 		DeletedBy:        convertToMinimalUser(fullProject.GetDeletedBy()),
 	}
 }
@@ -1026,7 +1073,7 @@ func convertIssueToMinimalProjectItemContent(issue *github.Issue) *MinimalProjec
 		ID:          issue.GetID(),
 		NodeID:      issue.GetNodeID(),
 		Number:      issue.GetNumber(),
-		Title:       issue.GetTitle(),
+		Title:       sanitizeOutputText(issue.GetTitle()),
 		State:       issue.GetState(),
 		StateReason: issue.GetStateReason(),
 		HTMLURL:     issue.GetHTMLURL(),
@@ -1048,11 +1095,11 @@ func convertIssueToMinimalProjectItemContent(issue *github.Issue) *MinimalProjec
 	}
 	for _, label := range issue.Labels {
 		if label != nil {
-			m.Labels = append(m.Labels, label.GetName())
+			m.Labels = append(m.Labels, sanitizeOutputText(label.GetName()))
 		}
 	}
 	if milestone := issue.GetMilestone(); milestone != nil {
-		m.Milestone = milestone.GetTitle()
+		m.Milestone = sanitizeOutputText(milestone.GetTitle())
 	}
 
 	return m
@@ -1063,7 +1110,7 @@ func convertPullRequestToMinimalProjectItemContent(pr *github.PullRequest) *Mini
 		ID:         pr.GetID(),
 		NodeID:     pr.GetNodeID(),
 		Number:     pr.GetNumber(),
-		Title:      pr.GetTitle(),
+		Title:      sanitizeOutputText(pr.GetTitle()),
 		State:      pr.GetState(),
 		HTMLURL:    pr.GetHTMLURL(),
 		Repository: pullRequestRepositoryFullName(pr),
@@ -1086,11 +1133,11 @@ func convertPullRequestToMinimalProjectItemContent(pr *github.PullRequest) *Mini
 	}
 	for _, label := range pr.Labels {
 		if label != nil {
-			m.Labels = append(m.Labels, label.GetName())
+			m.Labels = append(m.Labels, sanitizeOutputText(label.GetName()))
 		}
 	}
 	if milestone := pr.GetMilestone(); milestone != nil {
-		m.Milestone = milestone.GetTitle()
+		m.Milestone = sanitizeOutputText(milestone.GetTitle())
 	}
 
 	return m
@@ -1100,7 +1147,7 @@ func convertDraftIssueToMinimalProjectItemContent(draftIssue *github.ProjectV2Dr
 	m := &MinimalProjectItemContent{
 		ID:        draftIssue.GetID(),
 		NodeID:    draftIssue.GetNodeID(),
-		Title:     draftIssue.GetTitle(),
+		Title:     sanitizeOutputText(draftIssue.GetTitle()),
 		CreatedAt: formatProjectTimestamp(draftIssue.CreatedAt),
 		UpdatedAt: formatProjectTimestamp(draftIssue.UpdatedAt),
 	}
@@ -1120,7 +1167,7 @@ func convertToMinimalProjectItemFields(fields []*github.ProjectV2ItemFieldValue)
 		}
 		minimalFields = append(minimalFields, MinimalProjectItemFieldValue{
 			ID:       field.GetID(),
-			Name:     field.GetName(),
+			Name:     sanitizeOutputText(field.GetName()),
 			DataType: field.GetDataType(),
 			Value:    minimalProjectFieldValue(field.GetValue()),
 		})
@@ -1132,10 +1179,16 @@ func minimalProjectFieldValue(value any) any {
 	switch v := value.(type) {
 	case nil:
 		return nil
-	case string, bool, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+	case string:
+		return sanitizeOutputText(v)
+	case bool, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
 		return v
 	case []string:
-		return v
+		strings := make([]string, len(v))
+		for i, value := range v {
+			strings[i] = sanitizeOutputText(value)
+		}
+		return strings
 	case map[string]any:
 		return minimalProjectMapValue(v)
 	case []any:
@@ -1143,23 +1196,23 @@ func minimalProjectFieldValue(value any) any {
 	case *github.User:
 		return v.GetLogin()
 	case *github.Label:
-		return v.GetName()
+		return sanitizeOutputText(v.GetName())
 	case *github.Repository:
 		return v.GetFullName()
 	case *github.Milestone:
-		return v.GetTitle()
+		return sanitizeOutputText(v.GetTitle())
 	case *github.PullRequest:
 		return minimalProjectPullRequestRefFromPullRequest(v)
 	case *github.ProjectV2FieldOption:
 		return minimalProjectOptionValue{
 			ID:    v.GetID(),
-			Name:  projectTextContentString(v.GetName()),
+			Name:  sanitizeOutputText(projectTextContentString(v.GetName())),
 			Color: v.GetColor(),
 		}
 	case *github.ProjectV2FieldIteration:
 		return minimalProjectIterationValue{
 			ID:        v.GetID(),
-			Title:     projectTextContentString(v.GetTitle()),
+			Title:     sanitizeOutputText(projectTextContentString(v.GetTitle())),
 			StartDate: v.GetStartDate(),
 			Duration:  v.GetDuration(),
 		}
@@ -1175,7 +1228,7 @@ func minimalProjectFieldValue(value any) any {
 		names := make([]string, 0, len(v))
 		for _, label := range v {
 			if label != nil {
-				names = append(names, label.GetName())
+				names = append(names, sanitizeOutputText(label.GetName()))
 			}
 		}
 		return names
@@ -1194,7 +1247,7 @@ func minimalProjectFieldValue(value any) any {
 
 func minimalProjectMapValue(value map[string]any) any {
 	if text := minimalProjectTextValue(value); text != "" {
-		return text
+		return sanitizeOutputText(text)
 	}
 	if repo := fullNameFromMap(value); repo != "" {
 		return repo
@@ -1212,10 +1265,10 @@ func minimalProjectMapValue(value map[string]any) any {
 		return iteration
 	}
 	if title := stringFromMap(value, "title"); title != "" {
-		return title
+		return sanitizeOutputText(title)
 	}
 	if name := stringFromMap(value, "name"); name != "" {
-		return name
+		return sanitizeOutputText(name)
 	}
 
 	compact := make(map[string]any)
@@ -1239,6 +1292,9 @@ func minimalProjectArrayValue(values []any) any {
 		return strings
 	}
 	if strings, ok := minimalProjectStringsFromArray(values, "name"); ok {
+		for i, value := range strings {
+			strings[i] = sanitizeOutputText(value)
+		}
 		return strings
 	}
 
@@ -1273,7 +1329,7 @@ func minimalProjectOptionFromMap(value map[string]any) (minimalProjectOptionValu
 	}
 	return minimalProjectOptionValue{
 		ID:    stringFromMap(value, "id"),
-		Name:  name,
+		Name:  sanitizeOutputText(name),
 		Color: color,
 	}, true
 }
@@ -1286,7 +1342,7 @@ func minimalProjectIterationFromMap(value map[string]any) (minimalProjectIterati
 	}
 	return minimalProjectIterationValue{
 		ID:        stringFromMap(value, "id"),
-		Title:     textContentStringFromMap(value, "title"),
+		Title:     sanitizeOutputText(textContentStringFromMap(value, "title")),
 		StartDate: startDate,
 		Duration:  duration,
 	}, true
@@ -1359,7 +1415,7 @@ func minimalProjectPullRequestRefFromPullRequest(pr *github.PullRequest) minimal
 	}
 	return minimalProjectPullRequestRef{
 		Number:     pr.GetNumber(),
-		Title:      pr.GetTitle(),
+		Title:      sanitizeOutputText(pr.GetTitle()),
 		State:      pr.GetState(),
 		HTMLURL:    pr.GetHTMLURL(),
 		Repository: pullRequestRepositoryFullName(pr),
@@ -1381,7 +1437,7 @@ func minimalProjectPullRequestRefFromMap(value map[string]any) minimalProjectPul
 
 	return minimalProjectPullRequestRef{
 		Number:     intFromAny(value["number"]),
-		Title:      stringFromMap(value, "title"),
+		Title:      sanitizeOutputText(stringFromMap(value, "title")),
 		State:      stringFromMap(value, "state"),
 		HTMLURL:    htmlURL,
 		Repository: repository,
@@ -1541,12 +1597,12 @@ func newMinimalCommitFromCore(sha, htmlURL string, commit *github.Commit, author
 
 	if commit != nil {
 		minimalCommit.Commit = &MinimalCommitInfo{
-			Message: commit.GetMessage(),
+			Message: sanitizeCommitMessage(commit.GetMessage()),
 		}
 
 		if commit.Author != nil {
 			minimalCommit.Commit.Author = &MinimalCommitAuthor{
-				Name:  commit.Author.GetName(),
+				Name:  sanitizeOutputText(commit.Author.GetName()),
 				Email: commit.Author.GetEmail(),
 			}
 			if commit.Author.Date != nil {
@@ -1556,7 +1612,7 @@ func newMinimalCommitFromCore(sha, htmlURL string, commit *github.Commit, author
 
 		if commit.Committer != nil {
 			minimalCommit.Commit.Committer = &MinimalCommitAuthor{
-				Name:  commit.Committer.GetName(),
+				Name:  sanitizeOutputText(commit.Committer.GetName()),
 				Email: commit.Committer.GetEmail(),
 			}
 			if commit.Committer.Date != nil {
@@ -1744,7 +1800,7 @@ func convertToMinimalPullRequestCommits(commits []*github.RepositoryCommit) []Mi
 		}
 
 		if commit.Commit != nil {
-			minimalCommit.Message = commit.Commit.GetMessage()
+			minimalCommit.Message = sanitizeCommitMessage(commit.Commit.GetMessage())
 			minimalCommit.Author = convertToMinimalCommitAuthor(commit.Commit.Author)
 		}
 
@@ -1759,7 +1815,7 @@ func convertToMinimalCommitAuthor(author *github.CommitAuthor) *MinimalCommitAut
 	}
 
 	minimalAuthor := &MinimalCommitAuthor{
-		Name:  author.GetName(),
+		Name:  sanitizeOutputText(author.GetName()),
 		Email: author.GetEmail(),
 	}
 	if author.Date != nil {
@@ -1782,8 +1838,8 @@ func convertToMinimalRelease(release *github.RepositoryRelease) MinimalRelease {
 	m := MinimalRelease{
 		ID:         release.GetID(),
 		TagName:    release.GetTagName(),
-		Name:       release.GetName(),
-		Body:       release.GetBody(),
+		Name:       sanitizeOutputText(release.GetName()),
+		Body:       sanitizeOutputText(release.GetBody()),
 		HTMLURL:    release.GetHTMLURL(),
 		Prerelease: release.GetPrerelease(),
 		Draft:      release.GetDraft(),
@@ -1886,7 +1942,7 @@ func convertToMinimalReviewThread(thread reviewThreadNode) MinimalReviewThread {
 
 func convertToMinimalReviewComment(c reviewCommentNode) MinimalReviewComment {
 	m := MinimalReviewComment{
-		Body:    string(c.Body),
+		Body:    sanitizeOutputText(string(c.Body)),
 		Path:    string(c.Path),
 		Author:  string(c.Author.Login),
 		HTMLURL: c.URL.String(),

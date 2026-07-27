@@ -696,7 +696,7 @@ func Test_ListPullRequests(t *testing.T) {
 			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
-				"state": "invalid",
+				"state": "open",
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to list pull requests",
@@ -891,11 +891,19 @@ func Test_SearchPullRequests(t *testing.T) {
 		Issues: []*github.Issue{
 			{
 				Number:   github.Ptr(42),
-				Title:    github.Ptr("Test PR 1"),
-				Body:     github.Ptr("Updated tests."),
+				Title:    github.Ptr(baselineUnsafeText),
+				Body:     github.Ptr(baselineUnsafeText),
 				State:    github.Ptr("open"),
 				HTMLURL:  github.Ptr("https://github.com/owner/repo/pull/1"),
 				Comments: github.Ptr(5),
+				Labels: []*github.Label{{
+					Name:        github.Ptr(baselineUnsafeText),
+					Description: github.Ptr(baselineUnsafeText),
+				}},
+				Milestone: &github.Milestone{
+					Title:       github.Ptr(baselineUnsafeText),
+					Description: github.Ptr(baselineUnsafeText),
+				},
 				User: &github.User{
 					Login: github.Ptr("user1"),
 				},
@@ -913,6 +921,7 @@ func Test_SearchPullRequests(t *testing.T) {
 			},
 		},
 	}
+	expectedSearchResult := sanitizedIssuesSearchResultCopy(mockSearchResult)
 
 	tests := []struct {
 		name           string
@@ -946,7 +955,7 @@ func Test_SearchPullRequests(t *testing.T) {
 				"perPage": float64(30),
 			},
 			expectError:    false,
-			expectedResult: mockSearchResult,
+			expectedResult: expectedSearchResult,
 		},
 		{
 			name: "pull request search with owner and repo parameters",
@@ -972,7 +981,7 @@ func Test_SearchPullRequests(t *testing.T) {
 				"order": "asc",
 			},
 			expectError:    false,
-			expectedResult: mockSearchResult,
+			expectedResult: expectedSearchResult,
 		},
 		{
 			name: "pull request search with only owner parameter (should ignore it)",
@@ -993,7 +1002,7 @@ func Test_SearchPullRequests(t *testing.T) {
 				"owner": "test-owner",
 			},
 			expectError:    false,
-			expectedResult: mockSearchResult,
+			expectedResult: expectedSearchResult,
 		},
 		{
 			name: "pull request search with only repo parameter (should ignore it)",
@@ -1014,7 +1023,7 @@ func Test_SearchPullRequests(t *testing.T) {
 				"repo":  "test-repo",
 			},
 			expectError:    false,
-			expectedResult: mockSearchResult,
+			expectedResult: expectedSearchResult,
 		},
 		{
 			name: "pull request search with minimal parameters",
@@ -1025,7 +1034,7 @@ func Test_SearchPullRequests(t *testing.T) {
 				"query": "is:pr repo:owner/repo is:open",
 			},
 			expectError:    false,
-			expectedResult: mockSearchResult,
+			expectedResult: expectedSearchResult,
 		},
 		{
 			name: "query with existing is:pr filter - no duplication",
@@ -1045,7 +1054,7 @@ func Test_SearchPullRequests(t *testing.T) {
 				"query": "is:pr repo:github/github-mcp-server is:open draft:false",
 			},
 			expectError:    false,
-			expectedResult: mockSearchResult,
+			expectedResult: expectedSearchResult,
 		},
 		{
 			name: "query with existing repo: filter and conflicting owner/repo params - uses query filter",
@@ -1067,7 +1076,7 @@ func Test_SearchPullRequests(t *testing.T) {
 				"repo":  "different-repo",
 			},
 			expectError:    false,
-			expectedResult: mockSearchResult,
+			expectedResult: expectedSearchResult,
 		},
 		{
 			name: "complex query with existing is:pr filter and OR operators",
@@ -1087,7 +1096,7 @@ func Test_SearchPullRequests(t *testing.T) {
 				"query": "is:pr repo:github/github-mcp-server (label:bug OR label:enhancement OR label:feature)",
 			},
 			expectError:    false,
-			expectedResult: mockSearchResult,
+			expectedResult: expectedSearchResult,
 		},
 		{
 			name: "search pull requests fails",
@@ -1146,10 +1155,22 @@ func Test_SearchPullRequests(t *testing.T) {
 			for i, issue := range returnedResult.Issues {
 				assert.Equal(t, *tc.expectedResult.Issues[i].Number, *issue.Number)
 				assert.Equal(t, *tc.expectedResult.Issues[i].Title, *issue.Title)
+				assert.Equal(t, *tc.expectedResult.Issues[i].Body, *issue.Body)
 				assert.Equal(t, *tc.expectedResult.Issues[i].State, *issue.State)
 				assert.Equal(t, *tc.expectedResult.Issues[i].HTMLURL, *issue.HTMLURL)
 				assert.Equal(t, *tc.expectedResult.Issues[i].User.Login, *issue.User.Login)
+				if len(tc.expectedResult.Issues[i].Labels) > 0 {
+					assert.Equal(t, tc.expectedResult.Issues[i].Labels[0].GetName(), issue.Labels[0].GetName())
+					assert.Equal(t, tc.expectedResult.Issues[i].Labels[0].GetDescription(), issue.Labels[0].GetDescription())
+				}
+				if tc.expectedResult.Issues[i].Milestone != nil {
+					assert.Equal(t, tc.expectedResult.Issues[i].Milestone.GetTitle(), issue.Milestone.GetTitle())
+					assert.Equal(t, tc.expectedResult.Issues[i].Milestone.GetDescription(), issue.Milestone.GetDescription())
+				}
 			}
+			assert.Equal(t, baselineUnsafeText, mockSearchResult.Issues[0].GetTitle())
+			assert.Equal(t, baselineUnsafeText, mockSearchResult.Issues[0].GetBody())
+			assert.Equal(t, baselineUnsafeText, mockSearchResult.Issues[0].Labels[0].GetName())
 		})
 	}
 
@@ -1401,9 +1422,9 @@ func Test_GetPullRequestCommits(t *testing.T) {
 			SHA:     github.Ptr("abc123def456"),
 			HTMLURL: github.Ptr("https://github.com/owner/repo/commit/abc123def456"),
 			Commit: &github.Commit{
-				Message: github.Ptr("feat: add commit listing"),
+				Message: github.Ptr(baselineUnsafeText),
 				Author: &github.CommitAuthor{
-					Name:  github.Ptr("Test User"),
+					Name:  github.Ptr(baselineUnsafeText),
 					Email: github.Ptr("test@example.com"),
 					Date:  &github.Timestamp{Time: authorDate},
 				},
@@ -1543,10 +1564,12 @@ func Test_GetPullRequestCommits(t *testing.T) {
 			for i, commit := range returnedCommits {
 				assert.Equal(t, tc.expectedCommits[i].GetSHA(), commit.SHA)
 				assert.Equal(t, tc.expectedCommits[i].GetHTMLURL(), commit.HTMLURL)
-				assert.Equal(t, tc.expectedCommits[i].GetCommit().GetMessage(), commit.Message)
+				assert.Equal(t, sanitizeCommitMessage(tc.expectedCommits[i].GetCommit().GetMessage()), commit.Message)
 			}
 
+			assert.Equal(t, sanitizeOutputText(baselineUnsafeText), returnedCommits[0].Author.Name)
 			assert.Equal(t, authorDate.Format(time.RFC3339), returnedCommits[0].Author.Date)
+			assert.Equal(t, baselineUnsafeText, mockCommits[0].GetCommit().GetMessage())
 		})
 	}
 }
@@ -1590,8 +1613,8 @@ func Test_GetPullRequestStatus(t *testing.T) {
 		Statuses: []*github.RepoStatus{
 			{
 				State:       github.Ptr("success"),
-				Context:     github.Ptr("continuous-integration/travis-ci"),
-				Description: github.Ptr("Build succeeded"),
+				Context:     github.Ptr("continuous-integration/<script>"),
+				Description: github.Ptr(baselineUnsafeText),
 				TargetURL:   github.Ptr("https://travis-ci.org/owner/repo/builds/123"),
 			},
 			{
@@ -1712,8 +1735,9 @@ func Test_GetPullRequestStatus(t *testing.T) {
 			for i, status := range returnedStatus.Statuses {
 				assert.Equal(t, *tc.expectedStatus.Statuses[i].State, *status.State)
 				assert.Equal(t, *tc.expectedStatus.Statuses[i].Context, *status.Context)
-				assert.Equal(t, *tc.expectedStatus.Statuses[i].Description, *status.Description)
+				assert.Equal(t, sanitizeOutputText(*tc.expectedStatus.Statuses[i].Description), *status.Description)
 			}
+			assert.Equal(t, baselineUnsafeText, mockStatus.Statuses[0].GetDescription())
 		})
 	}
 }
@@ -4138,7 +4162,7 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 	// Setup mock reply comment for success case
 	mockReplyComment := &github.PullRequestComment{
 		ID:        github.Ptr(int64(456)),
-		Body:      github.Ptr("This is a reply to the comment"),
+		Body:      github.Ptr(baselineUnsafeText),
 		InReplyTo: github.Ptr(int64(123)),
 		HTMLURL:   github.Ptr("https://github.com/owner/repo/pull/42#discussion_r456"),
 		User: &github.User{
@@ -4365,8 +4389,19 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 			// Parse the result and verify it's not an error
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
-			if _, ok := tc.requestArgs["body"]; ok {
-				assert.Contains(t, textContent.Text, "This is a reply to the comment")
+			if _, hasBody := tc.requestArgs["body"]; hasBody {
+				var returnedComment github.PullRequestComment
+				if _, hasReaction := tc.requestArgs["reaction"]; hasReaction {
+					var combinedResult struct {
+						Comment github.PullRequestComment `json:"comment"`
+					}
+					require.NoError(t, json.Unmarshal([]byte(textContent.Text), &combinedResult))
+					returnedComment = combinedResult.Comment
+				} else {
+					require.NoError(t, json.Unmarshal([]byte(textContent.Text), &returnedComment))
+				}
+				assert.Equal(t, sanitizeOutputText(baselineUnsafeText), returnedComment.GetBody())
+				assert.Equal(t, baselineUnsafeText, mockReplyComment.GetBody())
 			}
 			if _, ok := tc.requestArgs["reaction"]; ok {
 				assert.Contains(t, textContent.Text, "789")

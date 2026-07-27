@@ -257,6 +257,28 @@ func Test_ListDependabotAlerts(t *testing.T) {
 			expectedNextCursor: "nextcursor123",
 		},
 		{
+			name:         "invalid state is rejected before request",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"state": "archived",
+			},
+			expectError:    true,
+			expectedErrMsg: "state must be one of: open, fixed, dismissed, auto_dismissed",
+		},
+		{
+			name:         "invalid severity is rejected before request",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"owner":    "owner",
+				"repo":     "repo",
+				"severity": "extreme",
+			},
+			expectError:    true,
+			expectedErrMsg: "severity must be one of: low, medium, high, critical",
+		},
+		{
 			name: "alerts listing fails",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposDependabotAlertsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

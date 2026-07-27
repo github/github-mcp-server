@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -233,6 +232,9 @@ func listCommitsTool(t translations.TranslationHelperFunc, includeFields bool) i
 			}
 			path, err := OptionalParam[string](args, "path")
 			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if err := validateOptionalRepoRelativePath("path", path); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			var fields []string
@@ -498,6 +500,9 @@ SHA MUST be provided for existing file updates.
 			}
 			path, err := RequiredParam[string](args, "path")
 			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if err := validateRepoRelativePath("path", path); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			content, err := RequiredParam[string](args, "content")
@@ -840,6 +845,10 @@ func getFileContentsTool(t translations.TranslationHelperFunc, includeFields boo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			path = strings.TrimPrefix(path, "/")
+			if err := validateRepoRelativePathOrRoot("path", path); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			path = normalizeRepoRelativePathOrRoot(path)
 
 			ref, err := OptionalParam[string](args, "ref")
 			if err != nil {
@@ -1166,6 +1175,9 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			if err := validateRepoRelativePath("path", path); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			message, err := RequiredParam[string](args, "message")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -1284,7 +1296,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			// Create a response similar to what the DeleteFile API would return
 			response := map[string]any{
-				"commit":  newCommit,
+				"commit":  sanitizedCommitCopy(newCommit),
 				"content": nil,
 			}
 
@@ -1489,6 +1501,34 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError("files parameter must be an array of objects with path and content"), nil, nil
 			}
 
+			entries := make([]*github.TreeEntry, 0, len(filesObj))
+			for _, file := range filesObj {
+				fileMap, ok := file.(map[string]any)
+				if !ok {
+					return utils.NewToolResultError("each file must be an object with path and content"), nil, nil
+				}
+
+				path, ok := fileMap["path"].(string)
+				if !ok || path == "" {
+					return utils.NewToolResultError("each file must have a path"), nil, nil
+				}
+				if err := validateRepoRelativePath("path", path); err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+
+				content, ok := fileMap["content"].(string)
+				if !ok {
+					return utils.NewToolResultError("each file must have content"), nil, nil
+				}
+
+				entries = append(entries, &github.TreeEntry{
+					Path:    github.Ptr(path),
+					Mode:    github.Ptr("100644"),
+					Type:    github.Ptr("blob"),
+					Content: github.Ptr(content),
+				})
+			}
+
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
@@ -1560,34 +1600,6 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				}
 
 				baseCommit = base
-			}
-
-			// Create tree entries for all files (or remaining files if empty repo)
-			var entries []*github.TreeEntry
-
-			for _, file := range filesObj {
-				fileMap, ok := file.(map[string]any)
-				if !ok {
-					return utils.NewToolResultError("each file must be an object with path and content"), nil, nil
-				}
-
-				path, ok := fileMap["path"].(string)
-				if !ok || path == "" {
-					return utils.NewToolResultError("each file must have a path"), nil, nil
-				}
-
-				content, ok := fileMap["content"].(string)
-				if !ok {
-					return utils.NewToolResultError("each file must have content"), nil, nil
-				}
-
-				// Create a tree entry for the file
-				entries = append(entries, &github.TreeEntry{
-					Path:    github.Ptr(path),
-					Mode:    github.Ptr("100644"), // Regular file mode
-					Type:    github.Ptr("blob"),
-					Content: github.Ptr(content),
-				})
 			}
 
 			// Create a new tree with the file entries (baseCommit is now guaranteed to exist)
@@ -2062,7 +2074,7 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get latest release", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(release)
+			r, err := json.Marshal(sanitizedReleaseCopy(release))
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -2148,7 +2160,7 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get release by tag", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(release)
+			r, err := json.Marshal(sanitizedReleaseCopy(release))
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -2208,8 +2220,14 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.Ser
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			if err := validateEnumParam("sort", sort, "created", "updated"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			direction, err := OptionalParam[string](args, "direction")
 			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if err := validateEnumParam("direction", direction, "asc", "desc"); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
@@ -2265,28 +2283,10 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.Ser
 			// Convert to minimal format
 			minimalRepos := make([]MinimalRepository, 0, len(repos))
 			for _, starredRepo := range repos {
-				repo := starredRepo.Repository
-				minimalRepo := MinimalRepository{
-					ID:            repo.GetID(),
-					Name:          repo.GetName(),
-					FullName:      repo.GetFullName(),
-					Description:   repo.GetDescription(),
-					HTMLURL:       repo.GetHTMLURL(),
-					Language:      repo.GetLanguage(),
-					Stars:         repo.GetStargazersCount(),
-					Forks:         repo.GetForksCount(),
-					OpenIssues:    repo.GetOpenIssuesCount(),
-					Private:       repo.GetPrivate(),
-					Fork:          repo.GetFork(),
-					Archived:      repo.GetArchived(),
-					DefaultBranch: repo.GetDefaultBranch(),
+				if starredRepo == nil || starredRepo.Repository == nil {
+					continue
 				}
-
-				if repo.UpdatedAt != nil {
-					minimalRepo.UpdatedAt = repo.UpdatedAt.Format("2006-01-02T15:04:05Z")
-				}
-
-				minimalRepos = append(minimalRepos, minimalRepo)
+				minimalRepos = append(minimalRepos, convertToMinimalRepository(starredRepo.Repository))
 			}
 
 			r, err := json.Marshal(minimalRepos)
@@ -2541,26 +2541,6 @@ type blameCommitFragment struct {
 	} `graphql:"blame(path: $path)"`
 }
 
-// validateBlamePath rejects empty, leading-slash, traversal-laden, or
-// control-character paths before any network call is made.
-func validateBlamePath(p string) error {
-	if strings.TrimSpace(p) == "" {
-		return fmt.Errorf("path must not be empty")
-	}
-	if strings.HasPrefix(p, "/") {
-		return fmt.Errorf("path must be relative to the repository root (no leading '/')")
-	}
-	if slices.Contains(strings.Split(p, "/"), "..") {
-		return fmt.Errorf("path must not contain '..' segments")
-	}
-	for _, r := range p {
-		if r < 0x20 || r == 0x7f {
-			return fmt.Errorf("path must not contain control characters")
-		}
-	}
-	return nil
-}
-
 func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataRepos,
@@ -2624,7 +2604,7 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			if err := validateBlamePath(path); err != nil {
+			if err := validateRepoRelativePath("path", path); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			ref, err := OptionalParam[string](args, "ref")
@@ -2805,13 +2785,13 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 				if idx := strings.IndexByte(headline, '\n'); idx >= 0 {
 					headline = headline[:idx]
 				}
-				headline = strings.TrimRight(headline, " \t\r")
+				headline = sanitizeOutputText(strings.TrimRight(headline, " \t\r"))
 				bc := BlameCommit{
 					SHA:             sha,
 					MessageHeadline: headline,
 					CommittedDate:   r.Commit.CommittedDate.Format("2006-01-02T15:04:05Z"),
 					Author: BlameAuthor{
-						Name:  string(r.Commit.Author.Name),
+						Name:  sanitizeOutputText(string(r.Commit.Author.Name)),
 						Email: string(r.Commit.Author.Email),
 					},
 				}

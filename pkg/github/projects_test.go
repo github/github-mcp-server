@@ -9,6 +9,7 @@ import (
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
+	gogithub "github.com/google/go-github/v89/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -129,10 +130,46 @@ func Test_ProjectsList_ListProjects(t *testing.T) {
 	}
 }
 
+func projectFieldSanitizationFixture() map[string]any {
+	return map[string]any{
+		"id":        101,
+		"name":      baselineUnsafeText,
+		"data_type": "iteration",
+		"options": []map[string]any{{
+			"id":          "option-1",
+			"name":        map[string]any{"raw": baselineUnsafeText, "html": baselineUnsafeText},
+			"description": map[string]any{"raw": baselineUnsafeText, "html": baselineUnsafeText},
+		}},
+		"configuration": map[string]any{
+			"iterations": []map[string]any{{
+				"id":         "iteration-1",
+				"title":      map[string]any{"raw": baselineUnsafeText, "html": baselineUnsafeText},
+				"start_date": "2026-01-01",
+				"duration":   14,
+			}},
+		},
+	}
+}
+
+func assertSanitizedProjectField(t *testing.T, field map[string]any) {
+	t.Helper()
+	expected := sanitizeOutputText(baselineUnsafeText)
+	assert.Equal(t, expected, field["name"])
+
+	options := field["options"].([]any)
+	option := options[0].(map[string]any)
+	assert.Equal(t, expected, option["name"].(map[string]any)["raw"])
+	assert.Equal(t, expected, option["description"].(map[string]any)["raw"])
+
+	configuration := field["configuration"].(map[string]any)
+	iterations := configuration["iterations"].([]any)
+	assert.Equal(t, expected, iterations[0].(map[string]any)["title"].(map[string]any)["raw"])
+}
+
 func Test_ProjectsList_ListProjectFields(t *testing.T) {
 	toolDef := ProjectsList(translations.NullTranslationHelper)
 
-	fields := []map[string]any{{"id": 101, "name": "Status", "data_type": "single_select"}}
+	fields := []map[string]any{projectFieldSanitizationFixture()}
 
 	t.Run("success organization", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
@@ -162,6 +199,7 @@ func Test_ProjectsList_ListProjectFields(t *testing.T) {
 		fieldsList, ok := response["fields"].([]any)
 		require.True(t, ok)
 		assert.Equal(t, 1, len(fieldsList))
+		assertSanitizedProjectField(t, fieldsList[0].(map[string]any))
 	})
 
 	t.Run("missing project_number", func(t *testing.T) {
@@ -727,7 +765,7 @@ func Test_ProjectsGet_IFC_InsidersMode(t *testing.T) {
 func Test_ProjectsGet_GetProjectField(t *testing.T) {
 	toolDef := ProjectsGet(translations.NullTranslationHelper)
 
-	field := map[string]any{"id": 101, "name": "Status", "data_type": "single_select"}
+	field := projectFieldSanitizationFixture()
 
 	t.Run("success organization", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
@@ -756,6 +794,7 @@ func Test_ProjectsGet_GetProjectField(t *testing.T) {
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
 		assert.NotNil(t, response["id"])
+		assertSanitizedProjectField(t, response)
 	})
 
 	t.Run("missing field_id", func(t *testing.T) {
@@ -1323,10 +1362,20 @@ func TestMinimalProjectFieldValue(t *testing.T) {
 		{
 			name: "labels",
 			value: []any{
-				map[string]any{"name": "bug", "url": "https://api.github.com/repos/cli/cli/labels/bug"},
+				map[string]any{"name": baselineUnsafeText, "url": "https://api.github.com/repos/cli/cli/labels/bug"},
 				map[string]any{"name": "help wanted", "url": "https://api.github.com/repos/cli/cli/labels/help%20wanted"},
 			},
-			want: []string{"bug", "help wanted"},
+			want: []string{sanitizeOutputText(baselineUnsafeText), "help wanted"},
+		},
+		{
+			name:  "typed labels",
+			value: []*gogithub.Label{{Name: gogithub.Ptr(baselineUnsafeText)}},
+			want:  []string{sanitizeOutputText(baselineUnsafeText)},
+		},
+		{
+			name:  "string labels",
+			value: []string{baselineUnsafeText},
+			want:  []string{sanitizeOutputText(baselineUnsafeText)},
 		},
 		{
 			name: "repository",

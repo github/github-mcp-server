@@ -87,11 +87,6 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 		},
 		[]scopes.Scope{scopes.SecurityEvents},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			client, err := deps.GetClient(ctx)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
 			ghsaID, err := OptionalParam[string](args, "ghsaId")
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("invalid ghsaId: %v", err)), nil, nil
@@ -100,6 +95,9 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 			typ, err := OptionalParam[string](args, "type")
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("invalid type: %v", err)), nil, nil
+			}
+			if err := validateEnumParam("type", typ, "reviewed", "malware", "unreviewed"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			cveID, err := OptionalParam[string](args, "cveId")
@@ -111,10 +109,16 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("invalid ecosystem: %v", err)), nil, nil
 			}
+			if err := validateEnumParam("ecosystem", eco, "actions", "composer", "erlang", "go", "maven", "npm", "nuget", "other", "pip", "pub", "rubygems", "rust"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
 			sev, err := OptionalParam[string](args, "severity")
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("invalid severity: %v", err)), nil, nil
+			}
+			if err := validateEnumParam("severity", sev, "unknown", "low", "medium", "high", "critical"); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			cwes, err := OptionalStringArrayParam(args, "cwes")
@@ -145,6 +149,11 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 			modified, err := OptionalParam[string](args, "modified")
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("invalid modified: %v", err)), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
 			opts := &github.ListGlobalSecurityAdvisoriesOptions{}
@@ -199,7 +208,7 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list advisories", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(advisories)
+			r, err := json.Marshal(sanitizedGlobalSecurityAdvisoriesCopy(advisories))
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
 			}
@@ -277,6 +286,9 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			if err := validateRepositorySecurityAdvisoryListParams(direction, sortField, state); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -308,7 +320,7 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list repository advisories", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(advisories)
+			r, err := json.Marshal(sanitizedSecurityAdvisoriesCopy(advisories))
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
 			}
@@ -375,7 +387,7 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get advisory", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(advisory)
+			r, err := json.Marshal(sanitizedGlobalSecurityAdvisoryCopy(advisory))
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal advisory: %w", err)
 			}
@@ -443,6 +455,9 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			if err := validateRepositorySecurityAdvisoryListParams(direction, sortField, state); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -474,7 +489,7 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list organization repository advisories", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(advisories)
+			r, err := json.Marshal(sanitizedSecurityAdvisoriesCopy(advisories))
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
 			}
@@ -488,6 +503,16 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 			return result, nil, nil
 		},
 	)
+}
+
+func validateRepositorySecurityAdvisoryListParams(direction, sortField, state string) error {
+	if err := validateEnumParam("direction", direction, "asc", "desc"); err != nil {
+		return err
+	}
+	if err := validateEnumParam("sort", sortField, "created", "updated", "published"); err != nil {
+		return err
+	}
+	return validateEnumParam("state", state, "triage", "draft", "published", "closed")
 }
 
 // allAdvisoriesPublished reports whether every advisory in the slice is in the

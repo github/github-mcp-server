@@ -199,12 +199,12 @@ func updateFieldIterationResponse() githubv4mock.GQLResponse {
 		"updateProjectV2Field": map[string]any{
 			"projectV2Field": map[string]any{
 				"id":   "PVTIF_field1",
-				"name": "Sprint",
+				"name": baselineUnsafeText,
 				"configuration": map[string]any{
 					"iterations": []any{
 						map[string]any{
 							"id":        "PVTI_iter1",
-							"title":     "Sprint 1",
+							"title":     baselineUnsafeText,
 							"startDate": "2025-01-20",
 							"duration":  7,
 						},
@@ -295,6 +295,10 @@ func Test_ProjectsWrite_CreateIterationField(t *testing.T) {
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
 		assert.Equal(t, "PVTIF_field1", response["id"])
+		assert.Equal(t, sanitizeOutputText(baselineUnsafeText), response["name"])
+		configuration := response["configuration"].(map[string]any)
+		iterations := configuration["iterations"].([]any)
+		assert.Equal(t, sanitizeOutputText(baselineUnsafeText), iterations[0].(map[string]any)["title"])
 	})
 
 	t.Run("success without iterations", func(t *testing.T) {
