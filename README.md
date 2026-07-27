@@ -1017,7 +1017,7 @@ The following sets of tools are available:
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
 
-- **list_label** - List labels from a repository
+- **list_label** - List labels from a repository, ordered by issue count (descending) so the most-used labels are returned first
   - **Required OAuth Scopes**: `repo`
   - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
   - `repo`: Repository name - required for all operations (string, required)
