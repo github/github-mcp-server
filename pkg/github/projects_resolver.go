@@ -367,7 +367,11 @@ func isMissingIssueFieldSchemaError(err error) bool {
 	case "Field 'isIssueField' doesn't exist on type 'ProjectV2Field'",
 		"Field 'issueField' doesn't exist on type 'ProjectV2Field'",
 		"Field 'isIssueField' doesn't exist on type 'ProjectV2SingleSelectField'",
-		"Field 'issueField' doesn't exist on type 'ProjectV2SingleSelectField'":
+		"Field 'issueField' doesn't exist on type 'ProjectV2SingleSelectField'",
+		"No such type IssueFieldText, so it cannot be a fragment condition",
+		"No such type IssueFieldNumber, so it cannot be a fragment condition",
+		"No such type IssueFieldDate, so it cannot be a fragment condition",
+		"No such type IssueFieldSingleSelect, so it cannot be a fragment condition":
 		return true
 	default:
 		return false

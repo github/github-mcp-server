@@ -1738,16 +1738,18 @@ func buildUpdateProjectItem(ctx context.Context, gqlClient *githubv4.Client, own
 		if err != nil {
 			return nil, nil, err
 		}
-		resolved, err = resolveIssueFieldForUpdate(ctx, gqlClient, owner, ownerType, projectNumber, resolved)
-		if err != nil {
-			return nil, nil, err
-		}
-		if resolved.IsIssueField {
-			issueField, buildErr := buildIssueFieldUpdate(resolved, valueField)
-			if buildErr != nil {
-				return nil, nil, buildErr
+		if supportsIssueFieldUpdate(resolved.DataType) {
+			resolved, err = resolveIssueFieldForUpdate(ctx, gqlClient, owner, ownerType, projectNumber, resolved)
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, issueField, nil
+			if resolved.IsIssueField {
+				issueField, buildErr := buildIssueFieldUpdate(resolved, valueField)
+				if buildErr != nil {
+					return nil, nil, buildErr
+				}
+				return nil, issueField, nil
+			}
 		}
 		parsedID, parseErr := parseInt64(resolved.ID)
 		if parseErr != nil {
@@ -1787,10 +1789,17 @@ func buildUpdateProjectItem(ctx context.Context, gqlClient *githubv4.Client, own
 	return payload, nil, nil
 }
 
-func buildIssueFieldUpdate(field *ResolvedField, value any) (*IssueFieldCreateOrUpdateInput, error) {
-	switch field.DataType {
+func supportsIssueFieldUpdate(dataType string) bool {
+	switch dataType {
 	case "TEXT", "NUMBER", "DATE", "SINGLE_SELECT":
+		return true
 	default:
+		return false
+	}
+}
+
+func buildIssueFieldUpdate(field *ResolvedField, value any) (*IssueFieldCreateOrUpdateInput, error) {
+	if !supportsIssueFieldUpdate(field.DataType) {
 		return nil, ghErrors.NewStructuredResolutionError(
 			"unsupported_field_type",
 			field.Name,
