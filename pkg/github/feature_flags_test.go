@@ -177,10 +177,10 @@ func TestResolveFeatureFlags(t *testing.T) {
 			expectedFlags:   InsidersFeatureFlags,
 		},
 		{
-			name:            "insiders mode enables fields param",
+			name:            "insiders mode does not enable fields param",
 			enabledFeatures: nil,
 			insidersMode:    true,
-			expectedFlags:   []string{FeatureFlagFieldsParam},
+			unexpectedFlags: []string{FeatureFlagFieldsParam},
 		},
 		{
 			name:            "insiders mode does not auto-enable ifc labels",
