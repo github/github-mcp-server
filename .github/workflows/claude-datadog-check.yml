@@ -1,0 +1,43 @@
+name: Claude Datadog MCP Check
+
+# 이슈 코멘트에 "@claude 데이터독 mcp서버 접속을 확인해줘" 와 같이 남기면
+# Claude Code Action 이 실행되어 Datadog MCP 서버 접속을 확인합니다.
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude-datadog-check:
+    # @claude 가 포함된 코멘트에만 반응합니다.
+    if: contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          trigger_phrase: "@claude"
+          # Datadog MCP 서버(원격 HTTP)를 등록하고, 접속 확인용 도구 사용을 허용합니다.
+          claude_args: |
+            --mcp-config '{
+              "mcpServers": {
+                "datadog": {
+                  "type": "http",
+                  "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp",
+                  "headers": {
+                    "Authorization": "Bearer ${{ secrets.DD_BEARER_TOKEN }}"
+                  }
+                }
+              }
+            }'
+            --allowedTools "mcp__datadog"
