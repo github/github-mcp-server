@@ -249,8 +249,15 @@
         "description": "Project view node ID for update or delete; must belong to owner/project_number.",
         "type": "string"
       },
+      "visible_field_names": {
+        "description": "Field names for table or board creation; mutually exclusive with visible_fields.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
       "visible_fields": {
-        "description": "Field database IDs for table or board creation; unsupported for roadmap.",
+        "description": "Field database IDs for table or board creation; mutually exclusive with visible_field_names.",
         "items": {
           "type": "string"
         },
