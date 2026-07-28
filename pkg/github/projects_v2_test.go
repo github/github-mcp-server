@@ -165,6 +165,50 @@ func resolveProjectNodeIDOrgMatcher(owner string, projectNumber int, nodeID stri
 	)
 }
 
+func resolveProjectNodeIDUserMatcher(owner string, projectNumber int, nodeID string) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		struct {
+			User struct {
+				ProjectV2 struct {
+					ID githubv4.ID
+				} `graphql:"projectV2(number: $projectNumber)"`
+			} `graphql:"user(login: $owner)"`
+		}{},
+		map[string]any{
+			"owner":         githubv4.String(owner),
+			"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // test constant
+		},
+		githubv4mock.DataResponse(map[string]any{
+			"user": map[string]any{
+				"projectV2": map[string]any{
+					"id": nodeID,
+				},
+			},
+		}),
+	)
+}
+
+func projectViewParentMatcher(viewID, projectID string) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		projectViewParentQuery{},
+		map[string]any{"id": githubv4.ID(viewID)},
+		githubv4mock.DataResponse(map[string]any{
+			"node": map[string]any{
+				"id":      viewID,
+				"project": map[string]any{"id": projectID},
+			},
+		}),
+	)
+}
+
+func projectViewParentErrorMatcher(viewID, message string) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		projectViewParentQuery{},
+		map[string]any{"id": githubv4.ID(viewID)},
+		githubv4mock.ErrorResponse(message),
+	)
+}
+
 func createFieldMatcher() githubv4mock.Matcher {
 	return githubv4mock.NewMutationMatcher(
 		struct {
@@ -738,14 +782,10 @@ func Test_ProjectsWrite_CreateProjectView(t *testing.T) {
 		assert.Equal(t, []int64{101, 202}, view.VisibleFields)
 	})
 
-	t.Run("resolves a user login to the numeric REST user ID", func(t *testing.T) {
+	t.Run("creates a user view by login", func(t *testing.T) {
 		restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			GetUsersByUsername: mockResponse(t, http.StatusOK, map[string]any{
-				"id":   42,
-				"type": "User",
-			}),
 			"POST /users/{user_id}/projectsV2/{project}/views": func(w http.ResponseWriter, r *http.Request) {
-				require.Equal(t, "/users/42/projectsV2/8/views", r.URL.Path)
+				require.Equal(t, "/users/octocat/projectsV2/8/views", r.URL.Path)
 				mockResponse(t, http.StatusCreated, map[string]any{
 					"node_id": "PVTV_view2",
 					"number":  2,
@@ -834,10 +874,12 @@ func Test_ProjectsWrite_UpdateProjectView(t *testing.T) {
 	t.Run("updates only the supplied name", func(t *testing.T) {
 		name := githubv4.String("Renamed")
 		gqlClient := githubv4mock.NewMockedHTTPClient(
+			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
+			projectViewParentMatcher("PVTV_view1", "PVT_project7"),
 			githubv4mock.NewMutationMatcher(
 				struct {
 					UpdateProjectV2View struct {
-						ProjectV2View projectViewNode
+						ProjectV2View projectViewNode `graphql:"projectV2View"`
 					} `graphql:"updateProjectV2View(input: $input)"`
 				}{},
 				UpdateProjectV2ViewInput{
@@ -881,10 +923,12 @@ func Test_ProjectsWrite_UpdateProjectView(t *testing.T) {
 	t.Run("sends an explicit empty filter to clear it", func(t *testing.T) {
 		filter := githubv4.String("")
 		gqlClient := githubv4mock.NewMockedHTTPClient(
+			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
+			projectViewParentMatcher("PVTV_view1", "PVT_project7"),
 			githubv4mock.NewMutationMatcher(
 				struct {
 					UpdateProjectV2View struct {
-						ProjectV2View projectViewNode
+						ProjectV2View projectViewNode `graphql:"projectV2View"`
 					} `graphql:"updateProjectV2View(input: $input)"`
 				}{},
 				UpdateProjectV2ViewInput{
@@ -928,10 +972,12 @@ func Test_ProjectsWrite_UpdateProjectView(t *testing.T) {
 	t.Run("normalizes an updated layout to the GraphQL enum", func(t *testing.T) {
 		layout := githubv4.ProjectV2ViewLayoutBoardLayout
 		gqlClient := githubv4mock.NewMockedHTTPClient(
+			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
+			projectViewParentMatcher("PVTV_view1", "PVT_project7"),
 			githubv4mock.NewMutationMatcher(
 				struct {
 					UpdateProjectV2View struct {
-						ProjectV2View projectViewNode
+						ProjectV2View projectViewNode `graphql:"projectV2View"`
 					} `graphql:"updateProjectV2View(input: $input)"`
 				}{},
 				UpdateProjectV2ViewInput{
@@ -975,10 +1021,12 @@ func Test_ProjectsWrite_UpdateProjectView(t *testing.T) {
 	t.Run("surfaces GraphQL API errors", func(t *testing.T) {
 		name := githubv4.String("Renamed")
 		gqlClient := githubv4mock.NewMockedHTTPClient(
+			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
+			projectViewParentMatcher("PVTV_view1", "PVT_project7"),
 			githubv4mock.NewMutationMatcher(
 				struct {
 					UpdateProjectV2View struct {
-						ProjectV2View projectViewNode
+						ProjectV2View projectViewNode `graphql:"projectV2View"`
 					} `graphql:"updateProjectV2View(input: $input)"`
 				}{},
 				UpdateProjectV2ViewInput{
@@ -1010,6 +1058,78 @@ func Test_ProjectsWrite_UpdateProjectView(t *testing.T) {
 		assert.Contains(t, getTextResult(t, result).Text, "update failed")
 	})
 
+	for _, tc := range []struct {
+		name       string
+		owner      string
+		ownerType  string
+		resolveReq githubv4mock.Matcher
+	}{
+		{
+			name:       "rejects organization project mismatch",
+			owner:      "octo-org",
+			ownerType:  "org",
+			resolveReq: resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_org_project"),
+		},
+		{
+			name:       "rejects user project mismatch",
+			owner:      "octocat",
+			ownerType:  "user",
+			resolveReq: resolveProjectNodeIDUserMatcher("octocat", 7, "PVT_user_project"),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gqlClient := githubv4mock.NewMockedHTTPClient(
+				tc.resolveReq,
+				projectViewParentMatcher("PVTV_view1", "PVT_other_project"),
+			)
+			deps := BaseDeps{
+				Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
+				GQLClient: githubv4.NewClient(gqlClient),
+			}
+			handler := toolDef.Handler(deps)
+			request := createMCPRequest(map[string]any{
+				"method":         "update_project_view",
+				"owner":          tc.owner,
+				"owner_type":     tc.ownerType,
+				"project_number": float64(7),
+				"view_id":        "PVTV_view1",
+				"name":           "Renamed",
+			})
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Contains(t, getTextResult(t, result).Text, ProjectViewUpdateFailedError)
+			assert.Contains(t, getTextResult(t, result).Text, "project view does not belong to the requested project")
+		})
+	}
+
+	t.Run("surfaces parent verification API errors", func(t *testing.T) {
+		gqlClient := githubv4mock.NewMockedHTTPClient(
+			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
+			projectViewParentErrorMatcher("PVTV_view1", "lookup failed"),
+		)
+		deps := BaseDeps{
+			Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
+			GQLClient: githubv4.NewClient(gqlClient),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "update_project_view",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(7),
+			"view_id":        "PVTV_view1",
+			"name":           "Renamed",
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		assert.Contains(t, getTextResult(t, result).Text, ProjectViewUpdateFailedError)
+		assert.Contains(t, getTextResult(t, result).Text, "failed to resolve project view: lookup failed")
+	})
+
 	t.Run("rejects an empty update", func(t *testing.T) {
 		deps := BaseDeps{
 			Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
@@ -1033,39 +1153,114 @@ func Test_ProjectsWrite_UpdateProjectView(t *testing.T) {
 
 func Test_ProjectsWrite_DeleteProjectView(t *testing.T) {
 	toolDef := ProjectsWrite(translations.NullTranslationHelper)
-	gqlClient := githubv4mock.NewMockedHTTPClient(
-		githubv4mock.NewMutationMatcher(
-			struct {
-				DeleteProjectV2View struct {
-					ProjectV2View struct {
-						ID githubv4.ID
-					}
-				} `graphql:"deleteProjectV2View(input: $input)"`
-			}{},
-			DeleteProjectV2ViewInput{ViewID: githubv4.ID("PVTV_view1")},
-			nil,
-			githubv4mock.DataResponse(map[string]any{
-				"deleteProjectV2View": map[string]any{
-					"projectV2View": map[string]any{"id": "PVTV_view1"},
-				},
-			}),
-		),
-	)
-	deps := BaseDeps{
-		Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
-		GQLClient: githubv4.NewClient(gqlClient),
-	}
-	handler := toolDef.Handler(deps)
-	request := createMCPRequest(map[string]any{
-		"method":         "delete_project_view",
-		"owner":          "octo-org",
-		"owner_type":     "org",
-		"project_number": float64(7),
-		"view_id":        "PVTV_view1",
+
+	t.Run("deletes a view from the requested project", func(t *testing.T) {
+		gqlClient := githubv4mock.NewMockedHTTPClient(
+			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
+			projectViewParentMatcher("PVTV_view1", "PVT_project7"),
+			githubv4mock.NewMutationMatcher(
+				struct {
+					DeleteProjectV2View struct {
+						ProjectV2View struct {
+							ID githubv4.ID
+						} `graphql:"projectV2View"`
+					} `graphql:"deleteProjectV2View(input: $input)"`
+				}{},
+				DeleteProjectV2ViewInput{ViewID: githubv4.ID("PVTV_view1")},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"deleteProjectV2View": map[string]any{
+						"projectV2View": map[string]any{"id": "PVTV_view1"},
+					},
+				}),
+			),
+		)
+		deps := BaseDeps{
+			Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
+			GQLClient: githubv4.NewClient(gqlClient),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "delete_project_view",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(7),
+			"view_id":        "PVTV_view1",
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		assert.JSONEq(t, `{"deleted_view_id":"PVTV_view1"}`, getTextResult(t, result).Text)
 	})
 
-	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-	require.NoError(t, err)
-	require.False(t, result.IsError)
-	assert.JSONEq(t, `{"deleted_view_id":"PVTV_view1"}`, getTextResult(t, result).Text)
+	for _, tc := range []struct {
+		name       string
+		owner      string
+		ownerType  string
+		resolveReq githubv4mock.Matcher
+	}{
+		{
+			name:       "rejects organization project mismatch",
+			owner:      "octo-org",
+			ownerType:  "org",
+			resolveReq: resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_org_project"),
+		},
+		{
+			name:       "rejects user project mismatch",
+			owner:      "octocat",
+			ownerType:  "user",
+			resolveReq: resolveProjectNodeIDUserMatcher("octocat", 7, "PVT_user_project"),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gqlClient := githubv4mock.NewMockedHTTPClient(
+				tc.resolveReq,
+				projectViewParentMatcher("PVTV_view1", "PVT_other_project"),
+			)
+			deps := BaseDeps{
+				Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
+				GQLClient: githubv4.NewClient(gqlClient),
+			}
+			handler := toolDef.Handler(deps)
+			request := createMCPRequest(map[string]any{
+				"method":         "delete_project_view",
+				"owner":          tc.owner,
+				"owner_type":     tc.ownerType,
+				"project_number": float64(7),
+				"view_id":        "PVTV_view1",
+			})
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Contains(t, getTextResult(t, result).Text, ProjectViewDeleteFailedError)
+			assert.Contains(t, getTextResult(t, result).Text, "project view does not belong to the requested project")
+		})
+	}
+
+	t.Run("surfaces parent verification API errors", func(t *testing.T) {
+		gqlClient := githubv4mock.NewMockedHTTPClient(
+			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
+			projectViewParentErrorMatcher("PVTV_view1", "lookup failed"),
+		)
+		deps := BaseDeps{
+			Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
+			GQLClient: githubv4.NewClient(gqlClient),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "delete_project_view",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(7),
+			"view_id":        "PVTV_view1",
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		assert.Contains(t, getTextResult(t, result).Text, ProjectViewDeleteFailedError)
+		assert.Contains(t, getTextResult(t, result).Text, "failed to resolve project view: lookup failed")
+	})
 }

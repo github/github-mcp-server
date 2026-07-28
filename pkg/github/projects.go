@@ -162,6 +162,17 @@ type projectViewNodeQuery struct {
 	} `graphql:"node(id: $id)"`
 }
 
+type projectViewParentQuery struct {
+	Node struct {
+		ProjectView struct {
+			ID      githubv4.ID
+			Project struct {
+				ID githubv4.ID
+			}
+		} `graphql:"... on ProjectV2View"`
+	} `graphql:"node(id: $id)"`
+}
+
 // CreateProjectV2ViewRequest is the REST request for creating a project view.
 type CreateProjectV2ViewRequest struct {
 	Name          string  `json:"name"`
@@ -730,7 +741,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"view_id": {
 						Type:        "string",
-						Description: "Project view node ID for update or delete.",
+						Description: "Project view node ID for update or delete; must belong to owner/project_number.",
 					},
 					"name": {
 						Type:        "string",
@@ -973,9 +984,9 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			case projectsMethodCreateProjectView:
 				return createProjectView(ctx, client, args, owner, ownerType, projectNumber)
 			case projectsMethodUpdateProjectView:
-				return updateProjectView(ctx, gqlClient, args)
+				return updateProjectView(ctx, gqlClient, args, owner, ownerType, projectNumber)
 			case projectsMethodDeleteProjectView:
-				return deleteProjectView(ctx, gqlClient, args)
+				return deleteProjectView(ctx, gqlClient, args, owner, ownerType, projectNumber)
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
@@ -2005,15 +2016,7 @@ func createProjectView(ctx context.Context, client *github.Client, args map[stri
 	case "org":
 		endpoint = fmt.Sprintf("orgs/%s/projectsV2/%d/views", owner, projectNumber)
 	case "user":
-		user, resp, err := client.Users.Get(ctx, owner)
-		if err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx, ProjectViewCreateFailedError, resp, err), nil, nil
-		}
-		userID := user.GetID()
-		if userID == 0 {
-			return utils.NewToolResultError(fmt.Sprintf("%s: user response did not include an ID", ProjectViewCreateFailedError)), nil, nil
-		}
-		endpoint = fmt.Sprintf("users/%d/projectsV2/%d/views", userID, projectNumber)
+		endpoint = fmt.Sprintf("users/%s/projectsV2/%d/views", owner, projectNumber)
 	default:
 		return utils.NewToolResultError(fmt.Sprintf("invalid owner_type %q: must be \"user\" or \"org\"", ownerType)), nil, nil
 	}
@@ -2046,7 +2049,29 @@ func createProjectView(ctx context.Context, client *github.Client, args map[stri
 	return MarshalledTextResult(view), nil, nil
 }
 
-func updateProjectView(ctx context.Context, gqlClient *githubv4.Client, args map[string]any) (*mcp.CallToolResult, any, error) {
+func verifyProjectViewParent(ctx context.Context, gqlClient *githubv4.Client, viewID, owner, ownerType string, projectNumber int) error {
+	expectedProjectID, err := resolveProjectNodeID(ctx, gqlClient, owner, ownerType, projectNumber)
+	if err != nil {
+		return fmt.Errorf("failed to resolve requested project: %w", err)
+	}
+	if expectedProjectID == nil || expectedProjectID == "" {
+		return fmt.Errorf("requested project was not found")
+	}
+
+	var query projectViewParentQuery
+	if err := gqlClient.Query(ctx, &query, map[string]any{"id": githubv4.ID(viewID)}); err != nil {
+		return fmt.Errorf("failed to resolve project view: %w", err)
+	}
+	if query.Node.ProjectView.ID == nil || query.Node.ProjectView.ID == "" {
+		return fmt.Errorf("node is not a ProjectV2View or was not found")
+	}
+	if query.Node.ProjectView.Project.ID != expectedProjectID {
+		return fmt.Errorf("project view does not belong to the requested project")
+	}
+	return nil
+}
+
+func updateProjectView(ctx context.Context, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string, projectNumber int) (*mcp.CallToolResult, any, error) {
 	viewID, err := RequiredParam[string](args, "view_id")
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
@@ -2086,10 +2111,13 @@ func updateProjectView(ctx context.Context, gqlClient *githubv4.Client, args map
 		value := githubv4.String(filter)
 		input.Filter = &value
 	}
+	if err := verifyProjectViewParent(ctx, gqlClient, viewID, owner, ownerType, projectNumber); err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewUpdateFailedError, err)), nil, nil
+	}
 
 	var mutation struct {
 		UpdateProjectV2View struct {
-			ProjectV2View projectViewNode
+			ProjectV2View projectViewNode `graphql:"projectV2View"`
 		} `graphql:"updateProjectV2View(input: $input)"`
 	}
 	if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
@@ -2101,17 +2129,20 @@ func updateProjectView(ctx context.Context, gqlClient *githubv4.Client, args map
 	return MarshalledTextResult(convertToMinimalProjectView(mutation.UpdateProjectV2View.ProjectV2View)), nil, nil
 }
 
-func deleteProjectView(ctx context.Context, gqlClient *githubv4.Client, args map[string]any) (*mcp.CallToolResult, any, error) {
+func deleteProjectView(ctx context.Context, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string, projectNumber int) (*mcp.CallToolResult, any, error) {
 	viewID, err := RequiredParam[string](args, "view_id")
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	if err := verifyProjectViewParent(ctx, gqlClient, viewID, owner, ownerType, projectNumber); err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewDeleteFailedError, err)), nil, nil
 	}
 	input := DeleteProjectV2ViewInput{ViewID: githubv4.ID(viewID)}
 	var mutation struct {
 		DeleteProjectV2View struct {
 			ProjectV2View struct {
 				ID githubv4.ID
-			}
+			} `graphql:"projectV2View"`
 		} `graphql:"deleteProjectV2View(input: $input)"`
 	}
 	if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
