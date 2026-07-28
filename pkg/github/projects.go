@@ -758,7 +758,14 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"visible_fields": {
 						Type:        "array",
-						Description: "Field database IDs for table or board creation; unsupported for roadmap.",
+						Description: "Field database IDs for table or board creation; mutually exclusive with visible_field_names.",
+						Items: &jsonschema.Schema{
+							Type: "string",
+						},
+					},
+					"visible_field_names": {
+						Type:        "array",
+						Description: "Field names for table or board creation; mutually exclusive with visible_fields.",
 						Items: &jsonschema.Schema{
 							Type: "string",
 						},
@@ -863,13 +870,12 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			gqlClient, err := deps.GetGQLClient(ctx)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
 			// create_project does not require project_number or a REST client
 			if method == projectsMethodCreateProject {
+				gqlClient, gqlErr := deps.GetGQLClient(ctx)
+				if gqlErr != nil {
+					return utils.NewToolResultError(gqlErr.Error()), nil, nil
+				}
 				return createProject(ctx, gqlClient, owner, ownerType, args)
 			}
 
@@ -889,6 +895,26 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
+			}
+
+			if method == projectsMethodCreateProjectView {
+				visibleFieldNames, namesErr := OptionalStringArrayParam(args, "visible_field_names")
+				if namesErr != nil {
+					return utils.NewToolResultError(namesErr.Error()), nil, nil
+				}
+				var gqlClient *githubv4.Client
+				if len(visibleFieldNames) > 0 {
+					gqlClient, err = deps.GetGQLClient(ctx)
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+				}
+				return createProjectView(ctx, client, gqlClient, args, owner, ownerType, projectNumber, visibleFieldNames)
+			}
+
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			switch method {
@@ -981,8 +1007,6 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return createProjectStatusUpdate(ctx, gqlClient, owner, ownerType, projectNumber, body, status, startDate, targetDate)
 			case projectsMethodCreateIterationField:
 				return createIterationField(ctx, gqlClient, owner, ownerType, projectNumber, args)
-			case projectsMethodCreateProjectView:
-				return createProjectView(ctx, client, args, owner, ownerType, projectNumber)
 			case projectsMethodUpdateProjectView:
 				return updateProjectView(ctx, gqlClient, args, owner, ownerType, projectNumber)
 			case projectsMethodDeleteProjectView:
@@ -1974,7 +1998,7 @@ func getProjectView(ctx context.Context, gqlClient *githubv4.Client, viewID stri
 	return utils.NewToolResultText(string(result)), !bool(query.Node.ProjectView.Project.Public), nil, nil
 }
 
-func createProjectView(ctx context.Context, client *github.Client, args map[string]any, owner, ownerType string, projectNumber int) (*mcp.CallToolResult, any, error) {
+func createProjectView(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string, projectNumber int, visibleFieldNames []string) (*mcp.CallToolResult, any, error) {
 	name, err := RequiredParam[string](args, "name")
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
@@ -1998,8 +2022,22 @@ func createProjectView(ctx context.Context, client *github.Client, args map[stri
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
+	if len(visibleFields) > 0 && len(visibleFieldNames) > 0 {
+		return utils.NewToolResultError("provide either 'visible_fields' or 'visible_field_names', not both"), nil, nil
+	}
+	if len(visibleFieldNames) > 0 {
+		resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, visibleFieldNames)
+		if resolveErr != nil {
+			var structured *ghErrors.StructuredResolutionError
+			if errors.As(resolveErr, &structured) {
+				return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
+			}
+			return utils.NewToolResultError(resolveErr.Error()), nil, nil
+		}
+		visibleFields = resolvedIDs
+	}
 	if layout == githubv4.ProjectV2ViewLayoutRoadmapLayout && len(visibleFields) > 0 {
-		return utils.NewToolResultError("visible_fields is not supported for roadmap views"), nil, nil
+		return utils.NewToolResultError("visible fields are not supported for roadmap views"), nil, nil
 	}
 
 	requestBody := CreateProjectV2ViewRequest{

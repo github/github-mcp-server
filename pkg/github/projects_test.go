@@ -893,6 +893,7 @@ func Test_ProjectsWrite(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "layout")
 	assert.Contains(t, inputSchema.Properties, "filter")
 	assert.Contains(t, inputSchema.Properties, "visible_fields")
+	assert.Contains(t, inputSchema.Properties, "visible_field_names")
 	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodCreateProjectView)
 	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodUpdateProjectView)
 	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodDeleteProjectView)
