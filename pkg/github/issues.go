@@ -1601,8 +1601,8 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 // LegacySearchIssues register under the tool name "search_issues"; exactly one is
 // active for any given request thanks to mutually exclusive FeatureFlagEnable /
 // FeatureFlagDisable annotations.
-func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := searchIssuesTool(t, true)
+func SearchIssues(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
+	st := searchIssuesTool(t, true, newToolConfig(opts))
 	st.FeatureFlagEnable = FeatureFlagFieldsParam
 	return st
 }
@@ -1612,23 +1612,50 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 // filters results, so it acts as the kill switch when the flag is off. It owns
 // the canonical search_issues.snap; the flag-enabled variant owns
 // search_issues_ff_<flag>.snap. Delete this function when the flag is removed.
-func LegacySearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := searchIssuesTool(t, false)
+func LegacySearchIssues(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
+	st := searchIssuesTool(t, false, newToolConfig(opts))
 	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
 	return st
 }
+
+// The two search engines want opposite things from a caller, so steering advice
+// for one is counterproductive for the other: semantic rewards paraphrased
+// natural language and degrades on boolean operators, while lexical needs the
+// caller's literal keywords and handles OR fine. The description has to describe
+// the engine the host will actually use.
+const (
+	searchIssuesSemanticDescription = "Search issues using natural-language semantic matching. Best for conceptual or paraphrased queries (e.g. \"login fails after password reset\"). Already scoped to is:issue."
+	searchIssuesLexicalDescription  = "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue"
+
+	searchIssuesSemanticQueryDescription = "The search query, as natural language. When the user gives alternative wordings, include them as plain words rather than joining them with OR."
+	searchIssuesLexicalQueryDescription  = "Search query using GitHub issues search syntax"
+)
 
 // searchIssuesTool builds the search_issues tool. When includeFields is true the
 // tool advertises the optional `fields` parameter, filters each result to the
 // requested subset, and emits fields telemetry. When false it is the original
 // tool with no fields parameter and no filtering.
-func searchIssuesTool(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
+func searchIssuesTool(t translations.TranslationHelperFunc, includeFields bool, cfg toolConfig) inventory.ServerTool {
+	// Semantic is the default; however as it is not available on GHES, we fall back to
+	// lexical search for that host type.
+	mode := searchModeSemantic
+	if cfg.hostType == utils.HostTypeGHES {
+		mode = searchModeLexical
+	}
+
+	toolDescription := searchIssuesSemanticDescription
+	queryDescription := searchIssuesSemanticQueryDescription
+	if mode == searchModeLexical {
+		toolDescription = searchIssuesLexicalDescription
+		queryDescription = searchIssuesLexicalQueryDescription
+	}
+
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
 			"query": {
 				Type:        "string",
-				Description: "Search query using GitHub issues search syntax",
+				Description: queryDescription,
 			},
 			"owner": {
 				Type:        "string",
@@ -1675,7 +1702,7 @@ func searchIssuesTool(t translations.TranslationHelperFunc, includeFields bool) 
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "search_issues",
-			Description: t("TOOL_SEARCH_ISSUES_DESCRIPTION", "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue"),
+			Description: t("TOOL_SEARCH_ISSUES_DESCRIPTION", toolDescription),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_SEARCH_ISSUES_USER_TITLE", "Search issues"),
 				ReadOnlyHint: true,
@@ -1692,7 +1719,7 @@ func searchIssuesTool(t translations.TranslationHelperFunc, includeFields bool) 
 				}
 				options = append(options, withFieldsFiltering(deps, "search_issues", fields))
 			}
-			result, err := searchIssuesHandler(ctx, deps, args, options...)
+			result, err := searchIssuesHandler(ctx, deps, args, mode, options...)
 			return result, nil, err
 		})
 }
@@ -1960,10 +1987,15 @@ func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, n
 // searchIssuesHandler runs the REST issues search, enriches each hit with custom field values
 // fetched via a single follow-up GraphQL nodes() query, and applies any post-process options
 // (e.g. IFC labelling).
-func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[string]any, options ...searchOption) (*mcp.CallToolResult, error) {
+func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[string]any, mode searchMode, options ...searchOption) (*mcp.CallToolResult, error) {
 	const errorPrefix = "failed to search issues"
 
-	query, opts, err := prepareSearchArgs(args, "issue")
+	cfg := searchConfig{}
+	for _, opt := range options {
+		opt(&cfg)
+	}
+
+	query, opts, err := prepareSearchArgs(args, "issue", mode)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil
 	}
@@ -2011,11 +2043,6 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 		Total:             result.Total,
 		IncompleteResults: result.IncompleteResults,
 		Items:             items,
-	}
-
-	cfg := searchConfig{}
-	for _, opt := range options {
-		opt(&cfg)
 	}
 
 	filtered := false
