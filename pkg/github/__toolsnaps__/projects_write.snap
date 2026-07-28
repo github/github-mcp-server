@@ -246,7 +246,7 @@
         "type": "object"
       },
       "view_id": {
-        "description": "Project view node ID for update or delete.",
+        "description": "Project view node ID for update or delete; must belong to owner/project_number.",
         "type": "string"
       },
       "visible_fields": {
