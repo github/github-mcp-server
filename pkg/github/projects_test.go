@@ -9,6 +9,8 @@ import (
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/http/headers"
+	transportpkg "github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v89/github"
@@ -1340,7 +1342,7 @@ func Test_ProjectItemReads_FieldNamesIncludeIssueFieldValues(t *testing.T) {
 }
 
 func Test_ProjectsWrite_UpdateProjectItem_AttachedIssueFieldDispatch(t *testing.T) {
-	gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
+	mockClient := githubv4mock.NewMockedHTTPClient(
 		githubv4mock.NewQueryMatcher(
 			projectFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 1),
@@ -1367,7 +1369,12 @@ func Test_ProjectsWrite_UpdateProjectItem_AttachedIssueFieldDispatch(t *testing.
 				"issue": map[string]any{"id": "ISSUE_1", "url": "https://github.com/octo-org/repo/issues/1"},
 			}}),
 		),
-	))
+	)
+
+	spy := &headerCaptureTransport{inner: mockClient.Transport}
+	gqlClient := githubv4.NewClient(&http.Client{
+		Transport: &transportpkg.GraphQLFeaturesTransport{Transport: spy},
+	})
 	restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		GetOrgsProjectsV2ItemsByProjectByItemID: mockResponse(t, http.StatusOK, issueProjectItemFixture("Issue")),
 	}))
@@ -1384,6 +1391,9 @@ func Test_ProjectsWrite_UpdateProjectItem_AttachedIssueFieldDispatch(t *testing.
 	require.NoError(t, err)
 	require.False(t, result.IsError, getTextResult(t, result).Text)
 	assert.JSONEq(t, `{"id":"ISSUE_1","url":"https://github.com/octo-org/repo/issues/1"}`, getTextResult(t, result).Text)
+	// The last request captured is the mutation; the preceding field/metadata
+	// queries do not require the update_issue_suggestions feature flag.
+	assert.Equal(t, "update_issue_suggestions", spy.captured.Get(headers.GraphQLFeaturesHeader))
 }
 
 func Test_BuildIssueFieldUpdate(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -1272,7 +1273,10 @@ func updateProjectItem(ctx context.Context, client *github.Client, gqlClient *gi
 			return utils.NewToolResultError(resolveErr.Error()), nil, nil
 		}
 
-		response, mutationErr := SetIssueFieldValues(ctx, gqlClient, SetIssueFieldValueInput{
+		// The setIssueFieldValue mutation is gated behind the update_issue_suggestions
+		// GraphQL feature flag, matching the set_issue_fields tool.
+		ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "update_issue_suggestions")
+		response, mutationErr := SetIssueFieldValues(ctxWithFeatures, gqlClient, SetIssueFieldValueInput{
 			IssueID:     issueID,
 			IssueFields: []IssueFieldCreateOrUpdateInput{*issueField},
 		})
