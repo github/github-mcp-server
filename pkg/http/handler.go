@@ -205,14 +205,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ContentWindowSize: h.config.ContentWindowSize,
 		Logger:            h.logger,
 		RepoAccessTTL:     h.config.RepoAccessCacheTTL,
-		// Explicitly set empty capabilities. inv.ForMCPRequest currently returns nothing for Initialize.
+		// Capabilities (no list-changed advertising) are set by NewMCPServer;
+		// here we only supply the remote-specific schema cache.
 		ServerOptions: []github.MCPServerOption{
 			func(so *mcp.ServerOptions) {
-				so.Capabilities = &mcp.ServerCapabilities{
-					Tools:     &mcp.ToolCapabilities{},
-					Resources: &mcp.ResourceCapabilities{},
-					Prompts:   &mcp.PromptCapabilities{},
-				}
 				so.SchemaCache = h.schemaCache
 			},
 		},
