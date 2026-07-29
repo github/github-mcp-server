@@ -26,6 +26,7 @@ import {
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
 import { completedToolResult } from "../../lib/toolResult";
+import { getViewUUID, loadViewState, saveViewState } from "../../lib/viewState";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 
 interface PRResult {
@@ -283,7 +284,16 @@ function EditPRApp() {
   // (awaiting_user_submission) returns null here, keeping the form for the
   // normal deferred flow. See github/copilot-mcp-core#1864.
   const resultPR = useMemo(() => completedToolResult<PRResult>(toolResult), [toolResult]);
-  const shownPR = successPR ?? resultPR;
+  // Restore synchronously during render so a remount never paints the edit form
+  // for a completed invocation (github/github-mcp-server#2965).
+  const persistedPR = useMemo(() => {
+    if (successPR || resultPR) return null;
+    const viewUUID = getViewUUID(toolResult);
+    if (!viewUUID) return null;
+    return loadViewState<PRResult>(viewUUID);
+  }, [successPR, resultPR, toolResult]);
+  const shownPR = successPR ?? resultPR ?? persistedPR?.result ?? null;
+  const shownSubmittedTitle = submittedTitle || persistedPR?.submittedTitle || "";
 
   useEffect(() => {
     setTitle("");
@@ -487,6 +497,14 @@ function EditPRApp() {
         if (textContent && textContent.type === "text" && textContent.text) {
           const prData = JSON.parse(textContent.text);
           setSuccessPR(prData);
+          const viewUUID = getViewUUID(toolResult);
+          if (viewUUID) {
+            saveViewState(viewUUID, {
+              status: "completed",
+              result: prData,
+              submittedTitle: title.trim(),
+            });
+          }
           void setModelContext({
             structuredContent: prData,
             content: [
@@ -503,12 +521,12 @@ function EditPRApp() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [title, body, owner, repo, pullNumber, baseBranch, initialValues, selectedReviewers, prState, isDraft, maintainerCanModify, callTool, setModelContext]);
+  }, [title, body, owner, repo, pullNumber, baseBranch, initialValues, selectedReviewers, prState, isDraft, maintainerCanModify, toolResult, callTool, setModelContext]);
 
   if (shownPR) {
     return (
       <AppProvider hostContext={hostContext}>
-        <SuccessView pr={shownPR} owner={owner} repo={repo} submittedTitle={submittedTitle} openLink={openLink} />
+        <SuccessView pr={shownPR} owner={owner} repo={repo} submittedTitle={shownSubmittedTitle} openLink={openLink} />
       </AppProvider>
     );
   }

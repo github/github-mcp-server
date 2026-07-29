@@ -25,6 +25,7 @@ import {
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
 import { completedToolResult } from "../../lib/toolResult";
+import { getViewUUID, loadViewState, saveViewState } from "../../lib/viewState";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 
 interface IssueResult {
@@ -449,7 +450,17 @@ function CreateIssueApp() {
   // null here, keeping the form for the normal deferred flow.
   // See github/copilot-mcp-core#1864.
   const resultIssue = useMemo(() => completedToolResult<IssueResult>(toolResult), [toolResult]);
-  const shownIssue = successIssue ?? resultIssue;
+  // Restore synchronously during render so a remount never paints the
+  // create/update form for a completed invocation (github/github-mcp-server#2965).
+  const persistedIssue = useMemo(() => {
+    if (successIssue || resultIssue) return null;
+    const viewUUID = getViewUUID(toolResult);
+    if (!viewUUID) return null;
+    return loadViewState<IssueResult, { submittedLabels?: LabelItem[] }>(viewUUID);
+  }, [successIssue, resultIssue, toolResult]);
+  const shownIssue = successIssue ?? resultIssue ?? persistedIssue?.result ?? null;
+  const shownSubmittedTitle = persistedIssue?.submittedTitle || title;
+  const shownSubmittedLabels = persistedIssue?.extras?.submittedLabels || selectedLabels;
 
   // Get method and issue_number from toolInput
   const method = (toolInput?.method as string) || "create";
@@ -1083,6 +1094,15 @@ function CreateIssueApp() {
           try {
             const issueData = JSON.parse(textContent.text as string);
             setSuccessIssue(issueData);
+            const viewUUID = getViewUUID(toolResult);
+            if (viewUUID) {
+              saveViewState(viewUUID, {
+                status: "completed",
+                result: issueData,
+                submittedTitle: title.trim(),
+                extras: { submittedLabels: selectedLabels },
+              });
+            }
             // Per the MCP Apps 2026-01-26 spec, push the created/updated issue
             // into the model's context so subsequent agent turns have it.
             void setModelContext({
@@ -1097,7 +1117,17 @@ function CreateIssueApp() {
               ],
             });
           } catch {
-            setSuccessIssue({ title, body });
+            const fallback = { title, body };
+            setSuccessIssue(fallback);
+            const viewUUID = getViewUUID(toolResult);
+            if (viewUUID) {
+              saveViewState(viewUUID, {
+                status: "completed",
+                result: fallback,
+                submittedTitle: title.trim(),
+                extras: { submittedLabels: selectedLabels },
+              });
+            }
           }
         }
       }
@@ -1123,6 +1153,7 @@ function CreateIssueApp() {
     fieldValues,
     issueFieldsByName,
     toolInput,
+    toolResult,
     callTool,
     setModelContext,
   ]);
@@ -1228,8 +1259,8 @@ function CreateIssueApp() {
         issue={shownIssue}
         owner={owner}
         repo={repo}
-        submittedTitle={title}
-        submittedLabels={selectedLabels}
+        submittedTitle={shownSubmittedTitle}
+        submittedLabels={shownSubmittedLabels}
         isUpdate={isUpdateMode}
         openLink={openLink}
       />

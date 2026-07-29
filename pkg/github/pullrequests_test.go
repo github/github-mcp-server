@@ -2776,6 +2776,12 @@ func Test_CreatePullRequest_MCPAppsFeature_UIGate(t *testing.T) {
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "interactive form has been shown to the user for creating a new pull request")
 		assert.True(t, result.IsError, "form-routing stub should be marked IsError so agents don't claim success")
+
+		// github/github-mcp-server#2965: remount persistence keys off _meta.viewUUID.
+		require.NotNil(t, result.Meta, "deferral must include Meta for viewUUID")
+		viewUUID, ok := result.Meta["viewUUID"].(string)
+		require.True(t, ok, "viewUUID should be a string")
+		assert.NotEmpty(t, viewUUID)
 	})
 
 	t.Run("UI client with _ui_submitted executes directly", func(t *testing.T) {

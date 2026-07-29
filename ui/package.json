@@ -11,6 +11,7 @@
     "build": "node scripts/build.mjs",
     "dev": "npm run build",
     "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test src/lib/viewState.test.ts",
     "clean": "rm -rf dist"
   },
   "dependencies": {
