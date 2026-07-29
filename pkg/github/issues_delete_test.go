@@ -23,7 +23,7 @@ import (
 func Test_IssueRequest_EmptyFieldValues_OmittedByJSON(t *testing.T) {
 	t.Parallel()
 
-	req := &gogithub.IssueRequest{
+	req := &gogithub.UpdateIssueRequest{
 		Title:            gogithub.Ptr("still here"),
 		IssueFieldValues: []*gogithub.IssueRequestFieldValue{},
 	}

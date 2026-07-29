@@ -777,10 +777,10 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			newPR := &github.NewPullRequest{
+			newPR := &github.CreatePullRequest{
 				Title: github.Ptr(title),
-				Head:  github.Ptr(head),
-				Base:  github.Ptr(base),
+				Head:  head,
+				Base:  base,
 			}
 
 			if body != "" {
@@ -794,7 +794,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
-			pr, resp, err := client.PullRequests.Create(ctx, owner, repo, newPR)
+			pr, resp, err := client.PullRequests.Create(ctx, owner, repo, *newPR)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to create pull request",

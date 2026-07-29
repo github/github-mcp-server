@@ -2382,11 +2382,11 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 	}
 
 	// Create the issue request
-	issueRequest := &github.IssueRequest{
-		Title:            github.Ptr(title),
+	issueRequest := github.CreateIssueRequest{
+		Title:            title,
 		Body:             github.Ptr(body),
-		Assignees:        &assignees,
-		Labels:           &labels,
+		Assignees:        assignees,
+		Labels:           labels,
 		IssueFieldValues: issueFieldValues,
 	}
 
@@ -2449,7 +2449,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	}
 
 	// Create the issue request with only provided fields
-	issueRequest := &github.IssueRequest{}
+	issueRequest := github.UpdateIssueRequest{}
 
 	// Set optional parameters if provided
 	if title != "" {
@@ -2461,11 +2461,11 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	}
 
 	if updateOptions.LabelsProvided {
-		issueRequest.Labels = &labels
+		issueRequest.Labels = labels
 	}
 
 	if updateOptions.AssigneesProvided {
-		issueRequest.Assignees = &assignees
+		issueRequest.Assignees = assignees
 	}
 
 	if milestoneNum != 0 {
@@ -2519,7 +2519,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		}
 	}
 
-	updatedIssue, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)
+	updatedIssue, resp, err := client.Issues.Update(ctx, owner, repo, issueNumber, issueRequest)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
 			"failed to update issue",
