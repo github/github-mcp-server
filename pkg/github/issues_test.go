@@ -812,11 +812,7 @@ func Test_SearchIssues(t *testing.T) {
 	// Verify tool definition once
 	serverTool := SearchIssues(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	// SearchIssues is the FeatureFlagFieldsParam-enabled variant; it owns the
-	// _ff_<flag> snapshot. The canonical search_issues.snap is owned by
-	// LegacySearchIssues (see Test_LegacySearchIssues_Definition).
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
-	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_issues", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -1449,7 +1445,7 @@ func Test_CreateIssue(t *testing.T) {
 		State:     github.Ptr("open"),
 		HTMLURL:   github.Ptr("https://github.com/owner/repo/issues/123"),
 		Assignees: []*github.User{{Login: github.Ptr("user1")}, {Login: github.Ptr("user2")}},
-		Labels:    []*github.Label{{Name: github.Ptr("bug")}, {Name: github.Ptr("help wanted")}},
+		Labels:    []*github.Label{{Name: "bug"}, {Name: "help wanted"}},
 		Milestone: &github.Milestone{Number: github.Ptr(5)},
 		Type:      &github.IssueType{Name: github.Ptr("Bug")},
 	}
@@ -1520,10 +1516,8 @@ func Test_CreateIssue(t *testing.T) {
 			name: "successful issue creation with issue fields reconciled by names",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposIssuesByOwnerByRepo: expectRequestBody(t, map[string]any{
-					"title":     "Issue with fields",
-					"body":      "",
-					"labels":    []any{},
-					"assignees": []any{},
+					"title": "Issue with fields",
+					"body":  "",
 					"issue_field_values": []any{
 						map[string]any{"field_id": float64(101), "value": "P1"},
 						map[string]any{"field_id": float64(102), "value": "Acme"},
@@ -1897,11 +1891,7 @@ func Test_ListIssues(t *testing.T) {
 	// Verify tool definition
 	serverTool := ListIssues(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	// ListIssues is the FeatureFlagFieldsParam-enabled variant; it owns the
-	// _ff_<flag> snapshot. The canonical list_issues.snap is owned by
-	// LegacyListIssues (see Test_LegacyListIssues_Definition).
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
-	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_issues", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -2851,7 +2841,7 @@ func Test_UpdateIssue(t *testing.T) {
 		State:     github.Ptr("open"),
 		HTMLURL:   github.Ptr("https://github.com/owner/repo/issues/123"),
 		Assignees: []*github.User{{Login: github.Ptr("assignee1")}, {Login: github.Ptr("assignee2")}},
-		Labels:    []*github.Label{{Name: github.Ptr("bug")}, {Name: github.Ptr("priority")}},
+		Labels:    []*github.Label{{Name: "bug"}, {Name: "priority"}},
 		Milestone: &github.Milestone{Number: github.Ptr(5)},
 		Type:      &github.IssueType{Name: github.Ptr("Bug")},
 	}
@@ -2864,7 +2854,7 @@ func Test_UpdateIssue(t *testing.T) {
 		StateReason: github.Ptr("duplicate"),
 		HTMLURL:     github.Ptr("https://github.com/owner/repo/issues/123"),
 		Assignees:   []*github.User{{Login: github.Ptr("assignee1")}, {Login: github.Ptr("assignee2")}},
-		Labels:      []*github.Label{{Name: github.Ptr("bug")}, {Name: github.Ptr("priority")}},
+		Labels:      []*github.Label{{Name: "bug"}, {Name: "priority"}},
 		Milestone:   &github.Milestone{Number: github.Ptr(5)},
 		Type:        &github.IssueType{Name: github.Ptr("Bug")},
 	}
@@ -3265,7 +3255,7 @@ func Test_UpdateIssue(t *testing.T) {
 						Number:    github.Ptr(123),
 						Title:     github.Ptr("Updated Title"),
 						Body:      github.Ptr("Updated Description"),
-						Labels:    []*github.Label{{Name: github.Ptr("bug")}, {Name: github.Ptr("priority")}},
+						Labels:    []*github.Label{{Name: "bug"}, {Name: "priority"}},
 						Assignees: []*github.User{{Login: github.Ptr("assignee1")}, {Login: github.Ptr("assignee2")}},
 						Milestone: &github.Milestone{Number: github.Ptr(5)},
 						Type:      &github.IssueType{Name: github.Ptr("Bug")},
@@ -3970,8 +3960,8 @@ func Test_AddSubIssue(t *testing.T) {
 		},
 		Labels: []*github.Label{
 			{
-				Name:        github.Ptr("enhancement"),
-				Color:       github.Ptr("84b6eb"),
+				Name:        "enhancement",
+				Color:       "84b6eb",
 				Description: github.Ptr("New feature or request"),
 			},
 		},
@@ -4195,8 +4185,8 @@ func Test_GetSubIssues(t *testing.T) {
 			},
 			Labels: []*github.Label{
 				{
-					Name:        github.Ptr("bug"),
-					Color:       github.Ptr("d73a4a"),
+					Name:        "bug",
+					Color:       "d73a4a",
 					Description: github.Ptr("Something isn't working"),
 				},
 			},
@@ -4684,8 +4674,8 @@ func Test_RemoveSubIssue(t *testing.T) {
 		},
 		Labels: []*github.Label{
 			{
-				Name:        github.Ptr("enhancement"),
-				Color:       github.Ptr("84b6eb"),
+				Name:        "enhancement",
+				Color:       "84b6eb",
 				Description: github.Ptr("New feature or request"),
 			},
 		},
@@ -4892,8 +4882,8 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		},
 		Labels: []*github.Label{
 			{
-				Name:        github.Ptr("enhancement"),
-				Color:       github.Ptr("84b6eb"),
+				Name:        "enhancement",
+				Color:       "84b6eb",
 				Description: github.Ptr("New feature or request"),
 			},
 		},

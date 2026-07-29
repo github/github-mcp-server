@@ -7,6 +7,39 @@
   "description": "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue",
   "inputSchema": {
     "properties": {
+      "fields": {
+        "description": "Subset of fields to return for each issue result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data.",
+        "items": {
+          "enum": [
+            "number",
+            "title",
+            "body",
+            "state",
+            "state_reason",
+            "draft",
+            "locked",
+            "html_url",
+            "user",
+            "author_association",
+            "labels",
+            "assignee",
+            "assignees",
+            "milestone",
+            "comments",
+            "reactions",
+            "created_at",
+            "updated_at",
+            "closed_at",
+            "closed_by",
+            "type",
+            "repository_url",
+            "pull_request",
+            "field_values"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
       "order": {
         "description": "Sort order",
         "enum": [

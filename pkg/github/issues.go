@@ -1595,34 +1595,8 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 	return utils.NewToolResultText(string(r)), nil
 }
 
-// SearchIssues creates a tool to search for issues. It is the
-// FeatureFlagFieldsParam-enabled variant: it advertises the optional `fields`
-// parameter and filters each result to the requested subset. Both this and
-// LegacySearchIssues register under the tool name "search_issues"; exactly one is
-// active for any given request thanks to mutually exclusive FeatureFlagEnable /
-// FeatureFlagDisable annotations.
+// SearchIssues creates a tool to search for issues.
 func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := searchIssuesTool(t, true)
-	st.FeatureFlagEnable = FeatureFlagFieldsParam
-	return st
-}
-
-// LegacySearchIssues is the FeatureFlagFieldsParam-disabled variant of
-// search_issues. It exposes the original schema (no `fields` parameter) and never
-// filters results, so it acts as the kill switch when the flag is off. It owns
-// the canonical search_issues.snap; the flag-enabled variant owns
-// search_issues_ff_<flag>.snap. Delete this function when the flag is removed.
-func LegacySearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := searchIssuesTool(t, false)
-	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
-	return st
-}
-
-// searchIssuesTool builds the search_issues tool. When includeFields is true the
-// tool advertises the optional `fields` parameter, filters each result to the
-// requested subset, and emits fields telemetry. When false it is the original
-// tool with no fields parameter and no filtering.
-func searchIssuesTool(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1663,12 +1637,10 @@ func searchIssuesTool(t translations.TranslationHelperFunc, includeFields bool) 
 		},
 		Required: []string{"query"},
 	}
-	if includeFields {
-		schema.Properties["fields"] = fieldsSchemaProperty(
-			"Subset of fields to return for each issue result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data.",
-			searchIssuesItemFieldEnum,
-		)
-	}
+	schema.Properties["fields"] = fieldsSchemaProperty(
+		"Subset of fields to return for each issue result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data.",
+		searchIssuesItemFieldEnum,
+	)
 	WithPagination(schema)
 
 	return NewTool(
@@ -1685,13 +1657,11 @@ func searchIssuesTool(t translations.TranslationHelperFunc, includeFields bool) 
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			options := []searchOption{ifcSearchPostProcessOption(ctx, deps)}
-			if includeFields {
-				fields, err := OptionalStringArrayParam(args, "fields")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				options = append(options, withFieldsFiltering(deps, "search_issues", fields))
+			fields, err := OptionalStringArrayParam(args, "fields")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			options = append(options, withFieldsFiltering(deps, "search_issues", fields))
 			result, err := searchIssuesHandler(ctx, deps, args, options...)
 			return result, nil, err
 		})
@@ -2382,11 +2352,11 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 	}
 
 	// Create the issue request
-	issueRequest := &github.IssueRequest{
-		Title:            github.Ptr(title),
+	issueRequest := github.CreateIssueRequest{
+		Title:            title,
 		Body:             github.Ptr(body),
-		Assignees:        &assignees,
-		Labels:           &labels,
+		Assignees:        assignees,
+		Labels:           labels,
 		IssueFieldValues: issueFieldValues,
 	}
 
@@ -2449,7 +2419,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	}
 
 	// Create the issue request with only provided fields
-	issueRequest := &github.IssueRequest{}
+	issueRequest := github.UpdateIssueRequest{}
 
 	// Set optional parameters if provided
 	if title != "" {
@@ -2461,11 +2431,11 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	}
 
 	if updateOptions.LabelsProvided {
-		issueRequest.Labels = &labels
+		issueRequest.Labels = labels
 	}
 
 	if updateOptions.AssigneesProvided {
-		issueRequest.Assignees = &assignees
+		issueRequest.Assignees = assignees
 	}
 
 	if milestoneNum != 0 {
@@ -2519,7 +2489,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		}
 	}
 
-	updatedIssue, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)
+	updatedIssue, resp, err := client.Issues.Update(ctx, owner, repo, issueNumber, issueRequest)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
 			"failed to update issue",
@@ -2652,34 +2622,8 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	return utils.NewToolResultText(string(r)), nil
 }
 
-// ListIssues creates a tool to list issues in a GitHub repository. It is the
-// FeatureFlagFieldsParam-enabled variant: it advertises the optional `fields`
-// parameter and filters each issue to the requested subset. Both this and
-// LegacyListIssues register under the tool name "list_issues"; exactly one is
-// active for any given request thanks to mutually exclusive FeatureFlagEnable /
-// FeatureFlagDisable annotations.
+// ListIssues creates a tool to list issues in a GitHub repository.
 func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := listIssuesTool(t, true)
-	st.FeatureFlagEnable = FeatureFlagFieldsParam
-	return st
-}
-
-// LegacyListIssues is the FeatureFlagFieldsParam-disabled variant of list_issues.
-// It exposes the original schema (no `fields` parameter) and never filters
-// results, so it acts as the kill switch when the flag is off. It owns the
-// canonical list_issues.snap; the flag-enabled variant owns
-// list_issues_ff_<flag>.snap. Delete this function when the flag is removed.
-func LegacyListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := listIssuesTool(t, false)
-	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
-	return st
-}
-
-// listIssuesTool builds the list_issues tool. When includeFields is true the
-// tool advertises the optional `fields` parameter, filters each issue to the
-// requested subset, and emits fields telemetry. When false it is the original
-// tool with no fields parameter and no filtering.
-func listIssuesTool(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -2738,12 +2682,10 @@ func listIssuesTool(t translations.TranslationHelperFunc, includeFields bool) in
 		},
 		Required: []string{"owner", "repo"},
 	}
-	if includeFields {
-		schema.Properties["fields"] = fieldsSchemaProperty(
-			"Subset of fields to return for each issue. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' and 'field_values' in particular drops the largest per-result data.",
-			listIssuesItemFieldEnum,
-		)
-	}
+	schema.Properties["fields"] = fieldsSchemaProperty(
+		"Subset of fields to return for each issue. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' and 'field_values' in particular drops the largest per-result data.",
+		listIssuesItemFieldEnum,
+	)
 	WithCursorPagination(schema)
 
 	st := NewTool(
@@ -2768,12 +2710,9 @@ func listIssuesTool(t translations.TranslationHelperFunc, includeFields bool) in
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			var fields []string
-			if includeFields {
-				fields, err = OptionalStringArrayParam(args, "fields")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
+			fields, err := OptionalStringArrayParam(args, "fields")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			// Set optional parameters if provided
@@ -2947,7 +2886,7 @@ func listIssuesTool(t translations.TranslationHelperFunc, includeFields bool) in
 
 			filtered := false
 			var payload any = resp
-			if includeFields && len(fields) > 0 {
+			if len(fields) > 0 {
 				filteredIssues, err := filterEachField(resp.Issues, fields)
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to filter issues", err), nil, nil
@@ -2965,9 +2904,7 @@ func listIssuesTool(t translations.TranslationHelperFunc, includeFields bool) in
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			if includeFields {
-				recordFieldsUsageFor(ctx, deps, "list_issues", resp, filtered, len(r))
-			}
+			recordFieldsUsageFor(ctx, deps, "list_issues", resp, filtered, len(r))
 
 			result := utils.NewToolResultText(string(r))
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelListIssues(isPrivate))
