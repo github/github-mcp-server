@@ -812,11 +812,7 @@ func Test_SearchIssues(t *testing.T) {
 	// Verify tool definition once
 	serverTool := SearchIssues(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	// SearchIssues is the FeatureFlagFieldsParam-enabled variant; it owns the
-	// _ff_<flag> snapshot. The canonical search_issues.snap is owned by
-	// LegacySearchIssues (see Test_LegacySearchIssues_Definition).
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
-	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_issues", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -1897,11 +1893,7 @@ func Test_ListIssues(t *testing.T) {
 	// Verify tool definition
 	serverTool := ListIssues(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	// ListIssues is the FeatureFlagFieldsParam-enabled variant; it owns the
-	// _ff_<flag> snapshot. The canonical list_issues.snap is owned by
-	// LegacyListIssues (see Test_LegacyListIssues_Definition).
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
-	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_issues", tool.Name)
 	assert.NotEmpty(t, tool.Description)

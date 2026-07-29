@@ -615,11 +615,7 @@ func Test_ListPullRequests(t *testing.T) {
 	// Verify tool definition once
 	serverTool := ListPullRequests(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	// ListPullRequests is the FeatureFlagFieldsParam-enabled variant; it owns
-	// the _ff_<flag> snapshot. The canonical list_pull_requests.snap is owned by
-	// LegacyListPullRequests (see Test_LegacyListPullRequests_Definition).
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
-	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_pull_requests", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -866,11 +862,7 @@ func Test_MergePullRequest(t *testing.T) {
 func Test_SearchPullRequests(t *testing.T) {
 	serverTool := SearchPullRequests(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	// SearchPullRequests is the FeatureFlagFieldsParam-enabled variant; it owns
-	// the _ff_<flag> snapshot. The canonical search_pull_requests.snap is owned
-	// by LegacySearchPullRequests (see Test_LegacySearchPullRequests_Definition).
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
-	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_pull_requests", tool.Name)
 	assert.NotEmpty(t, tool.Description)
