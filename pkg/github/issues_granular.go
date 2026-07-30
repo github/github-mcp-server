@@ -29,7 +29,7 @@ func issueUpdateTool(
 	name, description, title string,
 	extraProps map[string]*jsonschema.Schema,
 	extraRequired []string,
-	buildRequest func(args map[string]any) (*github.IssueRequest, error),
+	buildRequest func(args map[string]any) (github.UpdateIssueRequest, error),
 ) inventory.ServerTool {
 	props := map[string]*jsonschema.Schema{
 		"owner": {
@@ -92,7 +92,7 @@ func issueUpdateTool(
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			issue, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueReq)
+			issue, resp, err := client.Issues.Update(ctx, owner, repo, issueNumber, issueReq)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue", resp, err), nil, nil
 			}
@@ -164,8 +164,8 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			}
 			body, _ := OptionalParam[string](args, "body")
 
-			issueReq := &github.IssueRequest{
-				Title: &title,
+			issueReq := github.CreateIssueRequest{
+				Title: title,
 			}
 			if body != "" {
 				issueReq.Body = &body
@@ -206,12 +206,12 @@ func GranularUpdateIssueTitle(t translations.TranslationHelperFunc) inventory.Se
 			"title": {Type: "string", Description: "The new title for the issue"},
 		},
 		[]string{"title"},
-		func(args map[string]any) (*github.IssueRequest, error) {
+		func(args map[string]any) (github.UpdateIssueRequest, error) {
 			title, err := RequiredParam[string](args, "title")
 			if err != nil {
-				return nil, err
+				return github.UpdateIssueRequest{}, err
 			}
-			return &github.IssueRequest{Title: &title}, nil
+			return github.UpdateIssueRequest{Title: &title}, nil
 		},
 	)
 }
@@ -226,12 +226,12 @@ func GranularUpdateIssueBody(t translations.TranslationHelperFunc) inventory.Ser
 			"body": {Type: "string", Description: "The new body content for the issue"},
 		},
 		[]string{"body"},
-		func(args map[string]any) (*github.IssueRequest, error) {
+		func(args map[string]any) (github.UpdateIssueRequest, error) {
 			body, err := RequiredParam[string](args, "body")
 			if err != nil {
-				return nil, err
+				return github.UpdateIssueRequest{}, err
 			}
-			return &github.IssueRequest{Body: &body}, nil
+			return github.UpdateIssueRequest{Body: &body}, nil
 		},
 	)
 }
@@ -392,7 +392,7 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 				for i, p := range payload {
 					logins[i] = p.(string)
 				}
-				body = &github.IssueRequest{Assignees: &logins}
+				body = &github.UpdateIssueRequest{Assignees: logins}
 			}
 
 			apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
@@ -610,7 +610,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 				for i, p := range payload {
 					names[i] = p.(string)
 				}
-				body = &github.IssueRequest{Labels: &names}
+				body = &github.UpdateIssueRequest{Labels: names}
 			}
 
 			apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
@@ -654,12 +654,12 @@ func GranularUpdateIssueMilestone(t translations.TranslationHelperFunc) inventor
 			},
 		},
 		[]string{"milestone"},
-		func(args map[string]any) (*github.IssueRequest, error) {
+		func(args map[string]any) (github.UpdateIssueRequest, error) {
 			milestone, err := RequiredInt(args, "milestone")
 			if err != nil {
-				return nil, err
+				return github.UpdateIssueRequest{}, err
 			}
-			return &github.IssueRequest{Milestone: &milestone}, nil
+			return github.UpdateIssueRequest{Milestone: &milestone}, nil
 		},
 	)
 }
@@ -787,7 +787,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 					},
 				}
 			} else {
-				body = &github.IssueRequest{Type: &issueType}
+				body = &github.UpdateIssueRequest{Type: &issueType}
 			}
 
 			apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
@@ -981,7 +981,7 @@ func GranularUpdateIssueState(t translations.TranslationHelperFunc) inventory.Se
 				}
 				body = req
 			} else {
-				req := &github.IssueRequest{State: &state}
+				req := &github.UpdateIssueRequest{State: &state}
 				if stateReason != "" {
 					req.StateReason = &stateReason
 				}
