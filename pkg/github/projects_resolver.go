@@ -52,33 +52,40 @@ type projectFieldsQueryUser struct {
 	} `graphql:"user(login: $owner)"`
 }
 
-// projectFieldsConnection is a paginated list of project fields. We select `id`
-// to discriminate the union variant and `databaseId` for the numeric ID REST needs.
+type projectFieldNode struct {
+	ProjectV2Field struct {
+		ID         githubv4.ID
+		DatabaseID githubv4.Int `graphql:"databaseId"`
+		Name       githubv4.String
+		DataType   githubv4.String
+	} `graphql:"... on ProjectV2Field"`
+	ProjectV2IterationField struct {
+		ID         githubv4.ID
+		DatabaseID githubv4.Int `graphql:"databaseId"`
+		Name       githubv4.String
+		DataType   githubv4.String
+	} `graphql:"... on ProjectV2IterationField"`
+	ProjectV2MultiSelectField struct {
+		ID         githubv4.ID
+		DatabaseID githubv4.Int `graphql:"databaseId"`
+		Name       githubv4.String
+		DataType   githubv4.String
+	} `graphql:"... on ProjectV2MultiSelectField"`
+	ProjectV2SingleSelectField struct {
+		ID         githubv4.ID
+		DatabaseID githubv4.Int `graphql:"databaseId"`
+		Name       githubv4.String
+		DataType   githubv4.String
+		Options    []struct {
+			ID   githubv4.String
+			Name githubv4.String
+		}
+	} `graphql:"... on ProjectV2SingleSelectField"`
+}
+
+// projectFieldsConnection is a paginated list of project fields.
 type projectFieldsConnection struct {
-	Nodes []struct {
-		ProjectV2Field struct {
-			ID         githubv4.ID
-			DatabaseID githubv4.Int `graphql:"databaseId"`
-			Name       githubv4.String
-			DataType   githubv4.String
-		} `graphql:"... on ProjectV2Field"`
-		ProjectV2IterationField struct {
-			ID         githubv4.ID
-			DatabaseID githubv4.Int `graphql:"databaseId"`
-			Name       githubv4.String
-			DataType   githubv4.String
-		} `graphql:"... on ProjectV2IterationField"`
-		ProjectV2SingleSelectField struct {
-			ID         githubv4.ID
-			DatabaseID githubv4.Int `graphql:"databaseId"`
-			Name       githubv4.String
-			DataType   githubv4.String
-			Options    []struct {
-				ID   githubv4.String
-				Name githubv4.String
-			}
-		} `graphql:"... on ProjectV2SingleSelectField"`
-	}
+	Nodes    []projectFieldNode
 	PageInfo PageInfoFragment
 }
 
@@ -134,6 +141,13 @@ func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner
 					Name:     string(n.ProjectV2IterationField.Name),
 					DataType: string(n.ProjectV2IterationField.DataType),
 				})
+			case n.ProjectV2MultiSelectField.ID != nil:
+				all = append(all, ResolvedField{
+					ID:       fmt.Sprintf("%d", n.ProjectV2MultiSelectField.DatabaseID),
+					NodeID:   fmt.Sprintf("%v", n.ProjectV2MultiSelectField.ID),
+					Name:     string(n.ProjectV2MultiSelectField.Name),
+					DataType: string(n.ProjectV2MultiSelectField.DataType),
+				})
 			case n.ProjectV2Field.ID != nil:
 				all = append(all, ResolvedField{
 					ID:       fmt.Sprintf("%d", n.ProjectV2Field.DatabaseID),
@@ -152,6 +166,46 @@ func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner
 	}
 
 	return all, nil
+}
+
+func resolveFieldsByName(all []ResolvedField, owner string, projectNumber int, names []string, idParameter string) ([]ResolvedField, error) {
+	byName := make(map[string][]ResolvedField, len(all))
+	for _, field := range all {
+		key := strings.ToLower(field.Name)
+		byName[key] = append(byName[key], field)
+	}
+
+	resolved := make([]ResolvedField, 0, len(names))
+	for _, name := range names {
+		matches := byName[strings.ToLower(name)]
+		switch len(matches) {
+		case 0:
+			candidates := make([]any, 0, len(all))
+			for _, field := range all {
+				candidates = append(candidates, map[string]any{"name": field.Name, "data_type": field.DataType})
+			}
+			return nil, ghErrors.NewStructuredResolutionError(
+				"field_not_found",
+				name,
+				fmt.Sprintf("no project field named %q on project %s#%d", name, owner, projectNumber),
+				candidates,
+			)
+		case 1:
+			resolved = append(resolved, matches[0])
+		default:
+			candidates := make([]any, 0, len(matches))
+			for _, field := range matches {
+				candidates = append(candidates, map[string]any{"id": field.ID, "data_type": field.DataType})
+			}
+			return nil, ghErrors.NewStructuredResolutionError(
+				"field_ambiguous",
+				name,
+				fmt.Sprintf("multiple fields share this name; pass numeric IDs via '%s' to disambiguate", idParameter),
+				candidates,
+			)
+		}
+	}
+	return resolved, nil
 }
 
 // resolveProjectFieldByName resolves a field by display name. Returns a
@@ -544,47 +598,17 @@ func resolveFieldNamesToIDs(ctx context.Context, gqlClient *githubv4.Client, own
 }
 
 func resolveFieldNamesToIDsFromFields(all []ResolvedField, names []string, owner string, projectNumber int, idParameter string) ([]int64, error) {
-	// Build a name -> []ResolvedField map so we can detect duplicates per name.
-	// Matching is case-insensitive to align with the GraphQL API's behaviour.
-	byName := make(map[string][]ResolvedField, len(all))
-	for _, f := range all {
-		key := strings.ToLower(f.Name)
-		byName[key] = append(byName[key], f)
+	resolved, err := resolveFieldsByName(all, owner, projectNumber, names, idParameter)
+	if err != nil {
+		return nil, err
 	}
-
 	out := make([]int64, 0, len(names))
-	for _, name := range names {
-		matches := byName[strings.ToLower(name)]
-		switch len(matches) {
-		case 0:
-			candidates := make([]any, 0, len(all))
-			for _, f := range all {
-				candidates = append(candidates, map[string]any{"name": f.Name, "data_type": f.DataType})
-			}
-			return nil, ghErrors.NewStructuredResolutionError(
-				"field_not_found",
-				name,
-				fmt.Sprintf("no project field named %q on project %s#%d", name, owner, projectNumber),
-				candidates,
-			)
-		case 1:
-			id, parseErr := parseInt64(matches[0].ID)
-			if parseErr != nil {
-				return nil, fmt.Errorf("resolved field %q has non-numeric ID %q; pass it via '%s' instead", name, matches[0].ID, idParameter)
-			}
-			out = append(out, id)
-		default:
-			candidates := make([]any, 0, len(matches))
-			for _, f := range matches {
-				candidates = append(candidates, map[string]any{"id": f.ID, "data_type": f.DataType})
-			}
-			return nil, ghErrors.NewStructuredResolutionError(
-				"field_ambiguous",
-				name,
-				fmt.Sprintf("multiple fields share this name; pass numeric IDs via '%s' to disambiguate", idParameter),
-				candidates,
-			)
+	for i, field := range resolved {
+		id, parseErr := parseInt64(field.ID)
+		if parseErr != nil {
+			return nil, fmt.Errorf("resolved field %q has non-numeric ID %q; pass it via '%s' instead", names[i], field.ID, idParameter)
 		}
+		out = append(out, id)
 	}
 	return out, nil
 }
