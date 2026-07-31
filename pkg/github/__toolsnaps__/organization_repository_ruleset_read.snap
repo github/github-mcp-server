@@ -1,0 +1,44 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Read organization repository rulesets"
+  },
+  "description": "Read an organization's repository rulesets. Select the operation with the 'method' parameter.",
+  "inputSchema": {
+    "properties": {
+      "method": {
+        "description": "Operation to perform:\n- 'get': Get a specific repository ruleset by ID (requires 'ruleset_id').\n- 'list': List all repository rulesets for the organization.",
+        "enum": [
+          "get",
+          "list"
+        ],
+        "type": "string"
+      },
+      "org": {
+        "description": "Organization name",
+        "type": "string"
+      },
+      "page": {
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "ruleset_id": {
+        "description": "Ruleset ID. Required for the 'get' method.",
+        "type": "number"
+      }
+    },
+    "required": [
+      "method",
+      "org"
+    ],
+    "type": "object"
+  },
+  "name": "organization_repository_ruleset_read"
+}

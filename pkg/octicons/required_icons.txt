@@ -29,6 +29,7 @@ git-commit
 git-merge
 git-pull-request
 issue-opened
+law
 logo-gist
 mark-github
 organization

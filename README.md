@@ -562,6 +562,7 @@ The following sets of tools are available:
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/comment-discussion-light.png"><img src="pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture> | `discussions` | GitHub Discussions related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/logo-gist-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/logo-gist-light.png"><img src="pkg/octicons/icons/logo-gist-light.png" width="20" height="20" alt="logo-gist"></picture> | `gists` | GitHub Gist related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-branch-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-branch-light.png"><img src="pkg/octicons/icons/git-branch-light.png" width="20" height="20" alt="git-branch"></picture> | `git` | GitHub Git API related tools for low-level Git operations |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/law-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/law-light.png"><img src="pkg/octicons/icons/law-light.png" width="20" height="20" alt="law"></picture> | `governance` | Repository governance tools for managing rulesets at the repository, organization, and enterprise levels |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/issue-opened-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/issue-opened-light.png"><img src="pkg/octicons/icons/issue-opened-light.png" width="20" height="20" alt="issue-opened"></picture> | `issues` | GitHub Issues related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/tag-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/tag-light.png"><img src="pkg/octicons/icons/tag-light.png" width="20" height="20" alt="tag"></picture> | `labels` | GitHub Labels related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/bell-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/bell-light.png"><img src="pkg/octicons/icons/bell-light.png" width="20" height="20" alt="bell"></picture> | `notifications` | GitHub Notifications related tools |
@@ -832,6 +833,75 @@ The following sets of tools are available:
   - `recursive`: Setting this parameter to true returns the objects or subtrees referenced by the tree. Default is false (boolean, optional)
   - `repo`: Repository name (string, required)
   - `tree_sha`: The SHA1 value or ref (branch or tag) name of the tree. Defaults to the repository's default branch (string, optional)
+
+</details>
+
+<details>
+
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/law-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/law-light.png"><img src="pkg/octicons/icons/law-light.png" width="20" height="20" alt="law"></picture> Governance</summary>
+
+- **create_enterprise_repository_ruleset** - Create enterprise repository ruleset
+  - **Required OAuth Scopes**: `admin:enterprise`
+  - `bypass_actors`: The actors that can bypass the rules in this ruleset (object[], optional)
+  - `conditions`: Conditions for when this ruleset applies, e.g. {"ref_name": {"include": ["refs/heads/main"], "exclude": []}} (object, optional)
+  - `enforcement`: The enforcement level of the ruleset. 'evaluate' allows admins to test rules before enforcing them (string, required)
+  - `enterprise`: Enterprise slug (string, required)
+  - `name`: The name of the ruleset (string, required)
+  - `rules`: An array of rules within the ruleset. Each rule is an object with a 'type' (e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks') and, for rules that need configuration, a 'parameters' object (object[], required)
+  - `target`: The target of the ruleset. Defaults to 'branch' (string, optional)
+
+- **create_organization_repository_ruleset** - Create organization repository ruleset
+  - **Required OAuth Scopes**: `admin:org`
+  - `bypass_actors`: The actors that can bypass the rules in this ruleset (object[], optional)
+  - `conditions`: Conditions for when this ruleset applies, e.g. {"ref_name": {"include": ["refs/heads/main"], "exclude": []}} (object, optional)
+  - `enforcement`: The enforcement level of the ruleset. 'evaluate' allows admins to test rules before enforcing them (string, required)
+  - `name`: The name of the ruleset (string, required)
+  - `org`: Organization name (string, required)
+  - `rules`: An array of rules within the ruleset. Each rule is an object with a 'type' (e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks') and, for rules that need configuration, a 'parameters' object (object[], required)
+  - `target`: The target of the ruleset. Defaults to 'branch' (string, optional)
+
+- **create_repository_ruleset** - Create repository ruleset
+  - **Required OAuth Scopes**: `repo`
+  - `bypass_actors`: The actors that can bypass the rules in this ruleset (object[], optional)
+  - `conditions`: Conditions for when this ruleset applies, e.g. {"ref_name": {"include": ["refs/heads/main"], "exclude": []}} (object, optional)
+  - `enforcement`: The enforcement level of the ruleset. 'evaluate' allows admins to test rules before enforcing them (string, required)
+  - `name`: The name of the ruleset (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `rules`: An array of rules within the ruleset. Each rule is an object with a 'type' (e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks') and, for rules that need configuration, a 'parameters' object (object[], required)
+  - `target`: The target of the ruleset. Defaults to 'branch' (string, optional)
+
+- **organization_repository_ruleset_read** - Read organization repository rulesets
+  - **Required OAuth Scopes**: `read:org`
+  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
+  - `method`: Operation to perform:
+    - 'get': Get a specific repository ruleset by ID (requires 'ruleset_id').
+    - 'list': List all repository rulesets for the organization. (string, required)
+  - `org`: Organization name (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `ruleset_id`: Ruleset ID. Required for the 'get' method. (number, optional)
+
+- **repository_ruleset_read** - Read repository rulesets
+  - **Required OAuth Scopes**: `repo`
+  - `actor_name`: The handle for the GitHub user account to filter rule suites on. Used by the 'list_rule_suites' method. (string, optional)
+  - `branch`: Branch name. Required for the 'get_rules_for_branch' method. (string, optional)
+  - `includes_parents`: Include rulesets configured at higher levels that also apply. Defaults to true. Used by the 'get' and 'list' methods. (boolean, optional)
+  - `method`: Operation to perform:
+    - 'get': Get a specific ruleset by ID (requires 'ruleset_id').
+    - 'list': List all rulesets for the repository.
+    - 'get_rules_for_branch': Get all rules that apply to a branch (requires 'branch').
+    - 'list_rule_suites': List rule suites, the evaluations of rules against pushes.
+    - 'get_rule_suite': Get a specific rule suite by ID (requires 'rule_suite_id'). (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `ref`: The name of the ref (branch, tag, etc.) to filter rule suites by. Used by the 'list_rule_suites' method. (string, optional)
+  - `repo`: Repository name (string, required)
+  - `rule_suite_id`: Rule suite ID. Required for the 'get_rule_suite' method. (number, optional)
+  - `rule_suite_result`: The rule suite result to filter by. Used by the 'list_rule_suites' method. (string, optional)
+  - `ruleset_id`: Ruleset ID. Required for the 'get' method. (number, optional)
+  - `time_period`: The time period to filter rule suites by. Used by the 'list_rule_suites' method. (string, optional)
 
 </details>
 
