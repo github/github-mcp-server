@@ -173,6 +173,12 @@ func TestResolveFeatureFlags(t *testing.T) {
 			unexpectedFlags: []string{FeatureFlagIFCLabels},
 		},
 		{
+			name:            "insiders mode does not auto-enable markdown output",
+			enabledFeatures: nil,
+			insidersMode:    true,
+			unexpectedFlags: []string{FeatureFlagMarkdownOutput},
+		},
+		{
 			name:            "insiders mode does not disable MCP Apps form deferral",
 			enabledFeatures: nil,
 			insidersMode:    true,
@@ -182,6 +188,11 @@ func TestResolveFeatureFlags(t *testing.T) {
 			name:            "ifc_labels can be directly enabled",
 			enabledFeatures: []string{FeatureFlagIFCLabels},
 			expectedFlags:   []string{FeatureFlagIFCLabels},
+		},
+		{
+			name:            "markdown output can be directly enabled",
+			enabledFeatures: []string{FeatureFlagMarkdownOutput},
+			expectedFlags:   []string{FeatureFlagMarkdownOutput},
 		},
 		{
 			name:            "unknown flags are filtered out",

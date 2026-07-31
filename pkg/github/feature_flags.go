@@ -12,6 +12,10 @@ const MCPAppsDisableFormDeferralFeatureFlag = "mcp_apps_disable_form_deferral"
 // FeatureFlagCSVOutput is the feature flag name for CSV output on list tools.
 const FeatureFlagCSVOutput = "csv_output"
 
+// FeatureFlagMarkdownOutput is the feature flag name for lossless Markdown output
+// on the response-format evaluation tools.
+const FeatureFlagMarkdownOutput = "markdown_output"
+
 // FeatureFlagIFCLabels is the feature flag name for IFC security labels in tool results.
 const FeatureFlagIFCLabels = "ifc_labels"
 
@@ -35,6 +39,7 @@ var AllowedFeatureFlags = []string{
 	MCPAppsFeatureFlag,
 	MCPAppsDisableFormDeferralFeatureFlag,
 	FeatureFlagCSVOutput,
+	FeatureFlagMarkdownOutput,
 	FeatureFlagIFCLabels,
 	FeatureFlagIssuesGranular,
 	FeatureFlagPullRequestsGranular,

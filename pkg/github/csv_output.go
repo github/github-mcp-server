@@ -77,7 +77,9 @@ func wrapHandlerWithCSVOutput(next inventory.HandlerFunc) inventory.HandlerFunc 
 			if err != nil || result == nil || result.IsError {
 				return result, err
 			}
-			if csvDeps == nil || !csvDeps.IsFeatureEnabled(ctx, FeatureFlagCSVOutput) {
+			if csvDeps == nil ||
+				!csvDeps.IsFeatureEnabled(ctx, FeatureFlagCSVOutput) ||
+				csvDeps.IsFeatureEnabled(ctx, FeatureFlagMarkdownOutput) {
 				return result, nil
 			}
 			return convertJSONTextResultToCSV(result), nil

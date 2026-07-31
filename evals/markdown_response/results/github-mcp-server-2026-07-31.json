@@ -1,0 +1,137 @@
+{
+  "captured_at": "2026-07-31",
+  "dataset": {
+    "repository": "github/github-mcp-server",
+    "main_commit": "3778a41476e31a072430cfee7c5d31c5f72def60",
+    "pull_number": 2797
+  },
+  "tokenizer": "tiktoken(o200k_base)",
+  "measurements": {
+    "response": "Compact JSON serialization of the complete MCP tools/call result",
+    "inner_text": "The TextContent text value before client-side message serialization"
+  },
+  "page_sizes": {
+    "1": {
+      "converted_responses": {
+        "json_tokens": 11428,
+        "markdown_tokens": 11006,
+        "tokens_saved_percent": 3.7,
+        "inner_text_tokens_saved_percent": 3.6,
+        "bytes_saved_percent": 9.1
+      },
+      "converted_by_tool_tokens_saved_percent": {
+        "get_file_contents": 9.3,
+        "pull_request_read": -2.2,
+        "create_pull_request": -2.6,
+        "list_pull_requests": -4.7,
+        "search_pull_requests": -3.3
+      },
+      "list_pull_requests": {
+        "full_tokens_saved_percent": -4.2,
+        "full_inner_text_tokens_saved_percent": -3.0,
+        "filtered_tokens_saved_percent": -13.2,
+        "filtered_inner_text_tokens_saved_percent": -15.4
+      },
+      "search_pull_requests": {
+        "full_tokens_saved_percent": -3.3,
+        "full_inner_text_tokens_saved_percent": -2.7,
+        "filtered_tokens_saved_percent": -3.7,
+        "filtered_inner_text_tokens_saved_percent": -5.0
+      }
+    },
+    "10": {
+      "converted_responses": {
+        "json_tokens": 50034,
+        "markdown_tokens": 46309,
+        "tokens_saved_percent": 7.4,
+        "inner_text_tokens_saved_percent": 5.9,
+        "bytes_saved_percent": 10.8
+      },
+      "converted_by_tool_tokens_saved_percent": {
+        "get_file_contents": 9.3,
+        "pull_request_read": 6.1,
+        "create_pull_request": -2.6,
+        "list_pull_requests": 9.0,
+        "search_pull_requests": 7.8
+      },
+      "list_pull_requests": {
+        "full_tokens_saved_percent": 8.9,
+        "full_inner_text_tokens_saved_percent": 8.2,
+        "filtered_tokens_saved_percent": 10.1,
+        "filtered_inner_text_tokens_saved_percent": 7.7
+      },
+      "search_pull_requests": {
+        "full_tokens_saved_percent": 7.8,
+        "full_inner_text_tokens_saved_percent": 6.7,
+        "filtered_tokens_saved_percent": 7.9,
+        "filtered_inner_text_tokens_saved_percent": 5.5
+      }
+    },
+    "30": {
+      "converted_responses": {
+        "json_tokens": 137681,
+        "markdown_tokens": 115402,
+        "tokens_saved_percent": 16.2,
+        "inner_text_tokens_saved_percent": 13.2,
+        "bytes_saved_percent": 15.5
+      },
+      "converted_by_tool_tokens_saved_percent": {
+        "get_file_contents": 9.3,
+        "pull_request_read": 6.5,
+        "create_pull_request": -2.6,
+        "list_pull_requests": 19.2,
+        "search_pull_requests": 18.1
+      },
+      "list_pull_requests": {
+        "full_tokens_saved_percent": 19.3,
+        "full_inner_text_tokens_saved_percent": 16.6,
+        "filtered_tokens_saved_percent": 12.7,
+        "filtered_inner_text_tokens_saved_percent": 9.4
+      },
+      "search_pull_requests": {
+        "full_tokens_saved_percent": 18.2,
+        "full_inner_text_tokens_saved_percent": 14.5,
+        "filtered_tokens_saved_percent": 11.9,
+        "filtered_inner_text_tokens_saved_percent": 8.6
+      }
+    }
+  },
+  "fixed_scenarios": {
+    "get_file_contents.directory": {
+      "json_tokens": 5784,
+      "markdown_tokens": 5322,
+      "tokens_saved_percent": 8.0,
+      "inner_text_tokens_saved_percent": 7.6,
+      "bytes_saved_percent": 15.8
+    },
+    "get_file_contents.directory.filtered": {
+      "json_tokens": 350,
+      "markdown_tokens": 244,
+      "tokens_saved_percent": 30.3,
+      "inner_text_tokens_saved_percent": 28.5,
+      "bytes_saved_percent": 42.9
+    },
+    "pull_request_read.get": {
+      "json_tokens": 1198,
+      "markdown_tokens": 1210,
+      "tokens_saved_percent": -1.0,
+      "inner_text_tokens_saved_percent": -0.9,
+      "bytes_saved_percent": 1.7
+    },
+    "create_pull_request": {
+      "json_tokens": 38,
+      "markdown_tokens": 39,
+      "tokens_saved_percent": -2.6,
+      "inner_text_tokens_saved_percent": -4.0,
+      "bytes_saved_percent": 5.5
+    },
+    "get_file_contents.file": {
+      "tokens_saved_percent": 0.0,
+      "reason": "The tool already returns an MCP resource rather than JSON text"
+    },
+    "pull_request_read.get_diff": {
+      "tokens_saved_percent": 0.0,
+      "reason": "The method already returns plain diff text"
+    }
+  }
+}
