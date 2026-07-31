@@ -357,7 +357,7 @@ type MinimalProjectView struct {
 	Name          string  `json:"name"`
 	Layout        string  `json:"layout"`
 	Filter        string  `json:"filter"`
-	VisibleFields []int64 `json:"visible_fields,omitempty"`
+	VisibleFields []int64 `json:"visible_fields"`
 }
 
 type MinimalProjectItem struct {

@@ -257,14 +257,14 @@
         "type": "string"
       },
       "visible_field_names": {
-        "description": "Field names for table or board creation; mutually exclusive with visible_fields.",
+        "description": "Ordered project field names to show on create or replace on update; omit on update to preserve, or pass [] to reset. Mutually exclusive with visible_fields. Roadmap accepts only [].",
         "items": {
           "type": "string"
         },
         "type": "array"
       },
       "visible_fields": {
-        "description": "Field database IDs for table or board creation; mutually exclusive with visible_field_names.",
+        "description": "Ordered project field database IDs to show on create or replace on update; omit on update to preserve, or pass [] to reset. Mutually exclusive with visible_field_names. Roadmap accepts only [].",
         "items": {
           "type": "string"
         },
