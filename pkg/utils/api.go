@@ -239,9 +239,55 @@ func parseAPIHost(s string) (APIHost, error) {
 		return newDotcomHost()
 	}
 
+	if u.Hostname() == "github.localhost" || strings.HasSuffix(u.Hostname(), ".github.localhost") {
+		return newLocalDevHost(u.Scheme)
+	}
+
 	if u.Hostname() == "ghe.com" || strings.HasSuffix(u.Hostname(), ".ghe.com") {
 		return newGHECHost(s)
 	}
 
 	return newGHESHost(s)
+}
+
+// newLocalDevHost handles a local dotcom checkout served from github.localhost.
+// Local dev mirrors production's split-host layout (api., uploads., raw.) but
+// uses a plain hostname that doesn't match the github.com / ghe.com branches,
+// so without this it falls through to newGHESHost and tries /api/v3 paths that
+// the local stack doesn't serve.
+func newLocalDevHost(scheme string) (APIHost, error) {
+	const root = "github.localhost"
+
+	restURL, err := url.Parse(fmt.Sprintf("%s://api.%s/", scheme, root))
+	if err != nil {
+		return APIHost{}, fmt.Errorf("failed to parse local dev REST URL: %w", err)
+	}
+
+	gqlURL, err := url.Parse(fmt.Sprintf("%s://api.%s/graphql", scheme, root))
+	if err != nil {
+		return APIHost{}, fmt.Errorf("failed to parse local dev GraphQL URL: %w", err)
+	}
+
+	uploadURL, err := url.Parse(fmt.Sprintf("%s://uploads.%s/", scheme, root))
+	if err != nil {
+		return APIHost{}, fmt.Errorf("failed to parse local dev Upload URL: %w", err)
+	}
+
+	rawURL, err := url.Parse(fmt.Sprintf("%s://raw.%s/", scheme, root))
+	if err != nil {
+		return APIHost{}, fmt.Errorf("failed to parse local dev Raw URL: %w", err)
+	}
+
+	authorizationServerURL, err := url.Parse(fmt.Sprintf("%s://%s/login/oauth", scheme, root))
+	if err != nil {
+		return APIHost{}, fmt.Errorf("failed to parse local dev Authorization Server URL: %w", err)
+	}
+
+	return APIHost{
+		restURL:                restURL,
+		gqlURL:                 gqlURL,
+		uploadURL:              uploadURL,
+		rawURL:                 rawURL,
+		authorizationServerURL: authorizationServerURL,
+	}, nil
 }
