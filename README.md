@@ -562,7 +562,7 @@ The following sets of tools are available:
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/comment-discussion-light.png"><img src="pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture> | `discussions` | GitHub Discussions related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/logo-gist-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/logo-gist-light.png"><img src="pkg/octicons/icons/logo-gist-light.png" width="20" height="20" alt="logo-gist"></picture> | `gists` | GitHub Gist related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-branch-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-branch-light.png"><img src="pkg/octicons/icons/git-branch-light.png" width="20" height="20" alt="git-branch"></picture> | `git` | GitHub Git API related tools for low-level Git operations |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/law-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/law-light.png"><img src="pkg/octicons/icons/law-light.png" width="20" height="20" alt="law"></picture> | `governance` | Repository governance tools for managing rulesets at the repository, organization, and enterprise levels |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/law-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/law-light.png"><img src="pkg/octicons/icons/law-light.png" width="20" height="20" alt="law"></picture> | `governance` | Repository governance tools for managing rulesets and custom properties at the repository, organization, and enterprise levels |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/issue-opened-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/issue-opened-light.png"><img src="pkg/octicons/icons/issue-opened-light.png" width="20" height="20" alt="issue-opened"></picture> | `issues` | GitHub Issues related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/tag-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/tag-light.png"><img src="pkg/octicons/icons/tag-light.png" width="20" height="20" alt="tag"></picture> | `labels` | GitHub Labels related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/bell-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/bell-light.png"><img src="pkg/octicons/icons/bell-light.png" width="20" height="20" alt="bell"></picture> | `notifications` | GitHub Notifications related tools |
@@ -850,6 +850,22 @@ The following sets of tools are available:
   - `rules`: An array of rules within the ruleset. Each rule is an object with a 'type' (e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks') and, for rules that need configuration, a 'parameters' object (object[], required)
   - `target`: The target of the ruleset. Defaults to 'branch' (string, optional)
 
+- **create_or_update_enterprise_custom_properties** - Define enterprise custom properties
+  - **Required OAuth Scopes**: `admin:enterprise`
+  - `enterprise`: Enterprise slug (string, required)
+  - `properties`: The custom property definitions to create or update (object[], required)
+
+- **create_or_update_organization_custom_properties** - Define organization custom properties
+  - **Required OAuth Scopes**: `admin:org`
+  - `org`: Organization name (string, required)
+  - `properties`: The custom property definitions to create or update (object[], required)
+
+- **create_or_update_repository_custom_properties** - Set repository custom property values
+  - **Required OAuth Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `properties`: The custom property values to assign to the repository (object[], required)
+  - `repo`: Repository name (string, required)
+
 - **create_organization_repository_ruleset** - Create organization repository ruleset
   - **Required OAuth Scopes**: `admin:org`
   - `bypass_actors`: The actors that can bypass the rules in this ruleset (object[], optional)
@@ -870,6 +886,21 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `rules`: An array of rules within the ruleset. Each rule is an object with a 'type' (e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks') and, for rules that need configuration, a 'parameters' object (object[], required)
   - `target`: The target of the ruleset. Defaults to 'branch' (string, optional)
+
+- **get_enterprise_custom_properties** - Get enterprise custom properties
+  - **Required OAuth Scopes**: `read:enterprise`
+  - **Accepted OAuth Scopes**: `admin:enterprise`, `read:enterprise`
+  - `enterprise`: Enterprise slug (string, required)
+
+- **get_organization_custom_properties** - Get organization custom properties
+  - **Required OAuth Scopes**: `read:org`
+  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
+  - `org`: Organization name (string, required)
+
+- **get_repository_custom_properties** - Get repository custom property values
+  - **Required OAuth Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
 
 - **organization_repository_ruleset_read** - Read organization repository rulesets
   - **Required OAuth Scopes**: `read:org`

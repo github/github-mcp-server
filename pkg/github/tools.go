@@ -74,7 +74,7 @@ var (
 	}
 	ToolsetMetadataGovernance = inventory.ToolsetMetadata{
 		ID:          "governance",
-		Description: "Repository governance tools for managing rulesets at the repository, organization, and enterprise levels",
+		Description: "Repository governance tools for managing rulesets and custom properties at the repository, organization, and enterprise levels",
 		Icon:        "law",
 	}
 	ToolsetMetadataActions = inventory.ToolsetMetadata{
@@ -228,12 +228,18 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		// Organization tools
 		SearchOrgs(t),
 
-		// Governance tools (rulesets)
+		// Governance tools (rulesets & custom properties)
 		RepositoryRulesetRead(t),
 		OrganizationRepositoryRulesetRead(t),
 		CreateRepositoryRuleset(t),
 		CreateOrganizationRepositoryRuleset(t),
 		CreateEnterpriseRepositoryRuleset(t),
+		GetRepositoryCustomProperties(t),
+		CreateOrUpdateRepositoryCustomProperties(t),
+		GetOrganizationCustomProperties(t),
+		CreateOrUpdateOrganizationCustomProperties(t),
+		GetEnterpriseCustomProperties(t),
+		CreateOrUpdateEnterpriseCustomProperties(t),
 
 		// Pull request tools
 		PullRequestRead(t),

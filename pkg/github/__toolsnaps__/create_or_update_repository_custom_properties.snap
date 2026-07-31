@@ -1,0 +1,44 @@
+{
+  "annotations": {
+    "title": "Set repository custom property values"
+  },
+  "description": "Create or update the custom property values assigned to a repository. The properties must already be defined at the organization level",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "properties": {
+        "description": "The custom property values to assign to the repository",
+        "items": {
+          "properties": {
+            "property_name": {
+              "description": "The name of the custom property",
+              "type": "string"
+            },
+            "value": {
+              "description": "The value to assign. A string, an array of strings, or null to clear the value"
+            }
+          },
+          "required": [
+            "property_name"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "properties"
+    ],
+    "type": "object"
+  },
+  "name": "create_or_update_repository_custom_properties"
+}
