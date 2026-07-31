@@ -1,0 +1,74 @@
+{
+  "annotations": {
+    "title": "Define organization custom properties"
+  },
+  "description": "Create or update custom property definitions (schema) for an organization",
+  "inputSchema": {
+    "properties": {
+      "org": {
+        "description": "Organization name",
+        "type": "string"
+      },
+      "properties": {
+        "description": "The custom property definitions to create or update",
+        "items": {
+          "properties": {
+            "allowed_values": {
+              "description": "An ordered list of the allowed values of the property (for single_select and multi_select)",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "default_value": {
+              "description": "Default value of the property. A string or an array of strings"
+            },
+            "description": {
+              "description": "Short description of the property",
+              "type": "string"
+            },
+            "property_name": {
+              "description": "The name of the custom property",
+              "type": "string"
+            },
+            "required": {
+              "description": "Whether the property is required",
+              "type": "boolean"
+            },
+            "value_type": {
+              "description": "The type of the value for the property",
+              "enum": [
+                "string",
+                "single_select",
+                "multi_select",
+                "true_false",
+                "url"
+              ],
+              "type": "string"
+            },
+            "values_editable_by": {
+              "description": "Who can edit the values of the property",
+              "enum": [
+                "org_actors",
+                "org_and_repo_actors"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "property_name",
+            "value_type"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "org",
+      "properties"
+    ],
+    "type": "object"
+  },
+  "name": "create_or_update_organization_custom_properties"
+}

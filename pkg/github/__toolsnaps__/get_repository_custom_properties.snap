@@ -1,0 +1,25 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get repository custom property values"
+  },
+  "description": "Get the custom property values that are assigned to a repository",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "get_repository_custom_properties"
+}

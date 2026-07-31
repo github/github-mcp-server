@@ -1,0 +1,20 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get enterprise custom properties"
+  },
+  "description": "Get all custom property definitions (schema) for an enterprise",
+  "inputSchema": {
+    "properties": {
+      "enterprise": {
+        "description": "Enterprise slug",
+        "type": "string"
+      }
+    },
+    "required": [
+      "enterprise"
+    ],
+    "type": "object"
+  },
+  "name": "get_enterprise_custom_properties"
+}
