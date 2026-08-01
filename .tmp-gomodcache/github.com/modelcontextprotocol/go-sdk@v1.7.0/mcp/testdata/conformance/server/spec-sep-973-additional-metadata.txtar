@@ -1,0 +1,222 @@
+Check behavior of server with Icons and websiteUrl metadata added as part of SEP-973 specification.
+
+check modelcontextprotocol/go-sdk/issues/552 for more details.
+
+Checks following:
+- Test setting websiteUrl, icons for mcp.Implementation
+- Test setting icons for mcp.Prompt
+- Test setting icons for mcp.Tool
+- Test setting icons for mcp.Resource
+- Test if tool call returning ResourceLink with icons works as expected
+
+
+-- tools --
+greetWithIcon
+contentTool
+
+-- prompts --
+code_reviewWithIcon
+
+-- resources --
+infoWithIcon
+
+-- client --
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-06-18",
+    "capabilities": {},
+    "clientInfo": { "name": "ExampleClient", "version": "1.0.0" }
+  }
+}
+{ "jsonrpc": "2.0", "method": "notifications/initialized" }
+{ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }
+{ "jsonrpc": "2.0", "id": 3, "method": "resources/list" }
+{ "jsonrpc": "2.0", "id": 4, "method": "prompts/list" }
+{
+	"jsonrpc": "2.0",
+	"id": 5,
+	"method": "tools/call",
+	"params": {
+		"name": "contentTool",
+		"arguments": {
+			"In": "resource1"
+		}
+	}
+}
+
+-- server --
+{
+	"jsonrpc": "2.0",
+	"id": 1,
+	"result": {
+		"capabilities": {
+			"logging": {},
+			"prompts": {
+				"listChanged": true
+			},
+			"resources": {
+				"listChanged": true
+			},
+			"tools": {
+				"listChanged": true
+			}
+		},
+		"protocolVersion": "2025-06-18",
+		"serverInfo": {
+			"name": "testServer",
+			"version": "v1.0.0",
+			"websiteUrl": "https://github.com/modelcontextprotocol/go-sdk",
+			"icons": [
+				{
+					"src": "foobar",
+					"mimeType": "image/png",
+					"sizes": [
+						"48x48",
+						"96x96"
+					],
+					"theme": "light"
+				}
+			]
+		}
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 2,
+	"result": {
+		"ttlMs": 0,
+		"cacheScope": "public",
+		"tools": [
+			{
+				"description": "return resourceLink content with Icon",
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"In": {
+							"type": "string",
+							"description": "the input"
+						}
+					},
+					"required": [
+						"In"
+					],
+					"additionalProperties": false
+				},
+				"name": "contentTool",
+				"title": "contentTool"
+			},
+			{
+				"description": "say hi",
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"Name": {
+							"type": "string"
+						}
+					},
+					"required": [
+						"Name"
+					],
+					"additionalProperties": false
+				},
+				"name": "greetWithIcon",
+				"icons": [
+					{
+						"src": "foobar",
+						"mimeType": "image/png",
+						"sizes": [
+							"48x48",
+							"96x96"
+						],
+						"theme": "light"
+					}
+				]
+			}
+		]
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 3,
+	"result": {
+		"ttlMs": 0,
+		"cacheScope": "public",
+		"resources": [
+			{
+				"mimeType": "text/plain",
+				"name": "info",
+				"uri": "embedded:info",
+				"icons": [
+					{
+						"src": "foobar",
+						"mimeType": "image/png",
+						"sizes": [
+							"48x48",
+							"96x96"
+						],
+						"theme": "light"
+					}
+				]
+			}
+		]
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 4,
+	"result": {
+		"ttlMs": 0,
+		"cacheScope": "public",
+		"prompts": [
+			{
+				"arguments": [
+					{
+						"name": "Code",
+						"required": true
+					}
+				],
+				"description": "do a code review",
+				"name": "code_review",
+				"icons": [
+					{
+						"src": "foobar",
+						"mimeType": "image/png",
+						"sizes": [
+							"48x48",
+							"96x96"
+						],
+						"theme": "light"
+					}
+				]
+			}
+		]
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 5,
+	"result": {
+		"content": [
+			{
+				"type": "resource_link",
+				"mimeType": "text/plain",
+				"uri": "https://example.com/resource/resource1",
+				"name": "Example Resource Link with Icons",
+				"icons": [
+					{
+						"src": "foobar",
+						"mimeType": "image/png",
+						"sizes": [
+							"48x48",
+							"96x96"
+						],
+						"theme": "light"
+					}
+				]
+			}
+		]
+	}
+}

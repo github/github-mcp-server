@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestAllToolsRoutingParamsGetHeaders enforces that every tool exposing a
+// TestAllToolsRoutingParamsGetHeaders enforces that every 工具 exposing a
 // routing-relevant param (owner/repo, per inventory.HeaderParams) has it
-// projected to an Mcp-Param-* header. This guards the per-request header
-// optimization used by the remote proxy: a future tool must not silently ship
-// without its owner/repo header, so it can never fall back to body re-parsing.
+// projected to 一个Mcp-Param-* header. 此guards per-请求 header
+// optimization used 由remote proxy: 一个future 工具 不得 silently ship
+// without its owner/repo header, so it can 绝不f所有back to body re-parsing.
 func TestAllToolsRoutingParamsGetHeaders(t *testing.T) {
 	inv, err := NewInventory(stubTranslator).WithToolsets([]string{"all"}).Build()
 	require.NoError(t, err)

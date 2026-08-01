@@ -18,7 +18,7 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
-// IssueField represents a repository issue field definition.
+// IssueField represents 一个仓库 议题 field definition.
 type IssueField struct {
 	ID          string                         `json:"id"`
 	DatabaseID  int64                          `json:"full_database_id,omitempty"`
@@ -29,7 +29,7 @@ type IssueField struct {
 	Options     []IssueSingleSelectFieldOption `json:"options,omitempty"`
 }
 
-// IssueSingleSelectFieldOption represents an option for a single_select issue field.
+// IssueSingleSelectFieldOption represents 一个option f或一个单个_select 议题 field.
 type IssueSingleSelectFieldOption struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
@@ -38,10 +38,10 @@ type IssueSingleSelectFieldOption struct {
 	Priority    *int   `json:"priority,omitempty"`
 }
 
-// issueFieldNode is the GraphQL fragment for a single issue field in the IssueFields union.
-// Only the fragment matching __typename is populated; read from the matching fragment.
-// fullDatabaseId (BigInt scalar, returned as string) is fetched on each concrete type because
-// shurcooL/githubv4 does not support interface fragments at the top level of a union.
+// 议题FieldNode is GraphQL fragment f或一个单个 议题 field 在IssueFields union.
+// 仅fragment matching __typename is populated; 读取 来自matching fragment.
+// fullDatabaseId (BigInt scalar, 返回ed as string) is fetched on 每个concrete type because
+// shurcooL/githubv4 does 不support interface fragments at top level of 一个union.
 type issueFieldNode struct {
 	TypeName       githubv4.String `graphql:"__typename"`
 	IssueFieldText struct {
@@ -85,7 +85,7 @@ type issueFieldNode struct {
 	} `graphql:"... on IssueFieldSingleSelect"`
 }
 
-// issueFieldsRepoQuery is the GraphQL query for listing issue fields on a repository.
+// 议题FieldsRepoQuery is GraphQL query f或列出ing 议题 fields on 一个仓库.
 type issueFieldsRepoQuery struct {
 	Repository struct {
 		IssueFields struct {
@@ -94,7 +94,7 @@ type issueFieldsRepoQuery struct {
 	} `graphql:"repository(owner: $owner, name: $name)"`
 }
 
-// issueFieldsOrgQuery is the GraphQL query for listing issue fields on an organization.
+// 议题FieldsOrgQuery is GraphQL query f或列出ing 议题 fields on 一个organization.
 type issueFieldsOrgQuery struct {
 	Organization struct {
 		IssueFields struct {
@@ -103,7 +103,7 @@ type issueFieldsOrgQuery struct {
 	} `graphql:"organization(login: $login)"`
 }
 
-// ListIssueFields creates a tool to list issue field definitions for a repository or organization.
+// ListIssueFields 创建一个工具以 列出 议题 field definitions f或一个仓库 或organization.
 func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
@@ -156,10 +156,10 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 
 			result := utils.NewToolResultText(string(r))
-			// Issue field definitions are repo/org structural metadata
-			// (trusted). When scoped to a specific repo, confidentiality
-			// follows that repo's visibility; for an org-level lookup (no
-			// repo) it is conservatively treated as private.
+			// Issue field definitions are repo/org structural 元数据
+			// (受信任). When scoped to 一个specific repo, confidentiality
+			// follows that repo's visibility; f或一个org-level lookup (no
+			// repo) it is conservatively treated as 私有.
 			if repo == "" {
 				result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoMetadata(true))
 			} else {
@@ -170,9 +170,9 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 	return st
 }
 
-// fetchIssueFields returns the issue field definitions for the given owner.
-// If repo is provided, fields are scoped to that repository (inherited from its
-// organization); otherwise fields are returned directly from the organization.
+// fetchIssueFields 返回 议题 field definitions 用于given owner.
+// If repo is provided, fields are scoped to that 仓库 (inherited from its
+// organization); otherwise fields are 返回ed directly 来自organization.
 func fetchIssueFields(ctx context.Context, gqlClient *githubv4.Client, owner, repo string) ([]IssueField, error) {
 	ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
 	if repo != "" {
@@ -197,8 +197,8 @@ func fetchIssueFields(ctx context.Context, gqlClient *githubv4.Client, owner, re
 	return issueFieldsFromNodes(query.Organization.IssueFields.Nodes), nil
 }
 
-// issueFieldsFromNodes converts GraphQL issue field union nodes into IssueField values.
-// Read from the fragment matching __typename; the other fragments are zero-valued.
+// 议题FieldsFromNodes converts GraphQL 议题 field union nodes into IssueField 值.
+// Read 来自fragment matching __typename; other fragments are zero-值d.
 func issueFieldsFromNodes(nodes []issueFieldNode) []IssueField {
 	fields := make([]IssueField, 0, len(nodes))
 	for _, node := range nodes {
@@ -259,8 +259,8 @@ func issueFieldsFromNodes(nodes []issueFieldNode) []IssueField {
 	return fields
 }
 
-// parseFullDatabaseID converts a BigInt scalar string (e.g. "12345") to int64.
-// Returns 0 if the string is empty or cannot be parsed.
+// parseFullDatabaseID converts 一个BigInt scalar string (e.g. "12345") to int64.
+// Returns 0 如果string is 空 或can不be parsed.
 func parseFullDatabaseID(s string) int64 {
 	if s == "" {
 		return 0

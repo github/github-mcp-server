@@ -17,10 +17,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// IssueDependencyRead creates a tool to read an issue's blocked-by and blocking
-// relationships. It is a separate, feature-flagged tool (rather than a method on
-// the default issue_read) so the whole dependency capability can be gated as a
-// unit without enlarging the default issue tool surface.
+// IssueDependencyRead 创建一个工具以 读取 一个议题's blocked-by 和blocking
+// relationships. It is 一个separate, feature-flagged 工具 (rather than 一个method on
+// 默认议题_读取) so whole dependency 能力 可以 gated as a
+// unit without enlarging 默认议题 工具 surface.
 func IssueDependencyRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -107,7 +107,7 @@ Options are:
 	return st
 }
 
-// GetIssueBlockedBy lists the issues that block the given issue.
+// GetIssueBlockedBy 列出s 议题 that block given 议题.
 func GetIssueBlockedBy(ctx context.Context, client *github.Client, owner, repo string, issueNumber int, opts *github.ListOptions) (*mcp.CallToolResult, error) {
 	issues, resp, err := client.Issues.ListBlockedBy(ctx, owner, repo, int64(issueNumber), opts)
 	if err != nil {
@@ -125,7 +125,7 @@ func GetIssueBlockedBy(ctx context.Context, client *github.Client, owner, repo s
 	return dependencyReadResult(issues, resp), nil
 }
 
-// GetIssueBlocking lists the issues that the given issue blocks.
+// GetIssueBlocking 列出s 议题 that given 议题 blocks.
 func GetIssueBlocking(ctx context.Context, client *github.Client, owner, repo string, issueNumber int, opts *github.ListOptions) (*mcp.CallToolResult, error) {
 	issues, resp, err := client.Issues.ListBlocking(ctx, owner, repo, int64(issueNumber), opts)
 	if err != nil {
@@ -143,8 +143,8 @@ func GetIssueBlocking(ctx context.Context, client *github.Client, owner, repo st
 	return dependencyReadResult(issues, resp), nil
 }
 
-// dependencyReadResult projects a list of related issues into the minimal
-// dependency shape and attaches page-based pagination info.
+// dependencyReadResult projects 一个列出 of related 议题 in到minimal
+// dependency shape 和attaches 页-based pagination info.
 func dependencyReadResult(issues []*github.Issue, resp *github.Response) *mcp.CallToolResult {
 	refs := make([]MinimalIssueRef, 0, len(issues))
 	for _, issue := range issues {
@@ -162,11 +162,11 @@ func dependencyReadResult(issues []*github.Issue, resp *github.Response) *mcp.Ca
 	})
 }
 
-// issueToDependencyRef converts a REST issue into the compact reference used by
-// the dependency tools, deriving the "owner/repo" name from the issue's
-// repository URL. The state is upper-cased so it matches the GraphQL-sourced
-// state (e.g. "OPEN"/"CLOSED") that MinimalIssueRef carries for the other issue
-// tools such as get_parent, keeping the field consistent across tools.
+// 议题ToDependencyRef converts 一个REST 议题 in到compact reference 由以下内容使用：
+// dependency 工具, deriving "owner/repo" name 来自议题's
+// 仓库 URL. state is upper-cased so it matches GraphQL-sourced
+// state (e.g. "OPEN"/"CLOSED") that MinimalIssueRef carries 用于other 议题
+// 工具 such as 获取_parent, keeping field consistent across 工具.
 func issueToDependencyRef(issue *github.Issue) MinimalIssueRef {
 	if issue == nil {
 		return MinimalIssueRef{}
@@ -183,10 +183,10 @@ func issueToDependencyRef(issue *github.Issue) MinimalIssueRef {
 	return ref
 }
 
-// IssueDependencyWrite creates a tool to add or remove an issue dependency
-// (blocked-by / blocking) relationship. The REST dependency endpoints are always
-// expressed as "the blocked issue is blocked_by the blocking issue", so both
-// directions are served by the same endpoint pair with the two issues swapped.
+// IssueDependencyWrite 创建一个工具以 add 或remove 一个议题 dependency
+// (blocked-by / blocking) relationship. REST dependency endpoints are always
+// expressed as "the blocked 议题 is blocked_by blocking 议题", so both
+// directions are served 由相同 endpoint pair 使用two 议题 swapped.
 func IssueDependencyWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
@@ -302,9 +302,9 @@ Options are:
 				return utils.NewToolResultError("an issue cannot block or depend on itself"), nil, nil
 			}
 
-			// Map the subject/related pair onto the blocked/blocking roles the REST
-			// endpoints expect. For type 'blocked_by' the subject is the blocked
-			// issue; for 'blocking' the subject blocks the related issue, so the
+			// Map subject/related pair on到blocked/blocking roles REST
+			// endpoints expect. F或type 'blocked_by' subject is blocked
+			// 议题; f或'blocking' subject blocks related 议题, so the
 			// roles swap.
 			blocked := issueCoordinate{owner: owner, repo: repo, number: issueNumber}
 			blocking := issueCoordinate{owner: relatedOwner, repo: relatedRepo, number: relatedIssueNumber}
@@ -324,18 +324,18 @@ Options are:
 	return st
 }
 
-// issueCoordinate identifies an issue by repository and number.
+// 议题Coordinate identifies 一个议题 by 仓库 和number.
 type issueCoordinate struct {
 	owner  string
 	repo   string
 	number int
 }
 
-// writeIssueDependency resolves the blocking issue to its global database ID and
-// then adds or removes the blocked-by relationship on the blocked issue.
+// 写入IssueDependency resolves blocking 议题 to its global 数据base ID and
+// 然后adds 或removes blocked-by relationship 在blocked 议题.
 func writeIssueDependency(ctx context.Context, client *github.Client, method string, blocked, blocking issueCoordinate) (*mcp.CallToolResult, error) {
-	// The REST API identifies the blocking issue by its global database ID
-	// (not its number), so resolve the number to an ID first.
+	// REST API identifies blocking 议题 by its global 数据base ID
+	// (不its number), so resolve number to 一个ID 第一个.
 	blockingIssue, resp, err := client.Issues.Get(ctx, blocking.owner, blocking.repo, blocking.number)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to resolve blocking issue", resp, err), nil
@@ -377,10 +377,10 @@ func writeIssueDependency(ctx context.Context, client *github.Client, method str
 	}
 }
 
-// dependencyWriteResult builds the minimal description of the affected issues.
-// The blocked issue comes from the mutation response and the blocking issue from
-// the earlier resolve; each falls back to its known coordinate when the API
-// response omits the repository URL.
+// dependencyWriteResult builds minimal description 的affected 议题.
+// blocked 议题 comes 来自mutation 响应 以及blocking 议题 from
+// earlier resolve; 每个falls back to its known coordinate 当API
+// 响应 omits 仓库 URL.
 func dependencyWriteResult(message string, blockedIssue, blockingIssue *github.Issue, blocked, blocking issueCoordinate) *mcp.CallToolResult {
 	blockedRef := issueToDependencyRef(blockedIssue)
 	if blockedRef.Repository == "" {

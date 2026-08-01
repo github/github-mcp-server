@@ -1,0 +1,27 @@
+# Rename nested directory.
+require recurse
+
+mkdir -p /sub/dir
+watch /...
+
+mv /sub /sub-rename
+
+touch /sub-rename/file
+touch /sub-rename/dir/file
+
+Output:
+	rename     /sub                  # mv /sub /sub-rename
+	create     /sub-rename ← /sub
+	create     /sub-rename/file      # touch /sub-rename/file
+	create     /sub-rename/dir/file  # touch /sub-rename/dir/file
+
+
+	# Same as above, but with these stupid dir writes Windows sends.
+	#
+	# TODO: see if we can suppress that.
+	windows:
+		rename     /sub                  # mv /sub /sub-rename
+		create     /sub-rename ← /sub
+		write      /sub-rename           # touch /sub-rename/file
+		create     /sub-rename/file
+		create     /sub-rename/dir/file  # touch /sub-rename/dir/file

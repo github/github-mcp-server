@@ -23,7 +23,7 @@ func normalizeConfidence(confidence string) string {
 	return strings.ToUpper(strings.TrimSpace(confidence))
 }
 
-// issueUpdateTool is a helper to create single-field issue update tools.
+// 议题UpdateTool is 一个helper to 创建 单个-field 议题 更新 工具.
 func issueUpdateTool(
 	t translations.TranslationHelperFunc,
 	name, description, title string,
@@ -112,7 +112,7 @@ func issueUpdateTool(
 	return st
 }
 
-// GranularCreateIssue creates a tool to create a new issue.
+// GranularCreateIssue 创建一个工具以 创建 一个新的 议题.
 func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
@@ -196,7 +196,7 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 	return st
 }
 
-// GranularUpdateIssueTitle creates a tool to update an issue's title.
+// GranularUpdateIssueTitle 创建一个工具以 更新 一个议题's title.
 func GranularUpdateIssueTitle(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return issueUpdateTool(t,
 		"update_issue_title",
@@ -216,7 +216,7 @@ func GranularUpdateIssueTitle(t translations.TranslationHelperFunc) inventory.Se
 	)
 }
 
-// GranularUpdateIssueBody creates a tool to update an issue's body.
+// GranularUpdateIssueBody 创建一个工具以 更新 一个议题's body.
 func GranularUpdateIssueBody(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return issueUpdateTool(t,
 		"update_issue_body",
@@ -236,7 +236,7 @@ func GranularUpdateIssueBody(t translations.TranslationHelperFunc) inventory.Ser
 	)
 }
 
-// GranularUpdateIssueAssignees creates a tool to update an issue's assignees.
+// GranularUpdateIssueAssignees 创建一个工具以 更新 一个议题's assignees.
 func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
@@ -325,7 +325,7 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 			}
 			assigneesSlice, ok := assigneesRaw.([]any)
 			if !ok {
-				// Also accept []string for callers that pre-typed the array.
+				// Also accept []string f或调用ers that pre-typed array.
 				if strs, ok := assigneesRaw.([]string); ok {
 					assigneesSlice = make([]any, len(strs))
 					for i, s := range strs {
@@ -387,7 +387,7 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 			if useObjectForm {
 				body = &assigneesUpdateRequest{Assignees: payload}
 			} else {
-				// Preserve the standard wire format when no rationale or suggest is supplied.
+				// Preserve standard wire format when no rationale 或suggest is supplied.
 				logins := make([]string, len(payload))
 				for i, p := range payload {
 					logins[i] = p.(string)
@@ -422,8 +422,8 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 	return st
 }
 
-// labelWithIntent represents the object form of a label entry, allowing a
-// rationale, confidence level, and/or suggest flag to be sent alongside the label name.
+// labelWithIntent represents object form of 一个label entry, allowing a
+// rationale, confidence level, and/或suggest flag to be sent alongside label name.
 type labelWithIntent struct {
 	Name       string `json:"name"`
 	Rationale  string `json:"rationale,omitempty"`
@@ -431,15 +431,15 @@ type labelWithIntent struct {
 	Suggest    bool   `json:"suggest,omitempty"`
 }
 
-// labelsUpdateRequest is a custom request body for updating an issue's labels
-// where individual labels may optionally include a rationale. Each element of
-// Labels is either a string (label name) or a labelWithIntent object.
+// labelsUpdateRequest is 一个custom 请求 body f或updating 一个议题's labels
+// where individual labels may 可选ly include 一个rationale. Each element of
+// Labels is either 一个string (label name) 或一个labelWithIntent object.
 type labelsUpdateRequest struct {
 	Labels []any `json:"labels"`
 }
 
-// assigneeWithIntent represents the object form of an assignee entry, allowing a
-// rationale, confidence level, and/or suggest flag to be sent alongside the login.
+// assigneeWithIntent represents object form of 一个assignee entry, allowing a
+// rationale, confidence level, and/或suggest flag to be sent alongside login.
 type assigneeWithIntent struct {
 	Login      string `json:"login"`
 	Rationale  string `json:"rationale,omitempty"`
@@ -447,14 +447,14 @@ type assigneeWithIntent struct {
 	Suggest    bool   `json:"suggest,omitempty"`
 }
 
-// assigneesUpdateRequest is a custom request body for updating an issue's
-// assignees where individual assignees may optionally include a rationale. Each
-// element of Assignees is either a string (login) or an assigneeWithIntent object.
+// assigneesUpdateRequest is 一个custom 请求 body f或updating 一个议题's
+// assignees where individual assignees may 可选ly include 一个rationale. Each
+// element of Assignees is either 一个string (login) 或一个assigneeWithIntent object.
 type assigneesUpdateRequest struct {
 	Assignees []any `json:"assignees"`
 }
 
-// GranularUpdateIssueLabels creates a tool to update an issue's labels.
+// GranularUpdateIssueLabels 创建一个工具以 更新 一个议题's labels.
 func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
@@ -543,7 +543,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 			}
 			labelsSlice, ok := labelsRaw.([]any)
 			if !ok {
-				// Also accept []string for callers that pre-typed the array.
+				// Also accept []string f或调用ers that pre-typed array.
 				if strs, ok := labelsRaw.([]string); ok {
 					labelsSlice = make([]any, len(strs))
 					for i, s := range strs {
@@ -605,7 +605,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 			if useObjectForm {
 				body = &labelsUpdateRequest{Labels: payload}
 			} else {
-				// Preserve the standard wire format when no rationale or suggest is supplied.
+				// Preserve standard wire format when no rationale 或suggest is supplied.
 				names := make([]string, len(payload))
 				for i, p := range payload {
 					names[i] = p.(string)
@@ -640,7 +640,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 	return st
 }
 
-// GranularUpdateIssueMilestone creates a tool to update an issue's milestone.
+// GranularUpdateIssueMilestone 创建一个工具以 更新 一个议题's milestone.
 func GranularUpdateIssueMilestone(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return issueUpdateTool(t,
 		"update_issue_milestone",
@@ -664,8 +664,8 @@ func GranularUpdateIssueMilestone(t translations.TranslationHelperFunc) inventor
 	)
 }
 
-// issueTypeWithIntent represents the object form of the issue type field,
-// allowing a rationale, confidence level, and/or suggest flag to be sent alongside the type name.
+// 议题TypeWithIntent represents object form 的议题 type field,
+// allowing 一个rationale, confidence level, and/或suggest flag to be sent alongside type name.
 type issueTypeWithIntent struct {
 	Value      string `json:"value"`
 	Rationale  string `json:"rationale,omitempty"`
@@ -673,13 +673,13 @@ type issueTypeWithIntent struct {
 	Suggest    bool   `json:"suggest,omitempty"`
 }
 
-// issueTypeUpdateRequest is a custom request body for updating an issue type
-// with optional intent metadata, using the object form that the REST API accepts.
+// 议题TypeUpdateRequest is 一个custom 请求 body f或updating 一个议题 type
+// with 可选 intent 元数据, using object form that REST API accepts.
 type issueTypeUpdateRequest struct {
 	Type issueTypeWithIntent `json:"type"`
 }
 
-// GranularUpdateIssueType creates a tool to update an issue's type.
+// GranularUpdateIssueType 创建一个工具以 更新 一个议题's type.
 func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
@@ -817,8 +817,8 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 	return st
 }
 
-// stateWithIntent represents the object form of the state field, allowing
-// rationale, confidence, and/or suggest flag to be sent alongside the state value.
+// stateWithIntent represents object form 的state field, allowing
+// rationale, confidence, and/或suggest flag to be sent alongside state 值.
 type stateWithIntent struct {
 	Value      string `json:"value"`
 	Rationale  string `json:"rationale,omitempty"`
@@ -826,15 +826,15 @@ type stateWithIntent struct {
 	Suggest    bool   `json:"suggest,omitempty"`
 }
 
-// stateUpdateRequest is a custom request body for updating an issue's state
-// with optional intent metadata, using the object form that the REST API accepts.
+// stateUpdateRequest is 一个custom 请求 body f或updating 一个议题's state
+// with 可选 intent 元数据, using object form that REST API accepts.
 type stateUpdateRequest struct {
 	State            stateWithIntent `json:"state"`
 	StateReason      string          `json:"state_reason,omitempty"`
 	DuplicateIssueID *int64          `json:"duplicate_issue_id,omitempty"`
 }
 
-// GranularUpdateIssueState creates a tool to update an issue's state.
+// GranularUpdateIssueState 创建一个工具以 更新 一个议题's state.
 func GranularUpdateIssueState(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
@@ -1015,7 +1015,7 @@ func GranularUpdateIssueState(t translations.TranslationHelperFunc) inventory.Se
 	return st
 }
 
-// GranularAddSubIssue creates a tool to add a sub-issue.
+// GranularAddSubIssue 创建一个工具以 add 一个sub-议题.
 func GranularAddSubIssue(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
@@ -1089,7 +1089,7 @@ func GranularAddSubIssue(t translations.TranslationHelperFunc) inventory.ServerT
 	return st
 }
 
-// GranularRemoveSubIssue creates a tool to remove a sub-issue.
+// GranularRemoveSubIssue 创建一个工具以 remove 一个sub-议题.
 func GranularRemoveSubIssue(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
@@ -1158,7 +1158,7 @@ func GranularRemoveSubIssue(t translations.TranslationHelperFunc) inventory.Serv
 	return st
 }
 
-// GranularReprioritizeSubIssue creates a tool to reorder a sub-issue.
+// GranularReprioritizeSubIssue 创建一个工具以 reorder 一个sub-议题.
 func GranularReprioritizeSubIssue(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
@@ -1243,14 +1243,14 @@ func GranularReprioritizeSubIssue(t translations.TranslationHelperFunc) inventor
 	return st
 }
 
-// SetIssueFieldValueInput represents the input for the setIssueFieldValue GraphQL mutation.
+// SetIssueFieldValueInput represents 输入 用于setIssueFieldValue GraphQL mutation.
 type SetIssueFieldValueInput struct {
 	IssueID          githubv4.ID                     `json:"issueId"`
 	IssueFields      []IssueFieldCreateOrUpdateInput `json:"issueFields"`
 	ClientMutationID *githubv4.String                `json:"clientMutationId,omitempty"`
 }
 
-// IssueFieldCreateOrUpdateInput represents a single field value to set on an issue.
+// IssueFieldCreateOrUpdateInput represents 一个单个 field 值 to set on 一个议题.
 type IssueFieldCreateOrUpdateInput struct {
 	FieldID              githubv4.ID       `json:"fieldId"`
 	TextValue            *githubv4.String  `json:"textValue,omitempty"`
@@ -1263,7 +1263,7 @@ type IssueFieldCreateOrUpdateInput struct {
 	Suggest              *githubv4.Boolean `json:"suggest,omitempty"`
 }
 
-// GranularSetIssueFields creates a tool to set issue field values on an issue using GraphQL.
+// GranularSetIssueFields 创建一个工具以 set 议题 field 值 on 一个议题 using GraphQL.
 func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
@@ -1367,7 +1367,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				return utils.NewToolResultError("missing required parameter: fields"), nil, nil
 			}
 
-			// Accept both []any and []map[string]any input forms
+			// Accept both []any 和[]map[string]any 输入 forms
 			var fieldMaps []map[string]any
 			switch v := fieldsRaw.(type) {
 			case []any:
@@ -1398,7 +1398,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 					FieldID: githubv4.ID(fieldID),
 				}
 
-				// Count how many value keys are present; exactly one is required.
+				// Count how many 值 keys are present; exactly one is 必需.
 				valueCount := 0
 
 				if v, err := OptionalParam[string](fieldMap, "text_value"); err == nil && v != "" {
@@ -1480,13 +1480,13 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
 
-			// Resolve issue node ID
+			// Resolve 议题 node ID
 			issueID, _, err := fetchIssueIDs(ctx, gqlClient, owner, repo, issueNumber, 0)
 			if err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue", err), nil, nil
 			}
 
-			// Execute the setIssueFieldValue mutation
+			// Execute setIssueFieldValue mutation
 			var mutation struct {
 				SetIssueFieldValue struct {
 					Issue struct {
@@ -1516,8 +1516,8 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				IssueFields: issueFields,
 			}
 
-			// The rationale and suggest input fields on IssueFieldCreateOrUpdateInput
-			// are gated behind the update_issue_suggestions GraphQL feature flag.
+			// rationale 和suggest 输入 fields on IssueFieldCreateOrUpdateInput
+			// are gated behind 更新_议题_suggestions GraphQL 功能标志.
 			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "update_issue_suggestions")
 			if err := gqlClient.Mutate(ctxWithFeatures, &mutation, mutationInput, nil); err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to set issue field values", err), nil, nil
@@ -1537,7 +1537,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 	return st
 }
 
-// GranularAddIssueReaction adds a reaction to an issue or pull request.
+// GranularAddIssueReaction adds 一个reaction to 一个议题 或拉取请求.
 func GranularAddIssueReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
@@ -1619,7 +1619,7 @@ func GranularAddIssueReaction(t translations.TranslationHelperFunc) inventory.Se
 	return st
 }
 
-// GranularAddIssueCommentReaction adds a reaction to an issue or pull request comment.
+// GranularAddIssueCommentReaction adds 一个reaction to 一个议题 或拉取请求 comment.
 func GranularAddIssueCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,

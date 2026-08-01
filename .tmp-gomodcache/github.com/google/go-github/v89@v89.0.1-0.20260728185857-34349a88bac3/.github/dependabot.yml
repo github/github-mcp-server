@@ -1,0 +1,44 @@
+version: 2
+updates:
+- package-ecosystem: gomod
+  directory: /
+  schedule:
+    interval: weekly
+  cooldown:
+    default-days: 7
+- package-ecosystem: gomod
+  directory: otel
+  schedule:
+    interval: weekly
+  cooldown:
+    default-days: 7
+- package-ecosystem: gomod
+  directory: scrape
+  schedule:
+    interval: weekly
+  cooldown:
+    default-days: 7
+- package-ecosystem: gomod
+  directories:
+    - /tools
+    - /tools/**
+  schedule:
+    interval: weekly
+  cooldown:
+    default-days: 7
+- package-ecosystem: gomod
+  directory: example
+  schedule:
+    interval: weekly
+  cooldown:
+    default-days: 7
+- package-ecosystem: github-actions
+  directory: /
+  schedule:
+    interval: weekly
+  groups:
+    actions:
+      patterns:
+      - "actions/*"
+  cooldown:
+    default-days: 7

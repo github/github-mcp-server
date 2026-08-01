@@ -1,0 +1,31 @@
+# https://github.com/fsnotify/fsnotify/issues/277
+require symlink
+
+touch /file1
+touch /file2
+ln -s /file1 /link1
+ln -s /file2 /link2
+
+watch /
+
+touch  /foo
+rm     /foo
+mkdir  /apple
+mv     /apple /pear
+rm -r  /pear
+
+Output:
+	create   /foo     # touch /foo
+	remove   /foo     # rm /foo
+	create   /apple   # mkdir /apple
+	rename   /apple   # mv /apple /pear
+	create   /pear ← /apple
+	remove   /pear    # rm -r /pear
+
+	dragonfly:
+		create   /foo
+		remove   /foo
+		create   /apple
+		rename   /apple
+		create   /pear
+		# No event for rm -r pear?

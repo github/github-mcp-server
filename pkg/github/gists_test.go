@@ -16,7 +16,7 @@ import (
 )
 
 func Test_ListGists(t *testing.T) {
-	// Verify tool definition
+	// Verify 工具定义
 	serverTool := ListGists(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 
@@ -34,7 +34,7 @@ func Test_ListGists(t *testing.T) {
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.Empty(t, schema.Required)
 
-	// Setup mock gists for success case
+	// Setup 模拟 gists f或成功 case
 	mockGists := []*github.Gist{
 		{
 			ID:          github.Ptr("gist1"),
@@ -140,21 +140,21 @@ func Test_ListGists(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.True(t, result.IsError)
 				errorContent := getErrorResult(t, result)
@@ -164,10 +164,10 @@ func Test_ListGists(t *testing.T) {
 
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedGists []*github.Gist
 			err = json.Unmarshal([]byte(textContent.Text), &returnedGists)
 			require.NoError(t, err)
@@ -184,7 +184,7 @@ func Test_ListGists(t *testing.T) {
 }
 
 func Test_GetGist(t *testing.T) {
-	// Verify tool definition
+	// Verify 工具定义
 	serverTool := GetGist(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 
@@ -200,7 +200,7 @@ func Test_GetGist(t *testing.T) {
 
 	assert.Contains(t, schema.Required, "gist_id")
 
-	// Setup mock gist for success case
+	// Setup 模拟 gist f或成功 case
 	mockGist := github.Gist{
 		ID:          github.Ptr("gist1"),
 		Description: github.Ptr("First Gist"),
@@ -251,21 +251,21 @@ func Test_GetGist(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.True(t, result.IsError)
 				errorContent := getErrorResult(t, result)
@@ -275,10 +275,10 @@ func Test_GetGist(t *testing.T) {
 
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedGists github.Gist
 			err = json.Unmarshal([]byte(textContent.Text), &returnedGists)
 			require.NoError(t, err)
@@ -292,7 +292,7 @@ func Test_GetGist(t *testing.T) {
 }
 
 func Test_CreateGist(t *testing.T) {
-	// Verify tool definition
+	// Verify 工具定义
 	serverTool := CreateGist(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 
@@ -309,11 +309,11 @@ func Test_CreateGist(t *testing.T) {
 	assert.Contains(t, schema.Properties, "content")
 	assert.Contains(t, schema.Properties, "public")
 
-	// Verify required parameters
+	// Verify 必需 参数
 	assert.Contains(t, schema.Required, "filename")
 	assert.Contains(t, schema.Required, "content")
 
-	// Setup mock data for test cases
+	// Setup 模拟 数据 f或test cases
 	createdGist := &github.Gist{
 		ID:          github.Ptr("new-gist-id"),
 		Description: github.Ptr("Test Gist"),
@@ -391,21 +391,21 @@ func Test_CreateGist(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.True(t, result.IsError)
 				errorContent := getErrorResult(t, result)
@@ -416,10 +416,10 @@ func Test_CreateGist(t *testing.T) {
 			require.False(t, result.IsError)
 			assert.NotNil(t, result)
 
-			// Parse the result and get the text content
+			// Parse 结果 和获取 text 内容
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the minimal result
+			// Unmarshal 和verify minimal 结果
 			var gist MinimalResponse
 			err = json.Unmarshal([]byte(textContent.Text), &gist)
 			require.NoError(t, err)
@@ -430,7 +430,7 @@ func Test_CreateGist(t *testing.T) {
 }
 
 func Test_UpdateGist(t *testing.T) {
-	// Verify tool definition
+	// Verify 工具定义
 	serverTool := UpdateGist(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 
@@ -447,12 +447,12 @@ func Test_UpdateGist(t *testing.T) {
 	assert.Contains(t, schema.Properties, "filename")
 	assert.Contains(t, schema.Properties, "content")
 
-	// Verify required parameters
+	// Verify 必需 参数
 	assert.Contains(t, schema.Required, "gist_id")
 	assert.Contains(t, schema.Required, "filename")
 	assert.Contains(t, schema.Required, "content")
 
-	// Setup mock data for test cases
+	// Setup 模拟 数据 f或test cases
 	updatedGist := &github.Gist{
 		ID:          github.Ptr("existing-gist-id"),
 		Description: github.Ptr("Updated Test Gist"),
@@ -544,21 +544,21 @@ func Test_UpdateGist(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.True(t, result.IsError)
 				errorContent := getErrorResult(t, result)
@@ -569,10 +569,10 @@ func Test_UpdateGist(t *testing.T) {
 			require.False(t, result.IsError)
 			assert.NotNil(t, result)
 
-			// Parse the result and get the text content
+			// Parse 结果 和获取 text 内容
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the minimal result
+			// Unmarshal 和verify minimal 结果
 			var updateResp MinimalResponse
 			err = json.Unmarshal([]byte(textContent.Text), &updateResp)
 			require.NoError(t, err)

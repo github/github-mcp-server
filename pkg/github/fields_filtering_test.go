@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- list_commits ---------------------------------------------------------
+// --- 列出_commits ---------------------------------------------------------
 
 func mockListCommits() []*github.RepositoryCommit {
 	return []*github.RepositoryCommit{
@@ -72,7 +72,7 @@ func Test_ListCommits_FieldsTelemetry(t *testing.T) {
 		map[string]any{"owner": "owner", "repo": "repo"})
 }
 
-// --- list_releases --------------------------------------------------------
+// --- 列出_releases --------------------------------------------------------
 
 func mockListReleases() []*github.RepositoryRelease {
 	return []*github.RepositoryRelease{
@@ -125,7 +125,7 @@ func Test_ListReleases_FieldsTelemetry(t *testing.T) {
 		map[string]any{"owner": "owner", "repo": "repo"})
 }
 
-// --- list_pull_requests ---------------------------------------------------
+// --- 列出_pull_请求s ---------------------------------------------------
 
 func mockListPullRequests() []*github.PullRequest {
 	return []*github.PullRequest{
@@ -179,12 +179,12 @@ func Test_ListPullRequests_FieldsTelemetry(t *testing.T) {
 		map[string]any{"owner": "owner", "repo": "repo"})
 }
 
-// --- search_pull_requests -------------------------------------------------
+// --- search_pull_请求s -------------------------------------------------
 
-// mockIssueSearchResult returns a single-item issues search result. It is used
-// for both search_pull_requests and search_issues since both hit the REST
-// issues search endpoint. Issues intentionally omit NodeID so search_issues
-// does not attempt the follow-up GraphQL field-values enrichment.
+// 模拟IssueSearchResult 返回 一个单个-item 议题 search 结果. It is used
+// f或both search_pull_请求s 和search_议题 since both hit REST
+// 议题 search endpoint. Issues intentionally omit NodeID so search_议题
+// does 不attempt follow-up GraphQL field-值 enrichment.
 func mockIssueSearchResult() *github.IssuesSearchResult {
 	return &github.IssuesSearchResult{
 		Total:             github.Ptr(1),
@@ -233,7 +233,7 @@ func Test_SearchPullRequests_FieldsTelemetry(t *testing.T) {
 		map[string]any{"query": "fix"})
 }
 
-// --- search_issues --------------------------------------------------------
+// --- search_议题 --------------------------------------------------------
 
 func Test_SearchIssues_FieldFiltering(t *testing.T) {
 	serverTool := SearchIssues(translations.NullTranslationHelper)
@@ -266,12 +266,12 @@ func Test_SearchIssues_FieldsTelemetry(t *testing.T) {
 		map[string]any{"query": "bug"})
 }
 
-// --- list_issues (GraphQL) ------------------------------------------------
+// --- 列出_议题 (GraphQL) ------------------------------------------------
 
-// listIssuesFieldsQuery and listIssuesFieldsVars mirror the exact GraphQL query
-// and variables list_issues issues for owner/repo with default parameters (no
-// labels, no since). They must stay in sync with the query built in
-// getIssueQueryType; see Test_ListIssues for the canonical copies.
+// 列出IssuesFieldsQuery 和列出IssuesFieldsVars mirr或exact GraphQL query
+// 和variables 列出_议题 议题 f或owner/repo with 默认参数 (no
+// labels, no since). They must stay in sync 使用query built in
+// 获取IssueQueryType; see Test_ListIssues 用于canonical copies.
 const listIssuesFieldsFieldValuesSelection = "issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}"
 
 const listIssuesFieldsQuery = "query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}," + listIssuesFieldsFieldValuesSelection + "},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
@@ -336,8 +336,8 @@ func Test_ListIssues_FieldFiltering(t *testing.T) {
 
 	textContent := getTextResult(t, result)
 
-	// The wrapper metadata is preserved while each issue is reduced to the
-	// requested fields only.
+	// wrapper 元数据 is preserved 当每个议题 is reduced to the
+	// 请求ed fields only.
 	var returned struct {
 		Issues     []map[string]any `json:"issues"`
 		TotalCount int              `json:"totalCount"`
@@ -394,9 +394,9 @@ func Test_ListIssues_FieldsTelemetry(t *testing.T) {
 
 // --- shared assertion helpers ---------------------------------------------
 
-// assertSearchWrapperFiltered asserts that a filtered search response preserves
-// the total_count / incomplete_results wrapper while reducing each item to the
-// requested number/title fields only.
+// assertSearchWrapperFiltered asserts that 一个筛选ed search 响应 preserves
+// total_count / incomplete_结果 wrapper 当reducing 每个item to the
+// 请求ed number/title fields only.
 func assertSearchWrapperFiltered(t *testing.T, text string) {
 	t.Helper()
 	var returned struct {
@@ -414,8 +414,8 @@ func assertSearchWrapperFiltered(t *testing.T, text string) {
 	assert.NotContains(t, text, "\"body\"")
 }
 
-// assertFilteredCounters asserts the full set of counters emitted for a filtered
-// call: an increment tagged filtered=true plus positive byte counters where
+// assertFilteredCounters asserts full set of counters emitted f或一个筛选ed
+// 调用: 一个increment tagged 筛选ed=真 plus positive byte counters where
 // full > sent.
 func assertFilteredCounters(t *testing.T, rec *recordingMetrics, tool string) {
 	t.Helper()
@@ -431,8 +431,8 @@ func assertFilteredCounters(t *testing.T, rec *recordingMetrics, tool string) {
 	assert.Greater(t, full.value, sent.value, "filtering should remove bytes")
 }
 
-// assertFieldsTelemetry runs a filtered and an unfiltered call against the given
-// tool and asserts the expected adoption and savings telemetry for each.
+// assertFieldsTelemetry runs 一个筛选ed 和一个un筛选ed c所有against given
+// 工具 和asserts expected adoption 和savings telemetry f或each.
 func assertFieldsTelemetry(t *testing.T, serverTool inventory.ServerTool, client *github.Client, tool string, filteredArgs, unfilteredArgs map[string]any) {
 	t.Helper()
 

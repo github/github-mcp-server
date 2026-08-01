@@ -1,0 +1,11 @@
+ignore:
+  # ignore examples
+  - "example"
+  # ignore auto-generated code
+  - "github/github-accessors.go"
+  # ignore experimental scrape package
+  - "scrape"
+  # ignore test
+  - "test"
+  # ignore tools
+  - "tools"

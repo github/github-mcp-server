@@ -1,0 +1,30 @@
+# Add a new file watch for a directory we're already watching.
+
+watch /
+
+touch /file
+watch /file
+
+echo hello >>/file
+
+rm /file
+
+Output:
+	create /file
+	write  /file
+	remove /file
+
+	linux:  # TODO: double write.
+		create   /file
+		write    /file
+		write    /file
+
+		chmod    /file
+		remove   /file
+	windows:  # TODO: double write and remove.
+		create   /file
+		write    /file
+		write    /file
+
+		remove   /file
+		remove   /file

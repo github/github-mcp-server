@@ -1,23 +1,23 @@
-# Install GitHub MCP Server in Zed
+# 在 Zed 中安装 GitHub MCP Server
 
-[Zed](https://zed.dev) is a high-performance multiplayer code editor with native MCP support. Zed exposes MCP servers under the `context_servers` settings key. For general setup information (prerequisites, Docker installation, security best practices), see the [Installation Guides README](./README.md).
+[Zed](https://zed.dev) 是一款高性能多人协作代码编辑器，并原生支持 MCP。Zed 通过 `context_servers` 设置键暴露 MCP servers。有关通用设置（前置条件、Docker 安装、安全最佳实践），请参阅[安装指南 README](./README.md)。
 
-## Prerequisites
+## 前置条件
 
-1. Zed installed (latest version — Zed v0.224.0+ recommended for the modern `agent.tool_permissions` settings shape)
-2. [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new) with appropriate scopes
-3. For local installation: [Docker](https://www.docker.com/) installed and running
+1. 已安装 Zed（建议使用最新版本；Zed v0.224.0+ 推荐用于新版 `agent.tool_permissions` 设置结构）
+2. 具备适当 scopes 的 [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new)
+3. 本地安装：已安装并运行 [Docker](https://www.docker.com/)
 
-## Installation Methods
+## 安装方式
 
-There are two ways to install the GitHub MCP server in Zed:
+在 Zed 中安装 GitHub MCP server 有两种方式：
 
-- **Option A — Zed Extension (easiest):** a community-maintained [GitHub MCP extension](https://zed.dev/extensions/mcp-server-github) is available in the Zed extension gallery. Install it from the Agent Panel's top-right menu → "View Server Extensions", or from the command palette via the `zed: extensions` action. After installation, Zed pops up a modal asking for your GitHub Personal Access Token.
-- **Option B — Custom Server (recommended for the official remote endpoint):** add the configuration manually to `settings.json` to use either GitHub's hosted remote server or the official Docker image directly. The rest of this guide covers Option B.
+- **方案 A：Zed Extension（最简单）**：Zed extension gallery 中提供了社区维护的 [GitHub MCP extension](https://zed.dev/extensions/mcp-server-github)。可从 Agent Panel 右上角菜单选择 “View Server Extensions” 安装，也可通过 command palette 运行 `zed: extensions` 操作。安装后，Zed 会弹出 modal，要求输入 GitHub Personal Access Token。
+- **方案 B：Custom Server（推荐用于官方远程 endpoint）**：手动将配置添加到 `settings.json`，直接使用 GitHub 托管的远程 server 或官方 Docker 镜像。本文其余部分介绍方案 B。
 
-## Remote Server (Recommended)
+## 远程 Server（推荐）
 
-Uses GitHub's hosted server at `https://api.githubcopilot.com/mcp/`. Open your Zed [settings file](https://zed.dev/docs/configuring-zed.html#settings-files) (Command Palette → `zed: open settings`) and add the configuration below under `context_servers`.
+使用 GitHub 托管在 `https://api.githubcopilot.com/mcp/` 的 server。打开 Zed [settings file](https://zed.dev/docs/configuring-zed.html#settings-files)（Command Palette -> `zed: open settings`），并在 `context_servers` 下添加以下配置。
 
 ```json
 {
@@ -32,16 +32,16 @@ Uses GitHub's hosted server at `https://api.githubcopilot.com/mcp/`. Open your Z
 }
 ```
 
-Replace `YOUR_GITHUB_PAT` with your [GitHub Personal Access Token](https://github.com/settings/tokens). To customize toolsets, add server-side headers like `X-MCP-Toolsets` or `X-MCP-Readonly` to the `headers` object — see the [Server Configuration Guide](../server-configuration.md).
+将 `YOUR_GITHUB_PAT` 替换为你的 [GitHub Personal Access Token](https://github.com/settings/tokens)。如需自定义 toolsets，请向 `headers` 对象添加 `X-MCP-Toolsets` 或 `X-MCP-Readonly` 等 server-side headers，详见 [Server Configuration Guide](../server-configuration.md)。
 
 > [!NOTE]
-> If you omit the `Authorization` header, Zed will attempt the standard MCP OAuth flow on first use. The GitHub MCP server does not currently advertise OAuth for non-Copilot hosts, so a Personal Access Token in the `Authorization` header is the supported path.
+> 如果省略 `Authorization` header，Zed 会在首次使用时尝试标准 MCP OAuth 流程。GitHub MCP server 当前不会为非 Copilot hosts 公告 OAuth，因此在 `Authorization` header 中提供 Personal Access Token 是受支持的路径。
 
-## Local Server (Docker)
+## 本地 Server（Docker）
 
-The local GitHub MCP server runs via Docker and requires Docker Desktop (or another Docker runtime) to be installed and running.
+本地 GitHub MCP server 通过 Docker 运行，需要已安装并运行 Docker Desktop（或其他 Docker runtime）。
 
-Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
+使用 OAuth 登录而不是 token。在 github.com 上，官方镜像已经包含 app credentials，因此无需自行提供；server 会在首次使用时打开浏览器登录，并且只在内存中保留 token。在 Docker 中，需要将固定 callback port 发布到 loopback：
 
 ```json
 {
@@ -62,9 +62,9 @@ Log in with OAuth instead of a token. On github.com the official image already i
 }
 ```
 
-See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+有关 native-binary 流程（无固定端口）、headless/device-code fallback、GitHub Enterprise，以及自带 OAuth 或 GitHub App 的设置，请参阅 **[Local Server OAuth Login](../oauth-login.md)**。
 
-To authenticate with a Personal Access Token instead (it takes precedence over OAuth):
+如果改用 Personal Access Token 进行身份验证（其优先级高于 OAuth）：
 
 ```json
 {
@@ -85,17 +85,17 @@ To authenticate with a Personal Access Token instead (it takes precedence over O
 ```
 
 > [!IMPORTANT]
-> Zed expects `command` as a **string** plus a separate `args` array, not a single array combining both. This differs from hosts like OpenCode and Claude Desktop.
+> Zed 要求 `command` 是一个**字符串**，并使用单独的 `args` 数组；不能把二者合并成一个数组。这与 OpenCode 和 Claude Desktop 等 hosts 不同。
 
-## Verify Installation
+## 验证安装
 
-1. Open the Agent Panel and click into its Settings view (or run `agent: open settings`).
-2. Find `github` in the context servers list. A green indicator dot with the tooltip "Server is active" confirms a working configuration. Other colors and tooltip messages indicate startup or auth errors.
-3. Try a prompt that should invoke a tool — for example, `List my recent GitHub pull requests`. Zed will prompt for tool approval before the first call unless your `agent.tool_permissions.default` is set to `"allow"`.
+1. 打开 Agent Panel，并进入其 Settings 视图（或运行 `agent: open settings`）。
+2. 在 context servers 列表中找到 `github`。带有 “Server is active” tooltip 的绿色指示点表示配置可用。其他颜色和 tooltip 消息表示启动或身份验证错误。
+3. 尝试一个会调用工具的 prompt，例如 `List my recent GitHub pull requests`。除非 `agent.tool_permissions.default` 设置为 `"allow"`，否则 Zed 会在第一次调用前请求工具批准。
 
-## Tool Permissions (Optional)
+## 工具权限（可选）
 
-Zed v0.224.0+ controls tool approval via `agent.tool_permissions`. Approve a specific GitHub MCP tool without per-call prompts by using the `mcp:<server>:<tool_name>` key format:
+Zed v0.224.0+ 通过 `agent.tool_permissions` 控制工具批准。使用 `mcp:<server>:<tool_name>` key 格式，可以批准特定 GitHub MCP 工具，避免每次调用都弹出确认：
 
 ```json
 {
@@ -111,18 +111,18 @@ Zed v0.224.0+ controls tool approval via `agent.tool_permissions`. Approve a spe
 }
 ```
 
-See the [Zed tool permissions docs](https://zed.dev/docs/ai/tool-permissions.html) for the full schema.
+完整 schema 请参阅 [Zed tool permissions docs](https://zed.dev/docs/ai/tool-permissions.html)。
 
-## Troubleshooting
+## 故障排除
 
-- **Server indicator stays red / "Server is not running"**: check the Agent Panel's settings view for the per-server error string. Most common cause is invalid JSON in `settings.json` — Zed surfaces JSON parse errors in the editor itself.
-- **`401 Unauthorized`**: verify your PAT has not expired and includes the scopes for the tools you intend to call. The remote endpoint will reject requests with no `Authorization` header (no anonymous access).
-- **Tools missing from prompts**: confirm the Agent profile in use has not disabled the server. If you're using a [custom profile](https://zed.dev/docs/ai/agent-panel.html#custom-profiles), make sure `enable_all_context_servers` is `true` or that `github` is explicitly listed.
-- **Docker errors on the local server**: ensure Docker Desktop is running and the `ghcr.io/github/github-mcp-server` image has been pulled at least once. Try `docker pull ghcr.io/github/github-mcp-server` from a terminal.
+- **Server 指示器保持红色 / “Server is not running”**：检查 Agent Panel 的 settings 视图中对应 server 的错误字符串。最常见原因是 `settings.json` 中存在无效 JSON；Zed 会在编辑器中直接显示 JSON 解析错误。
+- **`401 Unauthorized`**：确认 PAT 未过期，并包含你要调用的工具所需 scopes。远程 endpoint 会拒绝没有 `Authorization` header 的请求（不允许匿名访问）。
+- **prompt 中缺少工具**：确认正在使用的 Agent profile 未禁用该 server。如果你使用 [custom profile](https://zed.dev/docs/ai/agent-panel.html#custom-profiles)，请确保 `enable_all_context_servers` 为 `true`，或已显式列出 `github`。
+- **本地 server 的 Docker 错误**：确保 Docker Desktop 正在运行，并且至少拉取过一次 `ghcr.io/github/github-mcp-server` 镜像。可在终端中尝试 `docker pull ghcr.io/github/github-mcp-server`。
 
-## Important Notes
+## 重要说明
 
-- **Configuration key**: Zed uses `context_servers` (not `mcpServers`).
-- **Command shape**: `command` is a string + separate `args` array.
-- **OAuth**: omitting `Authorization` triggers Zed's MCP OAuth flow, but the GitHub MCP server's PAT-based auth is the supported path today.
-- **External agents**: MCP servers configured in `context_servers` are forwarded to [external agents](https://zed.dev/docs/ai/external-agents.html) via the Agent Client Protocol.
+- **配置键**：Zed 使用 `context_servers`（不是 `mcpServers`）。
+- **命令结构**：`command` 是字符串，`args` 是单独的数组。
+- **OAuth**：省略 `Authorization` 会触发 Zed 的 MCP OAuth 流程，但 GitHub MCP server 当前支持的路径是基于 PAT 的身份验证。
+- **External agents**：配置在 `context_servers` 中的 MCP servers 会通过 Agent Client Protocol 转发给 [external agents](https://zed.dev/docs/ai/external-agents.html)。

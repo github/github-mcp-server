@@ -8,19 +8,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestAllToolsetIconsExist validates that every toolset with an Icon field
-// references an icon that actually exists in the embedded octicons.
-// This prevents broken icon references from being merged.
+// TestAllToolsetIconsExist 验证s that every 工具集 with 一个Icon field
+// references 一个icon that actually exists 在embedded octicons.
+// 此prevents broken icon references from being merged.
 func TestAllToolsetIconsExist(t *testing.T) {
-	// Get all available toolsets from the inventory
+	// Get 所有available 工具集s 来自inventory
 	inv, err := NewInventory(stubTranslator).Build()
 	require.NoError(t, err)
 	toolsets := inv.AvailableToolsets()
 
-	// Also test remote-only toolsets
+	// Also test remote-仅工具集s
 	remoteToolsets := RemoteOnlyToolsets()
 
-	// Combine both lists
+	// Combine both 列出s
 	allToolsets := make([]struct {
 		name string
 		icon string
@@ -48,12 +48,12 @@ func TestAllToolsetIconsExist(t *testing.T) {
 
 	for _, ts := range allToolsets {
 		t.Run(ts.name, func(t *testing.T) {
-			// Check that icons return valid data URIs (not empty)
+			// Check that icons 返回 valid 数据 URIs (不空)
 			icons := octicons.Icons(ts.icon)
 			require.NotNil(t, icons, "toolset %s references icon %q which does not exist", ts.name, ts.icon)
 			assert.Len(t, icons, 2, "expected light and dark icon variants for toolset %s", ts.name)
 
-			// Verify both variants have valid data URIs
+			// Verify both variants have valid 数据 URIs
 			for _, icon := range icons {
 				assert.NotEmpty(t, icon.Source, "icon source should not be empty for toolset %s", ts.name)
 				assert.Contains(t, icon.Source, "data:image/png;base64,",
@@ -63,14 +63,14 @@ func TestAllToolsetIconsExist(t *testing.T) {
 	}
 }
 
-// TestToolsetMetadataHasIcons ensures all toolsets have icons defined.
-// This is a policy test - if you want to allow toolsets without icons,
-// you can remove or modify this test.
+// TestToolsetMeta数据HasIcons 确保所有 工具集s have icons defined.
+// 此is 一个policy test - if you want to allow 工具集s without icons,
+// you can remove 或modify this test.
 func TestToolsetMetadataHasIcons(t *testing.T) {
-	// These toolsets are expected to NOT have icons (internal/special purpose)
+	// 这些工具集s are expected to NOT have icons (internal/special purpose)
 	exceptionsWithoutIcons := map[string]bool{
-		"all":     true, // Meta-toolset
-		"default": true, // Meta-toolset
+		"all":     true, // Meta-工具集
+		"default": true, // Meta-工具集
 	}
 
 	inv, err := NewInventory(stubTranslator).Build()

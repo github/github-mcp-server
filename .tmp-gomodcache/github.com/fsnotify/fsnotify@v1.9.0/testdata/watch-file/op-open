@@ -1,0 +1,9 @@
+# Basic open test
+require op_open
+
+echo "hello, world!" >>/file
+watch /file   default open
+cat /file
+
+Output:
+	open /file

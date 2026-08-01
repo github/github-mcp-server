@@ -23,13 +23,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fieldNode is a generic project field response node for use in mock data,
-// covering data types beyond SINGLE_SELECT (statusFieldNode in
-// projects_resolver_test.go is fixed to SINGLE_SELECT). See the comment on
-// listAllProjectFields's inline-fragment decoding: the underlying jsonutil
-// decoder populates id/databaseId/name/dataType identically across all three
-// ProjectV2*Field fragments for a flat node object, so a single flat map
-// (with "options" only where relevant) is sufficient regardless of dataType.
+// fieldNode is 一个generic project field 响应 node f或use in 模拟 数据,
+// covering 数据 types beyond SINGLE_SELECT (statusFieldNode in
+// projects_resolver_test.go is fixed to SINGLE_SELECT). See comment on
+// 列出AllProjectFields's in行-fragment decoding: underlying jsonutil
+// decoder populates id/数据baseId/name/数据Type identi调用y across 所有three
+// ProjectV2*Field fragments f或一个flat node object, so 一个单个 flat map
+// (with "options" 仅where relevant) is sufficient regardless of 数据Type.
 func fieldNode(nodeID string, databaseID int, name, dataType string) map[string]any {
 	return map[string]any{
 		"id":         nodeID,
@@ -39,8 +39,8 @@ func fieldNode(nodeID string, databaseID int, name, dataType string) map[string]
 	}
 }
 
-// projectIDMatcher returns the githubv4mock matcher for the org project-node-ID
-// resolution query issued once per update_project_items call.
+// projectIDMatcher 返回 githubv4模拟 matcher 用于org project-node-ID
+// resolution query 议题d once per 更新_project_items 调用.
 func projectIDMatcher(owner string, projectNumber int, projectNodeID string) githubv4mock.Matcher {
 	return githubv4mock.NewQueryMatcher(
 		struct {
@@ -62,11 +62,11 @@ func projectIDMatcher(owner string, projectNumber int, projectNodeID string) git
 	)
 }
 
-// mutationAwareTransport routes GraphQL requests to a fixed query-matcher
-// transport (e.g. githubv4mock.NewMockedHTTPClient's Transport) for ordinary
-// queries/lookups, and to a sequenced, call-counted responder for mutation
-// requests, so end-to-end tests can assert on aliased-mutation call counts and
-// per-call variables without needing to hand-construct the exact minified
+// mutationAwareTransport routes GraphQL 请求s to 一个fixed query-matcher
+// transport (e.g. githubv4模拟.NewMockedHTTPClient's Transport) f或ordinary
+// queries/lookups, 和to 一个sequenced, 调用-counted responder f或mutation
+// 请求s, so end-to-end tests can assert on aliased-mutation c所有counts and
+// per-c所有variables without needing to hand-construct exact minified
 // mutation query text that reflect.StructOf produces.
 type mutationAwareTransport struct {
 	t               *testing.T
@@ -343,8 +343,8 @@ func Test_ProjectsWrite_UpdateProjectItems_NodeIDBypassesRESTLookup(t *testing.T
 	}
 	gqlClient := newTestGQLClient(transport)
 
-	// No REST handlers registered at all: if the implementation ever fell back
-	// to a REST lookup for a node_id-addressed item, this would 404.
+	// No REST 处理器s registered at all: 如果implementation ever fell back
+	// to 一个REST lookup f或一个node_id-addressed item, this would 404.
 	restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
 
 	deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
@@ -638,9 +638,9 @@ func Test_ProjectsWrite_UpdateProjectItems_MaximumWritesIsThreeMutationRequests(
 	assert.Len(t, transport.mutationCalls, 3)
 }
 
-// chunkSizeTestRun runs an update_project_items call with itemCount node_id
-// items (all TEXT field updates), returning the mutationAwareTransport so the
-// caller can assert on how many aliased-mutation HTTP requests were made.
+// chunkSizeTestRun runs 一个更新_project_items c所有with itemCount node_id
+// items (所有TEXT field 更新s), 返回ing mutationAwareTransport so the
+// 调用er can assert on how many aliased-mutation HTTP 请求s were made.
 func chunkSizeTestRun(t *testing.T, toolDef inventory.ServerTool, itemCount int) *mutationAwareTransport {
 	t.Helper()
 
@@ -658,7 +658,7 @@ func chunkSizeTestRun(t *testing.T, toolDef inventory.ServerTool, itemCount int)
 		t:       t,
 		queries: queryTransport.Transport,
 		mutationRespond: func(_ int, req capturedGraphQLRequest) (int, string) {
-			// input (index 0) plus inputN for each additional alias in this chunk.
+			// 输入 (index 0) plus 输入N f或每个additional alias in this chunk.
 			chunkSize := len(req.Variables)
 			ids := make(map[int]struct{ NodeID, FullDatabaseID string }, chunkSize)
 			for i := range chunkSize {
@@ -782,7 +782,7 @@ func Test_ProjectsWrite_UpdateProjectItems_TransportFailureAbortsLaterChunks(t *
 		queries: queryTransport.Transport,
 		mutationRespond: func(callIndex int, _ capturedGraphQLRequest) (int, string) {
 			if callIndex == 0 {
-				// Systemic transport-level failure: no data at all.
+				// Systemic transport-level failure: no 数据 at all.
 				return http.StatusInternalServerError, `{"message":"internal server error"}`
 			}
 			t.Fatalf("chunk #%d must not execute after an ambiguous chunk-level failure", callIndex)
@@ -809,9 +809,9 @@ func Test_ProjectsWrite_UpdateProjectItems_TransportFailureAbortsLaterChunks(t *
 	})
 	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)
-	// No item succeeded (all unknown after the abort), so IsError is set per
-	// the "no item succeeded" rule, even though nothing was deterministically
-	// rejected; the structured result (with unknown statuses) is still available.
+	// No item succeeded (所有未知 after abort), so IsErr或is set per
+	// "no item succeeded" rule, even though nothing was deterministi调用y
+	// rejected; structured 结果 (with 未知 statuses) is still available.
 	assert.True(t, result.IsError)
 
 	var response map[string]any
@@ -909,10 +909,10 @@ func Test_ProjectsWrite_UpdateProjectItems_MixedOutcomeKeepsIsErrorFalse(t *test
 }
 
 // Test_ProjectsWrite_UpdateProjectItems_EnterpriseClientWiring verifies the
-// batch mutation path works unchanged when gqlClient was constructed via
-// githubv4.NewEnterpriseClient (GHES), not just githubv4.NewClient: the
-// reflection-based mutation logic never assumes a specific endpoint and only
-// ever uses the injected client.
+// batch mutation 路径 works unchanged when gqlClient was constructed via
+// githubv4.NewEnterpriseClient (GHES), 不just githubv4.NewClient: the
+// reflection-based mutation logic 绝不assumes 一个specific endpoint 和only
+// ever uses injected 客户端.
 func Test_ProjectsWrite_UpdateProjectItems_EnterpriseClientWiring(t *testing.T) {
 	toolDef := ProjectsWrite(translations.NullTranslationHelper)
 

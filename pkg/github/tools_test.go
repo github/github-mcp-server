@@ -156,10 +156,10 @@ func TestContainsToolset(t *testing.T) {
 }
 
 func TestGenerateToolsetsHelp(t *testing.T) {
-	// Generate the help text
+	// Generate help text
 	helpText := GenerateToolsetsHelp()
 
-	// Verify help text is not empty
+	// Verify help text is 不空
 	require.NotEmpty(t, helpText)
 
 	// Verify it contains expected sections
@@ -173,14 +173,14 @@ func TestGenerateToolsetsHelp(t *testing.T) {
 	assert.Contains(t, helpText, "--toolsets=default,actions,gists")
 	assert.Contains(t, helpText, "--toolsets=all")
 
-	// Verify it contains some expected default toolsets
+	// Verify it contains some expected 默认工具集s
 	assert.Contains(t, helpText, "context")
 	assert.Contains(t, helpText, "repos")
 	assert.Contains(t, helpText, "issues")
 	assert.Contains(t, helpText, "pull_requests")
 	assert.Contains(t, helpText, "users")
 
-	// Verify it contains some expected available toolsets
+	// Verify it contains some expected available 工具集s
 	assert.Contains(t, helpText, "actions")
 	assert.Contains(t, helpText, "gists")
 	assert.Contains(t, helpText, "notifications")

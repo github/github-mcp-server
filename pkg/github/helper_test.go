@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// GitHub API endpoint patterns for testing
-// These constants define the URL patterns used in HTTP mocking for tests
+// GitHub API endpoint patterns f或testing
+// 这些constants define URL patterns used in HTTP 模拟ing f或tests
 const (
 	// User endpoints
 	GetUser                        = "GET /user"
@@ -71,7 +71,7 @@ const (
 	PostReposIssuesCommentsReactionsByOwnerByRepoByCommentID    = "POST /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions"
 	DeleteReposIssuesIssueFieldValueByOwnerByRepoByIssueNumber  = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/issue-field-values/{issue_field_id}"
 
-	// Pull request endpoints
+	// Pull 请求 endpoints
 	GetReposPullsByOwnerByRepo                                = "GET /repos/{owner}/{repo}/pulls"
 	GetReposPullsByOwnerByRepoByPullNumber                    = "GET /repos/{owner}/{repo}/pulls/{pull_number}"
 	GetReposPullsCommitsByOwnerByRepoByPullNumber             = "GET /repos/{owner}/{repo}/pulls/{pull_number}/commits"
@@ -115,8 +115,8 @@ const (
 	GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber = "GET /repos/{owner}/{repo}/code-scanning/alerts/{alert_number}"
 
 	// Secret scanning endpoints
-	GetReposSecretScanningAlertsByOwnerByRepo              = "GET /repos/{owner}/{repo}/secret-scanning/alerts"                //nolint:gosec // False positive - this is an API endpoint pattern, not a credential
-	GetReposSecretScanningAlertsByOwnerByRepoByAlertNumber = "GET /repos/{owner}/{repo}/secret-scanning/alerts/{alert_number}" //nolint:gosec // False positive - this is an API endpoint pattern, not a credential
+	GetReposSecretScanningAlertsByOwnerByRepo              = "GET /repos/{owner}/{repo}/secret-scanning/alerts"                //nolint:gosec // False positive - this is 一个API endpoint pattern, 不a credential
+	GetReposSecretScanningAlertsByOwnerByRepoByAlertNumber = "GET /repos/{owner}/{repo}/secret-scanning/alerts/{alert_number}" //nolint:gosec // False positive - this is 一个API endpoint pattern, 不a credential
 
 	// Dependabot endpoints
 	GetReposDependabotAlertsByOwnerByRepo              = "GET /repos/{owner}/{repo}/dependabot/alerts"
@@ -152,8 +152,8 @@ const (
 	GetSearchRepositories = "GET /search/repositories"
 	GetSearchCommits      = "GET /search/commits"
 
-	// Raw content endpoints (used for GitHub raw content API, not standard API)
-	// These are used with the raw content client that interacts with raw.githubusercontent.com
+	// Raw 内容 endpoints (用于 GitHub raw 内容 API, 不standard API)
+	// 这些are used 使用raw 内容 客户端 that interacts with raw.githubuser内容.com
 	GetRawReposContentsByOwnerByRepoByPath         = "GET /{owner}/{repo}/HEAD/{path:.*}"
 	GetRawReposContentsByOwnerByRepoByBranchByPath = "GET /{owner}/{repo}/refs/heads/{branch}/{path:.*}"
 	GetRawReposContentsByOwnerByRepoByTagByPath    = "GET /{owner}/{repo}/refs/tags/{tag}/{path:.*}"
@@ -181,7 +181,7 @@ const (
 	PatchUsersProjectsV2ItemsByUsernameByProjectByItemID  = "PATCH /users/{username}/projectsV2/{project}/items/{item_id}"
 	DeleteUsersProjectsV2ItemsByUsernameByProjectByItemID = "DELETE /users/{username}/projectsV2/{project}/items/{item_id}"
 
-	// Organization issue types endpoints
+	// Organization 议题 types endpoints
 	GetOrgsIssueTypesByOrg = "GET /orgs/{org}/issue-types"
 )
 
@@ -191,9 +191,9 @@ type expectations struct {
 	requestBody any
 }
 
-// mustNewGHClient creates a new GitHub client for testing.
-// If httpClient is nil, a client with no options is created.
-// The test fails immediately if client creation fails.
+// mustNewGHClient 创建s 一个新的 GitHub 客户端 f或testing.
+// If httpClient is nil, 一个客户端 with no options is 创建d.
+// test fails immediately if 客户端 creation fails.
 func mustNewGHClient(t *testing.T, httpClient *http.Client) *gogithub.Client {
 	t.Helper()
 	var client *gogithub.Client
@@ -207,8 +207,8 @@ func mustNewGHClient(t *testing.T, httpClient *http.Client) *gogithub.Client {
 	return client
 }
 
-// expect is a helper function to create a partial mock that expects various
-// request behaviors, such as path, query parameters, and request body.
+// expect is 一个helper 函数 to 创建 一个partial 模拟 that expects various
+// 请求 behaviors, such as 路径, query 参数, 和请求 body.
 func expect(t *testing.T, e expectations) *partialMock {
 	return &partialMock{
 		t:                   t,
@@ -218,8 +218,8 @@ func expect(t *testing.T, e expectations) *partialMock {
 	}
 }
 
-// expectPath is a helper function to create a partial mock that expects a
-// request with the given path, with the ability to chain a response handler.
+// expectPath is 一个helper 函数 to 创建 一个partial 模拟 that expects a
+// 请求 使用given 路径, 使用ability to chain 一个响应 处理器.
 func expectPath(t *testing.T, expectedPath string) *partialMock {
 	return &partialMock{
 		t:            t,
@@ -227,8 +227,8 @@ func expectPath(t *testing.T, expectedPath string) *partialMock {
 	}
 }
 
-// expectQueryParams is a helper function to create a partial mock that expects a
-// request with the given query parameters, with the ability to chain a response handler.
+// expectQueryParams is 一个helper 函数 to 创建 一个partial 模拟 that expects a
+// 请求 使用given query 参数, 使用ability to chain 一个响应 处理器.
 func expectQueryParams(t *testing.T, expectedQueryParams map[string]string) *partialMock {
 	return &partialMock{
 		t:                   t,
@@ -236,8 +236,8 @@ func expectQueryParams(t *testing.T, expectedQueryParams map[string]string) *par
 	}
 }
 
-// expectRequestBody is a helper function to create a partial mock that expects a
-// request with the given body, with the ability to chain a response handler.
+// expectRequestBody is 一个helper 函数 to 创建 一个partial 模拟 that expects a
+// 请求 使用given body, 使用ability to chain 一个响应 处理器.
 func expectRequestBody(t *testing.T, expectedRequestBody any) *partialMock {
 	return &partialMock{
 		t:                   t,
@@ -291,14 +291,14 @@ func (p *partialMock) andThen(responseHandler http.HandlerFunc) http.HandlerFunc
 	}
 }
 
-// mockResponse is a helper function to create a mock HTTP response handler
-// that returns a specified status code and marshaled body.
+// 模拟Response is 一个helper 函数 to 创建 一个模拟 HTTP 响应 处理器
+// that 返回 一个specified status code 和marshaled body.
 func mockResponse(t *testing.T, code int, body any) http.HandlerFunc {
 	t.Helper()
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(code)
-		// Some tests do not expect to return a JSON object, such as fetching a raw pull request diff,
-		// so allow strings to be returned directly.
+		// Some tests do 不expect to 返回 一个JSON object, such as fetching 一个raw 拉取请求 diff,
+		// so allow strings to be 返回ed directly.
 		s, ok := body.(string)
 		if ok {
 			_, _ = w.Write([]byte(s))
@@ -311,9 +311,9 @@ func mockResponse(t *testing.T, code int, body any) http.HandlerFunc {
 	}
 }
 
-// createMCPRequest is a helper function to create a MCP request with the given arguments.
+// 创建MCPRequest is 一个helper 函数 to 创建 一个MCP 请求 使用given 参数.
 func createMCPRequest(args any) mcp.CallToolRequest {
-	// convert args to map[string]interface{} and serialize to JSON
+	// convert args to map[string]interface{} 和serialize to JSON
 	argsMap, ok := args.(map[string]any)
 	if !ok {
 		argsMap = make(map[string]any)
@@ -333,15 +333,15 @@ func createMCPRequest(args any) mcp.CallToolRequest {
 	}
 }
 
-// Well-known MCP client names used in tests.
+// Well-known MCP 客户端 names used in tests.
 const (
 	ClientNameVSCodeInsiders = "Visual Studio Code - Insiders"
 	ClientNameVSCode         = "Visual Studio Code"
 )
 
-// createMCPRequestWithSession creates a CallToolRequest with a ServerSession
-// that has the given client name in its InitializeParams. When withUI is true
-// the session advertises MCP Apps UI support via the capability extension.
+// 创建MCPRequestWithSession 创建s 一个CallToolRequest with 一个ServerSession
+// that has given 客户端 name in its InitializeParams. When withUI is 真
+// 会话 advertises MCP Apps UI support via 能力 extension.
 func createMCPRequestWithSession(t *testing.T, clientName string, withUI bool, args any) mcp.CallToolRequest {
 	t.Helper()
 
@@ -372,7 +372,7 @@ func createMCPRequestWithSession(t *testing.T, clientName string, withUI bool, a
 	})
 	require.NoError(t, err)
 
-	// Close the unused client-side transport and session
+	// Close unused 客户端-side transport 和会话
 	t.Cleanup(func() {
 		_ = session.Close()
 	})
@@ -385,7 +385,7 @@ func createMCPRequestWithSession(t *testing.T, clientName string, withUI bool, a
 	}
 }
 
-// getTextResult is a helper function that returns a text result from a tool call.
+// 获取TextResult is 一个helper 函数 that 返回 一个text 结果 from 一个工具 调用.
 func getTextResult(t *testing.T, result *mcp.CallToolResult) *mcp.TextContent {
 	t.Helper()
 	assert.NotNil(t, result)
@@ -401,9 +401,9 @@ func getErrorResult(t *testing.T, result *mcp.CallToolResult) *mcp.TextContent {
 	return res
 }
 
-// getTextResourceResult is a helper function that returns a text result from a tool call.
+// 获取TextResourceResult is 一个helper 函数 that 返回 一个text 结果 from 一个工具 调用.
 
-// getBlobResourceResult is a helper function that returns a blob result from a tool call.
+// 获取BlobResourceResult is 一个helper 函数 that 返回 一个blob 结果 from 一个工具 调用.
 
 func TestOptionalParamOK(t *testing.T) {
 	tests := []struct {
@@ -443,8 +443,8 @@ func TestOptionalParamOK(t *testing.T) {
 			name:        "present but wrong type (string expected, got bool)",
 			args:        map[string]any{"myParam": true},
 			paramName:   "myParam",
-			expectedVal: "",   // Zero value for string
-			expectedOk:  true, // ok is true because param exists
+			expectedVal: "",   // Zero 值 f或string
+			expectedOk:  true, // ok is 真 因为param exists
 			expectError: true,
 			errorMsg:    "parameter myParam is not of type string, is bool",
 		},
@@ -452,8 +452,8 @@ func TestOptionalParamOK(t *testing.T) {
 			name:        "present but wrong type (bool expected, got string)",
 			args:        map[string]any{"myParam": "true"},
 			paramName:   "myParam",
-			expectedVal: false, // Zero value for bool
-			expectedOk:  true,  // ok is true because param exists
+			expectedVal: false, // Zero 值 f或bool
+			expectedOk:  true,  // ok is 真 因为param exists
 			expectError: true,
 			errorMsg:    "parameter myParam is not of type bool, is string",
 		},
@@ -461,7 +461,7 @@ func TestOptionalParamOK(t *testing.T) {
 			name:        "parameter not present",
 			args:        map[string]any{"anotherParam": "value"},
 			paramName:   "myParam",
-			expectedVal: "", // Zero value for string
+			expectedVal: "", // Zero 值 f或string
 			expectedOk:  false,
 			expectError: false,
 		},
@@ -475,8 +475,8 @@ func TestOptionalParamOK(t *testing.T) {
 				if tc.expectError {
 					require.Error(t, err)
 					assert.Contains(t, err.Error(), tc.errorMsg)
-					assert.Equal(t, tc.expectedOk, ok)   // Check ok even on error
-					assert.Equal(t, tc.expectedVal, val) // Check zero value on error
+					assert.Equal(t, tc.expectedOk, ok)   // Check ok even on 错误
+					assert.Equal(t, tc.expectedVal, val) // Check zero 值 on 错误
 				} else {
 					require.NoError(t, err)
 					assert.Equal(t, tc.expectedOk, ok)
@@ -490,8 +490,8 @@ func TestOptionalParamOK(t *testing.T) {
 				if tc.expectError {
 					require.Error(t, err)
 					assert.Contains(t, err.Error(), tc.errorMsg)
-					assert.Equal(t, tc.expectedOk, ok)   // Check ok even on error
-					assert.Equal(t, tc.expectedVal, val) // Check zero value on error
+					assert.Equal(t, tc.expectedOk, ok)   // Check ok even on 错误
+					assert.Equal(t, tc.expectedVal, val) // Check zero 值 on 错误
 				} else {
 					require.NoError(t, err)
 					assert.Equal(t, tc.expectedOk, ok)
@@ -499,11 +499,11 @@ func TestOptionalParamOK(t *testing.T) {
 				}
 			}
 
-			// Test with float64 type assertion (for number case)
+			// Test with float64 type assertion (f或number case)
 			if _, isFloat := tc.expectedVal.(float64); isFloat {
 				val, ok, err := OptionalParamOK[float64](tc.args, tc.paramName)
 				if tc.expectError {
-					// This case shouldn't happen for float64 in the defined tests
+					// 此case shouldn't happen f或float64 在defined tests
 					require.Fail(t, "Unexpected error case for float64")
 				} else {
 					require.NoError(t, err)
@@ -528,27 +528,27 @@ func getResourceResult(t *testing.T, result *mcp.CallToolResult) *mcp.ResourceCo
 	return resource.Resource
 }
 
-// MockRoundTripper is a mock HTTP transport using testify/mock
+// MockRoundTripper is 一个模拟 HTTP transport using testify/模拟
 type MockRoundTripper struct {
 	testifymock.Mock
 	handlers map[string]http.HandlerFunc
 }
 
-// NewMockRoundTripper creates a new mock round tripper
+// NewMockRoundTripper 创建s 一个新的 模拟 round tripper
 func NewMockRoundTripper() *MockRoundTripper {
 	return &MockRoundTripper{
 		handlers: make(map[string]http.HandlerFunc),
 	}
 }
 
-// RoundTrip implements the http.RoundTripper interface
+// RoundTrip implements http.RoundTripper interface
 func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Normalize the request path and method for matching
+	// Normalize 请求 路径 和method f或matching
 	key := req.Method + " " + req.URL.Path
 
-	// Check if we have a specific handler for this request
+	// Check if we have 一个specific 处理器 f或this 请求
 	if handler, ok := m.handlers[key]; ok {
-		// Use httptest.ResponseRecorder to capture the handler's response
+		// Use httptest.ResponseRecorder to capture 处理器's 响应
 		recorder := &responseRecorder{
 			header: make(http.Header),
 			body:   &bytes.Buffer{},
@@ -563,7 +563,7 @@ func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		}, nil
 	}
 
-	// Fall back to mock.Mock assertions if defined
+	// F所有back to 模拟.Mock assertions if defined
 	args := m.Called(req)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -571,21 +571,21 @@ func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	return args.Get(0).(*http.Response), args.Error(1)
 }
 
-// On registers an expectation using testify/mock
+// On registers 一个expectation using testify/模拟
 func (m *MockRoundTripper) OnRequest(method, path string, handler http.HandlerFunc) *MockRoundTripper {
 	key := method + " " + path
 	m.handlers[key] = handler
 	return m
 }
 
-// NewMockHTTPClient creates an HTTP client with a mock transport
+// NewMockHTTPClient 创建s 一个HTTP 客户端 with 一个模拟 transport
 func NewMockHTTPClient() (*http.Client, *MockRoundTripper) {
 	transport := NewMockRoundTripper()
 	client := &http.Client{Transport: transport}
 	return client, transport
 }
 
-// responseRecorder is a simple response recorder for the mock transport
+// 响应Recorder is 一个simple 响应 recorder 用于模拟 transport
 type responseRecorder struct {
 	statusCode int
 	header     http.Header
@@ -607,29 +607,29 @@ func (r *responseRecorder) WriteHeader(statusCode int) {
 	r.statusCode = statusCode
 }
 
-// matchPath checks if a request path matches a pattern (supports simple wildcards)
+// matchPath 检查s if 一个请求 路径 matches 一个pattern (supports simple wildcards)
 func matchPath(pattern, path string) bool {
-	// Simple exact match for now
+	// Simple exact match f或now
 	if pattern == path {
 		return true
 	}
 
-	// Support for path parameters like /repos/{owner}/{repo}/issues/{issue_number}
+	// Support f或路径 参数 like /repos/{owner}/{repo}/议题/{议题_number}
 	patternParts := strings.Split(strings.Trim(pattern, "/"), "/")
 	pathParts := strings.Split(strings.Trim(path, "/"), "/")
 
-	// Handle patterns with wildcard path like {path:.*}
+	// Handle patterns with wildcard 路径 like {路径:.*}
 	if len(patternParts) > 0 {
 		lastPart := patternParts[len(patternParts)-1]
 		if strings.HasPrefix(lastPart, "{") && strings.Contains(lastPart, ":") && strings.HasSuffix(lastPart, "}") {
-			// This is a wildcard pattern like {path:.*}
-			// Check if all parts before the wildcard match
+			// 此is 一个wildcard pattern like {路径:.*}
+			// Check if 所有parts before wildcard match
 			if len(pathParts) < len(patternParts)-1 {
 				return false
 			}
 			for i := range len(patternParts) - 1 {
 				if strings.HasPrefix(patternParts[i], "{") && strings.HasSuffix(patternParts[i], "}") {
-					continue // Path parameter matches anything
+					continue // Path 参数 matches anything
 				}
 				if patternParts[i] != pathParts[i] {
 					return false
@@ -644,9 +644,9 @@ func matchPath(pattern, path string) bool {
 	}
 
 	for i := range patternParts {
-		// Check if this is a path parameter (enclosed in {})
+		// Check if this is 一个路径 参数 (enclosed in {})
 		if strings.HasPrefix(patternParts[i], "{") && strings.HasSuffix(patternParts[i], "}") {
-			continue // Path parameters match anything
+			continue // Path 参数 match anything
 		}
 		if patternParts[i] != pathParts[i] {
 			return false
@@ -656,7 +656,7 @@ func matchPath(pattern, path string) bool {
 	return true
 }
 
-// executeHandler executes an HTTP handler and returns the response
+// executeHandler executes 一个HTTP 处理器 和返回 响应
 func executeHandler(handler http.HandlerFunc, req *http.Request) *http.Response {
 	recorder := &responseRecorder{
 		header: make(http.Header),
@@ -672,7 +672,7 @@ func executeHandler(handler http.HandlerFunc, req *http.Request) *http.Response 
 	}
 }
 
-// MockHTTPClientWithHandler creates an HTTP client with a single handler function
+// MockHTTPClientWithHandler 创建s 一个HTTP 客户端 with 一个单个 处理器 函数
 func MockHTTPClientWithHandler(handler http.HandlerFunc) *http.Client {
 	handlers := map[string]http.HandlerFunc{
 		"": handler, // Empty key acts as catch-all
@@ -680,13 +680,13 @@ func MockHTTPClientWithHandler(handler http.HandlerFunc) *http.Client {
 	return MockHTTPClientWithHandlers(handlers)
 }
 
-// MockHTTPClientWithHandlers creates an HTTP client with multiple handlers for different paths
+// MockHTTPClientWithHandlers 创建s 一个HTTP 客户端 with 多个 处理器s f或different 路径s
 func MockHTTPClientWithHandlers(handlers map[string]http.HandlerFunc) *http.Client {
 	transport := &multiHandlerTransport{handlers: handlers}
 	return &http.Client{Transport: transport}
 }
 
-// Compatibility helpers to replace github.com/migueleliasweb/go-github-mock in tests
+// Compatibility helpers to replace github.com/migueleliasweb/go-github-模拟 in tests
 type EndpointPattern string
 
 type MockBackendOption func(map[string]http.HandlerFunc)
@@ -749,12 +749,12 @@ type multiHandlerTransport struct {
 }
 
 func (m *multiHandlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Check for catch-all handler
+	// Check f或catch-所有处理器
 	if handler, ok := m.handlers[""]; ok {
 		return executeHandler(handler, req), nil
 	}
 
-	// Try to find a handler for this request
+	// Try to find 一个处理器 f或this 请求
 	key := req.Method + " " + req.URL.Path
 
 	// First try exact match
@@ -763,8 +763,8 @@ func (m *multiHandlerTransport) RoundTrip(req *http.Request) (*http.Response, er
 	}
 
 	// Then try pattern matching, prioritizing patterns without wildcards
-	// This is important because wildcard patterns like /{owner}/{repo}/{sha}/{path:.*}
-	// can incorrectly match API paths like /repos/owner/repo/pulls/42
+	// 此is important 因为wildcard patterns like /{owner}/{repo}/{sha}/{路径:.*}
+	// can incorrectly match API 路径s like /repos/owner/repo/pulls/42
 	var wildcardPattern string
 	var wildcardHandler http.HandlerFunc
 
@@ -781,12 +781,12 @@ func (m *multiHandlerTransport) RoundTrip(req *http.Request) (*http.Response, er
 			continue
 		}
 
-		// Check if this pattern contains a wildcard like {path:.*}
+		// Check if this pattern contains 一个wildcard like {路径:.*}
 		isWildcard := strings.Contains(pathPattern, ":.*}")
 
 		if matchPath(pathPattern, req.URL.Path) {
 			if isWildcard {
-				// Save wildcard match for later, prefer non-wildcard patterns
+				// Save wildcard match f或later, prefer non-wildcard patterns
 				wildcardPattern = pattern
 				wildcardHandler = handler
 			} else {
@@ -796,12 +796,12 @@ func (m *multiHandlerTransport) RoundTrip(req *http.Request) (*http.Response, er
 		}
 	}
 
-	// If we found a wildcard match but no specific match, use it
+	// If we found 一个wildcard match 但no specific match, use it
 	if wildcardPattern != "" && wildcardHandler != nil {
 		return executeHandler(wildcardHandler, req), nil
 	}
 
-	// No handler found
+	// No 处理器 found
 	return &http.Response{
 		StatusCode: http.StatusNotFound,
 		Body:       io.NopCloser(bytes.NewReader([]byte("not found"))),
@@ -809,7 +809,7 @@ func (m *multiHandlerTransport) RoundTrip(req *http.Request) (*http.Response, er
 	}, nil
 }
 
-// extractPathParams extracts path parameters from a URL path given a pattern
+// extractPathParams extracts 路径 参数 from 一个URL 路径 given 一个pattern
 func extractPathParams(pattern, path string) map[string]string {
 	params := make(map[string]string)
 	patternParts := strings.Split(strings.Trim(pattern, "/"), "/")
@@ -829,7 +829,7 @@ func extractPathParams(pattern, path string) map[string]string {
 	return params
 }
 
-// ParseRequestPath is a helper to extract path parameters
+// ParseRequestPath is 一个helper to extract 路径 参数
 func ParseRequestPath(t *testing.T, req *http.Request, pattern string) url.Values {
 	t.Helper()
 	params := extractPathParams(pattern, req.URL.Path)

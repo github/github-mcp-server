@@ -1,0 +1,44 @@
+The client sends a discover request carrying the per-request _meta
+(protocolVersion, clientInfo, clientCapabilities), and the server
+replies with the protocol versions it supports, its capabilities, and its
+identity via `_meta.io.modelcontextprotocol/serverInfo`.
+
+-- client --
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "server/discover",
+  "params": {
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": { "name": "ExampleClient", "version": "1.0.0" },
+      "io.modelcontextprotocol/clientCapabilities": {}
+    }
+  }
+}
+-- server --
+{
+	"jsonrpc": "2.0",
+	"id": 1,
+	"result": {
+		"resultType": "complete",
+		"_meta": {
+			"io.modelcontextprotocol/serverInfo": {
+				"name": "testServer",
+				"version": "v1.0.0"
+			}
+		},
+		"ttlMs": 0,
+		"cacheScope": "public",
+		"supportedVersions": [
+			"2026-07-28",
+			"2025-11-25",
+			"2025-06-18",
+			"2025-03-26",
+			"2024-11-05"
+		],
+		"capabilities": {
+			"logging": {}
+		}
+	}
+}

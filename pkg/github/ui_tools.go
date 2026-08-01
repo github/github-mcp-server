@@ -20,19 +20,19 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
-// uiGetMaxPages bounds how many pages each ui_get pagination loop will fetch.
-// ui_get backs a synchronous UI picker (dropdowns for labels/assignees/etc. in
-// the MCP App issue/PR write surfaces), so responsiveness matters more than
-// completeness. At PerPage 100 this caps a call at ~1000 items and a bounded
+// uiGetMaxPages bounds how many 页s 每个ui_获取 pagination loop will fetch.
+// ui_获取 backs 一个synchronous UI picker (dropdowns f或labels/assignees/etc. in
+// MCP App 议题/PR 写入 surfaces), so responsiveness matters more than
+// completeness. At PerPage 100 this caps 一个c所有at ~1000 items 和a bounded
 // number of API round-trips, keeping latency predictable on very large
-// repos/orgs. Results past the cap are truncated and surfaced via a "has_more"
-// flag, which is acceptable because the picker pairs truncation with typeahead.
+// repos/orgs. Results past cap are truncated 和surfaced via 一个"has_more"
+// flag, which is acceptable 因为the picker pairs truncation with typeahead.
 const uiGetMaxPages = 10
 
-// UIGet creates a tool to fetch UI data for MCP Apps.
+// UIGet 创建一个工具以 fetch UI 数据 f或MCP Apps.
 func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
-		ToolsetMetadataContext, // Use context toolset so it's always available
+		ToolsetMetadataContext, // Use 上下文 工具集 so it's 始终available
 		mcp.Tool{
 			Name:        "ui_get",
 			Description: t("TOOL_UI_GET_DESCRIPTION", "Fetch UI data for MCP Apps (labels, assignees, milestones, issue types, branches, issue fields, reviewers)."),
@@ -40,9 +40,9 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_UI_GET_USER_TITLE", "Get UI data"),
 				ReadOnlyHint: true,
 			},
-			// ui_get only backs MCP App views; declaring app-only visibility keeps
-			// it out of the agent's tool list while remaining callable by the views
-			// via tools/call (per the MCP Apps 2026-01-26 spec).
+			// ui_获取 仅backs MCP App views; declaring app-仅visibility keeps
+			// it out 的agent's 工具 列出 当remaining 调用able 由views
+			// via 工具/c所有(per MCP Apps 2026-01-26 spec).
 			Meta: mcp.Meta{
 				"ui": map[string]any{
 					"visibility": []string{"app"},

@@ -1,0 +1,6 @@
+# Create a new empty file.
+watch /
+touch /file
+
+Output:
+	create  /file

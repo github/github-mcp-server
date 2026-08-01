@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// ToolScopeInfo contains scope information for a single tool.
+// ToolScopeInfo 包含单个工具的 scope 信息。
 type ToolScopeInfo struct {
 	Name           string   `json:"name"`
 	Toolset        string   `json:"toolset"`
@@ -24,7 +24,7 @@ type ToolScopeInfo struct {
 	AcceptedScopes []string `json:"accepted_scopes,omitempty"`
 }
 
-// ScopesOutput is the full output structure for the list-scopes command.
+// ScopesOutput 是 list-scopes 命令的完整输出结构。
 type ScopesOutput struct {
 	Tools           []ToolScopeInfo     `json:"tools"`
 	UniqueScopes    []string            `json:"unique_scopes"`
@@ -75,7 +75,7 @@ func init() {
 	rootCmd.AddCommand(listScopesCmd)
 }
 
-// formatScopeDisplay formats a scope string for display, handling empty scopes.
+// formatScopeDisplay 格式化供显示的 scope 字符串，并处理空 scope。
 func formatScopeDisplay(scope string) string {
 	if scope == "" {
 		return "(no scope required for public read access)"
@@ -84,16 +84,16 @@ func formatScopeDisplay(scope string) string {
 }
 
 func runListScopes() error {
-	// Get toolsets configuration (same logic as stdio command)
+	// 获取工具集配置（与 stdio 命令使用相同逻辑）。
 	var enabledToolsets []string
 	if viper.IsSet("toolsets") {
 		if err := viper.UnmarshalKey("toolsets", &enabledToolsets); err != nil {
 			return fmt.Errorf("failed to unmarshal toolsets: %w", err)
 		}
 	}
-	// else: enabledToolsets stays nil, meaning "use defaults"
+	// 否则 enabledToolsets 保持为 nil，表示“使用默认值”。
 
-	// Get specific tools (similar to toolsets)
+	// 获取指定工具（与工具集类似）。
 	var enabledTools []string
 	if viper.IsSet("tools") {
 		if err := viper.UnmarshalKey("tools", &enabledTools); err != nil {
@@ -104,19 +104,19 @@ func runListScopes() error {
 	readOnly := viper.GetBool("read-only")
 	outputFormat := viper.GetString("list-scopes-output")
 
-	// Create translation helper
+	// 创建翻译辅助程序。
 	t, _ := translations.TranslationHelper()
 
-	// Build inventory using the same logic as the stdio server
+	// 使用与 stdio 服务器相同的逻辑构建清单。
 	inventoryBuilder := github.NewInventory(t).
 		WithReadOnly(readOnly)
 
-	// Configure toolsets (same as stdio)
+	// 配置工具集（与 stdio 相同）。
 	if enabledToolsets != nil {
 		inventoryBuilder = inventoryBuilder.WithToolsets(enabledToolsets)
 	}
 
-	// Configure specific tools
+	// 配置指定工具。
 	if len(enabledTools) > 0 {
 		inventoryBuilder = inventoryBuilder.WithTools(enabledTools)
 	}
@@ -126,10 +126,10 @@ func runListScopes() error {
 		return fmt.Errorf("failed to build inventory: %w", err)
 	}
 
-	// Collect all tools and their scopes
+	// 收集所有工具及其 scope。
 	output := collectToolScopes(inv, readOnly)
 
-	// Output based on format
+	// 根据格式输出。
 	switch outputFormat {
 	case "json":
 		return outputJSON(output)
@@ -146,18 +146,18 @@ func collectToolScopes(inv *inventory.Inventory, readOnly bool) ScopesOutput {
 	scopesByTool := make(map[string][]string)
 	toolsByScope := make(map[string][]string)
 
-	// Get all available tools from the inventory
-	// Use context.Background() for feature flag evaluation
+	// 从清单获取所有可用工具。
+	// 使用 context.Background() 评估 feature flag。
 	availableTools := inv.AvailableTools(context.Background())
 
 	for _, serverTool := range availableTools {
 		tool := serverTool.Tool
 
-		// Get scope information directly from ServerTool
+		// 直接从 ServerTool 获取 scope 信息。
 		requiredScopes := serverTool.RequiredScopes
 		acceptedScopes := serverTool.AcceptedScopes
 
-		// Determine if tool is read-only
+		// 确定工具是否只读。
 		isReadOnly := serverTool.IsReadOnly()
 
 		toolInfo := ToolScopeInfo{
@@ -169,34 +169,34 @@ func collectToolScopes(inv *inventory.Inventory, readOnly bool) ScopesOutput {
 		}
 		tools = append(tools, toolInfo)
 
-		// Track unique scopes
+		// 跟踪唯一的 scope。
 		for _, s := range requiredScopes {
 			scopeSet[s] = true
 			toolsByScope[s] = append(toolsByScope[s], tool.Name)
 		}
 
-		// Track scopes by tool
+		// 按工具跟踪 scope。
 		scopesByTool[tool.Name] = requiredScopes
 	}
 
-	// Sort tools by name
+	// 按名称排序工具。
 	sort.Slice(tools, func(i, j int) bool {
 		return tools[i].Name < tools[j].Name
 	})
 
-	// Get unique scopes as sorted slice
+	// 获取排序后的唯一 scope 切片。
 	var uniqueScopes []string
 	for s := range scopeSet {
 		uniqueScopes = append(uniqueScopes, s)
 	}
 	sort.Strings(uniqueScopes)
 
-	// Sort tools within each scope
+	// 对每个 scope 内的工具排序。
 	for scope := range toolsByScope {
 		sort.Strings(toolsByScope[scope])
 	}
 
-	// Get enabled toolsets as string slice
+	// 将已启用工具集获取为字符串切片。
 	toolsetIDs := inv.ToolsetIDs()
 	toolsetIDStrs := make([]string, len(toolsetIDs))
 	for i, id := range toolsetIDs {
@@ -241,13 +241,13 @@ func outputText(output ScopesOutput) error {
 	fmt.Printf("Enabled Toolsets: %s\n", strings.Join(output.EnabledToolsets, ", "))
 	fmt.Printf("Read-Only Mode: %v\n\n", output.ReadOnly)
 
-	// Group tools by toolset
+	// 按工具集对工具分组。
 	toolsByToolset := make(map[string][]ToolScopeInfo)
 	for _, tool := range output.Tools {
 		toolsByToolset[tool.Toolset] = append(toolsByToolset[tool.Toolset], tool)
 	}
 
-	// Get sorted toolset names
+	// 获取排序后的工具集名称。
 	var toolsetNames []string
 	for name := range toolsByToolset {
 		toolsetNames = append(toolsetNames, name)
@@ -274,7 +274,7 @@ func outputText(output ScopesOutput) error {
 		fmt.Println()
 	}
 
-	// Summary
+	// 摘要。
 	fmt.Println("## Summary")
 	fmt.Println()
 	if len(output.UniqueScopes) == 0 {
@@ -287,7 +287,7 @@ func outputText(output ScopesOutput) error {
 	}
 	fmt.Printf("\nTotal: %d tools, %d unique scopes\n", len(output.Tools), len(output.UniqueScopes))
 
-	// Legend
+	// 图例。
 	fmt.Println("\nLegend: 👁 = read-only, 📝 = read-write")
 
 	return nil

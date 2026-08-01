@@ -1,0 +1,20 @@
+require op_all
+
+touch /file
+watch /file  default open read close_write close_read
+cat /file
+
+echo data >>/file
+cat /file
+
+Output:
+	open        /file  # cat /file
+	close_read  /file
+
+	open        /file  # echo data >>/file
+	write       /file
+	close_write /file
+
+	open        /file # cat /file
+	read        /file
+	close_read  /file

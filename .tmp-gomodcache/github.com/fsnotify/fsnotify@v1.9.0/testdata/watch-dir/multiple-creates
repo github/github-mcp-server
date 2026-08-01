@@ -1,0 +1,22 @@
+# Create a file, delete it, and re-create the same file again.
+
+# TODO: this started failing in the CI, and I don't really know why?
+skip netbsd
+skip openbsd
+
+watch /
+
+echo data >>/file
+rm /file
+
+touch /file        # Recreate the file
+echo data >>/file  # Modify
+echo data >>/file  # Modify
+
+Output:
+	create  /file  # echo data >>/file
+	write   /file
+	remove  /file  # rm /file
+	create  /file  # touch /file
+	write   /file  # echo data >>/file
+	write   /file  # echo data >>/file

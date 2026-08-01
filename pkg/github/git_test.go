@@ -16,14 +16,14 @@ import (
 )
 
 func Test_GetRepositoryTree(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	toolDef := GetRepositoryTree(translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
 	assert.Equal(t, "get_repository_tree", toolDef.Tool.Name)
 	assert.NotEmpty(t, toolDef.Tool.Description)
 
-	// Type assert the InputSchema to access its properties
+	// Type assert InputSchema to access its properties
 	inputSchema, ok := toolDef.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "expected InputSchema to be *jsonschema.Schema")
 	assert.Contains(t, inputSchema.Properties, "owner")
@@ -33,7 +33,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "path_filter")
 	assert.ElementsMatch(t, inputSchema.Required, []string{"owner", "repo"})
 
-	// Setup mock data
+	// Setup 模拟 数据
 	mockRepo := &github.Repository{
 		DefaultBranch: github.Ptr("main"),
 	}
@@ -131,7 +131,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 			}
 			handler := toolDef.Handler(deps)
 
-			// Create the tool request
+			// Create 工具 请求
 			request := createMCPRequest(tc.requestArgs)
 
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
@@ -145,15 +145,15 @@ func Test_GetRepositoryTree(t *testing.T) {
 				require.NoError(t, err)
 				require.False(t, result.IsError)
 
-				// Parse the result and get the text content
+				// Parse 结果 和获取 text 内容
 				textContent := getTextResult(t, result)
 
-				// Parse the JSON response
+				// Parse JSON 响应
 				var treeResponse map[string]any
 				err := json.Unmarshal([]byte(textContent.Text), &treeResponse)
 				require.NoError(t, err)
 
-				// Verify response structure
+				// Verify 响应 structure
 				assert.Equal(t, "owner", treeResponse["owner"])
 				assert.Equal(t, "repo", treeResponse["repo"])
 				assert.Contains(t, treeResponse, "tree")
@@ -161,7 +161,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 				assert.Contains(t, treeResponse, "sha")
 				assert.Contains(t, treeResponse, "truncated")
 
-				// Check filtering if path_filter was provided
+				// Check 筛选ing if 路径_筛选 was provided
 				if pathFilter, exists := tc.requestArgs["path_filter"]; exists {
 					tree := treeResponse["tree"].([]any)
 					for _, entry := range tree {

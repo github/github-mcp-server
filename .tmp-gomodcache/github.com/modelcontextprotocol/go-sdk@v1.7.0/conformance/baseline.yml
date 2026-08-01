@@ -1,0 +1,14 @@
+client:
+  # OAuth mechanisms not implemented by the Go MCP SDK.
+  - auth/client-credentials-basic
+  - auth/client-credentials-jwt
+  - auth/enterprise-managed-authorization
+
+  # SEP-1932 (DPoP Sender-Constrained Tokens) client-side support not yet
+  # implemented by the Go MCP SDK.
+  - auth/dpop
+  - auth/dpop-nonce
+
+  # SEP-1933 (Workload Identity Federation JWT-bearer) client-side support
+  # not yet implemented by the Go MCP SDK.
+  - auth/wif-jwt-bearer

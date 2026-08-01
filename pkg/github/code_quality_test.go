@@ -16,7 +16,7 @@ import (
 )
 
 func Test_GetCodeQualityFinding(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	toolDef := GetCodeQualityFinding(translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
@@ -63,7 +63,7 @@ func Test_GetCodeQualityFinding(t *testing.T) {
 		CreatedAt *github.Timestamp    `json:"created_at,omitempty"`
 	}
 
-	// Setup mock finding for success case
+	// Setup 模拟 finding f或成功 case
 	mockFinding := &codeQualityFinding{
 		Number: github.Ptr(42),
 		State:  github.Ptr("open"),
@@ -114,20 +114,20 @@ func Test_GetCodeQualityFinding(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := toolDef.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler with new signature
+			// C所有处理器 with 新的 signature
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -139,10 +139,10 @@ func Test_GetCodeQualityFinding(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedFinding codeQualityFinding
 			err = json.Unmarshal([]byte(textContent.Text), &returnedFinding)
 			assert.NoError(t, err)

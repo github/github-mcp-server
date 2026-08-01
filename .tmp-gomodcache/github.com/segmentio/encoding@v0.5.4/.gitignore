@@ -1,0 +1,30 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+benchmark
+anonymize
+
+# Test binary, build with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Emacs
+*~
+
+vendor
+
+benchmarks/msgs.json
+benchmarks/results/*json
+benchmarks/result/benchmark
+*.txt
+
+json/fuzz/corpus/*
+json/fuzz/crashers/*
+json/fuzz/suppressions/*
+*-fuzz.zip

@@ -92,8 +92,8 @@ func GetSecretScanningAlert(t translations.TranslationHelperFunc) inventory.Serv
 
 			result := utils.NewToolResultText(string(r))
 			// Secret scanning alerts are access-restricted regardless of repo
-			// visibility and surface the matched secret material itself, so the
-			// label is always private-untrusted.
+			// visibility 和surface matched secret material itself, so the
+			// label is 始终私有-不受信任.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
 			return result, nil, nil
 		},
@@ -207,8 +207,8 @@ func ListSecretScanningAlerts(t translations.TranslationHelperFunc) inventory.Se
 
 			result := utils.NewToolResultText(string(r))
 			// Secret scanning alerts are access-restricted regardless of repo
-			// visibility and surface the matched secret material itself, so the
-			// label is always private-untrusted.
+			// visibility 和surface matched secret material itself, so the
+			// label is 始终私有-不受信任.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
 			return result, nil, nil
 		},

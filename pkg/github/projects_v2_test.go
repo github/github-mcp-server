@@ -140,8 +140,8 @@ func Test_ProjectsWrite_CreateProject(t *testing.T) {
 	})
 }
 
-// resolveProjectNodeIDOrgMatcher returns a GraphQL query matcher for resolving
-// an org project node ID via resolveProjectNodeID.
+// resolveProjectNodeIDOrgMatcher 返回 一个GraphQL query matcher f或resolving
+// 一个org project node ID via resolveProjectNodeID.
 func resolveProjectNodeIDOrgMatcher(owner string, projectNumber int, nodeID string) githubv4mock.Matcher {
 	return githubv4mock.NewQueryMatcher(
 		struct {
@@ -374,7 +374,7 @@ func Test_ProjectsWrite_CreateIterationField(t *testing.T) {
 	t.Run("success with auto-detected owner_type", func(t *testing.T) {
 		t.Parallel()
 
-		// detectOwnerType uses REST to probe user first, then org
+		// detectOwnerType uses REST to probe user 第一个, 然后org
 		mockRESTClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetUsersProjectsV2ByUsernameByProject: mockResponse(t, http.StatusNotFound, nil),
 			GetOrgsProjectsV2ByProject: mockResponse(t, http.StatusOK, map[string]any{

@@ -11,14 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestRegisterUIResources_ReadableViaClient verifies that each UI resource URI
-// advertised by an MCP App-enabled tool (e.g. issue_write, create_pull_request,
-// get_me) actually resolves to a registered resource on the server.
+// TestRegisterUIResources_ReadableViaClient verifies that 每个UI 资源 URI
+// advertised by 一个MCP App-启用 工具 (e.g. 议题_写入, 创建_pull_请求,
+// 获取_me) actually resolves to 一个registered 资源 在服务器.
 //
-// Regression test for the "Error loading MCP App: MPC -32002: Resource not
-// found" bug reported in issue #2467, where the HTTP/remote server returned a
-// resource URI in the tool's _meta.ui block but never registered the matching
-// resource — so the follow-up resources/read call from the client failed.
+// Regression test 用于"Err或loading MCP App: MPC -32002: Resource not
+// found" bug reported in 议题 #2467, 其中HTTP/remote 服务器 返回ed a
+// 资源 URI 在工具's _meta.ui block 但绝不registered matching
+// 资源 — so follow-up 资源/读取 c所有来自客户端 failed.
 func TestRegisterUIResources_ReadableViaClient(t *testing.T) {
 	t.Parallel()
 
@@ -29,7 +29,7 @@ func TestRegisterUIResources_ReadableViaClient(t *testing.T) {
 	srv := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
 	RegisterUIResources(srv, false)
 
-	// Connect an in-memory client/server pair and read each advertised URI.
+	// Connect 一个in-memory 客户端/服务器 pair 和读取 每个advertised URI.
 	st, ct := mcp.NewInMemoryTransports()
 
 	type clientResult struct {
@@ -71,9 +71,9 @@ func TestRegisterUIResources_ReadableViaClient(t *testing.T) {
 }
 
 // TestNewMCPServer_RegistersUIResources verifies that NewMCPServer — the
-// shared constructor used by both the stdio and HTTP entry points — registers
-// the UI resources when UI assets are embedded. Previously this registration
-// only happened in the stdio bootstrap, so remote/HTTP clients hit -32002.
+// shared construct或由以下内容使用： both stdio 和HTTP entry points — registers
+// UI 资源 when UI assets are embedded. Previously this registration
+// 仅happened 在stdio bootstrap, so remote/HTTP 客户端s hit -32002.
 func TestNewMCPServer_RegistersUIResources(t *testing.T) {
 	t.Parallel()
 
@@ -158,8 +158,8 @@ func TestRegisterUIResources_ReadOnlySkipsWriteResources(t *testing.T) {
 	assert.Equal(t, []string{"get_me_ui"}, names)
 }
 
-// mustEmptyInventory builds an empty inventory for tests that only care about
-// resources/prompts registered outside the inventory (such as the UI resources).
+// mustEmptyInventory builds 一个空 inventory f或tests that 仅care about
+// 资源/提示 registered outside inventory (such as UI 资源).
 func mustEmptyInventory(t *testing.T) *inventory.Inventory {
 	t.Helper()
 	inv, err := NewInventory(stubTranslator).WithToolsets([]string{}).Build()

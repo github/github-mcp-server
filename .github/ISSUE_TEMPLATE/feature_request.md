@@ -1,24 +1,24 @@
 ---
-name: "⭐ Submit a feature request"
-about: Surface a feature or problem that you think should be solved
+name: "⭐ 提交功能请求"
+about: 提出你认为应解决的功能或问题
 title: ''
 labels: enhancement
 assignees: ''
 
 ---
 
-### Describe the feature or problem you’d like to solve
+### 描述你希望解决的功能或问题
 
-A clear and concise description of what the feature or problem is.
+清晰简洁地描述该功能或问题。
 
-### Proposed solution
+### 建议的解决方案
 
-How will it benefit GitHub MCP Server and its users?
+它将如何使 GitHub MCP Server 及其用户受益？
 
-### Example prompts or workflows (for tools/toolsets only)
+### 示例 prompts 或 workflows（仅适用于 tools/toolsets）
 
-If it's a new tool or improvement, share 3–5 example prompts or workflows it would enable. Just enough detail to show the value. Clear, valuable use cases are more likely to get approved.
+如果这是一个新 tool 或改进，请分享它将支持的 3–5 个示例 prompts 或 workflows。只需提供足以展示价值的细节。清晰且有价值的 use cases 更有可能获批。
 
-### Additional context
+### 补充上下文
 
-Add any other context like screenshots or mockups are helpful, if applicable.
+如适用，请添加任何其他有帮助的上下文，例如 screenshots 或 mockups。

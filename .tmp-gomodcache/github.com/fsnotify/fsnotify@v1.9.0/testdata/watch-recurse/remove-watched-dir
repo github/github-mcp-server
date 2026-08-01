@@ -1,0 +1,59 @@
+# Remove watched directory.
+require recurse
+
+mkdir /watch
+touch /watch/a
+touch /watch/b
+touch /watch/c
+touch /watch/d
+touch /watch/e
+touch /watch/f
+touch /watch/g
+
+mkdir /watch/h
+mkdir /watch/h/a
+mkdir /watch/i
+mkdir /watch/i/a
+mkdir /watch/j
+mkdir /watch/j/a
+
+watch /watch/...
+rm -r /watch
+
+Output:
+	remove      /watch/a
+	remove      /watch/b
+	remove      /watch/c
+	remove      /watch/d
+	remove      /watch/e
+	remove      /watch/f
+	remove      /watch/g
+	write       /watch/h
+	remove      /watch/h/a
+	write       /watch/h
+	remove      /watch/h
+	write       /watch/i
+	remove      /watch/i/a
+	write       /watch/i
+	remove      /watch/i
+	write       /watch/j
+	remove      /watch/j/a
+	write       /watch/j
+	remove      /watch/j
+	remove      /watch
+
+	linux:  # Same as Windows, but without those stupid dir writes Windows sends.
+		remove      /watch/a
+		remove      /watch/b
+		remove      /watch/c
+		remove      /watch/d
+		remove      /watch/e
+		remove      /watch/f
+		remove      /watch/g
+		remove      /watch/h/a
+		remove      /watch/h
+		remove      /watch/i/a
+		remove      /watch/i
+		remove      /watch/j/a
+		remove      /watch/j
+		remove      /watch

@@ -1,0 +1,26 @@
+{
+    "name": "Go MCP SDK Dev Container",
+    "image": "mcr.microsoft.com/devcontainers/go",
+    "features": {
+        "ghcr.io/devcontainers/features/git-lfs:1": {}
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "golang.go",
+                "ms-vsliveshare.vsliveshare",
+                "VisualStudioExptTeam.vscodeintellicode",
+                "eamodio.gitlens",
+                "usernamehw.errorlens",
+                "aaron-bond.better-comments",
+                "GitHub.vscode-github-actions",
+                "vscode-icons-team.vscode-icons"
+            ],
+            "settings": {
+                "workbench.iconTheme": "vscode-icons"
+            }
+        }
+    },
+
+    "postCreateCommand": "go mod tidy"
+}

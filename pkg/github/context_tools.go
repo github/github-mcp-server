@@ -16,11 +16,11 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
-// GetMeUIResourceURI is the URI for the get_me tool's MCP App UI resource.
+// GetMeUIResourceURI is URI 用于获取_me 工具's MCP App UI 资源.
 const GetMeUIResourceURI = "ui://github-mcp-server/get-me"
 
-// UserDetails contains additional fields about a GitHub user not already
-// present in MinimalUser. Used by get_me context tool but omitted from search_users.
+// UserDetails contains additional fields about 一个GitHub user 不al读取y
+// present in MinimalUser. Used by 获取_me 上下文 工具 但omitted from search_users.
 type UserDetails struct {
 	Name              string    `json:"name,omitempty"`
 	Company           string    `json:"company,omitempty"`
@@ -41,7 +41,7 @@ type UserDetails struct {
 	OwnedPrivateRepos int64     `json:"owned_private_repos,omitempty"`
 }
 
-// GetMe creates a tool to get details of the authenticated user.
+// GetMe 创建一个工具以 获取 details 的authenticated user.
 func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataContext,
@@ -52,8 +52,8 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_GET_ME_USER_TITLE", "Get my user profile"),
 				ReadOnlyHint: true,
 			},
-			// Use json.RawMessage to ensure "properties" is included even when empty.
-			// OpenAI strict mode requires the properties field to be present.
+			// Use json.RawMessage to ensure "properties" is included even when 空.
+			// OpenAI strict mode requires properties field to be present.
 			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
 			Meta: mcp.Meta{
 				"ui": map[string]any{
@@ -78,7 +78,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 				), nil, nil
 			}
 
-			// Create minimal user representation instead of returning full user object
+			// Create minimal user representation instead of 返回ing full user object
 			minimalUser := MinimalUser{
 				Login:      user.GetLogin(),
 				ID:         user.GetID(),
@@ -217,9 +217,9 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := MarshalledTextResult(organizations)
-			// Team membership is maintained by GitHub and cannot be forged by
-			// outside contributors (trusted). Org team rosters are visible only
-			// to org members, so confidentiality is private.
+			// Team membership is maintained by GitHub 和can不be forged by
+			// outside contributors (受信任). Org team rosters are visible only
+			// to org members, so confidentiality is 私有.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelTeam())
 			return result, nil, nil
 		},
@@ -293,9 +293,9 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := MarshalledTextResult(members)
-			// Team membership is maintained by GitHub and cannot be forged by
-			// outside contributors (trusted). A team's member roster is visible
-			// only to org members, so confidentiality is private.
+			// Team membership is maintained by GitHub 和can不be forged by
+			// outside contributors (受信任). 一个team's member roster is visible
+			// 仅to org members, so confidentiality is 私有.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelTeam())
 			return result, nil, nil
 		},

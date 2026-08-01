@@ -23,8 +23,8 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
-// mvpDescription is an MVP idea for generating tool descriptions from structured data in a shared format.
-// It is not intended for widespread usage and is not a complete implementation.
+// mvpDescription is 一个MVP idea f或generating 工具 descriptions from structured 数据 in 一个shared format.
+// It is 不intended f或widesp读取 usage 和is 不a complete implementation.
 type mvpDescription struct {
 	summary        string
 	outcomes       []string
@@ -53,7 +53,7 @@ func (d *mvpDescription) String() string {
 	return sb.String()
 }
 
-// linkedPullRequest represents a PR linked to an issue by Copilot.
+// linkedPullRequest represents 一个PR linked to 一个议题 by Copilot.
 type linkedPullRequest struct {
 	Number    int
 	URL       string
@@ -62,36 +62,36 @@ type linkedPullRequest struct {
 	CreatedAt time.Time
 }
 
-// pollConfigKey is a context key for polling configuration.
+// pollConfigKey is 一个上下文 key f或polling configuration.
 type pollConfigKey struct{}
 
-// PollConfig configures the PR polling behavior.
+// PollConfig configures PR polling behavior.
 type PollConfig struct {
 	MaxAttempts int
 	Delay       time.Duration
 }
 
-// ContextWithPollConfig returns a context with polling configuration.
-// Use this in tests to reduce or disable polling.
+// ContextWithPollConfig 返回 一个上下文 with polling configuration.
+// Use this in tests to reduce 或禁用 polling.
 func ContextWithPollConfig(ctx context.Context, config PollConfig) context.Context {
 	return context.WithValue(ctx, pollConfigKey{}, config)
 }
 
-// getPollConfig returns the polling configuration from context, or defaults.
+// 获取PollConfig 返回 polling configuration from 上下文, 或defaults.
 func getPollConfig(ctx context.Context) PollConfig {
 	if config, ok := ctx.Value(pollConfigKey{}).(PollConfig); ok {
 		return config
 	}
 	// Default: 9 attempts with 1s delay = 8s max wait
-	// Based on observed latency in remote server: p50 ~5s, p90 ~7s
+	// Based on observed latency in remote 服务器: p50 ~5s, p90 ~7s
 	return PollConfig{MaxAttempts: 9, Delay: 1 * time.Second}
 }
 
-// findLinkedCopilotPR searches for a PR created by the copilot-swe-agent bot that references the given issue.
-// It queries the issue's timeline for CrossReferencedEvent items from PRs authored by copilot-swe-agent.
-// The createdAfter parameter filters to only return PRs created after the specified time.
+// findLinkedCopilotPR searches f或一个PR 创建d 由copilot-swe-agent bot that references given 议题.
+// It queries 议题's time行 f或CrossReferencedEvent items from PRs authored by copilot-swe-agent.
+// 创建dAfter 参数 筛选s to 仅返回 PRs 创建d after specified time.
 func findLinkedCopilotPR(ctx context.Context, client *githubv4.Client, owner, repo string, issueNumber int, createdAfter time.Time) (*linkedPullRequest, error) {
-	// Query timeline items looking for CrossReferencedEvent from PRs by copilot-swe-agent
+	// Query time行 items looking f或CrossReferencedEvent from PRs by copilot-swe-agent
 	var query struct {
 		Repository struct {
 			Issue struct {
@@ -121,21 +121,21 @@ func findLinkedCopilotPR(ctx context.Context, client *githubv4.Client, owner, re
 	variables := map[string]any{
 		"owner":  githubv4.String(owner),
 		"name":   githubv4.String(repo),
-		"number": githubv4.Int(issueNumber), //nolint:gosec // Issue numbers are always small positive integers
+		"number": githubv4.Int(issueNumber), //nolint:gosec // Issue numbers are 始终sm所有positive integers
 	}
 
 	if err := client.Query(ctx, &query, variables); err != nil {
 		return nil, err
 	}
 
-	// Look for a PR from copilot-swe-agent created after the assignment time
+	// Look f或一个PR from copilot-swe-agent 创建d after assignment time
 	for _, node := range query.Repository.Issue.TimelineItems.Nodes {
 		if node.TypeName != "CrossReferencedEvent" {
 			continue
 		}
 		pr := node.CrossReferencedEvent.Source.PullRequest
 		if pr.Number > 0 && pr.Author.Login == "copilot-swe-agent" {
-			// Only return PRs created after the assignment time
+			// 仅返回 PRs 创建d after assignment time
 			if pr.CreatedAt.Time.After(createdAfter) {
 				return &linkedPullRequest{
 					Number:    pr.Number,
@@ -218,9 +218,9 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			// Firstly, we try to find the copilot bot in the suggested actors for the repository.
-			// Although as I write this, we would expect copilot to be at the top of the list, in future, maybe
-			// it will not be on the first page of responses, thus we will keep paginating until we find it.
+			// Firstly, we try to find copilot bot 在suggested actors 用于仓库.
+			// Although as I 写入 this, we would expect copilot to be at top 的列出, in future, maybe
+			// it will 不be 在第一个 页 of 响应s, thus we will keep paginating until we find it.
 			type botAssignee struct {
 				ID       githubv4.ID
 				Login    string
@@ -255,8 +255,8 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get suggested actors", err), nil, nil
 				}
 
-				// Iterate all the returned nodes looking for the copilot bot, which is supposed to have the
-				// same name on each host. We need this in order to get the ID for later assignment.
+				// Iterate 所有返回ed nodes looking 用于copilot bot, which is supposed to have the
+				// 相同 name on 每个host. We need this in order to 获取 ID f或later assignment.
 				for _, node := range query.Repository.SuggestedActors.Nodes {
 					if node.Bot.Login == "copilot-swe-agent" {
 						copilotAssignee = &node.Bot
@@ -270,13 +270,13 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				variables["endCursor"] = githubv4.String(query.Repository.SuggestedActors.PageInfo.EndCursor)
 			}
 
-			// If we didn't find the copilot bot, we can't proceed any further.
+			// If we didn't find copilot bot, we can't proceed any further.
 			if copilotAssignee == nil {
-				// The e2e tests depend upon this specific message to skip the test.
+				// e2e tests depend upon this specific message to skip test.
 				return utils.NewToolResultError("copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent for more information."), nil, nil
 			}
 
-			// Next, get the issue ID and repository ID
+			// Next, 获取 议题 ID 和仓库 ID
 			var getIssueQuery struct {
 				Repository struct {
 					ID    githubv4.ID
@@ -301,14 +301,14 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue ID", err), nil, nil
 			}
 
-			// Build the assignee IDs list including copilot
+			// Build assignee IDs 列出 including copilot
 			actorIDs := make([]githubv4.ID, len(getIssueQuery.Repository.Issue.Assignees.Nodes)+1)
 			for i, node := range getIssueQuery.Repository.Issue.Assignees.Nodes {
 				actorIDs[i] = node.ID
 			}
 			actorIDs[len(getIssueQuery.Repository.Issue.Assignees.Nodes)] = copilotAssignee.ID
 
-			// Prepare agent assignment input
+			// Prepare agent assignment 输入
 			emptyString := githubv4.String("")
 			agentAssignment := &AgentAssignmentInput{
 				CustomAgent:        &emptyString,
@@ -328,8 +328,8 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				agentAssignment.CustomInstructions = &customInstructions
 			}
 
-			// Execute the updateIssue mutation with the GraphQL-Features header
-			// This header is required for the agent assignment API which is not GA yet
+			// Execute 更新Issue mutation 使用GraphQL-Features header
+			// 此header is 必需 用于agent assignment API which is 不G一个yet
 			var updateIssueMutation struct {
 				UpdateIssue struct {
 					Issue struct {
@@ -340,11 +340,11 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				} `graphql:"updateIssue(input: $input)"`
 			}
 
-			// Add the GraphQL-Features header for the agent assignment API
-			// The header will be read by the HTTP transport if it's configured to do so
+			// Add GraphQL-Features header 用于agent assignment API
+			// header will be 读取 由HTTP transport if it's configured to do so
 			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issues_copilot_assignment_api_support")
 
-			// Capture the time before assignment to filter out older PRs during polling
+			// Capture time before assignment to 筛选 out older PRs during polling
 			assignmentTime := time.Now().UTC()
 
 			if err := client.Mutate(
@@ -360,13 +360,13 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				return nil, nil, fmt.Errorf("failed to update issue with agent assignment: %w", err)
 			}
 
-			// Poll for a linked PR created by Copilot after the assignment
+			// Poll f或一个linked PR 创建d by Copilot after assignment
 			pollConfig := getPollConfig(ctx)
 
-			// Get progress token from request for sending progress notifications
+			// Get progress token from 请求 f或sending progress notifications
 			progressToken := request.Params.GetProgressToken()
 
-			// Send initial progress notification that assignment succeeded and polling is starting
+			// Send initial progress notification that assignment succeeded 和polling is starting
 			if progressToken != nil && request.Session != nil && pollConfig.MaxAttempts > 0 {
 				_ = request.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
 					ProgressToken: progressToken,
@@ -394,7 +394,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 
 				pr, err := findLinkedCopilotPR(ctx, client, params.Owner, params.Repo, int(params.IssueNumber), assignmentTime)
 				if err != nil {
-					// Polling errors are non-fatal, continue to next attempt
+					// Polling 错误s are non-fatal, continue to 下一个 attempt
 					continue
 				}
 				if pr != nil {
@@ -403,7 +403,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				}
 			}
 
-			// Build the result
+			// Build 结果
 			result := map[string]any{
 				"message":      "successfully assigned copilot to issue",
 				"issue_number": int(updateIssueMutation.UpdateIssue.Issue.Number),
@@ -435,17 +435,17 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 		})
 }
 
-// copilotBotAssignee is the minimal shape needed for the copilot-swe-agent bot
-// returned from the suggestedActors GraphQL query.
+// copilotBotAssignee is minimal shape needed 用于copilot-swe-agent bot
+// 返回ed 来自suggestedActors GraphQL query.
 type copilotBotAssignee struct {
 	ID       githubv4.ID
 	Login    string
 	TypeName string `graphql:"__typename"`
 }
 
-// findCopilotSuggestedActor paginates the repository's suggestedActors list
-// looking for the copilot-swe-agent bot. Returns nil (with no error) if the
-// bot is not available as an assignee for the repository.
+// findCopilotSuggestedAct或paginates 仓库's suggestedActors 列出
+// looking 用于copilot-swe-agent bot. Returns nil (with no 错误) if the
+// bot is 不available as 一个assignee 用于仓库.
 func findCopilotSuggestedActor(ctx context.Context, client *githubv4.Client, owner, repo string) (*copilotBotAssignee, error) {
 	type suggestedActorsQuery struct {
 		Repository struct {
@@ -485,20 +485,20 @@ func findCopilotSuggestedActor(ctx context.Context, client *githubv4.Client, own
 	}
 }
 
-// copilotAssigneeUnavailableMessage is returned when the copilot-swe-agent bot
-// is not among the repository's suggested actors. The e2e tests depend on this
-// exact message to skip the test.
+// copilotAssigneeUnavailableMessage is 返回ed 当copilot-swe-agent bot
+// is 不among 仓库's suggested actors. e2e tests depend on this
+// exact message to skip test.
 const copilotAssigneeUnavailableMessage = "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent for more information."
 
-// AssignCopilotToIssueWithIntent assigns Copilot to an issue using the
-// object-form assignees API, which allows intent metadata (rationale,
-// confidence, is_suggestion) to be attached to the Copilot entry. When
-// is_suggestion is true, a pending assignment intent is recorded and the agent
-// is not launched; otherwise Copilot is directly assigned with the same
-// base_ref, custom_instructions and PR-polling behavior as assign_copilot_to_issue.
+// AssignCopilotToIssueWithIntent assigns Copilot to 一个议题 using the
+// object-form assignees API, which allows intent 元数据 (rationale,
+// confidence, is_suggestion) to be attached 到Copilot entry. When
+// is_suggestion is 真, 一个pending assignment intent is recorded 以及agent
+// is 不launched; otherwise Copilot is directly assigned 使用相同
+// base_ref, custom_instructions 和PR-polling behavi或as assign_copilot_to_议题.
 //
-// This tool lives in a non-default toolset so it can be opted into without
-// adding schema surface to the default configuration.
+// 此工具 lives in 一个non-默认工具集 so it 可以 opted into without
+// adding schema surface 到默认configuration.
 func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) inventory.ServerTool {
 	description := mvpDescription{
 		summary: "Assign Copilot to a specific issue in a GitHub repository. " +
@@ -566,9 +566,9 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, request *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			// Presence-check is_suggestion before decoding: mapstructure defaults a
-			// missing bool to false, which would silently launch Copilot instead of
-			// recording a suggestion. Require callers to make the choice explicit.
+			// Presence-检查 is_suggestion before decoding: mapstructure defaults a
+			// missing bool to 假, which would silently launch Copilot instead of
+			// recording 一个suggestion. Require 调用ers to make choice explicit.
 			if _, ok := args["is_suggestion"]; !ok {
 				return utils.NewToolResultError("is_suggestion is required"), nil, nil
 			}
@@ -587,7 +587,7 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Validate rationale length (rune count, matching the granular assignee tools).
+			// Validate rationale length (rune count, matching granular assignee 工具).
 			rationale := strings.TrimSpace(params.Rationale)
 			if rationale == "" {
 				return utils.NewToolResultError("rationale is required"), nil, nil
@@ -614,7 +614,7 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			// Locate the copilot-swe-agent bot in the repository's suggested actors.
+			// Locate copilot-swe-agent bot 在仓库's suggested actors.
 			copilotAssignee, err := findCopilotSuggestedActor(ctx, client, params.Owner, params.Repo)
 			if err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get suggested actors", err), nil, nil
@@ -623,7 +623,7 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 				return utils.NewToolResultError(copilotAssigneeUnavailableMessage), nil, nil
 			}
 
-			// Fetch issue ID, repository ID, and current assignee IDs so they can be preserved.
+			// Fetch 议题 ID, 仓库 ID, 和current assignee IDs so they 可以 preserved.
 			var getIssueQuery struct {
 				Repository struct {
 					ID    githubv4.ID
@@ -646,10 +646,10 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue ID", err), nil, nil
 			}
 
-			// Build object-form assignees: preserved assignees carry only actorId;
-			// the copilot entry carries the intent metadata. Skip an existing
+			// Build object-form assignees: preserved assignees carry 仅actorId;
+			// copilot entry carries intent 元数据. Skip 一个existing
 			// copilot assignment so we don't send its actorId twice (once without
-			// metadata, once with).
+			// 元数据, once with).
 			existing := getIssueQuery.Repository.Issue.Assignees.Nodes
 			assignees := make([]AssigneeUpdateInput, 0, len(existing)+1)
 			for _, node := range existing {
@@ -658,8 +658,8 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 				}
 				assignees = append(assignees, AssigneeUpdateInput{ActorID: node.ID})
 			}
-			// Build the Copilot entry with the required intent metadata. Preserved
-			// assignees carry only actorId; intent fields are attached only to the
+			// Build Copilot entry 使用必需 intent 元数据. Preserved
+			// assignees carry 仅actorId; intent fields are attached 仅to the
 			// Copilot entry.
 			rationaleGQL := githubv4.String(rationale)
 			suggest := githubv4.Boolean(params.IsSuggestion)
@@ -671,9 +671,9 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 			}
 			assignees = append(assignees, copilotEntry)
 
-			// A pure suggestion does not launch Copilot; approval later supplies the
-			// launch context. Direct assignments keep the existing agentAssignment
-			// launch configuration and PR-polling behavior.
+			// 一个pure suggestion does 不launch Copilot; approval later supplies the
+			// launch 上下文. Direct assignments keep existing agentAssignment
+			// launch configuration 和PR-polling behavior.
 			input := UpdateIssueInput{
 				ID:        getIssueQuery.Repository.Issue.ID,
 				Assignees: assignees,
@@ -721,7 +721,7 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 				"is_suggestion": params.IsSuggestion,
 			}
 
-			// Suggestion path: do not poll for a PR and return a suggestion-shaped result.
+			// Suggestion 路径: do 不poll f或一个PR 和返回 一个suggestion-shaped 结果.
 			if params.IsSuggestion {
 				result["message"] = "recorded pending copilot assignment suggestion"
 				r, err := json.Marshal(result)
@@ -731,7 +731,7 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 				return utils.NewToolResultText(string(r)), result, nil
 			}
 
-			// Direct-assignment path: poll for a linked PR created by Copilot after the assignment.
+			// Direct-assignment 路径: poll f或一个linked PR 创建d by Copilot after assignment.
 			pollConfig := getPollConfig(ctx)
 			progressToken := request.Params.GetProgressToken()
 			if progressToken != nil && request.Session != nil && pollConfig.MaxAttempts > 0 {
@@ -792,7 +792,7 @@ type ReplaceActorsForAssignableInput struct {
 	ActorIDs     []githubv4.ID `json:"actorIds"`
 }
 
-// AgentAssignmentInput represents the input for assigning an agent to an issue.
+// AgentAssignmentInput represents 输入 f或assigning 一个agent to 一个议题.
 type AgentAssignmentInput struct {
 	BaseRef            *githubv4.String `json:"baseRef,omitempty"`
 	CustomAgent        *githubv4.String `json:"customAgent,omitempty"`
@@ -800,8 +800,8 @@ type AgentAssignmentInput struct {
 	TargetRepositoryID githubv4.ID      `json:"targetRepositoryId"`
 }
 
-// AssignmentConfidenceLevel is a GraphQL enum indicating how confident an
-// intent-aware assignment choice is. Encoded as its string value in variables.
+// AssignmentConfidenceLevel is 一个GraphQL enum indicating how confident an
+// intent-aware assignment choice is. Encoded as its string 值 in variables.
 type AssignmentConfidenceLevel string
 
 const (
@@ -810,10 +810,10 @@ const (
 	AssignmentConfidenceLevelHigh   AssignmentConfidenceLevel = "HIGH"
 )
 
-// AssigneeUpdateInput is the object-form assignee entry accepted by
-// updateIssue when opting into intent metadata. Intent fields (rationale,
-// confidence, suggest) are only attached to the entry that carries the intent;
-// preserved assignees are sent with only actorId populated.
+// AssigneeUpdateInput is object-form assignee entry accepted by
+// 更新Issue when opting into intent 元数据. Intent fields (rationale,
+// confidence, suggest) are 仅attached 到entry that carries intent;
+// preserved assignees are sent with 仅actorId populated.
 type AssigneeUpdateInput struct {
 	ActorID    githubv4.ID                `json:"actorId"`
 	Rationale  *githubv4.String           `json:"rationale,omitempty"`
@@ -821,9 +821,9 @@ type AssigneeUpdateInput struct {
 	Suggest    *githubv4.Boolean          `json:"suggest,omitempty"`
 }
 
-// UpdateIssueInput represents the input for updating an issue with agent
-// assignment. AssigneeIDs and Assignees are mutually exclusive: legacy callers
-// use AssigneeIDs; intent-aware callers use Assignees (object-form).
+// UpdateIssueInput represents 输入 f或updating 一个议题 with agent
+// assignment. AssigneeIDs 和Assignees are mutually exclusive: legacy 调用ers
+// use AssigneeIDs; intent-aware 调用ers use Assignees (object-form).
 type UpdateIssueInput struct {
 	ID              githubv4.ID           `json:"id"`
 	AssigneeIDs     []githubv4.ID         `json:"assigneeIds,omitempty"`
@@ -831,9 +831,9 @@ type UpdateIssueInput struct {
 	AgentAssignment *AgentAssignmentInput `json:"agentAssignment,omitempty"`
 }
 
-// RequestCopilotReview creates a tool to request a Copilot review for a pull request.
-// Note that this tool will not work on GHES where this feature is unsupported. In future, we should not expose this
-// tool if the configured host does not support it.
+// RequestCopilotReview 创建一个工具以 请求 一个Copilot review f或一个拉取请求.
+// Note that this 工具 will 不work on GHES where this feature is unsupported. In future, we should 不expose this
+// 工具 如果configured host does 不support it.
 func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -894,7 +894,7 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 				repo,
 				pullNumber,
 				github.ReviewersRequest{
-					// The login name of the copilot reviewer bot
+					// login name 的copilot reviewer bot
 					Reviewers: []string{"copilot-pull-request-reviewer[bot]"},
 				},
 			)
@@ -915,7 +915,7 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to request copilot review", resp, bodyBytes), nil, nil
 			}
 
-			// Return nothing on success, as there's not much value in returning the Pull Request itself
+			// Return nothing on 成功, as there's 不much 值 in 返回ing Pull Request itself
 			return utils.NewToolResultText(""), nil, nil
 		})
 }

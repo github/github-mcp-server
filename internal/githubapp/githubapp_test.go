@@ -103,8 +103,7 @@ func TestConfigValidate(t *testing.T) {
 	}
 }
 
-// verifyJWT parses and verifies an app JWT against the public key and returns
-// its claims, asserting the structural requirements GitHub enforces.
+// verifyJWT 使用 public key 解析并验证 app JWT，返回其 claims，并断言 GitHub 强制的结构要求。
 func verifyJWT(t *testing.T, token string, pub *rsa.PublicKey) map[string]any {
 	t.Helper()
 	parts := strings.Split(token, ".")
@@ -146,8 +145,8 @@ func TestMintJWT(t *testing.T) {
 	assert.LessOrEqual(t, exp-iat, int64((10 * time.Minute).Seconds()), "JWT must live no longer than GitHub's 10 minute cap")
 }
 
-// installationServer is a fake installation token endpoint that verifies the
-// app JWT and returns a token expiring at expiresAt. It counts mint requests.
+// installationServer 是伪 installation token endpoint：它验证 app JWT 并返回在 expiresAt 过期的 token，
+// 同时统计签发请求。
 func installationServer(t *testing.T, pub *rsa.PublicKey, token string, expiresAt time.Time) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
 	var calls atomic.Int32
@@ -211,8 +210,7 @@ func TestProviderCachesToken(t *testing.T) {
 
 func TestProviderRefreshesNearExpiry(t *testing.T) {
 	key := newTestKey(t)
-	// expires within the refresh buffer, so the stored expiry is already in the
-	// past and every call re-mints.
+	// 过期时间落在刷新缓冲期内，因此存储的过期时间已在过去，每次调用都会重新签发。
 	srv, calls := installationServer(t, &key.PublicKey, "ghs_short", time.Now().Add(refreshBuffer-time.Minute))
 
 	provider, err := NewProvider(newTestConfig(key, srv.URL), slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)))

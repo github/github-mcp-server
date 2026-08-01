@@ -1,57 +1,56 @@
 # mcpcurl
 
-A CLI tool that dynamically builds commands based on schemas retrieved from MCP servers that can
-be executed against the configured MCP server.
+一个 CLI 工具，可根据从 MCP server 获取的 schema 动态构建命令，并可针对已配置的 MCP server 执行这些命令。
 
-## Overview
+## 概述
 
-`mcpcurl` is a command-line interface that:
+`mcpcurl` 是一个命令行接口，可：
 
-1. Connects to an MCP server via stdio
-2. Dynamically retrieves the available tools schema
-3. Generates CLI commands corresponding to each tool
-4. Handles parameter validation based on the schema
-5. Executes commands and displays responses
+1. 通过 stdio 连接到 MCP server
+2. 动态获取可用工具的 schema
+3. 为每个工具生成相应的 CLI 命令
+4. 根据 schema 处理参数验证
+5. 执行命令并显示响应
 
-## Installation
+## 安装
 
-### Prerequisites
+### 前提条件
 - Go 1.24 or later
-- Access to the GitHub MCP Server from either Docker or local build
+- 可通过 Docker 或本地构建访问 GitHub MCP Server
 
-### Build from Source
+### 从源码构建
 ```bash
 cd cmd/mcpcurl
 go build -o mcpcurl
 ```
 
-### Using Go Install
+### 使用 Go Install
 ```bash
 go install github.com/github/github-mcp-server/cmd/mcpcurl@latest
 ```
 
-### Verify Installation
+### 验证安装
 ```bash
 ./mcpcurl --help
 ```
 
-## Usage
+## 用法
 
 ```console
 mcpcurl --stdio-server-cmd="<command to start MCP server>" <command> [flags]
 ```
 
-The `--stdio-server-cmd` flag is required for all commands and specifies the command to run the MCP server.
+所有命令都需要 `--stdio-server-cmd` flag；它指定用于运行 MCP server 的命令。
 
-### Available Commands
+### 可用命令
 
-- `tools`: Contains all dynamically generated tool commands from the schema
-- `schema`: Fetches and displays the raw schema from the MCP server
-- `help`: Shows help for any command
+- `tools`：包含根据 schema 动态生成的所有工具命令
+- `schema`：从 MCP server 获取并显示原始 schema
+- `help`：显示任意命令的帮助信息
 
-### Examples
+### 示例
 
-List available tools in Github's MCP server:
+列出 GitHub MCP server 中可用的工具：
 
 ```console
 % ./mcpcurl --stdio-server-cmd "docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN mcp/github" tools --help
@@ -90,7 +89,7 @@ Global Flags:
 Use "mcpcurl tools [command] --help" for more information about a command.
 ```
 
-Get help for a specific tool:
+获取特定工具的帮助信息：
 
 ```console
  % ./mcpcurl --stdio-server-cmd "docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN mcp/github" tools get_issue --help
@@ -111,7 +110,7 @@ Global Flags:
 
 ```
 
-Use one of the tools:
+使用其中一个工具：
 
 ```console
  % ./mcpcurl --stdio-server-cmd "docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN mcp/github" tools get_issue --owner golang --repo go --issue_number 1
@@ -131,20 +130,20 @@ Use one of the tools:
 }
 ```
 
-## Dynamic Commands
+## 动态命令
 
-All tools provided by the MCP server are automatically available as subcommands under the `tools` command. Each generated command has:
+MCP server 提供的所有工具都会自动作为 `tools` 命令下的子命令提供。每个生成的命令具有：
 
-- Appropriate flags matching the tool's input schema
-- Validation for required parameters
-- Type validation
-- Enum validation (for string parameters with allowable values)
-- Help text generated from the tool's description
+- 与工具输入 schema 匹配的适当 flags
+- 必填参数验证
+- 类型验证
+- Enum 验证（适用于具有允许值的字符串参数）
+- 根据工具描述生成的帮助文本
 
-## How It Works
+## 工作原理
 
-1. `mcpcurl` makes a JSON-RPC request to the server using the `tools/list` method
-2. The server responds with a schema describing all available tools
-3. `mcpcurl` dynamically builds a command structure based on this schema
-4. When a command is executed, arguments are converted to a JSON-RPC request
-5. The request is sent to the server via stdin, and the response is printed to stdout
+1. `mcpcurl` 使用 `tools/list` method 向 server 发起 JSON-RPC 请求
+2. server 返回描述所有可用工具的 schema
+3. `mcpcurl` 根据该 schema 动态构建命令结构
+4. 执行命令时，arguments 会转换为 JSON-RPC 请求
+5. 请求通过 stdin 发送到 server，响应打印到 stdout

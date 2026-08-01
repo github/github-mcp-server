@@ -16,9 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Test_IssueRequest_EmptyFieldValues_OmittedByJSON pins the omitempty
-// behaviour that makes the DELETE fallback necessary. If go-github ever drops
-// the tag, the REST PATCH alone could clear field values and this test would
+// Test_IssueRequest_EmptyFieldValues_OmittedByJSON pins omit空
+// behaviour that makes DELETE fallback necessary. If go-github ever drops
+// tag, REST PATCH alone could clear field 值 和this test would
 // fail to remind us.
 func Test_IssueRequest_EmptyFieldValues_OmittedByJSON(t *testing.T) {
 	t.Parallel()
@@ -36,10 +36,10 @@ func Test_IssueRequest_EmptyFieldValues_OmittedByJSON(t *testing.T) {
 		"sanity check: other fields still serialise")
 }
 
-// Test_UpdateIssue_DeleteLastFieldValueCallsDeleteEndpoint covers the bug fix:
-// when the kept set ends up empty, the PATCH alone can't clear the field
-// (omitempty strips the empty slice), so UpdateIssue follows up with a DELETE
-// to the dedicated endpoint.
+// Test_UpdateIssue_DeleteLastFieldValueCallsDeleteEndpoint covers bug fix:
+// 当kept set ends up 空, PATCH alone can't clear field
+// (omit空 strips 空 slice), so UpdateIssue follows up with 一个DELETE
+// 到dedicated endpoint.
 func Test_UpdateIssue_DeleteLastFieldValueCallsDeleteEndpoint(t *testing.T) {
 	t.Parallel()
 
@@ -74,8 +74,8 @@ func Test_UpdateIssue_DeleteLastFieldValueCallsDeleteEndpoint(t *testing.T) {
 		},
 	}))
 
-	// Existing field values for the merge step. Returning the field we're
-	// about to delete makes the kept list empty, triggering the fallback DELETE.
+	// Existing field 值 用于merge step. Returning field we're
+	// about to 删除 makes kept 列出 空, triggering fallback DELETE.
 	existingFieldsResponse := githubv4mock.DataResponse(map[string]any{
 		"repository": map[string]any{
 			"issue": map[string]any{
@@ -138,8 +138,8 @@ func Test_UpdateIssue_DeleteLastFieldValueCallsDeleteEndpoint(t *testing.T) {
 		"expected exactly one DELETE call to the dedicated endpoint for field id 101")
 }
 
-// Test_UpdateIssue_DeleteOneOfManyUsesSetSemantics: when the kept set is
-// non-empty, set semantics handle the deletion implicitly via the PATCH — no
+// Test_UpdateIssue_DeleteOneOfManyUsesSetSemantics: 当kept set is
+// non-空, set semantics handle deletion implicitly via PATCH — no
 // DELETE follow-up needed.
 func Test_UpdateIssue_DeleteOneOfManyUsesSetSemantics(t *testing.T) {
 	t.Parallel()
@@ -234,9 +234,9 @@ func Test_UpdateIssue_DeleteOneOfManyUsesSetSemantics(t *testing.T) {
 		"no DELETE call should fire when the kept set is non-empty — the PATCH's set semantics clear the deleted field on the server side")
 }
 
-// Test_UpdateIssue_DeleteAbsentFieldIsNoOp: deleting a field that isn't set
-// must not fire a DELETE (the endpoint would 404), preserving the pre-fix
-// silent-no-op behaviour so idempotent delete:true callers don't break on
+// Test_UpdateIssue_DeleteAbsentFieldIsNoOp: deleting 一个field that isn't set
+// 不得 fire 一个DELETE (the endpoint would 404), preserving pre-fix
+// silent-no-op behaviour so idempotent 删除:真 调用ers don't break on
 // retry.
 func Test_UpdateIssue_DeleteAbsentFieldIsNoOp(t *testing.T) {
 	t.Parallel()
@@ -268,12 +268,12 @@ func Test_UpdateIssue_DeleteAbsentFieldIsNoOp(t *testing.T) {
 			mu.Lock()
 			deletePaths = append(deletePaths, r.URL.Path)
 			mu.Unlock()
-			// Fail loudly: if we get here, the fix is wrong.
+			// Fail loudly: if we 获取 here, fix is wrong.
 			w.WriteHeader(http.StatusNotFound)
 		},
 	}))
 
-	// Issue has no field values at all.
+	// Issue has no field 值 at all.
 	existingFieldsResponse := githubv4mock.DataResponse(map[string]any{
 		"repository": map[string]any{
 			"issue": map[string]any{
@@ -311,7 +311,7 @@ func Test_UpdateIssue_DeleteAbsentFieldIsNoOp(t *testing.T) {
 		"owner", "repo", 42,
 		"", "", nil, nil, 0, "",
 		nil,
-		[]int64{101}, // ask to delete a field that isn't set
+		[]int64{101}, // ask to 删除 一个field that isn't set
 		"", "", 0,
 	)
 	require.NoError(t, err)
@@ -327,9 +327,9 @@ func Test_UpdateIssue_DeleteAbsentFieldIsNoOp(t *testing.T) {
 		"no DELETE call should fire for a field that isn't present on the issue — preserves the pre-fix silent-no-op behaviour and avoids a guaranteed 404")
 }
 
-// Test_UpdateIssue_DeleteFallbackContinuesOnPartialFailure: a failing DELETE
-// must not short-circuit subsequent ones, and the error must name which IDs
-// succeeded and which failed so callers can retry the right ones.
+// Test_UpdateIssue_DeleteFallbackContinuesOnPartialFailure: 一个failing DELETE
+// 不得 short-circuit subsequent ones, 以及错误 must name which IDs
+// succeeded 和which failed so 调用ers can retry right ones.
 func Test_UpdateIssue_DeleteFallbackContinuesOnPartialFailure(t *testing.T) {
 	t.Parallel()
 
@@ -355,8 +355,8 @@ func Test_UpdateIssue_DeleteFallbackContinuesOnPartialFailure(t *testing.T) {
 			mu.Lock()
 			deletePaths = append(deletePaths, r.URL.Path)
 			mu.Unlock()
-			// Field 202 fails; 101 and 303 succeed. All three should fire and
-			// the error must name 202 as failed and 101/303 as cleared.
+			// Field 202 fails; 101 和303 succeed. 所有three should fire and
+			// 错误 must name 202 as failed 和101/303 as cleared.
 			if strings.HasSuffix(r.URL.Path, "/202") {
 				w.WriteHeader(http.StatusInternalServerError)
 				_, _ = w.Write([]byte(`{"message":"simulated failure"}`))
@@ -427,7 +427,7 @@ func Test_UpdateIssue_DeleteFallbackContinuesOnPartialFailure(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	// All three DELETEs must have fired — the middle failure must not short-circuit the third.
+	// 所有three DELETEs must have fired — middle failure 不得 short-circuit third.
 	require.Len(t, deletePaths, 3,
 		"all three DELETE calls should fire even though one fails; got paths: %v", deletePaths)
 

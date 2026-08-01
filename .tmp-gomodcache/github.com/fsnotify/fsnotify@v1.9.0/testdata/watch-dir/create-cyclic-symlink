@@ -1,0 +1,17 @@
+# Cyclic symlink
+require symlink
+
+ln -s ./ /link
+watch /
+
+rm /link
+echo foo >>/link
+
+Output:
+	write  /link
+	write  /link
+
+	linux, windows, fen:
+		remove  /link
+		create  /link
+		write   /link

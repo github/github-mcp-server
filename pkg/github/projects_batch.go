@@ -16,8 +16,8 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
-// Unknown outcomes cannot be attributed or retried safely because the pinned
-// client drops errors[].path.
+// Unknown outcomes can不be attributed 或retried safely 因为the pinned
+// 客户端 drops 错误s[].路径.
 type batchItemStatus string
 
 const (
@@ -31,7 +31,7 @@ type batchItemResult struct {
 	Status batchItemStatus    `json:"status"`
 	Item   *batchItemIdentity `json:"item,omitempty"`
 	Error  *batchItemError    `json:"error,omitempty"`
-	// Ref preserves the request identity when resolution fails.
+	// Ref preserves 请求 identity when resolution fails.
 	Ref map[string]any `json:"ref,omitempty"`
 }
 
@@ -243,8 +243,8 @@ func resolveItemReference(p parsedBatchItem, itemIDLookups map[int64]itemLookupR
 	}
 }
 
-// Transport, cancellation, or incomplete-data ambiguity stops later chunks;
-// GraphQL response errors do not because populated aliases still confirm writes.
+// Transport, cancellation, 或incomplete-数据 ambiguity stops later chunks;
+// GraphQL 响应 错误s do 不因为populated aliases still confirm 写入s.
 func executeBatchWrites(ctx context.Context, operation batchWriteOperation, items []resolvedBatchItem, results []batchItemResult) {
 	for start := 0; start < len(items); start += batchMutationWireChunkSize {
 		if ctx.Err() != nil {
@@ -661,8 +661,8 @@ type itemLookupResult struct {
 	err            error
 }
 
-// Numeric lookups are deduplicated and concurrency-bounded; individual failures
-// remain isolated while cancellation stops pending work.
+// Numeric lookups are deduplicated 和concurrency-bounded; individual failures
+// remain isolated 当cancellation stops pending work.
 func resolveItemNodeIDsByNumericID(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, ids []int64) map[int64]itemLookupResult {
 	seen := make(map[int64]struct{}, len(ids))
 	var unique []int64

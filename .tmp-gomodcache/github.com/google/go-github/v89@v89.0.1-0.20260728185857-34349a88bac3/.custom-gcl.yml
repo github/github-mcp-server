@@ -1,0 +1,14 @@
+version: v2.12.2 # this is the version of golangci-lint
+plugins:
+  - module: "github.com/google/go-github/v89/tools/extraneousnew"
+    path: ./tools/extraneousnew
+  - module: "github.com/google/go-github/v89/tools/fmtpercentv"
+    path: ./tools/fmtpercentv
+  - module: "github.com/google/go-github/v89/tools/paramcheck"
+    path: ./tools/paramcheck
+  - module: "github.com/google/go-github/v89/tools/redundantptr"
+    path: ./tools/redundantptr
+  - module: "github.com/google/go-github/v89/tools/sliceofpointers"
+    path: ./tools/sliceofpointers
+  - module: "github.com/google/go-github/v89/tools/structfield"
+    path: ./tools/structfield

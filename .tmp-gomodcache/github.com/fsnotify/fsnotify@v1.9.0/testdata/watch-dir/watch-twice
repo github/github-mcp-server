@@ -1,0 +1,15 @@
+# Watch the same directory twice.
+
+watch /
+watch /
+
+touch /file
+echo hello >>/file
+rm /file
+mkdir /dir
+
+Output:
+	create   /file
+	write    /file
+	remove   /file
+	create   /dir

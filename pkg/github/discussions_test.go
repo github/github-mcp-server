@@ -104,23 +104,23 @@ var (
 		},
 	}
 
-	// Ordered mock responses
+	// Ordered 模拟 响应s
 	discussionsOrderedCreatedAsc = []map[string]any{
-		discussionsAll[0], // Discussion 1 (created 2023-01-01)
-		discussionsAll[1], // Discussion 2 (created 2023-02-01)
-		discussionsAll[2], // Discussion 3 (created 2023-03-01)
+		discussionsAll[0], // Discussion 1 (创建d 2023-01-01)
+		discussionsAll[1], // Discussion 2 (创建d 2023-02-01)
+		discussionsAll[2], // Discussion 3 (创建d 2023-03-01)
 	}
 
 	discussionsOrderedUpdatedDesc = []map[string]any{
-		discussionsAll[2], // Discussion 3 (updated 2023-03-01)
-		discussionsAll[1], // Discussion 2 (updated 2023-02-01)
-		discussionsAll[0], // Discussion 1 (updated 2023-01-01)
+		discussionsAll[2], // Discussion 3 (更新d 2023-03-01)
+		discussionsAll[1], // Discussion 2 (更新d 2023-02-01)
+		discussionsAll[0], // Discussion 1 (更新d 2023-01-01)
 	}
 
-	// only 'General' category discussions ordered by created date descending
+	// 仅'General' category discussions ordered by 创建d date descending
 	discussionsGeneralOrderedDesc = []map[string]any{
-		discussionsGeneral[1], // Discussion 3 (created 2023-03-01)
-		discussionsGeneral[0], // Discussion 1 (created 2023-01-01)
+		discussionsGeneral[1], // Discussion 3 (创建d 2023-03-01)
+		discussionsGeneral[0], // Discussion 1 (创建d 2023-01-01)
 	}
 
 	mockResponseListAll = githubv4mock.DataResponse(map[string]any{
@@ -280,7 +280,7 @@ func Test_ListDiscussions(t *testing.T) {
 
 	varsOrgLevel := map[string]any{
 		"owner": "owner",
-		"repo":  ".github", // This is what gets set when repo is not provided
+		"repo":  ".github", // 此is what 获取s set when repo is 不provided
 		"first": float64(30),
 		"after": (*string)(nil),
 	}
@@ -300,7 +300,7 @@ func Test_ListDiscussions(t *testing.T) {
 				"repo":  "repo",
 			},
 			expectError:   false,
-			expectedCount: 3, // All discussions
+			expectedCount: 3, // 所有discussions
 		},
 		{
 			name: "filter by category ID",
@@ -310,7 +310,7 @@ func Test_ListDiscussions(t *testing.T) {
 				"category": "DIC_kwDOABC123",
 			},
 			expectError:   false,
-			expectedCount: 2, // Only General discussions (matching the category ID)
+			expectedCount: 2, // 仅General discussions (matching category ID)
 		},
 		{
 			name: "order by created at ascending",
@@ -323,7 +323,7 @@ func Test_ListDiscussions(t *testing.T) {
 			expectError:   false,
 			expectedCount: 3,
 			verifyOrder: func(t *testing.T, discussions []*github.Discussion) {
-				// Verify discussions are ordered by created date ascending
+				// Verify discussions are ordered by 创建d date ascending
 				require.Len(t, discussions, 3)
 				assert.Equal(t, 1, *discussions[0].Number, "First should be discussion 1 (created 2023-01-01)")
 				assert.Equal(t, 2, *discussions[1].Number, "Second should be discussion 2 (created 2023-02-01)")
@@ -341,7 +341,7 @@ func Test_ListDiscussions(t *testing.T) {
 			expectError:   false,
 			expectedCount: 3,
 			verifyOrder: func(t *testing.T, discussions []*github.Discussion) {
-				// Verify discussions are ordered by updated date descending
+				// Verify discussions are ordered by 更新d date descending
 				require.Len(t, discussions, 3)
 				assert.Equal(t, 3, *discussions[0].Number, "First should be discussion 3 (updated 2023-03-01)")
 				assert.Equal(t, 2, *discussions[1].Number, "Second should be discussion 2 (updated 2023-02-01)")
@@ -360,7 +360,7 @@ func Test_ListDiscussions(t *testing.T) {
 			expectError:   false,
 			expectedCount: 2,
 			verifyOrder: func(t *testing.T, discussions []*github.Discussion) {
-				// Verify only General discussions, ordered by created date descending
+				// Verify 仅General discussions, ordered by 创建d date descending
 				require.Len(t, discussions, 2)
 				assert.Equal(t, 3, *discussions[0].Number, "First should be discussion 3 (created 2023-03-01)")
 				assert.Equal(t, 1, *discussions[1].Number, "Second should be discussion 1 (created 2023-01-01)")
@@ -399,14 +399,14 @@ func Test_ListDiscussions(t *testing.T) {
 			name: "list org-level discussions (no repo provided)",
 			reqParams: map[string]any{
 				"owner": "owner",
-				// repo is not provided, it will default to ".github"
+				// repo is 不provided, it will 默认to ".github"
 			},
 			expectError:   false,
 			expectedCount: 4,
 		},
 	}
 
-	// Define the actual query strings that match the implementation
+	// Define actual query strings that match implementation
 	qBasicNoOrder := "query($after:String$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
 	qWithCategoryNoOrder := "query($after:String$categoryId:ID!$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, categoryId: $categoryId){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
 	qBasicWithOrder := "query($after:String$first:Int!$orderByDirection:OrderDirection!$orderByField:DiscussionOrderField!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, orderBy: { field: $orderByField, direction: $orderByDirection }){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
@@ -461,7 +461,7 @@ func Test_ListDiscussions(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			// Parse the structured response with pagination info
+			// Parse structured 响应 with pagination info
 			var response struct {
 				Discussions []*github.Discussion `json:"discussions"`
 				PageInfo    struct {
@@ -477,12 +477,12 @@ func Test_ListDiscussions(t *testing.T) {
 
 			assert.Len(t, response.Discussions, tc.expectedCount, "Expected %d discussions, got %d", tc.expectedCount, len(response.Discussions))
 
-			// Verify order if verifyOrder function is provided
+			// Verify order if verifyOrder 函数 is provided
 			if tc.verifyOrder != nil {
 				tc.verifyOrder(t, response.Discussions)
 			}
 
-			// Verify that all returned discussions have a category if filtered
+			// Verify that 所有返回ed discussions have 一个category if 筛选ed
 			if _, hasCategory := tc.reqParams["category"]; hasCategory {
 				for _, discussion := range response.Discussions {
 					require.NotNil(t, discussion.DiscussionCategory, "Discussion should have category")
@@ -494,7 +494,7 @@ func Test_ListDiscussions(t *testing.T) {
 }
 
 func Test_GetDiscussion(t *testing.T) {
-	// Verify tool definition and schema
+	// Verify 工具定义 和schema
 	toolDef := GetDiscussion(translations.NullTranslationHelper)
 	tool := toolDef.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -508,7 +508,7 @@ func Test_GetDiscussion(t *testing.T) {
 	assert.Contains(t, schema.Properties, "discussionNumber")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "discussionNumber"})
 
-	// Use exact string query that matches implementation output
+	// Use exact string query that matches implementation 输出
 	qGetDiscussion := "query($discussionNumber:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){number,title,body,createdAt,closed,isAnswered,answerChosenAt,url,category{name}}}}"
 
 	vars := map[string]any{
@@ -591,7 +591,7 @@ func Test_GetDiscussion(t *testing.T) {
 }
 
 func Test_GetDiscussionWithStringNumber(t *testing.T) {
-	// Test that WeakDecode handles string discussionNumber from MCP clients
+	// Test that WeakDecode handles string discussionNumber from MCP 客户端s
 	toolDef := GetDiscussion(translations.NullTranslationHelper)
 
 	qGetDiscussion := "query($discussionNumber:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){number,title,body,createdAt,closed,isAnswered,answerChosenAt,url,category{name}}}}"
@@ -619,7 +619,7 @@ func Test_GetDiscussionWithStringNumber(t *testing.T) {
 	deps := BaseDeps{GQLClient: gqlClient}
 	handler := toolDef.Handler(deps)
 
-	// Send discussionNumber as a string instead of a number
+	// Send discussionNumber as 一个string instead of 一个number
 	reqParams := map[string]any{"owner": "owner", "repo": "repo", "discussionNumber": "1"}
 	req := createMCPRequest(reqParams)
 	res, err := handler(ContextWithDeps(context.Background(), deps), &req)
@@ -635,7 +635,7 @@ func Test_GetDiscussionWithStringNumber(t *testing.T) {
 }
 
 func Test_GetDiscussionComments(t *testing.T) {
-	// Verify tool definition and schema
+	// Verify 工具定义 和schema
 	toolDef := GetDiscussionComments(translations.NullTranslationHelper)
 	tool := toolDef.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -650,7 +650,7 @@ func Test_GetDiscussionComments(t *testing.T) {
 	assert.Contains(t, schema.Properties, "includeReplies")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "discussionNumber"})
 
-	// Use exact string query that matches implementation output
+	// Use exact string query that matches implementation 输出
 	qGetComments := "query($after:String$discussionNumber:Int!$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){comments(first: $first, after: $after){nodes{id,body,isAnswer},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}}"
 
 	// Variables matching what GraphQL receives after JSON marshaling/unmarshaling
@@ -724,7 +724,7 @@ func Test_GetDiscussionComments(t *testing.T) {
 }
 
 func Test_GetDiscussionCommentsWithStringNumber(t *testing.T) {
-	// Test that WeakDecode handles string discussionNumber from MCP clients
+	// Test that WeakDecode handles string discussionNumber from MCP 客户端s
 	toolDef := GetDiscussionComments(translations.NullTranslationHelper)
 
 	qGetComments := "query($after:String$discussionNumber:Int!$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){comments(first: $first, after: $after){nodes{id,body,isAnswer},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}}"
@@ -761,7 +761,7 @@ func Test_GetDiscussionCommentsWithStringNumber(t *testing.T) {
 	deps := BaseDeps{GQLClient: gqlClient}
 	handler := toolDef.Handler(deps)
 
-	// Send discussionNumber as a string instead of a number
+	// Send discussionNumber as 一个string instead of 一个number
 	reqParams := map[string]any{
 		"owner":            "owner",
 		"repo":             "repo",
@@ -799,17 +799,17 @@ func Test_ListDiscussionCategories(t *testing.T) {
 	assert.Contains(t, schema.Properties, "repo")
 	assert.ElementsMatch(t, schema.Required, []string{"owner"})
 
-	// Use exact string query that matches implementation output
+	// Use exact string query that matches implementation 输出
 	qListCategories := "query($first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussionCategories(first: $first){nodes{id,name},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
 
-	// Variables for repository-level categories
+	// Variables f或仓库-level categories
 	varsRepo := map[string]any{
 		"owner": "owner",
 		"repo":  "repo",
 		"first": float64(25),
 	}
 
-	// Variables for organization-level categories (using .github repo)
+	// Variables f或organization-level categories (using .github repo)
 	varsOrg := map[string]any{
 		"owner": "owner",
 		"repo":  ".github",
@@ -881,7 +881,7 @@ func Test_ListDiscussionCategories(t *testing.T) {
 			name: "list org-level discussion categories (no repo provided)",
 			reqParams: map[string]any{
 				"owner": "owner",
-				// repo is not provided, it will default to ".github"
+				// repo is 不provided, it will 默认to ".github"
 			},
 			vars:          varsOrg,
 			mockResponse:  mockRespOrg,

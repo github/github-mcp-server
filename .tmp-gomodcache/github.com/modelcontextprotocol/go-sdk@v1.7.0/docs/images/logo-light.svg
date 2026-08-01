@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="180"
+   height="180"
+   viewBox="0 0 180 180"
+   fill="none"
+   version="1.1"
+   id="svg3"
+   sodipodi:docname="Model_Context_Protocol_logo copy 2.svg"
+   inkscape:version="1.3.2 (091e20e, 2023-11-25)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview3"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="1.3111111"
+     inkscape:cx="89.618644"
+     inkscape:cy="89.618644"
+     inkscape:window-width="1728"
+     inkscape:window-height="944"
+     inkscape:window-x="0"
+     inkscape:window-y="38"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg3" />
+  <g
+     clip-path="url(#clip0_19_13)"
+     id="g3">
+    <path
+       d="M18 84.8528L85.8822 16.9706C95.2548 7.59798 110.451 7.59798 119.823 16.9706V16.9706C129.196 26.3431 129.196 41.5391 119.823 50.9117L68.5581 102.177"
+       stroke="black"
+       stroke-width="12"
+       stroke-linecap="round"
+       id="path1"
+       style="stroke:#ffffff;stroke-opacity:1" />
+    <path
+       d="M69.2652 101.47L119.823 50.9117C129.196 41.5391 144.392 41.5391 153.765 50.9117L154.118 51.2652C163.491 60.6378 163.491 75.8338 154.118 85.2063L92.7248 146.6C89.6006 149.724 89.6006 154.789 92.7248 157.913L105.331 170.52"
+       stroke="black"
+       stroke-width="12"
+       stroke-linecap="round"
+       id="path2"
+       style="stroke:#ffffff;stroke-opacity:1" />
+    <path
+       d="M102.853 33.9411L52.6482 84.1457C43.2756 93.5183 43.2756 108.714 52.6482 118.087V118.087C62.0208 127.459 77.2167 127.459 86.5893 118.087L136.794 67.8822"
+       stroke="black"
+       stroke-width="12"
+       stroke-linecap="round"
+       id="path3"
+       style="stroke:#ffffff;stroke-opacity:1" />
+  </g>
+  <defs
+     id="defs3">
+    <clipPath
+       id="clip0_19_13">
+      <rect
+         width="180"
+         height="180"
+         fill="white"
+         id="rect3" />
+    </clipPath>
+  </defs>
+</svg>

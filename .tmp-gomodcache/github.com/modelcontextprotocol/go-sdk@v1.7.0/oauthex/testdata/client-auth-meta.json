@@ -1,0 +1,8 @@
+{
+    "client_name": "My Test App",
+    "redirect_uris": [
+        "https://client.example.org/callback",
+        "https://client.example.org/callback2"
+    ],
+    "scope": "read write"
+}

@@ -30,7 +30,7 @@ func granularToolsForToolset(toolsetID inventory.ToolsetID, featureFlag string) 
 }
 
 func TestGranularToolSnaps(t *testing.T) {
-	// Test toolsnaps for all granular tools
+	// Test 工具naps f或所有granular 工具
 	toolConstructors := []func(translations.TranslationHelperFunc) inventory.ServerTool{
 		GranularCreateIssue,
 		GranularUpdateIssueTitle,
@@ -142,7 +142,7 @@ func TestPullRequestsGranularToolset(t *testing.T) {
 	})
 }
 
-// --- Issue granular tool handler tests ---
+// --- Issue granular 工具 处理器 tests ---
 
 func TestGranularCreateIssue(t *testing.T) {
 	mockIssue := &gogithub.Issue{
@@ -702,7 +702,7 @@ func TestGranularUpdateIssueLabelsConfidence(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.expectedReq == nil {
-				// Error case
+				// Err或case
 				deps := BaseDeps{Client: mustNewGHClient(t, MockHTTPClientWithHandlers(nil))}
 				serverTool := GranularUpdateIssueLabels(translations.NullTranslationHelper)
 				handler := serverTool.Handler(deps)
@@ -1344,7 +1344,7 @@ func TestGranularUpdateIssueStateInvalidConfidence(t *testing.T) {
 	assert.Contains(t, errorContent.Text, "confidence must be one of: LOW, MEDIUM, HIGH")
 }
 
-// --- Pull request granular tool handler tests ---
+// --- Pull 请求 granular 工具 处理器 tests ---
 
 func TestGranularUpdatePullRequestTitle(t *testing.T) {
 	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
@@ -1748,7 +1748,7 @@ func TestGranularUnresolveReviewThread(t *testing.T) {
 func TestGranularSetIssueFields(t *testing.T) {
 	t.Run("successful set with text value", func(t *testing.T) {
 		matchers := []githubv4mock.Matcher{
-			// Mock the issue ID query
+			// Mock 议题 ID query
 			githubv4mock.NewQueryMatcher(
 				struct {
 					Repository struct {
@@ -1768,7 +1768,7 @@ func TestGranularSetIssueFields(t *testing.T) {
 					},
 				}),
 			),
-			// Mock the setIssueFieldValue mutation
+			// Mock setIssueFieldValue mutation
 			githubv4mock.NewMutationMatcher(
 				struct {
 					SetIssueFieldValue struct {
@@ -2401,10 +2401,10 @@ func TestGranularSetIssueFields(t *testing.T) {
 			),
 		}
 
-		// Build a transport chain matching production: GraphQLFeaturesTransport
-		// wraps a header-capturing spy, which forwards to the mock's RoundTripper.
-		// This verifies the mutation request sets the update_issue_suggestions
-		// feature flag so the rationale/suggest input fields are accepted.
+		// Build 一个transport chain matching production: GraphQLFeaturesTransport
+		// wraps 一个header-capturing spy, which forwards 到模拟's RoundTripper.
+		// 此verifies mutation 请求 sets 更新_议题_suggestions
+		// 功能标志 so rationale/suggest 输入 fields are accepted.
 		mockClient := githubv4mock.NewMockedHTTPClient(matchers...)
 		spy := &headerCaptureTransport{inner: mockClient.Transport}
 		httpClient := &http.Client{
@@ -2426,13 +2426,13 @@ func TestGranularSetIssueFields(t *testing.T) {
 		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
 		require.False(t, result.IsError, getTextResult(t, result).Text)
-		// The last request captured is the mutation; the preceding issue ID
-		// query does not require the feature flag.
+		// 最后一个 请求 captured is mutation; preceding 议题 ID
+		// query does 不require 功能标志.
 		assert.Equal(t, "update_issue_suggestions", spy.captured.Get(headers.GraphQLFeaturesHeader))
 	})
 }
 
-// --- Reaction granular tool handler tests ---
+// --- Reaction granular 工具 处理器 tests ---
 
 func TestGranularAddIssueReaction(t *testing.T) {
 	mockReaction := &gogithub.Reaction{

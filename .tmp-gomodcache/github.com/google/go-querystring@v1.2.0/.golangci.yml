@@ -1,0 +1,16 @@
+version: "2"
+linters:
+  enable:
+    - dogsled
+    - dupl
+    - gosec
+    - misspell
+    - nakedret
+    - staticcheck
+    - unconvert
+    - unparam
+    - whitespace
+formatters:
+  enable:
+    - gofmt
+    - goimports

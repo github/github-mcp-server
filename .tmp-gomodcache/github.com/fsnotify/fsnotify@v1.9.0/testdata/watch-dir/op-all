@@ -1,0 +1,38 @@
+require op_all
+
+watch /  default open read close_write close_read
+touch /file
+ln -s /file /link
+
+echo data >>/file2
+
+cat /file
+cat /file2
+
+cat /link
+
+mkdir /dir
+
+Output:
+	create      /file
+	open        /file
+	close_write /file
+
+	create      /link
+
+	create      /file2
+	open        /file2
+	write       /file2
+	close_write /file2
+
+	open        /file
+	close_read  /file
+
+	open        /file2
+	read        /file2
+	close_read  /file2
+
+	open        /file
+	close_read  /file
+
+	create /dir

@@ -15,34 +15,34 @@ import (
 	"github.com/github/github-mcp-server/pkg/sanitize"
 )
 
-// codeSearchItemFieldEnum lists the selectable fields for search_code result
-// items, matching the JSON field names of MinimalCodeResult. The repository and
-// text_matches fields are the heaviest, so omitting them is the main lever for
-// shrinking large result sets.
+// codeSearchItemFieldEnum 列出s selectable fields f或search_code 结果
+// items, matching JSON field names of MinimalCodeResult. 仓库 and
+// text_matches fields are heaviest, so omitting them is main lever for
+// shrinking large 结果 sets.
 var codeSearchItemFieldEnum = []any{"name", "path", "sha", "repository", "text_matches"}
 
-// fileContentFieldEnum lists the selectable fields for get_file_contents
-// directory listings, matching the JSON field names of
-// github.RepositoryContent that appear for directory entries. Only applied when
-// the requested path is a directory; ignored for single files.
+// 文件ContentFieldEnum 列出s selectable fields f或获取_文件_内容s
+// directory 列出ings, matching JSON field names of
+// github.RepositoryContent that appear f或directory entries. 仅applied when
+// 请求ed 路径 is 一个directory; ignored f或单个 文件s.
 var fileContentFieldEnum = []any{"type", "name", "path", "size", "sha", "url", "git_url", "html_url", "download_url"}
 
-// listIssuesItemFieldEnum lists the selectable fields for list_issues result
-// items, matching the JSON field names MinimalIssue actually populates via the
-// list_issues GraphQL fragment (fragmentToMinimalIssue). Fields that only the
-// REST conversion sets (for example html_url, reactions, issue_field_values) are
-// never emitted here and are intentionally omitted. The body and field_values
-// fields are the heaviest, so omitting them is the main lever for shrinking large
-// result sets.
+// 列出IssuesItemFieldEnum 列出s selectable fields f或列出_议题 结果
+// items, matching JSON field names MinimalIssue actually populates via the
+// 列出_议题 GraphQL fragment (fragmentToMinimalIssue). Fields that 仅the
+// REST conversion sets (f或example html_url, reactions, 议题_field_值) are
+// 绝不emitted here 和are intentionally omitted. body 和field_值
+// fields are heaviest, so omitting them is main lever f或shrinking large
+// 结果 sets.
 var listIssuesItemFieldEnum = []any{
 	"number", "title", "body", "state", "user", "labels",
 	"comments", "created_at", "updated_at", "field_values",
 }
 
-// listPullRequestsItemFieldEnum lists the selectable fields for
-// list_pull_requests result items, matching the JSON field names of
-// MinimalPullRequest. The body field is the heaviest, so omitting it is the main
-// lever for shrinking large result sets.
+// 列出PullRequestsItemFieldEnum 列出s selectable fields for
+// 列出_pull_请求s 结果 items, matching JSON field names of
+// MinimalPullRequest. body field is heaviest, so omitting it is main
+// lever f或shrinking large 结果 sets.
 var listPullRequestsItemFieldEnum = []any{
 	"number", "title", "body", "state", "draft", "merged", "mergeable_state",
 	"html_url", "user", "labels", "assignees", "requested_reviewers", "merged_by",
@@ -50,29 +50,29 @@ var listPullRequestsItemFieldEnum = []any{
 	"comments", "created_at", "updated_at", "closed_at", "merged_at", "milestone",
 }
 
-// listCommitsItemFieldEnum lists the selectable fields for list_commits result
-// items, matching the JSON field names MinimalCommit populates for list_commits.
-// list_commits requests commits without per-file detail (commitDetailNone), so
-// the stats and files fields are never emitted and are intentionally omitted
-// here. The commit field (message plus author/committer metadata) is the
-// heaviest, so omitting it is the main lever for shrinking large result sets.
+// 列出CommitsItemFieldEnum 列出s selectable fields f或列出_commits 结果
+// items, matching JSON field names MinimalCommit populates f或列出_commits.
+// 列出_commits 请求s commits without per-文件 detail (commitDetailNone), so
+// stats 和文件s fields are 绝不emitted 和are intentionally omitted
+// here. commit field (message plus author/committer 元数据) is the
+// heaviest, so omitting it is main lever f或shrinking large 结果 sets.
 var listCommitsItemFieldEnum = []any{
 	"sha", "html_url", "commit", "author", "committer",
 }
 
-// listReleasesItemFieldEnum lists the selectable fields for list_releases result
-// items, matching the JSON field names of MinimalRelease. The body field is the
-// heaviest, so omitting it is the main lever for shrinking large result sets.
+// 列出ReleasesItemFieldEnum 列出s selectable fields f或列出_releases 结果
+// items, matching JSON field names of MinimalRelease. body field is the
+// heaviest, so omitting it is main lever f或shrinking large 结果 sets.
 var listReleasesItemFieldEnum = []any{
 	"id", "tag_name", "name", "body", "html_url", "published_at",
 	"prerelease", "draft", "author",
 }
 
-// searchIssuesItemFieldEnum lists the selectable fields for search_issues result
+// searchIssuesItemFieldEnum 列出s selectable fields f或search_议题 结果
 // items. Items are full github.Issue objects enriched with normalized
-// field_values, so this is a curated subset of the most useful JSON field names.
-// The body, reactions, and labels fields are the heaviest, so omitting them is
-// the main lever for shrinking large result sets.
+// field_值, so this is 一个curated subset 的most useful JSON field names.
+// body, reactions, 和labels fields are heaviest, so omitting them is
+// main lever f或shrinking large 结果 sets.
 var searchIssuesItemFieldEnum = []any{
 	"number", "title", "body", "state", "state_reason", "draft", "locked",
 	"html_url", "user", "author_association", "labels", "assignee", "assignees",
@@ -80,11 +80,11 @@ var searchIssuesItemFieldEnum = []any{
 	"closed_by", "type", "repository_url", "pull_request", "field_values",
 }
 
-// searchPullRequestsItemFieldEnum lists the selectable fields for
-// search_pull_requests result items. Issue search returns pull requests as
-// github.Issue objects, so this is a curated subset of those JSON field names.
-// The body, reactions, and labels fields are the heaviest, so omitting them is
-// the main lever for shrinking large result sets.
+// searchPullRequestsItemFieldEnum 列出s selectable fields for
+// search_pull_请求s 结果 items. Issue search 返回 拉取请求 as
+// github.Issue objects, so this is 一个curated subset of those JSON field names.
+// body, reactions, 和labels fields are heaviest, so omitting them is
+// main lever f或shrinking large 结果 sets.
 var searchPullRequestsItemFieldEnum = []any{
 	"number", "title", "body", "state", "state_reason", "draft", "locked",
 	"html_url", "user", "author_association", "labels", "assignee", "assignees",
@@ -92,9 +92,9 @@ var searchPullRequestsItemFieldEnum = []any{
 	"closed_by", "pull_request", "repository_url",
 }
 
-// filterFields marshals v to a JSON object and returns a map containing only the
-// requested fields. Fields that are unknown or absent from the JSON (for example
-// empty values dropped via omitempty) are skipped.
+// 筛选Fields marshals v to 一个JSON object 和返回 一个map containing 仅the
+// 请求ed fields. Fields that are 未知 或absent 来自JSON (f或example
+// 空 值 dropped via omit空) are skipped.
 func filterFields(v any, fields []string) (map[string]any, error) {
 	data, err := json.Marshal(v)
 	if err != nil {
@@ -102,7 +102,7 @@ func filterFields(v any, fields []string) (map[string]any, error) {
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber() // preserve integer precision for fields such as IDs
+	decoder.UseNumber() // preserve integer precision f或fields such as IDs
 	var object map[string]any
 	if err := decoder.Decode(&object); err != nil {
 		return nil, err
@@ -117,8 +117,8 @@ func filterFields(v any, fields []string) (map[string]any, error) {
 	return picked, nil
 }
 
-// filterEachField applies filterFields to every item, returning a slice in which
-// each element contains only the requested fields.
+// 筛选EachField applies 筛选Fields to every item, 返回ing 一个slice in which
+// 每个element contains 仅请求ed fields.
 func filterEachField[T any](items []T, fields []string) ([]map[string]any, error) {
 	filtered := make([]map[string]any, 0, len(items))
 	for _, item := range items {
@@ -131,9 +131,9 @@ func filterEachField[T any](items []T, fields []string) ([]map[string]any, error
 	return filtered, nil
 }
 
-// fieldsSchemaProperty builds the optional `fields` array parameter shared by
-// every fields-enabled tool: an array of strings constrained to the given enum
-// of selectable field names, with a per-tool description.
+// fieldsSchemaProperty builds 可选 `fields` array 参数 shared by
+// every fields-启用 工具: 一个array of strings constrained 到given enum
+// of selectable field names, with 一个per-工具 description.
 func fieldsSchemaProperty(description string, enum []any) *jsonschema.Schema {
 	return &jsonschema.Schema{
 		Type:        "array",
@@ -145,23 +145,23 @@ func fieldsSchemaProperty(description string, enum []any) *jsonschema.Schema {
 	}
 }
 
-// MinimalUser is the output type for user and organization search results.
+// MinimalUser is 输出 type f或user 和organization search 结果.
 type MinimalUser struct {
 	Login      string       `json:"login"`
 	ID         int64        `json:"id,omitempty"`
 	ProfileURL string       `json:"profile_url,omitempty"`
 	AvatarURL  string       `json:"avatar_url,omitempty"`
-	Details    *UserDetails `json:"details,omitempty"` // Optional field for additional user details
+	Details    *UserDetails `json:"details,omitempty"` // Optional field f或additional user details
 }
 
-// MinimalSearchUsersResult is the trimmed output type for user search results.
+// MinimalSearchUsersResult is trimmed 输出 type f或user search 结果.
 type MinimalSearchUsersResult struct {
 	TotalCount        int           `json:"total_count"`
 	IncompleteResults bool          `json:"incomplete_results"`
 	Items             []MinimalUser `json:"items"`
 }
 
-// MinimalRepository is the trimmed output type for repository objects to reduce verbosity.
+// MinimalRepository is trimmed 输出 type f或仓库 objects to reduce verbosity.
 type MinimalRepository struct {
 	ID            int64    `json:"id"`
 	Name          string   `json:"name"`
@@ -181,14 +181,14 @@ type MinimalRepository struct {
 	DefaultBranch string   `json:"default_branch,omitempty"`
 }
 
-// MinimalSearchRepositoriesResult is the trimmed output type for repository search results.
+// MinimalSearchRepositoriesResult is trimmed 输出 type f或仓库 search 结果.
 type MinimalSearchRepositoriesResult struct {
 	TotalCount        int                 `json:"total_count"`
 	IncompleteResults bool                `json:"incomplete_results"`
 	Items             []MinimalRepository `json:"items"`
 }
 
-// MinimalDiscussionComment is the trimmed output type for discussion comment objects.
+// MinimalDiscussionComment is trimmed 输出 type f或discussion comment objects.
 type MinimalDiscussionComment struct {
 	ID              string                     `json:"id"`
 	Body            string                     `json:"body"`
@@ -197,14 +197,14 @@ type MinimalDiscussionComment struct {
 	ReplyTotalCount int                        `json:"replyTotalCount,omitempty"`
 }
 
-// MinimalCodeSearchResult is the trimmed output type for code search results.
+// MinimalCodeSearchResult is trimmed 输出 type f或code search 结果.
 type MinimalCodeSearchResult struct {
 	TotalCount        int                 `json:"total_count"`
 	IncompleteResults bool                `json:"incomplete_results"`
 	Items             []MinimalCodeResult `json:"items"`
 }
 
-// MinimalCodeResult is the trimmed output type for a single code search hit.
+// MinimalCodeResult is trimmed 输出 type f或一个单个 code search hit.
 type MinimalCodeResult struct {
 	Name        string              `json:"name"`
 	Path        string              `json:"path"`
@@ -213,14 +213,14 @@ type MinimalCodeResult struct {
 	TextMatches []*github.TextMatch `json:"text_matches,omitempty"`
 }
 
-// MinimalCommitAuthor represents commit author information.
+// MinimalCommitAuth或represents commit auth或信息.
 type MinimalCommitAuthor struct {
 	Name  string `json:"name,omitempty"`
 	Email string `json:"email,omitempty"`
 	Date  string `json:"date,omitempty"`
 }
 
-// MinimalCommitInfo represents core commit information.
+// MinimalCommitInfo represents core commit 信息.
 type MinimalCommitInfo struct {
 	Message   string               `json:"message"`
 	Author    *MinimalCommitAuthor `json:"author,omitempty"`
@@ -234,7 +234,7 @@ type MinimalCommitStats struct {
 	Total     int `json:"total,omitempty"`
 }
 
-// MinimalCommitFile represents a file changed in a commit.
+// MinimalCommitFile represents 一个文件 changed in 一个commit.
 type MinimalCommitFile struct {
 	Filename  string `json:"filename"`
 	Status    string `json:"status,omitempty"`
@@ -244,8 +244,8 @@ type MinimalCommitFile struct {
 	Patch     string `json:"patch,omitempty"`
 }
 
-// MinimalPRFile represents a file changed in a pull request.
-// Compared to MinimalCommitFile, it includes the patch diff and previous filename for renames.
+// MinimalPRFile represents 一个文件 changed in 一个拉取请求.
+// Compared to MinimalCommitFile, it includes patch diff 和上一个 文件name f或renames.
 type MinimalPRFile struct {
 	Filename         string `json:"filename"`
 	Status           string `json:"status,omitempty"`
@@ -256,7 +256,7 @@ type MinimalPRFile struct {
 	PreviousFilename string `json:"previous_filename,omitempty"`
 }
 
-// MinimalPullRequestCommit is the trimmed output type for commits listed on a pull request.
+// MinimalPullRequestCommit is trimmed 输出 type f或commits 列出ed on 一个拉取请求.
 type MinimalPullRequestCommit struct {
 	SHA     string               `json:"sha"`
 	HTMLURL string               `json:"html_url,omitempty"`
@@ -264,7 +264,7 @@ type MinimalPullRequestCommit struct {
 	Author  *MinimalCommitAuthor `json:"author,omitempty"`
 }
 
-// MinimalCommit is the trimmed output type for commit objects.
+// MinimalCommit is trimmed 输出 type f或commit objects.
 type MinimalCommit struct {
 	SHA       string              `json:"sha"`
 	HTMLURL   string              `json:"html_url"`
@@ -275,24 +275,24 @@ type MinimalCommit struct {
 	Files     []MinimalCommitFile `json:"files,omitempty"`
 }
 
-// MinimalRepoRef is a lightweight reference to a repository, used when a
-// result needs to identify which repository it belongs to (for example, in
-// cross-repo commit search results).
+// MinimalRepoRef is 一个lightweight reference to 一个仓库, 在以下情况使用： a
+// 结果 needs to identify which 仓库 it belongs to (f或example, in
+// cross-repo commit search 结果).
 type MinimalRepoRef struct {
 	FullName string `json:"full_name"`
 	HTMLURL  string `json:"html_url,omitempty"`
 	Private  bool   `json:"private,omitempty"`
 }
 
-// MinimalCommitSearchItem extends MinimalCommit with the containing
-// repository, since commit search spans repositories and callers need to
-// know which repo each result came from.
+// MinimalCommitSearchItem extends MinimalCommit 使用containing
+// 仓库, since commit search spans 仓库 和调用ers need to
+// know which repo 每个结果 came from.
 type MinimalCommitSearchItem struct {
 	MinimalCommit
 	Repository *MinimalRepoRef `json:"repository,omitempty"`
 }
 
-// MinimalRelease is the trimmed output type for release objects.
+// MinimalRelease is trimmed 输出 type f或release objects.
 type MinimalRelease struct {
 	ID          int64        `json:"id"`
 	TagName     string       `json:"tag_name"`
@@ -305,28 +305,28 @@ type MinimalRelease struct {
 	Author      *MinimalUser `json:"author,omitempty"`
 }
 
-// MinimalBranch is the trimmed output type for branch objects.
+// MinimalBranch is trimmed 输出 type f或分支 objects.
 type MinimalBranch struct {
 	Name      string `json:"name"`
 	SHA       string `json:"sha"`
 	Protected bool   `json:"protected"`
 }
 
-// MinimalTag is the trimmed output type for tag objects.
+// MinimalTag is trimmed 输出 type f或tag objects.
 type MinimalTag struct {
 	Name string `json:"name"`
 	SHA  string `json:"sha"`
 }
 
-// MinimalResponse represents a minimal response for all CRUD operations.
-// Success is implicit in the HTTP response status, and all other information
-// can be derived from the URL or fetched separately if needed.
+// MinimalResponse represents 一个minimal 响应 f或所有CRUD operations.
+// Success is implicit 在HTTP 响应 status, 和所有other 信息
+// 可以 derived 来自URL 或fetched separately if needed.
 type MinimalResponse struct {
 	ID  string `json:"id"`
 	URL string `json:"url"`
 }
 
-// MinimalCollaborator is the trimmed output type for repository collaborators.
+// MinimalCollaborat或is trimmed 输出 type f或仓库 collaborators.
 type MinimalCollaborator struct {
 	Login    string `json:"login"`
 	ID       int64  `json:"id"`
@@ -413,7 +413,7 @@ type minimalProjectPullRequestRef struct {
 	Repository string `json:"repository,omitempty"`
 }
 
-// MinimalReactions is the trimmed output type for reaction summaries, dropping the API URL.
+// MinimalReactions is trimmed 输出 type f或reaction summaries, dropping API URL.
 type MinimalReactions struct {
 	TotalCount int `json:"total_count"`
 	PlusOne    int `json:"+1"`
@@ -426,15 +426,15 @@ type MinimalReactions struct {
 	Eyes       int `json:"eyes"`
 }
 
-// MinimalIssueFieldValueSingleSelectOption is the trimmed output type for a single-select option of an issue field value.
+// MinimalIssueFieldValueSingleSelectOption is trimmed 输出 type f或一个单个-select option of 一个议题 field 值.
 type MinimalIssueFieldValueSingleSelectOption struct {
 	ID    int64  `json:"id"`
 	Name  string `json:"name"`
 	Color string `json:"color"`
 }
 
-// MinimalIssueFieldValue is the trimmed output type for a custom field value attached to an issue,
-// populated from REST API responses (e.g. get_issue). For GraphQL-sourced field values see MinimalFieldValue.
+// MinimalIssueFieldValue is trimmed 输出 type f或一个custom field 值 attached to 一个议题,
+// populated from REST API 响应s (e.g. 获取_议题). F或GraphQL-sourced field 值 see MinimalFieldValue.
 type MinimalIssueFieldValue struct {
 	IssueFieldID       int64                                     `json:"issue_field_id,omitempty"`
 	NodeID             string                                    `json:"node_id,omitempty"`
@@ -443,15 +443,15 @@ type MinimalIssueFieldValue struct {
 	SingleSelectOption *MinimalIssueFieldValueSingleSelectOption `json:"single_select_option,omitempty"`
 }
 
-// MinimalFieldValue is the trimmed output type for a custom field value resolved via GraphQL
-// (e.g. list_issues, search_issues). Single-value variants populate Value; Values is reserved for multi-select.
+// MinimalFieldValue is trimmed 输出 type f或一个custom field 值 resolved via GraphQL
+// (e.g. 列出_议题, search_议题). Single-值 variants populate Value; Values is reserved f或multi-select.
 type MinimalFieldValue struct {
 	Field  string   `json:"field"`
 	Value  string   `json:"value,omitempty"`
 	Values []string `json:"values,omitempty"`
 }
 
-// MinimalIssue is the trimmed output type for issue objects to reduce verbosity.
+// MinimalIssue is trimmed 输出 type f或议题 objects to reduce verbosity.
 type MinimalIssue struct {
 	Number            int                      `json:"number"`
 	Title             string                   `json:"title"`
@@ -476,18 +476,18 @@ type MinimalIssue struct {
 	IssueFieldValues  []MinimalIssueFieldValue `json:"issue_field_values,omitempty"`
 	FieldValues       []MinimalFieldValue      `json:"field_values,omitempty"`
 
-	// Hierarchy relationship signals. HasParent and HasChildren are populated when
+	// Hierarchy relationship signals. HasParent 和HasChildren are populated when
 	// hierarchy enrichment succeeds; SubIssuesSummary is populated when children exist,
-	// and Parent when a parent exists and may be surfaced (under lockdown an unverified
-	// parent reference is omitted while HasParent stays true).
+	// 和Parent when 一个parent exists 和may be surfaced (under lockdown 一个unverified
+	// parent reference is omitted 当HasParent stays 真).
 	HasParent        *bool                    `json:"has_parent,omitempty"`
 	HasChildren      *bool                    `json:"has_children,omitempty"`
 	Parent           *MinimalIssueRef         `json:"parent,omitempty"`
 	SubIssuesSummary *MinimalSubIssuesSummary `json:"sub_issues_summary,omitempty"`
 }
 
-// MinimalIssueRef is a compact reference to a related issue (e.g. a parent issue).
-// Its keys mirror the get_parent (GetIssueParent) response shape.
+// MinimalIssueRef is 一个compact reference to 一个related 议题 (e.g. 一个parent 议题).
+// Its keys mirr或获取_parent (GetIssueParent) 响应 shape.
 type MinimalIssueRef struct {
 	Number     int    `json:"number"`
 	Title      string `json:"title"`
@@ -496,21 +496,21 @@ type MinimalIssueRef struct {
 	Repository string `json:"repository,omitempty"`
 }
 
-// MinimalSubIssuesSummary holds the native GraphQL subIssuesSummary counts for an issue.
+// MinimalSubIssuesSummary holds native GraphQL subIssuesSummary counts f或一个议题.
 type MinimalSubIssuesSummary struct {
 	Total            int `json:"total"`
 	Completed        int `json:"completed"`
 	PercentCompleted int `json:"percent_completed"`
 }
 
-// MinimalIssuesResponse is the trimmed output for a paginated list of issues.
+// MinimalIssuesResponse is trimmed 输出 f或一个paginated 列出 of 议题.
 type MinimalIssuesResponse struct {
 	Issues     []MinimalIssue  `json:"issues"`
 	TotalCount int             `json:"totalCount"`
 	PageInfo   MinimalPageInfo `json:"pageInfo"`
 }
 
-// MinimalIssueComment is the trimmed output type for issue comment objects to reduce verbosity.
+// MinimalIssueComment is trimmed 输出 type f或议题 comment objects to reduce verbosity.
 type MinimalIssueComment struct {
 	ID                int64             `json:"id"`
 	Body              string            `json:"body,omitempty"`
@@ -522,20 +522,20 @@ type MinimalIssueComment struct {
 	UpdatedAt         string            `json:"updated_at,omitempty"`
 }
 
-// MinimalSearchCommitsResult is the trimmed output type for commit search results.
+// MinimalSearchCommitsResult is trimmed 输出 type f或commit search 结果.
 type MinimalSearchCommitsResult struct {
 	TotalCount        int                       `json:"total_count"`
 	IncompleteResults bool                      `json:"incomplete_results"`
 	Items             []MinimalCommitSearchItem `json:"items"`
 }
 
-// MinimalFileContentResponse is the trimmed output type for create/update/delete file responses.
+// MinimalFileContentResponse is trimmed 输出 type f或创建/更新/删除 文件 响应s.
 type MinimalFileContentResponse struct {
 	Content *MinimalFileContent `json:"content,omitempty"`
 	Commit  *MinimalFileCommit  `json:"commit,omitempty"`
 }
 
-// MinimalFileContent is the trimmed content portion of a file operation response.
+// MinimalFileContent is trimmed 内容 portion of 一个文件 operation 响应.
 type MinimalFileContent struct {
 	Name    string `json:"name"`
 	Path    string `json:"path"`
@@ -544,7 +544,7 @@ type MinimalFileContent struct {
 	HTMLURL string `json:"html_url"`
 }
 
-// MinimalFileCommit is the trimmed commit portion of a file operation response.
+// MinimalFileCommit is trimmed commit portion of 一个文件 operation 响应.
 type MinimalFileCommit struct {
 	SHA     string               `json:"sha"`
 	Message string               `json:"message,omitempty"`
@@ -552,7 +552,7 @@ type MinimalFileCommit struct {
 	Author  *MinimalCommitAuthor `json:"author,omitempty"`
 }
 
-// MinimalPullRequest is the trimmed output type for pull request objects to reduce verbosity.
+// MinimalPullRequest is trimmed 输出 type f或拉取请求 objects to reduce verbosity.
 type MinimalPullRequest struct {
 	Number             int              `json:"number"`
 	Title              string           `json:"title"`
@@ -581,14 +581,14 @@ type MinimalPullRequest struct {
 	Milestone          string           `json:"milestone,omitempty"`
 }
 
-// MinimalPRBranch is the trimmed output type for pull request branch references.
+// MinimalPRBranch is trimmed 输出 type f或拉取请求 分支 references.
 type MinimalPRBranch struct {
 	Ref  string               `json:"ref"`
 	SHA  string               `json:"sha"`
 	Repo *MinimalPRBranchRepo `json:"repo,omitempty"`
 }
 
-// MinimalPRBranchRepo is the trimmed repo info nested inside a PR branch.
+// MinimalPRBranchRepo is trimmed repo info nested inside 一个PR 分支.
 type MinimalPRBranchRepo struct {
 	FullName    string `json:"full_name"`
 	Description string `json:"description,omitempty"`
@@ -604,7 +604,7 @@ type MinimalProjectStatusUpdate struct {
 	Creator    *MinimalUser `json:"creator,omitempty"`
 }
 
-// MinimalPullRequestReview is the trimmed output type for pull request review objects to reduce verbosity.
+// MinimalPullRequestReview is trimmed 输出 type f或拉取请求 review objects to reduce verbosity.
 type MinimalPullRequestReview struct {
 	ID                int64        `json:"id"`
 	State             string       `json:"state"`
@@ -616,7 +616,7 @@ type MinimalPullRequestReview struct {
 	AuthorAssociation string       `json:"author_association,omitempty"`
 }
 
-// Helper functions
+// Helper 函数s
 
 func convertToMinimalPullRequestReview(review *github.PullRequestReview) MinimalPullRequestReview {
 	m := MinimalPullRequestReview{
@@ -749,8 +749,8 @@ func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 	return m
 }
 
-// fragmentToMinimalFieldValue flattens the union value fragment into a single
-// {field, value} pair. Returns ok=false if the typename is unrecognised.
+// fragmentToMinimalFieldValue flattens union 值 fragment into 一个单个
+// {field, 值} pair. Returns ok=假 如果typename is unrecognised.
 func fragmentToMinimalFieldValue(fv IssueFieldValueFragment) (MinimalFieldValue, bool) {
 	switch fv.TypeName {
 	case "IssueFieldDateValue":
@@ -1292,9 +1292,9 @@ func minimalProjectIterationFromMap(value map[string]any) (minimalProjectIterati
 	}, true
 }
 
-// textContentStringFromMap returns a string for a field that may be either a
-// plain string or a nested ProjectV2TextContent object (with raw/html/text
-// fields), as returned for project option names and iteration titles.
+// textContentStringFromMap 返回 一个string f或一个field that may be either a
+// plain string 或一个nested ProjectV2TextContent object (with raw/html/text
+// fields), as 返回ed f或project option names 和iteration titles.
 func textContentStringFromMap(value map[string]any, key string) string {
 	if s := stringFromMap(value, key); s != "" {
 		return s
@@ -1529,10 +1529,10 @@ func convertToMinimalUser(user *github.User) *MinimalUser {
 	}
 }
 
-// newMinimalCommitFromCore builds a MinimalCommit from the fields that are
-// shared between *github.RepositoryCommit and *github.CommitResult. Caller
-// is responsible for setting any type-specific extras (stats/files for
-// RepositoryCommit, repository for CommitResult).
+// 新的MinimalCommitFromCore builds 一个MinimalCommit 来自fields that are
+// shared between *github.RepositoryCommit 和*github.CommitResult. Caller
+// is responsible f或setting any type-specific extras (stats/文件s for
+// RepositoryCommit, 仓库 f或CommitResult).
 func newMinimalCommitFromCore(sha, htmlURL string, commit *github.Commit, author, committer *github.User) MinimalCommit {
 	minimalCommit := MinimalCommit{
 		SHA:     sha,
@@ -1586,22 +1586,22 @@ func newMinimalCommitFromCore(sha, htmlURL string, commit *github.Commit, author
 	return minimalCommit
 }
 
-// commitDetail controls how much per-file information convertToMinimalCommit
-// includes in its output.
+// commitDetail controls how much per-文件 信息 convertToMinimalCommit
+// includes in its 输出.
 type commitDetail string
 
 const (
-	// commitDetailNone omits Stats and Files entirely.
+	// commitDetailNone omits Stats 和Files entirely.
 	commitDetailNone commitDetail = "none"
-	// commitDetailStats includes Stats and Files with metadata only
-	// (filename, status, additions, deletions, changes) but no patch text.
+	// commitDetailStats includes Stats 和Files with 元数据 only
+	// (文件name, status, additions, deletions, changes) 但no patch text.
 	commitDetailStats commitDetail = "stats"
-	// commitDetailFullPatch additionally includes the unified diff for each file.
+	// commitDetailFullPatch additionally includes unified diff f或每个文件.
 	commitDetailFullPatch commitDetail = "full_patch"
 )
 
-// parseCommitDetail validates the user-supplied detail value and returns the
-// default (stats) when the value is empty.
+// parseCommitDetail 验证s user-supplied detail 值 和返回 the
+// 默认(stats) 当值 is 空.
 func parseCommitDetail(s string) (commitDetail, error) {
 	switch s {
 	case "":
@@ -1654,9 +1654,9 @@ func convertToMinimalCommit(commit *github.RepositoryCommit, detail commitDetail
 	return minimalCommit
 }
 
-// convertCommitResultToMinimalCommit converts a GitHub API commit search
-// result, attaching the containing repository so the caller can tell which
-// repo each result came from.
+// convertCommitResultToMinimalCommit converts 一个GitHub API commit search
+// 结果, attaching containing 仓库 so 调用er can tell which
+// repo 每个结果 came from.
 func convertCommitResultToMinimalCommit(commit *github.CommitResult) MinimalCommitSearchItem {
 	item := MinimalCommitSearchItem{
 		MinimalCommit: newMinimalCommitFromCore(
@@ -1679,7 +1679,7 @@ func convertCommitResultToMinimalCommit(commit *github.CommitResult) MinimalComm
 	return item
 }
 
-// MinimalPageInfo contains pagination cursor information.
+// MinimalPageInfo contains pagination curs或信息.
 type MinimalPageInfo struct {
 	HasNextPage     bool   `json:"hasNextPage"`
 	HasPreviousPage bool   `json:"hasPreviousPage"`
@@ -1687,7 +1687,7 @@ type MinimalPageInfo struct {
 	EndCursor       string `json:"endCursor,omitempty"`
 }
 
-// MinimalReviewComment is the trimmed output type for PR review comment objects.
+// MinimalReviewComment is trimmed 输出 type f或PR review comment objects.
 type MinimalReviewComment struct {
 	Body      string `json:"body,omitempty"`
 	Path      string `json:"path"`
@@ -1698,7 +1698,7 @@ type MinimalReviewComment struct {
 	HTMLURL   string `json:"html_url"`
 }
 
-// MinimalReviewThread is the trimmed output type for PR review thread objects.
+// MinimalReviewTh读取 is trimmed 输出 type f或PR review th读取 objects.
 type MinimalReviewThread struct {
 	ID          string                 `json:"id"`
 	IsResolved  bool                   `json:"is_resolved"`
@@ -1708,7 +1708,7 @@ type MinimalReviewThread struct {
 	TotalCount  int                    `json:"total_count"`
 }
 
-// MinimalReviewThreadsResponse is the trimmed output for a paginated list of PR review threads.
+// MinimalReviewTh读取sResponse is trimmed 输出 f或一个paginated 列出 of PR review th读取s.
 type MinimalReviewThreadsResponse struct {
 	ReviewThreads []MinimalReviewThread `json:"review_threads"`
 	TotalCount    int                   `json:"totalCount"`
@@ -1769,7 +1769,7 @@ func convertToMinimalCommitAuthor(author *github.CommitAuthor) *MinimalCommitAut
 	return minimalAuthor
 }
 
-// convertToMinimalBranch converts a GitHub API Branch to MinimalBranch
+// convertToMinimalBranch converts 一个GitHub API Branch to MinimalBranch
 func convertToMinimalBranch(branch *github.Branch) MinimalBranch {
 	return MinimalBranch{
 		Name:      branch.GetName(),
@@ -1809,7 +1809,7 @@ func convertToMinimalTag(tag *github.RepositoryTag) MinimalTag {
 	return m
 }
 
-// MinimalCheckRun is the trimmed output type for check run objects.
+// MinimalCheckRun is trimmed 输出 type f或检查 run objects.
 type MinimalCheckRun struct {
 	ID          int64  `json:"id"`
 	Name        string `json:"name"`
@@ -1821,13 +1821,13 @@ type MinimalCheckRun struct {
 	CompletedAt string `json:"completed_at,omitempty"`
 }
 
-// MinimalCheckRunsResult is the trimmed output type for check runs list results.
+// MinimalCheckRunsResult is trimmed 输出 type f或检查 runs 列出 结果.
 type MinimalCheckRunsResult struct {
 	TotalCount int               `json:"total_count"`
 	CheckRuns  []MinimalCheckRun `json:"check_runs"`
 }
 
-// convertToMinimalCheckRun converts a GitHub API CheckRun to MinimalCheckRun
+// convertToMinimalCheckRun converts 一个GitHub API CheckRun to MinimalCheckRun
 func convertToMinimalCheckRun(checkRun *github.CheckRun) MinimalCheckRun {
 	minimalCheckRun := MinimalCheckRun{
 		ID:         checkRun.GetID(),

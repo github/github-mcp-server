@@ -51,8 +51,8 @@ func newRepoAccessHTTPClient() *http.Client {
 
 const issueReadEnrichmentQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}},parent{number,title,state,url,author{login},repository{nameWithOwner}},subIssuesSummary{total,completed,percentCompleted}}}}"
 
-// newIssueReadEnrichmentMatcher builds a matcher for the issue_read `get` enrichment query for a
-// single issue node ID.
+// 新的IssueReadEnrichmentMatcher builds 一个matcher 用于议题_读取 `获取` enrichment query f或a
+// 单个 议题 node ID.
 func newIssueReadEnrichmentMatcher(nodeID string, response githubv4mock.GQLResponse) githubv4mock.Matcher {
 	return githubv4mock.NewQueryMatcher(
 		issueReadEnrichmentQueryString,
@@ -120,7 +120,7 @@ func toString(v any) string {
 }
 
 func Test_GetIssue(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := IssueRead(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -133,7 +133,7 @@ func Test_GetIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number"})
 
-	// Setup mock issue for success case
+	// Setup 模拟 议题 f或成功 case
 	mockIssue := &github.Issue{
 		Number:  github.Ptr(42),
 		Title:   github.Ptr("Test Issue"),
@@ -407,9 +407,9 @@ func Test_IssueRead_IFC_InsidersMode(t *testing.T) {
 }
 
 func Test_GetIssue_FieldValues(t *testing.T) {
-	// The raw REST issue_field_values are always cleared. Enriched field_values are
-	// only populated via GraphQL when the issue has a node ID; this issue has none,
-	// so field_values stays empty.
+	// raw REST 议题_field_值 are 始终cleared. Enriched field_值 are
+	// 仅populated via GraphQL 当议题 has 一个node ID; this 议题 has none,
+	// so field_值 stays 空.
 	serverTool := IssueRead(translations.NullTranslationHelper)
 
 	mockIssueWithFields := &github.Issue{
@@ -472,15 +472,15 @@ func Test_GetIssue_FieldValues(t *testing.T) {
 	err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 	require.NoError(t, err)
 
-	// Raw REST IssueFieldValues must be cleared, and no enriched field_values are
-	// present because this issue has no node ID.
+	// Raw REST IssueFieldValues 必须是 cleared, 和no enriched field_值 are
+	// present 因为this 议题 has no node ID.
 	assert.Empty(t, returnedIssue.IssueFieldValues, "raw REST issue_field_values should not be exposed")
 	assert.Empty(t, returnedIssue.FieldValues, "enriched field_values should not be present without a node ID")
 }
 
 func Test_GetIssue_FieldValues_Enriched(t *testing.T) {
-	// Verify the enriched field_values are populated via GraphQL when the issue has
-	// a node ID, and the raw REST issue_field_values stays cleared.
+	// Verify enriched field_值 are populated via GraphQL 当议题 has
+	// 一个node ID, 以及raw REST 议题_field_值 stays cleared.
 	serverTool := IssueRead(translations.NullTranslationHelper)
 
 	mockIssueWithFields := &github.Issue{
@@ -559,18 +559,18 @@ func Test_GetIssue_FieldValues_Enriched(t *testing.T) {
 	err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 	require.NoError(t, err)
 
-	// Raw REST IssueFieldValues is always cleared.
+	// Raw REST IssueFieldValues is 始终cleared.
 	assert.Empty(t, returnedIssue.IssueFieldValues, "raw REST issue_field_values should not be exposed")
 
-	// Enriched FieldValues comes from the GraphQL nodes() round-trip.
+	// Enriched FieldValues comes 来自GraphQL nodes() round-trip.
 	require.Len(t, returnedIssue.FieldValues, 2, "field_values should be populated from GraphQL")
 	assert.Equal(t, "priority", returnedIssue.FieldValues[0].Field)
 	assert.Equal(t, "P1", returnedIssue.FieldValues[0].Value)
 	assert.Equal(t, "estimate", returnedIssue.FieldValues[1].Field)
 	assert.Equal(t, "2.5", returnedIssue.FieldValues[1].Value)
 
-	// With no parent and no sub-issues, the routing booleans are explicit false and the
-	// optional relationship payloads are omitted.
+	// With no parent 和no sub-议题, routing booleans are explicit 假 和the
+	// 可选 relationship payloads are omitted.
 	assert.Equal(t, github.Ptr(false), returnedIssue.HasParent, "has_parent should be false without a parent")
 	assert.Equal(t, github.Ptr(false), returnedIssue.HasChildren, "has_children should be false without sub-issues")
 	assert.Nil(t, returnedIssue.Parent, "parent should be omitted when there is no parent")
@@ -710,12 +710,12 @@ func Test_GetIssue_HierarchyEnrichment_Lockdown(t *testing.T) {
 		},
 	}
 
-	// In lockdown mode the issue's own author must be verified as safe (mirrors the existing
-	// REST lockdown gate). The repo-access cache performs push-access checks against its own
-	// REST client: the issue author ("author") has write access, while the parent author
-	// ("parentauthor") only has read access and so cannot be verified as safe. The parent
-	// reference is therefore omitted entirely, while has_parent stays true so an agent can
-	// still route to get_parent.
+	// In lockdown mode 议题's own auth或必须是 verified as safe (mirrors existing
+	// REST lockdown gate). repo-access cache performs push-access 检查s against its own
+	// REST 客户端: 议题 auth或("author") has 写入 access, 当the parent author
+	// ("parentauthor") 仅has 读取 access 和so can不be verified as safe. parent
+	// reference is therefore omitted entirely, 当has_parent stays 真 so 一个agent can
+	// still route to 获取_parent.
 	restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
 	})
@@ -796,7 +796,7 @@ func Test_GetIssue_HierarchyEnrichment_QueryFailureReturnsBaseIssue(t *testing.T
 	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	// Relationship enrichment must never fail `get`: the base issue is still returned.
+	// Relationship enrichment must 绝不fail `获取`: base 议题 is still 返回ed.
 	require.False(t, result.IsError, "enrichment failure should not fail get")
 
 	var returnedIssue MinimalIssue
@@ -809,7 +809,7 @@ func Test_GetIssue_HierarchyEnrichment_QueryFailureReturnsBaseIssue(t *testing.T
 }
 
 func Test_SearchIssues(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := SearchIssues(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -826,7 +826,7 @@ func Test_SearchIssues(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "fields")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"query"})
 
-	// Setup mock search results
+	// Setup 模拟 search 结果
 	mockSearchResult := &github.IssuesSearchResult{
 		Total:             github.Ptr(2),
 		IncompleteResults: github.Ptr(false),
@@ -1110,22 +1110,22 @@ func Test_SearchIssues(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
-				require.NoError(t, err) // No Go error, but result should be an error
+				require.NoError(t, err) // No Go 错误, 但结果 应当是 一个错误
 				require.NotNil(t, result)
 				require.True(t, result.IsError, "expected result to be an error")
 				textContent := getErrorResult(t, result)
@@ -1136,10 +1136,10 @@ func Test_SearchIssues(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError, "expected result to not be an error")
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedResult github.IssuesSearchResult
 			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 			require.NoError(t, err)
@@ -1417,7 +1417,7 @@ func Test_SearchIssues_FieldValuesEnrichment(t *testing.T) {
 }
 
 func Test_CreateIssue(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -1437,7 +1437,7 @@ func Test_CreateIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_fields")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo"})
 
-	// Setup mock issue for success case
+	// Setup 模拟 议题 f或成功 case
 	mockIssue := &github.Issue{
 		Number:    github.Ptr(123),
 		Title:     github.Ptr("Test Issue"),
@@ -1502,7 +1502,7 @@ func Test_CreateIssue(t *testing.T) {
 				"owner":     "owner",
 				"repo":      "repo",
 				"title":     "Minimal Issue",
-				"assignees": nil, // Expect no failure with nil optional value.
+				"assignees": nil, // Expect no failure with nil 可选 值.
 			},
 			expectError: false,
 			expectedIssue: &github.Issue{
@@ -1617,7 +1617,7 @@ func Test_CreateIssue(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			gqlHTTPClient := tc.mockedGQLClient
 			if gqlHTTPClient == nil {
@@ -1630,13 +1630,13 @@ func Test_CreateIssue(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErrMsg)
@@ -1653,7 +1653,7 @@ func Test_CreateIssue(t *testing.T) {
 			require.NoError(t, err)
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the minimal result
+			// Unmarshal 和verify minimal 结果
 			var returnedIssue MinimalResponse
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 			require.NoError(t, err)
@@ -1663,8 +1663,8 @@ func Test_CreateIssue(t *testing.T) {
 	}
 }
 
-// Test_IssueWrite_MCPAppsFeature_UIGate verifies the MCP Apps feature UI gate
-// behavior: UI clients get a form message, non-UI clients execute directly.
+// Test_IssueWrite_MCPAppsFeature_UIGate verifies MCP Apps feature UI gate
+// behavior: UI 客户端s 获取 一个form message, non-UI 客户端s execute directly.
 func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 	t.Parallel()
 
@@ -1734,9 +1734,9 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 	})
 
 	t.Run("UI client with state change routes through UI form", func(t *testing.T) {
-		// state/state_reason/duplicate_of are form params (the issue-write view
-		// renders close/reopen controls), so a call carrying them must go to
-		// the form rather than execute directly.
+		// state/state_reason/duplicate_of are form params (the 议题-写入 view
+		// renders close/reopen controls), so 一个c所有carrying them must go to
+		// form rather than execute directly.
 		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"method":       "update",
 			"owner":        "owner",
@@ -1772,8 +1772,8 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 	})
 
 	t.Run("UI client with issue_fields routes through UI form", func(t *testing.T) {
-		// issue_fields is now a form param (the issue-write view renders a
-		// per-field editor), so a call carrying it must go to the form rather
+		// 议题_fields 现在是 一个form param (the 议题-写入 view renders a
+		// per-field editor), so 一个c所有carrying it must go 到form rather
 		// than execute directly.
 		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"method": "create",
@@ -1794,8 +1794,8 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 	})
 
 	t.Run("UI client with labels routes through UI form", func(t *testing.T) {
-		// labels is now a form param (the issue-write view prefills and renders
-		// a label selector), so a call carrying them must route to the form
+		// labels 现在是 一个form param (the 议题-写入 view prefills 和renders
+		// 一个label selector), so 一个c所有carrying them must route 到form
 		// rather than execute directly.
 		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"method": "create",
@@ -1844,18 +1844,18 @@ func Test_issueWriteHasNonFormParams(t *testing.T) {
 	}
 }
 
-// Test_issueWriteSchemaClassification fails when a schema property is added
-// without classifying it as either form-resendable (issueWriteFormParams) or
-// known-non-form (knownNonForm below). Without this guard, an unclassified
+// Test_议题WriteSchemaClassification fails when 一个schema property is added
+// without classifying it as either form-resendable (议题WriteFormParams) or
+// known-non-form (knownNonForm below). Without this guard, 一个unclassified
 // property would silently flip UI gating: form-incompatible fields would
-// stop tripping the safety-net bypass and the form would drop their values.
+// stop tripping safety-net bypass 以及form would drop their 值.
 func Test_issueWriteSchemaClassification(t *testing.T) {
 	t.Parallel()
 
-	// Schema properties the MCP App form cannot represent — their presence
-	// must trigger the safety-net bypass via hasNonFormParams. The
-	// form currently collects every schema property, so this allowlist is
-	// empty; add a property here only if it is added to the schema without
+	// Schema properties MCP App form can不represent — their presence
+	// must trigger safety-net bypass via hasNonFormParams. The
+	// form currently collects every schema property, so this allow列出 is
+	// 空; add 一个property here 仅if it is added 到schema without
 	// corresponding form support.
 	knownNonForm := map[string]struct{}{}
 
@@ -1888,7 +1888,7 @@ func Test_issueWriteSchemaClassification(t *testing.T) {
 }
 
 func Test_ListIssues(t *testing.T) {
-	// Verify tool definition
+	// Verify 工具定义
 	serverTool := ListIssues(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -1907,7 +1907,7 @@ func Test_ListIssues(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "fields")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo"})
 
-	// Mock issues data
+	// Mock 议题 数据
 	mockIssuesAll := []map[string]any{
 		{
 			"number":     123,
@@ -1998,7 +1998,7 @@ func Test_ListIssues(t *testing.T) {
 		},
 	}
 
-	// Mock responses
+	// Mock 响应s
 	mockResponseListAll := githubv4mock.DataResponse(map[string]any{
 		"repository": map[string]any{
 			"issues": map[string]any{
@@ -2050,8 +2050,8 @@ func Test_ListIssues(t *testing.T) {
 	mockErrorRepoNotFound := githubv4mock.ErrorResponse("repository not found")
 
 	// Variables matching what GraphQL receives after JSON marshaling/unmarshaling.
-	// issueFieldValues is always sent as an (empty by default) list because the query
-	// declares the variable unconditionally; the server treats an empty list as no filter.
+	// 议题FieldValues is 始终sent as 一个(空 by default) 列出 因为the query
+	// declares variable unconditionally; 服务器 treats 一个空 列出 as no 筛选.
 	varsListAll := map[string]any{
 		"owner":            "owner",
 		"repo":             "repo",
@@ -2175,7 +2175,7 @@ func Test_ListIssues(t *testing.T) {
 		},
 	}
 
-	// Define the actual query strings that match the implementation
+	// Define actual query strings that match implementation
 	issueFieldValuesSelection := "issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}"
 	qBasicNoLabels := "query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}," + issueFieldValuesSelection + "},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
 	qWithLabels := "query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$labels:[String!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}," + issueFieldValuesSelection + "},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
@@ -2222,19 +2222,19 @@ func Test_ListIssues(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			// Parse the structured response with pagination info
+			// Parse structured 响应 with pagination info
 			var response MinimalIssuesResponse
 			err = json.Unmarshal([]byte(text), &response)
 			require.NoError(t, err)
 
 			assert.Len(t, response.Issues, tc.expectedCount, "Expected %d issues, got %d", tc.expectedCount, len(response.Issues))
 
-			// Verify pagination metadata
+			// Verify pagination 元数据
 			assert.Equal(t, tc.expectedCount, response.TotalCount)
 			assert.False(t, response.PageInfo.HasNextPage)
 			assert.False(t, response.PageInfo.HasPreviousPage)
 
-			// Verify that returned issues have expected structure
+			// Verify that 返回ed 议题 have expected structure
 			for _, issue := range response.Issues {
 				assert.NotZero(t, issue.Number, "Issue should have number")
 				assert.NotEmpty(t, issue.Title, "Issue should have title")
@@ -2245,14 +2245,14 @@ func Test_ListIssues(t *testing.T) {
 				assert.NotEmpty(t, issue.User.Login, "Issue user should have login")
 				assert.Empty(t, issue.HTMLURL, "html_url should be empty (not populated by GraphQL fragment)")
 
-				// Labels should be flattened to name strings
+				// Labels 应当是 flattened to name strings
 				for _, label := range issue.Labels {
 					assert.NotEmpty(t, label, "Label should be a non-empty string")
 				}
 
-				// Field values should be flattened to {field, value} pairs. Issue #123 has a
-				// SingleSelectValue; issue #456 exercises the Date/Number/Text branches
-				// (including float formatting); #789 has no field values.
+				// Field 值 应当是 flattened to {field, 值} pairs. Issue #123 has a
+				// SingleSelectValue; 议题 #456 exercises Date/Number/Text 分支
+				// (including float formatting); #789 has no field 值.
 				switch issue.Number {
 				case 123:
 					assert.Equal(t, []MinimalFieldValue{{Field: "priority", Value: "P1"}}, issue.FieldValues)
@@ -2308,8 +2308,8 @@ func Test_ListIssues_FieldFilters(t *testing.T) {
 		},
 	})
 
-	// Field-lookup matcher used by every subtest that supplies field_filters.
-	// The handler calls fetchIssueFields(owner, repo) before issuing the issues query.
+	// Field-lookup matcher 由以下内容使用： every subtest that supplies field_筛选s.
+	// 处理器 调用 fetchIssueFields(owner, repo) before issuing 议题 query.
 	fieldsResponse := githubv4mock.DataResponse(map[string]any{
 		"repository": map[string]any{
 			"issueFields": map[string]any{
@@ -2589,9 +2589,9 @@ func Test_ListIssues_FieldFilters(t *testing.T) {
 		assert.Contains(t, getTextResult(t, res).Text, "not a valid date")
 	})
 
-	// Query string fragments for the `since` variants. Built by string concatenation
-	// because they only differ from the base variants by the variable declaration and
-	// the filterBy clause.
+	// Query string fragments 用于`since` variants. Built by string concatenation
+	// 因为they 仅differ 来自base variants 由variable declaration and
+	// 筛选By clause.
 	qNoLabelsWithSince := "query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$since:DateTime!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since, issueFieldValues: $issueFieldValues})" + qNoLabels[len("query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues})"):]
 	qLabelsWithSince := "query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$labels:[String!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$since:DateTime!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since, issueFieldValues: $issueFieldValues})" + qWithLabels[len("query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$labels:[String!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues})"):]
 
@@ -2650,10 +2650,10 @@ func Test_ListIssues_FieldFilters(t *testing.T) {
 		vars["issueFieldValues"] = []any{}
 		matcher := githubv4mock.NewQueryMatcher(qNoLabels, vars, response)
 
-		// Build a transport chain matching production: GraphQLFeaturesTransport
-		// wraps a header-capturing spy, which forwards to the mock's RoundTripper.
-		// This verifies the handler sets the issue_fields context value and the
-		// transport translates it into the outgoing header.
+		// Build 一个transport chain matching production: GraphQLFeaturesTransport
+		// wraps 一个header-capturing spy, which forwards 到模拟's RoundTripper.
+		// 此verifies 处理器 sets 议题_fields 上下文 值 和the
+		// transport translates it in到outgoing header.
 		mockClient := githubv4mock.NewMockedHTTPClient(matcher)
 		spy := &headerCaptureTransport{inner: mockClient.Transport}
 		httpClient := &http.Client{
@@ -2671,8 +2671,8 @@ func Test_ListIssues_FieldFilters(t *testing.T) {
 	})
 }
 
-// headerCaptureTransport records the headers of the most recent request that passed
-// through it before forwarding to the inner RoundTripper.
+// headerCaptureTransport records headers 的most recent 请求 that passed
+// through it before forwarding 到inner RoundTripper.
 type headerCaptureTransport struct {
 	inner    http.RoundTripper
 	captured http.Header
@@ -2810,7 +2810,7 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 }
 
 func Test_UpdateIssue(t *testing.T) {
-	// Verify tool definition
+	// Verify 工具定义
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -2833,7 +2833,7 @@ func Test_UpdateIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_fields")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo"})
 
-	// Mock issues for reuse across test cases
+	// Mock 议题 f或reuse across test cases
 	mockBaseIssue := &github.Issue{
 		Number:    github.Ptr(123),
 		Title:     github.Ptr("Title"),
@@ -2867,7 +2867,7 @@ func Test_UpdateIssue(t *testing.T) {
 		HTMLURL:     github.Ptr("https://github.com/owner/repo/issues/123"),
 	}
 
-	// Mock GraphQL responses for reuse across test cases
+	// Mock GraphQL 响应s f或reuse across test cases
 	issueIDQueryResponse := githubv4mock.DataResponse(map[string]any{
 		"repository": map[string]any{
 			"issue": map[string]any{
@@ -2983,7 +2983,7 @@ func Test_UpdateIssue(t *testing.T) {
 				),
 			}),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
-				// fetch-and-merge: returns no existing fields so the incoming values are used as-is
+				// fetch-and-merge: 返回 no existing fields so incoming 值 are used as-is
 				githubv4mock.NewQueryMatcher(
 					"query($number:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){issue(number: $number){issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}}}}",
 					map[string]any{
@@ -3259,7 +3259,7 @@ func Test_UpdateIssue(t *testing.T) {
 						Assignees: []*github.User{{Login: github.Ptr("assignee1")}, {Login: github.Ptr("assignee2")}},
 						Milestone: &github.Milestone{Number: github.Ptr(5)},
 						Type:      &github.IssueType{Name: github.Ptr("Bug")},
-						State:     github.Ptr("open"), // Still open after REST update
+						State:     github.Ptr("open"), // Still open after REST 更新
 						HTMLURL:   github.Ptr("https://github.com/owner/repo/issues/123"),
 					}),
 				),
@@ -3342,7 +3342,7 @@ func Test_UpdateIssue(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup clients with mocks
+			// Setup 客户端s with 模拟s
 			restClient := mustNewGHClient(t, tc.mockedRESTClient)
 			gqlClient := githubv4.NewClient(tc.mockedGQLClient)
 			deps := BaseDeps{
@@ -3351,13 +3351,13 @@ func Test_UpdateIssue(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError || tc.expectedErrMsg != "" {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -3375,10 +3375,10 @@ func Test_UpdateIssue(t *testing.T) {
 
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content
+			// Parse 结果 和获取 text 内容
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the minimal result
+			// Unmarshal 和verify minimal 结果
 			var updateResp MinimalResponse
 			err = json.Unmarshal([]byte(textContent.Text), &updateResp)
 			require.NoError(t, err)
@@ -3480,7 +3480,7 @@ func Test_ParseISOTimestamp(t *testing.T) {
 }
 
 func Test_GetIssueComments(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := IssueRead(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -3495,7 +3495,7 @@ func Test_GetIssueComments(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "perPage")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number"})
 
-	// Setup mock comments for success case
+	// Setup 模拟 comments f或成功 case
 	mockComments := []*github.IssueComment{
 		{
 			ID:   github.Ptr(int64(123)),
@@ -3609,7 +3609,7 @@ func Test_GetIssueComments(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			var restClient *github.Client
 			if tc.lockdownEnabled {
@@ -3628,13 +3628,13 @@ func Test_GetIssueComments(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErrMsg)
@@ -3644,7 +3644,7 @@ func Test_GetIssueComments(t *testing.T) {
 			require.NoError(t, err)
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedComments []MinimalIssueComment
 			err = json.Unmarshal([]byte(textContent.Text), &returnedComments)
 			require.NoError(t, err)
@@ -3663,7 +3663,7 @@ func Test_GetIssueComments(t *testing.T) {
 func Test_GetIssueLabels(t *testing.T) {
 	t.Parallel()
 
-	// Verify tool definition
+	// Verify 工具定义
 	serverTool := IssueRead(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -3933,7 +3933,7 @@ func Test_GetIssueParent(t *testing.T) {
 }
 
 func Test_AddSubIssue(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := SubIssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -3948,7 +3948,7 @@ func Test_AddSubIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "replace_parent")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
 
-	// Setup mock issue for success case (matches GitHub API response format)
+	// Setup 模拟 议题 f或成功 case (matches GitHub API 响应 format)
 	mockIssue := &github.Issue{
 		Number:  github.Ptr(42),
 		Title:   github.Ptr("Parent Issue"),
@@ -4110,20 +4110,20 @@ func Test_AddSubIssue(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErrMsg)
@@ -4139,10 +4139,10 @@ func Test_AddSubIssue(t *testing.T) {
 
 			require.NoError(t, err)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedIssue github.Issue
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 			require.NoError(t, err)
@@ -4157,7 +4157,7 @@ func Test_AddSubIssue(t *testing.T) {
 }
 
 func Test_GetSubIssues(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := IssueRead(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -4172,7 +4172,7 @@ func Test_GetSubIssues(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "perPage")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number"})
 
-	// Setup mock sub-issues for success case
+	// Setup 模拟 sub-议题 f或成功 case
 	mockSubIssues := []*github.Issue{
 		{
 			Number:  github.Ptr(123),
@@ -4331,7 +4331,7 @@ func Test_GetSubIssues(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			gqlClient := githubv4.NewClient(nil)
 			deps := BaseDeps{
@@ -4342,13 +4342,13 @@ func Test_GetSubIssues(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErrMsg)
@@ -4364,10 +4364,10 @@ func Test_GetSubIssues(t *testing.T) {
 
 			require.NoError(t, err)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedSubIssues []*github.Issue
 			err = json.Unmarshal([]byte(textContent.Text), &returnedSubIssues)
 			require.NoError(t, err)
@@ -4648,7 +4648,7 @@ func TestAddIssueComment(t *testing.T) {
 }
 
 func Test_RemoveSubIssue(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := SubIssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -4662,7 +4662,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "sub_issue_id")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
 
-	// Setup mock issue for success case (matches GitHub API response format - the updated parent issue)
+	// Setup 模拟 议题 f或成功 case (matches GitHub API 响应 format - 更新d parent 议题)
 	mockIssue := &github.Issue{
 		Number:  github.Ptr(42),
 		Title:   github.Ptr("Parent Issue"),
@@ -4807,20 +4807,20 @@ func Test_RemoveSubIssue(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErrMsg)
@@ -4836,10 +4836,10 @@ func Test_RemoveSubIssue(t *testing.T) {
 
 			require.NoError(t, err)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedIssue github.Issue
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 			require.NoError(t, err)
@@ -4854,7 +4854,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 }
 
 func Test_ReprioritizeSubIssue(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := SubIssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -4870,7 +4870,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "before_id")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
 
-	// Setup mock issue for success case (matches GitHub API response format - the updated parent issue)
+	// Setup 模拟 议题 f或成功 case (matches GitHub API 响应 format - 更新d parent 议题)
 	mockIssue := &github.Issue{
 		Number:  github.Ptr(42),
 		Title:   github.Ptr("Parent Issue"),
@@ -5067,20 +5067,20 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErrMsg)
@@ -5096,10 +5096,10 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 
 			require.NoError(t, err)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedIssue github.Issue
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 			require.NoError(t, err)
@@ -5114,7 +5114,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 }
 
 func Test_ListIssueTypes(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := ListIssueTypes(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -5124,7 +5124,7 @@ func Test_ListIssueTypes(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner"})
 
-	// Setup mock issue types for success case
+	// Setup 模拟 议题 types f或成功 case
 	mockIssueTypes := []*github.IssueType{
 		{
 			ID:          github.Ptr(int64(1)),
@@ -5176,7 +5176,7 @@ func Test_ListIssueTypes(t *testing.T) {
 				"GET /orgs/testorg/issue-types": mockResponse(t, http.StatusOK, mockIssueTypes),
 			}),
 			requestArgs:    map[string]any{},
-			expectError:    false, // This should be handled by parameter validation, error returned in result
+			expectError:    false, // 此应当是 handled by 参数 validation, 错误 返回ed in 结果
 			expectedErrMsg: "missing required parameter: owner",
 		},
 		{
@@ -5207,26 +5207,26 @@ func Test_ListIssueTypes(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				if err != nil {
 					assert.Contains(t, err.Error(), tc.expectedErrMsg)
 					return
 				}
-				// Check if error is returned as tool result error
+				// Check if 错误 is 返回ed as 工具 结果 错误
 				require.NotNil(t, result)
 				require.True(t, result.IsError)
 				errorContent := getErrorResult(t, result)
@@ -5234,11 +5234,11 @@ func Test_ListIssueTypes(t *testing.T) {
 				return
 			}
 
-			// Check if it's a parameter validation error (returned as tool result error)
+			// Check if it's 一个参数 validation 错误 (返回ed as 工具 结果 错误)
 			if result != nil && result.IsError {
 				errorContent := getErrorResult(t, result)
 				if tc.expectedErrMsg != "" && strings.Contains(errorContent.Text, tc.expectedErrMsg) {
-					return // This is expected for parameter validation errors
+					return // 此is expected f或参数 validation 错误s
 				}
 			}
 
@@ -5247,7 +5247,7 @@ func Test_ListIssueTypes(t *testing.T) {
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedIssueTypes []*github.IssueType
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssueTypes)
 			require.NoError(t, err)

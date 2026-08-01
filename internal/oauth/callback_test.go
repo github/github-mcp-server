@@ -10,8 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// serveCallback drives the callback handler with the given query string and
-// returns the recorded response and the single reported result.
+// serveCallback 使用给定 query string 驱动 callback handler，并返回记录的响应和唯一报告的结果。
 func serveCallback(t *testing.T, expectedState, query string) (*httptest.ResponseRecorder, callbackResult) {
 	t.Helper()
 	cs := &callbackServer{results: make(chan callbackResult, 1)}

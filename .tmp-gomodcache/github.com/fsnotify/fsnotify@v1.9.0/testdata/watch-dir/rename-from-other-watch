@@ -1,0 +1,22 @@
+# Rename from one watched directory to another watched directory.
+
+mkdir /dir1
+mkdir /dir2
+touch /dir1/file
+
+watch /dir1
+watch /dir2
+
+mv /dir1/file /dir2/rename
+
+Output:
+	rename /dir1/file
+	create /dir2/rename ← /dir1/file
+
+	# Windows just doesn't send anything for this; seems like all watches are
+	# independent.
+	#
+	# TODO: consider emulating this behaviour on other platforms.
+	windows:
+		remove /dir1/file
+		create /dir2/rename

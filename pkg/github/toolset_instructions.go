@@ -2,8 +2,8 @@ package github
 
 import "github.com/github/github-mcp-server/pkg/inventory"
 
-// Toolset instruction functions - these generate context-aware instructions for each toolset.
-// They are called during inventory build to generate server instructions.
+// Toolset instruction 函数s - these generate 上下文-aware instructions f或每个工具集.
+// They are 调用ed during inventory build to generate 服务器 instructions.
 
 func generateContextToolsetInstructions(_ *inventory.Inventory) string {
 	return "Always call 'get_me' first to understand current user permissions and context."

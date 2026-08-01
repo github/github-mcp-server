@@ -1,19 +1,15 @@
-// Package buildinfo contains variables that are set at build time via ldflags.
-// These allow official releases to ship default OAuth credentials so users can
-// log in without configuring their own OAuth app. The values are public in
-// practice (security relies on PKCE, not on the client secret), but are kept out
-// of source and injected at build time.
+// Package buildinfo 包含通过 ldflags 在构建时设置的变量。
+// 这些变量让正式版本可以携带默认 OAuth 凭据，使用户无需配置自己的 OAuth app 即可登录。
+// 这些值实际上是公开的（安全性依赖 PKCE 而非 client secret），但仍不写入源码，而是在构建时注入。
 //
-// Example:
+// 示例：
 //
 //	go build -ldflags="-X github.com/github/github-mcp-server/internal/buildinfo.OAuthClientID=xxx"
 package buildinfo
 
-// OAuthClientID is the default OAuth client ID, set at build time. Empty in
-// local/dev builds.
+// OAuthClientID 是默认 OAuth client ID，在构建时设置。本地/开发构建中为空。
 var OAuthClientID string
 
-// OAuthClientSecret is the default OAuth client secret, set at build time. For
-// public OAuth clients it is not truly secret per OAuth 2.1 — PKCE provides the
-// security — but it is still injected at build time rather than committed.
+// OAuthClientSecret 是默认 OAuth client secret，在构建时设置。对于公共 OAuth client，
+// 依据 OAuth 2.1 它并不是真正的 secret（安全性由 PKCE 提供），但仍在构建时注入而非提交。
 var OAuthClientSecret string

@@ -1,0 +1,7 @@
+# Create a new empty file with some data.
+watch /
+echo data >>/file
+
+Output:
+	create  /file
+	write   /file

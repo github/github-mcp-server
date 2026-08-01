@@ -1,0 +1,7 @@
+version: "2"
+linters:
+  exclusions:
+    rules:
+      # Tests copied from the stdlib are not meant to be linted.
+      - path: 'golang_(.+_)?test\.go'
+        source: "^" # regex

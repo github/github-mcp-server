@@ -17,7 +17,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// TreeEntryResponse represents a single entry in a Git tree.
+// TreeEntryResponse 表示以下内容中的单个条目： 一个Git tree.
 type TreeEntryResponse struct {
 	Path string `json:"path"`
 	Type string `json:"type"`
@@ -27,7 +27,7 @@ type TreeEntryResponse struct {
 	URL  string `json:"url"`
 }
 
-// TreeResponse represents the response structure for a Git tree.
+// TreeResponse 表示以下内容的响应结构： 一个Git tree.
 type TreeResponse struct {
 	SHA       string              `json:"sha"`
 	Truncated bool                `json:"truncated"`
@@ -39,7 +39,7 @@ type TreeResponse struct {
 	Count     int                 `json:"count"`
 }
 
-// GetRepositoryTree creates a tool to get the tree structure of a GitHub repository.
+// GetRepositoryTree 创建一个工具以 获取 tree structure of 一个GitHub 仓库.
 func GetRepositoryTree(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataGit,
@@ -106,7 +106,7 @@ func GetRepositoryTree(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError("failed to get GitHub client"), nil, nil
 			}
 
-			// If no tree_sha is provided, use the repository's default branch
+			// 如果没有tree_sha is provided, use 仓库's 默认分支
 			if treeSHA == "" {
 				repoInfo, repoResp, err := client.Repositories.Get(ctx, owner, repo)
 				if err != nil {
@@ -119,7 +119,7 @@ func GetRepositoryTree(t translations.TranslationHelperFunc) inventory.ServerToo
 				treeSHA = *repoInfo.DefaultBranch
 			}
 
-			// Get the tree using the GitHub Git Tree API
+			// Get tree using GitHub Git Tree API
 			tree, resp, err := client.Git.GetTree(ctx, owner, repo, treeSHA, recursive)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -130,7 +130,7 @@ func GetRepositoryTree(t translations.TranslationHelperFunc) inventory.ServerToo
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			// Filter tree entries if path_filter is provided
+			// Filter tree entries if 路径_筛选 is provided
 			var filteredEntries []*github.TreeEntry
 			if pathFilter != "" {
 				for _, entry := range tree.Entries {
@@ -173,9 +173,9 @@ func GetRepositoryTree(t translations.TranslationHelperFunc) inventory.ServerToo
 			}
 
 			result := utils.NewToolResultText(string(r))
-			// The repository tree exposes committed file structure; in public
-			// repos anyone can land content via a PR (untrusted), in private
-			// repos only collaborators can (trusted). Confidentiality follows
+			// 仓库 tree exposes committed 文件 structure; in 公开
+			// repos anyone can l和内容 via 一个PR (不受信任), in 私有
+			// repos 仅collaborators can (受信任). Confidentiality follows
 			// repo visibility.
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelCommitContents)
 			return result, nil, nil

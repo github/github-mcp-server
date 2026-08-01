@@ -1,0 +1,28 @@
+# Remove nested directory
+require recurse
+
+mkdir -p /sub/dir
+watch /...
+
+echo asd >/sub/dir/file
+rm -r /sub
+
+Output:
+	create   /sub/dir/file
+	write    /sub/dir/file
+
+	write  /sub
+	write  /sub/dir
+	remove /sub/dir/file
+	write  /sub/dir
+	remove /sub/dir
+	write  /sub
+	remove /sub
+
+	linux:  # Same as Windows, but without those stupid dir writes Windows sends.
+		create   /sub/dir/file
+		write    /sub/dir/file
+
+		remove /sub/dir/file
+		remove /sub/dir
+		remove /sub

@@ -1,0 +1,29 @@
+Check that when the client sends an arbitrary later version, the server
+response with its latest supported version.
+
+-- client --
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2029-01-01",
+    "capabilities": {},
+    "clientInfo": { "name": "ExampleClient", "version": "1.0.0" }
+  }
+}
+-- server --
+{
+	"jsonrpc": "2.0",
+	"id": 1,
+	"result": {
+		"capabilities": {
+			"logging": {}
+		},
+		"protocolVersion": "2025-11-25",
+		"serverInfo": {
+			"name": "testServer",
+			"version": "v1.0.0"
+		}
+	}
+}

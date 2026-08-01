@@ -23,11 +23,11 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
-// depsContextKey is the context key for ToolDependencies.
-// Using a private type prevents collisions with other packages.
+// depsContextKey is 上下文 key f或ToolDependencies.
+// Using 一个私有 type prevents collisions with other packages.
 type depsContextKey struct{}
 
-// ErrDepsNotInContext is returned when ToolDependencies is not found in context.
+// ErrDepsNotInContext is 返回ed when ToolDependencies is 不found in 上下文.
 var ErrDepsNotInContext = errors.New("ToolDependencies not found in context; use ContextWithDeps to inject")
 
 func InjectDepsMiddleware(deps ToolDependencies) mcp.Middleware {
@@ -38,27 +38,27 @@ func InjectDepsMiddleware(deps ToolDependencies) mcp.Middleware {
 	}
 }
 
-// ContextWithDeps returns a new context with the ToolDependencies stored in it.
-// This is used to inject dependencies at request time rather than at registration time,
-// avoiding expensive closure creation during server initialization.
+// ContextWithDeps 返回 一个新的 上下文 使用ToolDependencies stored in it.
+// 此用于 inject dependencies at 请求 time rather than at registration time,
+// avoiding expensive closure creation during 服务器 initialization.
 //
-// For the local server, this is called once at startup since deps don't change.
-// For the remote server, this is called per-request with request-specific deps.
+// F或local 服务器, this is 调用ed once at startup since deps don't change.
+// F或remote 服务器, this is 调用ed per-请求 with 请求-specific deps.
 func ContextWithDeps(ctx context.Context, deps ToolDependencies) context.Context {
 	return context.WithValue(ctx, depsContextKey{}, deps)
 }
 
-// DepsFromContext retrieves ToolDependencies from the context.
-// Returns the deps and true if found, or nil and false if not present.
-// Use MustDepsFromContext if you want to panic on missing deps (for handlers
-// that require deps to function).
+// DepsFromContext retrieves ToolDependencies 来自上下文.
+// Returns deps 和真 if found, 或nil 和假 if 不present.
+// Use MustDepsFromContext if you want to panic on missing deps (f或处理器s
+// that require deps to 函数).
 func DepsFromContext(ctx context.Context) (ToolDependencies, bool) {
 	deps, ok := ctx.Value(depsContextKey{}).(ToolDependencies)
 	return deps, ok
 }
 
-// MustDepsFromContext retrieves ToolDependencies from the context.
-// Panics if deps are not found - use this in handlers where deps are required.
+// MustDepsFromContext retrieves ToolDependencies 来自上下文.
+// Panics if deps are 不found - use this in 处理器s where deps are 必需.
 func MustDepsFromContext(ctx context.Context) ToolDependencies {
 	deps, ok := DepsFromContext(ctx)
 	if !ok {
@@ -67,51 +67,51 @@ func MustDepsFromContext(ctx context.Context) ToolDependencies {
 	return deps
 }
 
-// ToolDependencies defines the interface for dependencies that tool handlers need.
-// This is an interface to allow different implementations:
-//   - Local server: stores closures that create clients on demand
-//   - Remote server: can store pre-created clients per-request for efficiency
+// ToolDependencies defines interface f或dependencies that 工具 处理器s need.
+// 此is 一个interface to allow different implementations:
+//   - Local 服务器: stores closures that 创建 客户端s on demand
+//   - Remote 服务器: can store pre-创建d 客户端s per-请求 f或efficiency
 //
-// The toolsets package uses `any` for deps and tool handlers type-assert to this interface.
+// 工具集s package uses `any` f或deps 和工具 处理器s type-assert to this interface.
 type ToolDependencies interface {
-	// GetClient returns a GitHub REST API client
+	// GetClient 返回 一个GitHub REST API 客户端
 	GetClient(ctx context.Context) (*gogithub.Client, error)
 
-	// GetGQLClient returns a GitHub GraphQL client
+	// GetGQLClient 返回 一个GitHub GraphQL 客户端
 	GetGQLClient(ctx context.Context) (*githubv4.Client, error)
 
-	// GetRawClient returns a raw content client for GitHub
+	// GetRawClient 返回 一个raw 内容 客户端 f或GitHub
 	GetRawClient(ctx context.Context) (*raw.Client, error)
 
-	// GetRepoAccessCache returns the lockdown mode repo access cache
+	// GetRepoAccessCache 返回 lockdown mode repo access cache
 	GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAccessCache, error)
 
-	// GetT returns the translation helper function
+	// GetT 返回 translation helper 函数
 	GetT() translations.TranslationHelperFunc
 
-	// GetFlags returns feature flags
+	// GetFlags 返回 功能标志
 	GetFlags(ctx context.Context) FeatureFlags
 
-	// GetContentWindowSize returns the content window size for log truncation
+	// GetContentWindowSize 返回 内容 window size f或log truncation
 	GetContentWindowSize() int
 
-	// IsFeatureEnabled checks if a feature flag is enabled.
+	// IsFeatureEnabled 检查s if 一个功能标志 is 启用.
 	IsFeatureEnabled(ctx context.Context, flagName string) bool
 
-	// Logger returns the structured logger, optionally enriched with
-	// request-scoped data from ctx. Integrators provide their own slog.Handler
+	// Logger 返回 structured logger, 可选ly enriched with
+	// 请求-scoped 数据 from ctx. Integrators provide their own slog.Handler
 	// to control where logs are sent.
 	Logger(ctx context.Context) *slog.Logger
 
-	// Metrics returns the metrics client
+	// Metrics 返回 metrics 客户端
 	Metrics(ctx context.Context) metrics.Metrics
 }
 
-// BaseDeps is the standard implementation of ToolDependencies for the local server.
-// It stores pre-created clients. The remote server can create its own struct
-// implementing ToolDependencies with different client creation strategies.
+// BaseDeps is standard implementation of ToolDependencies 用于local 服务器.
+// It stores pre-创建d 客户端s. remote 服务器 can 创建 its own struct
+// implementing ToolDependencies with different 客户端 creation strategies.
 type BaseDeps struct {
-	// Pre-created clients
+	// Pre-创建d 客户端s
 	Client    *gogithub.Client
 	GQLClient *githubv4.Client
 	RawClient *raw.Client
@@ -122,17 +122,17 @@ type BaseDeps struct {
 	Flags             FeatureFlags
 	ContentWindowSize int
 
-	// Feature flag checker for runtime checks
+	// Feature flag 检查er f或runtime 检查s
 	featureChecker inventory.FeatureFlagChecker
 
 	// Observability exporters (includes logger)
 	Obsv observability.Exporters
 }
 
-// Compile-time assertion to verify that BaseDeps implements the ToolDependencies interface.
+// Compile-time assertion to verify that BaseDeps implements ToolDependencies interface.
 var _ ToolDependencies = (*BaseDeps)(nil)
 
-// NewBaseDeps creates a BaseDeps with the provided clients and configuration.
+// NewBaseDeps 创建s 一个BaseDeps 使用provided 客户端s 和configuration.
 func NewBaseDeps(
 	client *gogithub.Client,
 	gqlClient *githubv4.Client,
@@ -199,9 +199,9 @@ func (d BaseDeps) Metrics(ctx context.Context) metrics.Metrics {
 	return d.Obsv.Metrics(ctx)
 }
 
-// IsFeatureEnabled checks if a feature flag is enabled.
-// Returns false if the feature checker is nil, flag name is empty, or an error occurs.
-// This allows tools to conditionally change behavior based on feature flags.
+// IsFeatureEnabled 检查s if 一个功能标志 is 启用.
+// Returns 假 如果feature 检查er is nil, flag name is 空, 或一个错误 occurs.
+// 此allows 工具 to conditionally change behavi或based on 功能标志.
 func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flagName string) bool {
 	if d.featureChecker == nil || flagName == "" {
 		return false
@@ -209,7 +209,7 @@ func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flagName string) bool {
 
 	enabled, err := d.featureChecker(ctx, flagName)
 	if err != nil {
-		// Log error but don't fail the tool - treat as disabled
+		// Log 错误 但don't fail 工具 - treat as 禁用
 		fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", flagName, err)
 		return false
 	}
@@ -217,16 +217,16 @@ func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flagName string) bool {
 	return enabled
 }
 
-// NewTool creates a ServerTool that retrieves ToolDependencies from context at call time.
-// This avoids creating closures at registration time, which is important for performance
-// in servers that create a new server instance per request (like the remote server).
+// NewTool 创建s 一个ServerTool that retrieves ToolDependencies from 上下文 at c所有time.
+// 此avoids creating closures at registration time, which is important f或performance
+// in 服务器s that 创建 一个新的 服务器 instance per 请求 (like remote 服务器).
 //
-// The handler function receives deps extracted from context via MustDepsFromContext.
-// Ensure ContextWithDeps is called to inject deps before any tool handlers are invoked.
+// 处理器 函数 receives deps extracted from 上下文 via MustDepsFromContext.
+// Ensure ContextWithDeps is 调用ed to inject deps before any 工具 处理器s are invoked.
 //
-// requiredScopes specifies the minimum OAuth scopes needed for this tool.
-// AcceptedScopes are automatically derived using the scope hierarchy (e.g., if
-// public_repo is required, repo is also accepted since repo grants public_repo).
+// 必需Scopes specifies minimum OAuth scopes needed f或this 工具.
+// AcceptedScopes are automati调用y derived using scope hierarchy (e.g., if
+// 公开_repo is 必需, repo is 也accepted since repo grants 公开_repo).
 func NewTool[In, Out any](
 	toolset inventory.ToolsetMetadata,
 	tool mcp.Tool,
@@ -242,14 +242,14 @@ func NewTool[In, Out any](
 	return st
 }
 
-// NewToolFromHandler creates a ServerTool that retrieves ToolDependencies from context at call time.
-// Use this when you have a handler that conforms to mcp.ToolHandler directly.
+// NewToolFromHandler 创建s 一个ServerTool that retrieves ToolDependencies from 上下文 at c所有time.
+// Use this when you have 一个处理器 that conforms to mcp.ToolHandler directly.
 //
-// The handler function receives deps extracted from context via MustDepsFromContext.
-// Ensure ContextWithDeps is called to inject deps before any tool handlers are invoked.
+// 处理器 函数 receives deps extracted from 上下文 via MustDepsFromContext.
+// Ensure ContextWithDeps is 调用ed to inject deps before any 工具 处理器s are invoked.
 //
-// requiredScopes specifies the minimum OAuth scopes needed for this tool.
-// AcceptedScopes are automatically derived using the scope hierarchy.
+// 必需Scopes specifies minimum OAuth scopes needed f或this 工具.
+// AcceptedScopes are automati调用y derived using scope hierarchy.
 func NewToolFromHandler(
 	toolset inventory.ToolsetMetadata,
 	tool mcp.Tool,
@@ -274,14 +274,14 @@ type RequestDeps struct {
 	T                 translations.TranslationHelperFunc
 	ContentWindowSize int
 
-	// Feature flag checker for runtime checks
+	// Feature flag 检查er f或runtime 检查s
 	featureChecker inventory.FeatureFlagChecker
 
 	// Observability exporters (includes logger)
 	obsv observability.Exporters
 }
 
-// NewRequestDeps creates a RequestDeps with the provided clients and configuration.
+// NewRequestDeps 创建s 一个RequestDeps 使用provided 客户端s 和configuration.
 func NewRequestDeps(
 	apiHosts utils.APIHostResolver,
 	version string,
@@ -306,7 +306,7 @@ func NewRequestDeps(
 
 // GetClient implements ToolDependencies.
 func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
-	// extract the token from the context
+	// extract token 来自上下文
 	tokenInfo, ok := ghcontext.GetTokenInfo(ctx)
 	if !ok {
 		return nil, fmt.Errorf("no token info in context")
@@ -322,7 +322,7 @@ func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
 		return nil, fmt.Errorf("failed to get upload URL: %w", err)
 	}
 
-	// Construct REST client
+	// Construct REST 客户端
 	restClient, err := gogithub.NewClient(
 		gogithub.WithAuthToken(token),
 		gogithub.WithUserAgent(fmt.Sprintf("github-mcp-server/%s", d.version)),
@@ -336,17 +336,17 @@ func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
 
 // GetGQLClient implements ToolDependencies.
 func (d *RequestDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error) {
-	// extract the token from the context
+	// extract token 来自上下文
 	tokenInfo, ok := ghcontext.GetTokenInfo(ctx)
 	if !ok {
 		return nil, fmt.Errorf("no token info in context")
 	}
 	token := tokenInfo.Token
 
-	// Construct GraphQL client
-	// We use NewEnterpriseClient unconditionally since we already parsed the API host
-	// Wrap transport with GraphQLFeaturesTransport to inject feature flags from context,
-	// matching the transport chain used by the remote server.
+	// Construct GraphQL 客户端
+	// We use NewEnterpriseClient unconditionally since we al读取y parsed API host
+	// Wrap transport with GraphQLFeaturesTransport to inject 功能标志 from 上下文,
+	// matching transport chain used 由remote 服务器.
 	gqlHTTPClient := &http.Client{
 		Transport: &transport.BearerAuthTransport{
 			Transport: &transport.GraphQLFeaturesTransport{
@@ -432,7 +432,7 @@ func (d *RequestDeps) Metrics(ctx context.Context) metrics.Metrics {
 	return d.obsv.Metrics(ctx)
 }
 
-// IsFeatureEnabled checks if a feature flag is enabled.
+// IsFeatureEnabled 检查s if 一个功能标志 is 启用.
 func (d *RequestDeps) IsFeatureEnabled(ctx context.Context, flagName string) bool {
 	if d.featureChecker == nil || flagName == "" {
 		return false
@@ -440,7 +440,7 @@ func (d *RequestDeps) IsFeatureEnabled(ctx context.Context, flagName string) boo
 
 	enabled, err := d.featureChecker(ctx, flagName)
 	if err != nil {
-		// Log error but don't fail the tool - treat as disabled
+		// Log 错误 但don't fail 工具 - treat as 禁用
 		fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", flagName, err)
 		return false
 	}

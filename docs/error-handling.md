@@ -1,21 +1,21 @@
-# Error Handling
+# 错误处理
 
-This document describes the error handling patterns used in the GitHub MCP Server, specifically how we handle GitHub API errors and avoid direct use of mcp-go error types.
+本文档介绍 GitHub MCP Server 使用的错误处理模式，重点说明如何处理 GitHub API 错误，以及如何避免直接使用 mcp-go 错误类型。
 
-## Overview
+## 概述
 
-The GitHub MCP Server implements a custom error handling approach that serves two primary purposes:
+GitHub MCP Server 实现了一种自定义错误处理方式，主要用于：
 
-1. **Tool Response Generation**: Return appropriate MCP tool error responses to clients
-2. **Middleware Inspection**: Store detailed error information in the request context for middleware analysis
+1. **工具响应生成**：向客户端返回恰当的 MCP 工具错误响应
+2. **中间件检查**：将详细错误信息存储在请求 context 中，供中间件分析
 
-This dual approach enables better observability and debugging capabilities, particularly for remote server deployments where understanding the nature of failures (rate limiting, authentication, 404s, 500s, etc.) is crucial for validation and monitoring.
+这种双重方式提供了更好的可观测性和调试能力，尤其适用于远程服务器部署。在这类部署中，了解失败性质（限流、身份验证、404、500 等）对验证和监控至关重要。
 
-## Error Types
+## 错误类型
 
 ### GitHubAPIError
 
-Used for REST API errors from the GitHub API:
+用于 GitHub API 返回的 REST API 错误：
 
 ```go
 type GitHubAPIError struct {
@@ -27,7 +27,7 @@ type GitHubAPIError struct {
 
 ### GitHubGraphQLError
 
-Used for GraphQL API errors from the GitHub API:
+用于 GitHub API 返回的 GraphQL API 错误：
 
 ```go
 type GitHubGraphQLError struct {
@@ -36,30 +36,30 @@ type GitHubGraphQLError struct {
 }
 ```
 
-## Usage Patterns
+## 使用模式
 
-### For GitHub REST API Errors
+### GitHub REST API 错误
 
-Instead of directly returning `mcp.NewToolResultError()`, use:
+请使用以下方式，而非直接返回 `mcp.NewToolResultError()`：
 
 ```go
 return ghErrors.NewGitHubAPIErrorResponse(ctx, message, response, err), nil
 ```
 
-This function:
-- Creates a `GitHubAPIError` with the provided message, response, and error
-- Stores the error in the context for middleware inspection
-- Returns an appropriate MCP tool error response
+此函数会：
+- 使用提供的消息、响应和错误创建 `GitHubAPIError`
+- 将错误存储在 context 中，供中间件检查
+- 返回恰当的 MCP 工具错误响应
 
-### For GitHub GraphQL API Errors
+### GitHub GraphQL API 错误
 
 ```go
 return ghErrors.NewGitHubGraphQLErrorResponse(ctx, message, err), nil
 ```
 
-### Context Management
+### Context 管理
 
-The error handling system uses context to store errors for later inspection:
+错误处理系统使用 context 存储错误，以供稍后检查：
 
 ```go
 // Initialize context with error tracking
@@ -70,29 +70,29 @@ apiErrors, err := errors.GetGitHubAPIErrors(ctx)
 graphqlErrors, err := errors.GetGitHubGraphQLErrors(ctx)
 ```
 
-## Design Principles
+## 设计原则
 
-### User-Actionable vs. Developer Errors
+### 用户可处理的错误与开发者错误
 
-- **User-actionable errors** (authentication failures, rate limits, 404s) should be returned as failed tool calls using the error response functions
-- **Developer errors** (JSON marshaling failures, internal logic errors) should be returned as actual Go errors that bubble up through the MCP framework
+- **用户可处理的错误**（身份验证失败、限流、404）应通过错误响应函数作为失败的工具调用返回
+- **开发者错误**（JSON 编组失败、内部逻辑错误）应作为实际的 Go 错误返回，并经 MCP 框架向上传播
 
-### Context Limitations
+### Context 的限制
 
-This approach was designed to work around current limitations in mcp-go where context is not propagated through each step of request processing. By storing errors in context values, middleware can inspect them without requiring context propagation.
+该方式旨在绕过 mcp-go 当前的限制：context 不会在请求处理的每一步中传播。通过将错误存储在 context 值中，中间件无需依赖 context 传播即可检查错误。
 
-### Graceful Error Handling
+### 优雅的错误处理
 
-Error storage operations in context are designed to fail gracefully - if context storage fails, the tool will still return an appropriate error response to the client.
+context 中的错误存储操作被设计为优雅失败：即使 context 存储失败，工具仍会向客户端返回恰当的错误响应。
 
-## Benefits
+## 优点
 
-1. **Observability**: Middleware can inspect the specific types of GitHub API errors occurring
-2. **Debugging**: Detailed error information is preserved without exposing potentially sensitive data in logs
-3. **Validation**: Remote servers can use error types and HTTP status codes to validate that changes don't break functionality
-4. **Privacy**: Error inspection can be done programmatically using `errors.Is` checks without logging PII
+1. **可观测性**：中间件可以检查发生的具体 GitHub API 错误类型
+2. **调试**：保留详细错误信息，同时不在日志中暴露潜在的敏感数据
+3. **验证**：远程服务器可使用错误类型和 HTTP 状态码验证变更没有破坏功能
+4. **隐私**：可通过 `errors.Is` 检查以编程方式检查错误，而无需记录 PII
 
-## Example Implementation
+## 实现示例
 
 ```go
 func GetIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
@@ -122,4 +122,4 @@ func GetIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (tool
 }
 ```
 
-This approach ensures that both the client receives an appropriate error response and any middleware can inspect the underlying GitHub API error for monitoring and debugging purposes.
+该方式确保客户端能收到恰当的错误响应，并且任何中间件都能检查底层 GitHub API 错误，以用于监控和调试。

@@ -40,11 +40,11 @@ type reflectedMutationTypeKey struct {
 
 var reflectedMutationTypeCache sync.Map
 
-// Reflected types are cached only by operation and chunk size to bound
-// reflect.StructOf's runtime cache; positional names and tags keep request data
-// out of type identities. The pinned Client.Mutate binds its third argument to
-// $input, so item0 uses $input and later aliases use $input1, $input2, ...
-// supplied through the variables map.
+// Reflected types are cached 仅by operation 和chunk size to bound
+// reflect.StructOf's runtime cache; positional names 和tags keep 请求 数据
+// out of type identities. pinned Client.Mutate binds its third 参数 to
+// $输入, so item0 uses $输入 和later aliases use $输入1, $输入2, ...
+// supplied through variables map.
 func buildAliasedMutationType(kind batchMutationKind, size int) reflect.Type {
 	key := reflectedMutationTypeKey{kind: kind, size: size}
 	if cached, ok := reflectedMutationTypeCache.Load(key); ok {
@@ -71,16 +71,16 @@ func buildAliasedMutationType(kind batchMutationKind, size int) reflect.Type {
 }
 
 type mutationAliasOutcome struct {
-	// Populated confirms this alias returned a project item, even when the
-	// response also contains GraphQL errors.
+	// Populated confirms this alias 返回ed 一个project item, even when the
+	// 响应 也contains GraphQL 错误s.
 	Populated      bool
 	NodeID         string
 	FullDatabaseID string
 }
 
-// The pinned client decodes partial data before returning GraphQL errors but
-// discards errors[].path. Populated aliases confirm writes; unpopulated aliases
-// remain unknown and must not be retried individually.
+// pinned 客户端 decodes partial 数据 before 返回ing GraphQL 错误s but
+// discards 错误s[].路径. Populated aliases confirm 写入s; unpopulated aliases
+// remain 未知 和不得 be retried individually.
 func executeAliasedMutation(ctx context.Context, gqlClient *githubv4.Client, kind batchMutationKind, inputs []githubv4.Input) ([]mutationAliasOutcome, error) {
 	if len(inputs) == 0 {
 		return nil, nil
@@ -118,7 +118,7 @@ func executeAliasedMutation(ctx context.Context, gqlClient *githubv4.Client, kin
 	return outcomes, mutateErr
 }
 
-// The pinned client's GraphQL response error type is unexported; transport and
+// pinned 客户端's GraphQL 响应 错误 type is unexported; transport and
 // decoding failures must remain distinguishable.
 func isGraphQLResponseError(err error) bool {
 	for err != nil {

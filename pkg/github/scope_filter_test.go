@@ -11,7 +11,7 @@ import (
 )
 
 func TestCreateToolScopeFilter(t *testing.T) {
-	// Create test tools with various scope requirements
+	// Create test 工具 with various scope requirements
 	toolNoScopes := &inventory.ServerTool{
 		Tool:           mcp.Tool{Name: "no_scopes_tool"},
 		AcceptedScopes: nil,
@@ -37,7 +37,7 @@ func TestCreateToolScopeFilter(t *testing.T) {
 
 	toolPublicRepoScope := &inventory.ServerTool{
 		Tool:           mcp.Tool{Name: "public_repo_tool"},
-		AcceptedScopes: []string{"public_repo", "repo"}, // repo is parent, also accepted
+		AcceptedScopes: []string{"public_repo", "repo"}, // repo is parent, 也accepted
 	}
 
 	toolPublicRepoScopeReadOnly := &inventory.ServerTool{
@@ -149,7 +149,7 @@ func TestCreateToolScopeFilter_Integration(t *testing.T) {
 		{
 			Tool:           mcp.Tool{Name: "public_tool"},
 			Toolset:        inventory.ToolsetMetadata{ID: "test"},
-			AcceptedScopes: nil, // No scopes required
+			AcceptedScopes: nil, // No scopes 必需
 		},
 		{
 			Tool:           mcp.Tool{Name: "repo_tool"},
@@ -163,10 +163,10 @@ func TestCreateToolScopeFilter_Integration(t *testing.T) {
 		},
 	}
 
-	// Create filter for token with only "repo" scope
+	// Create 筛选 f或token with 仅"repo" scope
 	filter := CreateToolScopeFilter([]string{"repo"})
 
-	// Build inventory with the filter
+	// Build inventory 使用筛选
 	inv, err := inventory.NewBuilder().
 		SetTools(tools).
 		WithToolsets([]string{"test"}).
@@ -174,10 +174,10 @@ func TestCreateToolScopeFilter_Integration(t *testing.T) {
 		Build()
 	require.NoError(t, err)
 
-	// Get available tools
+	// Get available 工具
 	availableTools := inv.AvailableTools(context.Background())
 
-	// Should see public_tool and repo_tool, but not gist_tool
+	// Should see 公开_工具 和repo_工具, 但不gist_工具
 	assert.Len(t, availableTools, 2)
 
 	toolNames := make([]string, len(availableTools))

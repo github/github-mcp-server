@@ -1,0 +1,11 @@
+# chmod the watched file.
+
+touch /file
+watch /file
+chmod 700 /file
+
+Output:
+	chmod /file
+
+	windows:
+		no-events

@@ -1,0 +1,16 @@
+# Basic close_write test
+require op_close_write
+
+touch /file
+watch /file   default close_write
+
+echo "hello, world!" >>/file
+echo "hello, world!" >/file
+
+Output:
+	write         /file  # echo >>
+	close_write   /file
+
+	write         /file  # echo >
+	write         /file
+	close_write   /file

@@ -9,7 +9,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// IssueToFixWorkflowPrompt provides a guided workflow for creating an issue and then generating a PR to fix it
+// IssueToFixWorkflowPrompt provides 一个guided 工作流 f或creating 一个议题 和然后generating 一个PR to fix it
 func IssueToFixWorkflowPrompt(t translations.TranslationHelperFunc) inventory.ServerPrompt {
 	return inventory.NewServerPrompt(
 		ToolsetMetadataIssues,

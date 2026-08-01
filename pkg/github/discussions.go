@@ -20,12 +20,12 @@ import (
 
 const DefaultGraphQLPageSize = 30
 
-// Common interface for all discussion query types
+// Common interface f或所有discussion query types
 type DiscussionQueryResult interface {
 	GetDiscussionFragment() DiscussionFragment
 }
 
-// Implement the interface for all query types
+// Implement interface f或所有query types
 func (q *BasicNoOrder) GetDiscussionFragment() DiscussionFragment {
 	return q.Repository.Discussions
 }
@@ -174,8 +174,8 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			// when not provided, default to the .github repository
-			// this will query discussions at the organisation level
+			// when 不provided, 默认到.github 仓库
+			// this will query discussions at organisation level
 			if repo == "" {
 				repo = ".github"
 			}
@@ -195,7 +195,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Get pagination parameters and convert to GraphQL format
+			// Get pagination 参数 和convert to GraphQL format
 			pagination, err := OptionalCursorPaginationParams(args)
 			if err != nil {
 				return nil, nil, err
@@ -227,8 +227,8 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 				vars["after"] = (*githubv4.String)(nil)
 			}
 
-			// this is an extra check in case the tool description is misinterpreted, because
-			// we shouldn't use ordering unless both a 'field' and 'direction' are provided
+			// this is 一个extra 检查 in case 工具 description is misinterpreted, because
+			// we shouldn't use ordering unless both 一个'field' 和'direction' are provided
 			useOrdering := orderBy != "" && direction != ""
 			if useOrdering {
 				vars["orderByField"] = githubv4.DiscussionOrderField(orderBy)
@@ -244,7 +244,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Extract and convert all discussion nodes using the common interface
+			// Extract 和convert 所有discussion nodes using common interface
 			var discussions []*github.Discussion
 			var pageInfo PageInfoFragment
 			var totalCount githubv4.Int
@@ -257,7 +257,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 				totalCount = fragment.TotalCount
 			}
 
-			// Create response with pagination info
+			// Create 响应 with pagination info
 			response := map[string]any{
 				"discussions": discussions,
 				"pageInfo": map[string]any{
@@ -274,7 +274,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return nil, nil, fmt.Errorf("failed to marshal discussions: %w", err)
 			}
 			result := utils.NewToolResultText(string(out))
-			// Discussion content is user-authored (untrusted); confidentiality
+			// Discussion 内容 is user-authored (不受信任); confidentiality
 			// follows repo visibility.
 			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoUserContent)
 			return result, nil, nil
@@ -354,10 +354,10 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 			d := q.Repository.Discussion
 
-			// Build response as map to include fields not present in go-github's Discussion struct.
-			// The go-github library's Discussion type lacks isAnswered and answerChosenAt fields,
-			// so we use map[string]interface{} for the response (consistent with other functions
-			// like ListDiscussions and GetDiscussionComments).
+			// Build 响应 as map to include fields 不present in go-github's Discussion struct.
+			// go-github library's Discussion type lacks isAnswered 和answerChosenAt fields,
+			// so we use map[string]interface{} 用于响应 (consistent with other 函数s
+			// like ListDiscussions 和GetDiscussionComments).
 			response := map[string]any{
 				"number":     int(d.Number),
 				"title":      string(d.Title),
@@ -371,7 +371,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 			}
 
-			// Add optional timestamp fields if present
+			// Add 可选 timestamp fields if present
 			if d.AnswerChosenAt != nil {
 				response["answerChosenAt"] = d.AnswerChosenAt.Time
 			}
@@ -382,7 +382,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := utils.NewToolResultText(string(out))
-			// Discussion content is user-authored (untrusted); confidentiality
+			// Discussion 内容 is user-authored (不受信任); confidentiality
 			// follows repo visibility.
 			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, params.Owner, params.Repo, result, ifc.LabelRepoUserContent)
 			return result, nil, nil
@@ -440,13 +440,13 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Get pagination parameters and convert to GraphQL format
+			// Get pagination 参数 和convert to GraphQL format
 			pagination, err := OptionalCursorPaginationParams(args)
 			if err != nil {
 				return nil, nil, err
 			}
 
-			// Check if pagination parameters were explicitly provided
+			// Check if pagination 参数 were explicitly provided
 			_, perPageProvided := args["perPage"]
 			paginationExplicit := perPageProvided
 
@@ -455,7 +455,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				return nil, nil, err
 			}
 
-			// Use default of 30 if pagination was not explicitly provided
+			// Use 默认of 30 if pagination was 不explicitly provided
 			if !paginationExplicit {
 				defaultFirst := int32(DefaultGraphQLPageSize)
 				paginationParams.First = &defaultFirst
@@ -572,7 +572,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				totalCount = q.Repository.Discussion.Comments.TotalCount
 			}
 
-			// Create response with pagination info
+			// Create 响应 with pagination info
 			response := map[string]any{
 				"comments": comments,
 				"pageInfo": map[string]any{
@@ -590,7 +590,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 			}
 
 			result := utils.NewToolResultText(string(out))
-			// Discussion comments are user-authored (untrusted); confidentiality
+			// Discussion comments are user-authored (不受信任); confidentiality
 			// follows repo visibility.
 			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, params.Owner, params.Repo, result, ifc.LabelRepoUserContent)
 			return result, nil, nil
@@ -699,7 +699,7 @@ func addDiscussionComment(ctx context.Context, client *githubv4.Client, args map
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
-	// Get the discussion's node ID using its number
+	// Get discussion's node ID using its number
 	var q struct {
 		Repository struct {
 			Discussion struct {
@@ -710,7 +710,7 @@ func addDiscussionComment(ctx context.Context, client *githubv4.Client, args map
 	vars := map[string]any{
 		"owner":            githubv4.String(owner),
 		"repo":             githubv4.String(repo),
-		"discussionNumber": githubv4.Int(discussionNumber), // #nosec G115 - discussion numbers are always small positive integers
+		"discussionNumber": githubv4.Int(discussionNumber), // #nosec G115 - discussion numbers are 始终sm所有positive integers
 	}
 	if err := client.Query(ctx, &q, vars); err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
@@ -780,9 +780,9 @@ func replyToDiscussionComment(ctx context.Context, client *githubv4.Client, args
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
-	// The GitHub API silently ignores an invalid ReplyToID and creates a top-level
-	// comment instead of returning an error, so we validate upfront that the node
-	// exists and is a DiscussionComment to give callers a clear failure.
+	// GitHub API silently ignores 一个invalid ReplyToID 和创建s 一个top-level
+	// comment instead of 返回ing 一个错误, so we 验证 upfront that node
+	// exists 和is 一个DiscussionComment to give 调用ers 一个clear failure.
 	var nodeQuery struct {
 		Node struct {
 			DiscussionComment struct {
@@ -802,7 +802,7 @@ func replyToDiscussionComment(ctx context.Context, client *githubv4.Client, args
 		return utils.NewToolResultError(fmt.Sprintf("commentNodeID %q does not resolve to a valid discussion comment", commentNodeID)), nil, nil
 	}
 
-	// Get the discussion's node ID using its number
+	// Get discussion's node ID using its number
 	var q struct {
 		Repository struct {
 			Discussion struct {
@@ -813,7 +813,7 @@ func replyToDiscussionComment(ctx context.Context, client *githubv4.Client, args
 	vars := map[string]any{
 		"owner":            githubv4.String(owner),
 		"repo":             githubv4.String(repo),
-		"discussionNumber": githubv4.Int(discussionNumber), // #nosec G115 - discussion numbers are always small positive integers
+		"discussionNumber": githubv4.Int(discussionNumber), // #nosec G115 - discussion numbers are 始终sm所有positive integers
 	}
 	if err := client.Query(ctx, &q, vars); err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
@@ -1036,8 +1036,8 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			// when not provided, default to the .github repository
-			// this will query discussion categories at the organisation level
+			// when 不provided, 默认到.github 仓库
+			// this will query discussion categories at organisation level
 			if repo == "" {
 				repo = ".github"
 			}
@@ -1081,7 +1081,7 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 				})
 			}
 
-			// Create response with pagination info
+			// Create 响应 with pagination info
 			response := map[string]any{
 				"categories": categories,
 				"pageInfo": map[string]any{
@@ -1098,8 +1098,8 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 				return nil, nil, fmt.Errorf("failed to marshal discussion categories: %w", err)
 			}
 			result := utils.NewToolResultText(string(out))
-			// Discussion categories are repo-defined structural metadata
-			// (trusted); confidentiality follows repo visibility.
+			// Discussion categories are repo-defined structural 元数据
+			// (受信任); confidentiality follows repo visibility.
 			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
 			return result, nil, nil
 		},

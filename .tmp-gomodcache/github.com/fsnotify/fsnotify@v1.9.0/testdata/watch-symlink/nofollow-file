@@ -1,0 +1,20 @@
+# Watch a symlink.
+require symlink
+require nofollow
+
+touch /file
+ln -s /file /link
+
+watch /link  nofollow default
+
+chmod 777 /file
+echo asd >>/file
+rm /file
+
+rm /link
+
+touch /link
+
+Output:
+	chmod  /link
+	remove /link

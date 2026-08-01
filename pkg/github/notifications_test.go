@@ -15,7 +15,7 @@ import (
 )
 
 func Test_ListNotifications(t *testing.T) {
-	// Verify tool definition and schema
+	// Verify 工具定义 和schema
 	serverTool := ListNotifications(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -32,7 +32,7 @@ func Test_ListNotifications(t *testing.T) {
 	assert.Contains(t, schema.Properties, "repo")
 	assert.Contains(t, schema.Properties, "page")
 	assert.Contains(t, schema.Properties, "perPage")
-	// All fields are optional, so Required should be empty
+	// 所有fields are 可选, so Required 应当是 空
 	assert.Empty(t, schema.Required)
 	mockNotification := &github.Notification{
 		ID:     github.Ptr("123"),
@@ -139,7 +139,7 @@ func Test_ListNotifications(t *testing.T) {
 }
 
 func Test_ManageNotificationSubscription(t *testing.T) {
-	// Verify tool definition and schema
+	// Verify 工具定义 和schema
 	serverTool := ManageNotificationSubscription(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -275,7 +275,7 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 }
 
 func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
-	// Verify tool definition and schema
+	// Verify 工具定义 和schema
 	serverTool := ManageRepositoryNotificationSubscription(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -435,7 +435,7 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 }
 
 func Test_DismissNotification(t *testing.T) {
-	// Verify tool definition and schema
+	// Verify 工具定义 和schema
 	serverTool := DismissNotification(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -533,7 +533,7 @@ func Test_DismissNotification(t *testing.T) {
 
 			require.NoError(t, err)
 			if tc.expectError {
-				// The tool returns a ToolResultError with a specific message
+				// 工具 返回 一个ToolResultErr或with 一个specific message
 				require.NotNil(t, result)
 				text := getTextResult(t, result).Text
 				switch {
@@ -544,7 +544,7 @@ func Test_DismissNotification(t *testing.T) {
 				case tc.name == "invalid state value":
 					assert.Contains(t, text, "Invalid state. Must be one of: read, done.")
 				default:
-					// fallback for other errors
+					// fallback f或other 错误s
 					assert.Contains(t, text, "error")
 				}
 				return
@@ -563,7 +563,7 @@ func Test_DismissNotification(t *testing.T) {
 }
 
 func Test_MarkAllNotificationsRead(t *testing.T) {
-	// Verify tool definition and schema
+	// Verify 工具定义 和schema
 	serverTool := MarkAllNotificationsRead(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -660,7 +660,7 @@ func Test_MarkAllNotificationsRead(t *testing.T) {
 }
 
 func Test_GetNotificationDetails(t *testing.T) {
-	// Verify tool definition and schema
+	// Verify 工具定义 和schema
 	serverTool := GetNotificationDetails(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))

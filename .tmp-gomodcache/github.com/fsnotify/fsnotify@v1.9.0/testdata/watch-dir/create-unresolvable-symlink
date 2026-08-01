@@ -1,0 +1,11 @@
+# Create unresolvable symlink
+require symlink
+
+watch /
+ln -s /target /link
+
+Output:
+	create /link
+
+	dragonfly:  # TODO: should fix this if possible.
+		no-events

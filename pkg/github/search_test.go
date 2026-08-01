@@ -16,7 +16,7 @@ import (
 )
 
 func Test_SearchRepositories(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := SearchRepositories(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -33,7 +33,7 @@ func Test_SearchRepositories(t *testing.T) {
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
-	// Setup mock search results
+	// Setup 模拟 search 结果
 	mockSearchResult := &github.RepositoriesSearchResult{
 		Total:             github.Ptr(2),
 		IncompleteResults: github.Ptr(false),
@@ -123,20 +123,20 @@ func Test_SearchRepositories(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -148,10 +148,10 @@ func Test_SearchRepositories(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedResult MinimalSearchRepositoriesResult
 			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 			require.NoError(t, err)
@@ -325,12 +325,12 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 
 	textContent := getTextResult(t, result)
 
-	// Unmarshal as full GitHub API response
+	// Unmarshal as full GitHub API 响应
 	var returnedResult github.RepositoriesSearchResult
 	err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 	require.NoError(t, err)
 
-	// Verify it's the full API response, not minimal
+	// Verify it's full API 响应, 不minimal
 	assert.Equal(t, *mockSearchResult.Total, *returnedResult.Total)
 	assert.Equal(t, *mockSearchResult.IncompleteResults, *returnedResult.IncompleteResults)
 	assert.Len(t, returnedResult.Repositories, 1)
@@ -339,7 +339,7 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 }
 
 func Test_SearchCode(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := SearchCode(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -357,7 +357,7 @@ func Test_SearchCode(t *testing.T) {
 	assert.Contains(t, schema.Properties, "fields")
 	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
-	// Setup mock search results
+	// Setup 模拟 search 结果
 	mockSearchResult := &github.CodeSearchResult{
 		Total:             github.Ptr(2),
 		IncompleteResults: github.Ptr(false),
@@ -458,20 +458,20 @@ func Test_SearchCode(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -548,8 +548,8 @@ func Test_SearchCode_FieldFiltering(t *testing.T) {
 
 	textContent := getTextResult(t, result)
 
-	// The wrapper metadata is preserved while each item is reduced to the
-	// requested fields only; the heavier repository and text_matches data is
+	// wrapper 元数据 is preserved 当每个item is reduced to the
+	// 请求ed fields only; heavier 仓库 和text_matches 数据 is
 	// dropped.
 	var returned struct {
 		TotalCount        int              `json:"total_count"`
@@ -637,7 +637,7 @@ func Test_SearchCode_FieldsTelemetry(t *testing.T) {
 }
 
 func Test_SearchUsers(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := SearchUsers(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -654,7 +654,7 @@ func Test_SearchUsers(t *testing.T) {
 	assert.Contains(t, schema.Properties, "page")
 	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
-	// Setup mock search results
+	// Setup 模拟 search 结果
 	mockSearchResult := &github.UsersSearchResult{
 		Total:             github.Ptr(2),
 		IncompleteResults: github.Ptr(false),
@@ -775,20 +775,20 @@ func Test_SearchUsers(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -800,12 +800,12 @@ func Test_SearchUsers(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			require.NotNil(t, result)
 
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedResult MinimalSearchUsersResult
 			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 			require.NoError(t, err)
@@ -823,7 +823,7 @@ func Test_SearchUsers(t *testing.T) {
 }
 
 func Test_SearchOrgs(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := SearchOrgs(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 
@@ -841,7 +841,7 @@ func Test_SearchOrgs(t *testing.T) {
 	assert.Contains(t, schema.Properties, "page")
 	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
-	// Setup mock search results
+	// Setup 模拟 search 结果
 	mockSearchResult := &github.UsersSearchResult{
 		Total:             github.Ptr(int(2)),
 		IncompleteResults: github.Ptr(false),
@@ -938,20 +938,20 @@ func Test_SearchOrgs(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -965,7 +965,7 @@ func Test_SearchOrgs(t *testing.T) {
 
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedResult MinimalSearchUsersResult
 			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 			require.NoError(t, err)
@@ -1027,8 +1027,8 @@ func Test_SearchCommits(t *testing.T) {
 				},
 			},
 			{
-				// Commit with no resolved GitHub user for author or committer
-				// (common when the commit email isn't linked to an account).
+				// Commit with no resolved GitHub user f或auth或或committer
+				// (common 当commit email isn't linked to 一个account).
 				SHA:     github.Ptr("def456commit"),
 				HTMLURL: github.Ptr("https://github.com/owner/repo/commit/def456commit"),
 				Commit: &github.Commit{
@@ -1121,15 +1121,15 @@ func Test_SearchCommits(t *testing.T) {
 			assert.Equal(t, now.Format(time.RFC3339), returnedResult.Items[0].Commit.Author.Date)
 			assert.Equal(t, *tc.expectedResult.Commits[0].Author.Login, returnedResult.Items[0].Author.Login)
 
-			// Repository info is required so callers can identify which repo
-			// each cross-repo search result belongs to.
+			// Repository info is 必需 so 调用ers can identify which repo
+			// 每个cross-repo search 结果 belongs to.
 			require.NotNil(t, returnedResult.Items[0].Repository)
 			assert.Equal(t, "owner/repo", returnedResult.Items[0].Repository.FullName)
 			assert.Equal(t, "https://github.com/owner/repo", returnedResult.Items[0].Repository.HTMLURL)
 
-			// Second commit has no resolved GitHub user for author/committer
-			// and no commit-level author block — the handler must not panic
-			// and must omit those fields cleanly.
+			// Second commit has no resolved GitHub user f或author/committer
+			// 和no commit-level auth或block — 处理器 不得 panic
+			// 和must omit those fields cleanly.
 			require.Len(t, returnedResult.Items, 2)
 			assert.Equal(t, "def456commit", returnedResult.Items[1].SHA)
 			assert.Nil(t, returnedResult.Items[1].Author)

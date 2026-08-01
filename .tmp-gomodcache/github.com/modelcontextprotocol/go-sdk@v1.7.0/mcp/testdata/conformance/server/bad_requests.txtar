@@ -1,0 +1,105 @@
+Check robustness to missing fields: servers should reject and otherwise ignore
+bad requests.
+
+Fixed bugs:
+- No id in 'initialize' should not panic (#197).
+- No id in 'ping' should not panic (#194).
+- No params in 'initialize' should not panic (#195).
+- Notifications with IDs should not be treated like requests. (#196)
+- No params in 'logging/setLevel' should not panic.
+- No params in 'completion/complete' should not panic.
+- JSON null params should also not panic in these cases.
+
+-- prompts --
+code_review
+
+-- client --
+{
+  "jsonrpc": "2.0",
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {},
+    "clientInfo": { "name": "ExampleClient", "version": "1.0.0" }
+  }
+}
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize"
+}
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {},
+    "clientInfo": { "name": "ExampleClient", "version": "1.0.0" }
+  }
+}
+{ "jsonrpc":"2.0", "id": 3, "method": "notifications/initialized" }
+{ "jsonrpc":"2.0", "method": "notifications/initialized" }
+{ "jsonrpc":"2.0", "method":"ping" }
+{ "jsonrpc":"2.0", "id": 4, "method": "logging/setLevel" }
+{ "jsonrpc":"2.0", "id": 5, "method": "completion/complete" }
+{ "jsonrpc":"2.0", "id": 4, "method": "logging/setLevel", "params": null }
+
+-- server --
+{
+	"jsonrpc": "2.0",
+	"id": 1,
+	"error": {
+		"code": -32600,
+		"message": "invalid request: missing required \"params\""
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 2,
+	"result": {
+		"capabilities": {
+			"logging": {},
+			"prompts": {
+				"listChanged": true
+			}
+		},
+		"protocolVersion": "2024-11-05",
+		"serverInfo": {
+			"name": "testServer",
+			"version": "v1.0.0"
+		}
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 3,
+	"error": {
+		"code": -32600,
+		"message": "invalid request: unexpected id for \"notifications/initialized\""
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 4,
+	"error": {
+		"code": -32600,
+		"message": "invalid request: missing required \"params\""
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 5,
+	"error": {
+		"code": -32600,
+		"message": "invalid request: missing required \"params\""
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 4,
+	"error": {
+		"code": -32600,
+		"message": "handling 'logging/setLevel': invalid request: missing required \"params\""
+	}
+}

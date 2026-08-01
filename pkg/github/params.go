@@ -10,39 +10,39 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 )
 
-// OptionalParamOK is a helper function that can be used to fetch a requested parameter from the request.
-// It returns the value, a boolean indicating if the parameter was present, and an error if the type is wrong.
+// OptionalParamOK is 一个helper 函数 that 可以 用于 fetch 一个请求ed 参数 来自请求.
+// It 返回 值, 一个boolean indicating 如果参数 was present, 和一个错误 如果type is wrong.
 func OptionalParamOK[T any, A map[string]any](args A, p string) (value T, ok bool, err error) {
-	// Check if the parameter is present in the request
+	// Check 如果参数 is present 在请求
 	val, exists := args[p]
 	if !exists {
-		// Not present, return zero value, false, no error
+		// 不present, 返回 zero 值, 假, no 错误
 		return
 	}
 
-	// Check if the parameter is of the expected type
+	// Check 如果参数 is 的expected type
 	value, ok = val.(T)
 	if !ok {
-		// Present but wrong type
+		// Present 但wrong type
 		err = fmt.Errorf("parameter %s is not of type %T, is %T", p, value, val)
-		ok = true // Set ok to true because the parameter *was* present, even if wrong type
+		ok = true // Set ok to 真 因为the 参数 *was* present, even if wrong type
 		return
 	}
 
-	// Present and correct type
+	// Present 和correct type
 	ok = true
 	return
 }
 
-// isAcceptedError checks if the error is an accepted error.
+// isAcceptedErr或检查s 如果错误 is 一个accepted 错误.
 func isAcceptedError(err error) bool {
 	var acceptedError *github.AcceptedError
 	return errors.As(err, &acceptedError)
 }
 
-// toInt converts a value to int, handling both float64 and string representations.
-// Some MCP clients send numeric values as strings. It rejects NaN, ±Inf,
-// fractional values, and values outside the int range.
+// toInt converts 一个值 to int, handling both float64 和string representations.
+// Some MCP 客户端s send numeric 值 as strings. It rejects NaN, ±Inf,
+// fractional 值, 和值 outside int 范围.
 func toInt(val any) (int, error) {
 	var f float64
 	switch v := val.(type) {
@@ -69,9 +69,9 @@ func toInt(val any) (int, error) {
 	return int(f), nil
 }
 
-// toInt64 converts a value to int64, handling both float64 and string representations.
-// Some MCP clients send numeric values as strings. It rejects NaN, ±Inf,
-// fractional values, and values that lose precision in the float64→int64 conversion.
+// toInt64 converts 一个值 to int64, handling both float64 和string representations.
+// Some MCP 客户端s send numeric 值 as strings. It rejects NaN, ±Inf,
+// fractional 值, 和值 that lose precision 在float64→int64 conversion.
 func toInt64(val any) (int64, error) {
 	var f float64
 	switch v := val.(type) {
@@ -93,27 +93,27 @@ func toInt64(val any) (int64, error) {
 		return 0, fmt.Errorf("non-integer numeric value: %v", f)
 	}
 	result := int64(f)
-	// Check round-trip to detect precision loss for large int64 values
+	// Check round-trip to detect precision loss f或large int64 值
 	if float64(result) != f {
 		return 0, fmt.Errorf("numeric value %v is too large to fit in int64", f)
 	}
 	return result, nil
 }
 
-// RequiredParam is a helper function that can be used to fetch a requested parameter from the request.
-// It does the following checks:
-// 1. Checks if the parameter is present in the request.
-// 2. Checks if the parameter is of the expected type.
-// 3. Checks if the parameter is not empty, i.e: non-zero value
+// RequiredParam is 一个helper 函数 that 可以 用于 fetch 一个请求ed 参数 来自请求.
+// It does following 检查s:
+// 1. Checks 如果参数 is present 在请求.
+// 2. Checks 如果参数 is 的expected type.
+// 3. Checks 如果参数 is 不空, i.e: non-zero 值
 func RequiredParam[T comparable](args map[string]any, p string) (T, error) {
 	var zero T
 
-	// Check if the parameter is present in the request
+	// Check 如果参数 is present 在请求
 	if _, ok := args[p]; !ok {
 		return zero, fmt.Errorf("missing required parameter: %s", p)
 	}
 
-	// Check if the parameter is of the expected type
+	// Check 如果参数 is 的expected type
 	val, ok := args[p].(T)
 	if !ok {
 		return zero, fmt.Errorf("parameter %s is not of type %T", p, zero)
@@ -126,11 +126,11 @@ func RequiredParam[T comparable](args map[string]any, p string) (T, error) {
 	return val, nil
 }
 
-// RequiredInt is a helper function that can be used to fetch a requested parameter from the request.
-// It does the following checks:
-// 1. Checks if the parameter is present in the request.
-// 2. Checks if the parameter is of the expected type (float64 or numeric string).
-// 3. Checks if the parameter is not empty, i.e: non-zero value
+// RequiredInt is 一个helper 函数 that 可以 用于 fetch 一个请求ed 参数 来自请求.
+// It does following 检查s:
+// 1. Checks 如果参数 is present 在请求.
+// 2. Checks 如果参数 is 的expected type (float64 或numeric string).
+// 3. Checks 如果参数 is 不空, i.e: non-zero 值
 func RequiredInt(args map[string]any, p string) (int, error) {
 	v, ok := args[p]
 	if !ok {
@@ -149,12 +149,12 @@ func RequiredInt(args map[string]any, p string) (int, error) {
 	return result, nil
 }
 
-// RequiredBigInt is a helper function that can be used to fetch a requested parameter from the request.
-// It does the following checks:
-// 1. Checks if the parameter is present in the request.
-// 2. Checks if the parameter is of the expected type (float64 or numeric string).
-// 3. Checks if the parameter is not empty, i.e: non-zero value.
-// 4. Validates that the float64 value can be safely converted to int64 without truncation.
+// RequiredBigInt is 一个helper 函数 that 可以 用于 fetch 一个请求ed 参数 来自请求.
+// It does following 检查s:
+// 1. Checks 如果参数 is present 在请求.
+// 2. Checks 如果参数 is 的expected type (float64 或numeric string).
+// 3. Checks 如果参数 is 不空, i.e: non-zero 值.
+// 4. Validates that float64 值 可以 safely converted to int64 without truncation.
 func RequiredBigInt(args map[string]any, p string) (int64, error) {
 	val, ok := args[p]
 	if !ok {
@@ -173,19 +173,19 @@ func RequiredBigInt(args map[string]any, p string) (int64, error) {
 	return result, nil
 }
 
-// OptionalParam is a helper function that can be used to fetch a requested parameter from the request.
-// It does the following checks:
-// 1. Checks if the parameter is present in the request, if not, it returns its zero-value
-// 2. If it is present, it checks if the parameter is of the expected type and returns it
+// OptionalParam is 一个helper 函数 that 可以 用于 fetch 一个请求ed 参数 来自请求.
+// It does following 检查s:
+// 1. Checks 如果参数 is present 在请求, if not, it 返回 its zero-值
+// 2. If it is present, it 检查s 如果参数 is 的expected type 和返回 it
 func OptionalParam[T any](args map[string]any, p string) (T, error) {
 	var zero T
 
-	// Check if the parameter is present in the request
+	// Check 如果参数 is present 在请求
 	if _, ok := args[p]; !ok {
 		return zero, nil
 	}
 
-	// Check if the parameter is of the expected type
+	// Check 如果参数 is 的expected type
 	if _, ok := args[p].(T); !ok {
 		return zero, fmt.Errorf("parameter %s is not of type %T, is %T", p, zero, args[p])
 	}
@@ -193,10 +193,10 @@ func OptionalParam[T any](args map[string]any, p string) (T, error) {
 	return args[p].(T), nil
 }
 
-// OptionalIntParam is a helper function that can be used to fetch a requested parameter from the request.
-// It does the following checks:
-// 1. Checks if the parameter is present in the request, if not, it returns its zero-value
-// 2. If it is present, it checks if the parameter is of the expected type (float64 or numeric string) and returns it
+// OptionalIntParam is 一个helper 函数 that 可以 用于 fetch 一个请求ed 参数 来自请求.
+// It does following 检查s:
+// 1. Checks 如果参数 is present 在请求, if not, it 返回 its zero-值
+// 2. If it is present, it 检查s 如果参数 is 的expected type (float64 或numeric string) 和返回 it
 func OptionalIntParam(args map[string]any, p string) (int, error) {
 	val, ok := args[p]
 	if !ok {
@@ -211,8 +211,8 @@ func OptionalIntParam(args map[string]any, p string) (int, error) {
 	return result, nil
 }
 
-// OptionalIntParamWithDefault is a helper function that can be used to fetch a requested parameter from the request
-// similar to optionalIntParam, but it also takes a default value.
+// OptionalIntParamWith默认is 一个helper 函数 that 可以 用于 fetch 一个请求ed 参数 来自请求
+// similar to 可选IntParam, 但it 也takes 一个默认值.
 func OptionalIntParamWithDefault(args map[string]any, p string, d int) (int, error) {
 	v, err := OptionalIntParam(args, p)
 	if err != nil {
@@ -224,8 +224,8 @@ func OptionalIntParamWithDefault(args map[string]any, p string, d int) (int, err
 	return v, nil
 }
 
-// OptionalBoolParamWithDefault is a helper function that can be used to fetch a requested parameter from the request
-// similar to optionalBoolParam, but it also takes a default value.
+// OptionalBoolParamWith默认is 一个helper 函数 that 可以 用于 fetch 一个请求ed 参数 来自请求
+// similar to 可选BoolParam, 但it 也takes 一个默认值.
 func OptionalBoolParamWithDefault(args map[string]any, p string, d bool) (bool, error) {
 	_, ok := args[p]
 	v, err := OptionalParam[bool](args, p)
@@ -238,12 +238,12 @@ func OptionalBoolParamWithDefault(args map[string]any, p string, d bool) (bool, 
 	return v, nil
 }
 
-// OptionalStringArrayParam is a helper function that can be used to fetch a requested parameter from the request.
-// It does the following checks:
-// 1. Checks if the parameter is present in the request, if not, it returns its zero-value
-// 2. If it is present, iterates the elements and checks each is a string
+// OptionalStringArrayParam is 一个helper 函数 that 可以 用于 fetch 一个请求ed 参数 来自请求.
+// It does following 检查s:
+// 1. Checks 如果参数 is present 在请求, if not, it 返回 its zero-值
+// 2. If it is present, iterates elements 和检查s 每个is 一个string
 func OptionalStringArrayParam(args map[string]any, p string) ([]string, error) {
-	// Check if the parameter is present in the request
+	// Check 如果参数 is present 在请求
 	if _, ok := args[p]; !ok {
 		return []string{}, nil
 	}
@@ -288,12 +288,12 @@ func convertStringToBigInt(s string, def int64) (int64, error) {
 	return v, nil
 }
 
-// OptionalBigIntArrayParam is a helper function that can be used to fetch a requested parameter from the request.
-// It does the following checks:
-// 1. Checks if the parameter is present in the request, if not, it returns an empty slice
-// 2. If it is present, iterates the elements, checks each is a string, and converts them to int64 values
+// OptionalBigIntArrayParam is 一个helper 函数 that 可以 用于 fetch 一个请求ed 参数 来自请求.
+// It does following 检查s:
+// 1. Checks 如果参数 is present 在请求, if not, it 返回 一个空 slice
+// 2. If it is present, iterates elements, 检查s 每个is 一个string, 和converts them to int64 值
 func OptionalBigIntArrayParam(args map[string]any, p string) ([]int64, error) {
-	// Check if the parameter is present in the request
+	// Check 如果参数 is present 在请求
 	if _, ok := args[p]; !ok {
 		return []int64{}, nil
 	}
@@ -322,7 +322,7 @@ func OptionalBigIntArrayParam(args map[string]any, p string) ([]int64, error) {
 	}
 }
 
-// WithPagination adds REST API pagination parameters to a tool.
+// WithPagination adds REST API pagination 参数 to 一个工具.
 // https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api
 func WithPagination(schema *jsonschema.Schema) *jsonschema.Schema {
 	schema.Properties["page"] = &jsonschema.Schema{
@@ -341,8 +341,8 @@ func WithPagination(schema *jsonschema.Schema) *jsonschema.Schema {
 	return schema
 }
 
-// WithUnifiedPagination adds REST API pagination parameters to a tool.
-// GraphQL tools will use this and convert page/perPage to GraphQL cursor parameters internally.
+// WithUnifiedPagination adds REST API pagination 参数 to 一个工具.
+// GraphQL 工具 will use this 和convert 页/perPage to GraphQL curs或参数 internally.
 func WithUnifiedPagination(schema *jsonschema.Schema) *jsonschema.Schema {
 	schema.Properties["page"] = &jsonschema.Schema{
 		Type:        "number",
@@ -365,7 +365,7 @@ func WithUnifiedPagination(schema *jsonschema.Schema) *jsonschema.Schema {
 	return schema
 }
 
-// WithCursorPagination adds only cursor-based pagination parameters to a tool (no page parameter).
+// WithCursorPagination adds 仅cursor-based pagination 参数 to 一个工具 (no 页 参数).
 func WithCursorPagination(schema *jsonschema.Schema) *jsonschema.Schema {
 	schema.Properties["perPage"] = &jsonschema.Schema{
 		Type:        "number",
@@ -388,11 +388,11 @@ type PaginationParams struct {
 	After   string
 }
 
-// OptionalPaginationParams returns the "page", "perPage", and "after" parameters from the request,
-// or their default values if not present, "page" default is 1, "perPage" default is 30.
-// In future, we may want to make the default values configurable, or even have this
-// function returned from `withPagination`, where the defaults are provided alongside
-// the min/max values.
+// OptionalPaginationParams 返回 "页", "perPage", 和"after" 参数 来自请求,
+// 或their 默认值 if 不present, "页" 默认is 1, "perPage" 默认is 30.
+// In future, we may want to make 默认值 configurable, 或even have this
+// 函数 返回ed from `withPagination`, 其中defaults are provided alongside
+// min/max 值.
 func OptionalPaginationParams(args map[string]any) (PaginationParams, error) {
 	page, err := OptionalIntParamWithDefault(args, "page", 1)
 	if err != nil {
@@ -413,8 +413,8 @@ func OptionalPaginationParams(args map[string]any) (PaginationParams, error) {
 	}, nil
 }
 
-// OptionalCursorPaginationParams returns the "perPage" and "after" parameters from the request,
-// without the "page" parameter, suitable for cursor-based pagination only.
+// OptionalCursorPaginationParams 返回 "perPage" 和"after" 参数 来自请求,
+// without "页" 参数, suitable f或cursor-based pagination only.
 func OptionalCursorPaginationParams(args map[string]any) (CursorPaginationParams, error) {
 	perPage, err := OptionalIntParamWithDefault(args, "perPage", 30)
 	if err != nil {
@@ -451,7 +451,7 @@ func buildPageInfo(resp *github.Response) pageInfo {
 	}
 }
 
-// ToGraphQLParams converts cursor pagination parameters to GraphQL-specific parameters.
+// ToGraphQLParams converts curs或pagination 参数 to GraphQL-specific 参数.
 func (p CursorPaginationParams) ToGraphQLParams() (*GraphQLPaginationParams, error) {
 	if p.PerPage > 100 {
 		return nil, fmt.Errorf("perPage value %d exceeds maximum of 100", p.PerPage)
@@ -477,11 +477,11 @@ type GraphQLPaginationParams struct {
 	After *string
 }
 
-// ToGraphQLParams converts REST API pagination parameters to GraphQL-specific parameters.
-// This converts page/perPage to first parameter for GraphQL queries.
-// If After is provided, it takes precedence over page-based pagination.
+// ToGraphQLParams converts REST API pagination 参数 to GraphQL-specific 参数.
+// 此converts 页/perPage to 第一个 参数 f或GraphQL queries.
+// If After is provided, it takes precedence over 页-based pagination.
 func (p PaginationParams) ToGraphQLParams() (*GraphQLPaginationParams, error) {
-	// Convert to CursorPaginationParams and delegate to avoid duplication
+	// Convert to CursorPaginationParams 和delegate to avoid duplication
 	cursor := CursorPaginationParams{
 		PerPage: p.PerPage,
 		After:   p.After,

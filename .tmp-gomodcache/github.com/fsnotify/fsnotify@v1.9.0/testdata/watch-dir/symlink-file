@@ -1,0 +1,12 @@
+# Create a new symlink to a file.
+require symlink
+
+touch /file
+watch /
+ln -s /file /link
+
+Output:
+	create  /link
+
+	dragonfly: # TODO: can we fix this?
+		no-events

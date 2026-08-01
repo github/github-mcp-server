@@ -1,0 +1,80 @@
+name: Benchmark
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  go-bench:
+    strategy:
+      matrix:
+        go-version: [ '1.20', 'stable' ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # to be able to retrieve the last commit in main
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Run benchmark and store the output to a file
+        run: |
+          set -o pipefail
+          make bench | tee ${{ github.sha }}_bench_output.txt
+
+      - name: Get CPU information
+        uses: kenchan0130/actions-system-info@v1.2.1
+        id: system-info
+
+      - name: Get Main branch SHA
+        id: get-main-branch-sha
+        run: |
+          SHA=$(git rev-parse origin/main)
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+
+      - name: Get benchmark JSON from main branch
+        id: cache
+        uses: actions/cache/restore@v3
+        with:
+          path: ./cache/benchmark-data.json
+          key: ${{ steps.get-main-branch-sha.outputs.sha }}-${{ runner.os }}-${{ steps.system-info.outputs.cpu-model }}-go-benchmark
+
+      - name: Compare benchmarks with Main
+        uses: benchmark-action/github-action-benchmark@v1
+        if: steps.cache.outputs.cache-hit == 'true'
+        with:
+          # What benchmark tool the output.txt came from
+          tool: 'go'
+          # Where the output from the benchmark tool is stored
+          output-file-path: ${{ github.sha }}_bench_output.txt
+          # Where the benchmarks in main are (to compare)
+          external-data-json-path: ./cache/benchmark-data.json
+          # Do not save the data
+          save-data-file: false
+          # Workflow will fail when an alert happens
+          fail-on-alert: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Enable Job Summary for PRs
+          summary-always: true
+
+      - name: Run benchmarks but don't compare to Main branch
+        uses: benchmark-action/github-action-benchmark@v1
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          # What benchmark tool the output.txt came from
+          tool: 'go'
+          # Where the output from the benchmark tool is stored
+          output-file-path: ${{ github.sha }}_bench_output.txt
+          # Write benchmarks to this file, do not publish to GitHub Pages
+          save-data-file: false
+          external-data-json-path: ./cache/benchmark-data.json
+          # Enable Job Summary for PRs
+          summary-always: true

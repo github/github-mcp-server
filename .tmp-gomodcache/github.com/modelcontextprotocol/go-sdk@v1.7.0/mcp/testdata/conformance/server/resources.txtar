@@ -1,0 +1,136 @@
+Check behavior of a server with just resources.
+
+Fixed bugs:
+- A resource result holds a slice of contents, not just one.
+- No params in 'resource/read' should not panic.
+- No params in 'resources/subscribe' should not panic.
+- No params in 'resources/unsubscribe' should not panic.
+
+-- resources --
+info
+info.txt
+
+-- client --
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {},
+    "clientInfo": { "name": "ExampleClient", "version": "1.0.0" }
+  }
+}
+{ "jsonrpc":"2.0", "method": "notifications/initialized" }
+{ "jsonrpc": "2.0", "id": 2, "method": "resources/list" }
+{
+  "jsonrpc": "2.0", "id": 3,
+  "method": "resources/read",
+  "params": {
+    "uri": "embedded:info"
+  }
+}
+{
+  "jsonrpc": "2.0", "id": 3,
+  "method": "resources/read",
+  "params": {
+    "uri": "file:///info.txt"
+  }
+}
+{
+  "jsonrpc": "2.0", "id": 0,
+  "result": {
+	"roots": []
+  }
+}
+{ "jsonrpc": "2.0", "id": 4, "method": "resources/read" }
+{ "jsonrpc": "2.0", "id": 5, "method": "resources/subscribe" }
+-- server --
+{
+	"jsonrpc": "2.0",
+	"id": 1,
+	"result": {
+		"capabilities": {
+			"logging": {},
+			"resources": {
+				"listChanged": true
+			}
+		},
+		"protocolVersion": "2024-11-05",
+		"serverInfo": {
+			"name": "testServer",
+			"version": "v1.0.0"
+		}
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 2,
+	"result": {
+		"ttlMs": 0,
+		"cacheScope": "public",
+		"resources": [
+			{
+				"mimeType": "text/plain",
+				"name": "info",
+				"uri": "embedded:info"
+			},
+			{
+				"mimeType": "text/plain",
+				"name": "public",
+				"uri": "file:///info.txt"
+			}
+		]
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 3,
+	"result": {
+		"ttlMs": 0,
+		"cacheScope": "public",
+		"contents": [
+			{
+				"uri": "embedded:info",
+				"mimeType": "text/plain",
+				"text": "This is the MCP test server."
+			}
+		]
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 1,
+	"method": "roots/list"
+}
+{
+	"jsonrpc": "2.0",
+	"id": 3,
+	"result": {
+		"ttlMs": 0,
+		"cacheScope": "public",
+		"contents": [
+			{
+				"uri": "file:///info.txt",
+				"mimeType": "text/plain",
+				"blob": "Q29udGVudHMK"
+			}
+		]
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 4,
+	"error": {
+		"code": -32600,
+		"message": "invalid request: missing required \"params\""
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 5,
+	"error": {
+		"code": -32600,
+		"message": "invalid request: missing required \"params\""
+	}
+}

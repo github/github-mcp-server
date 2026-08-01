@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Tests for consolidated actions tools
+// Tests f或consolidated actions 工具
 
 func Test_ActionsList(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	toolDef := ActionsList(translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
@@ -210,7 +210,7 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 }
 
 func Test_ActionsGet(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	toolDef := ActionsGet(translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
@@ -311,7 +311,7 @@ func Test_ActionsGet_GetWorkflowRun(t *testing.T) {
 }
 
 func Test_ActionsRunTrigger(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	toolDef := ActionsRunTrigger(translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
@@ -526,13 +526,13 @@ func Test_ActionsRunTrigger_CancelWorkflowRun(t *testing.T) {
 }
 
 func Test_ActionsGetJobLogs(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	toolDef := ActionsGetJobLogs(translations.NullTranslationHelper)
 
-	// Note: consolidated ActionsGetJobLogs has same tool name "get_job_logs" as the individual tool
-	// but with different descriptions. We skip toolsnap validation here since the individual
-	// tool's toolsnap already exists and is tested in Test_GetJobLogs.
-	// The consolidated tool has FeatureFlagEnable set, so only one will be active at a time.
+	// Note: consolidated ActionsGetJobLogs has 相同 工具 name "获取_job_logs" as individual 工具
+	// 但with different descriptions. We skip 工具nap validation here since individual
+	// 工具's 工具nap al读取y exists 和is tested in Test_GetJobLogs.
+	// consolidated 工具 has FeatureFlagEnable set, so 仅one will be active at 一个time.
 	assert.Equal(t, "get_job_logs", toolDef.Tool.Name)
 	assert.NotEmpty(t, toolDef.Tool.Description)
 	inputSchema := toolDef.Tool.InputSchema.(*jsonschema.Schema)

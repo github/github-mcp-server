@@ -1,0 +1,40 @@
+# Add directory to a recursively watched dir.
+require recurse
+
+mkdir -p /sub/dir
+watch /...
+
+mkdir -p /sub/dir/newdir
+touch /sub/dir/newdir/file
+rm /sub/dir/newdir/file
+
+# Re-create file.
+touch /sub/dir/newdir/file
+rm /sub/dir/newdir/file
+
+# Write to file.
+echo foo >/sub/dir/newdir/file
+
+Output:
+	create   /sub/dir/newdir
+	create   /sub/dir/newdir/file
+	remove   /sub/dir/newdir/file
+
+	write    /sub/dir/newdir
+	create   /sub/dir/newdir/file
+	remove   /sub/dir/newdir/file
+
+	write    /sub/dir/newdir
+	create   /sub/dir/newdir/file
+	write    /sub/dir/newdir/file
+
+	linux:  # Same as Windows, but without those stupid dir writes Windows sends.
+		create   /sub/dir/newdir
+		create   /sub/dir/newdir/file
+		remove   /sub/dir/newdir/file
+
+		create   /sub/dir/newdir/file
+		remove   /sub/dir/newdir/file
+
+		create   /sub/dir/newdir/file
+		write    /sub/dir/newdir/file

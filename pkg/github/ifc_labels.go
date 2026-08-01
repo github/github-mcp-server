@@ -8,8 +8,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// setIFCLabel writes the given IFC security label into a tool result's _meta
-// under the "ifc" key, allocating the Meta map if necessary.
+// setIFCLabel 写入s given IFC security label into 一个工具 结果's _meta
+// under "ifc" key, allocating Meta map if necessary.
 func setIFCLabel(r *mcp.CallToolResult, label ifc.SecurityLabel) {
 	if r.Meta == nil {
 		r.Meta = mcp.Meta{}
@@ -21,13 +21,13 @@ func shouldAttachIFCLabel(ctx context.Context, deps ToolDependencies, r *mcp.Cal
 	return r != nil && !r.IsError && deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels)
 }
 
-// attachStaticIFCLabel attaches a fixed IFC label to a successful tool result
-// when IFC labels are enabled. It is used by tools whose label does not depend
-// on any repository visibility lookup (e.g. security alerts, global
+// attachStaticIFCLabel attaches 一个fixed IFC label to 一个成功ful 工具 结果
+// when IFC labels are 启用. It is 由以下内容使用： 工具 whose label does 不depend
+// on any 仓库 visibility lookup (e.g. security alerts, global
 // advisories, team membership, notification subjects).
 //
-// Error results are left untouched, and the label is omitted entirely when the
-// IFC feature flag is disabled.
+// Err或结果 are left untouched, 以及label is omitted entirely when the
+// IFC 功能标志 is 禁用.
 func attachStaticIFCLabel(ctx context.Context, deps ToolDependencies, r *mcp.CallToolResult, label ifc.SecurityLabel) *mcp.CallToolResult {
 	if !shouldAttachIFCLabel(ctx, deps, r) {
 		return r
@@ -36,15 +36,15 @@ func attachStaticIFCLabel(ctx context.Context, deps ToolDependencies, r *mcp.Cal
 	return r
 }
 
-// attachRepoVisibilityIFCLabel attaches an IFC label derived from a single
-// repository's visibility to a successful tool result when IFC labels are
-// enabled. The concrete label is produced by labelFn, which receives whether
-// the repository is private.
+// attachRepoVisibilityIFCLabel attaches 一个IFC label derived from 一个单个
+// 仓库's visibility to 一个成功ful 工具 结果 when IFC labels are
+// 启用. concrete label is produced by labelFn, which receives whether
+// 仓库 is 私有.
 //
-// The repository visibility is resolved via FetchRepoIsPrivate. Consistent
-// with the other IFC-labeled tools, if the visibility lookup fails the label
-// is omitted rather than risking a misclassification. Error results and the
-// disabled-feature case are left untouched.
+// 仓库 visibility is resolved via FetchRepoIsPrivate. Consistent
+// 使用other IFC-labeled 工具, 如果visibility lookup fails label
+// is omitted rather than risking 一个misclassification. Err或结果 和the
+// 禁用-feature case are left untouched.
 func attachRepoVisibilityIFCLabel(
 	ctx context.Context,
 	deps ToolDependencies,
@@ -64,10 +64,10 @@ func attachRepoVisibilityIFCLabel(
 	return r
 }
 
-// ifcSearchPostProcessOption returns a searchOption that attaches IFC labels to
-// a multi-repository search result. The feature-flag check is centralized here
-// (mirroring the attach* helpers above) rather than in each search tool
-// handler: when IFC labels are disabled it returns a no-op option, so callers
+// ifcSearchPostProcessOption 返回 一个searchOption that attaches IFC labels to
+// 一个multi-仓库 search 结果. feature-flag 检查 is centralized here
+// (mirroring attach* helpers above) rather than in 每个search 工具
+// 处理器: when IFC labels are 禁用 it 返回 一个no-op option, so 调用ers
 // can pass it unconditionally to searchHandler.
 func ifcSearchPostProcessOption(ctx context.Context, deps ToolDependencies) searchOption {
 	if !deps.IsFeatureEnabled(ctx, FeatureFlagIFCLabels) {
@@ -77,12 +77,12 @@ func ifcSearchPostProcessOption(ctx context.Context, deps ToolDependencies) sear
 }
 
 // attachRepoVisibilityIFCLabelLazy is like attachRepoVisibilityIFCLabel but
-// resolves the REST client itself, only when IFC labels are enabled. It is used
-// by tools whose handler holds a GraphQL client (or no client yet) and would
-// otherwise have to acquire a REST client solely to compute the label. The
-// feature-flag check is centralized here so callers can invoke it
-// unconditionally; if the client cannot be obtained or the visibility lookup
-// fails, the label is omitted rather than risking a misclassification.
+// resolves REST 客户端 itself, 仅when IFC labels are 启用. It is used
+// by 工具 whose 处理器 holds 一个GraphQL 客户端 (或no 客户端 yet) 和would
+// otherwise have to acquire 一个REST 客户端 solely to compute label. The
+// feature-flag 检查 is centralized here so 调用ers can invoke it
+// unconditionally; 如果客户端 can不be obtained 或visibility lookup
+// fails, label is omitted rather than risking 一个misclassification.
 func attachRepoVisibilityIFCLabelLazy(
 	ctx context.Context,
 	deps ToolDependencies,
@@ -100,12 +100,12 @@ func attachRepoVisibilityIFCLabelLazy(
 	return attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, r, labelFn)
 }
 
-// attachJoinedIFCLabel attaches an IFC label computed by joining a set of
-// per-item visibilities (true == private) when IFC labels are enabled. joinFn
-// is the lattice join for the relevant item kind (e.g. ifc.LabelSearchIssues or
-// ifc.LabelProjectList). The visibility slice is cheap to build from an
-// already-fetched response, so callers may construct it unconditionally and let
-// this helper own the feature-flag gate.
+// attachJoinedIFCLabel attaches 一个IFC label computed by joining 一个set of
+// per-item visibilities (真 == 私有) when IFC labels are 启用. joinFn
+// is lattice join 用于relevant item kind (e.g. ifc.LabelSearchIssues or
+// ifc.LabelProjectList). visibility slice is cheap to build from an
+// al读取y-fetched 响应, so 调用ers may construct it unconditionally 和let
+// this helper own feature-flag gate.
 func attachJoinedIFCLabel(
 	ctx context.Context,
 	deps ToolDependencies,
@@ -134,14 +134,14 @@ func attachProjectVisibilityIFCLabel(
 	return r
 }
 
-// newRepoVisibilityIFCLabeler returns a closure that attaches a repo-visibility
-// IFC label to a tool result, for handlers that have several return paths and
-// want to label each one. The returned function owns the feature-flag gate (so
-// callers invoke it unconditionally) and caches the repository visibility
-// lookup across calls, so a handler that returns from many branches only pays
-// for one FetchRepoIsPrivate call. A failed visibility lookup is not cached, so
-// a later return path can retry; on persistent failure the label is omitted
-// rather than risking a misclassification.
+// 新的RepoVisibilityIFCLabeler 返回 一个closure that attaches 一个repo-visibility
+// IFC label to 一个工具 结果, f或处理器s that have several 返回 路径s and
+// want to label 每个one. 返回ed 函数 owns feature-flag gate (so
+// 调用ers invoke it unconditionally) 和caches 仓库 visibility
+// lookup across 调用, so 一个处理器 that 返回 from many 分支 仅pays
+// f或one FetchRepoIsPrivate 调用. 一个failed visibility lookup is 不cached, so
+// 一个later 返回 路径 can retry; on persistent failure label is omitted
+// rather than risking 一个misclassification.
 func newRepoVisibilityIFCLabeler(
 	ctx context.Context,
 	deps ToolDependencies,

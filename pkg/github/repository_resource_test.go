@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// errorTransport is a http.RoundTripper that always returns an error.
+// 错误Transport is 一个http.RoundTripper that 始终返回 一个错误.
 type errorTransport struct {
 	err error
 }
@@ -53,7 +53,7 @@ func Test_repositoryResourceContents(t *testing.T) {
 			handlerFn: func() mcp.ResourceHandler {
 				return RepositoryResourceContentsHandler(repositoryResourceContentURITemplate)
 			},
-			expectedResponseType: resourceResponseTypeText, // Ignored as error is expected
+			expectedResponseType: resourceResponseTypeText, // Ignored as 错误 is expected
 			expectError:          "owner is required",
 		},
 		{
@@ -69,7 +69,7 @@ func Test_repositoryResourceContents(t *testing.T) {
 			handlerFn: func() mcp.ResourceHandler {
 				return RepositoryResourceContentsHandler(repositoryResourceBranchContentURITemplate)
 			},
-			expectedResponseType: resourceResponseTypeText, // Ignored as error is expected
+			expectedResponseType: resourceResponseTypeText, // Ignored as 错误 is expected
 			expectError:          "repo is required",
 		},
 		{
@@ -238,7 +238,7 @@ func Test_repositoryResourceContents(t *testing.T) {
 			handlerFn: func() mcp.ResourceHandler {
 				return RepositoryResourceContentsHandler(repositoryResourceContentURITemplate)
 			},
-			expectedResponseType: resourceResponseTypeText, // Ignored as error is expected
+			expectedResponseType: resourceResponseTypeText, // Ignored as 错误 is expected
 			expectError:          "404 Not Found",
 		},
 	}
@@ -283,8 +283,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 	}
 }
 
-// Test_repositoryResourceContentsHandler_NetworkError tests that a network error
-// during raw content fetch does not cause a panic (nil response body dereference).
+// Test_仓库ResourceContentsHandler_NetworkErr或tests that 一个network 错误
+// during raw 内容 fetch does 不cause 一个panic (nil 响应 body dereference).
 func Test_repositoryResourceContentsHandler_NetworkError(t *testing.T) {
 	base, _ := url.Parse("https://raw.example.com/")
 	networkErr := errors.New("network error: connection refused")
@@ -307,7 +307,7 @@ func Test_repositoryResourceContentsHandler_NetworkError(t *testing.T) {
 		},
 	}
 
-	// This should not panic, even though the HTTP client returns an error
+	// 此should 不panic, even though HTTP 客户端 返回 一个错误
 	resp, err := handler(ctx, request)
 	require.Error(t, err)
 	require.Nil(t, resp)

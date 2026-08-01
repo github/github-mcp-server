@@ -1,0 +1,69 @@
+This test checks that the server obeys the rules for initialization lifecycle,
+and rejects non-ping requests until 'initialized' is received.
+
+See also modelcontextprotocol/go-sdk#225.
+
+-- client --
+{ "jsonrpc":"2.0", "method": "notifications/initialized" }
+{ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {},
+    "clientInfo": { "name": "ExampleClient", "version": "1.0.0" }
+  }
+}
+{ "jsonrpc":"2.0", "id": 1, "method":"ping" }
+{ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }
+{ "jsonrpc":"2.0", "method": "notifications/initialized" }
+{ "jsonrpc": "2.0", "id": 3, "method": "tools/list" }
+
+-- server --
+{
+	"jsonrpc": "2.0",
+	"id": 2,
+	"error": {
+		"code": 0,
+		"message": "method \"tools/list\" is invalid during session initialization"
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 1,
+	"result": {
+		"capabilities": {
+			"logging": {}
+		},
+		"protocolVersion": "2024-11-05",
+		"serverInfo": {
+			"name": "testServer",
+			"version": "v1.0.0"
+		}
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 1,
+	"result": {}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 2,
+	"result": {
+		"ttlMs": 0,
+		"cacheScope": "public",
+		"tools": []
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 3,
+	"result": {
+		"ttlMs": 0,
+		"cacheScope": "public",
+		"tools": []
+	}
+}

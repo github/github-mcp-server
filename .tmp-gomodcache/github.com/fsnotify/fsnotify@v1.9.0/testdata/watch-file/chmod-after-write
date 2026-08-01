@@ -1,0 +1,17 @@
+# chmod after write.
+
+echo data >>/file
+
+watch /file
+
+chmod 700 /file
+echo more >>/file
+chmod 600 /file
+
+Output:
+	chmod  /file
+	write  /file
+	chmod  /file
+
+	windows:
+		write /file

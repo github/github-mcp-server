@@ -1,16 +1,16 @@
-# Install GitHub MCP Server in Windsurf
+# 在 Windsurf 中安装 GitHub MCP Server
 
-## Prerequisites
-1. Windsurf IDE installed (latest version)
-2. [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new) with appropriate scopes
-3. For local installation: [Docker](https://www.docker.com/) installed and running
+## 前提条件
+1. 已安装 Windsurf IDE（最新版本）
+2. 具有适当作用域的 [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new)
+3. 用于本地安装：已安装并运行 [Docker](https://www.docker.com/)
 
-## Remote Server Setup (Recommended)
+## 远程 Server 设置（推荐）
 
-The remote GitHub MCP server is hosted by GitHub at `https://api.githubcopilot.com/mcp/` and supports Streamable HTTP protocol. Windsurf currently supports PAT authentication only.
+远程 GitHub MCP server 由 GitHub 托管，地址为 `https://api.githubcopilot.com/mcp/`，支持 Streamable HTTP 协议。Windsurf 目前仅支持 PAT 身份验证。
 
-### Streamable HTTP Configuration
-Windsurf supports Streamable HTTP servers with a `serverUrl` field:
+### Streamable HTTP 配置
+Windsurf 通过 `serverUrl` 字段支持 Streamable HTTP server：
 
 ```json
 {
@@ -25,12 +25,12 @@ Windsurf supports Streamable HTTP servers with a `serverUrl` field:
 }
 ```
 
-## Local Server Setup
+## 本地 Server 设置
 
-### Docker Installation (Required)
-**Important**: The npm package `@modelcontextprotocol/server-github` is no longer supported as of April 2025. Use the official Docker image `ghcr.io/github/github-mcp-server` instead.
+### Docker 安装（必需）
+**重要提示**：npm 包 `@modelcontextprotocol/server-github` 自 2025 年 4 月起不再受支持。请改用官方 Docker 镜像 `ghcr.io/github/github-mcp-server`。
 
-Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
+使用 OAuth 登录而非 token。github.com 上的官方镜像已包含 app 凭据，因此无需自行提供；server 会在首次使用时打开浏览器登录，并且仅在内存中保留 token。在 Docker 中，请将固定回调端口发布到 loopback：
 
 ```json
 {
@@ -55,9 +55,9 @@ Log in with OAuth instead of a token. On github.com the official image already i
 }
 ```
 
-See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+有关原生二进制文件流程（无固定端口）、无头/device-code 回退、GitHub Enterprise，以及自带 OAuth 或 GitHub App，请参阅 **[Local Server OAuth Login](../oauth-login.md)**。
 
-To authenticate with a Personal Access Token instead (it takes precedence over OAuth):
+若改用 Personal Access Token 进行身份验证（其优先级高于 OAuth）：
 
 ```json
 {
@@ -80,57 +80,57 @@ To authenticate with a Personal Access Token instead (it takes precedence over O
 }
 ```
 
-## Installation Steps
+## 安装步骤
 
-### Via Plugin Store
-1. Open Windsurf and navigate to Cascade
-2. Click the **Plugins** icon or **hammer icon** (🔨)
-3. Search for "GitHub MCP Server"
-4. Click **Install** and enter your PAT when prompted
-5. Click **Refresh** (🔄)
+### 通过 Plugin Store
+1. 打开 Windsurf 并进入 Cascade
+2. 单击 **Plugins** 图标或**锤子图标**（🔨）
+3. 搜索 "GitHub MCP Server"
+4. 单击 **Install**，并在提示时输入 PAT
+5. 单击 **Refresh**（🔄）
 
-### Manual Configuration
-1. Click the hammer icon (🔨) in Cascade
-2. Click **Configure** to open `~/.codeium/windsurf/mcp_config.json`
-3. Add your chosen configuration from above
-4. Save the file
-5. Click **Refresh** (🔄) in the MCP toolbar
+### 手动配置
+1. 单击 Cascade 中的锤子图标（🔨）
+2. 单击 **Configure** 打开 `~/.codeium/windsurf/mcp_config.json`
+3. 添加上方选定的配置
+4. 保存文件
+5. 单击 MCP 工具栏中的 **Refresh**（🔄）
 
-## Configuration Details
+## 配置详情
 
-- **File path**: `~/.codeium/windsurf/mcp_config.json`
-- **Scope**: Global configuration only (no per-project support)
-- **Format**: Must be valid JSON (use a linter to verify)
+- **文件路径**：`~/.codeium/windsurf/mcp_config.json`
+- **范围**：仅全局配置（不支持按项目配置）
+- **格式**：必须为有效 JSON（使用 linter 验证）
 
-## Verification
+## 验证
 
-After installation:
-1. Look for "1 available MCP server" in the MCP toolbar
-2. Click the hammer icon to see available GitHub tools
-3. Test with: "List my GitHub repositories"
-4. Check for green dot next to the server name
+安装后：
+1. 在 MCP 工具栏中查找 "1 available MCP server"
+2. 单击锤子图标查看可用 GitHub 工具
+3. 使用 "List my GitHub repositories" 测试
+4. 检查 server 名称旁是否有绿色圆点
 
-## Troubleshooting
+## 故障排除
 
-### Remote Server Issues
-- **Authentication failures**: Verify PAT has correct scopes and hasn't expired
-- **Connection errors**: Check firewall/proxy settings for HTTPS connections
-- **Streamable HTTP not working**: Ensure you're using the correct `serverUrl` field format
+### 远程 Server 问题
+- **身份验证失败**：确认 PAT 具有正确作用域且未过期
+- **连接错误**：检查 HTTPS 连接的防火墙/代理设置
+- **Streamable HTTP 无法工作**：确保使用正确的 `serverUrl` 字段格式
 
-### Local Server Issues
-- **Docker errors**: Ensure Docker Desktop is running
-- **Image pull failures**: Try `docker logout ghcr.io` then retry
-- **Docker not found**: Install Docker Desktop and ensure it's running
+### 本地 Server 问题
+- **Docker 错误**：确保 Docker Desktop 正在运行
+- **镜像拉取失败**：尝试 `docker logout ghcr.io` 后重试
+- **找不到 Docker**：安装 Docker Desktop 并确保其正在运行
 
-### General Issues
-- **Invalid JSON**: Validate with [jsonlint.com](https://jsonlint.com)
-- **Tools not appearing**: Restart Windsurf completely
-- **Check logs**: `~/.codeium/windsurf/logs/`
+### 常规问题
+- **无效 JSON**：使用 [jsonlint.com](https://jsonlint.com) 验证
+- **工具未显示**：完全重启 Windsurf
+- **检查日志**：`~/.codeium/windsurf/logs/`
 
-## Important Notes
+## 重要说明
 
-- **Official repository**: [github/github-mcp-server](https://github.com/github/github-mcp-server)
-- **Remote server URL**: `https://api.githubcopilot.com/mcp/`
-- **Docker image**: `ghcr.io/github/github-mcp-server` (official and supported)
-- **npm package**: `@modelcontextprotocol/server-github` (deprecated as of April 2025 - no longer functional)
-- **Windsurf limitations**: No environment variable interpolation, global config only
+- **官方仓库**：[github/github-mcp-server](https://github.com/github/github-mcp-server)
+- **远程 server URL**：`https://api.githubcopilot.com/mcp/`
+- **Docker 镜像**：`ghcr.io/github/github-mcp-server`（官方且受支持）
+- **npm 包**：`@modelcontextprotocol/server-github`（自 2025 年 4 月起已废弃，无法再使用）
+- **Windsurf 限制**：不支持环境变量插值，仅支持全局配置

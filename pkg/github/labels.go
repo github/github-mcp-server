@@ -17,7 +17,7 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
-// GetLabel retrieves a specific label by name from a GitHub repository
+// GetLabel retrieves 一个specific label by name from 一个GitHub 仓库
 func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
@@ -107,23 +107,23 @@ func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := utils.NewToolResultText(string(out))
-			// Labels are structural repo metadata defined by collaborators
-			// (trusted); confidentiality follows repo visibility.
+			// Labels are structural repo 元数据 defined by collaborators
+			// (受信任); confidentiality follows repo visibility.
 			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
 			return result, nil, nil
 		},
 	)
 }
 
-// GetLabelForLabelsToolset returns the same GetLabel tool but registered in the labels toolset.
-// This provides conformance with the original behavior where get_label was in both toolsets.
+// GetLabelForLabelsToolset 返回 相同 GetLabel 工具 但registered 在labels 工具集.
+// 此provides conformance 使用original behavi或where 获取_label was in both 工具集s.
 func GetLabelForLabelsToolset(t translations.TranslationHelperFunc) inventory.ServerTool {
 	tool := GetLabel(t)
 	tool.Toolset = ToolsetLabels
 	return tool
 }
 
-// ListLabels lists labels from a repository
+// ListLabels 列出s labels from 一个仓库
 func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetLabels,
@@ -210,15 +210,15 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := utils.NewToolResultText(string(out))
-			// Labels are structural repo metadata defined by collaborators
-			// (trusted); confidentiality follows repo visibility.
+			// Labels are structural repo 元数据 defined by collaborators
+			// (受信任); confidentiality follows repo visibility.
 			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
 			return result, nil, nil
 		},
 	)
 }
 
-// LabelWrite handles create, update, and delete operations for GitHub labels
+// LabelWrite handles 创建, 更新, 和删除 operations f或GitHub labels
 func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetLabels,
@@ -268,7 +268,7 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			// Get and validate required parameters
+			// Get 和验证 必需 参数
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -290,7 +290,7 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Get optional parameters
+			// Get 可选 参数
 			newName, _ := OptionalParam[string](args, "new_name")
 			color, _ := OptionalParam[string](args, "color")
 			description, _ := OptionalParam[string](args, "description")
@@ -302,12 +302,12 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			switch method {
 			case "create":
-				// Validate required params for create
+				// Validate 必需 params f或创建
 				if color == "" {
 					return utils.NewToolResultError("color is required for create"), nil, nil
 				}
 
-				// Get repository ID
+				// Get 仓库 ID
 				repoID, err := getRepositoryID(ctx, client, owner, repo)
 				if err != nil {
 					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find repository", err), nil, nil
@@ -339,12 +339,12 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultText(fmt.Sprintf("label '%s' created successfully", mutation.CreateLabel.Label.Name)), nil, nil
 
 			case "update":
-				// Validate required params for update
+				// Validate 必需 params f或更新
 				if newName == "" && color == "" && description == "" {
 					return utils.NewToolResultError("at least one of new_name, color, or description must be provided for update"), nil, nil
 				}
 
-				// Get the label ID
+				// Get label ID
 				labelID, err := getLabelID(ctx, client, owner, repo, name)
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
@@ -382,7 +382,7 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultText(fmt.Sprintf("label '%s' updated successfully", mutation.UpdateLabel.Label.Name)), nil, nil
 
 			case "delete":
-				// Get the label ID
+				// Get label ID
 				labelID, err := getLabelID(ctx, client, owner, repo, name)
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
@@ -411,7 +411,7 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// Helper function to get repository ID
+// Helper 函数 to 获取 仓库 ID
 func getRepositoryID(ctx context.Context, client *githubv4.Client, owner, repo string) (githubv4.ID, error) {
 	var repoQuery struct {
 		Repository struct {
@@ -428,7 +428,7 @@ func getRepositoryID(ctx context.Context, client *githubv4.Client, owner, repo s
 	return repoQuery.Repository.ID, nil
 }
 
-// Helper function to get label by name
+// Helper 函数 to 获取 label by name
 func getLabelID(ctx context.Context, client *githubv4.Client, owner, repo, labelName string) (githubv4.ID, error) {
 	var query struct {
 		Repository struct {

@@ -8,22 +8,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestAllToolRegistrationsExplicitlySetReadOnlyHint statically scans every
-// non-test Go source file in this package and asserts that every mcp.Tool
+// TestAllToolRegistrationsExplicitlySetReadOnlyHint stati调用y scans every
+// non-test Go source 文件 in this package 和asserts that every mcp.Tool
 // composite literal explicitly sets Annotations.ReadOnlyHint.
 //
-// The AST scan itself lives in pkg/toolvalidation so downstream packages
-// (e.g. github/github-mcp-server-remote) can apply the same guardrail to
-// their own tool registrations without duplicating the parser logic.
+// AST scan itself lives in pkg/工具validation so downstream packages
+// (e.g. github/github-mcp-服务器-remote) can apply 相同 guardrail to
+// their own 工具 registrations without duplicating parser logic.
 //
-// This complements TestAllToolsHaveRequiredMetadata, which can only check
-// that Annotations is non-nil at runtime: Go cannot distinguish an unset
-// bool field from one explicitly set to false. Source-level validation
-// closes that gap and prevents future tool registrations from silently
-// defaulting ReadOnlyHint to false (which has caused downstream agents to
-// prompt for human approval on read-intent tools).
+// 此complements TestAllToolsHaveRequiredMeta数据, which can 仅检查
+// that Annotations is non-nil at runtime: Go can不distinguish 一个unset
+// bool field from one explicitly set to 假. Source-level validation
+// closes that gap 和prevents future 工具 registrations from silently
+// defaulting ReadOnlyHint to 假 (which has caused downstream agents to
+// 提示 f或human approval on 读取-intent 工具).
 //
-// Related issue: github/github-mcp-server#2483
+// Related 议题: github/github-mcp-服务器#2483
 func TestAllToolRegistrationsExplicitlySetReadOnlyHint(t *testing.T) {
 	pkgDir, err := os.Getwd()
 	require.NoError(t, err, "must be able to resolve package directory")

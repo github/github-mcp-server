@@ -1,0 +1,25 @@
+run:
+  tests: false
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+linters:
+  enable:
+    - bodyclose
+    - dupl
+    - exportloopref
+    - goconst
+    - godot
+    - godox
+    - goimports
+    - goprintffuncname
+    - gosec
+    - misspell
+    - prealloc
+    - rowserrcheck
+    - sqlclosecheck
+    - unconvert
+    - unparam
+    - whitespace

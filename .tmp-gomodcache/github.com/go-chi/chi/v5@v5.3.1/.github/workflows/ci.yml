@@ -1,0 +1,42 @@
+on:
+  push:
+    branches: "**"
+    paths-ignore:
+      - "docs/**"
+  pull_request:
+    branches: "**"
+    paths-ignore:
+      - "docs/**"
+
+name: Test
+jobs:
+  test:
+    env:
+      GOPATH: ${{ github.workspace }}
+
+    defaults:
+      run:
+        working-directory: ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
+
+    strategy:
+      matrix:
+        go-version: [1.23.x, 1.24.x, 1.25.x, 1.26.x]
+        os: [ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          check-latest: true
+          cache: false
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          path: ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
+      - name: Test
+        run: |
+          go get -d -t ./...
+          make test

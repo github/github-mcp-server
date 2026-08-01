@@ -1,0 +1,20 @@
+# Re-add renamed file.
+touch /file
+watch /file
+
+mv /file /rename
+touch /file
+watch /file
+
+echo hello >>/rename
+echo hello >>/file
+
+Output:
+	rename /file    # mv file rename
+					# Watcher gets removed on rename, so no write for /rename
+	write  /file    # cat hello >file
+
+	windows:   # TODO(v2): Windows should behave the same by default. See #518
+		rename /file
+		write  /rename
+		write  /file

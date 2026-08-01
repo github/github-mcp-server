@@ -1,0 +1,50 @@
+# Listen for rename events only.
+require filter
+watch /   rename
+
+# Create
+touch /file
+mkdir /dir
+ln -s /file /link
+
+# Write
+echo data >>/file
+echo data >>/link
+touch /dir/file
+
+# Rename
+mv /file /rename
+mv /rename /file
+mv /dir /rename
+mv /rename /dir
+mv /link /rename
+mv /rename /link
+
+# Chmod
+chmod 644 /file
+chmod 644 /link
+chmod 755 /dir
+
+# Remove
+rm /file
+rm /link
+rm -r /dir
+
+Output:
+	rename   /file
+	create   /rename ← /file
+
+	rename   /rename
+	create   /file ← /rename
+
+	rename   /dir
+	create   /rename ← /dir
+
+	rename   /rename
+	create   /dir ← /rename
+
+	rename   /link
+	create   /rename ← /link
+
+	rename   /rename
+	create   /link ← /rename

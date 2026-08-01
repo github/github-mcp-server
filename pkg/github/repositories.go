@@ -122,9 +122,9 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := utils.NewToolResultText(string(r))
-			// Commit content is reachable from the repo's history; in public
-			// repos anyone can land it via a PR (untrusted), in private repos
-			// only collaborators can (trusted). Confidentiality follows repo
+			// Commit 内容 is reachable 来自repo's history; in 公开
+			// repos anyone can l和it via 一个PR (不受信任), in 私有 repos
+			// 仅collaborators can (受信任). Confidentiality follows repo
 			// visibility.
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelCommitContents)
 			return result, nil, nil
@@ -132,8 +132,8 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// ListCommits creates a tool to get the list of commits of a branch in a GitHub
-// repository.
+// ListCommits 创建一个工具以 获取 列出 of commits of 一个分支 in 一个GitHub
+// 仓库.
 func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -224,7 +224,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			// Set default perPage to 30 if not provided
+			// Set 默认perPage to 30 if 不provided
 			perPage := pagination.PerPage
 			if perPage == 0 {
 				perPage = 30
@@ -300,16 +300,16 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			recordFieldsUsageFor(ctx, deps, "list_commits", minimalCommits, filtered, len(r))
 
 			result := utils.NewToolResultText(string(r))
-			// Commit content is reachable from the repo's history; integrity
-			// follows the same public-untrusted / private-trusted rule as file
-			// contents. Confidentiality follows repo visibility.
+			// Commit 内容 is reachable 来自repo's history; integrity
+			// follows 相同 公开-不受信任 / 私有-受信任 rule as 文件
+			// 内容s. Confidentiality follows repo visibility.
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelCommitContents)
 			return result, nil, nil
 		},
 	)
 }
 
-// ListBranches creates a tool to list branches in a GitHub repository.
+// ListBranches 创建一个工具以 列出 分支 in 一个GitHub 仓库.
 func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
@@ -380,7 +380,7 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list branches", resp, body), nil, nil
 			}
 
-			// Convert to minimal branches
+			// Convert to minimal 分支
 			minimalBranches := make([]MinimalBranch, 0, len(branches))
 			for _, branch := range branches {
 				minimalBranches = append(minimalBranches, convertToMinimalBranch(branch))
@@ -392,8 +392,8 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := utils.NewToolResultText(string(r))
-			// Branches are structural repo metadata that only collaborators
-			// with push access can create, so integrity is trusted.
+			// Branches are structural repo 元数据 that 仅collaborators
+			// with push access can 创建, so integrity is 受信任.
 			// Confidentiality follows repo visibility.
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
 			return result, nil, nil
@@ -401,7 +401,7 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// CreateOrUpdateFile creates a tool to create or update a file in a GitHub repository.
+// CreateOrUpdateFile 创建一个工具以 创建 或更新 一个文件 in 一个GitHub 仓库.
 func CreateOrUpdateFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
@@ -481,17 +481,17 @@ SHA MUST be provided for existing file updates.
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// json.Marshal encodes byte arrays with base64, which is required for the API.
+			// json.Marshal encodes byte arrays with base64, which is 必需 用于API.
 			contentBytes := []byte(content)
 
-			// Create the file options
+			// Create 文件 options
 			opts := &github.RepositoryContentFileOptions{
 				Message: github.Ptr(message),
 				Content: contentBytes,
 				Branch:  github.Ptr(branch),
 			}
 
-			// If SHA is provided, set it (for updates)
+			// If SH一个is provided, set it (f或更新s)
 			sha, err := OptionalParam[string](args, "sha")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -500,7 +500,7 @@ SHA MUST be provided for existing file updates.
 				opts.SHA = github.Ptr(sha)
 			}
 
-			// Create or update the file
+			// Create 或更新 文件
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
@@ -508,19 +508,19 @@ SHA MUST be provided for existing file updates.
 
 			path = strings.TrimPrefix(path, "/")
 
-			// SHA validation using Contents API to fetch current file metadata (blob SHA)
+			// SH一个validation using Contents API to fetch current 文件 元数据 (blob SHA)
 			getOpts := &github.RepositoryContentGetOptions{Ref: branch}
 
 			if sha != "" {
-				// User provided SHA - validate it's still current
+				// User provided SH一个- 验证 it's still current
 				existingFile, dirContent, respCheck, getErr := client.Repositories.GetContents(ctx, owner, repo, path, getOpts)
 				if respCheck != nil {
 					_ = respCheck.Body.Close()
 				}
 				switch {
 				case getErr != nil:
-					// 404 means file doesn't exist - proceed (new file creation)
-					// Any other error (403, 500, network) should be surfaced
+					// 404 means 文件 doesn't exist - proceed (新的 文件 creation)
+					// Any other 错误 (403, 500, network) 应当是 surfaced
 					if respCheck == nil || respCheck.StatusCode != http.StatusNotFound {
 						return ghErrors.NewGitHubAPIErrorResponse(ctx,
 							"failed to verify file SHA",
@@ -542,15 +542,15 @@ SHA MUST be provided for existing file updates.
 					}
 				}
 			} else {
-				// No SHA provided - check if file already exists
+				// No SH一个provided - 检查 if 文件 al读取y exists
 				existingFile, dirContent, respCheck, getErr := client.Repositories.GetContents(ctx, owner, repo, path, getOpts)
 				if respCheck != nil {
 					_ = respCheck.Body.Close()
 				}
 				switch {
 				case getErr != nil:
-					// 404 means file doesn't exist - proceed with creation
-					// Any other error (403, 500, network) should be surfaced
+					// 404 means 文件 doesn't exist - proceed with creation
+					// Any other 错误 (403, 500, network) 应当是 surfaced
 					if respCheck == nil || respCheck.StatusCode != http.StatusNotFound {
 						return ghErrors.NewGitHubAPIErrorResponse(ctx,
 							"failed to check if file exists",
@@ -563,13 +563,13 @@ SHA MUST be provided for existing file updates.
 						"Path %s is a directory, not a file. This tool only works with files.",
 						path)), nil, nil
 				case existingFile != nil:
-					// File exists but no SHA was provided - reject to prevent blind overwrites
+					// File exists 但no SH一个was provided - reject to prevent blind over写入s
 					return utils.NewToolResultError(fmt.Sprintf(
 						"File already exists at %s. You must provide the current file's SHA when updating. "+
 							"Use git rev-parse %s:%s to get the blob SHA, then retry with the sha parameter.",
 						path, branch, path)), nil, nil
 				}
-				// If file not found, no previous SHA needed (new file creation)
+				// If 文件 不found, no 上一个 SH一个needed (新的 文件 creation)
 			}
 
 			fileContent, resp, err := client.Repositories.CreateFile(ctx, owner, repo, path, opts)
@@ -597,7 +597,7 @@ SHA MUST be provided for existing file updates.
 	)
 }
 
-// CreateRepository creates a tool to create a new GitHub repository.
+// CreateRepository 创建一个工具以 创建 一个新的 GitHub 仓库.
 func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
@@ -688,7 +688,7 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create repository", resp, body), nil, nil
 			}
 
-			// Return minimal response with just essential information
+			// Return minimal 响应 with just essential 信息
 			minimalResponse := MinimalResponse{
 				ID:  fmt.Sprintf("%d", createdRepo.GetID()),
 				URL: createdRepo.GetHTMLURL(),
@@ -704,9 +704,9 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 	)
 }
 
-// FetchRepoIsPrivate returns whether a repository is private. It is a thin
-// wrapper around the GitHub Repositories.Get endpoint provided as a shared
-// helper for IFC label computation across tools.
+// FetchRepoIsPrivate 返回是否 一个仓库 is 私有. It is 一个thin
+// wrapper around GitHub Repositories.Get endpoint provided as 一个shared
+// helper f或IFC label computation across 工具.
 func FetchRepoIsPrivate(ctx context.Context, client *github.Client, owner, repo string) (bool, error) {
 	r, resp, err := client.Repositories.Get(ctx, owner, repo)
 	if resp != nil {
@@ -718,8 +718,8 @@ func FetchRepoIsPrivate(ctx context.Context, client *github.Client, owner, repo 
 	return r.GetPrivate(), nil
 }
 
-// GetFileContents creates a tool to get the contents of a file or directory from
-// a GitHub repository.
+// GetFileContents 创建一个工具以 获取 内容s of 一个文件 或directory from
+// 一个GitHub 仓库.
 func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -802,13 +802,13 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return utils.NewToolResultError("failed to get GitHub client"), nil, nil
 			}
 
-			// attachIFC adds the IFC label to a successful tool result when
-			// IFC labels are enabled. The visibility lookup is performed
-			// lazily on first use and cached because GetFileContents has
-			// many possible return paths and would otherwise re-fetch on
-			// each. If the visibility lookup fails we skip the label rather
-			// than misclassify the result; the failure is not cached so a
-			// later return path can retry.
+			// attachIFC adds IFC label to 一个成功ful 工具 结果 when
+			// IFC labels are 启用. visibility lookup is performed
+			// lazily on 第一个 use 和cached 因为GetFileContents has
+			// many possible 返回 路径s 和would otherwise re-fetch on
+			// each. 如果visibility lookup fails we skip label rather
+			// than misclassify 结果; failure is 不cached so a
+			// later 返回 路径 can retry.
 			attachIFC := newRepoVisibilityIFCLabeler(ctx, deps, client, owner, repo, ifc.LabelGetFileContents)
 
 			rawOpts, fallbackUsed, err := resolveGitReference(ctx, client, owner, repo, ref, sha)
@@ -823,14 +823,14 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			var fileSHA string
 			opts := &github.RepositoryContentGetOptions{Ref: ref}
 
-			// Always call GitHub Contents API first to get metadata including SHA and determine if it's a file or directory
+			// Always c所有GitHub Contents API 第一个 to 获取 元数据 including SH一个和determine if it's 一个文件 或directory
 			fileContent, dirContent, respContents, err := client.Repositories.GetContents(ctx, owner, repo, path, opts)
 			if respContents != nil {
 				defer func() { _ = respContents.Body.Close() }()
 			}
 
-			// The path does not point to a file or directory.
-			// Instead let's try to find it in the Git Tree by matching the end of the path.
+			// 路径 does 不point to 一个文件 或directory.
+			// Instead let's try to find it 在Git Tree by matching end 的路径.
 			if err != nil || (fileContent == nil && dirContent == nil) {
 				res, data, err := matchFiles(ctx, client, owner, repo, ref, path, rawOpts, 0)
 				return attachIFC(res), data, err
@@ -839,23 +839,23 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			if fileContent != nil && fileContent.SHA != nil {
 				fileSHA = *fileContent.SHA
 				fileSize := fileContent.GetSize()
-				// Build resource URI for the file using URI templates
+				// Build 资源 URI 用于文件 using URI templates
 				pathParts := strings.Split(path, "/")
 				resourceURI, err := expandRepoResourceURI(owner, repo, sha, ref, pathParts)
 				if err != nil {
 					return utils.NewToolResultError("failed to build resource URI"), nil, nil
 				}
 
-				// main branch ref passed in ref parameter but it doesn't exist - default branch was used
+				// main 分支 ref passed in ref 参数 但it doesn't exist - 默认分支 was used
 				var successNote string
 				if fallbackUsed {
 					successNote = fmt.Sprintf(" Note: the provided ref '%s' does not exist, default branch '%s' was used instead.", originalRef, rawOpts.Ref)
 				}
 
-				// Empty files (0 bytes) have no content to decode; return
-				// them directly as empty text to avoid errors from
-				// GetContent when the API returns null content with a
-				// base64 encoding field, and to avoid DetectContentType
+				// Empty 文件s (0 bytes) have no 内容 to decode; 返回
+				// them directly as 空 text to avoid 错误s from
+				// GetContent 当API 返回 null 内容 with a
+				// base64 encoding field, 和to avoid DetectContentType
 				// misclassifying them as binary.
 				if fileSize == 0 {
 					result := &mcp.ResourceContents{
@@ -866,7 +866,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded empty file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
 				}
 
-				// For files >= 1MB, return a ResourceLink instead of content
+				// F或文件s >= 1MB, 返回 一个ResourceLink instead of 内容
 				const maxContentSize = 1024 * 1024 // 1MB
 				if fileSize >= maxContentSize {
 					size := int64(fileSize)
@@ -882,19 +882,19 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						resourceLink)), nil, nil
 				}
 
-				// For files < 1MB, get content directly from Contents API
+				// F或文件s < 1MB, 获取 内容 directly from Contents API
 				content, err := fileContent.GetContent()
 				if err != nil {
 					return utils.NewToolResultError(fmt.Sprintf("failed to decode file content: %s", err)), nil, nil
 				}
 
-				// Detect content type from the actual content bytes,
-				// mirroring the original approach of using the Content-Type header
-				// from the raw API response.
+				// Detect 内容 type 来自actual 内容 bytes,
+				// mirroring original approach of using Content-Type header
+				// 来自raw API 响应.
 				contentBytes := []byte(content)
 				contentType := http.DetectContentType(contentBytes)
 
-				// Determine if content is text or binary based on detected content type
+				// Determine if 内容 is text 或binary based on detected 内容 type
 				isTextContent := strings.HasPrefix(contentType, "text/") ||
 					contentType == "application/json" ||
 					contentType == "application/xml" ||
@@ -910,7 +910,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
 				}
 
-				// Binary content - encode as base64 blob
+				// Binary 内容 - encode as base64 blob
 				blobContent := base64.StdEncoding.EncodeToString(contentBytes)
 				result := &mcp.ResourceContents{
 					URI:      resourceURI,
@@ -919,7 +919,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				}
 				return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
 			} else if dirContent != nil {
-				// file content or file SHA is nil which means it's a directory
+				// 文件 内容 或文件 SH一个is nil which means it's 一个directory
 				filtered := false
 				var payload any = dirContent
 				if len(fields) > 0 {
@@ -943,13 +943,13 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 	)
 }
 
-// recordDirContentsFieldsUsage emits fields telemetry for a get_file_contents
-// directory listing. sentBytes is the size of the payload actually returned.
+// recordDirContentsFieldsUsage emits fields telemetry f或一个获取_文件_内容s
+// directory 列出ing. sentBytes is size 的payload actually 返回ed.
 func recordDirContentsFieldsUsage(ctx context.Context, deps ToolDependencies, full []*github.RepositoryContent, filtered bool, sentBytes int) {
 	recordFieldsUsageFor(ctx, deps, "get_file_contents", full, filtered, sentBytes)
 }
 
-// ForkRepository creates a tool to fork a repository.
+// ForkRepository 创建一个工具以 fork 一个仓库.
 func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
@@ -1006,8 +1006,8 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 			forkedRepo, resp, err := client.Repositories.CreateFork(ctx, owner, repo, opts)
 			if err != nil {
-				// Check if it's an acceptedError. An acceptedError indicates that the update is in progress,
-				// and it's not a real error.
+				// Check if it's 一个acceptedError. 一个acceptedErr或indicates that 更新 is in progress,
+				// 和it's 不a real 错误.
 				if resp != nil && resp.StatusCode == http.StatusAccepted && isAcceptedError(err) {
 					return utils.NewToolResultText("Fork is in progress"), nil, nil
 				}
@@ -1027,7 +1027,7 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to fork repository", resp, body), nil, nil
 			}
 
-			// Return minimal response with just essential information
+			// Return minimal 响应 with just essential 信息
 			minimalResponse := MinimalResponse{
 				ID:  fmt.Sprintf("%d", forkedRepo.GetID()),
 				URL: forkedRepo.GetHTMLURL(),
@@ -1043,12 +1043,12 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// DeleteFile creates a tool to delete a file in a GitHub repository.
-// This tool uses a more roundabout way of deleting a file than just using the client.Repositories.DeleteFile.
-// This is because REST file deletion endpoint (and client.Repositories.DeleteFile) don't add commit signing to the deletion commit,
-// unlike how the endpoint backing the create_or_update_files tool does. This appears to be a quirk of the API.
-// The approach implemented here gets automatic commit signing when used with either the github-actions user or as an app,
-// both of which suit an LLM well.
+// DeleteFile 创建一个工具以 删除 一个文件 in 一个GitHub 仓库.
+// 此工具 uses 一个more roundabout way of deleting 一个文件 than just using 客户端.Repositories.DeleteFile.
+// 此is 因为REST 文件 deletion endpoint (和客户端.Repositories.DeleteFile) don't add commit signing 到deletion commit,
+// unlike how endpoint backing 创建_or_更新_文件s 工具 does. 此appears to be 一个quirk 的API.
+// approach implemented here 获取s automatic commit signing when used with either github-actions user 或as 一个app,
+// both of which suit 一个LLM well.
 func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
@@ -1115,14 +1115,14 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			// Get the reference for the branch
+			// Get reference 用于分支
 			ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/heads/"+branch)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to get branch reference: %w", err)
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			// Get the commit object that the branch points to
+			// Get commit object that 分支 points to
 			baseCommit, resp, err := client.Git.GetCommit(ctx, owner, repo, *ref.Object.SHA)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -1141,17 +1141,17 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get commit", resp, body), nil, nil
 			}
 
-			// Create a tree entry for the file deletion by setting SHA to nil
+			// Create 一个tree entry 用于文件 deletion by setting SH一个to nil
 			treeEntries := []*github.TreeEntry{
 				{
 					Path: github.Ptr(path),
-					Mode: github.Ptr("100644"), // Regular file mode
+					Mode: github.Ptr("100644"), // Regular 文件 mode
 					Type: github.Ptr("blob"),
-					SHA:  nil, // Setting SHA to nil deletes the file
+					SHA:  nil, // Setting SH一个to nil 删除s 文件
 				},
 			}
 
-			// Create a new tree with the deletion
+			// Create 一个新的 tree 使用deletion
 			newTree, resp, err := client.Git.CreateTree(ctx, owner, repo, *baseCommit.Tree.SHA, treeEntries)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -1170,7 +1170,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create tree", resp, body), nil, nil
 			}
 
-			// Create a new commit with the new tree
+			// Create 一个新的 commit 使用新的 tree
 			commit := github.Commit{
 				Message: github.Ptr(message),
 				Tree:    newTree,
@@ -1194,7 +1194,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create commit", resp, body), nil, nil
 			}
 
-			// Update the branch reference to point to the new commit
+			// Update 分支 reference to point 到新的 commit
 			ref.Object.SHA = newCommit.SHA
 			_, resp, err = client.Git.UpdateRef(ctx, owner, repo, *ref.Ref, github.UpdateRef{
 				SHA:   *newCommit.SHA,
@@ -1217,7 +1217,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update reference", resp, body), nil, nil
 			}
 
-			// Create a response similar to what the DeleteFile API would return
+			// Create 一个响应 similar to what DeleteFile API would 返回
 			response := map[string]any{
 				"commit":  newCommit,
 				"content": nil,
@@ -1233,7 +1233,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// CreateBranch creates a tool to create a new branch.
+// CreateBranch 创建一个工具以 创建 一个新的 分支.
 func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
@@ -1291,11 +1291,11 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			// Get the source branch SHA
+			// Get source 分支 SHA
 			var ref *github.Reference
 
 			if fromBranch == "" {
-				// Get default branch if from_branch not specified
+				// Get 默认分支 if from_分支 不specified
 				repository, resp, err := client.Repositories.Get(ctx, owner, repo)
 				if err != nil {
 					return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -1309,7 +1309,7 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 				fromBranch = *repository.DefaultBranch
 			}
 
-			// Get SHA of source branch
+			// Get SH一个of source 分支
 			ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/heads/"+fromBranch)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -1320,7 +1320,7 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			// Create new branch
+			// Create 新的 分支
 			newRef := github.CreateRef{
 				Ref: "refs/heads/" + branch,
 				SHA: *ref.Object.SHA,
@@ -1346,7 +1346,7 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// PushFiles creates a tool to push multiple files in a single commit to a GitHub repository.
+// PushFiles 创建一个工具以 push 多个 文件s in 一个单个 commit to 一个GitHub 仓库.
 func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
@@ -1418,7 +1418,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Parse files parameter - this should be an array of objects with path and content
+			// Parse 文件s 参数 - this 应当是 一个array of objects with 路径 和内容
 			filesObj, ok := args["files"].([]any)
 			if !ok {
 				return utils.NewToolResultError("files parameter must be an array of objects with path and content"), nil, nil
@@ -1429,7 +1429,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			// Get the reference for the branch
+			// Get reference 用于分支
 			var repositoryIsEmpty bool
 			var branchNotFound bool
 			ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/heads/"+branch)
@@ -1451,7 +1451,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					), nil, nil
 				}
 			}
-			// Only close resp if it's not nil and not an error case where resp might be nil
+			// 仅close resp if it's 不nil 和不一个错误 case where resp might be nil
 			if resp != nil && resp.Body != nil {
 				defer func() { _ = resp.Body.Close() }()
 			}
@@ -1465,7 +1465,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					}
 				}
 
-				// Get the commit object that the branch points to
+				// Get commit object that 分支 points to
 				baseCommit, resp, err = client.Git.GetCommit(ctx, owner, repo, *ref.Object.SHA)
 				if err != nil {
 					return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -1479,7 +1479,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				}
 			} else {
 				var base *github.Commit
-				// Repository is empty, need to initialize it first
+				// Repository is 空, need to initialize it 第一个
 				ref, base, err = initializeRepository(ctx, client, owner, repo)
 				if err != nil {
 					return utils.NewToolResultError(fmt.Sprintf("failed to initialize repository: %v", err)), nil, nil
@@ -1487,7 +1487,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 				defaultBranch := strings.TrimPrefix(*ref.Ref, "refs/heads/")
 				if branch != defaultBranch {
-					// Create the requested branch from the default branch
+					// Create 请求ed 分支 来自默认分支
 					ref, err = createReferenceFromDefaultBranch(ctx, client, owner, repo, branch)
 					if err != nil {
 						return utils.NewToolResultError(fmt.Sprintf("failed to create branch from default: %v", err)), nil, nil
@@ -1497,7 +1497,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				baseCommit = base
 			}
 
-			// Create tree entries for all files (or remaining files if empty repo)
+			// Create tree entries f或所有文件s (或remaining 文件s if 空 repo)
 			var entries []*github.TreeEntry
 
 			for _, file := range filesObj {
@@ -1516,16 +1516,16 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					return utils.NewToolResultError("each file must have content"), nil, nil
 				}
 
-				// Create a tree entry for the file
+				// Create 一个tree entry 用于文件
 				entries = append(entries, &github.TreeEntry{
 					Path:    github.Ptr(path),
-					Mode:    github.Ptr("100644"), // Regular file mode
+					Mode:    github.Ptr("100644"), // Regular 文件 mode
 					Type:    github.Ptr("blob"),
 					Content: github.Ptr(content),
 				})
 			}
 
-			// Create a new tree with the file entries (baseCommit is now guaranteed to exist)
+			// Create 一个新的 tree 使用文件 entries (baseCommit 现在是 guaranteed to exist)
 			newTree, resp, err := client.Git.CreateTree(ctx, owner, repo, *baseCommit.Tree.SHA, entries)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -1538,7 +1538,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				defer func() { _ = resp.Body.Close() }()
 			}
 
-			// Create a new commit (baseCommit always has a value now)
+			// Create 一个新的 commit (baseCommit 始终has 一个值 now)
 			commit := github.Commit{
 				Message: github.Ptr(message),
 				Tree:    newTree,
@@ -1556,7 +1556,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				defer func() { _ = resp.Body.Close() }()
 			}
 
-			// Update the reference to point to the new commit
+			// Update reference to point 到新的 commit
 			ref.Object.SHA = newCommit.SHA
 			updatedRef, resp, err := client.Git.UpdateRef(ctx, owner, repo, *ref.Ref, github.UpdateRef{
 				SHA:   *newCommit.SHA,
@@ -1581,7 +1581,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// ListTags creates a tool to list tags in a GitHub repository.
+// ListTags 创建一个工具以 列出 tags in 一个GitHub 仓库.
 func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
@@ -1663,8 +1663,8 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := utils.NewToolResultText(string(r))
-			// Tags are structural repo metadata created by collaborators with
-			// push access, so integrity is trusted. Confidentiality follows
+			// Tags are structural repo 元数据 创建d by collaborators with
+			// push access, so integrity is 受信任. Confidentiality follows
 			// repo visibility.
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
 			return result, nil, nil
@@ -1672,7 +1672,7 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// GetTag creates a tool to get details about a specific tag in a GitHub repository.
+// GetTag 创建一个工具以 获取 details about 一个specific tag in 一个GitHub 仓库.
 func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
@@ -1722,7 +1722,7 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			// First get the tag reference
+			// First 获取 tag reference
 			ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/tags/"+tag)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -1741,7 +1741,7 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get tag reference", resp, body), nil, nil
 			}
 
-			// Differentiate between lightweight and annotated tags since lightweight ones don't have a fetchable object
+			// Differentiate between lightweight 和annotated tags since lightweight ones don't have 一个fetchable object
 			if ref.Object.GetType() == "commit" {
 				r, err := json.Marshal(ref)
 				if err != nil {
@@ -1776,8 +1776,8 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := utils.NewToolResultText(string(r))
-			// An annotated tag object is structural repo metadata created by a
-			// collaborator with push access. Confidentiality follows repo
+			// 一个annotated tag object is structural repo 元数据 创建d by a
+			// collaborat或with push access. Confidentiality follows repo
 			// visibility.
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
 			return result, nil, nil
@@ -1785,7 +1785,7 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// ListReleases creates a tool to list releases in a GitHub repository.
+// ListReleases 创建一个工具以 列出 releases in 一个GitHub 仓库.
 func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -1888,10 +1888,10 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			result := utils.NewToolResultText(string(r))
 			// Releases are published by collaborators with push access, so
-			// integrity is trusted. Confidentiality follows repo visibility,
-			// but draft releases are visible only to push-access users and are
-			// not world-readable even on a public repo, so the result is only
-			// public when no returned release is a draft.
+			// integrity is 受信任. Confidentiality follows repo visibility,
+			// 但draft releases are visible 仅to push-access users 和are
+			// 不world-读取able even on 一个公开 repo, so 结果 is only
+			// 公开 when no 返回ed release is 一个draft.
 			hasDraft := false
 			for _, mr := range minimalReleases {
 				if mr.Draft {
@@ -1908,7 +1908,7 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// GetLatestRelease creates a tool to get the latest release in a GitHub repository.
+// GetLatestRelease 创建一个工具以 获取 latest release in 一个GitHub 仓库.
 func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
@@ -1971,9 +1971,9 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 
 			result := utils.NewToolResultText(string(r))
 			// Releases are published by collaborators with push access, so
-			// integrity is trusted. The "latest release" endpoint never returns
-			// a draft, but the draft flag is honored defensively: a draft is
-			// not world-readable even on a public repo.
+			// integrity is 受信任. "latest release" endpoint 绝不返回
+			// 一个draft, 但draft flag is honored defensively: 一个draft is
+			// 不world-读取able even on 一个公开 repo.
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result,
 				func(isPrivate bool) ifc.SecurityLabel {
 					return ifc.LabelRelease(isPrivate, release.GetDraft())
@@ -2057,9 +2057,9 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			result := utils.NewToolResultText(string(r))
 			// Releases are published by collaborators with push access, so
-			// integrity is trusted. A release fetched by tag may be a draft,
-			// which is visible only to push-access users and not world-readable
-			// even on a public repo, so a draft forces private confidentiality.
+			// integrity is 受信任. 一个release fetched by tag may be 一个draft,
+			// which is visible 仅to push-access users 和不world-读取able
+			// even on 一个公开 repo, so 一个draft forces 私有 confidentiality.
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result,
 				func(isPrivate bool) ifc.SecurityLabel {
 					return ifc.LabelRelease(isPrivate, release.GetDraft())
@@ -2069,7 +2069,7 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 	)
 }
 
-// ListStarredRepositories creates a tool to list starred repositories for the authenticated user or a specified user.
+// ListStarredRepositories 创建一个工具以 列出 starred 仓库 用于authenticated user 或一个specified user.
 func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataStargazers,
@@ -2140,10 +2140,10 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.Ser
 			var repos []*github.StarredRepository
 			var resp *github.Response
 			if username == "" {
-				// List starred repositories for the authenticated user
+				// List starred 仓库 用于authenticated user
 				repos, resp, err = client.Activity.ListStarred(ctx, "", opts)
 			} else {
-				// List starred repositories for a specific user
+				// List starred 仓库 f或一个specific user
 				repos, resp, err = client.Activity.ListStarred(ctx, username, opts)
 			}
 
@@ -2197,12 +2197,12 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.Ser
 			}
 
 			result := utils.NewToolResultText(string(r))
-			// A starred-repository listing exposes repository data across many
-			// repos; reuse the multi-repo join shared with search_repositories
-			// (public-only results stay public-untrusted, mixed-visibility
-			// results become private-untrusted, all-private results become
-			// private-trusted). Visibility is read directly from the response,
-			// so no extra API call is needed.
+			// 一个starred-仓库 列出ing exposes 仓库 数据 across many
+			// repos; reuse multi-repo join shared with search_仓库
+			// (公开-仅结果 stay 公开-不受信任, mixed-visibility
+			// 结果 become 私有-不受信任, all-私有 结果 become
+			// 私有-受信任). Visibility is 读取 directly 来自响应,
+			// so no extra API c所有is needed.
 			visibilities := make([]bool, 0, len(minimalRepos))
 			for _, mr := range minimalRepos {
 				visibilities = append(visibilities, mr.Private)
@@ -2213,7 +2213,7 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.Ser
 	)
 }
 
-// StarRepository creates a tool to star a repository.
+// StarRepository 创建一个工具以 star 一个仓库.
 func StarRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataStargazers,
@@ -2279,7 +2279,7 @@ func StarRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// UnstarRepository creates a tool to unstar a repository.
+// UnstarRepository 创建一个工具以 unstar 一个仓库.
 func UnstarRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataStargazers,
@@ -2344,7 +2344,7 @@ func UnstarRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 	)
 }
 
-// maxBlameRanges caps the number of matching blame ranges considered for one response.
+// maxBlameRanges caps number of matching blame 范围s considered f或one 响应.
 const maxBlameRanges = 1000
 
 const blameCursorPrefix = "blame-range:"
@@ -2376,7 +2376,7 @@ func decodeBlameCursor(cursor string) (int, error) {
 	return offset, nil
 }
 
-// BlameAuthor describes the author of a commit referenced by a BlameRange.
+// BlameAuth或describes auth或of 一个commit referenced by 一个BlameRange.
 type BlameAuthor struct {
 	Name  string  `json:"name"`
 	Email string  `json:"email"`
@@ -2384,7 +2384,7 @@ type BlameAuthor struct {
 	URL   *string `json:"url,omitempty"`
 }
 
-// BlameCommit holds commit metadata shared by one or more blame ranges.
+// BlameCommit holds commit 元数据 shared by one 或more blame 范围s.
 type BlameCommit struct {
 	SHA             string      `json:"sha"`
 	MessageHeadline string      `json:"message_headline"`
@@ -2392,11 +2392,11 @@ type BlameCommit struct {
 	Author          BlameAuthor `json:"author"`
 }
 
-// BlameRange is a contiguous run of lines attributed to a single commit.
+// BlameRange is 一个contiguous run of 行s attributed to 一个单个 commit.
 //
-// Age is the relative position of this range's commit among distinct commits
-// touching the file (0 = newest), not an absolute time delta. See:
-// https://docs.github.com/en/graphql/reference/objects#blamerange
+// Age is relative position of this 范围's commit among distinct commits
+// touching 文件 (0 = 新的est), 不一个absolute time delta. See:
+// https://docs.github.com/en/graphql/reference/objects#blame范围
 type BlameRange struct {
 	StartingLine int    `json:"starting_line"`
 	EndingLine   int    `json:"ending_line"`
@@ -2404,10 +2404,10 @@ type BlameRange struct {
 	CommitSHA    string `json:"commit_sha"`
 }
 
-// BlameResult is the response payload returned by the get_file_blame tool.
+// BlameResult is 响应 payload 返回ed 由获取_文件_blame 工具.
 //
-// Commits is keyed by SHA. TotalRanges counts matching ranges before cursor
-// pagination or truncation. Truncated reports whether maxBlameRanges was hit.
+// Commits is keyed by SHA. TotalRanges counts matching 范围s before cursor
+// pagination 或truncation. Truncated reports whether maxBlameRanges was hit.
 type BlameResult struct {
 	Repository  string                 `json:"repository"`
 	Path        string                 `json:"path"`
@@ -2419,7 +2419,7 @@ type BlameResult struct {
 	Truncated   bool                   `json:"truncated,omitempty"`
 }
 
-// blameCommitFragment is the GraphQL selection for a Commit's blame data.
+// blameCommitFragment is GraphQL selection f或一个Commit's blame 数据.
 type blameCommitFragment struct {
 	Blame struct {
 		Ranges []struct {
@@ -2443,8 +2443,8 @@ type blameCommitFragment struct {
 	} `graphql:"blame(path: $path)"`
 }
 
-// validateBlamePath rejects empty, leading-slash, traversal-laden, or
-// control-character paths before any network call is made.
+// 验证BlamePath rejects 空, leading-slash, traversal-laden, or
+// control-character 路径s before any network c所有is made.
 func validateBlamePath(p string) error {
 	if strings.TrimSpace(p) == "" {
 		return fmt.Errorf("path must not be empty")
@@ -2579,8 +2579,8 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to get GitHub GraphQL client: %w", err)
 			}
 
-			// Default to HEAD and fetch defaultBranchRef.name in the same query
-			// so the response can echo a readable ref.
+			// 默认to HEAD 和fetch defaultBranchRef.name 在相同 query
+			// so 响应 can echo 一个读取able ref.
 			refExpression := ref
 			if refExpression == "" {
 				refExpression = "HEAD"
@@ -2594,8 +2594,8 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 					Object struct {
 						Typename githubv4.String     `graphql:"__typename"`
 						Commit   blameCommitFragment `graphql:"... on Commit"`
-						// Annotated tag targets are followed one level. Tag-of-tag
-						// chains are not followed and will return an error.
+						// Annotated tag tar获取s are followed one level. Tag-of-tag
+						// chains are 不followed 和will 返回 一个错误.
 						Tag struct {
 							Target struct {
 								Typename githubv4.String     `graphql:"__typename"`
@@ -2620,9 +2620,9 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 				), nil, nil
 			}
 
-			// GitHub's Commit.blame field accepts only path, and Blame.ranges is
-			// not a connection, so cursor pagination is applied locally below.
-			// The ref must resolve to a commit, either directly or via an annotated tag.
+			// GitHub's Commit.blame field accepts 仅路径, 和Blame.范围s is
+			// 不a connection, so curs或pagination is applied lo调用y below.
+			// ref must resolve to 一个commit, either directly 或via 一个annotated tag.
 			objectTypename := string(blameQuery.Repository.Object.Typename)
 			if objectTypename == "" {
 				return utils.NewToolResultError(
@@ -2649,7 +2649,7 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 				), nil, nil
 			}
 
-			// Echo the caller's ref, otherwise prefer the default branch name.
+			// Echo 调用er's ref, otherwise prefer 默认分支 name.
 			responseRef := ref
 			if responseRef == "" {
 				if name := string(blameQuery.Repository.DefaultBranchRef.Name); name != "" {
@@ -2763,7 +2763,7 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return st
 }
 
-// ListRepositoryCollaborators creates a tool to list collaborators of a GitHub repository.
+// ListRepositoryCollaborators 创建一个工具以 列出 collaborators of 一个GitHub 仓库.
 func ListRepositoryCollaborators(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
@@ -2867,10 +2867,10 @@ func ListRepositoryCollaborators(t translations.TranslationHelperFunc) inventory
 			}
 
 			callResult := MarshalledTextResult(response)
-			// The collaborator roster is GitHub-maintained membership data
-			// (trusted, not attacker-authored). Listing collaborators requires
-			// push access, so the roster is never world-readable — not even on
-			// a public repo — hence always private confidentiality.
+			// collaborat或roster is GitHub-maintained membership 数据
+			// (受信任, 不attacker-authored). Listing collaborators requires
+			// push access, so roster is 绝不world-读取able — 不even on
+			// 一个公开 repo — hence 始终私有 confidentiality.
 			callResult = attachStaticIFCLabel(ctx, deps, callResult, ifc.LabelCollaboratorRoster())
 			return callResult, nil, nil
 		},

@@ -1,0 +1,98 @@
+site_name: MCP Go SDK
+site_url: https://go.sdk.modelcontextprotocol.io/
+site_description: Golang SDK for the Model Context Protocol - standardized integration between AI models and tools
+
+repo_url: https://github.com/modelcontextprotocol/go-sdk
+repo_name: modelcontextprotocol/go-sdk
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  favicon: images/logo-dark.svg
+  logo: images/logo-light.svg
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: cyan
+      accent: teal
+      toggle:
+        icon: material/lightbulb
+        name: "Switch to light mode"
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: cyan
+      accent: teal
+      toggle:
+        icon: material/lightbulb-outline
+        name: "Switch to dark mode"
+    
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.path
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+
+
+nav:
+  - Documentation:
+    - Overview: README.md
+    - Quick Start: quick_start.md
+    - LifeCycle: protocol.md
+    - MCP Components:
+      - MCP Client: client.md
+      - MCP Server: server.md
+    - Troubleshooting: troubleshooting.md
+    - Backwards Compatibility: mcpgodebug.md
+    - Rough Edges: rough_edges.md
+  - Contributing:
+    - Contributing Guide: contributing.md
+  - API Reference: https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk
+
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: . 
+  - pymdownx.mark
+  - pymdownx.critic
+  - pymdownx.caret
+  - pymdownx.keys
+  - pymdownx.tilde
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/modelcontextprotocol/go-sdk
+  generator: false
+
+plugins:
+  - search

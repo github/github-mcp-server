@@ -14,9 +14,9 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// initializeRepository creates an initial commit in an empty repository and returns the default branch ref and base commit
+// initializeRepository 创建s 一个initial commit in 一个空 仓库 和返回 默认分支 ref 和base commit
 func initializeRepository(ctx context.Context, client *github.Client, owner, repo string) (ref *github.Reference, baseCommit *github.Commit, err error) {
-	// First, we need to check what the default branch in this empty repo should be:
+	// First, we need to 检查 what 默认分支 in this 空 repo 应当是:
 	repository, resp, err := client.Repositories.Get(ctx, owner, repo)
 	if err != nil {
 		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get repository", resp, err)
@@ -34,7 +34,7 @@ func initializeRepository(ctx context.Context, client *github.Client, owner, rep
 		Branch:  github.Ptr(defaultBranch),
 	}
 
-	// Create an initial empty commit to create the default branch
+	// Create 一个initial 空 commit to 创建 默认分支
 	createResp, resp, err := client.Repositories.CreateFile(ctx, owner, repo, "README.md", fileOpts)
 	if err != nil {
 		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to create initial file", resp, err)
@@ -44,7 +44,7 @@ func initializeRepository(ctx context.Context, client *github.Client, owner, rep
 		defer func() { _ = resp.Body.Close() }()
 	}
 
-	// Get the commit that was just created to use as base for remaining files
+	// Get commit that was just 创建d to use as base f或remaining 文件s
 	baseCommit, resp, err = client.Git.GetCommit(ctx, owner, repo, *createResp.Commit.SHA)
 	if err != nil {
 		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get initial commit", resp, err)
@@ -66,7 +66,7 @@ func initializeRepository(ctx context.Context, client *github.Client, owner, rep
 	return ref, baseCommit, nil
 }
 
-// createReferenceFromDefaultBranch creates a new branch reference from the repository's default branch
+// 创建ReferenceFromDefaultBranch 创建s 一个新的 分支 reference 来自仓库's 默认分支
 func createReferenceFromDefaultBranch(ctx context.Context, client *github.Client, owner, repo, branch string) (*github.Reference, error) {
 	defaultRef, err := resolveDefaultBranch(ctx, client, owner, repo)
 	if err != nil {
@@ -74,7 +74,7 @@ func createReferenceFromDefaultBranch(ctx context.Context, client *github.Client
 		return nil, fmt.Errorf("failed to resolve default branch: %w", err)
 	}
 
-	// Create the new branch reference
+	// Create 新的 分支 reference
 	createdRef, resp, err := client.Git.CreateRef(ctx, owner, repo, github.CreateRef{
 		Ref: "refs/heads/" + branch,
 		SHA: *defaultRef.Object.SHA,
@@ -90,8 +90,8 @@ func createReferenceFromDefaultBranch(ctx context.Context, client *github.Client
 	return createdRef, nil
 }
 
-// matchFiles searches for files in the Git tree that match the given path.
-// It's used when GetContents fails or returns unexpected results.
+// matchFiles searches f或文件s 在Git tree that match given 路径.
+// It's 在以下情况使用： GetContents fails 或返回 unexpected 结果.
 func matchFiles(ctx context.Context, client *github.Client, owner, repo, ref, path string, rawOpts *raw.ContentOpts, rawAPIResponseCode int) (*mcp.CallToolResult, any, error) {
 	// Step 1: Get Git Tree recursively
 	tree, response, err := client.Git.GetTree(ctx, owner, repo, ref, true)
@@ -104,7 +104,7 @@ func matchFiles(ctx context.Context, client *github.Client, owner, repo, ref, pa
 	}
 	defer func() { _ = response.Body.Close() }()
 
-	// Step 2: Filter tree for matching paths
+	// Step 2: Filter tree f或matching 路径s
 	const maxMatchingFiles = 3
 	matchingFiles := filterPaths(tree.Entries, path, maxMatchingFiles)
 	if len(matchingFiles) > 0 {
@@ -124,15 +124,15 @@ func matchFiles(ctx context.Context, client *github.Client, owner, repo, ref, pa
 	return utils.NewToolResultError("Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository."), nil, nil
 }
 
-// filterPaths filters the entries in a GitHub tree to find paths that
-// match the given suffix.
-// maxResults limits the number of results returned to first maxResults entries,
-// a maxResults of -1 means no limit.
-// It returns a slice of strings containing the matching paths.
-// Directories are returned with a trailing slash.
+// 筛选Paths 筛选s entries in 一个GitHub tree to find 路径s that
+// match given suffix.
+// maxResults limits number of 结果 返回ed to 第一个 maxResults entries,
+// 一个maxResults of -1 means no limit.
+// It 返回 一个slice of strings containing matching 路径s.
+// Directories are 返回ed with 一个trailing slash.
 func filterPaths(entries []*github.TreeEntry, path string, maxResults int) []string {
-	// Remove trailing slash for matching purposes, but flag whether we
-	// only want directories.
+	// Remove trailing slash f或matching purposes, 但flag whether we
+	// 仅want directories.
 	dirOnly := false
 	if strings.HasSuffix(path, "/") {
 		dirOnly = true
@@ -142,18 +142,18 @@ func filterPaths(entries []*github.TreeEntry, path string, maxResults int) []str
 	matchedPaths := []string{}
 	for _, entry := range entries {
 		if len(matchedPaths) == maxResults {
-			break // Limit the number of results to maxResults
+			break // Limit number of 结果 to maxResults
 		}
 		if dirOnly && entry.GetType() != "tree" {
-			continue // Skip non-directory entries if dirOnly is true
+			continue // Skip non-directory entries if dir仅is 真
 		}
 		entryPath := entry.GetPath()
 		if entryPath == "" {
-			continue // Skip empty paths
+			continue // Skip 空 路径s
 		}
 		if strings.HasSuffix(entryPath, path) {
 			if entry.GetType() == "tree" {
-				entryPath += "/" // Return directories with a trailing slash
+				entryPath += "/" // Return directories with 一个trailing slash
 			}
 			matchedPaths = append(matchedPaths, entryPath)
 		}
@@ -161,8 +161,8 @@ func filterPaths(entries []*github.TreeEntry, path string, maxResults int) []str
 	return matchedPaths
 }
 
-// looksLikeSHA returns true if the string appears to be a Git commit SHA.
-// A SHA is a 40-character hexadecimal string.
+// looksLikeSH一个返回 真 如果string appears to be 一个Git commit SHA.
+// 一个SH一个is 一个40-character hexadecimal string.
 func looksLikeSHA(s string) bool {
 	if len(s) != 40 {
 		return false
@@ -175,49 +175,49 @@ func looksLikeSHA(s string) bool {
 	return true
 }
 
-// resolveGitReference takes a user-provided ref and sha and resolves them into a
-// definitive commit SHA and its corresponding fully-qualified reference.
+// resolveGitReference takes 一个user-provided ref 和sha 和resolves them into a
+// definitive commit SH一个和its corresponding fully-qualified reference.
 //
-// The resolution logic follows a clear priority:
+// resolution logic follows 一个clear priority:
 //
-//  1. If a specific commit `sha` is provided, it takes precedence and is used directly,
-//     and all reference resolution is skipped.
+//  1. If 一个specific commit `sha` is provided, it takes precedence 和is used directly,
+//     和所有reference resolution is skipped.
 //
-//     1a. If `sha` is empty but `ref` looks like a commit SHA (40 hexadecimal characters),
-//     it is returned as-is without any API calls or reference resolution.
+//     1a. If `sha` is 空 但`ref` looks like 一个commit SH一个(40 hexadecimal characters),
+//     it is 返回ed as-is without any API 调用 或reference resolution.
 //
-//  2. If no `sha` is provided and `ref` does not look like a SHA, the function resolves
-//     the `ref` string into a fully-qualified format (e.g., "refs/heads/main") by trying
-//     the following steps in order:
-//     a). **Empty Ref:** If `ref` is empty, the repository's default branch is used.
-//     b). **Fully-Qualified:** If `ref` already starts with "refs/", it's considered fully
-//     qualified and used as-is.
-//     c). **Partially-Qualified:** If `ref` starts with "heads/" or "tags/", it is
+//  2. 如果没有`sha` is provided 和`ref` does 不look like 一个SHA, 函数 resolves
+//     `ref` string into 一个fully-qualified format (e.g., "refs/heads/main") by trying
+//     following steps in order:
+//     a). **Empty Ref:** If `ref` is 空, 仓库's 默认分支 is used.
+//     b). **Fully-Qualified:** If `ref` al读取y starts with "refs/", it's considered fully
+//     qualified 和used as-is.
+//     c). **Partially-Qualified:** If `ref` starts with "heads/" 或"tags/", it is
 //     prefixed with "refs/" to make it fully-qualified.
-//     d). **Short Name:** Otherwise, the `ref` is treated as a short name. The function
-//     first attempts to resolve it as a branch ("refs/heads/<ref>"). If that
-//     returns a 404 Not Found error, it then attempts to resolve it as a tag
+//     d). **Short Name:** Otherwise, `ref` is treated as 一个short name. 函数
+//     第一个 attempts to resolve it as 一个分支 ("refs/heads/<ref>"). If that
+//     返回 一个404 不Found 错误, it 然后attempts to resolve it as 一个tag
 //     ("refs/tags/<ref>").
 //
-//  3. **Final Lookup:** Once a fully-qualified ref is determined, a final API call
+//  3. **Final Lookup:** Once 一个fully-qualified ref is determined, 一个final API 调用
 //     is made to fetch that reference's definitive commit SHA.
 //
-// Any unexpected (non-404) errors during the resolution process are returned
-// immediately. All API errors are logged with rich context to aid diagnostics.
+// Any unexpected (non-404) 错误s during resolution process are 返回ed
+// immediately. 所有API 错误s are logged with rich 上下文 to aid diagnostics.
 func resolveGitReference(ctx context.Context, githubClient *github.Client, owner, repo, ref, sha string) (*raw.ContentOpts, bool, error) {
-	// 1) If SHA explicitly provided, it's the highest priority.
+	// 1) If SH一个explicitly provided, it's highest priority.
 	if sha != "" {
 		return &raw.ContentOpts{Ref: "", SHA: sha}, false, nil
 	}
 
-	// 1a) If sha is empty but ref looks like a SHA, return it without changes
+	// 1a) If sha is 空 但ref looks like 一个SHA, 返回 it without changes
 	if looksLikeSHA(ref) {
 		return &raw.ContentOpts{Ref: "", SHA: ref}, false, nil
 	}
 
-	originalRef := ref // Keep original ref for clearer error messages down the line.
+	originalRef := ref // Keep original ref f或clearer 错误 messages down 行.
 
-	// 2) If no SHA is provided, we try to resolve the ref into a fully-qualified format.
+	// 2) 如果没有SH一个is provided, we try to resolve ref into 一个fully-qualified format.
 	var reference *github.Reference
 	var resp *github.Response
 	var err error
@@ -225,42 +225,42 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 
 	switch {
 	case originalRef == "":
-		// 2a) If ref is empty, determine the default branch.
+		// 2a) If ref is 空, determine 默认分支.
 		reference, err = resolveDefaultBranch(ctx, githubClient, owner, repo)
 		if err != nil {
-			return nil, false, err // Error is already wrapped in resolveDefaultBranch.
+			return nil, false, err // Err或is al读取y wrapped in resolveDefaultBranch.
 		}
 		ref = reference.GetRef()
 	case strings.HasPrefix(originalRef, "refs/"):
-		// 2b) Already fully qualified. The reference will be fetched at the end.
+		// 2b) Al读取y fully qualified. reference will be fetched at end.
 	case strings.HasPrefix(originalRef, "heads/") || strings.HasPrefix(originalRef, "tags/"):
 		// 2c) Partially qualified. Make it fully qualified.
 		ref = "refs/" + originalRef
 	default:
-		// 2d) It's a short name, so we try to resolve it to either a branch or a tag.
+		// 2d) It's 一个short name, so we try to resolve it to either 一个分支 或一个tag.
 		branchRef := "refs/heads/" + originalRef
 		reference, resp, err = githubClient.Git.GetRef(ctx, owner, repo, branchRef)
 
 		if err == nil {
-			ref = branchRef // It's a branch.
+			ref = branchRef // It's 一个分支.
 		} else {
-			// The branch lookup failed. Check if it was a 404 Not Found error.
+			// 分支 lookup failed. Check if it was 一个404 不Found 错误.
 			ghErr, isGhErr := err.(*github.ErrorResponse)
 			if isGhErr && ghErr.Response.StatusCode == http.StatusNotFound {
 				tagRef := "refs/tags/" + originalRef
 				reference, resp, err = githubClient.Git.GetRef(ctx, owner, repo, tagRef)
 				if err == nil {
-					ref = tagRef // It's a tag.
+					ref = tagRef // It's 一个tag.
 				} else {
-					// The tag lookup also failed. Check if it was a 404 Not Found error.
+					// tag lookup 也failed. Check if it was 一个404 不Found 错误.
 					ghErr2, isGhErr2 := err.(*github.ErrorResponse)
 					if isGhErr2 && ghErr2.Response.StatusCode == http.StatusNotFound {
 						if originalRef == "main" {
 							reference, err = resolveDefaultBranch(ctx, githubClient, owner, repo)
 							if err != nil {
-								return nil, false, err // Error is already wrapped in resolveDefaultBranch.
+								return nil, false, err // Err或is al读取y wrapped in resolveDefaultBranch.
 							}
-							// Update ref to the actual default branch ref so the note can be generated
+							// Update ref 到actual 默认分支 ref so note 可以 generated
 							ref = reference.GetRef()
 							fallbackUsed = true
 							break
@@ -268,12 +268,12 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 						return nil, false, fmt.Errorf("could not resolve ref %q as a branch or a tag", originalRef)
 					}
 
-					// The tag lookup failed for a different reason.
+					// tag lookup failed f或一个different reason.
 					_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get reference (tag)", resp, err)
 					return nil, false, fmt.Errorf("failed to get reference for tag '%s': %w", originalRef, err)
 				}
 			} else {
-				// The branch lookup failed for a different reason.
+				// 分支 lookup failed f或一个different reason.
 				_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get reference (branch)", resp, err)
 				return nil, false, fmt.Errorf("failed to get reference for branch '%s': %w", originalRef, err)
 			}
@@ -286,9 +286,9 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 			if ref == "refs/heads/main" {
 				reference, err = resolveDefaultBranch(ctx, githubClient, owner, repo)
 				if err != nil {
-					return nil, false, err // Error is already wrapped in resolveDefaultBranch.
+					return nil, false, err // Err或is al读取y wrapped in resolveDefaultBranch.
 				}
-				// Update ref to the actual default branch ref so the note can be generated
+				// Update ref 到actual 默认分支 ref so note 可以 generated
 				ref = reference.GetRef()
 				fallbackUsed = true
 			} else {

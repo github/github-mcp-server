@@ -1,0 +1,27 @@
+# Rename to unwatched dir.
+
+# if runtime.GOOS == "netbsd" && isCI() {
+# 	t.Skip("fails in CI; see #488") // TODO
+# }
+
+mkdir /dir
+mkdir /unwatch
+watch /dir
+
+echo data >>/dir/file
+mv /dir/file /unwatch/rename
+echo data >>/unwatch/file   # Modify the file outside of the watched dir
+touch /dir/file             # Recreate the file that was moved
+
+Output:
+	create /dir/file # cat data >/dir/file
+	write  /dir/file # ^
+	rename /dir/file # mv /dir/file /unwatch/rename
+	create /dir/file # touch /dir/file
+
+	# Windows has REMOVE /file, rather than CREATE /file
+	windows:
+		create   /dir/file
+		write    /dir/file
+		remove   /dir/file
+		create   /dir/file

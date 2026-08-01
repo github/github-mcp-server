@@ -1,0 +1,29 @@
+# Remove while also watching parent.
+
+# TODO: kind of a mess on Windows; sends something along the lines
+# of:
+#
+#   create    /abc
+#   write     /abc
+#   write     /abc/def
+#   write     /abc/def
+#   remove    /abc/def
+#   write     /abc
+#   remove    /abc
+#   remove    /abc
+#
+# But sometimes there's one or two more or less.
+skip windows
+
+watch /
+mkdir -p /abc/def/ghi
+watch /abc
+rm -r /abc
+
+Output:
+	create  /abc
+	remove  /abc/def
+	remove  /abc
+
+	dragonfly:  # TODO: no remove events?
+		create  /abc

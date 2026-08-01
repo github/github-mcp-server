@@ -1,0 +1,14 @@
+#
+
+touch /before-watch
+watch /
+
+echo data >>/file
+rm /file
+rm /before-watch
+
+Output:
+	create /file
+	write  /file
+	remove /file
+	remove /before-watch

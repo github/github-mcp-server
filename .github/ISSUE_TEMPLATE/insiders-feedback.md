@@ -1,14 +1,14 @@
 ---
-name: Insiders Feedback
-about: Give feedback related to a GitHub MCP Server Insiders feature
-title: "Insiders Feedback: "
+name: Insiders 反馈
+about: 提供与 GitHub MCP Server Insiders feature 相关的反馈
+title: "Insiders 反馈："
 labels: ''
 assignees: ''
 
 ---
 
-Version: Insiders
+版本：Insiders
 
-Feature:
+功能：
 
-Feedback:
+反馈：

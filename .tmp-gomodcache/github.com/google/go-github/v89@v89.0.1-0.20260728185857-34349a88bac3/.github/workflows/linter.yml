@@ -1,0 +1,50 @@
+on: [push, pull_request]
+name: linter
+
+permissions:
+  contents: read
+
+jobs:
+  check-generated:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        persist-credentials: false
+    - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      with:
+        go-version: stable
+        cache-dependency-path: "**/go.sum"
+    - name: Check generated code
+      run: ./script/generate.sh --check
+
+  golangci-lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        persist-credentials: false
+    - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      with:
+        go-version: stable
+        cache-dependency-path: "**/go.sum"
+    - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+      with:
+        version: v2.12.2 # sync with version in .custom-gcl.yml
+        experimental: "automatic-module-directories,no-run-logs-group"
+
+  check-openapi:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        persist-credentials: false
+    - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      with:
+        go-version: stable
+        cache-dependency-path: "**/go.sum"
+    - name: Check OpenAPI
+      run: ./script/metadata.sh update-openapi --validate
+      env:
+        CHECK_GITHUB_OPENAPI: 1
+        GITHUB_TOKEN: ${{ github.token }}

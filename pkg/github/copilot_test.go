@@ -21,7 +21,7 @@ import (
 func TestAssignCopilotToIssue(t *testing.T) {
 	t.Parallel()
 
-	// Verify tool definition
+	// Verify 工具定义
 	serverTool := AssignCopilotToIssue(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -35,14 +35,14 @@ func TestAssignCopilotToIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "custom_instructions")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "issue_number"})
 
-	// Helper function to create pointer to githubv4.String
+	// Helper 函数 to 创建 pointer to githubv4.String
 	ptrGitHubv4String := func(s string) *githubv4.String {
 		v := githubv4.String(s)
 		return &v
 	}
 
 	var pageOfFakeBots = func(n int) []struct{} {
-		// We don't _really_ need real bots here, just objects that count as entries for the page
+		// We don't _really_ need real bots here, just objects that count as entries 用于页
 		bots := make([]struct{}, n)
 		for i := range n {
 			bots[i] = struct{}{}
@@ -171,7 +171,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 			requestArgs: map[string]any{
 				"owner":        "owner",
 				"repo":         "repo",
-				"issue_number": "123", // Some MCP clients send numeric values as strings
+				"issue_number": "123", // Some MCP 客户端s send numeric 值 as strings
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
@@ -403,7 +403,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 				"issue_number": float64(123),
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
-				// First page of suggested actors
+				// First 页 of suggested actors
 				githubv4mock.NewQueryMatcher(
 					struct {
 						Repository struct {
@@ -439,7 +439,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 						},
 					}),
 				),
-				// Second page of suggested actors
+				// Second 页 of suggested actors
 				githubv4mock.NewQueryMatcher(
 					struct {
 						Repository struct {
@@ -810,21 +810,21 @@ func TestAssignCopilotToIssue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			t.Parallel()
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := githubv4.NewClient(tc.mockedClient)
 			deps := BaseDeps{
 				GQLClient: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
 			// Disable polling in tests to avoid timeouts
 			ctx := ContextWithPollConfig(context.Background(), PollConfig{MaxAttempts: 0})
 			ctx = ContextWithDeps(ctx, deps)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ctx, &request)
 			require.NoError(t, err)
 
@@ -838,7 +838,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 
 			require.False(t, result.IsError, fmt.Sprintf("expected there to be no tool error, text was %s", textContent.Text))
 
-			// Verify the JSON response contains expected fields
+			// Verify JSON 响应 contains expected fields
 			var response map[string]any
 			err = json.Unmarshal([]byte(textContent.Text), &response)
 			require.NoError(t, err, "response should be valid JSON")
@@ -866,7 +866,7 @@ func Test_RequestCopilotReview(t *testing.T) {
 	assert.Contains(t, schema.Properties, "pullNumber")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "pullNumber"})
 
-	// Setup mock PR for success case
+	// Setup 模拟 PR f或成功 case
 	mockPR := &github.PullRequest{
 		Number:  github.Ptr(42),
 		Title:   github.Ptr("Test PR"),
@@ -1000,7 +1000,7 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 	confidenceSchema := schema.Properties["confidence"]
 	assert.ElementsMatch(t, confidenceSchema.Enum, []any{"LOW", "MEDIUM", "HIGH"})
 
-	// Common query mocks reused across happy-path scenarios.
+	// Common query 模拟s reused across happy-路径 scenarios.
 	suggestedActorsMatcher := func() githubv4mock.Matcher {
 		return githubv4mock.NewQueryMatcher(
 			struct {
@@ -1189,7 +1189,7 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 				"rationale":     "Looks like a good candidate.",
 				"confidence":    "LOW",
 				"is_suggestion": true,
-				// base_ref and custom_instructions should be ignored when is_suggestion=true.
+				// base_ref 和custom_instructions 应当是 ignored when is_suggestion=真.
 				"base_ref":            "feature-branch",
 				"custom_instructions": "should be ignored",
 			},
@@ -1226,7 +1226,7 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 					map[string]any{"id": githubv4.ID("existing-assignee-id")},
 					map[string]any{"id": githubv4.ID("copilot-swe-agent-id")},
 				}),
-				// Expect copilot to appear only once, carrying the intent metadata.
+				// Expect copilot to appear 仅once, carrying intent 元数据.
 				mutationMatcher(UpdateIssueInput{
 					ID: githubv4.ID("test-issue-id"),
 					Assignees: []AssigneeUpdateInput{
@@ -1371,7 +1371,7 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 
 			request := createMCPRequest(tc.requestArgs)
 
-			// Disable polling for direct-assignment paths.
+			// Disable polling f或direct-assignment 路径s.
 			ctx := ContextWithPollConfig(context.Background(), PollConfig{MaxAttempts: 0})
 			ctx = ContextWithDeps(ctx, deps)
 

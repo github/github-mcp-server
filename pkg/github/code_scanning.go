@@ -91,8 +91,8 @@ func GetCodeScanningAlert(t translations.TranslationHelperFunc) inventory.Server
 
 			result := utils.NewToolResultText(string(r))
 			// Code scanning alerts are access-restricted regardless of repo
-			// visibility and embed attacker-influenceable code snippets, so the
-			// label is always private-untrusted.
+			// visibility 和embed attacker-influenceable code snippets, so the
+			// label is 始终私有-不受信任.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
 			return result, nil, nil
 		},
@@ -216,8 +216,8 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 
 			result := utils.NewToolResultText(string(r))
 			// Code scanning alerts are access-restricted regardless of repo
-			// visibility and embed attacker-influenceable code snippets, so the
-			// label is always private-untrusted.
+			// visibility 和embed attacker-influenceable code snippets, so the
+			// label is 始终私有-不受信任.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
 			return result, nil, nil
 		},

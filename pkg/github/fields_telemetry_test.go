@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// recordingMetrics is a metrics.Metrics implementation that captures emitted
-// metrics so tests can assert on telemetry. It is safe for concurrent use.
+// recordingMetrics is 一个metrics.Metrics implementation that captures emitted
+// metrics so tests can assert on telemetry. It is safe f或concurrent use.
 type recordingMetrics struct {
 	mu         sync.Mutex
 	increments []recordedMetric
@@ -43,7 +43,7 @@ func (m *recordingMetrics) Distribution(_ string, _ map[string]string, _ float64
 func (m *recordingMetrics) DistributionMs(_ string, _ map[string]string, _ time.Duration) {}
 func (m *recordingMetrics) WithTags(_ map[string]string) metrics.Metrics                  { return m }
 
-// counter returns the recorded counter for the given key, or false if absent.
+// counter 返回 recorded counter 用于given key, 或假 if absent.
 func (m *recordingMetrics) counter(key string) (recordedMetric, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -55,7 +55,7 @@ func (m *recordingMetrics) counter(key string) (recordedMetric, bool) {
 	return recordedMetric{}, false
 }
 
-// increment returns the recorded increment for the given key, or false if absent.
+// increment 返回 recorded increment 用于given key, 或假 if absent.
 func (m *recordingMetrics) increment(key string) (recordedMetric, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -67,8 +67,8 @@ func (m *recordingMetrics) increment(key string) (recordedMetric, bool) {
 	return recordedMetric{}, false
 }
 
-// depsWithRecordingMetrics returns BaseDeps wired with a recording metrics sink
-// plus the sink for assertions.
+// depsWithRecordingMetrics 返回 BaseDeps wired with 一个recording metrics sink
+// plus sink f或assertions.
 func depsWithRecordingMetrics(t *testing.T, base BaseDeps) (BaseDeps, *recordingMetrics) {
 	t.Helper()
 	rec := &recordingMetrics{}
@@ -108,7 +108,7 @@ func Test_recordFieldsUsage_NotFiltered(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "false", call.tags["filtered"])
 
-	// No byte counters are emitted when the response was not filtered.
+	// No byte counters are emitted 当响应 was 不筛选ed.
 	_, ok = rec.counter(metricFieldsBytesFull)
 	assert.False(t, ok)
 	_, ok = rec.counter(metricFieldsBytesSent)
@@ -116,7 +116,7 @@ func Test_recordFieldsUsage_NotFiltered(t *testing.T) {
 }
 
 func Test_recordFieldsUsage_NilExporterDoesNotPanic(t *testing.T) {
-	// BaseDeps with no Obsv falls back to a noop sink rather than panicking.
+	// BaseDeps with no Obsv falls back to 一个noop sink rather than panicking.
 	assert.NotPanics(t, func() {
 		recordFieldsUsage(context.Background(), BaseDeps{}, "search_code", true, 100, 30)
 	})

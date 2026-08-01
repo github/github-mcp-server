@@ -1,0 +1,9 @@
+# Basic close_read test
+require op_read
+
+echo "hello, world!" >>/file
+watch /   default read
+cat /file
+
+Output:
+	read /file

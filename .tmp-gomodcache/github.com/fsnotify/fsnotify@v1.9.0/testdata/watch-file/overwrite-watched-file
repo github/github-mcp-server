@@ -1,0 +1,29 @@
+# Overwrite watched file with non-watched file.
+
+touch /file
+touch /unwatch
+
+watch /file
+
+mv /unwatch /file
+
+echo asd >>/file
+rm /file
+
+# TODO: think what the best behaviour is here; do we want to keep the watch or
+# lose it? It's inconsistent now.
+Output:
+	remove   /file
+
+	linux:
+		chmod    /file
+		remove   /file
+
+	kqueue:
+		remove   /file
+		create   /file
+		write    /file
+		remove   /file
+
+	dragonfly:
+		no-events

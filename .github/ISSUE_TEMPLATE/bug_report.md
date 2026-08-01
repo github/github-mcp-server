@@ -1,30 +1,30 @@
 ---
-name: "\U0001F41B Bug report"
-about: Report a bug or unexpected behavior while using GitHub MCP Server
+name: "\U0001F41B Bug 报告"
+about: 报告使用 GitHub MCP Server 时的 Bug 或意外行为
 title: ''
 labels: bug
 assignees: ''
 
 ---
 
-### Describe the bug
+### 描述 Bug
 
-A clear and concise description of what the bug is.
+清晰简洁地描述该 Bug。
 
-### Affected version
+### 受影响版本
 
-Please run ` docker run -i --rm ghcr.io/github/github-mcp-server ./github-mcp-server --version` and paste the output below
+请运行 ` docker run -i --rm ghcr.io/github/github-mcp-server ./github-mcp-server --version`，并将输出粘贴在下方。
 
-### Steps to reproduce the behavior
+### 复现行为的步骤
 
-1. Type this '...'
-2. View the output '....'
-3. See error
+1. 输入“...”
+2. 查看输出“....”
+3. 看到 error
 
-### Expected vs actual behavior
+### 预期行为与实际行为
 
-A clear and concise description of what you expected to happen and what actually happened.
+清晰简洁地描述预期发生的情况和实际发生的情况。
 
 ### Logs
 
-Paste any available logs. Redact if needed.
+粘贴所有可用 logs。必要时请脱敏。

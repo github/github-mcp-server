@@ -1,0 +1,35 @@
+# Add a new watch for a directory we're already watching.
+
+# TODO: This consistently works fine on my NetBSD 9.2/Go 1.17 machine, but not
+# with NetBSD 10.0/Go 1.21 in the CI. I don't know if it's the version or
+# something else – need to look into that.
+#
+# Fails with:
+#
+#   CREATE               "/dir"
+#   CREATE               "/one"
+#   WRITE                "/one"
+#   REMOVE               "/one"
+skip netbsd
+
+watch /
+mkdir /dir
+watch /dir
+
+echo hello >>/one
+echo hello >>/dir/two
+
+rm /one
+rm /dir/two
+
+Output:
+	create   /dir
+
+	create   /one
+	write    /one
+
+	create   /dir/two
+	write    /dir/two
+
+	remove   /one
+	remove   /dir/two

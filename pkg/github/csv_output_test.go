@@ -21,8 +21,8 @@ func TestCSVOutputAppliedToDefaultListTools(t *testing.T) {
 	tools := withCSVOutput([]inventory.ServerTool{listTool, getTool})
 	require.Len(t, tools, 2)
 
-	// CSV mode does not introduce variants or change tool gating; both tools
-	// remain visible regardless of feature flag state.
+	// CSV mode does 不introduce variants 或change 工具 gating; both 工具
+	// remain visible regardless of 功能标志 state.
 	for _, csvOutputEnabled := range []bool{false, true} {
 		inv := buildCSVOutputInventory(t, tools, csvOutputEnabled)
 		available := inv.AvailableTools(context.Background())
@@ -47,9 +47,9 @@ func TestCSVOutputAppliesToFlagGatedListTools(t *testing.T) {
 	tools := withCSVOutput([]inventory.ServerTool{enabledOnly, disabledOnly})
 	require.Len(t, tools, 2)
 
-	// Both flag-gated variants get the CSV wrapper; the per-request flag filter
-	// decides which one actually registers, and the runtime csv_output check
-	// decides whether the wrapper converts the response.
+	// Both flag-gated variants 获取 CSV wrapper; per-请求 flag 筛选
+	// decides which one actually registers, 以及runtime csv_输出 检查
+	// decides whether wrapper converts 响应.
 	deps := newCSVOutputTestDeps(true)
 	for _, tool := range tools {
 		result, err := tool.Handler(deps)(ContextWithDeps(context.Background(), deps), testCSVOutputRequest())
@@ -64,8 +64,8 @@ func TestCSVOutputOnlyAppliesToDefaultToolsets(t *testing.T) {
 	tools := withCSVOutput([]inventory.ServerTool{nonDefaultListTool})
 	require.Len(t, tools, 1)
 
-	// Non-default toolset list tools are not wrapped: even with the flag on,
-	// the response stays in JSON form.
+	// Non-默认工具集 列出 工具 are 不wrapped: even 使用flag on,
+	// 响应 stays in JSON form.
 	deps := newCSVOutputTestDeps(true)
 	result, err := tools[0].Handler(deps)(ContextWithDeps(context.Background(), deps), testCSVOutputRequest())
 	require.NoError(t, err)

@@ -1,0 +1,80 @@
+Check behavior of a server with just prompts.
+
+Fixed bugs:
+- Empty tools lists should not be returned as 'null'.
+- No params in 'prompts/get' should not panic.
+
+-- prompts --
+code_review
+
+-- client --
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {},
+    "clientInfo": { "name": "ExampleClient", "version": "1.0.0" }
+  }
+}
+{ "jsonrpc":"2.0", "method": "notifications/initialized" }
+{ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }
+{ "jsonrpc": "2.0", "id": 4, "method": "prompts/list" }
+{ "jsonrpc": "2.0", "id": 5, "method": "prompts/get" }
+
+-- server --
+{
+	"jsonrpc": "2.0",
+	"id": 1,
+	"result": {
+		"capabilities": {
+			"logging": {},
+			"prompts": {
+				"listChanged": true
+			}
+		},
+		"protocolVersion": "2024-11-05",
+		"serverInfo": {
+			"name": "testServer",
+			"version": "v1.0.0"
+		}
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 2,
+	"result": {
+		"ttlMs": 0,
+		"cacheScope": "public",
+		"tools": []
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 4,
+	"result": {
+		"ttlMs": 0,
+		"cacheScope": "public",
+		"prompts": [
+			{
+				"arguments": [
+					{
+						"name": "Code",
+						"required": true
+					}
+				],
+				"description": "do a code review",
+				"name": "code_review"
+			}
+		]
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 5,
+	"error": {
+		"code": -32600,
+		"message": "invalid request: missing required \"params\""
+	}
+}

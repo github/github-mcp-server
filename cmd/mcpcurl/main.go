@@ -17,26 +17,26 @@ import (
 )
 
 type (
-	// SchemaResponse represents the top-level response containing tools
+	// SchemaResponse 表示包含工具的顶层响应。
 	SchemaResponse struct {
 		Result  Result `json:"result"`
 		JSONRPC string `json:"jsonrpc"`
 		ID      int    `json:"id"`
 	}
 
-	// Result contains the list of available tools
+	// Result 包含可用工具列表。
 	Result struct {
 		Tools []Tool `json:"tools"`
 	}
 
-	// Tool represents a single command with its schema
+	// Tool 表示单个命令及其 schema。
 	Tool struct {
 		Name        string      `json:"name"`
 		Description string      `json:"description"`
 		InputSchema InputSchema `json:"inputSchema"`
 	}
 
-	// InputSchema defines the structure of a tool's input parameters
+	// InputSchema 定义工具输入参数的结构。
 	InputSchema struct {
 		Type                 string              `json:"type"`
 		Properties           map[string]Property `json:"properties"`
@@ -45,7 +45,7 @@ type (
 		Schema               string              `json:"$schema"`
 	}
 
-	// Property defines a single parameter's type and constraints
+	// Property 定义单个参数的类型和约束。
 	Property struct {
 		Type        string        `json:"type"`
 		Description string        `json:"description"`
@@ -55,7 +55,7 @@ type (
 		Items       *PropertyItem `json:"items,omitempty"`
 	}
 
-	// PropertyItem defines the type of items in an array property
+	// PropertyItem 定义数组属性中元素的类型。
 	PropertyItem struct {
 		Type                 string              `json:"type"`
 		Properties           map[string]Property `json:"properties,omitempty"`
@@ -63,7 +63,7 @@ type (
 		AdditionalProperties bool                `json:"additionalProperties,omitempty"`
 	}
 
-	// JSONRPCRequest represents a JSON-RPC 2.0 request
+	// JSONRPCRequest 表示 JSON-RPC 2.0 请求。
 	JSONRPCRequest struct {
 		JSONRPC string        `json:"jsonrpc"`
 		ID      int           `json:"id"`
@@ -71,13 +71,13 @@ type (
 		Params  RequestParams `json:"params"`
 	}
 
-	// RequestParams contains the tool name and arguments
+	// RequestParams 包含工具名称和参数。
 	RequestParams struct {
 		Name      string         `json:"name"`
 		Arguments map[string]any `json:"arguments"`
 	}
 
-	// Content matches the response format of a text content response
+	// Content 与文本内容响应的格式相匹配。
 	Content struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
@@ -95,18 +95,18 @@ type (
 )
 
 var (
-	// Create root command
+	// 创建根命令。
 	rootCmd = &cobra.Command{
 		Use:   "mcpcurl",
 		Short: "CLI tool with dynamically generated commands",
 		Long:  "A CLI tool for interacting with MCP API based on dynamically loaded schemas",
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			// Skip validation for help and completion commands
+			// 跳过 help 和 completion 命令的验证。
 			if cmd.Name() == "help" || cmd.Name() == "completion" {
 				return nil
 			}
 
-			// Check if the required global flag is provided
+			// 检查是否提供必需的全局标志。
 			serverCmd, _ := cmd.Flags().GetString("stdio-server-cmd")
 			if serverCmd == "" {
 				return fmt.Errorf("--stdio-server-cmd is required")
@@ -115,7 +115,7 @@ var (
 		},
 	}
 
-	// Add schema command
+	// 添加 schema 命令。
 	schemaCmd = &cobra.Command{
 		Use:   "schema",
 		Short: "Fetch schema from MCP server",
@@ -126,25 +126,25 @@ var (
 				return fmt.Errorf("--stdio-server-cmd is required")
 			}
 
-			// Build the JSON-RPC request for tools/list
+			// 构建 tools/list 的 JSON-RPC 请求。
 			jsonRequest, err := buildJSONRPCRequest("tools/list", "", nil)
 			if err != nil {
 				return fmt.Errorf("failed to build JSON-RPC request: %w", err)
 			}
 
-			// Execute the server command and pass the JSON-RPC request
+			// 执行服务器命令并传入 JSON-RPC 请求。
 			response, err := executeServerCommand(serverCmd, jsonRequest)
 			if err != nil {
 				return fmt.Errorf("error executing server command: %w", err)
 			}
 
-			// Output the response
+			// 输出响应。
 			fmt.Println(response)
 			return nil
 		},
 	}
 
-	// Create the tools command
+	// 创建 tools 命令。
 	toolsCmd = &cobra.Command{
 		Use:   "tools",
 		Short: "Access available tools",
@@ -155,37 +155,37 @@ var (
 func main() {
 	rootCmd.AddCommand(schemaCmd)
 
-	// Add global flag for stdio server command
+	// 添加 stdio 服务器命令的全局标志。
 	rootCmd.PersistentFlags().String("stdio-server-cmd", "", "Shell command to invoke MCP server via stdio (required)")
 	_ = rootCmd.MarkPersistentFlagRequired("stdio-server-cmd")
 
-	// Add global flag for pretty printing
+	// 添加美化输出的全局标志。
 	rootCmd.PersistentFlags().Bool("pretty", true, "Pretty print MCP response (only for JSON or JSONL responses)")
 
-	// Add the tools command to the root command
+	// 将 tools 命令添加到根命令。
 	rootCmd.AddCommand(toolsCmd)
 
-	// Execute the root command once to parse flags
+	// 执行一次根命令以解析标志。
 	_ = rootCmd.ParseFlags(os.Args[1:])
 
-	// Get pretty flag
+	// 获取 pretty 标志。
 	prettyPrint, err := rootCmd.Flags().GetBool("pretty")
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error getting pretty flag: %v\n", err)
 		os.Exit(1)
 	}
-	// Get server command
+	// 获取服务器命令。
 	serverCmd, err := rootCmd.Flags().GetString("stdio-server-cmd")
 	if err == nil && serverCmd != "" {
-		// Fetch schema from server
+		// 从服务器获取 schema。
 		jsonRequest, err := buildJSONRPCRequest("tools/list", "", nil)
 		if err == nil {
 			response, err := executeServerCommand(serverCmd, jsonRequest)
 			if err == nil {
-				// Parse the schema response
+				// 解析 schema 响应。
 				var schemaResp SchemaResponse
 				if err := json.Unmarshal([]byte(response), &schemaResp); err == nil {
-					// Add all the generated commands as subcommands of tools
+					// 将所有生成的命令作为 tools 的子命令添加。
 					for _, tool := range schemaResp.Result.Tools {
 						addCommandFromTool(toolsCmd, &tool, prettyPrint)
 					}
@@ -194,21 +194,21 @@ func main() {
 		}
 	}
 
-	// Execute
+	// 执行。
 	if err := rootCmd.Execute(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-// addCommandFromTool creates a cobra command from a tool schema
+// addCommandFromTool 根据工具 schema 创建 cobra 命令。
 func addCommandFromTool(toolsCmd *cobra.Command, tool *Tool, prettyPrint bool) {
-	// Create command from tool
+	// 根据工具创建命令。
 	cmd := &cobra.Command{
 		Use:   tool.Name,
 		Short: tool.Description,
 		Run: func(cmd *cobra.Command, _ []string) {
-			// Build a map of arguments from flags
+			// 根据标志构建参数映射。
 			arguments, err := buildArgumentsMap(cmd, tool)
 			if err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "failed to build arguments map: %v\n", err)
@@ -221,7 +221,7 @@ func addCommandFromTool(toolsCmd *cobra.Command, tool *Tool, prettyPrint bool) {
 				return
 			}
 
-			// Execute the server command
+			// 执行服务器命令。
 			serverCmd, err := cmd.Flags().GetString("stdio-server-cmd")
 			if err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "failed to get stdio-server-cmd: %v\n", err)
@@ -239,7 +239,7 @@ func addCommandFromTool(toolsCmd *cobra.Command, tool *Tool, prettyPrint bool) {
 		},
 	}
 
-	// Initialize viper for this command
+	// 为此命令初始化 viper。
 	viperInit := func() {
 		viper.Reset()
 		viper.AutomaticEnv()
@@ -247,15 +247,14 @@ func addCommandFromTool(toolsCmd *cobra.Command, tool *Tool, prettyPrint bool) {
 		viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	}
 
-	// We'll call the init function directly instead of with cobra.OnInitialize
-	// to avoid conflicts between commands
+	// 直接调用初始化函数而不使用 cobra.OnInitialize，以避免命令间冲突。
 	viperInit()
 
-	// Add flags based on schema properties
+	// 根据 schema 属性添加标志。
 	for name, prop := range tool.InputSchema.Properties {
 		isRequired := slices.Contains(tool.InputSchema.Required, name)
 
-		// Enhance description to indicate if parameter is optional
+		// 补充描述以表明参数是否可选。
 		description := prop.Description
 		if !isRequired {
 			description += " (optional)"
@@ -265,7 +264,7 @@ func addCommandFromTool(toolsCmd *cobra.Command, tool *Tool, prettyPrint bool) {
 		case "string":
 			cmd.Flags().String(name, "", description)
 			if len(prop.Enum) > 0 {
-				// Add validation in PreRun for enum values
+				// 在 PreRun 中添加枚举值验证。
 				cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
 					for flagName, property := range tool.InputSchema.Properties {
 						if len(property.Enum) > 0 {
@@ -299,15 +298,15 @@ func addCommandFromTool(toolsCmd *cobra.Command, tool *Tool, prettyPrint bool) {
 			_ = cmd.MarkFlagRequired(name)
 		}
 
-		// Bind flag to viper
+		// 将标志绑定到 viper。
 		_ = viper.BindPFlag(name, cmd.Flags().Lookup(name))
 	}
 
-	// Add command to root
+	// 将命令添加到根命令。
 	toolsCmd.AddCommand(cmd)
 }
 
-// buildArgumentsMap extracts flag values into a map of arguments
+// buildArgumentsMap 将标志值提取到参数映射中。
 func buildArgumentsMap(cmd *cobra.Command, tool *Tool) (map[string]any, error) {
 	arguments := make(map[string]any)
 
@@ -326,7 +325,7 @@ func buildArgumentsMap(cmd *cobra.Command, tool *Tool) (map[string]any, error) {
 				arguments[name] = value
 			}
 		case "boolean":
-			// For boolean, we need to check if it was explicitly set
+			// 对于布尔值，需要检查是否显式设置。
 			if cmd.Flags().Changed(name) {
 				value, _ := cmd.Flags().GetBool(name)
 				arguments[name] = value
@@ -354,7 +353,7 @@ func buildArgumentsMap(cmd *cobra.Command, tool *Tool) (map[string]any, error) {
 	return arguments, nil
 }
 
-// buildJSONRPCRequest creates a JSON-RPC request with the given tool name and arguments
+// buildJSONRPCRequest 使用给定的工具名称和参数创建 JSON-RPC 请求。
 func buildJSONRPCRequest(method, toolName string, arguments map[string]any) (string, error) {
 	id, err := rand.Int(rand.Reader, big.NewInt(10000))
 	if err != nil {
@@ -362,7 +361,7 @@ func buildJSONRPCRequest(method, toolName string, arguments map[string]any) (str
 	}
 	request := JSONRPCRequest{
 		JSONRPC: "2.0",
-		ID:      int(id.Int64()), // Random ID between 0 and 9999
+		ID:      int(id.Int64()), // 介于 0 和 9999 之间的随机 ID
 		Method:  method,
 		Params: RequestParams{
 			Name:      toolName,
@@ -376,10 +375,10 @@ func buildJSONRPCRequest(method, toolName string, arguments map[string]any) (str
 	return string(jsonData), nil
 }
 
-// executeServerCommand runs the specified command, performs the MCP initialization
-// handshake, sends the JSON request to stdin, and returns the response from stdout.
+// executeServerCommand 运行指定命令，执行 MCP 初始化握手，将 JSON 请求发送到 stdin，
+// 并从 stdout 返回响应。
 func executeServerCommand(cmdStr, jsonRequest string) (string, error) {
-	// Split the command string into command and arguments
+	// 将命令字符串拆分为命令和参数。
 	cmdParts := strings.Fields(cmdStr)
 	if len(cmdParts) == 0 {
 		return "", fmt.Errorf("empty command")
@@ -387,40 +386,39 @@ func executeServerCommand(cmdStr, jsonRequest string) (string, error) {
 
 	cmd := exec.Command(cmdParts[0], cmdParts[1:]...) //nolint:gosec //mcpcurl is a test command that needs to execute arbitrary shell commands
 
-	// Setup stdin pipe
+	// 设置 stdin 管道。
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return "", fmt.Errorf("failed to create stdin pipe: %w", err)
 	}
 
-	// Setup stdout pipe for line-by-line reading
+	// 设置用于逐行读取的 stdout 管道。
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		return "", fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
-	// Stderr still uses a buffer
+	// stderr 仍使用缓冲区。
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 
-	// Start the command
+	// 启动命令。
 	if err := cmd.Start(); err != nil {
 		return "", fmt.Errorf("failed to start command: %w", err)
 	}
 
-	// Ensure the child process is cleaned up on every return path.
-	// stdin must be closed before Wait so the server sees EOF and exits;
-	// its non-zero exit status on EOF is expected, so we ignore the error.
+	// 确保在每条返回路径上清理子进程。
+	// 必须在 Wait 前关闭 stdin，以便服务器收到 EOF 并退出；EOF 时的非零退出状态是预期行为，故忽略该错误。
 	defer func() {
 		_ = stdin.Close()
 		_ = cmd.Wait()
 	}()
 
-	// Use a scanner with a large buffer for reading JSON-RPC responses
+	// 使用大缓冲区 scanner 读取 JSON-RPC 响应。
 	scanner := bufio.NewScanner(stdoutPipe)
-	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024) // 1MB max line size
+	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024) // 最大行大小为 1MB
 
-	// Step 1: Send MCP initialize request
+	// 第 1 步：发送 MCP 初始化请求。
 	initReq, err := buildInitializeRequest()
 	if err != nil {
 		return "", fmt.Errorf("failed to build initialize request: %w", err)
@@ -429,22 +427,22 @@ func executeServerCommand(cmdStr, jsonRequest string) (string, error) {
 		return "", fmt.Errorf("failed to write initialize request: %w", err)
 	}
 
-	// Step 2: Read initialize response (skip any server notifications)
+	// 第 2 步：读取初始化响应（跳过任何服务器通知）。
 	if _, err := readJSONRPCResponse(scanner); err != nil {
 		return "", fmt.Errorf("failed to read initialize response: %w, stderr: %s", err, stderr.String())
 	}
 
-	// Step 3: Send initialized notification
+	// 第 3 步：发送已初始化通知。
 	if _, err := io.WriteString(stdin, buildInitializedNotification()+"\n"); err != nil {
 		return "", fmt.Errorf("failed to write initialized notification: %w", err)
 	}
 
-	// Step 4: Send the actual request
+	// 第 4 步：发送实际请求。
 	if _, err := io.WriteString(stdin, jsonRequest+"\n"); err != nil {
 		return "", fmt.Errorf("failed to write request: %w", err)
 	}
 
-	// Step 5: Read the actual response (skip any server notifications)
+	// 第 5 步：读取实际响应（跳过任何服务器通知）。
 	response, err := readJSONRPCResponse(scanner)
 	if err != nil {
 		return "", fmt.Errorf("failed to read response: %w, stderr: %s", err, stderr.String())
@@ -453,7 +451,7 @@ func executeServerCommand(cmdStr, jsonRequest string) (string, error) {
 	return response, nil
 }
 
-// buildInitializeRequest creates the MCP initialize handshake request.
+// buildInitializeRequest 创建 MCP 初始化握手请求。
 func buildInitializeRequest() (string, error) {
 	id, err := rand.Int(rand.Reader, big.NewInt(10000))
 	if err != nil {
@@ -479,17 +477,17 @@ func buildInitializeRequest() (string, error) {
 	return string(data), nil
 }
 
-// buildInitializedNotification creates the MCP initialized notification.
+// buildInitializedNotification 创建 MCP 已初始化通知。
 func buildInitializedNotification() string {
 	return `{"jsonrpc":"2.0","method":"notifications/initialized"}`
 }
 
-// readJSONRPCResponse reads lines from the scanner, skipping server-initiated
-// notifications (messages without an "id" field), and returns the first response.
+// readJSONRPCResponse 从 scanner 读取行，跳过服务器发起的通知（没有 "id" 字段的消息），
+// 并返回第一个响应。
 func readJSONRPCResponse(scanner *bufio.Scanner) (string, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
-		// JSON-RPC responses have an "id" field; notifications do not.
+		// JSON-RPC 响应具有 "id" 字段，通知没有。
 		var msg map[string]json.RawMessage
 		if err := json.Unmarshal([]byte(line), &msg); err != nil {
 			return "", fmt.Errorf("failed to parse JSON-RPC message: %w", err)
@@ -500,7 +498,7 @@ func readJSONRPCResponse(scanner *bufio.Scanner) (string, error) {
 			}
 			return line, nil
 		}
-		// No "id" — this is a notification, skip it
+		// 没有 "id"，这是通知，跳过它。
 	}
 	if err := scanner.Err(); err != nil {
 		return "", err
@@ -514,13 +512,13 @@ func printResponse(response string, prettyPrint bool) error {
 		return nil
 	}
 
-	// Parse the JSON response
+	// 解析 JSON 响应。
 	var resp Response
 	if err := json.Unmarshal([]byte(response), &resp); err != nil {
 		return fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
-	// Extract text from content items of type "text"
+	// 从类型为 "text" 的内容项中提取文本。
 	for _, content := range resp.Result.Content {
 		if content.Type == "text" {
 			var textContentObj map[string]any
@@ -535,7 +533,7 @@ func printResponse(response string, prettyPrint bool) error {
 				continue
 			}
 
-			// Fallback parsing as JSONL
+			// 回退为按 JSONL 解析。
 			var textContentList []map[string]any
 			if err := json.Unmarshal([]byte(content.Text), &textContentList); err != nil {
 				return fmt.Errorf("failed to parse text content as a list: %w", err)
@@ -548,7 +546,7 @@ func printResponse(response string, prettyPrint bool) error {
 		}
 	}
 
-	// If no text content found, print the original response
+	// 如果未找到文本内容，则打印原始响应。
 	if len(resp.Result.Content) == 0 {
 		fmt.Println(response)
 	}

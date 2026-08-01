@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// projectFieldsQueryMatcher is the GraphQL shape we use for fields(first:100) resolution.
+// projectFieldsQueryMatcher is GraphQL shape we use f或fields(第一个:100) resolution.
 // Keep this in sync with projectFieldsConnection in projects_resolver.go.
 type projectFieldsTestQuery struct {
 	Organization struct {
@@ -58,9 +58,9 @@ func fieldsQueryVars(owner string, projectNumber int) map[string]any {
 	}
 }
 
-// statusFieldNode is a single-select field response node for use in mock data.
-// `nodeID` is the global node ID (e.g. "PVTSSF_lADO...") and `databaseID` is
-// the numeric database ID the REST API expects.
+// statusFieldNode is 一个单个-select field 响应 node f或use in 模拟 数据.
+// `nodeID` is global node ID (e.g. "PVTSSF_lADO...") 和`数据baseID` is
+// numeric 数据base ID REST API expects.
 func statusFieldNode(nodeID string, databaseID int, name string, options []map[string]any) map[string]any {
 	return map[string]any{
 		"id":         nodeID,
@@ -71,7 +71,7 @@ func statusFieldNode(nodeID string, databaseID int, name string, options []map[s
 	}
 }
 
-// iterationFieldNode is an iteration field response node for use in mock data.
+// iterationFieldNode is 一个iteration field 响应 node f或use in 模拟 数据.
 func iterationFieldNode(nodeID string, databaseID int, name string) map[string]any {
 	return map[string]any{
 		"id":         nodeID,
@@ -81,8 +81,8 @@ func iterationFieldNode(nodeID string, databaseID int, name string) map[string]a
 	}
 }
 
-// genericFieldNode is a plain field response node (neither single-select nor
-// iteration, e.g. TEXT or NUMBER) for use in mock data.
+// genericFieldNode is 一个plain field 响应 node (neither 单个-select nor
+// iteration, e.g. TEXT 或NUMBER) f或use in 模拟 数据.
 func genericFieldNode(nodeID string, databaseID int, name, dataType string) map[string]any {
 	return map[string]any{
 		"id":         nodeID,
@@ -255,8 +255,8 @@ func Test_ResolveSingleSelectOptionByName_WrongFieldType(t *testing.T) {
 	assert.Equal(t, "wrong_field_type", msg["error"])
 }
 
-// resolveItemByIssueQuery matches the GraphQL shape used by
-// resolveProjectItemIDByIssueNumber for the issue.projectItems traversal.
+// resolveItemByIssueQuery matches GraphQL shape 由以下内容使用：
+// resolveProjectItemIDByIssueNumber 用于议题.projectItems traversal.
 type resolveItemByIssueQuery struct {
 	Repository struct {
 		Issue struct {
@@ -324,7 +324,7 @@ func Test_ResolveProjectItemByIssueNumber_Success(t *testing.T) {
 				},
 			}),
 		),
-		// issue.projectItems lookup
+		// 议题.projectItems lookup
 		githubv4mock.NewQueryMatcher(
 			resolveItemByIssueQuery{},
 			map[string]any{
@@ -624,8 +624,8 @@ func Test_ResolveFieldNamesToIDs_Success(t *testing.T) {
 	assert.Equal(t, []int64{100, 200}, ids)
 }
 
-// Field and single-select option name matching is case-insensitive so agents passing lowercase
-// names like "status" or "in progress" resolve to "Status" and "In Progress" respectively.
+// Field 和单个-select option name matching is case-insensitive so agents passing lowercase
+// names like "status" 或"in progress" resolve to "Status" 和"In Progress" respectively.
 func Test_ResolveProjectFieldByName_CaseInsensitive(t *testing.T) {
 	mocked := githubv4mock.NewMockedHTTPClient(
 		githubv4mock.NewQueryMatcher(
@@ -652,7 +652,7 @@ func Test_ResolveProjectFieldByName_CaseInsensitive(t *testing.T) {
 }
 
 // Test_ResolveFieldNamesToIDs_CaseInsensitive verifies bulk name resolution
-// also matches case-insensitively.
+// 也matches case-insensitively.
 func Test_ResolveFieldNamesToIDs_CaseInsensitive(t *testing.T) {
 	mocked := githubv4mock.NewMockedHTTPClient(
 		githubv4mock.NewQueryMatcher(
@@ -671,8 +671,8 @@ func Test_ResolveFieldNamesToIDs_CaseInsensitive(t *testing.T) {
 	assert.Equal(t, []int64{100, 200}, ids)
 }
 
-// Test_ProjectsWrite_UpdateProjectItem_ByName is the acceptance test for the
-// write side: set Status = "In Progress" using only names plus an issue number.
+// Test_ProjectsWrite_UpdateProjectItem_ByName is acceptance test f或the
+// 写入 side: set Status = "In Progress" using 仅names plus 一个议题 number.
 func Test_ProjectsWrite_UpdateProjectItem_ByName(t *testing.T) {
 	toolDef := ProjectsWrite(translations.NullTranslationHelper)
 
@@ -684,7 +684,7 @@ func Test_ProjectsWrite_UpdateProjectItem_ByName(t *testing.T) {
 	restClient := mustNewGHClient(t, mockedREST)
 
 	mockedGQL := githubv4mock.NewMockedHTTPClient(
-		// 1. project node id (used by resolveProjectItemIDByIssueNumber)
+		// 1. project node id (由以下内容使用： resolveProjectItemIDByIssueNumber)
 		githubv4mock.NewQueryMatcher(
 			struct {
 				Organization struct {
@@ -703,7 +703,7 @@ func Test_ProjectsWrite_UpdateProjectItem_ByName(t *testing.T) {
 				},
 			}),
 		),
-		// 2. issue -> projectItems lookup
+		// 2. 议题 -> projectItems lookup
 		githubv4mock.NewQueryMatcher(
 			resolveItemByIssueQuery{},
 			map[string]any{
@@ -730,7 +730,7 @@ func Test_ProjectsWrite_UpdateProjectItem_ByName(t *testing.T) {
 				},
 			}),
 		),
-		// 3. fields(first:100) for name resolution
+		// 3. fields(第一个:100) f或name resolution
 		githubv4mock.NewQueryMatcher(
 			projectFieldsTestQuery{},
 			fieldsQueryVars("octo-org", 1),

@@ -1,0 +1,35 @@
+# Listen for write events only.
+require filter
+watch /   write
+
+# Create
+touch /file
+mkdir /dir
+ln -s /file /link
+
+# Write
+echo data >>/file
+echo data >>/link
+touch /dir/file
+
+# Rename
+mv /file /rename
+mv /rename /file
+mv /dir /rename
+mv /rename /dir
+mv /link /rename
+mv /rename /link
+
+# Chmod
+chmod 644 /file
+chmod 644 /link
+chmod 755 /dir
+
+# Remove
+rm /file
+rm /link
+rm -r /dir
+
+Output:
+	write /file
+	write /file

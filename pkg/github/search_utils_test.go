@@ -147,7 +147,7 @@ func Test_hasRepoFilter(t *testing.T) {
 		{
 			name:     "query with malformed repo: filter (no slash)",
 			query:    "repo:github bug",
-			expected: true, // hasRepoFilter only checks for repo: prefix, not format
+			expected: true, // hasRepoFilter 仅检查s f或repo: prefix, 不format
 		},
 		{
 			name:     "empty query",
@@ -259,7 +259,7 @@ func Test_hasSpecificFilter(t *testing.T) {
 		},
 		{
 			name:        "partial match should not count",
-			query:       "is:issues bug", // "issues" vs "issue"
+			query:       "is:issues bug", // "议题" vs "议题"
 			filterType:  "is",
 			filterValue: "issue",
 			expected:    false,

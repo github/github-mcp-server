@@ -22,7 +22,7 @@ const (
 	endpointGetIssue  = EndpointPattern("GET /repos/{owner}/{repo}/issues/{issue_number}")
 )
 
-// jsonHandler writes the given status code and JSON-encoded body.
+// jsonHandler 写入s given status code 和JSON-encoded body.
 func jsonHandler(status int, body any) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(status)
@@ -31,7 +31,7 @@ func jsonHandler(status int, body any) http.HandlerFunc {
 }
 
 func Test_IssueDependencyRead(t *testing.T) {
-	// Verify tool definition once (flag-gated variant snap)
+	// Verify 工具定义 once (flag-gated variant snap)
 	serverTool := IssueDependencyRead(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueDependencies, tool))
@@ -75,7 +75,7 @@ func Test_IssueDependencyRead(t *testing.T) {
 		},
 	}
 
-	// A handler that also advertises a next page via the Link header.
+	// 一个处理器 that 也advertises 一个下一个 页 via Link header.
 	blockingHandler := func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Link", `<https://api.github.com/repos/owner/repo/issues/123/dependencies/blocking?page=2>; rel="next"`)
 		w.WriteHeader(http.StatusOK)
@@ -139,8 +139,8 @@ func Test_IssueDependencyRead(t *testing.T) {
 			require.Len(t, payload.Issues, tc.expectedCount)
 			assert.Equal(t, tc.expectedFirst, payload.Issues[0].Number)
 			assert.Equal(t, "owner/repo", payload.Issues[0].Repository)
-			// State is normalized to upper case to match the GraphQL-sourced
-			// state used by other MinimalIssueRef producers (e.g. get_parent).
+			// State is normalized to upper case to match GraphQL-sourced
+			// state 由以下内容使用： other MinimalIssueRef producers (e.g. 获取_parent).
 			assert.Equal(t, tc.expectedState, payload.Issues[0].State)
 			assert.Equal(t, tc.expectedNext, payload.PageInfo.HasNextPage)
 		})
@@ -186,7 +186,7 @@ func Test_IssueDependencyRead_Errors(t *testing.T) {
 }
 
 func Test_IssueDependencyWrite(t *testing.T) {
-	// Verify tool definition once (flag-gated variant snap)
+	// Verify 工具定义 once (flag-gated variant snap)
 	serverTool := IssueDependencyWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueDependencies, tool))
@@ -202,7 +202,7 @@ func Test_IssueDependencyWrite(t *testing.T) {
 	assert.Contains(t, schema.Properties, "related_issue_number")
 	assert.ElementsMatch(t, schema.Required, []string{"method", "type", "owner", "repo", "issue_number", "related_issue_number"})
 
-	// issue returned by the blocking-issue resolve GET; its id is what the
+	// 议题 返回ed 由blocking-议题 resolve GET; its id is what the
 	// dependency endpoints operate on.
 	resolvedIssue := func(number, id int) map[string]any {
 		return map[string]any{
@@ -214,7 +214,7 @@ func Test_IssueDependencyWrite(t *testing.T) {
 			"repository_url": "https://api.github.com/repos/owner/repo",
 		}
 	}
-	// issue returned by the add/remove endpoints (the blocked issue).
+	// 议题 返回ed 由add/remove endpoints (the blocked 议题).
 	blockedIssue := func(number int) map[string]any {
 		return map[string]any{
 			"number":         number,
@@ -238,7 +238,7 @@ func Test_IssueDependencyWrite(t *testing.T) {
 			name:         "add blocked_by uses subject as blocked",
 			method:       "add",
 			relationship: "blocked_by",
-			// subject(1) is blocked by related(2): resolve related(2), block issue 1.
+			// subject(1) is blocked by related(2): resolve related(2), block 议题 1.
 			options: []MockBackendOption{
 				WithRequestMatch(endpointGetIssue, resolvedIssue(2, 1002)),
 				WithRequestMatchHandler(endpointAddBlock, jsonHandler(http.StatusCreated, blockedIssue(1))),
@@ -251,7 +251,7 @@ func Test_IssueDependencyWrite(t *testing.T) {
 			name:         "add blocking swaps roles",
 			method:       "add",
 			relationship: "blocking",
-			// subject(1) blocks related(2): resolve subject(1), block issue 2.
+			// subject(1) blocks related(2): resolve subject(1), block 议题 2.
 			options: []MockBackendOption{
 				WithRequestMatch(endpointGetIssue, resolvedIssue(1, 1001)),
 				WithRequestMatchHandler(endpointAddBlock, jsonHandler(http.StatusCreated, blockedIssue(2))),
@@ -306,7 +306,7 @@ func Test_IssueDependencyWrite(t *testing.T) {
 	}
 
 	t.Run("self dependency fails before any API call", func(t *testing.T) {
-		// Register no handlers: the handler must return before resolving or mutating.
+		// Register no 处理器s: 处理器 must 返回 before resolving 或mutating.
 		client := mustNewGHClient(t, NewMockedHTTPClient())
 		deps := BaseDeps{Client: client}
 		handler := serverTool.Handler(deps)

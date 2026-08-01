@@ -15,7 +15,7 @@ import (
 )
 
 func Test_ListIssueFields(t *testing.T) {
-	// Verify tool definition
+	// Verify 工具定义
 	serverTool := ListIssueFields(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))

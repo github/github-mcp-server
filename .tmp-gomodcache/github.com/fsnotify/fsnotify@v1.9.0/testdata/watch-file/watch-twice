@@ -1,0 +1,11 @@
+# watch same file twice.
+
+touch /file
+
+watch /file
+watch /file
+
+echo hello >>/file
+
+Output:
+	write    /file

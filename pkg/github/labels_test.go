@@ -16,7 +16,7 @@ import (
 func TestGetLabel(t *testing.T) {
 	t.Parallel()
 
-	// Verify tool definition
+	// Verify 工具定义
 	serverTool := GetLabel(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -141,7 +141,7 @@ func TestGetLabel(t *testing.T) {
 func TestListLabels(t *testing.T) {
 	t.Parallel()
 
-	// Verify tool definition
+	// Verify 工具定义
 	serverTool := ListLabels(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -239,7 +239,7 @@ func TestListLabels(t *testing.T) {
 func TestWriteLabel(t *testing.T) {
 	t.Parallel()
 
-	// Verify tool definition
+	// Verify 工具定义
 	serverTool := LabelWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))

@@ -27,7 +27,7 @@ func Test_GetMe(t *testing.T) {
 	assert.Equal(t, "get_me", tool.Name)
 	assert.True(t, tool.Annotations.ReadOnlyHint, "get_me tool should be read-only")
 
-	// Setup mock user response
+	// Setup 模拟 user 响应
 	mockUser := &github.User{
 		Login:           github.Ptr("testuser"),
 		Name:            github.Ptr("Test User"),
@@ -48,7 +48,7 @@ func Test_GetMe(t *testing.T) {
 	tests := []struct {
 		name               string
 		mockedClient       *http.Client
-		clientErr          string // if set, GetClient returns this error
+		clientErr          string // if set, GetClient 返回 this 错误
 		requestArgs        map[string]any
 		expectToolError    bool
 		expectedUser       *github.User
@@ -117,7 +117,7 @@ func Test_GetMe(t *testing.T) {
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedUser MinimalUser
 			err = json.Unmarshal([]byte(textContent.Text), &returnedUser)
 			require.NoError(t, err)
@@ -199,8 +199,8 @@ func Test_GetMe_IFC_FeatureFlag(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, "trusted", ifcMap["integrity"])
-		// get_me returns the caller's private repo/gist counts, which are not
-		// part of the public profile, so confidentiality is private.
+		// 获取_me 返回 调用er's 私有 repo/gist counts, which are not
+		// part 的公开 pro文件, so confidentiality is 私有.
 		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
 }
@@ -278,8 +278,8 @@ func Test_GetTeams(t *testing.T) {
 		},
 	})
 
-	// Create GQL clients for different test scenarios - these are factory functions
-	// to ensure each test gets a fresh client
+	// Create GQL 客户端s f或different test scenarios - these are factory 函数s
+	// to ensure 每个test 获取s 一个fresh 客户端
 	gqlClientForTestuser := func() *githubv4.Client {
 		queryStr := "query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}"
 		vars := map[string]any{
@@ -310,7 +310,7 @@ func Test_GetTeams(t *testing.T) {
 		return githubv4.NewClient(httpClient)
 	}
 
-	// Factory function for mock HTTP clients with user response
+	// Factory 函数 f或模拟 HTTP 客户端s with user 响应
 	httpClientWithUser := func() *http.Client {
 		return MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetUser: mockResponse(t, http.StatusOK, mockUser),
@@ -485,7 +485,7 @@ func Test_GetTeamMembers(t *testing.T) {
 		},
 	})
 
-	// Create GQL clients for different test scenarios
+	// Create GQL 客户端s f或different test scenarios
 	gqlClientWithMembers := func() *githubv4.Client {
 		queryStr := "query($org:String!$teamSlug:String!){organization(login: $org){team(slug: $teamSlug){members(first: 100){nodes{login}}}}}"
 		vars := map[string]any{

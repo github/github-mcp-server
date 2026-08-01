@@ -24,8 +24,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// stubDeps is a test helper that implements ToolDependencies with configurable behavior.
-// Use this when you need to test error paths or when you need closure-based client creation.
+// stubDeps is 一个test helper that implements ToolDependencies with configurable behavior.
+// Use this when you need to test 错误 路径s 或when you need closure-based 客户端 creation.
 type stubDeps struct {
 	clientFn    func(context.Context) (*gogithub.Client, error)
 	gqlClientFn func(context.Context) (*githubv4.Client, error)
@@ -73,9 +73,9 @@ func (s stubDeps) Metrics(ctx context.Context) metrics.Metrics {
 	return s.obsv.Metrics(ctx)
 }
 
-// Helper functions to create stub client functions for error testing
+// Helper 函数s to 创建 stub 客户端 函数s f或错误 testing
 
-// stubExporters returns a discard-logger + noop-metrics Exporters for tests.
+// stubExporters 返回 一个discard-logger + noop-metrics Exporters f或tests.
 func stubExporters() observability.Exporters {
 	obs, _ := observability.NewExporters(slog.New(slog.DiscardHandler), metrics.NewNoopMetrics())
 	return obs
@@ -149,12 +149,12 @@ func badRequestHandler(msg string) http.HandlerFunc {
 	}
 }
 
-// TestNewMCPServer_CreatesSuccessfully verifies that the server can be created
-// with the deps injection middleware properly configured.
+// TestNewMCPServer_CreatesSuccessfully verifies that 服务器 可以 创建d
+// 使用deps injection middleware properly configured.
 func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 	t.Parallel()
 
-	// Create a minimal server configuration
+	// Create 一个minimal 服务器 configuration
 	cfg := MCPServerConfig{
 		Version:           "test",
 		Host:              "", // defaults to github.com
@@ -176,24 +176,24 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 
 	require.NoError(t, err, "expected inventory build to succeed")
 
-	// Create the server
+	// Create 服务器
 	server, err := NewMCPServer(context.Background(), &cfg, deps, inv)
 	require.NoError(t, err, "expected server creation to succeed")
 	require.NotNil(t, server, "expected server to be non-nil")
 
-	// The fact that the server was created successfully indicates that:
-	// 1. The deps injection middleware is properly added
-	// 2. Tools can be registered without panicking
+	// fact that 服务器 was 创建d 成功fully indicates that:
+	// 1. deps injection middleware is properly added
+	// 2. Tools 可以 registered without panicking
 	//
-	// If the middleware wasn't properly added, tool calls would panic with
-	// "ToolDependencies not found in context" when executed.
+	// 如果middleware wasn't properly added, 工具 调用 would panic with
+	// "ToolDependencies 不found in 上下文" when executed.
 	//
-	// The actual middleware functionality and tool execution with ContextWithDeps
-	// is already tested in pkg/github/*_test.go.
+	// actual middleware 函数ality 和工具 execution with ContextWithDeps
+	// is al读取y tested in pkg/github/*_test.go.
 }
 
-// advertisedServerCapabilities connects an in-memory client to the given server
-// and returns the capabilities the server advertised during initialization.
+// advertisedServerCapabilities connects 一个in-memory 客户端 到given 服务器
+// 和返回 能力 服务器 advertised during initialization.
 func advertisedServerCapabilities(t *testing.T, server *mcp.Server) *mcp.ServerCapabilities {
 	t.Helper()
 
@@ -214,13 +214,13 @@ func advertisedServerCapabilities(t *testing.T, server *mcp.Server) *mcp.ServerC
 	return result.Capabilities
 }
 
-// TestNewMCPServer_AdvertisedCapabilities locks in the capability contract set by
-// NewMCPServer: tools, prompts, and resources are advertised without list-changed
-// notifications (the server has a static item set and never emits list_changed),
-// the deprecated logging capability is not advertised, and the inferred
-// completions capability is preserved. This is asserted for both the stdio path
-// (full inventory, items present) and the HTTP path (inventory emptied for the
-// discovery/initialize request), which share the same NewMCPServer entry point.
+// TestNewMCPServer_AdvertisedCapabilities locks 在能力 contract set by
+// NewMCPServer: 工具, 提示, 和资源 are advertised without 列出-changed
+// notifications (the 服务器 has 一个static item set 和绝不emits 列出_changed),
+// deprecated logging 能力 is 不advertised, 以及inferred
+// completions 能力 is preserved. 此is asserted f或both stdio 路径
+// (full inventory, items present) 以及HTTP 路径 (inventory emptied f或the
+// discovery/initialize 请求), which share 相同 NewMCPServer entry point.
 func TestNewMCPServer_AdvertisedCapabilities(t *testing.T) {
 	t.Parallel()
 
@@ -249,9 +249,9 @@ func TestNewMCPServer_AdvertisedCapabilities(t *testing.T) {
 			inv:  fullInventory,
 		},
 		{
-			// The HTTP handler registers only the items relevant to a request;
-			// for initialize/discover that is nothing, so capabilities must come
-			// from the explicit declaration rather than being inferred from items.
+			// HTTP 处理器 registers 仅items relevant to 一个请求;
+			// f或initialize/discover that is nothing, so 能力 must come
+			// 来自explicit declaration rather than being inferred from items.
 			name: "http path with no registered items for discovery",
 			inv:  fullInventory.ForMCPRequest(inventory.MCPMethodDiscover, ""),
 		},
@@ -277,16 +277,16 @@ func TestNewMCPServer_AdvertisedCapabilities(t *testing.T) {
 			assert.False(t, caps.Resources.Subscribe, "resources subscribe must not be advertised")
 
 			assert.NotNil(t, caps.Completions, "completions capability should be preserved")
-			// Intentionally asserting the deprecated logging capability is absent.
-			assert.Nil(t, caps.Logging, "deprecated logging capability should not be advertised") //nolint:staticcheck // SA1019: verifying the deprecated capability is not advertised
+			// Intentionally asserting deprecated logging 能力 is absent.
+			assert.Nil(t, caps.Logging, "deprecated logging capability should not be advertised") //nolint:static检查 // SA1019: verifying deprecated 能力 is 不advertised
 		})
 	}
 }
 
-// TestNewServer_NameAndTitleViaTranslation verifies that server name and title
-// can be overridden via the translation helper (GITHUB_MCP_SERVER_NAME /
-// GITHUB_MCP_SERVER_TITLE env vars or github-mcp-server-config.json) and
-// fall back to sensible defaults when not overridden.
+// TestNewServer_NameAndTitleViaTranslation verifies that 服务器 name 和title
+// 可以 overridden via translation helper (GITHUB_MCP_SERVER_NAME /
+// GITHUB_MCP_SERVER_TITLE env vars 或github-mcp-服务器-config.json) and
+// f所有back to sensible defaults when 不overridden.
 func TestNewServer_NameAndTitleViaTranslation(t *testing.T) {
 	t.Parallel()
 
@@ -337,7 +337,7 @@ func TestNewServer_NameAndTitleViaTranslation(t *testing.T) {
 			srv := NewServer("v1.0.0", tt.translator("SERVER_NAME", "github-mcp-server"), tt.translator("SERVER_TITLE", "GitHub MCP Server"), nil)
 			require.NotNil(t, srv)
 
-			// Connect a client to retrieve the initialize result and verify ServerInfo.
+			// Connect 一个客户端 to retrieve initialize 结果 和verify ServerInfo.
 			st, ct := mcp.NewInMemoryTransports()
 			client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
 
@@ -370,7 +370,7 @@ func TestNewServer_NameAndTitleViaTranslation(t *testing.T) {
 	}
 }
 
-// TestResolveEnabledToolsets verifies the toolset resolution logic.
+// TestResolveEnabledToolsets verifies 工具集 resolution logic.
 func TestResolveEnabledToolsets(t *testing.T) {
 	t.Parallel()
 
@@ -407,7 +407,7 @@ func TestResolveEnabledToolsets(t *testing.T) {
 				EnabledToolsets: nil,
 				EnabledTools:    []string{"get_me"},
 			},
-			expectedResult: []string{}, // empty slice when tools specified but no toolsets
+			expectedResult: []string{}, // 空 slice when 工具 specified 但no 工具集s
 		},
 	}
 

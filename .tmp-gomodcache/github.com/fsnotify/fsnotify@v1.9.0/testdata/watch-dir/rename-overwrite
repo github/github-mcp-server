@@ -1,0 +1,22 @@
+# Rename file in watched dir, overwriting an existing file.
+
+touch /file
+touch /rename
+
+watch /
+
+mv /file /rename
+
+Output:
+	remove  /rename
+	rename  /file
+	create  /rename ← /file
+
+	# Inotify just sends MOVED_FROM and MOVED_TO.
+	linux:
+		rename /file
+		create /rename ← /file
+
+	dragonfly:
+		remove /
+		rename /file

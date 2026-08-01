@@ -10,17 +10,17 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
-// resolverFieldsPageSize is the GraphQL ProjectV2 max page size; covers most
-// projects in a single round-trip.
+// resolverFieldsPageSize is GraphQL ProjectV2 max 页 size; covers most
+// projects in 一个单个 round-trip.
 const resolverFieldsPageSize = 100
 
-// ResolvedFieldOption is one option on a SINGLE_SELECT project field.
+// ResolvedFieldOption is one option on 一个SINGLE_SELECT project field.
 type ResolvedFieldOption struct {
 	ID   string
 	Name string
 }
 
-// ResolvedField contains a project's numeric database ID, GraphQL node ID, and
+// ResolvedField contains 一个project's numeric 数据base ID, GraphQL node ID, and
 // type-specific options.
 type ResolvedField struct {
 	ID       string
@@ -30,7 +30,7 @@ type ResolvedField struct {
 	Options  []ResolvedFieldOption
 }
 
-// projectFieldsQueryOrg fetches all fields on an org-owned project (paginated).
+// projectFieldsQueryOrg fetches 所有fields on 一个org-owned project (paginated).
 type projectFieldsQueryOrg struct {
 	Organization struct {
 		ProjectV2 struct {
@@ -39,7 +39,7 @@ type projectFieldsQueryOrg struct {
 	} `graphql:"organization(login: $owner)"`
 }
 
-// projectFieldsQueryUser fetches all fields on a user-owned project (paginated).
+// projectFieldsQueryUser fetches 所有fields on 一个user-owned project (paginated).
 type projectFieldsQueryUser struct {
 	User struct {
 		ProjectV2 struct {
@@ -48,8 +48,8 @@ type projectFieldsQueryUser struct {
 	} `graphql:"user(login: $owner)"`
 }
 
-// projectFieldsConnection is a paginated list of project fields. We select `id`
-// to discriminate the union variant and `databaseId` for the numeric ID REST needs.
+// projectFieldsConnection is 一个paginated 列出 of project fields. We select `id`
+// to discriminate union variant 和`数据baseId` 用于numeric ID REST needs.
 type projectFieldsConnection struct {
 	Nodes []struct {
 		ProjectV2Field struct {
@@ -78,7 +78,7 @@ type projectFieldsConnection struct {
 	PageInfo PageInfoFragment
 }
 
-// listAllProjectFields fetches every field on a project, paginating as needed.
+// 列出AllProjectFields fetches every field on 一个project, paginating as needed.
 func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int) ([]ResolvedField, error) {
 	all := []ResolvedField{}
 	var after *githubv4.String
@@ -150,9 +150,9 @@ func listAllProjectFields(ctx context.Context, gqlClient *githubv4.Client, owner
 	return all, nil
 }
 
-// resolveProjectFieldByName resolves a field by display name. Returns a
-// structured error on not-found, ambiguous, or wrong-data-type (when
-// expectedDataType is set) so the agent can self-correct.
+// resolveProjectFieldByName resolves 一个field by display name. Returns a
+// structured 错误 on not-found, ambiguous, 或wrong-数据-type (when
+// expectedDataType is set) so agent can self-correct.
 func resolveProjectFieldByName(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, fieldName, expectedDataType string) (*ResolvedField, error) {
 	if fieldName == "" {
 		return nil, fmt.Errorf("field name must not be empty")
@@ -216,8 +216,8 @@ func resolveProjectFieldByName(ctx context.Context, gqlClient *githubv4.Client, 
 	return &field, nil
 }
 
-// resolveSingleSelectOptionByName resolves an option name to its ID on a
-// SINGLE_SELECT field. Returns a structured error if not found or ambiguous.
+// resolveSingleSelectOptionByName resolves 一个option name to its ID on a
+// SINGLE_SELECT field. Returns 一个structured 错误 if 不found 或ambiguous.
 func resolveSingleSelectOptionByName(field *ResolvedField, optionName string) (string, error) {
 	if field == nil {
 		return "", fmt.Errorf("field must not be nil")
@@ -266,9 +266,9 @@ func resolveSingleSelectOptionByName(field *ResolvedField, optionName string) (s
 	}
 }
 
-// resolveProjectItemIDByIssueNumber resolves a (project, issue) pair to the
-// project item's full database ID in one GraphQL hop. Returns a structured
-// error if the issue is not an item on the project.
+// resolveProjectItemIDByIssueNumber resolves 一个(project, 议题) pair to the
+// project item's full 数据base ID in one GraphQL hop. Returns 一个structured
+// 错误 如果议题 is 不一个item 在project.
 func resolveProjectItemIDByIssueNumber(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, issueOwner, issueRepo string, issueNumber int) (int64, error) {
 	_, itemID, err := resolveProjectItemByIssueNumber(ctx, gqlClient, owner, ownerType, projectNumber, issueOwner, issueRepo, issueNumber)
 	return itemID, err
@@ -350,8 +350,8 @@ func resolveProjectItemByIssueNumberWithProjectID(ctx context.Context, gqlClient
 	)
 }
 
-// resolveItemIDFromIssueArgs reads (item_owner, item_repo, issue_number) from args
-// and resolves them to a project item ID. Returns a single friendly error if any input is missing.
+// resolveItemIDFromIssueArgs 读取s (item_owner, item_repo, 议题_number) from args
+// 和resolves them to 一个project item ID. Returns 一个单个 friendly 错误 if any 输入 is missing.
 func resolveItemIDFromIssueArgs(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, args map[string]any) (int64, error) {
 	issueOwner, ownerErr := RequiredParam[string](args, "item_owner")
 	issueRepo, repoErr := RequiredParam[string](args, "item_repo")
@@ -367,7 +367,7 @@ func parseInt64(s string) (int64, error) {
 }
 
 // resolveFieldNamesToIDs resolves field names to numeric IDs in one GraphQL
-// hop. Fails fast with a structured error on any unresolved or ambiguous name.
+// hop. Fails fast with 一个structured 错误 on any unresolved 或ambiguous name.
 func resolveFieldNamesToIDs(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, names []string) ([]int64, error) {
 	if len(names) == 0 {
 		return nil, nil
@@ -378,8 +378,8 @@ func resolveFieldNamesToIDs(ctx context.Context, gqlClient *githubv4.Client, own
 		return nil, err
 	}
 
-	// Build a name -> []ResolvedField map so we can detect duplicates per name.
-	// Matching is case-insensitive to align with the GraphQL API's behaviour.
+	// Build 一个name -> []ResolvedField map so we can detect duplicates per name.
+	// Matching is case-insensitive to align 使用GraphQL API's behaviour.
 	byName := make(map[string][]ResolvedField, len(all))
 	for _, f := range all {
 		key := strings.ToLower(f.Name)

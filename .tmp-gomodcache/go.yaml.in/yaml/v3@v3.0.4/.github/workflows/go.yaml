@@ -1,0 +1,40 @@
+name: Go
+
+on:
+  push:
+    branches: [ v3 ]
+  pull_request:
+    branches: [ v3 ]
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: stable
+    - name: Run go fmt
+      run: go fmt ./...
+    - name: Check if working tree is dirty
+      run: |
+        if [[ $(git diff --stat) ]]; then
+          git --no-pager diff
+          echo 'Run go fmt ./... and commit changes.'
+          exit 1
+        fi
+  build:
+    strategy:
+      matrix:
+        go-versions: [1.21.x, 1.22.x, 1.23.x, 1.24.x]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-versions }}
+    - name: Run go vet
+      run: go vet ./...
+    - name: Run go test
+      run: GO111MODULE=on go test -v -race ./...

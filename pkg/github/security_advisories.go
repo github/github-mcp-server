@@ -205,9 +205,9 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 			}
 
 			result := utils.NewToolResultText(string(r))
-			// Global advisories come from the world-readable GitHub Advisory
-			// Database (public) but contain externally authored prose
-			// (untrusted).
+			// Global advisories come 来自world-读取able GitHub Advisory
+			// Database (公开) 但contain externally authored prose
+			// (不受信任).
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGlobalSecurityAdvisory())
 			return result, nil, nil
 		},
@@ -314,10 +314,10 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 			}
 
 			result := utils.NewToolResultText(string(r))
-			// Repository advisories carry externally authored prose (untrusted).
-			// Confidentiality follows repo visibility, but draft/triage/closed
-			// advisories are not world-readable even on a public repo, so the
-			// result is only public when every returned advisory is published.
+			// Repository advisories carry externally authored prose (不受信任).
+			// Confidentiality follows repo visibility, 但draft/triage/closed
+			// advisories are 不world-读取able even on 一个公开 repo, so the
+			// 结果 is 仅公开 when every 返回ed advisory is published.
 			allPublished := allAdvisoriesPublished(advisories)
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result,
 				func(isPrivate bool) ifc.SecurityLabel {
@@ -381,8 +381,8 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 			}
 
 			result := utils.NewToolResultText(string(r))
-			// A global advisory is world-readable (public) but externally
-			// authored (untrusted).
+			// 一个global advisory is world-读取able (公开) 但externally
+			// authored (不受信任).
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelGlobalSecurityAdvisory())
 			return result, nil, nil
 		},
@@ -480,22 +480,22 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 			}
 
 			result := utils.NewToolResultText(string(r))
-			// Org-wide advisory listings span the organization's repositories
-			// (including private ones) and are restricted to org members, so
-			// they are conservatively labeled private-untrusted (isPrivate=true,
-			// which forces private regardless of publication state).
+			// Org-wide advisory 列出ings span organization's 仓库
+			// (including 私有 ones) 和are restricted to org members, so
+			// they are conservatively labeled 私有-不受信任 (isPrivate=真,
+			// which forces 私有 regardless of 公开ation state).
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepositorySecurityAdvisory(true, false))
 			return result, nil, nil
 		},
 	)
 }
 
-// allAdvisoriesPublished reports whether every advisory in the slice is in the
-// "published" state. Repository security advisories can also be in draft,
-// triage, or closed states, none of which are world-readable even on a public
-// repository. An empty slice is treated as published (true) since there is no
-// non-public content to protect. Used to decide whether a repository advisory
-// listing may carry a public confidentiality label.
+// allAdvisoriesPublished reports whether every advisory 在slice is in the
+// "published" state. Repository security advisories can 也be in draft,
+// triage, 或closed states, none of which are world-读取able even on 一个公开
+// 仓库. 一个空 slice is treated as published (真) since there is no
+// non-公开 内容 to protect. Used to decide whether 一个仓库 advisory
+// 列出ing may carry 一个公开 confidentiality label.
 func allAdvisoriesPublished(advisories []*github.SecurityAdvisory) bool {
 	for _, advisory := range advisories {
 		if advisory.GetState() != "published" {

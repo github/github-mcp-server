@@ -15,7 +15,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/utils"
 )
 
-// RemoteMCPEnthusiasticGreeting is a dummy test feature flag .
+// RemoteMCPEnthusiasticGreeting is 一个dummy test 功能标志 .
 const RemoteMCPEnthusiasticGreeting = "remote_mcp_enthusiastic_greeting"
 
 func featureCheckerFor(enabledFlags ...string) func(context.Context, string) (bool, error) {
@@ -28,11 +28,11 @@ func featureCheckerFor(enabledFlags ...string) func(context.Context, string) (bo
 	}
 }
 
-// HelloWorld returns a simple greeting tool that demonstrates feature flag conditional behavior.
-// This tool is for testing and demonstration purposes only.
+// HelloWorld 返回 一个simple greeting 工具 that demonstrates 功能标志 conditional behavior.
+// 此工具 is f或testing 和demonstration purposes only.
 func HelloWorldTool(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
-		ToolsetMetadataContext, // Use existing "context" toolset
+		ToolsetMetadataContext, // Use existing "上下文" 工具集
 		mcp.Tool{
 			Name:        "hello_world",
 			Description: t("TOOL_HELLO_WORLD_DESCRIPTION", "A simple greeting tool that demonstrates feature flag conditional behavior"),
@@ -44,13 +44,13 @@ func HelloWorldTool(t translations.TranslationHelperFunc) inventory.ServerTool {
 		[]scopes.Scope{},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
 
-			// Check feature flag to determine greeting style
+			// Check 功能标志 to determine greeting style
 			greeting := "Hello, world!"
 			if deps.IsFeatureEnabled(ctx, RemoteMCPEnthusiasticGreeting) {
 				greeting += " Welcome to the future of MCP! 🎉"
 			}
 
-			// Build response
+			// Build 响应
 			response := map[string]any{
 				"greeting": greeting,
 			}
@@ -95,7 +95,7 @@ func TestHelloWorld_ConditionalBehavior_Featureflag(t *testing.T) {
 				enabledFlags = append(enabledFlags, RemoteMCPEnthusiasticGreeting)
 			}
 
-			// Create deps with the checker
+			// Create deps 使用检查er
 			deps := NewBaseDeps(
 				nil, nil, nil, nil,
 				translations.NullTranslationHelper,
@@ -105,11 +105,11 @@ func TestHelloWorld_ConditionalBehavior_Featureflag(t *testing.T) {
 				stubExporters(),
 			)
 
-			// Get the tool and its handler
+			// Get 工具 和its 处理器
 			tool := HelloWorldTool(translations.NullTranslationHelper)
 			handler := tool.Handler(deps)
 
-			// Call the handler with deps in context
+			// C所有处理器 with deps in 上下文
 			ctx := ContextWithDeps(context.Background(), deps)
 			result, err := handler(ctx, &mcp.CallToolRequest{
 				Params: &mcp.CallToolParamsRaw{
@@ -120,7 +120,7 @@ func TestHelloWorld_ConditionalBehavior_Featureflag(t *testing.T) {
 			require.NotNil(t, result)
 			require.Len(t, result.Content, 1)
 
-			// Parse the response - should be TextContent
+			// Parse 响应 - 应当是 TextContent
 			textContent, ok := result.Content[0].(*mcp.TextContent)
 			require.True(t, ok, "expected content to be TextContent")
 
@@ -128,7 +128,7 @@ func TestHelloWorld_ConditionalBehavior_Featureflag(t *testing.T) {
 			err = json.Unmarshal([]byte(textContent.Text), &response)
 			require.NoError(t, err)
 
-			// Verify the greeting matches expected based on feature flag
+			// Verify greeting matches expected based on 功能标志
 			assert.Equal(t, tt.expectedGreeting, response["greeting"])
 		})
 	}

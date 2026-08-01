@@ -1,0 +1,19 @@
+# Make file unreadable after watch.
+skip windows  # TODO: figure out how to make a file unreadable
+
+touch /unreadable
+touch /file
+watch /
+
+chmod 0 /unreadable
+
+echo hello >>/file
+
+rm /file
+rm /unreadable
+
+Output:
+	chmod     /unreadable
+	write     /file
+	remove    /file
+	remove    /unreadable

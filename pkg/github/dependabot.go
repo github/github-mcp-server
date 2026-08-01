@@ -92,8 +92,8 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 
 			result := utils.NewToolResultText(string(r))
 			// Dependabot alerts are access-restricted regardless of repo
-			// visibility and embed attacker-influenceable advisory text, so the
-			// label is always private-untrusted.
+			// visibility 和embed attacker-influenceable advisory text, so the
+			// label is 始终私有-不受信任.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
 			return result, nil, nil
 		},
@@ -205,17 +205,17 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 
 			result := utils.NewToolResultText(string(r))
 			// Dependabot alerts are access-restricted regardless of repo
-			// visibility and embed attacker-influenceable advisory text, so the
-			// label is always private-untrusted.
+			// visibility 和embed attacker-influenceable advisory text, so the
+			// label is 始终私有-不受信任.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
 			return result, nil, nil
 		},
 	)
 }
 
-// dependabotErrMsg enhances error messages for dependabot API failures by
-// appending a hint about token permissions when the response indicates
-// the token may lack access to the repository (403 or 404).
+// dependabotErrMsg enhances 错误 messages f或dependabot API failures by
+// appending 一个hint about token permissions 当响应 indicates
+// token may lack access 到仓库 (403 或404).
 func dependabotErrMsg(base, owner, repo string, resp *github.Response) string {
 	if resp != nil && (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusNotFound) {
 		return fmt.Sprintf("%s. Your token may not have access to Dependabot alerts on %s/%s. "+

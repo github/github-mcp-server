@@ -1,0 +1,12 @@
+# Rename from unwatched dir.
+
+mkdir /unwatch
+touch /unwatch/file
+
+mkdir /dir
+watch /dir
+
+mv /unwatch/file /dir/file
+
+Output:
+	create /dir/file

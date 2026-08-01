@@ -1,15 +1,11 @@
-// Package oauth implements the user-facing OAuth 2.1 login flows the stdio
-// server uses to obtain a GitHub token without a pre-provisioned Personal
-// Access Token.
+// Package oauth 实现面向用户的 OAuth 2.1 登录流程，stdio server 通过它在没有预先配置的
+// Personal Access Token 时获取 GitHub token。
 //
-// It supports both GitHub OAuth Apps and GitHub Apps (user-to-server). The
-// only practical difference is that GitHub App user tokens expire and carry a
-// refresh token; this package always returns a refreshing [golang.org/x/oauth2.TokenSource]
-// so callers never have to special-case the app type.
+// 它同时支持 GitHub OAuth Apps 和 GitHub Apps（user-to-server）。实际区别仅在于 GitHub App user token
+// 会过期且带有 refresh token；此 package 始终返回可刷新的 [golang.org/x/oauth2.TokenSource]，调用方无需针对 app 类型做特殊处理。
 //
-// The package depends only on golang.org/x/oauth2 and the standard library. MCP
-// concerns (sessions, elicitation) are abstracted behind the [Prompter]
-// interface so the flows can be tested without a live client.
+// 本 package 仅依赖 golang.org/x/oauth2 和标准库。MCP 相关事项（session、elicitation）被抽象在 [Prompter]
+// interface 后，因此可在没有真实 client 时测试流程。
 package oauth
 
 import (
@@ -21,25 +17,21 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// Config describes an OAuth client and the GitHub endpoints it talks to.
+// Config 描述 OAuth client 及其交互的 GitHub endpoint。
 type Config struct {
 	ClientID     string
 	ClientSecret string
-	// Scopes requested during authorization. GitHub Apps ignore these (their
-	// access is governed by installed permissions); OAuth Apps honor them.
+	// 授权期间请求的 scope。GitHub Apps 忽略它们（访问权限由已安装权限控制）；OAuth Apps 会遵守它们。
 	Scopes []string
-	// Endpoint holds the authorization, token, and device endpoints. Build one
-	// with [GitHubEndpoint].
+	// Endpoint 保存 authorization、token 和 device endpoint。使用 [GitHubEndpoint] 构建。
 	Endpoint oauth2.Endpoint
-	// CallbackPort is the fixed local port for the PKCE callback server. Zero
-	// requests a random port, which is the secure default for native binaries
-	// but cannot be reached through Docker port mapping (see the Manager).
+	// CallbackPort 是 PKCE callback server 的固定本地端口。零值会请求随机端口，这是 native binary 的安全默认值，
+	// 但无法通过 Docker port mapping 访问（参见 Manager）。
 	CallbackPort int
 }
 
-// NewGitHubConfig builds a Config for the given GitHub host. An empty host
-// targets github.com; otherwise the host may be a GHES or ghe.com hostname,
-// with or without a scheme.
+// NewGitHubConfig 为给定 GitHub host 构建 Config。空 host 指向 github.com；其他 host 可以是 GHES
+// 或 ghe.com hostname，带或不带 scheme 均可。
 func NewGitHubConfig(clientID, clientSecret string, scopes []string, host string, callbackPort int) Config {
 	return Config{
 		ClientID:     clientID,
@@ -50,8 +42,7 @@ func NewGitHubConfig(clientID, clientSecret string, scopes []string, host string
 	}
 }
 
-// GitHubEndpoint returns the OAuth authorization, token, and device endpoints
-// for a GitHub host. An empty host targets github.com.
+// GitHubEndpoint 返回 GitHub host 的 OAuth authorization、token 和 device endpoint。空 host 指向 github.com。
 func GitHubEndpoint(host string) oauth2.Endpoint {
 	base := NormalizeHost(host)
 	return oauth2.Endpoint{
@@ -61,11 +52,9 @@ func GitHubEndpoint(host string) oauth2.Endpoint {
 	}
 }
 
-// NormalizeHost turns a user-supplied host into a scheme+host base URL with no
-// trailing slash. The API subdomain is stripped because OAuth endpoints live on
-// the web host, not the API host (api.github.com -> github.com). An empty host
-// yields the github.com default, so callers can also use it to recognize the
-// default host (NormalizeHost(host) == "https://github.com").
+// NormalizeHost 将用户提供的 host 转换为不带尾部斜杠的 scheme+host base URL。会移除 API subdomain，
+// 因为 OAuth endpoint 位于 web host 而非 API host（api.github.com -> github.com）。空 host 会得到
+// github.com 默认值，因此调用方也可用它识别默认 host（NormalizeHost(host) == "https://github.com"）。
 func NormalizeHost(host string) string {
 	host = strings.TrimSpace(host)
 	if host == "" {
@@ -81,7 +70,7 @@ func NormalizeHost(host string) string {
 		host = strings.TrimPrefix(host, "http://")
 	}
 
-	// Drop any path, query, or fragment; we only need scheme://host.
+	// 丢弃 path、query 和 fragment；只需要 scheme://host。
 	if i := strings.IndexAny(host, "/?#"); i >= 0 {
 		host = host[:i]
 	}
@@ -91,8 +80,7 @@ func NormalizeHost(host string) string {
 	return fmt.Sprintf("%s://%s", scheme, host)
 }
 
-// randomState returns a cryptographically random URL-safe string used as the
-// OAuth state parameter (CSRF protection) and elicitation IDs.
+// randomState 返回用作 OAuth state 参数（CSRF protection）和 elicitation ID 的加密随机 URL-safe 字符串。
 func randomState() (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {

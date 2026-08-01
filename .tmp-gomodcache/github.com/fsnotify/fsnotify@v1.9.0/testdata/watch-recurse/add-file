@@ -1,0 +1,21 @@
+# Make a nested directory tree, then write some files there.
+require recurse
+
+mkdir -p /sub/dir
+watch /...
+
+echo asd >/file
+echo asd >/sub/dir/file
+
+rm /file
+rm /sub/dir/file
+
+Output:
+	create  /file
+	write   /file
+
+	create  /sub/dir/file
+	write   /sub/dir/file
+
+	remove  /file
+	remove  /sub/dir/file

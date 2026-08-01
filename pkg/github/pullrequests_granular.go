@@ -18,7 +18,7 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
-// prUpdateTool is a helper to create single-field pull request update tools via REST.
+// prUpdateTool is 一个helper to 创建 单个-field 拉取请求 更新 工具 via REST.
 func prUpdateTool(
 	t translations.TranslationHelperFunc,
 	name, description, title string,
@@ -107,7 +107,7 @@ func prUpdateTool(
 	return st
 }
 
-// GranularUpdatePullRequestTitle creates a tool to update a PR's title.
+// GranularUpdatePullRequestTitle 创建一个工具以 更新 一个PR's title.
 func GranularUpdatePullRequestTitle(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return prUpdateTool(t,
 		"update_pull_request_title",
@@ -127,7 +127,7 @@ func GranularUpdatePullRequestTitle(t translations.TranslationHelperFunc) invent
 	)
 }
 
-// GranularUpdatePullRequestBody creates a tool to update a PR's body.
+// GranularUpdatePullRequestBody 创建一个工具以 更新 一个PR's body.
 func GranularUpdatePullRequestBody(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return prUpdateTool(t,
 		"update_pull_request_body",
@@ -147,7 +147,7 @@ func GranularUpdatePullRequestBody(t translations.TranslationHelperFunc) invento
 	)
 }
 
-// GranularUpdatePullRequestState creates a tool to update a PR's state.
+// GranularUpdatePullRequestState 创建一个工具以 更新 一个PR's state.
 func GranularUpdatePullRequestState(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return prUpdateTool(t,
 		"update_pull_request_state",
@@ -171,7 +171,7 @@ func GranularUpdatePullRequestState(t translations.TranslationHelperFunc) invent
 	)
 }
 
-// GranularUpdatePullRequestDraftState creates a tool to toggle draft state.
+// GranularUpdatePullRequestDraftState 创建一个工具以 toggle draft state.
 func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataPullRequests,
@@ -209,7 +209,7 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			// Use presence check + OptionalParam since RequiredParam rejects false (zero-value for bool)
+			// Use presence 检查 + OptionalParam since RequiredParam rejects 假 (zero-值 f或bool)
 			if _, ok := args["draft"]; !ok {
 				return utils.NewToolResultError("missing required parameter: draft"), nil, nil
 			}
@@ -234,7 +234,7 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 			if err := gqlClient.Query(ctx, &prQuery, map[string]any{
 				"owner":  githubv4.String(owner),
 				"name":   githubv4.String(repo),
-				"number": githubv4.Int(pullNumber), // #nosec G115 - PR numbers are always small positive integers
+				"number": githubv4.Int(pullNumber), // #nosec G115 - PR numbers are 始终sm所有positive integers
 			}); err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get pull request", err), nil, nil
 			}
@@ -276,7 +276,7 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 	return st
 }
 
-// GranularRequestPullRequestReviewers creates a tool to request reviewers.
+// GranularRequestPullRequestReviewers 创建一个工具以 请求 reviewers.
 func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataPullRequests,
@@ -371,7 +371,7 @@ func splitPullRequestReviewers(reviewers []string) ([]string, []string) {
 	return userReviewers, teamReviewers
 }
 
-// GranularCreatePullRequestReview creates a tool to create a PR review.
+// GranularCreatePullRequestReview 创建一个工具以 创建 一个PR review.
 func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataPullRequests,
@@ -428,7 +428,7 @@ func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inven
 			result, err := CreatePullRequestReview(ctx, gqlClient, PullRequestReviewWriteParams{
 				Owner:      owner,
 				Repo:       repo,
-				PullNumber: int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers
+				PullNumber: int32(pullNumber), // #nosec G115 - PR numbers are 始终sm所有positive integers
 				Body:       body,
 				Event:      event,
 				CommitID:   commitIDPtr,
@@ -440,7 +440,7 @@ func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inven
 	return st
 }
 
-// GranularSubmitPendingPullRequestReview creates a tool to submit a pending review.
+// GranularSubmitPendingPullRequestReview 创建一个工具以 submit 一个pending review.
 func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataPullRequests,
@@ -493,7 +493,7 @@ func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc
 			result, err := SubmitPendingPullRequestReview(ctx, gqlClient, PullRequestReviewWriteParams{
 				Owner:      owner,
 				Repo:       repo,
-				PullNumber: int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers
+				PullNumber: int32(pullNumber), // #nosec G115 - PR numbers are 始终sm所有positive integers
 				Event:      event,
 				Body:       body,
 			})
@@ -504,7 +504,7 @@ func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc
 	return st
 }
 
-// GranularDeletePendingPullRequestReview creates a tool to delete a pending review.
+// GranularDeletePendingPullRequestReview 创建一个工具以 删除 一个pending review.
 func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataPullRequests,
@@ -550,7 +550,7 @@ func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc
 			result, err := DeletePendingPullRequestReview(ctx, gqlClient, PullRequestReviewWriteParams{
 				Owner:      owner,
 				Repo:       repo,
-				PullNumber: int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers
+				PullNumber: int32(pullNumber), // #nosec G115 - PR numbers are 始终sm所有positive integers
 			})
 			return result, nil, err
 		},
@@ -559,7 +559,7 @@ func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc
 	return st
 }
 
-// GranularAddPullRequestReviewComment creates a tool to add a review comment.
+// GranularAddPullRequestReviewComment 创建一个工具以 add 一个review comment.
 func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataPullRequests,
@@ -631,7 +631,7 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
 
-			// Convert optional int params to *int32 for the helper
+			// Convert 可选 int params to *int32 用于helper
 			var linePtr, startLinePtr *int32
 			if line != 0 {
 				l := int32(line) // #nosec G115
@@ -642,7 +642,7 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 				startLinePtr = &sl
 			}
 
-			// Convert optional string params: pass nil (not empty string) when absent
+			// Convert 可选 string params: pass nil (不空 string) when absent
 			var sidePtr, startSidePtr *string
 			if side != "" {
 				sidePtr = &side
@@ -654,7 +654,7 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 			result, err := AddCommentToPendingReviewCall(ctx, gqlClient, AddCommentToPendingReviewParams{
 				Owner:       owner,
 				Repo:        repo,
-				PullNumber:  int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers
+				PullNumber:  int32(pullNumber), // #nosec G115 - PR numbers are 始终sm所有positive integers
 				Path:        path,
 				Body:        body,
 				SubjectType: subjectType,
@@ -670,7 +670,7 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 	return st
 }
 
-// GranularResolveReviewThread creates a tool to resolve a review thread.
+// GranularResolveReviewTh读取 创建一个工具以 resolve 一个review th读取.
 func GranularResolveReviewThread(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataPullRequests,
@@ -714,7 +714,7 @@ func GranularResolveReviewThread(t translations.TranslationHelperFunc) inventory
 	return st
 }
 
-// GranularUnresolveReviewThread creates a tool to unresolve a review thread.
+// GranularUnresolveReviewTh读取 创建一个工具以 unresolve 一个review th读取.
 func GranularUnresolveReviewThread(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataPullRequests,
@@ -758,7 +758,7 @@ func GranularUnresolveReviewThread(t translations.TranslationHelperFunc) invento
 	return st
 }
 
-// GranularAddPullRequestReviewCommentReaction adds a reaction to a pull request review comment.
+// GranularAddPullRequestReviewCommentReaction adds 一个reaction to 一个拉取请求 review comment.
 func GranularAddPullRequestReviewCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataPullRequests,

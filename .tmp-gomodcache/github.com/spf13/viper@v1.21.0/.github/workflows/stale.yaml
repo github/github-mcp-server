@@ -1,0 +1,21 @@
+name: "Close stale issues"
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+
+jobs:
+  stale:
+    name: Stale
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-stale: 30
+          days-before-close: 5
+          days-before-pr-stale: -1 # Ignore all PRs
+          stale-issue-message: "Issues with no activity for 30 days are marked stale and subject to being closed."
+          close-issue-message: "This issue has been closed for inactivity. Please re-open if this was a mistake."
+          stole-issue-label: "lifecycle/stale"
+          debug-only: true # TODO for testing

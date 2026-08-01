@@ -1,0 +1,627 @@
+# Support for the MCP base protocol
+
+%toc
+
+## Lifecycle
+
+The SDK provides an API for defining both MCP clients and servers, and
+connecting them over various transports. When a client and server are
+connected, it creates a logical session.
+
+The MCP specification defines two lifecycle models, and the SDK supports both
+transparently based on the negotiated protocol version:
+
+- The **legacy `initialize` handshake**
+  ([lifecycle](https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle))
+  used by protocol versions through `2025-11-25`.
+- A **stateless** model introduced in `2026-07-28` by
+  [SEP-2575](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2575),
+  in which there is no `initialize`/`notifications/initialized` handshake, and
+  each request carries its protocol version and client capabilities in
+  `_meta`. Clients SHOULD also include their identity (`clientInfo`) on every
+  request, and servers SHOULD include their identity (`serverInfo`) on every
+  response.
+
+In both models, the SDK exposes the same API:
+
+- A `Client` is a logical MCP client, configured with various
+  [`ClientOptions`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ClientOptions).
+- When a client is connected to a server using
+  [`Client.Connect`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#Client.Connect),
+  it creates a
+  [`ClientSession`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ClientSession).
+  This session is initialized during the `Connect` method, and provides methods
+  to communicate with the server peer.
+- A `Server` is a logical MCP server, configured with various
+  [`ServerOptions`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ServerOptions).
+- When a server is connected to a client using
+  [`Server.Connect`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#Server.Connect),
+  it creates a
+  [`ServerSession`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ServerSession).
+
+In the legacy model, the server session is not considered initialized until
+the client sends the `notifications/initialized` message. Use
+`ServerOptions.InitializedHandler` to listen for this event, or just use the
+session through various feature handlers (such as a `ToolHandler`). Requests
+to the server are rejected until the client has initialized the session.
+
+In the stateless model (`2026-07-28`+), there is no handshake. The server
+processes the first request the moment it arrives, validates the per-request
+`_meta` fields.
+
+Both `ClientSession` and `ServerSession` have a `Close` method to terminate the
+session, and a `Wait` method to await session termination by the peer. Typically,
+it is the client's responsibility to end the session.
+
+%include ../../mcp/mcp_example_test.go lifecycle -
+
+### Discovery (`server/discover`)
+
+Introduced in `2026-07-28` by
+[SEP-2575](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2575),
+the `server/discover` RPC lets a client discover a server's supported
+protocol versions, capabilities, and identity before issuing any other
+request. Servers implementing `2026-07-28` MUST implement it.
+
+- **Server**: `Server.Connect` registers the
+  `server/discover` handler automatically; the response is computed from the
+  server's static configuration (capabilities, server info, instructions) and
+  the transport-filtered list of supported protocol versions.
+- **Client**: `Client.Connect` calls `server/discover` first and
+  uses the result to negotiate a mutually supported version. If discovery
+  fails or the server does not support the latest version, the client falls back to the
+  legacy `initialize` handshake.
+
+### Per-request `_meta` keys
+
+When the negotiated protocol version is `2026-07-28` or later, every request
+carries these keys inside its `_meta` map (constants live in
+[`mcp/protocol.go`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#pkg-constants)):
+
+| Constant | Wire key | Type | Required |
+|---|---|---|---|
+| `MetaKeyProtocolVersion` | `io.modelcontextprotocol/protocolVersion` | `string` | Yes |
+| `MetaKeyClientCapabilities` | `io.modelcontextprotocol/clientCapabilities` | `*ClientCapabilities` | Yes |
+| `MetaKeyClientInfo` | `io.modelcontextprotocol/clientInfo` | `*Implementation` | No |
+| `MetaKeyLogLevel` | `io.modelcontextprotocol/logLevel` | `LoggingLevel` (deprecated by SEP-2577) | No |
+
+The client populates the required keys automatically on every outgoing
+request, and populates `clientInfo` when configured with an `*Implementation`
+(the default). Server-side handlers can read them through
+`ServerRequest[P].ProtocolVersion()`, `ServerRequest[P].ClientInfo()`, and
+`ServerRequest[P].ClientCapabilities()`.
+
+### Per-response `_meta` keys
+
+Under the same protocol version, servers SHOULD identify themselves on every
+response. The SDK populates this
+key automatically on every outgoing response:
+
+| Constant | Wire key | Type | Required |
+|---|---|---|---|
+| `MetaKeyServerInfo` | `io.modelcontextprotocol/serverInfo` | `*Implementation` | No |
+
+### Subscriptions (`subscriptions/listen`)
+
+Introduced in `2026-07-28` by
+[SEP-2575](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2575),
+`subscriptions/listen` replaces the legacy `resources/subscribe` RPC and
+the GET-based SSE endpoint with a single long-lived request that
+multiplexes every kind of server-to-client change notification a client
+opts in to. On the wire the client sends one `subscriptions/listen`
+request whose `notifications` field enumerates what it wants
+(`toolsListChanged`, `promptsListChanged`, `resourcesListChanged`, and/or
+a list of resource URIs in `resourceSubscriptions`); the server replies
+first with a `notifications/subscriptions/acknowledged` notification
+reporting the honored subset, then streams every change notification on
+the same request, and finally closes with a `SubscriptionsListenResult`
+when it tears the subscription down.
+
+## Transports
+
+A
+[transport](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)
+can be used to send JSON-RPC messages from client to server, or vice-versa.
+
+In the SDK, this is achieved by implementing the
+[`Transport`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#Transport)
+interface, which creates a (logical) bidirectional stream of JSON-RPC messages.
+Most transport implementations described below are specific to either the
+client or server: a "client transport" is something that can be used to connect
+a client to a server, and a "server transport" is something that can be used to
+connect a server to a client. However, it's possible for a transport to be both
+a client and server transport, such as the `InMemoryTransport` used in the
+lifecycle example above.
+
+Transports should not be reused for multiple connections: if you need to create
+multiple connections, use different transports.
+
+### Stdio Transport
+
+In the
+[`stdio`](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#stdio)
+transport clients communicate with an MCP server running in a subprocess using
+newline-delimited JSON over its stdin/stdout.
+
+**Client-side**: the client side of the `stdio` transport is implemented by
+[`CommandTransport`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#CommandTransport),
+which starts the a `exec.Cmd` as a subprocess and communicates over its
+stdin/stdout.
+
+**Server-side**: the server side of the `stdio` transport is implemented by
+[`StdioTransport`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#StdioTransport),
+which connects over the current processes `os.Stdin` and `os.Stdout`.
+
+### Streamable Transport
+
+The [streamable
+transport](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http)
+API is implemented across three types:
+
+- `StreamableHTTPHandler`: an`http.Handler` that serves streamable MCP
+  sessions.
+- `StreamableServerTransport`: a `Transport` that implements the server side of
+  the streamable transport.
+- `StreamableClientTransport`: a `Transport` that implements the client side of
+  the streamable transport.
+
+To create a streamable MCP server, you create a `StreamableHTTPHandler` and
+pass it an `mcp.Server`:
+
+%include ../../mcp/streamable_example_test.go streamablehandler -
+
+The `StreamableHTTPHandler` handles the HTTP requests and creates a new
+`StreamableServerTransport` for each new session. The transport is then used to
+communicate with the client.
+
+On the client side, you create a `StreamableClientTransport` and use it to
+connect to the server:
+
+```go
+transport := &mcp.StreamableClientTransport{
+	Endpoint: "http://localhost:8080/mcp",
+}
+client, err := mcp.Connect(ctx, transport, &mcp.ClientOptions{...})
+```
+
+The `StreamableClientTransport` handles the HTTP requests and communicates with
+the server using the streamable transport protocol.
+
+#### HTTP Headers
+
+[SEP-2243](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2243)
+standardises a small set of MCP-specific HTTP headers, sent and validated by
+the SDK only for sessions negotiated on protocol version `2026-07-28` or
+later.
+
+| Header | Direction | Purpose |
+|---|---|---|
+| `Mcp-Protocol-Version` | request | Mirrors `_meta.io.modelcontextprotocol/protocolVersion` from the body |
+| `Mcp-Session-Id` | request/response | Logical session identifier (removed in stateless mode) |
+| `Mcp-Method` | request | Mirrors the JSON-RPC `method` field; mismatch ⇒ `-32020` |
+| `Mcp-Name` | request | Mirrors the request's principal name (`tools/call.params.name`, `prompts/get.params.name`, `resources/read.params.uri`); mismatch ⇒ `-32020` |
+| `Mcp-Param-{Header}` | request | Per-tool parameter passthrough; see below |
+
+The header-name set is exhaustive: for protocol versions earlier than
+`2026-07-28`, only `Mcp-Protocol-Version` and `Mcp-Session-Id` are recognised.
+
+**Body↔header mirroring.** When `Mcp-Method` or `Mcp-Name` is present but
+does not match the JSON-RPC body, the server returns
+[`CodeHeaderMismatch`](#error-codes) (`-32020`). The same applies to a
+mismatch between `Mcp-Protocol-Version` and the body's
+`_meta.io.modelcontextprotocol/protocolVersion`.
+
+**`Mcp-Param-*` passthrough.** A tool may annotate properties of its
+`InputSchema` with `x-mcp-header: "<HeaderName>"`. When a client invokes that
+tool over HTTP, the SDK serializes the matching argument(s) as
+`Mcp-Param-<HeaderName>` request headers (using `=?base64?...?=` encoding for
+non-ASCII values). On the server, the headers are validated against the body
+and either accepted or rejected with `-32020`. Properties so annotated must
+be typed `string`, `integer`, or `boolean`; tools that fail validation at
+registration time are silently dropped from `tools/list`.
+
+#### Resumability and Redelivery
+
+By default, the streamable server does not support [resumability or
+redelivery](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#resumability-and-redelivery)
+of messages, because doing so requires either a persistent storage solution or
+unbounded memory usage (see also
+[#580](https://github.com/modelcontextprotocol/go-sdk/issues/580)).
+
+To enable resumability, set `StreamableHTTPOptions.EventStore` to a non-nil
+value. The SDK provides a `MemoryEventStore` for testing or simple use cases;
+for production use it is generally advisable to use a more sophisticated
+implementation.
+
+> **Note**: [SEP-2575](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2575)
+> removes SSE stream resumability (`Last-Event-ID`, SSE event IDs) for protocol
+> version `2026-07-28`. The SDK preserves the `EventStore` and `Last-Event-ID`
+> code paths for backward compatibility with `2025-11-25` and earlier; on
+> `2026-07-28` sessions, a broken response stream loses the in-flight request
+> and the client must re-issue it as a new request with a new ID.
+
+#### Stateless Mode
+
+The streamable server supports a _stateless mode_ by setting
+[`StreamableHTTPOptions.Stateless`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#StreamableHTTPOptions.Stateless),
+which is where the server does not perform any validation of the session id,
+and uses a temporary session to handle requests. In this mode, it is impossible
+for the server to make client requests, as there is no way for the client's
+response to reach the session.
+
+However, it is still possible for the server to access the `ServerSession.ID`
+to see the logical session
+
+> [!WARNING]
+> Stateless mode is not directly discussed in the spec, and is still being
+> defined. See modelcontextprotocol/modelcontextprotocol#1364,
+> modelcontextprotocol/modelcontextprotocol#1372, or
+> modelcontextprotocol/modelcontextprotocol#1442 for potential refinements.
+
+> **Required for `2026-07-28`**: the streamable HTTP transport accepts
+> requests at protocol version `2026-07-28` **only** when `Stateless = true`.
+> Requests at that version against a non-stateless handler are rejected.
+
+_See [examples/server/distributed](https://github.com/modelcontextprotocol/go-sdk/blob/main/examples/server/distributed/main.go) for
+an example using stateless mode to implement a server distributed across
+multiple processes._
+
+### Custom transports
+
+The SDK supports [custom
+transports](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#custom-transports)
+by implementing the
+[`Transport`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#Transport)
+interface: a logical bidirectional stream of JSON-RPC messages.
+
+_Full example: [examples/server/custom-transport](https://github.com/modelcontextprotocol/go-sdk/blob/main//examples/server/custom-transport/main.go)._
+
+### Concurrency
+
+In general, MCP offers no guarantees about concurrency semantics: if a client
+or server sends a notification, the spec says nothing about when the peer
+observes that notification relative to other request. However, the Go SDK
+implements the following heuristics:
+
+- If a notifying method (such as `notifications/progress` or
+  `notifications/initialized`) returns, then it is guaranteed that the peer
+  observes that notification before other notifications or calls from the same
+  client goroutine.
+- Calls (such as `tools/call`) are handled asynchronously with respect to
+  each other.
+
+See
+[modelcontextprotocol/go-sdk#26](https://github.com/modelcontextprotocol/go-sdk/issues/26)
+for more background.
+
+## Authorization
+
+### Server
+
+To write an MCP server that performs authorization,
+use [`RequireBearerToken`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/auth#RequireBearerToken).
+This function is middleware that wraps an HTTP handler, such as the one returned
+by [`NewStreamableHTTPHandler`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#NewStreamableHTTPHandler), to provide support for verifying bearer tokens.
+The middleware function checks every request for an Authorization header with a bearer token,
+and invokes the 
+[`TokenVerifier`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/auth#TokenVerifier)
+ passed to `RequireBearerToken` to parse the token and perform validation.
+The middleware function checks expiration and scopes (if they are provided in
+[`RequireBearerTokenOptions.Scopes`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/auth#RequireBearerTokenOptions.Scopes)), so the
+`TokenVerifier` doesn't have to.
+If [`RequireBearerTokenOptions.ResourceMetadataURL`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/auth#RequireBearerTokenOptions.ResourceMetadataURL) is set and verification fails, 
+the middleware function sets the WWW-Authenticate header as required by the [Protected Resource
+Metadata spec](https://datatracker.ietf.org/doc/html/rfc9728).
+
+Server handlers, such as tool handlers, can obtain the `TokenInfo` returned by the `TokenVerifier`
+from `req.Extra.TokenInfo`, where `req` is the handler's request. (For example, a
+[`CallToolRequest`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#CallToolRequest).)
+HTTP handlers wrapped by the `RequireBearerToken` middleware can obtain the `TokenInfo` from the context
+with [`auth.TokenInfoFromContext`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/auth#TokenInfoFromContext).
+
+#### OAuth Protected Resource Metadata
+
+Servers implementing OAuth 2.0 authorization should expose a protected resource metadata endpoint
+as specified in [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728). This endpoint provides
+clients with information about the resource server's OAuth configuration, including which
+authorization servers can be used and what scopes are supported.
+
+The SDK provides [`ProtectedResourceMetadataHandler`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/auth#ProtectedResourceMetadataHandler)
+to serve this metadata. The handler automatically sets CORS headers (`Access-Control-Allow-Origin: *`)
+to support cross-origin client discovery, as the metadata contains only public configuration information.
+
+Example usage:
+
+```go
+metadata := &oauthex.ProtectedResourceMetadata{
+    Resource: "https://example.com/mcp",
+    AuthorizationServers: []string{
+        "https://auth.example.com/.well-known/openid-configuration",
+    },
+    ScopesSupported: []string{"read", "write"},
+}
+http.Handle("/.well-known/oauth-protected-resource",
+    auth.ProtectedResourceMetadataHandler(metadata))
+```
+
+For more sophisticated CORS policies, wrap the handler with a CORS middleware like
+[github.com/rs/cors](https://github.com/rs/cors) or [github.com/jub0bs/cors](https://github.com/jub0bs/cors).
+
+The  [_auth middleware example_](https://github.com/modelcontextprotocol/go-sdk/tree/main/examples/server/auth-middleware) shows how to implement authorization for both JWT tokens and API keys.
+
+### Client
+
+Client-side authorization is supported via the
+[`StreamableClientTransport.OAuthHandler`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#StreamableClientTransport.OAuthHandler)
+field. If the handler is provided, the transport will automatically use it to
+add an `Authorization: Bearer <token>` header to every request. The transport
+will also call the handler's `Authorize` method if the server returns
+`401 Unauthorized` or `403 Forbidden` errors to perform the authorization flow
+or facilitate scope step-up authorization.
+
+The SDK implements the Authorization Code flow in
+[`auth.AuthorizationCodeHandler`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/auth#AuthorizationCodeHandler).
+This handler supports:
+
+- [Client ID Metadata Documents](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#client-id-metadata-documents)
+- [Pre-registered clients](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#preregistration)
+- [Dynamic Client Registration](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#dynamic-client-registration)
+- [RFC 9207](https://www.rfc-editor.org/rfc/rfc9207) Authorization Server Issuer Identification
+
+To use it, configure the handler and assign it to the transport:
+
+```go
+authHandler, _ := auth.NewAuthorizationCodeHandler(&auth.AuthorizationCodeHandlerConfig{
+	RedirectURL: "https://myapp.com/oauth2-callback",
+	// Configure one of the following:
+	// ClientIDMetadataDocumentConfig: ...
+	// PreregisteredClientConfig: ...
+	// DynamicClientRegistrationConfig: ...
+	AuthorizationCodeFetcher: func(ctx context.Context, args *auth.AuthorizationArgs) (*auth.AuthorizationResult, error) {
+		// Open the args.URL in a browser and return the resulting code, state, and iss.
+		// See full example in examples/auth/client/main.go.
+		code := ...
+		state := ...
+		iss := ... // "iss" query parameter from the redirect URI (RFC 9207)
+		return &auth.AuthorizationResult{Code: code, State: state, Iss: iss}, nil
+	},
+})
+
+transport := &mcp.StreamableClientTransport{
+	Endpoint:     "https://example.com/mcp",
+	OAuthHandler: authHandler,
+}
+client := mcp.NewClient(&mcp.Implementation{Name: "client", Version: "v0.0.1"}, nil)
+session, err := client.Connect(ctx, transport, nil)
+```
+
+The `auth.AuthorizationCodeHandler` automatically manages token refreshing (if the server provides a refresh token) and step-up authentication (when the server returns `insufficient_scope` error).
+
+#### Enterprise Managed Authorization (SEP-990)
+
+For enterprise SSO scenarios where users authenticate with an enterprise Identity Provider (IdP),
+the SDK provides
+[`extauth.EnterpriseHandler`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/auth/extauth#EnterpriseHandler),
+an implementation of `OAuthHandler` that automates the Enterprise Managed Authorization flow:
+
+1. **OIDC Login**: User authenticates with enterprise IdP → ID Token
+2. **Token Exchange** (RFC 8693): ID Token → ID-JAG at IdP
+3. **JWT Bearer Grant** (RFC 7523): ID-JAG → Access Token at MCP Server
+
+To use enterprise managed authorization, create an `EnterpriseHandler` and assign it to your transport:
+
+```go
+// Create ID token fetcher using OIDC login
+idTokenFetcher := func(ctx context.Context) (*oauth2.Token, error) {
+    oidcConfig := &extauth.OIDCLoginConfig{
+        IssuerURL: "https://company.okta.com",
+        Credentials: &oauthex.ClientCredentials{
+            ClientID: "idp-client-id",
+            ClientSecretAuth: &oauthex.ClientSecretAuth{
+                ClientSecret: "idp-client-secret",
+            },
+        },
+        RedirectURL: "http://localhost:3142",
+        Scopes:      []string{"openid", "profile", "email"},
+    }
+
+    tokens, err := extauth.PerformOIDCLogin(ctx, oidcConfig, authCodeFetcher)
+    if err != nil {
+        return nil, err
+    }
+
+    return tokens, nil
+}
+
+// Create Enterprise Handler
+enterpriseHandler, err := extauth.NewEnterpriseHandler(&extauth.EnterpriseHandlerConfig{
+    IdPIssuerURL: "https://company.okta.com",
+    IdPCredentials: &oauthex.ClientCredentials{
+        ClientID: "idp-client-id",
+        ClientSecretAuth: &oauthex.ClientSecretAuth{
+            ClientSecret: "idp-client-secret",
+        },
+    },
+    MCPAuthServerURL: "https://auth.mcpserver.example",
+    MCPResourceURI:   "https://mcp.mcpserver.example",
+    MCPCredentials: &oauthex.ClientCredentials{
+        ClientID: "mcp-client-id",
+        ClientSecretAuth: &oauthex.ClientSecretAuth{
+            ClientSecret: "mcp-client-secret",
+        },
+    },
+    MCPScopes:      []string{"read", "write"},
+    IDTokenFetcher: idTokenFetcher,
+})
+
+// Use with transport
+transport := &mcp.StreamableClientTransport{
+    Endpoint:     "https://example.com/mcp",
+    OAuthHandler: enterpriseHandler,
+}
+client := mcp.NewClient(&mcp.Implementation{Name: "client", Version: "v0.0.1"}, nil)
+session, err := client.Connect(ctx, transport, nil)
+```
+
+The `EnterpriseHandler` automatically manages the token exchange flow. Note that it intentionally does not support refresh tokens - when an access token expires, the entire authorization flow is repeated to ensure enterprise policies are consistently enforced.
+
+For a complete working example, see [examples/auth/enterprise](https://github.com/modelcontextprotocol/go-sdk/tree/main/examples/auth/enterprise).
+
+## Security
+
+Here we discuss the mitigations described under
+the MCP's [Security Best Practices](https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices) section, and how we handle them.
+
+### Confused Deputy
+
+The [mitigation](https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices#mitigation),
+obtaining user consent for dynamically registered clients, is mostly the
+responsibility of the MCP Proxy server implementation. The SDK client does
+generate cryptographically secure random `state` values for each authorization
+request by default and validates them when the authorization code is returned.
+Mismatched state values will result in an error.
+
+### Token Passthrough
+
+The [mitigation](https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices#mitigation-2), accepting only tokens that were issued for the server, depends on the structure
+of tokens and is the responsibility of the
+[`TokenVerifier`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/auth#TokenVerifier)
+provided to 
+[`RequireBearerToken`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/auth#RequireBearerToken).
+
+### Server-Side Request Forgery
+
+The [mitigations](https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices#mitigation-3) are as follows:
+
+- _Enforce HTTPS_. The OAuth helpers provided by the SDK reject the `http://` URLs
+except loopback addresses (`localhost`, `127.0.0.1`, `::1`).
+
+- _Block Private IP Ranges_. The OAuth helpers provided by the SDK allow passing
+a custom `http.Client`. Developers are advised to customize the client it with
+appropriate network protections, including IP range blocking. The SDK does not provide
+this capability out of the box.
+
+- _Validate Redirect Targets_. Similarly to previous point, customized `http.Client`
+can be used to validate network hops. The SDK does not provide this capability out
+of the box.
+
+- _Use Egress Proxies_. This is out of scope for the SDK and can be configured separately.
+
+- _DNS Resolution Considerations_. The SDK has DNS rebinding protection on the server side which is enabled by default. For the client side, consider providing
+a custom `http.Client` that would implement DNS pinning.
+
+### Session Hijacking
+
+The [mitigations](https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices#mitigation-4) are as follows:
+
+- _Verify all inbound requests_. The [`RequireBearerToken`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/auth#RequireBearerToken)
+middleware function will verify all HTTP requests that it receives. It is the
+user's responsibility to wrap that function around all handlers in their server.
+
+- _Secure session IDs_. This SDK generates cryptographically secure session IDs by default.
+If you create your own with 
+[`ServerOptions.GetSessionID`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ServerOptions.GetSessionID), it is your responsibility to ensure they are secure.
+We recommend using [`crypto/rand.Text`](https://pkg.go.dev/crypto/rand#Text).
+
+- _Binding session IDs to user information_. The SDK supports this mitigation through
+[`TokenInfo.UserID`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/auth#TokenInfo.UserID).
+When a [`TokenVerifier`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/auth#TokenVerifier)
+sets `UserID` on the returned `TokenInfo`, the streamable transport will:
+  1. Store the user ID when a new session is created.
+  2. Verify that subsequent requests to that session include a token with the same `UserID`.
+  3. Reject requests with a 403 Forbidden if the user ID doesn't match.
+
+  **Recommendation**: If your `TokenVerifier` can extract a user identifier from the token
+  (such as a `sub` claim in a JWT, or a user ID associated with an API key), set
+  `TokenInfo.UserID` to enable this protection. This prevents an attacker with a valid
+  token from hijacking another user's session by guessing or obtaining their session ID.
+
+### Issuer Mix-Up
+
+The [mitigation](https://www.rfc-editor.org/rfc/rfc9207) against issuer mix-up attacks is
+implemented per [RFC 9207](https://www.rfc-editor.org/rfc/rfc9207). The SDK client validates
+the `iss` parameter in authorization responses to ensure they originated from the expected
+authorization server:
+
+- If `iss` is present in the redirect URI, the SDK verifies it matches the issuer from the
+  authorization server's metadata. A mismatch results in an error.
+- If `iss` is absent but the authorization server advertises
+  `authorization_response_iss_parameter_supported: true` in its [RFC 8414](https://www.rfc-editor.org/rfc/rfc8414)
+  metadata, the SDK rejects the response with an error.
+
+The `AuthorizationCodeFetcher` is responsible for extracting the `iss` query parameter from
+the redirect URI and returning it in [`AuthorizationResult.Iss`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/auth#AuthorizationResult).
+
+## Utilities
+
+### Cancellation
+
+Cancellation is implemented with context cancellation. Cancelling a context
+used in a method on `ClientSession` or `ServerSession` will terminate the RPC
+and send a "notifications/cancelled" message to the peer.
+
+When an RPC exits due to a cancellation error, there's a guarantee that the
+cancellation notification has been sent, but there's no guarantee that the
+server has observed it (see [concurrency](#concurrency)).
+
+%include ../../mcp/mcp_example_test.go cancellation -
+
+### Ping
+
+[Ping](https://modelcontextprotocol.io/specification/2025-06-18/basic/utilities/ping)
+support is symmetrical for client and server.
+
+To initiate a ping, call
+[`ClientSession.Ping`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ClientSession.Ping)
+or
+[`ServerSession.Ping`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ServerSession.Ping).
+
+To have the client or server session automatically ping its peer, and close the
+session if the ping fails, set
+[`ClientOptions.KeepAlive`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ClientOptions.KeepAlive)
+or
+[`ServerOptions.KeepAlive`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ServerOptions.KeepAlive).
+
+> **Note**: `ping` is removed from the protocol as of `2026-07-28` by
+> [SEP-2575](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2575).
+> The SDK preserves the API for backward compatibility with legacy clients;
+> when both peers negotiate `2026-07-28`, the server returns
+> `MethodNotFound` (`-32601`) for `ping` and `KeepAlive` should not be
+> enabled.
+
+### Progress
+
+[Progress](https://modelcontextprotocol.io/specification/2025-06-18/basic/utilities/progress)
+reporting is possible by reading the progress token from request metadata and
+calling either
+[`ClientSession.NotifyProgress`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ClientSession.NotifyProgress)
+or
+[`ServerSession.NotifyProgress`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ServerSession.NotifyProgress).
+To listen to progress notifications, set
+[`ClientOptions.ProgressNotificationHandler`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ClientOptions.ProgressNotificationHandler)
+or
+[`ServerOptions.ProgressNotificationHandler`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ServerOptions.ProgressNotificationHandler).
+
+Issue #460 discusses some potential ergonomic improvements to this API.
+
+%include ../../mcp/mcp_example_test.go progress -
+
+### Error codes
+
+The SDK uses the standard JSON-RPC base codes (parse error `-32700`,
+invalid request `-32600`, method not found `-32601`, invalid params
+`-32602`, internal error `-32603`) plus the following MCP-specific codes:
+
+| Constant | Code | Meaning |
+|---|---|---|
+| [`CodeHeaderMismatch`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#CodeHeaderMismatch) | `-32020` | An MCP HTTP header (`Mcp-Method`, `Mcp-Name`, `Mcp-Protocol-Version`, or `Mcp-Param-*`) does not match the JSON-RPC body |
+| [`CodeMissingRequiredClientCapabilities`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#CodeMissingRequiredClientCapabilities) | `-32021` | Server requires client capabilities the client did not declare |
+| [`CodeUnsupportedProtocolVersion`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#CodeUnsupportedProtocolVersion) | `-32022` | Requested protocol version not supported. Data: `UnsupportedProtocolVersionData{Supported []string, Requested string}` |
+| [`CodeResourceNotFound`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#CodeResourceNotFound) | `-32602` | Resource URI not found (variable; was `-32002` before SEP-2164) |
+
+The error code allocation policy defined in `2026-07-28`
+([SEP-2575](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2575))
+partitions the JSON-RPC server-error range:
+
+- `-32000` to `-32019`: implementation-defined; existing SDK usage is grandfathered.
+- `-32020` to `-32099`: reserved for the MCP specification.

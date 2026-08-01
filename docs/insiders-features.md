@@ -29,109 +29,109 @@ The list below is generated from the Go source. It covers tool **inventory and s
 ### `remote_mcp_ui_apps`
 
 - **create_pull_request** - Open new pull request
-  - **Required OAuth Scopes**: `repo`
-  - **MCP App UI**: `ui://github-mcp-server/pr-write`
-  - `base`: Branch to merge into (string, required)
-  - `body`: PR description (string, optional)
-  - `draft`: Create as draft PR (boolean, optional)
-  - `head`: Branch containing changes (string, required)
-  - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], optional)
-  - `title`: PR title (string, required)
+  - **所需 OAuth Scopes**：`repo`
+  - **MCP App UI**：`ui://github-mcp-server/pr-write`
+  - `base`: Branch to merge into (string, 必需)
+  - `body`: PR description (string, 可选)
+  - `draft`: Create as draft PR (boolean, 可选)
+  - `head`: Branch containing changes (string, 必需)
+  - `maintainer_can_modify`: Allow maintainer edits (boolean, 可选)
+  - `owner`: Repository owner (string, 必需)
+  - `repo`: Repository name (string, 必需)
+  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], 可选)
+  - `title`: PR title (string, 必需)
 
 - **get_me** - Get my user profile
-  - **MCP App UI**: `ui://github-mcp-server/get-me`
-  - No parameters required
+  - **MCP App UI**：`ui://github-mcp-server/get-me`
+  - 无需参数
 
 - **issue_write** - Create or update issue/pull request
-  - **Required OAuth Scopes**: `repo`
-  - **MCP App UI**: `ui://github-mcp-server/issue-write`
-  - `assignees`: Usernames to assign to this issue (string[], optional)
-  - `body`: Issue body content (string, optional)
-  - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
-  - `issue_fields`: Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', or 'delete: true'. (object[], optional)
-  - `issue_number`: Issue number to update (number, optional)
-  - `labels`: Labels to apply to this issue (string[], optional)
+  - **所需 OAuth Scopes**：`repo`
+  - **MCP App UI**：`ui://github-mcp-server/issue-write`
+  - `assignees`: Usernames to assign to this issue (string[], 可选)
+  - `body`: Issue body content (string, 可选)
+  - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, 可选)
+  - `issue_fields`: Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', or 'delete: true'. (object[], 可选)
+  - `issue_number`: Issue number to update (number, 可选)
+  - `labels`: Labels to apply to this issue (string[], 可选)
   - `method`: Write operation to perform on a single issue.
     Options are:
     - 'create' - creates a new issue.
     - 'update' - updates an existing issue.
-     (string, required)
-  - `milestone`: Milestone number (number, optional)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `state`: New state (string, optional)
-  - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
-  - `title`: Issue title (string, optional)
-  - `type`: Type of this issue. Only use if issue types are enabled for this repository. Use list_issue_types tool to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
+     (string, 必需)
+  - `milestone`: Milestone number (number, 可选)
+  - `owner`: Repository owner (string, 必需)
+  - `repo`: Repository name (string, 必需)
+  - `state`: New state (string, 可选)
+  - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, 可选)
+  - `title`: Issue title (string, 可选)
+  - `type`: Type of this issue. Only use if issue types are enabled for this repository. Use list_issue_types tool to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string, 可选)
 
 - **ui_get** - Get UI data
-  - **Required OAuth Scopes (any of)**: `repo`, `read:org`
-  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `repo`, `write:org`
-  - `method`: The type of data to fetch (string, required)
-  - `owner`: Repository owner (required for all methods) (string, required)
-  - `repo`: Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers) (string, optional)
+  - **所需 OAuth Scopes（任一）**：`repo`, `read:org`
+  - **可接受 OAuth Scopes**：`admin:org`, `read:org`, `repo`, `write:org`
+  - `method`: The type of data to fetch (string, 必需)
+  - `owner`: Repository owner (required for all methods) (string, 必需)
+  - `repo`: Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers) (string, 可选)
 
 - **update_pull_request** - Edit pull request
-  - **Required OAuth Scopes**: `repo`
-  - **MCP App UI**: `ui://github-mcp-server/pr-edit`
-  - `base`: New base branch name (string, optional)
-  - `body`: New description (string, optional)
-  - `draft`: Mark pull request as draft (true) or ready for review (false) (boolean, optional)
-  - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number to update (number, required)
-  - `repo`: Repository name (string, required)
-  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], optional)
-  - `state`: New state (string, optional)
-  - `title`: New title (string, optional)
+  - **所需 OAuth Scopes**：`repo`
+  - **MCP App UI**：`ui://github-mcp-server/pr-edit`
+  - `base`: New base branch name (string, 可选)
+  - `body`: New description (string, 可选)
+  - `draft`: Mark pull request as draft (true) or ready for review (false) (boolean, 可选)
+  - `maintainer_can_modify`: Allow maintainer edits (boolean, 可选)
+  - `owner`: Repository owner (string, 必需)
+  - `pullNumber`: Pull request number to update (number, 必需)
+  - `repo`: Repository name (string, 必需)
+  - `reviewers`: GitHub usernames or ORG/team-slug team reviewers to request reviews from (string[], 可选)
+  - `state`: New state (string, 可选)
+  - `title`: New title (string, 可选)
 
 ### `file_blame`
 
 - **get_file_blame** - Get file blame information
-  - **Required OAuth Scopes**: `repo`
-  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
-  - `end_line`: Optional 1-based ending line of the window of interest. Must be >= start_line when both are provided. (number, optional)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: Path to the file in the repository, relative to the repository root (string, required)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `ref`: Git reference (branch, tag, or commit SHA). Defaults to the repository's default branch (HEAD). (string, optional)
-  - `repo`: Repository name (string, required)
-  - `start_line`: Optional 1-based starting line of the window of interest. Only ranges overlapping [start_line, end_line] are returned, clamped to the window. (number, optional)
+  - **所需 OAuth Scopes**：`repo`
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, 可选)
+  - `end_line`: Optional 1-based ending line of the window of interest. Must be >= start_line when both are provided. (number, 可选)
+  - `owner`: Repository owner (username or organization) (string, 必需)
+  - `path`: Path to the file in the repository, relative to the repository root (string, 必需)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, 可选)
+  - `ref`: Git reference (branch, tag, or commit SHA). Defaults to the repository's default branch (HEAD). (string, 可选)
+  - `repo`: Repository name (string, 必需)
+  - `start_line`: Optional 1-based starting line of the window of interest. Only ranges overlapping [start_line, end_line] are returned, clamped to the window. (number, 可选)
 
 ### `issue_dependencies`
 
 - **issue_dependency_read** - Read issue dependencies
-  - **Required OAuth Scopes**: `repo`
-  - `issue_number`: The number of the issue (number, required)
+  - **所需 OAuth Scopes**：`repo`
+  - `issue_number`: The number of the issue (number, 必需)
   - `method`: The read operation to perform on a single issue's dependencies.
     Options are:
     1. get_blocked_by - List the issues that block this issue (this issue is blocked by them).
     2. get_blocking - List the issues that this issue blocks.
-     (string, required)
-  - `owner`: The owner of the repository (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: The name of the repository (string, required)
+     (string, 必需)
+  - `owner`: The owner of the repository (string, 必需)
+  - `page`: Page number for pagination (min 1) (number, 可选)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, 可选)
+  - `repo`: The name of the repository (string, 必需)
 
 - **issue_dependency_write** - Change issue dependency
-  - **Required OAuth Scopes**: `repo`
-  - `issue_number`: The number of the subject issue (number, required)
+  - **所需 OAuth Scopes**：`repo`
+  - `issue_number`: The number of the subject issue (number, 必需)
   - `method`: The action to perform.
     Options are:
     - 'add' - create the dependency relationship.
-    - 'remove' - delete the dependency relationship. (string, required)
-  - `owner`: The owner of the subject issue's repository (string, required)
-  - `related_issue_number`: The number of the related issue to link or unlink (number, required)
-  - `related_owner`: The owner of the related issue's repository. Defaults to 'owner' when omitted. (string, optional)
-  - `related_repo`: The name of the related issue's repository. Defaults to 'repo' when omitted. (string, optional)
-  - `repo`: The name of the subject issue's repository (string, required)
+    - 'remove' - delete the dependency relationship. (string, 必需)
+  - `owner`: The owner of the subject issue's repository (string, 必需)
+  - `related_issue_number`: The number of the related issue to link or unlink (number, 必需)
+  - `related_owner`: The owner of the related issue's repository. Defaults to 'owner' when omitted. (string, 可选)
+  - `related_repo`: The name of the related issue's repository. Defaults to 'repo' when omitted. (string, 可选)
+  - `repo`: The name of the subject issue's repository (string, 必需)
   - `type`: The relationship direction relative to the subject issue.
     Options are:
     - 'blocked_by' - the subject issue is blocked by the related issue.
-    - 'blocking' - the subject issue blocks the related issue. (string, required)
+    - 'blocking' - the subject issue blocks the related issue. (string, 必需)
 
 <!-- END AUTOMATED INSIDERS TOOLS -->
 

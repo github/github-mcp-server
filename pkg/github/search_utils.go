@@ -16,15 +16,15 @@ import (
 )
 
 func hasFilter(query, filterType string) bool {
-	// Match filter at start of string, after whitespace, or after non-word characters like '('
+	// Match 筛选 at start of string, after whitespace, 或after non-word characters like '('
 	pattern := fmt.Sprintf(`(^|\s|\W)%s:\S+`, regexp.QuoteMeta(filterType))
 	matched, _ := regexp.MatchString(pattern, query)
 	return matched
 }
 
 func hasSpecificFilter(query, filterType, filterValue string) bool {
-	// Match specific filter:value at start, after whitespace, or after non-word characters
-	// End with word boundary, whitespace, or non-word characters like ')'
+	// Match specific 筛选:值 at start, after whitespace, 或after non-word characters
+	// End with word boundary, whitespace, 或non-word characters like ')'
 	pattern := fmt.Sprintf(`(^|\s|\W)%s:%s($|\s|\W)`, regexp.QuoteMeta(filterType), regexp.QuoteMeta(filterValue))
 	matched, _ := regexp.MatchString(pattern, query)
 	return matched
@@ -38,16 +38,16 @@ func hasTypeFilter(query string) bool {
 	return hasFilter(query, "type")
 }
 
-// searchPostProcessFn is invoked after a successful search response, before
-// the call result is returned. It may attach additional metadata (such as IFC
-// labels) to the call result based on the search payload.
+// searchPostProcessFn is invoked after 一个成功ful search 响应, before
+// c所有结果 is 返回ed. It may attach additional 元数据 (such as IFC
+// labels) 到c所有结果 based 在search payload.
 type searchPostProcessFn func(ctx context.Context, result *github.IssuesSearchResult, callResult *mcp.CallToolResult)
 
 type searchConfig struct {
 	postProcess searchPostProcessFn
-	// fields, when non-empty, restricts each result item to the requested
-	// subset of fields. fieldsTool and fieldsDeps identify the calling tool and
-	// its dependencies so fields telemetry can be recorded.
+	// fields, when non-空, restricts 每个结果 item 到请求ed
+	// subset of fields. fieldsTool 和fieldsDeps identify 调用ing 工具 and
+	// its dependencies so fields telemetry 可以 recorded.
 	fields     []string
 	fieldsTool string
 	fieldsDeps ToolDependencies
@@ -55,17 +55,17 @@ type searchConfig struct {
 
 type searchOption func(*searchConfig)
 
-// withSearchPostProcess registers a callback invoked after a successful search
-// response. The callback may mutate the call result (e.g. to attach _meta.ifc).
+// withSearchPostProcess registers 一个调用back invoked after 一个成功ful search
+// 响应. 调用back may mutate c所有结果 (e.g. to attach _meta.ifc).
 func withSearchPostProcess(fn searchPostProcessFn) searchOption {
 	return func(c *searchConfig) { c.postProcess = fn }
 }
 
-// withFieldsFiltering enables the optional `fields` response filtering for a
-// search tool. When fields is non-empty, each result item is reduced to the
-// requested subset while the total_count / incomplete_results wrapper is
-// preserved. tool and deps identify the caller so fields telemetry (adoption and
-// realized savings) can be recorded.
+// withFieldsFiltering 启用s 可选 `fields` 响应 筛选ing f或a
+// search 工具. When fields is non-空, 每个结果 item is reduced to the
+// 请求ed subset 当the total_count / incomplete_结果 wrapper is
+// preserved. 工具 和deps identify 调用er so fields telemetry (adoption and
+// realized savings) 可以 recorded.
 func withFieldsFiltering(deps ToolDependencies, tool string, fields []string) searchOption {
 	return func(c *searchConfig) {
 		c.fieldsDeps = deps
@@ -74,9 +74,9 @@ func withFieldsFiltering(deps ToolDependencies, tool string, fields []string) se
 	}
 }
 
-// prepareSearchArgs resolves the search query string and REST search options from the tool args,
-// applying the standard is:<type> / repo:<owner>/<repo> munging shared by search_issues and
-// search_pull_requests.
+// prepareSearchArgs resolves search query string 和REST search options 来自工具 args,
+// applying standard is:<type> / repo:<owner>/<repo> munging shared by search_议题 and
+// search_pull_请求s.
 func prepareSearchArgs(args map[string]any, searchType string) (string, *github.SearchOptions, error) {
 	query, err := RequiredParam[string](args, "query")
 	if err != nil {
@@ -123,7 +123,7 @@ func prepareSearchArgs(args map[string]any, searchType string) (string, *github.
 		},
 	}
 
-	// field.<name>:<value> qualifiers require the advanced search API.
+	// field.<name>:<值> qualifiers require advanced search API.
 	if strings.Contains(query, "field.") {
 		opts.AdvancedSearch = github.Ptr(true)
 	}

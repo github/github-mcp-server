@@ -110,7 +110,7 @@ func TestRepositoryResourceCompletionHandler_GetClientError(t *testing.T) {
 	assert.Contains(t, err.Error(), "client error")
 }
 
-// Test the logical behavior of complete functions with missing dependencies
+// Test logical behavi或of complete 函数s with missing dependencies
 func TestCompleteRepo_MissingOwner(t *testing.T) {
 	ctx := t.Context()
 	resolved := map[string]string{} // No owner
@@ -118,7 +118,7 @@ func TestCompleteRepo_MissingOwner(t *testing.T) {
 
 	result, err := completeRepo(ctx, nil, resolved, argValue)
 	require.Error(t, err)
-	assert.Nil(t, result) // Should return nil slice when owner is missing
+	assert.Nil(t, result) // Should 返回 nil slice when owner is missing
 }
 
 func TestCompleteBranch_MissingDependencies(t *testing.T) {
@@ -160,7 +160,7 @@ func TestCompleteTag_MissingDependencies(t *testing.T) {
 	resolved := map[string]string{"repo": "testrepo"}
 	result, err := completeTag(ctx, nil, resolved, "v1.0")
 	require.Error(t, err)
-	assert.Nil(t, result) // completeTag returns nil for missing dependencies
+	assert.Nil(t, result) // completeTag 返回 nil f或missing dependencies
 
 	// Test missing repo
 	resolved = map[string]string{"owner": "testowner"}
@@ -192,7 +192,7 @@ func TestCompletePath_MissingDependencies(t *testing.T) {
 	resolved := map[string]string{"repo": "testrepo"}
 	result, err := completePath(ctx, nil, resolved, "src/")
 	require.Error(t, err)
-	assert.Nil(t, result) // completePath returns nil for missing dependencies
+	assert.Nil(t, result) // completePath 返回 nil f或missing dependencies
 
 	// Test missing repo
 	resolved = map[string]string{"owner": "testowner"}
@@ -202,13 +202,13 @@ func TestCompletePath_MissingDependencies(t *testing.T) {
 }
 
 func TestCompletePath_RefSelection(t *testing.T) {
-	// Test the logic for selecting the ref (branch, sha, tag, or HEAD)
-	// We test this by verifying the function handles different ref combinations
-	// without making API calls (since we can't mock them easily)
+	// Test logic f或selecting ref (分支, sha, tag, 或HEAD)
+	// We test this by verifying 函数 handles different ref combinations
+	// without making API 调用 (since we can't 模拟 them easily)
 
 	ctx := t.Context()
 
-	// Test that the function returns nil when dependencies are missing
+	// Test that 函数 返回 nil when dependencies are missing
 	resolved := map[string]string{
 		"owner": "",
 		"repo":  "",
@@ -217,7 +217,7 @@ func TestCompletePath_RefSelection(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, result)
 
-	// When owner is present but repo is missing
+	// When owner is present 但repo is missing
 	resolved = map[string]string{
 		"owner": "testowner",
 		"repo":  "",
@@ -228,7 +228,7 @@ func TestCompletePath_RefSelection(t *testing.T) {
 }
 
 func TestRepositoryResourceArgumentResolvers_Existence(t *testing.T) {
-	// Test that all expected resolvers are present
+	// Test that 所有expected resolvers are present
 	expectedResolvers := []string{
 		"owner", "repo", "branch", "sha", "tag", "prNumber", "path",
 	}
@@ -240,22 +240,22 @@ func TestRepositoryResourceArgumentResolvers_Existence(t *testing.T) {
 		})
 	}
 
-	// Verify the total count
+	// Verify total count
 	assert.Len(t, RepositoryResourceArgumentResolvers, len(expectedResolvers))
 }
 
 func TestRepositoryResourceCompletionHandler_MaxResults(t *testing.T) {
-	// Test that results are limited to 100 items
+	// Test that 结果 are limited to 100 items
 	getClient := func(_ context.Context) (*github.Client, error) {
 		return &github.Client{}, nil
 	}
 
 	handler := RepositoryResourceCompletionHandler(getClient)
 
-	// Mock a resolver that returns more than 100 results
+	// Mock 一个resolver that 返回 more than 100 结果
 	originalResolver := RepositoryResourceArgumentResolvers["owner"]
 	RepositoryResourceArgumentResolvers["owner"] = func(_ context.Context, _ *github.Client, _ map[string]string, _ string) ([]string, error) {
-		// Return 150 results
+		// Return 150 结果
 		results := make([]string, 150)
 		for i := range 150 {
 			results[i] = fmt.Sprintf("user%d", i)
@@ -290,14 +290,14 @@ func TestRepositoryResourceCompletionHandler_MaxResults(t *testing.T) {
 }
 
 func TestRepositoryResourceCompletionHandler_WithContext(t *testing.T) {
-	// Test that the handler properly passes resolved context arguments
+	// Test that 处理器 properly passes resolved 上下文 参数
 	getClient := func(_ context.Context) (*github.Client, error) {
 		return &github.Client{}, nil
 	}
 
 	handler := RepositoryResourceCompletionHandler(getClient)
 
-	// Mock a resolver that just returns the resolved arguments for testing
+	// Mock 一个resolver that just 返回 resolved 参数 f或testing
 	originalResolver := RepositoryResourceArgumentResolvers["repo"]
 	RepositoryResourceArgumentResolvers["repo"] = func(_ context.Context, _ *github.Client, resolved map[string]string, _ string) ([]string, error) {
 		if owner, exists := resolved["owner"]; exists {
@@ -333,14 +333,14 @@ func TestRepositoryResourceCompletionHandler_WithContext(t *testing.T) {
 }
 
 func TestRepositoryResourceCompletionHandler_NilContext(t *testing.T) {
-	// Test that the handler handles nil context gracefully
+	// Test that 处理器 handles nil 上下文 gracefully
 	getClient := func(_ context.Context) (*github.Client, error) {
 		return &github.Client{}, nil
 	}
 
 	handler := RepositoryResourceCompletionHandler(getClient)
 
-	// Mock a resolver that checks for empty resolved map
+	// Mock 一个resolver that 检查s f或空 resolved map
 	originalResolver := RepositoryResourceArgumentResolvers["repo"]
 	RepositoryResourceArgumentResolvers["repo"] = func(_ context.Context, _ *github.Client, resolved map[string]string, _ string) ([]string, error) {
 		assert.NotNil(t, resolved, "Resolved map should never be nil")
@@ -356,7 +356,7 @@ func TestRepositoryResourceCompletionHandler_NilContext(t *testing.T) {
 				Name:  "repo",
 				Value: "test",
 			},
-			// Context is not set, so it should default to empty map
+			// Context is 不set, so it should 默认to 空 map
 			Context: &mcp.CompleteContext{
 				Arguments: map[string]string{},
 			},

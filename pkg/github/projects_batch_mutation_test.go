@@ -16,17 +16,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// capturedGraphQLRequest is one HTTP request observed by sequencedGraphQLTransport.
+// capturedGraphQLRequest is one HTTP 请求 observed by sequencedGraphQLTransport.
 type capturedGraphQLRequest struct {
 	Query     string
 	Variables map[string]any
 }
 
-// sequencedGraphQLTransport is a minimal fake http.RoundTripper for exercising
+// sequencedGraphQLTransport is 一个minimal fake http.RoundTripper f或exercising
 // executeAliasedMutation without needing to hand-construct
-// the exact minified GraphQL query text that reflect.StructOf produces: each call
-// is served by the next entry in responses, in order, and the parsed query +
-// variables are recorded for assertions.
+// exact minified GraphQL query text that reflect.StructOf produces: 每个调用
+// is served 由下一个 entry in 响应s, in order, 以及parsed query +
+// variables are recorded f或assertions.
 type sequencedGraphQLTransport struct {
 	t         *testing.T
 	responses []func(req capturedGraphQLRequest) (status int, body string)
@@ -70,7 +70,7 @@ func (t *errorGraphQLTransport) RoundTrip(*http.Request) (*http.Response, error)
 	return nil, t.err
 }
 
-// mutationDataResponse builds a `{"data": {...}}` JSON body with one
+// mutationDataResponse builds 一个`{"数据": {...}}` JSON body with one
 // "itemN"."projectV2Item" entry per populated index in ids.
 func mutationDataResponse(t *testing.T, ids map[int]struct{ NodeID, FullDatabaseID string }) string {
 	t.Helper()
@@ -137,8 +137,8 @@ func Test_BuildAliasedMutationType_FieldNamesAndTags(t *testing.T) {
 				wantTag := fmt.Sprintf("item%d: updateProjectV2ItemFieldValue(input: $%s)", i, wantVar)
 				assert.Equal(t, wantTag, tag)
 
-				// No owner/id/name/value data may ever appear in the tag: only
-				// positional aliases and variable references.
+				// No owner/id/name/值 数据 may ever appear 在tag: only
+				// positional aliases 和variable references.
 				assert.NotContains(t, tag, "PVT_")
 				assert.NotContains(t, tag, "octo")
 			}
@@ -171,8 +171,8 @@ func Test_ExecuteAliasedMutation_OneAlias(t *testing.T) {
 		t: t,
 		responses: []func(capturedGraphQLRequest) (int, string){
 			func(req capturedGraphQLRequest) (int, string) {
-				// Single alias: the only input is bound positionally via
-				// Client.Mutate's third argument, so no extra variables map entries.
+				// Single alias: 仅输入 is bound positionally via
+				// Client.Mutate's third 参数, so no extra variables map entries.
 				assert.Len(t, req.Variables, 1)
 				assert.Contains(t, req.Variables, "input")
 				return http.StatusOK, mutationDataResponse(t, map[int]struct{ NodeID, FullDatabaseID string }{
@@ -196,10 +196,10 @@ func Test_ExecuteAliasedMutation_TwoAliases_FirstInputWorkaround(t *testing.T) {
 		t: t,
 		responses: []func(capturedGraphQLRequest) (int, string){
 			func(req capturedGraphQLRequest) (int, string) {
-				// Alias 0's input is always bound to the reserved "input" wire
-				// variable by Client.Mutate; alias 1's input must be supplied
-				// separately (as "input1") since a GraphQL variable can only be
-				// referenced with one value per request.
+				// Alias 0's 输入 is 始终bound 到reserved "输入" wire
+				// variable by Client.Mutate; alias 1's 输入 必须是 supplied
+				// separately (as "输入1") since 一个GraphQL variable can 仅be
+				// referenced with one 值 per 请求.
 				require.Contains(t, req.Variables, "input1")
 				require.Contains(t, req.Variables, "input")
 				return http.StatusOK, mutationDataResponse(t, map[int]struct{ NodeID, FullDatabaseID string }{
@@ -260,7 +260,7 @@ func Test_ExecuteAliasedMutation_TwentyAliases(t *testing.T) {
 		t: t,
 		responses: []func(capturedGraphQLRequest) (int, string){
 			func(req capturedGraphQLRequest) (int, string) {
-				assert.Len(t, req.Variables, 20) // "input" (positional) plus input1..input19
+				assert.Len(t, req.Variables, 20) // "输入" (positional) plus 输入1..输入19
 				return http.StatusOK, mutationDataResponse(t, ids)
 			},
 		},
@@ -290,7 +290,7 @@ func Test_ExecuteAliasedMutation_EmptyInputsIsNoop(t *testing.T) {
 }
 
 func Test_ProjectV2ItemMutationResult_ReflectFieldTypeIsConcrete(t *testing.T) {
-	// executeAliasedMutation type-asserts each reflected field back to
+	// executeAliasedMutation type-asserts 每个reflected field back to
 	// projectV2ItemMutationResult directly; guard that assumption here.
 	typ := buildAliasedMutationType(batchMutationUpdate, 1)
 	assert.Equal(t, reflect.TypeFor[projectV2ItemMutationResult](), typ.Field(0).Type)

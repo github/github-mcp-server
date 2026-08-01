@@ -1,0 +1,54 @@
+name: Go
+
+on: [pull_request]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        go:
+        - 1.16
+        - 1.17
+        os:
+        - ubuntu-latest
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup Go ${{ matrix.go }}
+      uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go }}
+
+    - name: Download Dependencies
+      run: go mod download
+
+    - name: Vet
+      run: go vet ./...
+
+    - name: Test
+      run: go test -race -v ./...
+
+    - name: Test (purego)
+      run: go test -race -tags purego -v ./...
+
+  gen:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.17.x
+
+    - name: Generate
+      run: make --always-make build
+
+    - name: Git Status
+      run: |
+        git diff
+        test -z "$(git status --porcelain)"

@@ -1,0 +1,6 @@
+# Create a new directory.
+watch /
+mkdir /dir
+
+Output:
+	create  /dir

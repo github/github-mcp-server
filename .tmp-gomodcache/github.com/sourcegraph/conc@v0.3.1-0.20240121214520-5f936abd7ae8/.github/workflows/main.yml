@@ -1,0 +1,52 @@
+name: Main
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  go-bench:
+    strategy:
+      matrix:
+        go-version: [ '1.20', 'stable' ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Run benchmark and store the output to a file
+        run: |
+          set -o pipefail
+          make bench | tee bench_output.txt
+
+      - name: Get benchmark as JSON
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          # What benchmark tool the output.txt came from
+          tool: 'go'
+          # Where the output from the benchmark tool is stored
+          output-file-path: bench_output.txt
+          # Write benchmarks to this file
+          external-data-json-path: ./cache/benchmark-data.json
+          # Workflow will fail when an alert happens
+          fail-on-alert: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get CPU information
+        uses: kenchan0130/actions-system-info@v1.2.1
+        id: system-info
+
+      - name: Save benchmark JSON to cache
+        uses: actions/cache/save@v3
+        with:
+          path: ./cache/benchmark-data.json
+          # Save with commit hash to avoid "cache already exists"
+          # Save with OS & CPU info to prevent comparing against results from different CPUs
+          key: ${{ github.sha }}-${{ runner.os }}-${{ steps.system-info.outputs.cpu-model }}-go-benchmark

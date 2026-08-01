@@ -1,0 +1,14 @@
+# Rename watched file.
+
+touch /file
+watch /file
+
+mv /file       /rename-one
+mv /rename-one /rename-two
+
+Output:
+	rename /file
+
+	windows:  # TODO(v2): Windows should behave the same by default. See #518
+		rename /file
+		rename /rename-one

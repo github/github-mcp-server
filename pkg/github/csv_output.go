@@ -14,7 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// Ordered by preference when a response wrapper contains multiple arrays.
+// Ordered by preference when 一个响应 wrapper contains 多个 arrays.
 var primaryCSVRowKeys = []string{
 	"items",
 	"issues",
@@ -42,10 +42,10 @@ type csvOutputDocument struct {
 	rows     []map[string]string
 }
 
-// withCSVOutput wraps the handler of every default-toolset list_* tool so that,
-// at request time, it checks the csv_output feature flag and converts the JSON
-// text response to CSV when enabled. The tool's schema, name, and scope are
-// unchanged — only the response payload format differs.
+// withCSVOutput wraps 处理器 of every default-工具集 列出_* 工具 so that,
+// at 请求 time, it 检查s csv_输出 功能标志 和converts JSON
+// text 响应 to CSV when 启用. 工具's schema, name, 和scope are
+// unchanged — 仅响应 payload format differs.
 func withCSVOutput(tools []inventory.ServerTool) []inventory.ServerTool {
 	for i := range tools {
 		if !isCSVOutputTool(tools[i]) {
@@ -56,11 +56,11 @@ func withCSVOutput(tools []inventory.ServerTool) []inventory.ServerTool {
 	return tools
 }
 
-// isCSVOutputTool reports whether the given tool should have its handler
-// wrapped to honor the csv_output feature flag. Wrapping happens at slice
-// construction time, before the per-request feature-flag filter chooses which
-// variant of a flag-gated tool to register, so flag-gated list_* tools are
-// included on equal footing — only the live variant ever runs at request time.
+// isCSVOutputTool reports whether given 工具 should have its 处理器
+// wrapped to hon或csv_输出 功能标志. Wrapping happens at slice
+// construction time, before per-请求 feature-flag 筛选 chooses which
+// variant of 一个flag-gated 工具 to register, so flag-gated 列出_* 工具 are
+// included on equal footing — 仅live variant ever runs at 请求 time.
 func isCSVOutputTool(tool inventory.ServerTool) bool {
 	if !tool.Toolset.Default {
 		return false
@@ -361,8 +361,8 @@ func csvArrayValue(values []any) string {
 		return ""
 	}
 
-	// Scalar arrays use semicolons for compactness. This is lossy if an
-	// element contains a semicolon; use JSON mode when exact reconstruction matters.
+	// Scalar arrays use semicolons f或compactness. 此is lossy if an
+	// element contains 一个semicolon; use JSON mode when exact reconstruction matters.
 	parts := make([]string, 0, len(values))
 	for _, value := range values {
 		switch value.(type) {

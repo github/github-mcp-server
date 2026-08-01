@@ -30,7 +30,7 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 	assert.Contains(t, schema.Properties, "ghsaId")
 	assert.Empty(t, schema.Required)
 
-	// Setup mock advisory for success case
+	// Setup 模拟 advisory f或成功 case
 	mockAdvisory := &github.GlobalSecurityAdvisory{
 		SecurityAdvisory: github.SecurityAdvisory{
 			GHSAID:      github.Ptr("GHSA-xxxx-xxxx-xxxx"),
@@ -92,18 +92,18 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{Client: client}
 			handler := toolDef.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErrMsg)
@@ -112,10 +112,10 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 
 			require.NoError(t, err)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedAdvisories []*github.GlobalSecurityAdvisory
 			err = json.Unmarshal([]byte(textContent.Text), &returnedAdvisories)
 			assert.NoError(t, err)
@@ -143,7 +143,7 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 	assert.Contains(t, schema.Properties, "ghsaId")
 	assert.ElementsMatch(t, schema.Required, []string{"ghsaId"})
 
-	// Setup mock advisory for success case
+	// Setup 模拟 advisory f或成功 case
 	mockAdvisory := &github.GlobalSecurityAdvisory{
 		SecurityAdvisory: github.SecurityAdvisory{
 			GHSAID:      github.Ptr("GHSA-xxxx-xxxx-xxxx"),
@@ -204,18 +204,18 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{Client: client}
 			handler := toolDef.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErrMsg)
@@ -224,10 +224,10 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 
 			require.NoError(t, err)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Verify the result
+			// Verify 结果
 			assert.Contains(t, textContent.Text, *tc.expectedAdvisory.GHSAID)
 			assert.Contains(t, textContent.Text, *tc.expectedAdvisory.Summary)
 			assert.Contains(t, textContent.Text, *tc.expectedAdvisory.Description)
@@ -237,7 +237,7 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 }
 
 func Test_ListRepositorySecurityAdvisories(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	toolDef := ListRepositorySecurityAdvisories(translations.NullTranslationHelper)
 	tool := toolDef.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -254,7 +254,7 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 	assert.Contains(t, schema.Properties, "state")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
-	// Setup mock advisories for success cases
+	// Setup 模拟 advisories f或成功 cases
 	adv1 := &github.SecurityAdvisory{
 		GHSAID:      github.Ptr("GHSA-1111-1111-1111"),
 		Summary:     github.Ptr("Repo advisory one"),
@@ -344,7 +344,7 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			if tc.expectError {
@@ -371,13 +371,13 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 	}
 }
 
-// Test_ListRepositorySecurityAdvisories_IFC_FeatureFlag verifies the IFC label
-// attached to list_repository_security_advisories. The label is only present
-// when the ifc_labels feature flag is enabled, and — critically — confidentiality
-// is public only when the repository is public AND every returned advisory is
-// published. Draft/triage/closed advisories are not world-readable even on a
-// public repo, so a result containing one must be labeled private. This guards
-// against the under-classification raised in PR review.
+// Test_ListRepositorySecurityAdvisories_IFC_FeatureFlag verifies IFC label
+// attached to 列出_仓库_security_advisories. label is 仅present
+// 当ifc_labels 功能标志 is 启用, 和— criti调用y — confidentiality
+// is 公开 仅当仓库 is 公开 AND every 返回ed advisory is
+// published. Draft/triage/closed advisories are 不world-读取able even on a
+// 公开 repo, so 一个结果 containing one 必须是 labeled 私有. 此guards
+// against under-classification raised in PR review.
 func Test_ListRepositorySecurityAdvisories_IFC_FeatureFlag(t *testing.T) {
 	t.Parallel()
 
@@ -458,8 +458,8 @@ func Test_ListRepositorySecurityAdvisories_IFC_FeatureFlag(t *testing.T) {
 
 	t.Run("public repo with a draft advisory is private", func(t *testing.T) {
 		t.Parallel()
-		// Reviewer scenario: a draft advisory on a public repo is not
-		// world-readable, so the label must not be public.
+		// Reviewer scenario: 一个draft advisory on 一个公开 repo is not
+		// world-读取able, so label 不得 be 公开.
 		deps := BaseDeps{
 			Client:         mustNewGHClient(t, makeMockClient(false, []*github.SecurityAdvisory{publishedAdvisory, draftAdvisory})),
 			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
@@ -498,7 +498,7 @@ func Test_ListRepositorySecurityAdvisories_IFC_FeatureFlag(t *testing.T) {
 }
 
 func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	toolDef := ListOrgRepositorySecurityAdvisories(translations.NullTranslationHelper)
 	tool := toolDef.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -600,7 +600,7 @@ func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
 
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			if tc.expectError {

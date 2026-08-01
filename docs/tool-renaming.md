@@ -1,30 +1,30 @@
-# Tool Renaming Guide
+# 工具重命名指南
 
-How to safely rename MCP tools without breaking existing user configurations.
+如何安全地重命名 MCP 工具而不破坏现有用户配置。
 
-## Overview
+## 概述
 
-When tools are renamed, users who have the old tool name in their MCP configuration (for example, in `X-MCP-Tools` headers for the remote MCP server or `--tools` flags for the local MCP server) would normally get errors. 
-The deprecation alias system allows us to maintain backward compatibility by silently resolving old tool names to their new canonical names.
+工具重命名后，MCP 配置中使用旧工具名称的用户（例如远程 MCP server 的 `X-MCP-Tools` header 或本地 MCP server 的 `--tools` flag）通常会收到错误。
+弃用别名系统通过静默将旧工具名称解析为新的规范名称，来保持向后兼容性。
 
-This allows us to rename tools safely, without introducing breaking changes for users that have a hard reference to those tools in their server configuration.
+这使我们能够安全地重命名工具，而不会为在 server 配置中硬编码这些工具的用户引入破坏性变更。
 
-## Quick Steps
+## 快速步骤
 
-1. **Rename the tool** in your code (as usual, this will imply a range of changes like updating the tool registration, the tests and the toolsnaps).
-2. **Add a deprecation alias** in [pkg/github/deprecated_tool_aliases.go](../pkg/github/deprecated_tool_aliases.go):
+1. 在代码中**重命名工具**（通常还需要更新工具注册、测试和 toolsnaps 等内容）。
+2. 在 [pkg/github/deprecated_tool_aliases.go](../pkg/github/deprecated_tool_aliases.go) 中**添加弃用别名**：
    ```go
    var DeprecatedToolAliases = map[string]string{
        "old_tool_name": "new_tool_name",
    }
    ```
-3. **Update documentation** (README, etc.) to reference the new canonical name
+3. **更新文档**（README 等），引用新的规范名称
 
-That's it. The server will silently resolve old names to new ones. This will work across both local and remote MCP servers.
+完成后，server 会静默将旧名称解析为新名称。这同时适用于本地和远程 MCP server。
 
-## Example
+## 示例
 
-If renaming `get_issue` to `issue_read`:
+若将 `get_issue` 重命名为 `issue_read`：
 
 ```go
 var DeprecatedToolAliases = map[string]string{
@@ -32,19 +32,19 @@ var DeprecatedToolAliases = map[string]string{
 }
 ```
 
-A user with this configuration:
+使用以下配置的用户：
 ```json
 {
   "--tools": "get_issue,get_file_contents"
 }
 ```
 
-Will get `issue_read` and `get_file_contents` tools registered, with no errors.
+将注册 `issue_read` 和 `get_file_contents` 工具，不会出现错误。
 
-## Current Deprecations
+## 当前弃用项
 
 <!-- START AUTOMATED ALIASES -->
-| Old Name | New Name |
+| 旧名称 | 新名称 |
 |----------|----------|
 | `add_project_item` | `projects_write` |
 | `cancel_workflow_run` | `actions_run_trigger` |

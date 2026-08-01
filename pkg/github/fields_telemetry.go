@@ -6,34 +6,34 @@ import (
 	"strconv"
 )
 
-// Metric names for the optional `fields` response-filtering feature. They let a
-// dashboard answer two questions on real traffic: how often the model actually
-// filters (adoption) and how many bytes that filtering removes (effectiveness).
+// Metric names 用于可选 `fields` 响应-筛选ing feature. They let a
+// dashboard answer two questions on real traffic: how often model actually
+// 筛选s (adoption) 和how many bytes that 筛选ing removes (effectiveness).
 //
-// Cardinality is kept deliberately low: the only tags ever attached are `tool`
-// (a small fixed set of tool names) and `filtered` (a boolean). Unbounded values
-// such as repository, owner, user, the query, or the requested field list are
-// never used as tags.
+// Cardinality is kept deliberately low: 仅tags ever attached are `工具`
+// (a sm所有fixed set of 工具 names) 和`筛选ed` (a boolean). Unbounded 值
+// such as 仓库, owner, user, query, 或请求ed field 列出 are
+// 绝不used as tags.
 //
-// The realized savings (bytes_full - bytes_sent) is intentionally not emitted as
-// its own metric: it is derivable on the dashboard from the two byte counters,
-// since sum(bytes_full) - sum(bytes_sent) equals the total saved at any rollup.
+// realized savings (bytes_full - bytes_sent) is intentionally 不emitted as
+// its own metric: it is derivable 在dashboard 来自two byte counters,
+// since sum(bytes_full) - sum(bytes_sent) equals total saved at any rollup.
 const (
 	metricFieldsToolCall  = "mcp.fields.tool_call"
 	metricFieldsBytesFull = "mcp.fields.bytes_full"
 	metricFieldsBytesSent = "mcp.fields.bytes_sent"
 )
 
-// recordFieldsUsage emits telemetry for a single call to a tool that supports
-// the `fields` parameter. It is best-effort: the local server wires a no-op
-// metrics sink, while hosted deployments inject a real sink.
+// recordFieldsUsage emits telemetry f或一个单个 c所有to 一个工具 that supports
+// `fields` 参数. It is best-effort: local 服务器 wires 一个no-op
+// metrics sink, 当hosted deployments inject 一个real sink.
 //
-// Every call increments mcp.fields.tool_call tagged by tool and whether the
-// response was filtered, which yields the adoption rate (filtered / total). When
-// the response was filtered, it also records the unfiltered (fullBytes) and
-// returned (sentBytes) payload sizes. Byte counters are only emitted for
-// filtered calls so that "percent saved" (1 - bytes_sent / bytes_full) is
-// computed over the population where filtering actually applied.
+// 每个c所有increments mcp.fields.工具_c所有tagged by 工具 和whether the
+// 响应 was 筛选ed, which yields adoption rate (筛选ed / total). When
+// 响应 was 筛选ed, it 也records un筛选ed (fullBytes) and
+// 返回ed (sentBytes) payload sizes. Byte counters are 仅emitted for
+// 筛选ed 调用 so that "percent saved" (1 - bytes_sent / bytes_full) is
+// computed over population where 筛选ing actually applied.
 func recordFieldsUsage(ctx context.Context, deps ToolDependencies, tool string, filtered bool, fullBytes, sentBytes int) {
 	m := deps.Metrics(ctx)
 	if m == nil {
@@ -54,12 +54,12 @@ func recordFieldsUsage(ctx context.Context, deps ToolDependencies, tool string, 
 	m.Counter(metricFieldsBytesSent, toolTag, int64(sentBytes))
 }
 
-// recordFieldsUsageFor emits fields telemetry for a tool whose response is a
-// list of items (optionally wrapped in a metadata envelope). sentBytes is the
-// size of the payload actually returned. When the response was filtered, the
-// unfiltered size is computed by marshalling full so the realized savings can be
-// measured; full should be the complete, unfiltered payload. It centralizes the
-// full-size computation shared by every fields-enabled tool.
+// recordFieldsUsageF或emits fields telemetry f或一个工具 whose 响应 is a
+// 列出 of items (可选ly wrapped in 一个元数据 envelope). sentBytes is the
+// size 的payload actually 返回ed. 当响应 was 筛选ed, the
+// un筛选ed size is computed by marshalling full so realized savings 可以
+// measured; full 应当是 complete, un筛选ed payload. It centralizes the
+// full-size computation shared by every fields-启用 工具.
 func recordFieldsUsageFor(ctx context.Context, deps ToolDependencies, tool string, full any, filtered bool, sentBytes int) {
 	fullBytes := sentBytes
 	if filtered {

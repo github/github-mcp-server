@@ -1,40 +1,40 @@
 # PAT Scope Filtering
 
-The GitHub MCP Server automatically filters available tools based on your classic Personal Access Token's (PAT) OAuth scopes. This ensures you only see tools that your token has permission to use, reducing clutter and preventing errors from attempting operations your token can't perform.
+GitHub MCP Server 会根据您的 classic Personal Access Token（PAT）的 OAuth scope 自动筛选可用工具。这可确保您只会看到 token 有权使用的工具，减少干扰并避免尝试 token 无法执行的操作时出现错误。
 
-> **Note:** This feature applies to **classic PATs** (tokens starting with `ghp_`). Fine-grained PATs, GitHub App installation tokens, and server-to-server tokens don't support scope detection and show all tools.
+> **注意：**此功能适用于 **classic PAT**（以 `ghp_` 开头的 token）。Fine-grained PAT、GitHub App installation token 和 server-to-server token 不支持 scope 检测，会显示所有工具。
 
-## How It Works
+## 工作方式
 
-When the server starts with a classic PAT, it makes a lightweight HTTP HEAD request to the GitHub API to discover your token's scopes from the `X-OAuth-Scopes` header. Tools that require scopes your token doesn't have are automatically hidden.
+server 使用 classic PAT 启动时，会向 GitHub API 发出轻量 HTTP HEAD 请求，从 `X-OAuth-Scopes` header 中发现 token 的 scope。需要 token 不具备 scope 的工具会自动隐藏。
 
-**Example:** If your token only has `repo` and `gist` scopes, you won't see tools that require `admin:org`, `project`, or `notifications` scopes.
+**示例：**如果您的 token 仅有 `repo` 和 `gist` scope，将看不到需要 `admin:org`、`project` 或 `notifications` scope 的工具。
 
-## PAT vs OAuth Authentication
+## PAT 与 OAuth 身份验证
 
-| Authentication | Scope Handling |
+| 身份验证 | Scope 处理 |
 |---------------|----------------|
-| **Classic PAT** (`ghp_`) | Filters tools at startup based on token scopes—tools requiring unavailable scopes are hidden |
-| **OAuth** (remote server only) | Uses OAuth scope challenges—when a tool needs a scope you haven't granted, you're prompted to authorize it |
-| **Fine-grained PAT** (`github_pat_`) | No filtering—all tools shown, API enforces permissions |
-| **GitHub App** (`ghs_`) | No filtering—all tools shown, permissions based on app installation |
-| **Server-to-server** | No filtering—all tools shown, permissions based on app/token configuration |
+| **Classic PAT** (`ghp_`) | 在启动时按 token scope 筛选工具，需要不可用 scope 的工具将隐藏 |
+| **OAuth**（仅远程 server） | 使用 OAuth scope challenge：当工具需要尚未授予的 scope 时，会提示您授权 |
+| **Fine-grained PAT** (`github_pat_`) | 不筛选，显示所有工具，API 强制执行权限 |
+| **GitHub App** (`ghs_`) | 不筛选，显示所有工具，权限基于 App installation |
+| **Server-to-server** | 不筛选，显示所有工具，权限基于 App/token 配置 |
 
-With OAuth, the remote server can dynamically request additional scopes as needed. With PATs, scopes are fixed at token creation, so the server proactively hides tools you can't use.
+使用 OAuth 时，远程 server 可按需动态请求额外 scope。PAT 的 scope 在创建 token 时固定，因此 server 会主动隐藏无法使用的工具。
 
-## OAuth Scope Challenges (Remote Server)
+## OAuth Scope Challenge（远程 Server）
 
-When using the [remote MCP server](./remote-server.md) with OAuth authentication, the server uses a different approach called **scope challenges**. Instead of hiding tools upfront, all tools are available, and the server requests additional scopes on-demand when you try to use a tool that requires them.
+通过 OAuth 身份验证使用[远程 MCP server](./remote-server.md)时，server 会采用称为 **scope challenge** 的不同方式。它不会预先隐藏工具，而是提供所有工具；当您尝试使用需要额外 scope 的工具时，server 会按需请求这些 scope。
 
-**How it works:**
-1. You attempt to use a tool (e.g., creating an issue)
-2. If your current OAuth token lacks the required scope, the server returns an OAuth scope challenge
-3. Your MCP client prompts you to authorize the additional scope
-4. After authorization, the operation completes successfully
+**工作方式：**
+1. 您尝试使用一个工具（例如创建 issue）
+2. 如果当前 OAuth token 缺少所需 scope，server 会返回 OAuth scope challenge
+3. MCP 客户端提示您授权额外 scope
+4. 授权后，操作会成功完成
 
-This provides a smoother user experience for OAuth users since you only grant permissions as needed, rather than requesting all scopes upfront.
+这为 OAuth 用户提供更顺畅的体验，因为您只在需要时才授予权限，而非预先请求所有 scope。
 
-## Checking Your Token's Scopes
+## 检查 Token 的 Scope
 
 To see what scopes your token has, you can run:
 
@@ -43,61 +43,61 @@ curl -sI -H "Authorization: Bearer $GITHUB_PERSONAL_ACCESS_TOKEN" \
   https://api.github.com/user | grep -i x-oauth-scopes
 ```
 
-Example output:
+示例输出：
 ```
 x-oauth-scopes: delete_repo, gist, read:org, repo
 ```
 
-## Scope Hierarchy
+## Scope 层级
 
-Some scopes implicitly include others:
+某些 scope 隐式包含其他 scope：
 
 - `repo` → includes `public_repo`, `security_events`
 - `admin:org` → includes `write:org` → includes `read:org`
 - `project` → includes `read:project`
 
-This means if your token has `repo`, tools requiring `security_events` will also be available.
+这意味着，如果 token 包含 `repo`，需要 `security_events` 的工具同样可用。
 
-Each tool in the [README](../README.md#tools) lists its required and accepted OAuth scopes.
+[README](../README.md#tools) 中的每个工具都列出了其所需和接受的 OAuth scope。
 
-## Public Repository Access
+## Public Repository 访问
 
-Read-only tools that only require `repo` or `public_repo` scopes are **always visible**, even if your token doesn't have these scopes. This is because these tools work on public repositories without authentication.
+只需要 `repo` 或 `public_repo` scope 的只读工具**始终可见**，即使 token 没有这些 scope。这是因为这些工具无需身份验证即可在 public repository 上工作。
 
-For example, `get_file_contents` is always available—you can read files from any public repository regardless of your token's scopes. However, write operations like `create_or_update_file` will be hidden if your token lacks `repo` scope.
+例如，`get_file_contents` 始终可用，无论 token 的 scope 如何，您都可以读取任何 public repository 中的文件。但如果 token 缺少 `repo` scope，则会隐藏 `create_or_update_file` 等写操作。
 
-> **Note:** The GitHub API doesn't return `public_repo` in the `X-OAuth-Scopes` header—it's implicit. The server handles this by not filtering read-only repository tools.
+> **注意：**GitHub API 不会在 `X-OAuth-Scopes` header 中返回 `public_repo`，它是隐式的。server 通过不筛选只读 repository 工具来处理这一点。
 
-## Graceful Degradation
+## 优雅降级
 
-If the server cannot fetch your token's scopes (e.g., network issues, rate limiting), it logs a warning and continues **without filtering**. This ensures the server remains usable even when scope detection fails.
+如果 server 无法获取 token 的 scope（例如网络问题、限流），会记录 warning 并在**不筛选**的情况下继续运行。这可确保 scope 检测失败时 server 仍可使用。
 
 ```
 WARN: failed to fetch token scopes, continuing without scope filtering
 ```
 
-## Classic vs Fine-Grained Personal Access Tokens
+## Classic 与 Fine-grained Personal Access Token
 
-**Classic PATs** (`ghp_` prefix) support OAuth scopes and return them in the `X-OAuth-Scopes` header. Scope filtering works fully with these tokens.
+**Classic PAT**（`ghp_` 前缀）支持 OAuth scope，并在 `X-OAuth-Scopes` header 中返回它们。Scope filtering 可完整适用于此类 token。
 
-**Fine-grained PATs** (`github_pat_` prefix) use a different permission model based on repository access and specific permissions rather than OAuth scopes. They don't return the `X-OAuth-Scopes` header, so scope filtering is skipped. All tools will be available, but the GitHub API will still enforce permissions at the API level—you'll get errors if you try to use tools your token doesn't have permission for.
+**Fine-grained PAT**（`github_pat_` 前缀）使用基于 repository 访问权限和特定权限的不同权限模型，而非 OAuth scope。它们不会返回 `X-OAuth-Scopes` header，因此会跳过 scope filtering。所有工具都可用，但 GitHub API 仍会在 API 层强制执行权限；若尝试使用 token 无权使用的工具，将收到错误。
 
-## GitHub App and Server-to-Server Tokens
+## GitHub App 和 Server-to-Server Token
 
-**GitHub App installation tokens** (`ghs_` prefix) and other server-to-server tokens use a permission model based on the app's installation permissions rather than OAuth scopes. These tokens don't return the `X-OAuth-Scopes` header, so scope filtering is skipped. The GitHub API enforces permissions based on the app's configuration.
+**GitHub App installation token**（`ghs_` 前缀）和其他 server-to-server token 使用基于 App installation 权限的权限模型，而非 OAuth scope。这些 token 不会返回 `X-OAuth-Scopes` header，因此会跳过 scope filtering。GitHub API 会根据 App 配置强制执行权限。
 
-## Troubleshooting
+## 故障排除
 
-| Problem | Cause | Solution |
+| 问题 | 原因 | 解决方案 |
 |---------|-------|----------|
-| Missing expected tools | Token lacks required scope | [Edit your PAT's scopes](https://github.com/settings/tokens) in GitHub settings |
-| All tools visible despite limited PAT | Scope detection failed | Check logs for warnings about scope fetching |
-| "Insufficient permissions" errors | Tool visible but scope insufficient | This shouldn't happen with scope filtering; report as bug |
+| 缺少预期工具 | Token 缺少所需 scope | 在 GitHub settings 中[编辑 PAT 的 scope](https://github.com/settings/tokens) |
+| PAT 受限但所有工具可见 | Scope 检测失败 | 检查日志中是否有获取 scope 的 warning |
+| “权限不足”错误 | 工具可见但 scope 不足 | 使用 scope filtering 时不应发生；请报告为 bug |
 
-> **Tip:** You can adjust the scopes of an existing classic PAT at any time via [GitHub's token settings](https://github.com/settings/tokens). After updating scopes, restart the MCP server to pick up the changes.
+> **提示：**您可随时在 [GitHub 的 token settings](https://github.com/settings/tokens) 中调整现有 classic PAT 的 scope。更新 scope 后，请重启 MCP server 以应用更改。
 
-## Related Documentation
+## 相关文档
 
 - [Server Configuration Guide](./server-configuration.md)
-- [GitHub PAT Documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
-- [OAuth Scopes Reference](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps)
+- [GitHub PAT 文档](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
+- [OAuth Scope 参考](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps)

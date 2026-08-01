@@ -24,7 +24,7 @@ import (
 )
 
 func Test_GetFileContents(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := GetFileContents(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -42,10 +42,10 @@ func Test_GetFileContents(t *testing.T) {
 	assert.Contains(t, schema.Properties, "fields")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
-	// Mock response for raw content
+	// Mock 响应 f或raw 内容
 	mockRawContent := []byte("# Test Repository\n\nThis is a test repository.")
 
-	// Setup mock directory content for success case
+	// Setup 模拟 directory 内容 f或成功 case
 	mockDirContent := []*github.RepositoryContent{
 		{
 			Type:    github.Ptr("file"),
@@ -72,7 +72,7 @@ func Test_GetFileContents(t *testing.T) {
 		expectedResult any
 		expectedErrMsg string
 		expectStatus   int
-		expectedMsg    string // optional: expected message text to verify in result
+		expectedMsg    string // 可选: expected message text to verify in 结果
 	}{
 		{
 			name: "successful text content fetch",
@@ -81,7 +81,7 @@ func Test_GetFileContents(t *testing.T) {
 				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
 				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
-					// Base64 encode the content as GitHub API does
+					// Base64 encode 内容 as GitHub API does
 					encodedContent := base64.StdEncoding.EncodeToString(mockRawContent)
 					fileContent := &github.RepositoryContent{
 						Name:     github.Ptr("README.md"),
@@ -116,7 +116,7 @@ func Test_GetFileContents(t *testing.T) {
 				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
 				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
-					// PNG magic bytes followed by some data
+					// PNG magic bytes followed by some 数据
 					pngContent := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01")
 					encodedContent := base64.StdEncoding.EncodeToString(pngContent)
 					fileContent := &github.RepositoryContent{
@@ -208,7 +208,7 @@ func Test_GetFileContents(t *testing.T) {
 				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
 				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
-					// Base64 encode the content as GitHub API does
+					// Base64 encode 内容 as GitHub API does
 					encodedContent := base64.StdEncoding.EncodeToString(mockRawContent)
 					fileContent := &github.RepositoryContent{
 						Name:     github.Ptr("README.md"),
@@ -292,7 +292,7 @@ func Test_GetFileContents(t *testing.T) {
 				},
 				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
-					// Base64 encode the content as GitHub API does
+					// Base64 encode 内容 as GitHub API does
 					encodedContent := base64.StdEncoding.EncodeToString(mockRawContent)
 					fileContent := &github.RepositoryContent{
 						Name:     github.Ptr("README.md"),
@@ -328,7 +328,7 @@ func Test_GetFileContents(t *testing.T) {
 				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
 				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
-					// File larger than 1MB - Contents API returns metadata but no content
+					// File larger than 1MB - Contents API 返回 元数据 但no 内容
 					fileContent := &github.RepositoryContent{
 						Name:        github.Ptr("large-file.bin"),
 						Path:        github.Ptr("large-file.bin"),
@@ -414,7 +414,7 @@ func Test_GetFileContents(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			mockRawClient, err := raw.NewClient(client, &url.URL{Scheme: "https", Host: "raw.example.com", Path: "/"})
 			require.NoError(t, err)
@@ -424,13 +424,13 @@ func Test_GetFileContents(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				textContent := getErrorResult(t, result)
@@ -439,14 +439,14 @@ func Test_GetFileContents(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			// Use the correct result helper based on the expected type
+			// Use correct 结果 helper based 在expected type
 			switch expected := tc.expectedResult.(type) {
 			case mcp.ResourceContents:
-				// Handle both text and blob resources
+				// Handle both text 和blob 资源
 				resource := getResourceResult(t, result)
 				assert.Equal(t, expected, *resource)
 
-				// If expectedMsg is set, verify the message text
+				// If expectedMsg is set, verify message text
 				if tc.expectedMsg != "" {
 					require.Len(t, result.Content, 2)
 					textContent, ok := result.Content[0].(*mcp.TextContent)
@@ -454,7 +454,7 @@ func Test_GetFileContents(t *testing.T) {
 					assert.Contains(t, textContent.Text, tc.expectedMsg)
 				}
 			case []*github.RepositoryContent:
-				// Directory content fetch returns a text result (JSON array)
+				// Directory 内容 fetch 返回 一个text 结果 (JSON array)
 				textContent := getTextResult(t, result)
 				var returnedContents []*github.RepositoryContent
 				err = json.Unmarshal([]byte(textContent.Text), &returnedContents)
@@ -466,7 +466,7 @@ func Test_GetFileContents(t *testing.T) {
 					assert.Equal(t, *expected[i].Type, *content.Type)
 				}
 			case *mcp.ResourceLink:
-				// Large file returns a ResourceLink
+				// Large 文件 返回 一个ResourceLink
 				require.Len(t, result.Content, 2)
 				resourceLink, ok := result.Content[1].(*mcp.ResourceLink)
 				require.True(t, ok, "expected Content[1] to be ResourceLink")
@@ -529,8 +529,8 @@ func Test_GetFileContents_DirectoryFieldFiltering(t *testing.T) {
 
 	textContent := getTextResult(t, result)
 
-	// Each directory entry is reduced to the requested fields only; heavier
-	// fields such as html_url and download_url are dropped.
+	// Each directory entry is reduced 到请求ed fields only; heavier
+	// fields such as html_url 和download_url are dropped.
 	var returned []map[string]any
 	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &returned))
 	require.Len(t, returned, len(mockDirContent))
@@ -737,12 +737,12 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 	})
 }
 
-// Test_GetCommit_IFC_FeatureFlag verifies that the IFC security label is only
-// attached to get_commit results when the ifc_labels feature flag is enabled,
-// and that the label content matches the commit-contents rule (untrusted on
-// public repos, trusted on private). It also confirms the label is omitted
-// when the repository visibility lookup fails, so the result is never
-// misclassified. get_commit is representative of every tool wired through the
+// Test_GetCommit_IFC_FeatureFlag verifies that IFC security label is only
+// attached to 获取_commit 结果 当ifc_labels 功能标志 is 启用,
+// 和that label 内容 matches commit-内容s rule (不受信任 on
+// 公开 repos, 受信任 on 私有). It 也confirms label is omitted
+// 当仓库 visibility lookup fails, so 结果 is never
+// misclassified. 获取_commit is representative of every 工具 wired through the
 // shared attachRepoVisibilityIFCLabel helper.
 func Test_GetCommit_IFC_FeatureFlag(t *testing.T) {
 	t.Parallel()
@@ -859,7 +859,7 @@ func Test_GetCommit_IFC_FeatureFlag(t *testing.T) {
 }
 
 func Test_ForkRepository(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := ForkRepository(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -874,7 +874,7 @@ func Test_ForkRepository(t *testing.T) {
 	assert.Contains(t, schema.Properties, "organization")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
-	// Setup mock forked repo for success case
+	// Setup 模拟 forked repo f或成功 case
 	mockForkedRepo := &github.Repository{
 		ID:       github.Ptr(int64(123456)),
 		Name:     github.Ptr("repo"),
@@ -927,20 +927,20 @@ func Test_ForkRepository(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -952,7 +952,7 @@ func Test_ForkRepository(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
 			assert.Contains(t, textContent.Text, "Fork is in progress")
@@ -961,7 +961,7 @@ func Test_ForkRepository(t *testing.T) {
 }
 
 func Test_CreateBranch(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := CreateBranch(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -977,12 +977,12 @@ func Test_CreateBranch(t *testing.T) {
 	assert.Contains(t, schema.Properties, "from_branch")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "branch"})
 
-	// Setup mock repository for default branch test
+	// Setup 模拟 仓库 f或默认分支 test
 	mockRepo := &github.Repository{
 		DefaultBranch: github.Ptr("main"),
 	}
 
-	// Setup mock reference for from_branch tests
+	// Setup 模拟 reference f或from_分支 tests
 	mockSourceRef := &github.Reference{
 		Ref: github.Ptr("refs/heads/main"),
 		Object: &github.GitObject{
@@ -990,7 +990,7 @@ func Test_CreateBranch(t *testing.T) {
 		},
 	}
 
-	// Setup mock created reference
+	// Setup 模拟 创建d reference
 	mockCreatedRef := &github.Reference{
 		Ref: github.Ptr("refs/heads/new-feature"),
 		Object: &github.GitObject{
@@ -1099,20 +1099,20 @@ func Test_CreateBranch(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -1124,10 +1124,10 @@ func Test_CreateBranch(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedRef github.Reference
 			err = json.Unmarshal([]byte(textContent.Text), &returnedRef)
 			require.NoError(t, err)
@@ -1138,7 +1138,7 @@ func Test_CreateBranch(t *testing.T) {
 }
 
 func Test_GetCommit(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := GetCommit(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -1225,20 +1225,20 @@ func Test_GetCommit(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -1250,10 +1250,10 @@ func Test_GetCommit(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedCommit github.RepositoryCommit
 			err = json.Unmarshal([]byte(textContent.Text), &returnedCommit)
 			require.NoError(t, err)
@@ -1381,7 +1381,7 @@ func Test_GetCommit_Detail(t *testing.T) {
 }
 
 func Test_ListCommits(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := ListCommits(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -1403,7 +1403,7 @@ func Test_ListCommits(t *testing.T) {
 	assert.Contains(t, schema.Properties, "fields")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
-	// Setup mock commits for success case
+	// Setup 模拟 commits f或成功 case
 	mockCommits := []*github.RepositoryCommit{
 		{
 			SHA: github.Ptr("abc123def456"),
@@ -1631,20 +1631,20 @@ func Test_ListCommits(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -1656,10 +1656,10 @@ func Test_ListCommits(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedCommits []MinimalCommit
 			err = json.Unmarshal([]byte(textContent.Text), &returnedCommits)
 			require.NoError(t, err)
@@ -1674,7 +1674,7 @@ func Test_ListCommits(t *testing.T) {
 					assert.Equal(t, tc.expectedCommits[i].Author.GetLogin(), commit.Author.Login)
 				}
 
-				// Files and stats are never included in list_commits
+				// Files 和stats are 绝不included in 列出_commits
 				assert.Nil(t, commit.Files)
 				assert.Nil(t, commit.Stats)
 			}
@@ -1683,7 +1683,7 @@ func Test_ListCommits(t *testing.T) {
 }
 
 func Test_CreateOrUpdateFile(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := CreateOrUpdateFile(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -1702,7 +1702,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 	assert.Contains(t, schema.Properties, "sha")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "path", "content", "message", "branch"})
 
-	// Setup mock file content response
+	// Setup 模拟 文件 内容 响应
 	mockFileResponse := &github.RepositoryContentResponse{
 		Content: &github.RepositoryContent{
 			Name:        github.Ptr("example.md"),
@@ -1737,14 +1737,14 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PutReposContentsByOwnerByRepoByPath: expectRequestBody(t, map[string]any{
 					"message": "Add example file",
-					"content": "IyBFeGFtcGxlCgpUaGlzIGlzIGFuIGV4YW1wbGUgZmlsZS4=", // Base64 encoded content
+					"content": "IyBFeGFtcGxlCgpUaGlzIGlzIGFuIGV4YW1wbGUgZmlsZS4=", // Base64 encoded 内容
 					"branch":  "main",
 				}).andThen(
 					mockResponse(t, http.StatusOK, mockFileResponse),
 				),
 				"PUT /repos/{owner}/{repo}/contents/{path:.*}": expectRequestBody(t, map[string]any{
 					"message": "Add example file",
-					"content": "IyBFeGFtcGxlCgpUaGlzIGlzIGFuIGV4YW1wbGUgZmlsZS4=", // Base64 encoded content
+					"content": "IyBFeGFtcGxlCgpUaGlzIGlzIGFuIGV4YW1wbGUgZmlsZS4=", // Base64 encoded 内容
 					"branch":  "main",
 				}).andThen(
 					mockResponse(t, http.StatusOK, mockFileResponse),
@@ -1774,7 +1774,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				}),
 				PutReposContentsByOwnerByRepoByPath: expectRequestBody(t, map[string]any{
 					"message": "Update example file",
-					"content": "IyBVcGRhdGVkIEV4YW1wbGUKClRoaXMgZmlsZSBoYXMgYmVlbiB1cGRhdGVkLg==", // Base64 encoded content
+					"content": "IyBVcGRhdGVkIEV4YW1wbGUKClRoaXMgZmlsZSBoYXMgYmVlbiB1cGRhdGVkLg==", // Base64 encoded 内容
 					"branch":  "main",
 					"sha":     "abc123def456",
 				}).andThen(
@@ -1782,7 +1782,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				),
 				"PUT /repos/{owner}/{repo}/contents/{path:.*}": expectRequestBody(t, map[string]any{
 					"message": "Update example file",
-					"content": "IyBVcGRhdGVkIEV4YW1wbGUKClRoaXMgZmlsZSBoYXMgYmVlbiB1cGRhdGVkLg==", // Base64 encoded content
+					"content": "IyBVcGRhdGVkIEV4YW1wbGUKClRoaXMgZmlsZSBoYXMgYmVlbiB1cGRhdGVkLg==", // Base64 encoded 内容
 					"branch":  "main",
 					"sha":     "abc123def456",
 				}).andThen(
@@ -1901,7 +1901,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 					"message": "Create new file",
 					"content": "IyBOZXcgRmlsZQoKVGhpcyBpcyBhIG5ldyBmaWxlLg==",
 					"branch":  "main",
-					"sha":     "ignoredsha", // SHA is sent but GitHub API ignores it for new files
+					"sha":     "ignoredsha", // SH一个is sent 但GitHub API ignores it f或新的 文件s
 				}).andThen(
 					mockResponse(t, http.StatusCreated, mockFileResponse),
 				),
@@ -1909,7 +1909,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 					"message": "Create new file",
 					"content": "IyBOZXcgRmlsZQoKVGhpcyBpcyBhIG5ldyBmaWxlLg==",
 					"branch":  "main",
-					"sha":     "ignoredsha", // SHA is sent but GitHub API ignores it for new files
+					"sha":     "ignoredsha", // SH一个is sent 但GitHub API ignores it f或新的 文件s
 				}).andThen(
 					mockResponse(t, http.StatusCreated, mockFileResponse),
 				),
@@ -1988,20 +1988,20 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -2013,21 +2013,21 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// If expectedErrMsg is set (but expectError is false), this is a warning case
+			// If expectedErrMsg is set (但expectErr或is 假), this is 一个warning case
 			if tc.expectedErrMsg != "" {
 				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
 				return
 			}
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedContent MinimalFileContentResponse
 			err = json.Unmarshal([]byte(textContent.Text), &returnedContent)
 			require.NoError(t, err)
 
-			// Verify content
+			// Verify 内容
 			assert.Equal(t, tc.expectedContent.Content.GetName(), returnedContent.Content.Name)
 			assert.Equal(t, tc.expectedContent.Content.GetPath(), returnedContent.Content.Path)
 			assert.Equal(t, tc.expectedContent.Content.GetSHA(), returnedContent.Content.SHA)
@@ -2049,7 +2049,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 }
 
 func Test_CreateRepository(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := CreateRepository(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -2066,7 +2066,7 @@ func Test_CreateRepository(t *testing.T) {
 	assert.Contains(t, schema.Properties, "autoInit")
 	assert.ElementsMatch(t, schema.Required, []string{"name"})
 
-	// Setup mock repository response
+	// Setup 模拟 仓库 响应
 	mockRepo := &github.Repository{
 		Name:        github.Ptr("test-repo"),
 		Description: github.Ptr("Test repository"),
@@ -2199,20 +2199,20 @@ func Test_CreateRepository(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -2224,22 +2224,22 @@ func Test_CreateRepository(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the minimal result
+			// Unmarshal 和verify minimal 结果
 			var returnedRepo MinimalResponse
 			err = json.Unmarshal([]byte(textContent.Text), &returnedRepo)
 			assert.NoError(t, err)
 
-			// Verify repository details
+			// Verify 仓库 details
 			assert.Equal(t, tc.expectedRepo.GetHTMLURL(), returnedRepo.URL)
 		})
 	}
 }
 
 func Test_PushFiles(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := PushFiles(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -2256,7 +2256,7 @@ func Test_PushFiles(t *testing.T) {
 	assert.Contains(t, schema.Properties, "message")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "branch", "files", "message"})
 
-	// Setup mock objects
+	// Setup 模拟 objects
 	mockRef := &github.Reference{
 		Ref: github.Ptr("refs/heads/main"),
 		Object: &github.GitObject{
@@ -2302,7 +2302,7 @@ func Test_PushFiles(t *testing.T) {
 		{
 			name: "successful push of multiple files",
 			mockedClient: NewMockedHTTPClient(
-				// Get branch reference
+				// Get 分支 reference
 				WithRequestMatch(
 					GetReposGitRefByOwnerByRepoByRef,
 					mockRef,
@@ -2379,22 +2379,22 @@ func Test_PushFiles(t *testing.T) {
 		{
 			name:         "fails when files parameter is invalid",
 			mockedClient: NewMockedHTTPClient(
-			// No requests expected
+			// No 请求s expected
 			),
 			requestArgs: map[string]any{
 				"owner":   "owner",
 				"repo":    "repo",
 				"branch":  "main",
-				"files":   "invalid-files-parameter", // Not an array
+				"files":   "invalid-files-parameter", // 不一个array
 				"message": "Update multiple files",
 			},
-			expectError:    false, // This returns a tool error, not a Go error
+			expectError:    false, // 此返回 一个工具 错误, 不a Go 错误
 			expectedErrMsg: "files parameter must be an array",
 		},
 		{
 			name: "fails when files contains object without path",
 			mockedClient: NewMockedHTTPClient(
-				// Get branch reference
+				// Get 分支 reference
 				WithRequestMatch(
 					GetReposGitRefByOwnerByRepoByRef,
 					mockRef,
@@ -2416,13 +2416,13 @@ func Test_PushFiles(t *testing.T) {
 				},
 				"message": "Update file",
 			},
-			expectError:    false, // This returns a tool error, not a Go error
+			expectError:    false, // 此返回 一个工具 错误, 不a Go 错误
 			expectedErrMsg: "each file must have a path",
 		},
 		{
 			name: "fails when files contains object without content",
 			mockedClient: NewMockedHTTPClient(
-				// Get branch reference
+				// Get 分支 reference
 				WithRequestMatch(
 					GetReposGitRefByOwnerByRepoByRef,
 					mockRef,
@@ -2440,12 +2440,12 @@ func Test_PushFiles(t *testing.T) {
 				"files": []any{
 					map[string]any{
 						"path": "README.md",
-						// Missing content
+						// Missing 内容
 					},
 				},
 				"message": "Update file",
 			},
-			expectError:    false, // This returns a tool error, not a Go error
+			expectError:    false, // 此返回 一个工具 错误, 不a Go 错误
 			expectedErrMsg: "each file must have content",
 		},
 		{
@@ -2455,7 +2455,7 @@ func Test_PushFiles(t *testing.T) {
 					GetReposGitRefByOwnerByRepoByRef,
 					mockResponse(t, http.StatusNotFound, nil),
 				),
-				// Mock Repositories.Get to fail when trying to create branch from default
+				// Mock Repositories.Get to fail when trying to 创建 分支 from default
 				WithRequestMatchHandler(
 					GetReposByOwnerByRepo,
 					mockResponse(t, http.StatusNotFound, nil),
@@ -2479,12 +2479,12 @@ func Test_PushFiles(t *testing.T) {
 		{
 			name: "fails to get base commit",
 			mockedClient: NewMockedHTTPClient(
-				// Get branch reference
+				// Get 分支 reference
 				WithRequestMatch(
 					GetReposGitRefByOwnerByRepoByRef,
 					mockRef,
 				),
-				// Fail to get commit
+				// Fail to 获取 commit
 				WithRequestMatchHandler(
 					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					mockResponse(t, http.StatusNotFound, nil),
@@ -2508,7 +2508,7 @@ func Test_PushFiles(t *testing.T) {
 		{
 			name: "fails to create tree",
 			mockedClient: NewMockedHTTPClient(
-				// Get branch reference
+				// Get 分支 reference
 				WithRequestMatch(
 					GetReposGitRefByOwnerByRepoByRef,
 					mockRef,
@@ -2518,7 +2518,7 @@ func Test_PushFiles(t *testing.T) {
 					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					mockCommit,
 				),
-				// Fail to create tree
+				// Fail to 创建 tree
 				WithRequestMatchHandler(
 					PostReposGitTreesByOwnerByRepo,
 					mockResponse(t, http.StatusInternalServerError, nil),
@@ -2542,7 +2542,7 @@ func Test_PushFiles(t *testing.T) {
 		{
 			name: "successful push to empty repository",
 			mockedClient: NewMockedHTTPClient(
-				// Get branch reference - first returns 409 for empty repo, second returns success after init
+				// Get 分支 reference - 第一个 返回 409 f或空 repo, second 返回 成功 after init
 				WithRequestMatchHandler(
 					GetReposGitRefByOwnerByRepoByRef,
 					func() http.HandlerFunc {
@@ -2551,28 +2551,28 @@ func Test_PushFiles(t *testing.T) {
 							w.Header().Set("Content-Type", "application/json")
 							callCount++
 							if callCount == 1 {
-								// First call: empty repo
+								// First 调用: 空 repo
 								w.WriteHeader(http.StatusConflict)
 								response := map[string]any{
 									"message": "Git Repository is empty.",
 								}
 								_ = json.NewEncoder(w).Encode(response)
 							} else {
-								// Second call: return the created reference
+								// Second 调用: 返回 创建d reference
 								w.WriteHeader(http.StatusOK)
 								_ = json.NewEncoder(w).Encode(mockRef)
 							}
 						}
 					}(),
 				),
-				// Mock Repositories.Get to return default branch for initialization
+				// Mock Repositories.Get to 返回 默认分支 f或initialization
 				WithRequestMatch(
 					GetReposByOwnerByRepo,
 					&github.Repository{
 						DefaultBranch: github.Ptr("main"),
 					},
 				),
-				// Create initial file using Contents API
+				// Create initial 文件 using Contents API
 				WithRequestMatchHandler(
 					PutReposContentsByOwnerByRepoByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2589,7 +2589,7 @@ func Test_PushFiles(t *testing.T) {
 						_, _ = w.Write(b)
 					}),
 				),
-				// Get the commit after initialization
+				// Get commit after initialization
 				WithRequestMatch(
 					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					mockCommit,
@@ -2628,7 +2628,7 @@ func Test_PushFiles(t *testing.T) {
 		{
 			name: "successful push multiple files to empty repository",
 			mockedClient: NewMockedHTTPClient(
-				// Get branch reference - called twice: first for empty check, second after file creation
+				// Get 分支 reference - 调用ed twice: 第一个 f或空 检查, second after 文件 creation
 				WithRequestMatchHandler(
 					GetReposGitRefByOwnerByRepoByRef,
 					func() http.HandlerFunc {
@@ -2636,7 +2636,7 @@ func Test_PushFiles(t *testing.T) {
 						return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 							callCount++
 							if callCount == 1 {
-								// First call: returns 409 Conflict for empty repo
+								// First 调用: 返回 409 Conflict f或空 repo
 								w.Header().Set("Content-Type", "application/json")
 								w.WriteHeader(http.StatusConflict)
 								response := map[string]any{
@@ -2644,7 +2644,7 @@ func Test_PushFiles(t *testing.T) {
 								}
 								_ = json.NewEncoder(w).Encode(response)
 							} else {
-								// Second call: returns the updated reference after first file creation
+								// Second 调用: 返回 更新d reference after 第一个 文件 creation
 								w.WriteHeader(http.StatusOK)
 								b, _ := json.Marshal(&github.Reference{
 									Ref:    github.Ptr("refs/heads/main"),
@@ -2655,14 +2655,14 @@ func Test_PushFiles(t *testing.T) {
 						})
 					}(),
 				),
-				// Mock Repositories.Get to return default branch for initialization
+				// Mock Repositories.Get to 返回 默认分支 f或initialization
 				WithRequestMatch(
 					GetReposByOwnerByRepo,
 					&github.Repository{
 						DefaultBranch: github.Ptr("main"),
 					},
 				),
-				// Create initial empty README.md file using Contents API to initialize repo
+				// Create initial 空 README.md 文件 using Contents API to initialize repo
 				WithRequestMatchHandler(
 					PutReposContentsByOwnerByRepoByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2671,7 +2671,7 @@ func Test_PushFiles(t *testing.T) {
 						require.NoError(t, err)
 						require.Equal(t, "Initial commit", body["message"])
 						require.Equal(t, "main", body["branch"])
-						// Verify it's an empty file
+						// Verify it's 一个空 文件
 						expectedContent := base64.StdEncoding.EncodeToString([]byte(""))
 						require.Equal(t, expectedContent, body["content"])
 						w.WriteHeader(http.StatusCreated)
@@ -2690,7 +2690,7 @@ func Test_PushFiles(t *testing.T) {
 						_, _ = w.Write(b)
 					}),
 				),
-				// Get the commit to retrieve parent SHA
+				// Get commit to retrieve parent SHA
 				WithRequestMatchHandler(
 					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -2705,7 +2705,7 @@ func Test_PushFiles(t *testing.T) {
 						_, _ = w.Write(b)
 					}),
 				),
-				// Create tree with all user files
+				// Create tree with 所有user 文件s
 				WithRequestMatchHandler(
 					PostReposGitTreesByOwnerByRepo,
 					expectRequestBody(t, map[string]any{
@@ -2734,7 +2734,7 @@ func Test_PushFiles(t *testing.T) {
 						mockResponse(t, http.StatusCreated, mockTree),
 					),
 				),
-				// Create commit with all user files
+				// Create commit with 所有user 文件s
 				WithRequestMatchHandler(
 					PostReposGitCommitsByOwnerByRepo,
 					expectRequestBody(t, map[string]any{
@@ -2782,7 +2782,7 @@ func Test_PushFiles(t *testing.T) {
 		{
 			name: "fails to create initial file in empty repository",
 			mockedClient: NewMockedHTTPClient(
-				// Get branch reference returns 409 Conflict for empty repo
+				// Get 分支 reference 返回 409 Conflict f或空 repo
 				WithRequestMatchHandler(
 					GetReposGitRefByOwnerByRepoByRef,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -2794,14 +2794,14 @@ func Test_PushFiles(t *testing.T) {
 						_ = json.NewEncoder(w).Encode(response)
 					}),
 				),
-				// Mock Repositories.Get to return default branch
+				// Mock Repositories.Get to 返回 默认分支
 				WithRequestMatch(
 					GetReposByOwnerByRepo,
 					&github.Repository{
 						DefaultBranch: github.Ptr("main"),
 					},
 				),
-				// Fail to create initial file using Contents API
+				// Fail to 创建 initial 文件 using Contents API
 				WithRequestMatchHandler(
 					PutReposContentsByOwnerByRepoByPath,
 					mockResponse(t, http.StatusInternalServerError, nil),
@@ -2825,7 +2825,7 @@ func Test_PushFiles(t *testing.T) {
 		{
 			name: "fails to get reference after creating initial file in empty repository",
 			mockedClient: NewMockedHTTPClient(
-				// Get branch reference - called twice
+				// Get 分支 reference - 调用ed twice
 				WithRequestMatchHandler(
 					GetReposGitRefByOwnerByRepoByRef,
 					func() http.HandlerFunc {
@@ -2833,7 +2833,7 @@ func Test_PushFiles(t *testing.T) {
 						return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 							callCount++
 							if callCount == 1 {
-								// First call: returns 409 Conflict for empty repo
+								// First 调用: 返回 409 Conflict f或空 repo
 								w.Header().Set("Content-Type", "application/json")
 								w.WriteHeader(http.StatusConflict)
 								response := map[string]any{
@@ -2841,20 +2841,20 @@ func Test_PushFiles(t *testing.T) {
 								}
 								_ = json.NewEncoder(w).Encode(response)
 							} else {
-								// Second call: fails
+								// Second 调用: fails
 								w.WriteHeader(http.StatusInternalServerError)
 							}
 						})
 					}(),
 				),
-				// Mock Repositories.Get to return default branch
+				// Mock Repositories.Get to 返回 默认分支
 				WithRequestMatch(
 					GetReposByOwnerByRepo,
 					&github.Repository{
 						DefaultBranch: github.Ptr("main"),
 					},
 				),
-				// Create initial file using Contents API
+				// Create initial 文件 using Contents API
 				WithRequestMatch(
 					PutReposContentsByOwnerByRepoByPath,
 					&github.RepositoryContentResponse{
@@ -2881,7 +2881,7 @@ func Test_PushFiles(t *testing.T) {
 		{
 			name: "fails to get commit in empty repository with multiple files",
 			mockedClient: NewMockedHTTPClient(
-				// Get branch reference returns 409 Conflict for empty repo
+				// Get 分支 reference 返回 409 Conflict f或空 repo
 				WithRequestMatchHandler(
 					GetReposGitRefByOwnerByRepoByRef,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -2893,14 +2893,14 @@ func Test_PushFiles(t *testing.T) {
 						_ = json.NewEncoder(w).Encode(response)
 					}),
 				),
-				// Mock Repositories.Get to return default branch
+				// Mock Repositories.Get to 返回 默认分支
 				WithRequestMatch(
 					GetReposByOwnerByRepo,
 					&github.Repository{
 						DefaultBranch: github.Ptr("main"),
 					},
 				),
-				// Create initial file using Contents API
+				// Create initial 文件 using Contents API
 				WithRequestMatch(
 					PutReposContentsByOwnerByRepoByPath,
 					&github.RepositoryContentResponse{
@@ -2908,7 +2908,7 @@ func Test_PushFiles(t *testing.T) {
 						Commit:  github.Commit{SHA: github.Ptr("init456")},
 					},
 				),
-				// Fail to get commit
+				// Fail to 获取 commit
 				WithRequestMatchHandler(
 					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					mockResponse(t, http.StatusInternalServerError, nil),
@@ -2937,20 +2937,20 @@ func Test_PushFiles(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -2970,10 +2970,10 @@ func Test_PushFiles(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedRef github.Reference
 			err = json.Unmarshal([]byte(textContent.Text), &returnedRef)
 			require.NoError(t, err)
@@ -2985,7 +2985,7 @@ func Test_PushFiles(t *testing.T) {
 }
 
 func Test_ListBranches(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := ListBranches(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -3001,7 +3001,7 @@ func Test_ListBranches(t *testing.T) {
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
-	// Setup mock branches for success case
+	// Setup 模拟 分支 f或成功 case
 	mockBranches := []*github.Branch{
 		{
 			Name:   github.Ptr("main"),
@@ -3058,17 +3058,17 @@ func Test_ListBranches(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create mock client
+			// Create 模拟 客户端
 			mockClient := mustNewGHClient(t, NewMockedHTTPClient(tt.mockResponses...))
 			deps := BaseDeps{
 				Client: mockClient,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create request
+			// Create 请求
 			request := createMCPRequest(tt.args)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			if tt.wantErr {
 				require.NoError(t, err)
@@ -3091,7 +3091,7 @@ func Test_ListBranches(t *testing.T) {
 			textContent := getTextResult(t, result)
 			require.NotEmpty(t, textContent.Text)
 
-			// Verify response
+			// Verify 响应
 			var branches []*github.Branch
 			err = json.Unmarshal([]byte(textContent.Text), &branches)
 			require.NoError(t, err)
@@ -3103,7 +3103,7 @@ func Test_ListBranches(t *testing.T) {
 }
 
 func Test_DeleteFile(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := DeleteFile(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -3118,10 +3118,10 @@ func Test_DeleteFile(t *testing.T) {
 	assert.Contains(t, schema.Properties, "path")
 	assert.Contains(t, schema.Properties, "message")
 	assert.Contains(t, schema.Properties, "branch")
-	// SHA is no longer required since we're using Git Data API
+	// SH一个is no longer 必需 since we're using Git Data API
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "path", "message", "branch"})
 
-	// Setup mock objects for Git Data API
+	// Setup 模拟 objects f或Git Data API
 	mockRef := &github.Reference{
 		Ref: github.Ptr("refs/heads/main"),
 		Object: &github.GitObject{
@@ -3157,7 +3157,7 @@ func Test_DeleteFile(t *testing.T) {
 		{
 			name: "successful file deletion using Git Data API",
 			mockedClient: NewMockedHTTPClient(
-				// Get branch reference
+				// Get 分支 reference
 				WithRequestMatch(
 					GetReposGitRefByOwnerByRepoByRef,
 					mockRef,
@@ -3246,20 +3246,20 @@ func Test_DeleteFile(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErrMsg)
@@ -3268,15 +3268,15 @@ func Test_DeleteFile(t *testing.T) {
 
 			require.NoError(t, err)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var response map[string]any
 			err = json.Unmarshal([]byte(textContent.Text), &response)
 			require.NoError(t, err)
 
-			// Verify the response contains the expected commit
+			// Verify 响应 contains expected commit
 			commit, ok := response["commit"].(map[string]any)
 			require.True(t, ok)
 			commitSHA, ok := commit["sha"].(string)
@@ -3287,7 +3287,7 @@ func Test_DeleteFile(t *testing.T) {
 }
 
 func Test_ListTags(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := ListTags(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -3301,7 +3301,7 @@ func Test_ListTags(t *testing.T) {
 	assert.Contains(t, schema.Properties, "repo")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
-	// Setup mock tags for success case
+	// Setup 模拟 tags f或成功 case
 	mockTags := []*github.RepositoryTag{
 		{
 			Name: github.Ptr("v1.0.0"),
@@ -3373,20 +3373,20 @@ func Test_ListTags(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -3398,15 +3398,15 @@ func Test_ListTags(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Parse and verify the result
+			// Parse 和verify 结果
 			var returnedTags []MinimalTag
 			err = json.Unmarshal([]byte(textContent.Text), &returnedTags)
 			require.NoError(t, err)
 
-			// Verify each tag
+			// Verify 每个tag
 			require.Equal(t, len(tc.expectedTags), len(returnedTags))
 			for i, expectedTag := range tc.expectedTags {
 				assert.Equal(t, *expectedTag.Name, returnedTags[i].Name)
@@ -3417,7 +3417,7 @@ func Test_ListTags(t *testing.T) {
 }
 
 func Test_GetTag(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := GetTag(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -3564,20 +3564,20 @@ func Test_GetTag(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -3589,10 +3589,10 @@ func Test_GetTag(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Parse and verify the result - annotated tag (full tag object)
+			// Parse 和verify 结果 - annotated tag (full tag object)
 			if tc.expectedTag != nil {
 				var returnedTag github.Tag
 				err = json.Unmarshal([]byte(textContent.Text), &returnedTag)
@@ -3605,7 +3605,7 @@ func Test_GetTag(t *testing.T) {
 				assert.Equal(t, tc.expectedTag.Object.GetSHA(), returnedTag.Object.GetSHA())
 			}
 
-			// Parse and verify the result - lightweight tag (reference only)
+			// Parse 和verify 结果 - lightweight tag (reference only)
 			if tc.expectedRef != nil {
 				var returnedRef github.Reference
 				err = json.Unmarshal([]byte(textContent.Text), &returnedRef)
@@ -3867,7 +3867,7 @@ func Test_GetReleaseByTag(t *testing.T) {
 				"repo": "repo",
 				"tag":  "v1.0.0",
 			},
-			expectError:    false, // Returns tool error, not Go error
+			expectError:    false, // Returns 工具 错误, 不Go 错误
 			expectedErrMsg: "missing required parameter: owner",
 		},
 		{
@@ -3877,7 +3877,7 @@ func Test_GetReleaseByTag(t *testing.T) {
 				"owner": "owner",
 				"tag":   "v1.0.0",
 			},
-			expectError:    false, // Returns tool error, not Go error
+			expectError:    false, // Returns 工具 错误, 不Go 错误
 			expectedErrMsg: "missing required parameter: repo",
 		},
 		{
@@ -3887,7 +3887,7 @@ func Test_GetReleaseByTag(t *testing.T) {
 				"owner": "owner",
 				"repo":  "repo",
 			},
-			expectError:    false, // Returns tool error, not Go error
+			expectError:    false, // Returns 工具 错误, 不Go 错误
 			expectedErrMsg: "missing required parameter: tag",
 		},
 		{
@@ -3906,7 +3906,7 @@ func Test_GetReleaseByTag(t *testing.T) {
 				"repo":  "repo",
 				"tag":   "v999.0.0",
 			},
-			expectError:    false, // API errors return tool errors, not Go errors
+			expectError:    false, // API 错误s 返回 工具 错误s, 不Go 错误s
 			expectedErrMsg: "failed to get release by tag: v999.0.0",
 		},
 		{
@@ -3925,7 +3925,7 @@ func Test_GetReleaseByTag(t *testing.T) {
 				"repo":  "repo",
 				"tag":   "v1.0.0",
 			},
-			expectError:    false, // API errors return tool errors, not Go errors
+			expectError:    false, // API 错误s 返回 工具 错误s, 不Go 错误s
 			expectedErrMsg: "failed to get release by tag: v1.0.0",
 		},
 	}
@@ -3979,12 +3979,12 @@ func Test_GetReleaseByTag(t *testing.T) {
 	}
 }
 
-// Test_GetReleaseByTag_IFC_FeatureFlag verifies the IFC label on
-// get_release_by_tag. The label is only present when the ifc_labels flag is
-// enabled, and confidentiality is public only for a non-draft release on a
-// public repo. A draft release is visible only to push-access users, so even
-// on a public repo it must be labeled private. Guards against the same
-// under-classification fixed for repository security advisories.
+// Test_GetReleaseByTag_IFC_FeatureFlag verifies IFC label on
+// 获取_release_by_tag. label is 仅present 当ifc_labels flag is
+// 启用, 和confidentiality is 公开 仅f或一个non-draft release on a
+// 公开 repo. 一个draft release is visible 仅to push-access users, so even
+// on 一个公开 repo it 必须是 labeled 私有. Guards against 相同
+// under-classification fixed f或仓库 security advisories.
 func Test_GetReleaseByTag_IFC_FeatureFlag(t *testing.T) {
 	t.Parallel()
 
@@ -4060,8 +4060,8 @@ func Test_GetReleaseByTag_IFC_FeatureFlag(t *testing.T) {
 
 	t.Run("public repo with draft release is private", func(t *testing.T) {
 		t.Parallel()
-		// Reviewer-class scenario: a draft release on a public repo is not
-		// world-readable, so the label must not be public.
+		// Reviewer-class scenario: 一个draft release on 一个公开 repo is not
+		// world-读取able, so label 不得 be 公开.
 		deps := BaseDeps{
 			Client:         mustNewGHClient(t, makeMockClient(false, makeRelease(true))),
 			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
@@ -4184,7 +4184,7 @@ func Test_filterPaths(t *testing.T) {
 				{Path: github.Ptr("name"), Type: github.Ptr("tree")},
 				{Path: github.Ptr("name"), Type: github.Ptr("blob")},
 			},
-			path:       "name", // No trailing slash can match both files and directories
+			path:       "name", // No trailing slash can match both 文件s 和directories
 			maxResults: -1,
 			expected:   []string{"name/", "name"},
 		},
@@ -4194,7 +4194,7 @@ func Test_filterPaths(t *testing.T) {
 				{Path: github.Ptr("name"), Type: github.Ptr("tree")},
 				{Path: github.Ptr("name"), Type: github.Ptr("blob")},
 			},
-			path:       "name/", // Trialing slash ensures only directories are matched
+			path:       "name/", // Trialing slash ensures 仅directories are matched
 			maxResults: -1,
 			expected:   []string{"name/"},
 		},
@@ -4260,7 +4260,7 @@ func Test_resolveGitReference(t *testing.T) {
 			ref:  "refs/heads/main",
 			sha:  "123sha456",
 			mockSetup: func() *http.Client {
-				// No API calls should be made when SHA is provided
+				// No API 调用 应当是 made when SH一个is provided
 				return NewMockedHTTPClient()
 			},
 			expectedOutput: &raw.ContentOpts{
@@ -4428,7 +4428,7 @@ func Test_resolveGitReference(t *testing.T) {
 					WithRequestMatchHandler(
 						GetReposGitRefByOwnerByRepoByRef,
 						http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-							// Both branch and tag attempts should return 404
+							// Both 分支 和tag attempts should 返回 404
 							w.WriteHeader(http.StatusNotFound)
 							_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 						}),
@@ -4465,7 +4465,7 @@ func Test_resolveGitReference(t *testing.T) {
 			ref:  "abc123def456abc123def456abc123def456abc1",
 			sha:  "",
 			mockSetup: func() *http.Client {
-				// No API calls should be made when ref looks like SHA
+				// No API 调用 应当是 made when ref looks like SHA
 				return NewMockedHTTPClient()
 			},
 			expectedOutput: &raw.ContentOpts{
@@ -4477,7 +4477,7 @@ func Test_resolveGitReference(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockSetup())
 			opts, _, err := resolveGitReference(ctx, client, owner, repo, tc.ref, tc.sha)
 
@@ -4503,7 +4503,7 @@ func Test_resolveGitReference(t *testing.T) {
 }
 
 func Test_ListStarredRepositories(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := ListStarredRepositories(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -4518,9 +4518,9 @@ func Test_ListStarredRepositories(t *testing.T) {
 	assert.Contains(t, schema.Properties, "direction")
 	assert.Contains(t, schema.Properties, "page")
 	assert.Contains(t, schema.Properties, "perPage")
-	assert.Empty(t, schema.Required) // All parameters are optional
+	assert.Empty(t, schema.Required) // 所有参数 are 可选
 
-	// Setup mock starred repositories
+	// Setup 模拟 starred 仓库
 	starredAt := time.Now().Add(-24 * time.Hour)
 	updatedAt := time.Now().Add(-2 * time.Hour)
 	mockStarredRepos := []*github.StarredRepository{
@@ -4623,20 +4623,20 @@ func Test_ListStarredRepositories(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NotNil(t, result)
 				textResult, ok := result.Content[0].(*mcp.TextContent)
@@ -4646,10 +4646,10 @@ func Test_ListStarredRepositories(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
 
-				// Parse the result and get the text content
+				// Parse 结果 和获取 text 内容
 				textContent := getTextResult(t, result)
 
-				// Unmarshal and verify the result
+				// Unmarshal 和verify 结果
 				var returnedRepos []MinimalRepository
 				err = json.Unmarshal([]byte(textContent.Text), &returnedRepos)
 				require.NoError(t, err)
@@ -4665,7 +4665,7 @@ func Test_ListStarredRepositories(t *testing.T) {
 }
 
 func Test_StarRepository(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := StarRepository(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -4724,20 +4724,20 @@ func Test_StarRepository(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NotNil(t, result)
 				textResult, ok := result.Content[0].(*mcp.TextContent)
@@ -4747,7 +4747,7 @@ func Test_StarRepository(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
 
-				// Parse the result and get the text content
+				// Parse 结果 和获取 text 内容
 				textContent := getTextResult(t, result)
 				assert.Contains(t, textContent.Text, "Successfully starred repository")
 			}
@@ -4756,7 +4756,7 @@ func Test_StarRepository(t *testing.T) {
 }
 
 func Test_UnstarRepository(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := UnstarRepository(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -4815,20 +4815,20 @@ func Test_UnstarRepository(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NotNil(t, result)
 				textResult, ok := result.Content[0].(*mcp.TextContent)
@@ -4838,7 +4838,7 @@ func Test_UnstarRepository(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
 
-				// Parse the result and get the text content
+				// Parse 结果 和获取 text 内容
 				textContent := getTextResult(t, result)
 				assert.Contains(t, textContent.Text, "Successfully unstarred repository")
 			}
@@ -4846,13 +4846,13 @@ func Test_UnstarRepository(t *testing.T) {
 	}
 }
 func Test_GetFileBlame(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := GetFileBlame(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	// get_file_blame is gated so it is not advertised unless the feature flag
-	// (or insiders mode) opts it in.
+	// 获取_文件_blame is gated so it is 不advertised unless 功能标志
+	// (或insiders mode) opts it in.
 	assert.Equal(t, FeatureFlagFileBlame, serverTool.FeatureFlagEnable, "get_file_blame must be gated behind the file_blame feature flag")
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -4867,9 +4867,9 @@ func Test_GetFileBlame(t *testing.T) {
 	require.NotNil(t, tool.Annotations)
 	assert.True(t, tool.Annotations.ReadOnlyHint, "blame is read-only")
 
-	// blameQueryShape is the GraphQL query shape used by all
-	// network-touching subtests below. Defined once so changes to the wire
-	// schema are made in a single place.
+	// blameQueryShape is GraphQL query shape 由以下内容使用： all
+	// network-touching subtests below. Defined once so changes 到wire
+	// schema are made in 一个单个 place.
 	type blameQueryShape = struct {
 		Repository struct {
 			DefaultBranchRef struct {
@@ -4931,7 +4931,7 @@ func Test_GetFileBlame(t *testing.T) {
 											},
 										},
 										{
-											// Same commit as the first range -> must be deduplicated.
+											// Same commit as 第一个 范围 -> 必须是 deduplicated.
 											"startingLine": 6, "endingLine": 7, "age": 2,
 											"commit": map[string]any{
 												"oid":           "abc123def456",
@@ -4984,7 +4984,7 @@ func Test_GetFileBlame(t *testing.T) {
 				require.Len(t, br.Commits, 2)
 				require.Contains(t, br.Commits, "abc123def456")
 				require.Contains(t, br.Commits, "def456ghi789")
-				// Multi-line message must be reduced to its headline.
+				// Multi-行 message 必须是 reduced to its head行.
 				assert.Equal(t, "Initial commit", br.Commits["abc123def456"].MessageHeadline)
 				assert.NotContains(t, result, "Long body that should not appear")
 				// Login/URL pointers populated.
@@ -5120,7 +5120,7 @@ func Test_GetFileBlame(t *testing.T) {
 				assert.False(t, br.PageInfo.HasNextPage)
 				assert.False(t, br.PageInfo.HasPreviousPage)
 				assert.False(t, br.Truncated)
-				// Ranges should marshal as an empty array, not null.
+				// Ranges should marshal as 一个空 array, 不null.
 				assert.Contains(t, result, `"ranges":[]`)
 			},
 		},
@@ -5250,8 +5250,8 @@ func Test_GetFileBlame(t *testing.T) {
 			validateResponse: func(t *testing.T, result string) {
 				var br BlameResult
 				require.NoError(t, json.Unmarshal([]byte(result), &br))
-				// First range (1-5) is dropped; middle clamped to 8-12;
-				// last clamped to 13-15.
+				// First 范围 (1-5) is dropped; middle clamped to 8-12;
+				// 最后一个 clamped to 13-15.
 				require.Len(t, br.Ranges, 2)
 				assert.Equal(t, 8, br.Ranges[0].StartingLine)
 				assert.Equal(t, 12, br.Ranges[0].EndingLine)
@@ -5370,8 +5370,8 @@ func Test_GetFileBlame(t *testing.T) {
 		})
 	}
 
-	// Path validation must short-circuit before any network call. We supply
-	// a client with no matchers so any HTTP attempt would fail loudly.
+	// Path validation must short-circuit before any network 调用. We supply
+	// 一个客户端 with no matchers so any HTTP attempt would fail loudly.
 	t.Run("path validation rejects bad inputs", func(t *testing.T) {
 		client := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
 		deps := BaseDeps{GQLClient: client}
@@ -5400,7 +5400,7 @@ func Test_GetFileBlame(t *testing.T) {
 		}
 	})
 
-	// Line-window and cursor pagination validation also short-circuits.
+	// Line-window 和curs或pagination validation 也short-circuits.
 	t.Run("line-range argument validation", func(t *testing.T) {
 		client := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
 		deps := BaseDeps{GQLClient: client}
@@ -5458,8 +5458,8 @@ func Test_GetFileBlame(t *testing.T) {
 		}
 	})
 
-	// Truncation: hand-build a response with > maxBlameRanges to verify
-	// the cap is applied and surfaced.
+	// Truncation: hand-build 一个响应 with > maxBlameRanges to verify
+	// cap is applied 和surfaced.
 	t.Run("truncation at maxBlameRanges", func(t *testing.T) {
 		ranges := make([]map[string]any, 0, maxBlameRanges+5)
 		for i := range maxBlameRanges + 5 {
@@ -5488,8 +5488,8 @@ func Test_GetFileBlame(t *testing.T) {
 				}),
 			),
 		)
-		// Use a large perPage so the truncated set is observable on a
-		// single page.
+		// Use 一个large perPage so truncated set is observable on a
+		// 单个 页.
 		req := createMCPRequest(map[string]any{
 			"owner": "o", "repo": "r", "path": "huge.txt", "perPage": float64(100),
 		})
@@ -5511,7 +5511,7 @@ func Test_GetFileBlame(t *testing.T) {
 }
 
 func Test_ListRepositoryCollaborators(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := ListRepositoryCollaborators(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))

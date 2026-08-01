@@ -1,0 +1,34 @@
+# 
+
+watch /
+
+mkdir /sub       # Create sub-directory
+touch /file      # Create a file
+touch /sub/file2 # Create a file (Should not see this! we are not watching subdir)
+sleep 200ms
+rm -r /sub       # Make sure receive deletes for both file and sub-directory
+rm /file
+
+Output:
+	create /sub
+	create /file
+	remove /sub
+	remove /file
+
+	dragonfly: # TODO: not sure why the REMOVE /sub is dropped.
+		create    /sub
+		create    /file
+		remove    /file
+	fen:
+		create /sub
+		create /file
+		write  /sub
+		remove /sub
+		remove /file
+	windows: # Windows includes a write for the /sub dir too, two of them even(?)
+		create /sub
+		create /file
+		write  /sub
+		write  /sub
+		remove /sub
+		remove /file

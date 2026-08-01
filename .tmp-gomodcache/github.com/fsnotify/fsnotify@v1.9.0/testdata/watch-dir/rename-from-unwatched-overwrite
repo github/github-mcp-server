@@ -1,0 +1,19 @@
+# Rename overwriting existing file.
+
+mkdir /dir
+mkdir /unwatch
+
+touch /unwatch/file
+touch /dir/rename
+
+watch /dir
+mv /unwatch/file /dir/rename
+
+Output:
+	remove /dir/rename
+	create /dir/rename
+
+	linux:     # No remove event for inotify; inotify just sends MOVE_SELF.
+		create /dir/rename
+	dragonfly: # TODO: this is broken.
+		remove /dir

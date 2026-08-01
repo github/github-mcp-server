@@ -1,0 +1,15 @@
+# Remove a symlink.
+require symlink
+
+touch /file
+ln -s /file /link
+
+watch /
+
+rm /link
+
+Output:
+	remove /link
+
+	kqueue:  # TODO: this is broken.
+		no-events

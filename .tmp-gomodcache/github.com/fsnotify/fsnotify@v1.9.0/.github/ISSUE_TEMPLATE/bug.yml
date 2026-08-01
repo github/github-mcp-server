@@ -1,0 +1,46 @@
+---
+name:        'Bug report'
+description: 'Create a bug report'
+labels:      ['bug']
+
+body:
+  - type: 'textarea'
+    validations: {"required": true}
+    attributes:
+      label: 'Describe the bug'
+      placeholder: 'A clear and concise description of what the bug is: expected behaviour, observed behaviour, etc.'
+
+  - type: 'textarea'
+    validations: {"required": true}
+    attributes:
+      label: 'Code to Reproduce'
+      placeholder: 'Please provide the FULL code to reproduce the problem: something that can be copy/pasted and run without having to write additional code.'
+
+  - type: 'textarea'
+    validations: {"required": true}
+    attributes:
+      label: 'File operations to reproduce'
+      placeholder: 'Full details on which file operations you did; simply "changed file" is not enough, as there are many ways to change a file.'
+
+  - type: 'textarea'
+    validations: {"required": true}
+    attributes:
+      label: 'Which operating system and version are you using?'
+      description: |
+        ```
+        Linux, BSD: uname -a
+        macOS:      sw_vers
+        Windows:    systeminfo | findstr /B /C:OS
+        ```
+
+  - type: 'input'
+    validations: {"required": true}
+    attributes:
+      label: 'Which fsnotify version are you using?'
+
+  - type: 'dropdown'
+    validations: {"required": true}
+    attributes:
+      label: 'Did you try the latest main branch?'
+      description: 'Please try the latest main branch as well, with e.g.:<br>`go get github.com/fsnotify/fsnotify@main`'
+      options: ['No', 'Yes']

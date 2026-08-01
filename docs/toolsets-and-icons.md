@@ -1,10 +1,10 @@
-# Toolsets and Icons
+# 工具集和图标
 
-This document explains how to work with toolsets and icons in the GitHub MCP Server.
+本文档介绍如何在 GitHub MCP Server 中使用工具集和图标。
 
-## Toolset Overview
+## 工具集概述
 
-Toolsets are logical groupings of related tools. Each toolset has metadata defined in `pkg/github/tools.go`:
+工具集是相关工具的逻辑分组。每个工具集的 metadata 都在 `pkg/github/tools.go` 中定义：
 
 ```go
 ToolsetMetadataRepos = inventory.ToolsetMetadata{
@@ -15,28 +15,28 @@ ToolsetMetadataRepos = inventory.ToolsetMetadata{
 }
 ```
 
-### Toolset Fields
+### 工具集字段
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |-------|------|-------------|
-| `ID` | `ToolsetID` | Unique identifier used in URLs and CLI flags (e.g., `repos`, `issues`) |
-| `Description` | `string` | Human-readable description shown in documentation |
-| `Default` | `bool` | Whether this toolset is enabled by default |
-| `Icon` | `string` | Octicon name for visual representation in MCP clients |
+| `ID` | `ToolsetID` | 用于 URL 和 CLI flag 的唯一标识符（如 `repos`、`issues`） |
+| `Description` | `string` | 文档中显示的可读描述 |
+| `Default` | `bool` | 是否默认启用该工具集 |
+| `Icon` | `string` | 用于 MCP 客户端视觉呈现的 Octicon 名称 |
 
-## Adding Icons to Toolsets
+## 向工具集添加图标
 
-Icons help users quickly identify toolsets in MCP-compatible clients. We use [Primer Octicons](https://primer.style/foundations/icons) for all icons.
+图标可帮助用户在兼容 MCP 的客户端中快速识别工具集。所有图标均使用 [Primer Octicons](https://primer.style/foundations/icons)。
 
-### Step 1: Choose an Octicon
+### 第 1 步：选择 Octicon
 
-Browse the [Octicon gallery](https://primer.style/foundations/icons) and select an appropriate icon. Use the base name without size suffix (e.g., `repo` not `repo-16`).
+浏览 [Octicon 图库](https://primer.style/foundations/icons)，选择合适的图标。请使用不带尺寸后缀的基础名称，例如 `repo`，而不是 `repo-16`。
 
-### Step 2: Add Icon to Required Icons List
+### 第 2 步：将图标添加到所需图标列表
 
-Icons are defined in `pkg/octicons/required_icons.txt`, which is the single source of truth for which icons should be embedded:
+图标定义在 `pkg/octicons/required_icons.txt` 中，这是决定应嵌入哪些图标的唯一事实来源：
 
-```
+```text
 # Required icons for the GitHub MCP Server
 # Add new icons below (one per line)
 repo
@@ -45,9 +45,9 @@ git-pull-request
 your-new-icon  # Add your icon here
 ```
 
-### Step 3: Fetch the Icon Files
+### 第 3 步：获取图标文件
 
-Run the fetch-icons script to download and convert the icon:
+运行 fetch-icons script 下载并转换图标：
 
 ```bash
 # Fetch a specific icon
@@ -57,19 +57,21 @@ script/fetch-icons your-new-icon
 script/fetch-icons
 ```
 
-This script:
-- Downloads the 24px SVG from [Primer Octicons](https://github.com/primer/octicons)
-- Converts to PNG with light theme (dark icons for light backgrounds)
-- Converts to PNG with dark theme (white icons for dark backgrounds)
-- Saves both variants to `pkg/octicons/icons/`
+该 script 会：
 
-**Requirements:** The script requires `rsvg-convert`:
-- Ubuntu/Debian: `sudo apt-get install librsvg2-bin`
-- macOS: `brew install librsvg`
+- 从 [Primer Octicons](https://github.com/primer/octicons) 下载 24px SVG
+- 转换为浅色 theme 的 PNG（浅色背景使用深色图标）
+- 转换为深色 theme 的 PNG（深色背景使用白色图标）
+- 将两个 variant 保存到 `pkg/octicons/icons/`
 
-### Step 4: Update the Toolset Metadata
+**要求：**该 script 需要 `rsvg-convert`：
 
-Add or update the `Icon` field in the toolset definition:
+- Ubuntu/Debian：`sudo apt-get install librsvg2-bin`
+- macOS：`brew install librsvg`
+
+### 第 4 步：更新工具集 metadata
+
+在工具集定义中添加或更新 `Icon` 字段：
 
 ```go
 // In pkg/github/tools.go
@@ -81,21 +83,22 @@ ToolsetMetadataRepos = inventory.ToolsetMetadata{
 }
 ```
 
-### Step 5: Regenerate Documentation
+### 第 5 步：重新生成文档
 
-Run the documentation generator to update all markdown files:
+运行文档生成器以更新所有 Markdown 文件：
 
 ```bash
 go run ./cmd/github-mcp-server generate-docs
 ```
 
-This updates icons in:
-- `README.md` - Toolsets table and tool section headers
-- `docs/remote-server.md` - Remote toolsets table
+这会更新以下位置的图标：
 
-## Remote-Only Toolsets
+- `README.md`：工具集表格和工具章节标题
+- `docs/remote-server.md`：远程工具集表格
 
-Some toolsets are only available in the remote GitHub MCP Server (hosted at `api.githubcopilot.com`). These are defined in `pkg/github/tools.go` with their icons, but are not registered with the local server:
+## 仅远程可用的工具集
+
+部分工具集只在远程 GitHub MCP Server（托管于 `api.githubcopilot.com`）中可用。这些工具集及其图标定义在 `pkg/github/tools.go` 中，但不会注册到本地 server：
 
 ```go
 // Remote-only toolsets
@@ -106,42 +109,42 @@ ToolsetMetadataCopilot = inventory.ToolsetMetadata{
 }
 ```
 
-The `RemoteOnlyToolsets()` function returns the list of these toolsets for documentation generation.
+`RemoteOnlyToolsets()` 函数会返回这些工具集列表，用于生成文档。
 
-To add a new remote-only toolset:
+添加新的仅远程可用工具集时：
 
-1. Add the metadata definition in `pkg/github/tools.go`
-2. Add it to the slice returned by `RemoteOnlyToolsets()`
-3. Regenerate documentation
+1. 在 `pkg/github/tools.go` 中添加 metadata 定义
+2. 将其添加到 `RemoteOnlyToolsets()` 返回的 slice
+3. 重新生成文档
 
-## Tool Icon Inheritance
+## 工具图标继承
 
-Individual tools inherit icons from their parent toolset. When a tool is registered with a toolset, its icons are automatically set:
+各工具会继承其父工具集的图标。工具注册到工具集时，会自动设置其图标：
 
 ```go
 // In pkg/inventory/server_tool.go
 toolCopy.Icons = tool.Toolset.Icons()
 ```
 
-This means you only need to set the icon once on the toolset, and all tools in that toolset will display the same icon.
+这表示只需在工具集上设置一次图标，该工具集中的所有工具都会显示相同图标。
 
-## How Icons Work in MCP
+## MCP 中图标的工作方式
 
-The MCP protocol supports tool icons via the `icons` field. We provide icons in two formats:
+MCP protocol 通过 `icons` 字段支持工具图标。我们提供两种格式：
 
-1. **Data URIs** - Base64-encoded PNG images embedded in the tool definition
-2. **Light/Dark variants** - Both theme variants are provided for proper display
+1. **Data URIs** - 嵌入到工具定义中的 Base64 编码 PNG 图片
+2. **浅色/深色 variants** - 同时提供两种 theme variants，以便正确显示
 
-The `octicons.Icons()` function generates the MCP-compatible icon objects:
+`octicons.Icons()` 函数会生成兼容 MCP 的图标对象：
 
 ```go
 // Returns []mcp.Icon with both light and dark variants
 icons := octicons.Icons("repo")
 ```
 
-## Existing Toolset Icons
+## 现有工具集图标
 
-| Toolset | Octicon Name |
+| 工具集 | Octicon 名称 |
 |---------|--------------|
 | Context | `person` |
 | Repositories | `repo` |
@@ -165,37 +168,38 @@ icons := octicons.Icons("repo")
 | Copilot | `copilot` |
 | Support Search | `book` |
 
-## Troubleshooting
+## 故障排除
 
-### Icons not appearing in documentation
+### 文档中未显示图标
 
-1. Ensure PNG files exist in `pkg/octicons/icons/` with `-light.png` and `-dark.png` suffixes
-2. Run `go run ./cmd/github-mcp-server generate-docs` to regenerate
-3. Check that the `Icon` field is set on the toolset metadata
+1. 确认 `pkg/octicons/icons/` 中存在带 `-light.png` 和 `-dark.png` 后缀的 PNG 文件
+2. 运行 `go run ./cmd/github-mcp-server generate-docs` 重新生成文档
+3. 检查工具集 metadata 上是否设置了 `Icon` 字段
 
-### Icons not appearing in MCP clients
+### MCP 客户端中未显示图标
 
-1. Verify the client supports MCP tool icons
-2. Check that the octicons package is properly generating base64 data URIs
-3. Ensure the icon name matches a file in `pkg/octicons/icons/`
+1. 确认客户端支持 MCP 工具图标
+2. 检查 octicons package 是否正确生成 base64 data URIs
+3. 确认图标名称匹配 `pkg/octicons/icons/` 中的文件
 
-## CI Validation
+## CI 验证
 
-The following tests run in CI to catch icon issues early:
+CI 中会运行以下测试，以尽早发现图标问题：
 
 ### `pkg/octicons.TestEmbeddedIconsExist`
 
-Verifies that all icons listed in `pkg/octicons/required_icons.txt` have corresponding PNG files embedded.
+验证 `pkg/octicons/required_icons.txt` 中列出的所有图标都有对应的嵌入 PNG 文件。
 
 ### `pkg/github.TestAllToolsetIconsExist`
 
-Verifies that all toolset `Icon` fields reference icons that are properly embedded.
+验证所有工具集 `Icon` 字段都引用了已正确嵌入的图标。
 
 ### `pkg/github.TestToolsetMetadataHasIcons`
 
-Ensures all toolsets have an `Icon` field set.
+确保所有工具集都设置了 `Icon` 字段。
 
-If any of these tests fail:
-1. Add the missing icon to `pkg/octicons/required_icons.txt`
-2. Run `script/fetch-icons` to download the icon
-3. Commit the new icon files
+如果这些测试失败：
+
+1. 将缺失图标添加到 `pkg/octicons/required_icons.txt`
+2. 运行 `script/fetch-icons` 下载图标
+3. 提交新的图标文件

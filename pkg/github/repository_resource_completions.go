@@ -10,10 +10,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// CompleteHandler defines function signature for completion handlers
+// CompleteHandler defines 函数 signature f或completion 处理器s
 type CompleteHandler func(ctx context.Context, client *github.Client, resolved map[string]string, argValue string) ([]string, error)
 
-// RepositoryResourceArgumentResolvers is a map of argument names to their completion handlers
+// RepositoryResourceArgumentResolvers is 一个map of 参数 names to their completion 处理器s
 var RepositoryResourceArgumentResolvers = map[string]CompleteHandler{
 	"owner":    completeOwner,
 	"repo":     completeRepo,
@@ -24,11 +24,11 @@ var RepositoryResourceArgumentResolvers = map[string]CompleteHandler{
 	"path":     completePath,
 }
 
-// RepositoryResourceCompletionHandler returns a CompletionHandlerFunc for repository resource completions.
+// RepositoryResourceCompletionHandler 返回 一个CompletionHandlerFunc f或仓库 资源 completions.
 func RepositoryResourceCompletionHandler(getClient GetClientFn) func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
 	return func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
 		if req.Params.Ref.Type != "ref/resource" {
-			return nil, nil // Not a resource completion
+			return nil, nil // 不a 资源 completion
 		}
 
 		argName := req.Params.Argument.Name
@@ -45,7 +45,7 @@ func RepositoryResourceCompletionHandler(getClient GetClientFn) func(ctx context
 			return nil, err
 		}
 
-		// Argument resolver functions
+		// Argument resolver 函数s
 		resolvers := RepositoryResourceArgumentResolvers
 
 		resolver, ok := resolvers[argName]
@@ -71,7 +71,7 @@ func RepositoryResourceCompletionHandler(getClient GetClientFn) func(ctx context
 	}
 }
 
-// --- Per-argument resolver functions ---
+// --- Per-参数 resolver 函数s ---
 
 func completeOwner(ctx context.Context, client *github.Client, _ map[string]string, argValue string) ([]string, error) {
 	var values []string
@@ -88,7 +88,7 @@ func completeOwner(ctx context.Context, client *github.Client, _ map[string]stri
 		values = append(values, org.GetLogin())
 	}
 
-	// filter values based on argValue and replace values slice
+	// 筛选 值 based on argValue 和replace 值 slice
 	if argValue != "" {
 		var filteredValues []string
 		for _, value := range values {
@@ -100,11 +100,11 @@ func completeOwner(ctx context.Context, client *github.Client, _ map[string]stri
 	}
 	if len(values) > 100 {
 		values = values[:100]
-		return values, nil // Limit to 100 results
+		return values, nil // Limit to 100 结果
 	}
-	// Else also do a client.Search.Users()
+	// Else 也do 一个客户端.Search.Users()
 	if argValue == "" {
-		return values, nil // No need to search if no argValue
+		return values, nil // No need to search 如果没有argValue
 	}
 	users, _, err := client.Search.Users(ctx, argValue, &github.SearchOptions{ListOptions: github.ListOptions{PerPage: 100 - len(values)}})
 	if err != nil || users == nil {
@@ -136,7 +136,7 @@ func completeRepo(ctx context.Context, client *github.Client, resolved map[strin
 	if err != nil || repos == nil {
 		return values, errors.New("failed to get repositories")
 	}
-	// filter repos based on argValue
+	// 筛选 repos based on argValue
 	for _, repo := range repos.Repositories {
 		name := repo.GetName()
 		if argValue == "" || strings.HasPrefix(name, argValue) {
@@ -248,7 +248,7 @@ func completePath(ctx context.Context, client *github.Client, resolved map[strin
 		refVal = "HEAD"
 	}
 
-	// Determine the prefix to complete (directory path or file path)
+	// Determine prefix to complete (directory 路径 或文件 路径)
 	prefix := argValue
 	if prefix != "" && !strings.HasSuffix(prefix, "/") {
 		lastSlash := strings.LastIndex(prefix, "/")
@@ -259,13 +259,13 @@ func completePath(ctx context.Context, client *github.Client, resolved map[strin
 		}
 	}
 
-	// Get the tree for the ref (recursive)
+	// Get tree 用于ref (recursive)
 	tree, _, err := client.Git.GetTree(ctx, owner, repo, refVal, true)
 	if err != nil || tree == nil {
 		return nil, errors.New("failed to get file tree")
 	}
 
-	// Collect immediate children of the prefix (files and directories, no duplicates)
+	// Collect immediate children 的prefix (文件s 和directories, no duplicates)
 	dirs := map[string]struct{}{}
 	files := map[string]struct{}{}
 	prefixLen := len(prefix)
@@ -277,20 +277,20 @@ func completePath(ctx context.Context, client *github.Client, resolved map[strin
 		if rel == "" {
 			continue
 		}
-		// Only immediate children
+		// 仅immediate children
 		slashIdx := strings.Index(rel, "/")
 		if slashIdx >= 0 {
-			// Directory: only add the directory name (with trailing slash), prefixed with full path
+			// Directory: 仅add directory name (with trailing slash), prefixed with full 路径
 			dirName := prefix + rel[:slashIdx+1]
 			dirs[dirName] = struct{}{}
 		} else if entry.GetType() == "blob" {
-			// File: add as-is, prefixed with full path
+			// File: add as-is, prefixed with full 路径
 			fileName := prefix + rel
 			files[fileName] = struct{}{}
 		}
 	}
 
-	// Optionally filter by argValue (if user is typing after last slash)
+	// Optionally 筛选 by argValue (if user is typing after 最后一个 slash)
 	var filter string
 	if argValue != "" {
 		if lastSlash := strings.LastIndex(argValue, "/"); lastSlash >= 0 {
@@ -301,9 +301,9 @@ func completePath(ctx context.Context, client *github.Client, resolved map[strin
 	}
 
 	var values []string
-	// Add directories first, then files, both filtered
+	// Add directories 第一个, 然后文件s, both 筛选ed
 	for dir := range dirs {
-		// Only filter on the last segment after the last slash
+		// 仅筛选 在最后一个 segment after 最后一个 slash
 		if filter == "" {
 			values = append(values, dir)
 		} else {

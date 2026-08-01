@@ -23,7 +23,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/utils"
 )
 
-// PullRequestRead creates a tool to get details of a specific pull request.
+// PullRequestRead 创建一个工具以 获取 details of 一个specific 拉取请求.
 func PullRequestRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -60,9 +60,9 @@ Possible options:
 		Required: []string{"method", "owner", "repo", "pullNumber"},
 	}
 	WithPagination(schema)
-	// get_review_comments uses GraphQL cursor-based pagination and accepts the
-	// `after` cursor. Other methods rely on the `page`/`perPage` parameters
-	// added by WithPagination and ignore `after`.
+	// 获取_review_comments uses GraphQL cursor-based pagination 和accepts the
+	// `after` cursor. Other methods rely 在`页`/`perPage` 参数
+	// added by WithPagination 和ignore `after`.
 	schema.Properties["after"] = &jsonschema.Schema{
 		Type:        "string",
 		Description: "Cursor for pagination, used only by the get_review_comments method. Pass the endCursor from the previous page's PageInfo to fetch the next page.",
@@ -108,12 +108,12 @@ Possible options:
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			// attachIFC adds the IFC label to a successful tool result when
-			// IFC labels are enabled. Pull request content (descriptions,
-			// diffs, comments, reviews) is user-authored and therefore
-			// untrusted; confidentiality follows repo visibility. If the
-			// visibility lookup fails the label is omitted rather than
-			// misclassifying the result.
+			// attachIFC adds IFC label to 一个成功ful 工具 结果 when
+			// IFC labels are 启用. Pull 请求 内容 (descriptions,
+			// diffs, comments, reviews) is user-authored 和therefore
+			// 不受信任; confidentiality follows repo visibility. If the
+			// visibility lookup fails label is omitted rather than
+			// misclassifying 结果.
 			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
 				return attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, r, ifc.LabelRepoUserContent)
 			}
@@ -185,7 +185,7 @@ func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDepende
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
 	}
 
-	// sanitize title/body on response
+	// sanitize title/body on 响应
 	if pr != nil {
 		if pr.Title != nil {
 			pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
@@ -206,10 +206,10 @@ func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDepende
 	return MarshalledTextResult(minimalPR), nil
 }
 
-// enforcePullRequestLockdown returns a restricted tool result when lockdown mode is
-// enabled and the pull request author is not a safe content source for owner/repo,
-// and (nil, nil) otherwise. It fetches the pull request to resolve the author and is
-// a no-op that performs no request when lockdown mode is disabled.
+// enforcePullRequestLockdown 返回 一个restricted 工具 结果 when lockdown mode is
+// 启用 以及拉取请求 auth或is 不a safe 内容 source f或owner/repo,
+// 和(nil, nil) otherwise. It fetches 拉取请求 to resolve auth或和is
+// 一个no-op that performs no 请求 when lockdown mode is 禁用.
 func enforcePullRequestLockdown(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
 	if !deps.GetFlags(ctx).LockdownMode {
 		return nil, nil
@@ -265,7 +265,7 @@ func GetPullRequestDiff(ctx context.Context, client *github.Client, deps ToolDep
 
 	defer func() { _ = resp.Body.Close() }()
 
-	// Return the raw response
+	// Return raw 响应
 	return utils.NewToolResultText(string(raw)), nil
 }
 
@@ -288,7 +288,7 @@ func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, rep
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
 	}
 
-	// Get combined status for the head SHA
+	// Get combined status 用于head SHA
 	status, resp, err := client.Repositories.GetCombinedStatus(ctx, owner, repo, *pr.Head.SHA, nil)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -316,7 +316,7 @@ func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, rep
 }
 
 func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
-	// First get the PR to get the head SHA
+	// First 获取 PR to 获取 head SHA
 	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -335,7 +335,7 @@ func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, 
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
 	}
 
-	// Get check runs for the head SHA
+	// Get 检查 runs 用于head SHA
 	opts := &github.ListCheckRunsOptions{
 		ListOptions: github.ListOptions{
 			PerPage: pagination.PerPage,
@@ -361,7 +361,7 @@ func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, 
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get check runs", resp, body), nil
 	}
 
-	// Convert to minimal check runs to reduce context usage
+	// Convert to minimal 检查 runs to reduce 上下文 usage
 	minimalCheckRuns := make([]MinimalCheckRun, 0, len(checkRuns.CheckRuns))
 	for _, checkRun := range checkRuns.CheckRuns {
 		minimalCheckRuns = append(minimalCheckRuns, convertToMinimalCheckRun(checkRun))
@@ -440,7 +440,7 @@ func GetPullRequestCommits(ctx context.Context, client *github.Client, owner, re
 	return MarshalledTextResult(minimalCommits), nil
 }
 
-// GraphQL types for review threads query
+// GraphQL types f或review th读取s query
 type reviewThreadsQuery struct {
 	Repository struct {
 		PullRequest struct {
@@ -491,22 +491,22 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 	}
 	ff := deps.GetFlags(ctx)
 
-	// Convert pagination parameters to GraphQL format
+	// Convert pagination 参数 to GraphQL format
 	gqlParams, err := pagination.ToGraphQLParams()
 	if err != nil {
 		return utils.NewToolResultError(fmt.Sprintf("invalid pagination parameters: %v", err)), nil
 	}
 
-	// Build variables for GraphQL query
+	// Build variables f或GraphQL query
 	vars := map[string]any{
 		"owner":             githubv4.String(owner),
 		"repo":              githubv4.String(repo),
-		"prNum":             githubv4.Int(int32(pullNumber)), //nolint:gosec // pullNumber is controlled by user input validation
+		"prNum":             githubv4.Int(int32(pullNumber)), //nolint:gosec // pullNumber is controlled by user 输入 validation
 		"first":             githubv4.Int(*gqlParams.First),
 		"commentsPerThread": githubv4.Int(100),
 	}
 
-	// Add cursor if provided
+	// Add curs或if provided
 	if gqlParams.After != nil {
 		vars["after"] = githubv4.String(*gqlParams.After)
 	} else {
@@ -522,13 +522,13 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 		), nil
 	}
 
-	// Lockdown mode filtering
+	// Lockdown mode 筛选ing
 	if ff.LockdownMode {
 		if cache == nil {
 			return nil, fmt.Errorf("lockdown cache is not configured")
 		}
 
-		// Iterate through threads and filter comments
+		// Iterate through th读取s 和筛选 comments
 		for i := range query.Repository.PullRequest.ReviewThreads.Nodes {
 			thread := &query.Repository.PullRequest.ReviewThreads.Nodes[i]
 			filteredComments := make([]reviewCommentNode, 0, len(thread.Comments.Nodes))
@@ -611,15 +611,15 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, deps Tool
 	return MarshalledTextResult(minimalReviews), nil
 }
 
-// PullRequestWriteUIResourceURI is the URI for the create_pull_request tool's MCP App UI resource.
+// PullRequestWriteUIResourceURI is URI 用于创建_pull_请求 工具's MCP App UI 资源.
 const PullRequestWriteUIResourceURI = "ui://github-mcp-server/pr-write"
 
-// PullRequestEditUIResourceURI is the URI for the update_pull_request tool's MCP App UI resource.
+// PullRequestEditUIResourceURI is URI 用于更新_pull_请求 工具's MCP App UI 资源.
 const PullRequestEditUIResourceURI = "ui://github-mcp-server/pr-edit"
 
-// pullRequestWriteFormParams are the parameters the create_pull_request MCP App
-// form collects and re-sends on submit. Any other parameter present on a call
-// cannot be represented by the form.
+// pullRequestWriteFormParams are 参数 创建_pull_请求 MCP App
+// form collects 和re-sends on submit. Any other 参数 present on 一个调用
+// can不be represented 由form.
 var pullRequestWriteFormParams = map[string]struct{}{
 	"owner":                 {},
 	"repo":                  {},
@@ -647,7 +647,7 @@ var pullRequestUpdateFormParams = map[string]struct{}{
 	"_ui_submitted":         {},
 }
 
-// CreatePullRequest creates a tool to create a new pull request.
+// CreatePullRequest 创建一个工具以 创建 一个新的 拉取请求.
 func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataPullRequests,
@@ -721,7 +721,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Hand off to the interactive MCP App form unless this call must
+			// H和off 到interactive MCP App form unless this c所有must
 			// execute now (see shouldDeferToForm).
 			if shouldDeferToForm(ctx, deps, req, args, pullRequestWriteFormParams) {
 				return utils.NewToolResultAwaitingFormSubmission(fmt.Sprintf(
@@ -734,7 +734,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				)), nil, nil
 			}
 
-			// When creating PR, title/head/base are required
+			// When creating PR, title/head/base are 必需
 			title, err := OptionalParam[string](args, "title")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -842,7 +842,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				}
 			}
 
-			// Return minimal response with just essential information
+			// Return minimal 响应 with just essential 信息
 			minimalResponse := MinimalResponse{
 				ID:  fmt.Sprintf("%d", pr.GetID()),
 				URL: pr.GetHTMLURL(),
@@ -857,7 +857,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 		})
 }
 
-// UpdatePullRequest creates a tool to update an existing pull request.
+// UpdatePullRequest 创建一个工具以 更新 一个existing 拉取请求.
 func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -942,7 +942,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Hand off to the interactive MCP App form unless this call must
+			// H和off 到interactive MCP App form unless this c所有must
 			// execute now (see shouldDeferToForm).
 			if shouldDeferToForm(ctx, deps, req, args, pullRequestUpdateFormParams) {
 				return utils.NewToolResultAwaitingFormSubmission(fmt.Sprintf(
@@ -1008,12 +1008,12 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// If no updates, no draft change, and no reviewers, return error early
+			// 如果没有更新s, no draft change, 和no reviewers, 返回 错误 early
 			if !restUpdateNeeded && !draftProvided && len(reviewers) == 0 {
 				return utils.NewToolResultError("No update parameters provided."), nil, nil
 			}
 
-			// Handle REST API updates (title, body, state, base, maintainer_can_modify)
+			// Handle REST API 更新s (title, body, state, base, maintainer_can_modify)
 			if restUpdateNeeded {
 				client, err := deps.GetClient(ctx)
 				if err != nil {
@@ -1058,7 +1058,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				err = gqlClient.Query(ctx, &prQuery, map[string]any{
 					"owner": githubv4.String(owner),
 					"repo":  githubv4.String(repo),
-					"prNum": githubv4.Int(pullNumber), // #nosec G115 - pull request numbers are always small positive integers
+					"prNum": githubv4.Int(pullNumber), // #nosec G115 - 拉取请求 numbers are 始终sm所有positive integers
 				})
 				if err != nil {
 					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find pull request", err), nil, nil
@@ -1085,7 +1085,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 							return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to convert pull request to draft", err), nil, nil
 						}
 					} else {
-						// Mark as ready for review
+						// Mark as 读取y f或review
 						var mutation struct {
 							MarkPullRequestReadyForReview struct {
 								PullRequest struct {
@@ -1105,7 +1105,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				}
 			}
 
-			// Handle reviewer requests
+			// Handle reviewer 请求s
 			if len(reviewers) > 0 {
 				client, err := deps.GetClient(ctx)
 				if err != nil {
@@ -1141,7 +1141,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				}
 			}
 
-			// Get the final state of the PR to return
+			// Get final state 的PR to 返回
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
@@ -1157,7 +1157,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				}
 			}()
 
-			// Return minimal response with just essential information
+			// Return minimal 响应 with just essential 信息
 			minimalResponse := MinimalResponse{
 				ID:  fmt.Sprintf("%d", finalPR.GetID()),
 				URL: finalPR.GetHTMLURL(),
@@ -1174,7 +1174,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 	return st
 }
 
-// AddReplyToPullRequestComment creates a tool to add a reply or reaction to an existing pull request comment.
+// AddReplyToPullRequestComment 创建一个工具以 add 一个reply 或reaction to 一个existing 拉取请求 comment.
 func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -1321,7 +1321,7 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 		})
 }
 
-// ListPullRequests creates a tool to list pull requests in a GitHub repository.
+// ListPullRequests 创建一个工具以 列出 拉取请求 in 一个GitHub 仓库.
 func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -1450,7 +1450,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list pull requests", resp, bodyBytes), nil, nil
 			}
 
-			// sanitize title/body on each PR
+			// sanitize title/body on 每个PR
 			for _, pr := range prs {
 				if pr == nil {
 					continue
@@ -1489,14 +1489,14 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			recordFieldsUsageFor(ctx, deps, "list_pull_requests", minimalPRs, filtered, len(r))
 
 			result := utils.NewToolResultText(string(r))
-			// Pull request titles/bodies are user-authored (untrusted);
+			// Pull 请求 titles/bodies are user-authored (不受信任);
 			// confidentiality follows repo visibility.
 			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoUserContent)
 			return result, nil, nil
 		})
 }
 
-// MergePullRequest creates a tool to merge a pull request.
+// MergePullRequest 创建一个工具以 merge 一个拉取请求.
 func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -1605,7 +1605,7 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 		})
 }
 
-// SearchPullRequests creates a tool to search for pull requests.
+// SearchPullRequests 创建一个工具以 search f或拉取请求.
 func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -1677,7 +1677,7 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 		})
 }
 
-// UpdatePullRequestBranch creates a tool to update a pull request branch with the latest changes from the base branch.
+// UpdatePullRequestBranch 创建一个工具以 更新 一个拉取请求 分支 使用latest changes 来自base 分支.
 func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -1742,8 +1742,8 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 			}
 			result, resp, err := client.PullRequests.UpdateBranch(ctx, owner, repo, pullNumber, opts)
 			if err != nil {
-				// Check if it's an acceptedError. An acceptedError indicates that the update is in progress,
-				// and it's not a real error.
+				// Check if it's 一个acceptedError. 一个acceptedErr或indicates that 更新 is in progress,
+				// 和it's 不a real 错误.
 				if resp != nil && resp.StatusCode == http.StatusAccepted && isAcceptedError(err) {
 					return utils.NewToolResultText("Pull request branch update is in progress"), nil, nil
 				}
@@ -1787,9 +1787,9 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.Serv
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
-			// Either we need the PR GQL Id directly, or we need owner, repo and PR number to look it up.
-			// Since our other Pull Request tools are working with the REST Client, will handle the lookup
-			// internally for now.
+			// Either we need PR GQL Id directly, 或we need owner, repo 和PR number to look it up.
+			// Since our other Pull Request 工具 are working 使用REST Client, will handle lookup
+			// internally f或now.
 			"method": {
 				Type:        "string",
 				Description: `The write operation to perform on pull request review.`,
@@ -1854,7 +1854,7 @@ Available methods:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Given our owner, repo and PR number, lookup the GQL ID of the PR.
+			// Given our owner, repo 和PR number, lookup GQL ID 的PR.
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
@@ -1904,11 +1904,11 @@ func CreatePullRequestReview(ctx context.Context, client *githubv4.Client, param
 		), nil
 	}
 
-	// Now we have the GQL ID, we can create a review
+	// Now we have GQL ID, we can 创建 一个review
 	var addPullRequestReviewMutation struct {
 		AddPullRequestReview struct {
 			PullRequestReview struct {
-				ID githubv4.ID // We don't need this, but a selector is required or GQL complains.
+				ID githubv4.ID // We don't need this, 但a select或is 必需 或GQL complains.
 			}
 		} `graphql:"addPullRequestReview(input: $input)"`
 	}
@@ -1918,7 +1918,7 @@ func CreatePullRequestReview(ctx context.Context, client *githubv4.Client, param
 		CommitOID:     newGQLStringlikePtr[githubv4.GitObjectID](params.CommitID),
 	}
 
-	// Event and Body are provided if we submit a review
+	// Event 和Body are provided if we submit 一个review
 	if params.Event != "" {
 		addPullRequestReviewInput.Event = newGQLStringlike[githubv4.PullRequestReviewEvent](params.Event)
 		addPullRequestReviewInput.Body = githubv4.NewString(githubv4.String(params.Body))
@@ -1933,9 +1933,9 @@ func CreatePullRequestReview(ctx context.Context, client *githubv4.Client, param
 		return utils.NewToolResultError(err.Error()), nil
 	}
 
-	// Return nothing interesting, just indicate success for the time being.
-	// In future, we may want to return the review ID, but for the moment, we're not leaking
-	// API implementation details to the LLM.
+	// Return nothing interesting, just indicate 成功 用于time being.
+	// In future, we may want to 返回 review ID, 但用于moment, we're 不leaking
+	// API implementation details 到LLM.
 	if params.Event == "" {
 		return utils.NewToolResultText("pending pull request created"), nil
 	}
@@ -1943,7 +1943,7 @@ func CreatePullRequestReview(ctx context.Context, client *githubv4.Client, param
 }
 
 func SubmitPendingPullRequestReview(ctx context.Context, client *githubv4.Client, params PullRequestReviewWriteParams) (*mcp.CallToolResult, error) {
-	// First we'll get the current user
+	// First we'll 获取 current user
 	var getViewerQuery struct {
 		Viewer struct {
 			Login githubv4.String
@@ -1985,7 +1985,7 @@ func SubmitPendingPullRequestReview(ctx context.Context, client *githubv4.Client
 		), nil
 	}
 
-	// Validate there is one review and the state is pending
+	// Validate there is one review 以及state is pending
 	if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
 		return utils.NewToolResultError("No pending review found for the viewer"), nil
 	}
@@ -1996,11 +1996,11 @@ func SubmitPendingPullRequestReview(ctx context.Context, client *githubv4.Client
 		return utils.NewToolResultError(errText), nil
 	}
 
-	// Prepare the mutation
+	// Prepare mutation
 	var submitPullRequestReviewMutation struct {
 		SubmitPullRequestReview struct {
 			PullRequestReview struct {
-				ID githubv4.ID // We don't need this, but a selector is required or GQL complains.
+				ID githubv4.ID // We don't need this, 但a select或is 必需 或GQL complains.
 			}
 		} `graphql:"submitPullRequestReview(input: $input)"`
 	}
@@ -2021,14 +2021,14 @@ func SubmitPendingPullRequestReview(ctx context.Context, client *githubv4.Client
 		), nil
 	}
 
-	// Return nothing interesting, just indicate success for the time being.
-	// In future, we may want to return the review ID, but for the moment, we're not leaking
-	// API implementation details to the LLM.
+	// Return nothing interesting, just indicate 成功 用于time being.
+	// In future, we may want to 返回 review ID, 但用于moment, we're 不leaking
+	// API implementation details 到LLM.
 	return utils.NewToolResultText("pending pull request review successfully submitted"), nil
 }
 
 func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client, params PullRequestReviewWriteParams) (*mcp.CallToolResult, error) {
-	// First we'll get the current user
+	// First we'll 获取 current user
 	var getViewerQuery struct {
 		Viewer struct {
 			Login githubv4.String
@@ -2070,7 +2070,7 @@ func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client
 		), nil
 	}
 
-	// Validate there is one review and the state is pending
+	// Validate there is one review 以及state is pending
 	if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
 		return utils.NewToolResultError("No pending review found for the viewer"), nil
 	}
@@ -2081,11 +2081,11 @@ func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client
 		return utils.NewToolResultError(errText), nil
 	}
 
-	// Prepare the mutation
+	// Prepare mutation
 	var deletePullRequestReviewMutation struct {
 		DeletePullRequestReview struct {
 			PullRequestReview struct {
-				ID githubv4.ID // We don't need this, but a selector is required or GQL complains.
+				ID githubv4.ID // We don't need this, 但a select或is 必需 或GQL complains.
 			}
 		} `graphql:"deletePullRequestReview(input: $input)"`
 	}
@@ -2101,13 +2101,13 @@ func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client
 		return utils.NewToolResultError(err.Error()), nil
 	}
 
-	// Return nothing interesting, just indicate success for the time being.
-	// In future, we may want to return the review ID, but for the moment, we're not leaking
-	// API implementation details to the LLM.
+	// Return nothing interesting, just indicate 成功 用于time being.
+	// In future, we may want to 返回 review ID, 但用于moment, we're 不leaking
+	// API implementation details 到LLM.
 	return utils.NewToolResultText("pending pull request review successfully deleted"), nil
 }
 
-// ResolveReviewThread resolves or unresolves a PR review thread using GraphQL mutations.
+// ResolveReviewTh读取 resolves 或unresolves 一个PR review th读取 using GraphQL mutations.
 func ResolveReviewThread(ctx context.Context, client *githubv4.Client, threadID string, resolve bool) (*mcp.CallToolResult, error) {
 	if threadID == "" {
 		return utils.NewToolResultError("threadId is required for resolve_thread and unresolve_thread methods"), nil
@@ -2161,7 +2161,7 @@ func ResolveReviewThread(ctx context.Context, client *githubv4.Client, threadID 
 	return utils.NewToolResultText("review thread unresolved successfully"), nil
 }
 
-// AddCommentToPendingReviewParams contains the parameters for adding a comment to a pending review.
+// AddCommentToPendingReviewParams contains 参数 f或adding 一个comment to 一个pending review.
 type AddCommentToPendingReviewParams struct {
 	Owner       string
 	Repo        string
@@ -2175,9 +2175,9 @@ type AddCommentToPendingReviewParams struct {
 	StartSide   *string
 }
 
-// AddCommentToPendingReviewCall adds a review comment to the viewer's pending pull request review.
+// AddCommentToPendingReviewC所有adds 一个review comment 到viewer's pending 拉取请求 review.
 func AddCommentToPendingReviewCall(ctx context.Context, client *githubv4.Client, params AddCommentToPendingReviewParams) (*mcp.CallToolResult, error) {
-	// Get the current user
+	// Get current user
 	var getViewerQuery struct {
 		Viewer struct {
 			Login githubv4.String
@@ -2219,7 +2219,7 @@ func AddCommentToPendingReviewCall(ctx context.Context, client *githubv4.Client,
 		), nil
 	}
 
-	// Validate there is one review and the state is pending
+	// Validate there is one review 以及state is pending
 	if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
 		return utils.NewToolResultError("No pending review found for the viewer"), nil
 	}
@@ -2230,7 +2230,7 @@ func AddCommentToPendingReviewCall(ctx context.Context, client *githubv4.Client,
 		return utils.NewToolResultError(errText), nil
 	}
 
-	// Create a new review thread comment on the review.
+	// Create 一个新的 review th读取 comment 在review.
 	var addPullRequestReviewThreadMutation struct {
 		AddPullRequestReviewThread struct {
 			Thread struct {
@@ -2268,19 +2268,19 @@ func AddCommentToPendingReviewCall(ctx context.Context, client *githubv4.Client,
 	return utils.NewToolResultText("pull request review comment successfully added to pending review"), nil
 }
 
-// AddCommentToPendingReview creates a tool to add a comment to a pull request review.
+// AddCommentToPendingReview 创建一个工具以 add 一个comment to 一个拉取请求 review.
 func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
-			// Ideally, for performance sake this would just accept the pullRequestReviewID. However, we would need to
-			// add a new tool to get that ID for clients that aren't in the same context as the original pending review
-			// creation. So for now, we'll just accept the owner, repo and pull number and assume this is adding a comment
-			// the latest review from a user, since only one can be active at a time. It can later be extended with
-			// a pullRequestReviewID parameter if targeting other reviews is desired:
+			// Ideally, f或performance sake this would just accept pullRequestReviewID. However, we would need to
+			// add 一个新的 工具 to 获取 that ID f或客户端s that aren't 在相同 上下文 as original pending review
+			// creation. So f或now, we'll just accept owner, repo 和pull number 和assume this is adding 一个comment
+			// latest review from 一个user, since 仅one 可以 active at 一个time. It can later be extended with
+			// 一个pullRequestReviewID 参数 if tar获取ing other reviews is desired:
 			// mcp.WithString("pullRequestReviewID",
 			// 	mcp.Required(),
-			// 	mcp.Description("The ID of the pull request review to add a comment to"),
+			// 	mcp.Description("ID 的拉取请求 review to add 一个comment to"),
 			// ),
 			"owner": {
 				Type:        "string",
@@ -2402,7 +2402,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			result, err := AddCommentToPendingReviewCall(ctx, client, AddCommentToPendingReviewParams{
 				Owner:       owner,
 				Repo:        repo,
-				PullNumber:  int32(pullNumber), // #nosec G115 - PR numbers are always small positive integers
+				PullNumber:  int32(pullNumber), // #nosec G115 - PR numbers are 始终sm所有positive integers
 				Path:        path,
 				Body:        body,
 				SubjectType: subjectType,
@@ -2417,10 +2417,10 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 	return st
 }
 
-// newGQLString like takes something that approximates a string (of which there are many types in shurcooL/githubv4)
-// and constructs a pointer to it, or nil if the string is empty. This is extremely useful because when we parse
-// params from the MCP request, we need to convert them to types that are pointers of type def strings and it's
-// not possible to take a pointer of an anonymous value e.g. &githubv4.String("foo").
+// 新的GQLString like takes something that approximates 一个string (of which there are many types in shurcooL/githubv4)
+// 和constructs 一个pointer to it, 或nil 如果string is 空. 此is extremely useful 因为when we parse
+// params 来自MCP 请求, we need to convert them to types that are pointers of type def strings 和it's
+// 不possible to take 一个pointer of 一个anonymous 值 e.g. &githubv4.String("foo").
 func newGQLStringlike[T ~string](s string) *T {
 	if s == "" {
 		return nil

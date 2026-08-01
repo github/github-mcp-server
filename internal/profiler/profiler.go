@@ -12,7 +12,7 @@ import (
 	"math"
 )
 
-// Profile represents performance metrics for an operation
+// Profile 表示操作的性能指标。
 type Profile struct {
 	Operation    string        `json:"operation"`
 	Duration     time.Duration `json:"duration_ns"`
@@ -24,7 +24,7 @@ type Profile struct {
 	Timestamp    time.Time     `json:"timestamp"`
 }
 
-// String returns a human-readable representation of the profile
+// String 返回 profile 的便于阅读的表示形式。
 func (p *Profile) String() string {
 	return fmt.Sprintf("[%s] %s: duration=%v, memory_delta=%+dB, lines=%d, bytes=%d",
 		p.Timestamp.Format("15:04:05.000"),
@@ -55,13 +55,13 @@ func safeMemoryDelta(after, before uint64) int64 {
 	return int64(after) - int64(before)
 }
 
-// Profiler provides minimal performance profiling capabilities
+// Profiler 提供最小化的性能分析能力。
 type Profiler struct {
 	logger  *slog.Logger
 	enabled bool
 }
 
-// New creates a new Profiler instance
+// New 创建新的 Profiler 实例。
 func New(logger *slog.Logger, enabled bool) *Profiler {
 	return &Profiler{
 		logger:  logger,
@@ -69,7 +69,7 @@ func New(logger *slog.Logger, enabled bool) *Profiler {
 	}
 }
 
-// ProfileFunc profiles a function execution
+// ProfileFunc 分析函数执行的性能。
 func (p *Profiler) ProfileFunc(ctx context.Context, operation string, fn func() error) (*Profile, error) {
 	if !p.enabled {
 		return nil, fn()
@@ -100,7 +100,7 @@ func (p *Profiler) ProfileFunc(ctx context.Context, operation string, fn func() 
 	return profile, err
 }
 
-// ProfileFuncWithMetrics profiles a function execution and captures additional metrics
+// ProfileFuncWithMetrics 分析函数执行的性能并捕获额外指标。
 func (p *Profiler) ProfileFuncWithMetrics(ctx context.Context, operation string, fn func() (int, int64, error)) (*Profile, error) {
 	if !p.enabled {
 		_, _, err := fn()
@@ -134,7 +134,7 @@ func (p *Profiler) ProfileFuncWithMetrics(ctx context.Context, operation string,
 	return profile, err
 }
 
-// Start begins timing an operation and returns a function to complete the profiling
+// Start 开始为操作计时，并返回用于完成性能分析的函数。
 func (p *Profiler) Start(ctx context.Context, operation string) func(lines int, bytes int64) *Profile {
 	if !p.enabled {
 		return func(int, int64) *Profile { return nil }
@@ -171,7 +171,7 @@ func (p *Profiler) Start(ctx context.Context, operation string) func(lines int, 
 
 var globalProfiler *Profiler
 
-// IsProfilingEnabled checks if profiling is enabled via environment variables
+// IsProfilingEnabled 检查是否通过环境变量启用了性能分析。
 func IsProfilingEnabled() bool {
 	if enabled, err := strconv.ParseBool(os.Getenv("GITHUB_MCP_PROFILING_ENABLED")); err == nil {
 		return enabled
@@ -179,17 +179,17 @@ func IsProfilingEnabled() bool {
 	return false
 }
 
-// Init initializes the global profiler
+// Init 初始化全局 profiler。
 func Init(logger *slog.Logger, enabled bool) {
 	globalProfiler = New(logger, enabled)
 }
 
-// InitFromEnv initializes the global profiler using environment variables
+// InitFromEnv 使用环境变量初始化全局 profiler。
 func InitFromEnv(logger *slog.Logger) {
 	globalProfiler = New(logger, IsProfilingEnabled())
 }
 
-// ProfileFunc profiles a function using the global profiler
+// ProfileFunc 使用全局 profiler 分析函数性能。
 func ProfileFunc(ctx context.Context, operation string, fn func() error) (*Profile, error) {
 	if globalProfiler == nil {
 		return nil, fn()
@@ -197,7 +197,7 @@ func ProfileFunc(ctx context.Context, operation string, fn func() error) (*Profi
 	return globalProfiler.ProfileFunc(ctx, operation, fn)
 }
 
-// ProfileFuncWithMetrics profiles a function with metrics using the global profiler
+// ProfileFuncWithMetrics 使用全局 profiler 分析函数性能并采集指标。
 func ProfileFuncWithMetrics(ctx context.Context, operation string, fn func() (int, int64, error)) (*Profile, error) {
 	if globalProfiler == nil {
 		_, _, err := fn()
@@ -206,7 +206,7 @@ func ProfileFuncWithMetrics(ctx context.Context, operation string, fn func() (in
 	return globalProfiler.ProfileFuncWithMetrics(ctx, operation, fn)
 }
 
-// Start begins timing using the global profiler
+// Start 使用全局 profiler 开始计时。
 func Start(ctx context.Context, operation string) func(int, int64) *Profile {
 	if globalProfiler == nil {
 		return func(int, int64) *Profile { return nil }

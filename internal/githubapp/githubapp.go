@@ -1,4 +1,4 @@
-// Package githubapp provides GitHub App installation access tokens.
+// Package githubapp 提供 GitHub App installation access token。
 package githubapp
 
 import (
@@ -31,19 +31,19 @@ const (
 	httpTimeout   = 30 * time.Second
 )
 
-// Config describes a GitHub App installation used for server-to-server auth.
+// Config 描述用于服务器到服务器 auth 的 GitHub App installation。
 type Config struct {
-	// AppID is used as the JWT issuer. GitHub accepts an app ID or client ID.
+	// AppID 用作 JWT issuer。GitHub 接受 app ID 或 client ID。
 	AppID string
 
-	// InstallationID identifies the installation whose access token is minted.
+	// InstallationID 标识要为其签发 access token 的 installation。
 	InstallationID string
 
-	// PrivateKeyPEM is the RSA key used to sign app JWTs.
+	// PrivateKeyPEM 是用于签署 app JWT 的 RSA key。
 	PrivateKeyPEM []byte
 
-	// BaseRESTURL is the REST API base, e.g. https://api.github.com/ for
-	// github.com or https://HOST/api/v3/ for GitHub Enterprise Server.
+	// BaseRESTURL 是 REST API 基地址，例如 github.com 使用 https://api.github.com/，
+	// GitHub Enterprise Server 使用 https://HOST/api/v3/。
 	BaseRESTURL string
 }
 
@@ -178,7 +178,7 @@ func (s *installationTokenSource) Token() (*oauth2.Token, error) {
 	}, nil
 }
 
-// Provider caches and refreshes GitHub App installation access tokens.
+// Provider 缓存并刷新 GitHub App installation access token。
 type Provider struct {
 	source oauth2.TokenSource
 	logger *slog.Logger
@@ -202,7 +202,7 @@ func NewProvider(cfg Config, logger *slog.Logger) (*Provider, error) {
 	return &Provider{source: source, logger: logger}, nil
 }
 
-// AccessToken returns a cached token or refreshes it before expiry.
+// AccessToken 返回缓存的 token，或在过期前刷新它。
 func (p *Provider) AccessToken() string {
 	tok, err := p.source.Token()
 	if err != nil {

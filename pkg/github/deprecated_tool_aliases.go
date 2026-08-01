@@ -1,17 +1,17 @@
-// deprecated_tool_aliases.go
+// deprecated_工具_aliases.go
 package github
 
-// DeprecatedToolAliases maps old tool names to their new canonical names.
-// When tools are renamed, add an entry here to maintain backward compatibility.
-// Users referencing the old name will receive the new tool with a deprecation warning.
+// DeprecatedToolAliases maps old 工具 names to their 新的 canonical names.
+// When 工具 are renamed, add 一个entry here to maintain backward compatibility.
+// Users referencing old name will receive 新的 工具 with 一个deprecation warning.
 //
 // Example:
 //
-//	"get_issue": "issue_read",
-//	"create_pr": "pull_request_create",
+//	"获取_议题": "议题_读取",
+//	"创建_pr": "pull_请求_创建",
 var DeprecatedToolAliases = map[string]string{
-	// Add entries as tools are renamed
-	// Actions tools consolidated
+	// Add entries as 工具 are renamed
+	// Actions 工具 consolidated
 	"list_workflows":                 "actions_list",
 	"list_workflow_runs":             "actions_list",
 	"list_workflow_jobs":             "actions_list",
@@ -29,7 +29,7 @@ var DeprecatedToolAliases = map[string]string{
 	"cancel_workflow_run":            "actions_run_trigger",
 	"delete_workflow_run_logs":       "actions_run_trigger",
 
-	// Projects tools consolidated
+	// Projects 工具 consolidated
 	"list_projects":       "projects_list",
 	"list_project_fields": "projects_list",
 	"list_project_items":  "projects_list",

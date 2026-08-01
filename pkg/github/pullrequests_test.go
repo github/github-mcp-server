@@ -20,7 +20,7 @@ import (
 )
 
 func Test_GetPullRequest(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := PullRequestRead(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -34,7 +34,7 @@ func Test_GetPullRequest(t *testing.T) {
 	assert.Contains(t, schema.Properties, "pullNumber")
 	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
-	// Setup mock PR for success case
+	// Setup 模拟 PR f或成功 case
 	mockPR := &github.PullRequest{
 		Number:  github.Ptr(42),
 		Title:   github.Ptr("Test PR"),
@@ -130,7 +130,7 @@ func Test_GetPullRequest(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
 
@@ -147,13 +147,13 @@ func Test_GetPullRequest(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -165,10 +165,10 @@ func Test_GetPullRequest(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the minimal result
+			// Unmarshal 和verify minimal 结果
 			var returnedPR MinimalPullRequest
 			err = json.Unmarshal([]byte(textContent.Text), &returnedPR)
 			require.NoError(t, err)
@@ -181,7 +181,7 @@ func Test_GetPullRequest(t *testing.T) {
 }
 
 func Test_UpdatePullRequest(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := UpdatePullRequest(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -201,7 +201,7 @@ func Test_UpdatePullRequest(t *testing.T) {
 	assert.Contains(t, schema.Properties, "reviewers")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "pullNumber"})
 
-	// Setup mock PR for success case
+	// Setup 模拟 PR f或成功 case
 	mockUpdatedPR := &github.PullRequest{
 		Number:              github.Ptr(42),
 		Title:               github.Ptr("Updated Test PR Title"),
@@ -218,10 +218,10 @@ func Test_UpdatePullRequest(t *testing.T) {
 	mockClosedPR := &github.PullRequest{
 		Number: github.Ptr(42),
 		Title:  github.Ptr("Test PR"),
-		State:  github.Ptr("closed"), // State updated
+		State:  github.Ptr("closed"), // State 更新d
 	}
 
-	// Mock PR for when there are no updates but we still need a response
+	// Mock PR f或when there are no 更新s 但we still need 一个响应
 	mockPRWithReviewers := &github.PullRequest{
 		Number: github.Ptr(42),
 		Title:  github.Ptr("Test PR"),
@@ -338,14 +338,14 @@ func Test_UpdatePullRequest(t *testing.T) {
 		},
 		{
 			name:         "no update parameters provided",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}), // No API call expected
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}), // No API c所有expected
 			requestArgs: map[string]any{
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
-				// No update fields
+				// No 更新 fields
 			},
-			expectError:    false, // Error is returned in the result, not as Go error
+			expectError:    false, // Err或is 返回ed 在结果, 不as Go 错误
 			expectedErrMsg: "No update parameters provided",
 		},
 		{
@@ -386,7 +386,7 @@ func Test_UpdatePullRequest(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			gqlClient := githubv4.NewClient(nil)
 			deps := BaseDeps{
@@ -395,13 +395,13 @@ func Test_UpdatePullRequest(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError || tc.expectedErrMsg != "" {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -415,10 +415,10 @@ func Test_UpdatePullRequest(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content
+			// Parse 结果 和获取 text 内容
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the minimal result
+			// Unmarshal 和verify minimal 结果
 			var updateResp MinimalResponse
 			err = json.Unmarshal([]byte(textContent.Text), &updateResp)
 			require.NoError(t, err)
@@ -428,7 +428,7 @@ func Test_UpdatePullRequest(t *testing.T) {
 }
 
 func Test_UpdatePullRequest_Draft(t *testing.T) {
-	// Setup mock PR for success case
+	// Setup 模拟 PR f或成功 case
 	mockUpdatedPR := &github.PullRequest{
 		Number:              github.Ptr(42),
 		Title:               github.Ptr("Test PR Title"),
@@ -436,7 +436,7 @@ func Test_UpdatePullRequest_Draft(t *testing.T) {
 		HTMLURL:             github.Ptr("https://github.com/owner/repo/pull/42"),
 		Body:                github.Ptr("Test PR body."),
 		MaintainerCanModify: github.Ptr(false),
-		Draft:               github.Ptr(false), // Updated to ready for review
+		Draft:               github.Ptr(false), // Updated to 读取y f或review
 		Base: &github.PullRequestBranch{
 			Ref: github.Ptr("main"),
 		},
@@ -570,7 +570,7 @@ func Test_UpdatePullRequest_Draft(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// For draft-only tests, we need to mock both GraphQL and the final REST GET call
+			// F或draft-仅tests, we need to 模拟 both GraphQL 以及final REST GET 调用
 			restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockUpdatedPR),
 			}))
@@ -602,7 +602,7 @@ func Test_UpdatePullRequest_Draft(t *testing.T) {
 
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the minimal result
+			// Unmarshal 和verify minimal 结果
 			var updateResp MinimalResponse
 			err = json.Unmarshal([]byte(textContent.Text), &updateResp)
 			require.NoError(t, err)
@@ -612,7 +612,7 @@ func Test_UpdatePullRequest_Draft(t *testing.T) {
 }
 
 func Test_ListPullRequests(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := ListPullRequests(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -632,7 +632,7 @@ func Test_ListPullRequests(t *testing.T) {
 	assert.Contains(t, schema.Properties, "fields")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
-	// Setup mock PRs for success case
+	// Setup 模拟 PRs f或成功 case
 	mockPRs := []*github.PullRequest{
 		{
 			Number:  github.Ptr(42),
@@ -701,7 +701,7 @@ func Test_ListPullRequests(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := ListPullRequests(translations.NullTranslationHelper)
 			deps := BaseDeps{
@@ -709,13 +709,13 @@ func Test_ListPullRequests(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -727,10 +727,10 @@ func Test_ListPullRequests(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedPRs []MinimalPullRequest
 			err = json.Unmarshal([]byte(textContent.Text), &returnedPRs)
 			require.NoError(t, err)
@@ -746,7 +746,7 @@ func Test_ListPullRequests(t *testing.T) {
 }
 
 func Test_MergePullRequest(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := MergePullRequest(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -762,7 +762,7 @@ func Test_MergePullRequest(t *testing.T) {
 	assert.Contains(t, schema.Properties, "merge_method")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "pullNumber"})
 
-	// Setup mock merge result for success case
+	// Setup 模拟 merge 结果 f或成功 case
 	mockMergeResult := &github.PullRequestMergeResult{
 		Merged:  github.Ptr(true),
 		Message: github.Ptr("Pull Request successfully merged"),
@@ -819,7 +819,7 @@ func Test_MergePullRequest(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := MergePullRequest(translations.NullTranslationHelper)
 			deps := BaseDeps{
@@ -827,13 +827,13 @@ func Test_MergePullRequest(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -845,10 +845,10 @@ func Test_MergePullRequest(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedResult github.PullRequestMergeResult
 			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 			require.NoError(t, err)
@@ -1099,7 +1099,7 @@ func Test_SearchPullRequests(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := SearchPullRequests(translations.NullTranslationHelper)
 			deps := BaseDeps{
@@ -1107,13 +1107,13 @@ func Test_SearchPullRequests(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.NotNil(t, result)
@@ -1125,10 +1125,10 @@ func Test_SearchPullRequests(t *testing.T) {
 
 			require.NoError(t, err)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedResult github.IssuesSearchResult
 			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 			require.NoError(t, err)
@@ -1148,7 +1148,7 @@ func Test_SearchPullRequests(t *testing.T) {
 }
 
 func Test_GetPullRequestFiles(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := PullRequestRead(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -1164,7 +1164,7 @@ func Test_GetPullRequestFiles(t *testing.T) {
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
-	// Setup mock PR files for success case
+	// Setup 模拟 PR 文件s f或成功 case
 	mockFiles := []*github.CommitFile{
 		{
 			Filename:  github.Ptr("file1.go"),
@@ -1318,7 +1318,7 @@ func Test_GetPullRequestFiles(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
 
@@ -1334,13 +1334,13 @@ func Test_GetPullRequestFiles(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -1352,10 +1352,10 @@ func Test_GetPullRequestFiles(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedFiles []MinimalPRFile
 			err = json.Unmarshal([]byte(textContent.Text), &returnedFiles)
 			require.NoError(t, err)
@@ -1371,7 +1371,7 @@ func Test_GetPullRequestFiles(t *testing.T) {
 }
 
 func Test_GetPullRequestCommits(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := PullRequestRead(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -1550,7 +1550,7 @@ func Test_ConvertToMinimalPullRequestCommitsSkipsNilCommit(t *testing.T) {
 }
 
 func Test_GetPullRequestStatus(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := PullRequestRead(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -1564,7 +1564,7 @@ func Test_GetPullRequestStatus(t *testing.T) {
 	assert.Contains(t, schema.Properties, "pullNumber")
 	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
-	// Setup mock PR for successful PR fetch
+	// Setup 模拟 PR f或成功ful PR fetch
 	mockPR := &github.PullRequest{
 		Number:  github.Ptr(42),
 		Title:   github.Ptr("Test PR"),
@@ -1575,7 +1575,7 @@ func Test_GetPullRequestStatus(t *testing.T) {
 		},
 	}
 
-	// Setup mock status for success case
+	// Setup 模拟 status f或成功 case
 	mockStatus := &github.CombinedStatus{
 		State:      github.Ptr("success"),
 		TotalCount: github.Ptr(3),
@@ -1663,7 +1663,7 @@ func Test_GetPullRequestStatus(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
 			deps := BaseDeps{
@@ -1673,13 +1673,13 @@ func Test_GetPullRequestStatus(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -1691,10 +1691,10 @@ func Test_GetPullRequestStatus(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedStatus github.CombinedStatus
 			err = json.Unmarshal([]byte(textContent.Text), &returnedStatus)
 			require.NoError(t, err)
@@ -1711,7 +1711,7 @@ func Test_GetPullRequestStatus(t *testing.T) {
 }
 
 func Test_GetPullRequestCheckRuns(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := PullRequestRead(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -1725,7 +1725,7 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 	assert.Contains(t, schema.Properties, "pullNumber")
 	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
-	// Setup mock PR for successful PR fetch
+	// Setup 模拟 PR f或成功ful PR fetch
 	mockPR := &github.PullRequest{
 		Number:  github.Ptr(42),
 		Title:   github.Ptr("Test PR"),
@@ -1736,7 +1736,7 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 		},
 	}
 
-	// Setup mock check runs for success case
+	// Setup 模拟 检查 runs f或成功 case
 	mockCheckRuns := &github.ListCheckRunsResults{
 		Total: github.Ptr(2),
 		CheckRuns: []*github.CheckRun{
@@ -1819,7 +1819,7 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
 			deps := BaseDeps{
@@ -1829,13 +1829,13 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -1847,10 +1847,10 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result (using minimal type)
+			// Unmarshal 和verify 结果 (using minimal type)
 			var returnedCheckRuns MinimalCheckRunsResult
 			err = json.Unmarshal([]byte(textContent.Text), &returnedCheckRuns)
 			require.NoError(t, err)
@@ -1866,7 +1866,7 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 }
 
 func Test_UpdatePullRequestBranch(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := UpdatePullRequestBranch(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -1880,7 +1880,7 @@ func Test_UpdatePullRequestBranch(t *testing.T) {
 	assert.Contains(t, schema.Properties, "expectedHeadSha")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "pullNumber"})
 
-	// Setup mock update result for success case
+	// Setup 模拟 更新 结果 f或成功 case
 	mockUpdateResult := &github.PullRequestBranchUpdateResponse{
 		Message: github.Ptr("Branch was updated successfully"),
 		URL:     github.Ptr("https://api.github.com/repos/owner/repo/pulls/42"),
@@ -1947,7 +1947,7 @@ func Test_UpdatePullRequestBranch(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := UpdatePullRequestBranch(translations.NullTranslationHelper)
 			deps := BaseDeps{
@@ -1955,13 +1955,13 @@ func Test_UpdatePullRequestBranch(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -1973,7 +1973,7 @@ func Test_UpdatePullRequestBranch(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
 			assert.Contains(t, textContent.Text, "is in progress")
@@ -1982,7 +1982,7 @@ func Test_UpdatePullRequestBranch(t *testing.T) {
 }
 
 func Test_GetPullRequestComments(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := PullRequestRead(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -1994,9 +1994,9 @@ func Test_GetPullRequestComments(t *testing.T) {
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
 	assert.Contains(t, schema.Properties, "pullNumber")
-	// `after` is required for cursor-based pagination on get_review_comments
-	// to be reachable from MCP clients; without it in the schema, callers
-	// cannot advance past the first page (issue #2122).
+	// `after` is 必需 f或cursor-based pagination on 获取_review_comments
+	// to be reachable from MCP 客户端s; without it 在schema, 调用ers
+	// can不advance past 第一个 页 (议题 #2122).
 	assert.Contains(t, schema.Properties, "after")
 	assert.Equal(t, "string", schema.Properties["after"].Type)
 	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
@@ -2089,7 +2089,7 @@ func Test_GetPullRequestComments(t *testing.T) {
 				err := json.Unmarshal([]byte(textContent), &result)
 				require.NoError(t, err)
 
-				// Validate review threads
+				// Validate review th读取s
 				assert.Len(t, result.ReviewThreads, 1)
 
 				thread := result.ReviewThreads[0]
@@ -2097,10 +2097,10 @@ func Test_GetPullRequestComments(t *testing.T) {
 				assert.Equal(t, false, thread.IsOutdated)
 				assert.Equal(t, false, thread.IsCollapsed)
 
-				// Validate comments within thread
+				// Validate comments within th读取
 				assert.Len(t, thread.Comments, 2)
 
-				// Validate first comment
+				// Validate 第一个 comment
 				comment1 := thread.Comments[0]
 				assert.Equal(t, "This looks good", comment1.Body)
 				assert.Equal(t, "file1.go", comment1.Path)
@@ -2269,12 +2269,12 @@ func Test_GetPullRequestComments(t *testing.T) {
 				err := json.Unmarshal([]byte(textContent), &result)
 				require.NoError(t, err)
 
-				// Validate that only maintainer comment is returned
+				// Validate that 仅maintainer comment is 返回ed
 				assert.Len(t, result.ReviewThreads, 1)
 
 				thread := result.ReviewThreads[0]
 
-				// Should only have 1 comment (maintainer) after filtering
+				// Should 仅have 1 comment (maintainer) after 筛选ing
 				assert.Equal(t, 1, thread.TotalCount)
 				assert.Len(t, thread.Comments, 1)
 
@@ -2287,7 +2287,7 @@ func Test_GetPullRequestComments(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup GraphQL client with mock
+			// Setup GraphQL 客户端 with 模拟
 			var gqlClient *githubv4.Client
 			if tc.gqlHTTPClient != nil {
 				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
@@ -2295,7 +2295,7 @@ func Test_GetPullRequestComments(t *testing.T) {
 				gqlClient = githubv4.NewClient(nil)
 			}
 
-			// Setup cache for lockdown mode
+			// Setup cache f或lockdown mode
 			var restClient *github.Client
 			if tc.lockdownEnabled {
 				restClient = mockRESTPermissionServer(t, "read", map[string]string{
@@ -2316,13 +2316,13 @@ func Test_GetPullRequestComments(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -2334,7 +2334,7 @@ func Test_GetPullRequestComments(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
 			// Use custom validation if provided
@@ -2346,7 +2346,7 @@ func Test_GetPullRequestComments(t *testing.T) {
 }
 
 func Test_GetPullRequestReviews(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := PullRequestRead(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -2360,7 +2360,7 @@ func Test_GetPullRequestReviews(t *testing.T) {
 	assert.Contains(t, schema.Properties, "pullNumber")
 	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
-	// Setup mock PR reviews for success case
+	// Setup 模拟 PR reviews f或成功 case
 	mockReviews := []*github.PullRequestReview{
 		{
 			ID:      github.Ptr(int64(201)),
@@ -2519,7 +2519,7 @@ func Test_GetPullRequestReviews(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			var restClient *github.Client
 			if tc.lockdownEnabled {
@@ -2538,13 +2538,13 @@ func Test_GetPullRequestReviews(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -2556,10 +2556,10 @@ func Test_GetPullRequestReviews(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedReviews []MinimalPullRequestReview
 			err = json.Unmarshal([]byte(textContent.Text), &returnedReviews)
 			require.NoError(t, err)
@@ -2578,7 +2578,7 @@ func Test_GetPullRequestReviews(t *testing.T) {
 }
 
 func Test_CreatePullRequest(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := CreatePullRequest(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -2596,7 +2596,7 @@ func Test_CreatePullRequest(t *testing.T) {
 	assert.Contains(t, schema.Properties, "maintainer_can_modify")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "title", "head", "base"})
 
-	// Setup mock PR for success case
+	// Setup 模拟 PR f或成功 case
 	mockPR := &github.PullRequest{
 		Number:  github.Ptr(42),
 		Title:   github.Ptr("Test PR"),
@@ -2686,7 +2686,7 @@ func Test_CreatePullRequest(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := CreatePullRequest(translations.NullTranslationHelper)
 			deps := BaseDeps{
@@ -2694,20 +2694,20 @@ func Test_CreatePullRequest(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				if err != nil {
 					assert.Contains(t, err.Error(), tc.expectedErrMsg)
 					return
 				}
 
-				// If no error returned but in the result
+				// 如果没有错误 返回ed 但在结果
 				textContent := getTextResult(t, result)
 				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
 				return
@@ -2715,10 +2715,10 @@ func Test_CreatePullRequest(t *testing.T) {
 
 			require.NoError(t, err)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the minimal result
+			// Unmarshal 和verify minimal 结果
 			var returnedPR MinimalResponse
 			err = json.Unmarshal([]byte(textContent.Text), &returnedPR)
 			require.NoError(t, err)
@@ -2727,8 +2727,8 @@ func Test_CreatePullRequest(t *testing.T) {
 	}
 }
 
-// Test_CreatePullRequest_MCPAppsFeature_UIGate verifies the MCP Apps feature UI gate
-// behavior: UI clients get a form message, non-UI clients execute directly.
+// Test_CreatePullRequest_MCPAppsFeature_UIGate verifies MCP Apps feature UI gate
+// behavior: UI 客户端s 获取 一个form message, non-UI 客户端s execute directly.
 func Test_CreatePullRequest_MCPAppsFeature_UIGate(t *testing.T) {
 	t.Parallel()
 
@@ -2804,7 +2804,7 @@ func Test_CreatePullRequest_MCPAppsFeature_UIGate(t *testing.T) {
 	})
 
 	t.Run("UI client with non-form param skips form and executes directly", func(t *testing.T) {
-		// A parameter the form does not collect must bypass the form rather than
+		// 一个参数 form does 不collect must bypass form rather than
 		// be silently dropped.
 		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"owner":         "owner",
@@ -2825,11 +2825,11 @@ func Test_CreatePullRequest_MCPAppsFeature_UIGate(t *testing.T) {
 	})
 }
 
-// Test_UpdatePullRequest_MCPAppsFeature_UIGate verifies the form-routing
-// behavior for update_pull_request: UI clients without _ui_submitted get a
-// pending-form stub (marked IsError so agents don't claim success), UI clients
-// with _ui_submitted execute directly, non-UI clients execute directly, and
-// UI clients carrying non-form params bypass the form.
+// Test_UpdatePullRequest_MCPAppsFeature_UIGate verifies form-routing
+// behavi或f或更新_pull_请求: UI 客户端s without _ui_submitted 获取 a
+// pending-form stub (marked IsErr或so agents don't claim 成功), UI 客户端s
+// with _ui_submitted execute directly, non-UI 客户端s execute directly, and
+// UI 客户端s carrying non-form params bypass form.
 func Test_UpdatePullRequest_MCPAppsFeature_UIGate(t *testing.T) {
 	t.Parallel()
 
@@ -2943,10 +2943,10 @@ func Test_pullRequestWriteHasNonFormParams(t *testing.T) {
 	}
 }
 
-// Test_createPullRequestSchemaClassification fails when a schema property is
+// Test_创建PullRequestSchemaClassification fails when 一个schema property is
 // added without classifying it as either form-resendable
-// (pullRequestWriteFormParams) or known-non-form (knownNonForm below).
-// Today every property is form-resendable, so knownNonForm is empty.
+// (pullRequestWriteFormParams) 或known-non-form (knownNonForm below).
+// Today every property is form-resendable, so knownNonForm is 空.
 func Test_createPullRequestSchemaClassification(t *testing.T) {
 	t.Parallel()
 
@@ -2972,7 +2972,7 @@ func Test_createPullRequestSchemaClassification(t *testing.T) {
 func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 	t.Parallel()
 
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -3099,7 +3099,7 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 				"method":     "create",
 				"owner":      "owner",
 				"repo":       "repo",
-				"pullNumber": "42", // Some MCP clients send numeric values as strings
+				"pullNumber": "42", // Some MCP 客户端s send numeric 值 as strings
 				"body":       "This is a test review",
 				"event":      "COMMENT",
 				"commitID":   "abcd1234",
@@ -3199,7 +3199,7 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := githubv4.NewClient(tc.mockedClient)
 			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
 			deps := BaseDeps{
@@ -3207,10 +3207,10 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
@@ -3222,7 +3222,7 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 				return
 			}
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			require.Equal(t, textContent.Text, "pull request review submitted successfully")
 		})
 	}
@@ -3231,7 +3231,7 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 func TestCreatePendingPullRequestReview(t *testing.T) {
 	t.Parallel()
 
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -3391,7 +3391,7 @@ func TestCreatePendingPullRequestReview(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := githubv4.NewClient(tc.mockedClient)
 			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
 			deps := BaseDeps{
@@ -3399,10 +3399,10 @@ func TestCreatePendingPullRequestReview(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
@@ -3414,7 +3414,7 @@ func TestCreatePendingPullRequestReview(t *testing.T) {
 				return
 			}
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			require.Equal(t, "pending pull request created", textContent.Text)
 		})
 	}
@@ -3423,7 +3423,7 @@ func TestCreatePendingPullRequestReview(t *testing.T) {
 func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 	t.Parallel()
 
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := AddCommentToPendingReview(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -3484,7 +3484,7 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 					struct {
 						AddPullRequestReviewThread struct {
 							Thread struct {
-								ID githubv4.String // We don't need this, but a selector is required or GQL complains.
+								ID githubv4.String // We don't need this, 但a select或is 必需 或GQL complains.
 							}
 						} `graphql:"addPullRequestReviewThread(input: $input)"`
 					}{},
@@ -3514,11 +3514,11 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 			requestArgs: map[string]any{
 				"owner":       "owner",
 				"repo":        "repo",
-				"pullNumber":  "42", // Some MCP clients send numeric values as strings
+				"pullNumber":  "42", // Some MCP 客户端s send numeric 值 as strings
 				"path":        "file.go",
 				"body":        "This is a test comment",
 				"subjectType": "LINE",
-				"line":        "10", // string line number
+				"line":        "10", // string 行 number
 				"side":        "RIGHT",
 				"startLine":   "5", // string startLine
 				"startSide":   "RIGHT",
@@ -3657,7 +3657,7 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := githubv4.NewClient(tc.mockedClient)
 			serverTool := AddCommentToPendingReview(translations.NullTranslationHelper)
 			deps := BaseDeps{
@@ -3665,10 +3665,10 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
@@ -3680,7 +3680,7 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 				return
 			}
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			require.Equal(t, textContent.Text, "pull request review comment successfully added to pending review")
 		})
 	}
@@ -3689,7 +3689,7 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 func TestSubmitPendingPullRequestReview(t *testing.T) {
 	t.Parallel()
 
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -3762,7 +3762,7 @@ func TestSubmitPendingPullRequestReview(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := githubv4.NewClient(tc.mockedClient)
 			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
 			deps := BaseDeps{
@@ -3770,10 +3770,10 @@ func TestSubmitPendingPullRequestReview(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
@@ -3785,7 +3785,7 @@ func TestSubmitPendingPullRequestReview(t *testing.T) {
 				return
 			}
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			require.Equal(t, "pending pull request review successfully submitted", textContent.Text)
 		})
 	}
@@ -3794,7 +3794,7 @@ func TestSubmitPendingPullRequestReview(t *testing.T) {
 func TestDeletePendingPullRequestReview(t *testing.T) {
 	t.Parallel()
 
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -3861,7 +3861,7 @@ func TestDeletePendingPullRequestReview(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := githubv4.NewClient(tc.mockedClient)
 			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
 			deps := BaseDeps{
@@ -3869,10 +3869,10 @@ func TestDeletePendingPullRequestReview(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
@@ -3884,7 +3884,7 @@ func TestDeletePendingPullRequestReview(t *testing.T) {
 				return
 			}
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			require.Equal(t, "pending pull request review successfully deleted", textContent.Text)
 		})
 	}
@@ -3893,7 +3893,7 @@ func TestDeletePendingPullRequestReview(t *testing.T) {
 func TestGetPullRequestDiff(t *testing.T) {
 	t.Parallel()
 
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := PullRequestRead(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -3920,8 +3920,8 @@ index 5d6e7b2..8a4f5c3 100644
 +
 +This is a new section added in the pull request.`
 
-	// Under lockdown the diff path first fetches the PR as JSON to resolve the
-	// author, then the raw diff; branch on the Accept header to serve both.
+	// Under lockdown diff 路径 第一个 fetches PR as JSON to resolve the
+	// author, 然后raw diff; 分支 在Accept header to serve both.
 	prOrDiffHandler := func(authorLogin string) http.HandlerFunc {
 		mockPR := &github.PullRequest{
 			Number: github.Ptr(42),
@@ -3999,7 +3999,7 @@ index 5d6e7b2..8a4f5c3 100644
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
 
@@ -4015,10 +4015,10 @@ index 5d6e7b2..8a4f5c3 100644
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
@@ -4030,7 +4030,7 @@ index 5d6e7b2..8a4f5c3 100644
 				return
 			}
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			require.Equal(t, stubbedDiff, textContent.Text)
 		})
 	}
@@ -4111,7 +4111,7 @@ func getLatestPendingReviewQuery(p getLatestPendingReviewQueryParams) githubv4mo
 func TestAddReplyToPullRequestComment(t *testing.T) {
 	t.Parallel()
 
-	// Verify tool definition once
+	// Verify 工具定义 once
 	serverTool := AddReplyToPullRequestComment(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -4127,7 +4127,7 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 	assert.Contains(t, schema.Properties, "reaction")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "commentId"})
 
-	// Setup mock reply comment for success case
+	// Setup 模拟 reply comment f或成功 case
 	mockReplyComment := &github.PullRequestComment{
 		ID:        github.Ptr(int64(456)),
 		Body:      github.Ptr("This is a reply to the comment"),
@@ -4329,7 +4329,7 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := AddReplyToPullRequestComment(translations.NullTranslationHelper)
 			deps := BaseDeps{
@@ -4337,10 +4337,10 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
@@ -4354,7 +4354,7 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 				return
 			}
 
-			// Parse the result and verify it's not an error
+			// Parse 结果 和verify it's 不一个错误
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
 			if _, ok := tc.requestArgs["body"]; ok {
@@ -4533,7 +4533,7 @@ func TestResolveReviewThread(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := githubv4.NewClient(tc.mockedClient)
 			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
 			deps := BaseDeps{
@@ -4541,10 +4541,10 @@ func TestResolveReviewThread(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 

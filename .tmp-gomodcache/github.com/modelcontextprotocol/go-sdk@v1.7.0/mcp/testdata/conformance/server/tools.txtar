@@ -1,0 +1,298 @@
+Check behavior of a server with just tools.
+
+Fixed bugs:
+- "tools/list" can have missing params
+- "_meta" should not be nil
+- empty resource or prompts should not be returned as 'null'
+- the server should not crash when params are passed to tools/call
+- missing required input fields should be rejected (#449)
+- output and input should be validated against their actual json, not Go
+	representation
+- When arguments are missing, the request should succeed if all properties are
+	optional, and observe any default values.
+
+-- tools --
+greet
+structured
+tomorrow
+inc
+
+-- client --
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {},
+    "clientInfo": { "name": "ExampleClient", "version": "1.0.0" }
+  }
+}
+{ "jsonrpc":"2.0", "method": "notifications/initialized" }
+{ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }
+{ "jsonrpc": "2.0", "id": 3, "method": "resources/list" }
+{ "jsonrpc": "2.0", "id": 4, "method": "prompts/list" }
+{ "jsonrpc": "2.0", "id": 5, "method": "tools/call" }
+{ "jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {"name": "greet", "arguments": {"Name": "you"} } }
+{ "jsonrpc": "2.0", "id": 1, "result": {} }
+{ "jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": "structured", "arguments": {"In": "input"} } }
+{ "jsonrpc": "2.0", "id": 8, "method": "tools/call", "params": {"name": "structured", "arguments": {} } }
+{ "jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "tomorrow", "arguments": { "Now": "2025-06-18T15:04:05Z" } } }
+{ "jsonrpc": "2.0", "id": 10, "method": "tools/call", "params": {"name": "greet" } }
+{ "jsonrpc": "2.0", "id": 11, "method": "tools/call", "params": {"name": "inc", "arguments": { "x": 3 } } }
+{ "jsonrpc": "2.0", "id": 11, "method": "tools/call", "params": {"name": "inc" } }
+
+-- server --
+{
+	"jsonrpc": "2.0",
+	"id": 1,
+	"result": {
+		"capabilities": {
+			"logging": {},
+			"tools": {
+				"listChanged": true
+			}
+		},
+		"protocolVersion": "2024-11-05",
+		"serverInfo": {
+			"name": "testServer",
+			"version": "v1.0.0"
+		}
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 2,
+	"result": {
+		"ttlMs": 0,
+		"cacheScope": "public",
+		"tools": [
+			{
+				"description": "say hi",
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"Name": {
+							"type": "string"
+						}
+					},
+					"required": [
+						"Name"
+					],
+					"additionalProperties": false
+				},
+				"name": "greet"
+			},
+			{
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"x": {
+							"type": "integer",
+							"default": 6
+						}
+					},
+					"additionalProperties": false
+				},
+				"name": "inc",
+				"outputSchema": {
+					"type": "object",
+					"properties": {
+						"y": {
+							"type": "integer"
+						}
+					},
+					"required": [
+						"y"
+					],
+					"additionalProperties": false
+				}
+			},
+			{
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"In": {
+							"type": "string",
+							"description": "the input"
+						}
+					},
+					"required": [
+						"In"
+					],
+					"additionalProperties": false
+				},
+				"name": "structured",
+				"outputSchema": {
+					"type": "object",
+					"properties": {
+						"Out": {
+							"type": "string",
+							"description": "the output"
+						}
+					},
+					"required": [
+						"Out"
+					],
+					"additionalProperties": false
+				}
+			},
+			{
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"Now": {
+							"type": "string"
+						}
+					},
+					"required": [
+						"Now"
+					],
+					"additionalProperties": false
+				},
+				"name": "tomorrow",
+				"outputSchema": {
+					"type": "object",
+					"properties": {
+						"Tomorrow": {
+							"type": "string"
+						}
+					},
+					"required": [
+						"Tomorrow"
+					],
+					"additionalProperties": false
+				}
+			}
+		]
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 3,
+	"result": {
+		"ttlMs": 0,
+		"cacheScope": "public",
+		"resources": []
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 4,
+	"result": {
+		"ttlMs": 0,
+		"cacheScope": "public",
+		"prompts": []
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 5,
+	"error": {
+		"code": -32600,
+		"message": "invalid request: missing required \"params\""
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 1,
+	"method": "ping"
+}
+{
+	"jsonrpc": "2.0",
+	"id": 6,
+	"result": {
+		"content": [
+			{
+				"type": "text",
+				"text": "hi you"
+			}
+		]
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 7,
+	"result": {
+		"content": [
+			{
+				"type": "text",
+				"text": "{\"Out\":\"Ack input\"}"
+			}
+		],
+		"structuredContent": {
+			"Out": "Ack input"
+		}
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 8,
+	"result": {
+		"content": [
+			{
+				"type": "text",
+				"text": "validating \"arguments\": validating root: required: missing properties: [\"In\"]"
+			}
+		],
+		"isError": true
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 9,
+	"result": {
+		"content": [
+			{
+				"type": "text",
+				"text": "{\"Tomorrow\":\"2025-06-19T15:04:05Z\"}"
+			}
+		],
+		"structuredContent": {
+			"Tomorrow": "2025-06-19T15:04:05Z"
+		}
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 10,
+	"result": {
+		"content": [
+			{
+				"type": "text",
+				"text": "validating \"arguments\": validating root: required: missing properties: [\"Name\"]"
+			}
+		],
+		"isError": true
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 11,
+	"result": {
+		"content": [
+			{
+				"type": "text",
+				"text": "{\"y\":4}"
+			}
+		],
+		"structuredContent": {
+			"y": 4
+		}
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 11,
+	"result": {
+		"content": [
+			{
+				"type": "text",
+				"text": "{\"y\":7}"
+			}
+		],
+		"structuredContent": {
+			"y": 7
+		}
+	}
+}

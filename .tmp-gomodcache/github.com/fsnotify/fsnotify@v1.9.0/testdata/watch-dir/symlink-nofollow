@@ -1,0 +1,30 @@
+# Create a new symlink to a watched file.
+require symlink
+require nofollow
+
+touch /file
+mkdir /dir
+
+watch /  default nofollow
+
+ln -s /dir /link-file
+ln -s /dir /link-dir
+
+rm -r /dir
+
+echo asd >>/file
+rm /file
+
+rm /link-file
+rm /link-dir
+
+Output:
+	create  /link-dir
+	create  /link-file
+
+	remove  /dir
+	write   /file
+	remove  /file
+
+	remove  /link-file
+	remove  /link-dir

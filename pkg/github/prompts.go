@@ -5,11 +5,11 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 )
 
-// AllPrompts returns all prompts with their embedded toolset metadata.
-// Prompt functions return ServerPrompt directly with toolset info.
+// AllPrompts 返回 所有提示 with their embedded 工具集 元数据.
+// Prompt 函数s 返回 ServerPrompt directly with 工具集 info.
 func AllPrompts(t translations.TranslationHelperFunc) []inventory.ServerPrompt {
 	return []inventory.ServerPrompt{
-		// Issue prompts
+		// Issue 提示
 		AssignCodingAgentPrompt(t),
 		IssueToFixWorkflowPrompt(t),
 	}

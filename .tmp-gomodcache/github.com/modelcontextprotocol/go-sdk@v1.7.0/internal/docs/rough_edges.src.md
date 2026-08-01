@@ -1,0 +1,69 @@
+# Rough edges: API decisions to reconsider for v2
+
+This file collects a list of API oversights or rough edges that we've uncovered
+post v1.0.0, along with their current workarounds. These issues can't be
+addressed without breaking backward compatibility, but we'll revisit them for
+v2.
+
+- `EventStore.Open` is unnecessary. This was an artifact of an earlier version
+  of the SDK where event persistence and delivery were combined.
+  
+  **Workaround**: `Open` may be implemented as a no-op.
+
+- `Event` need not have been exported: it's an implementation detail of the SSE
+  and streamable transports. Also the 'Name' field is a misnomer: it should be
+  'event'.
+
+- Enforcing valid tool names: with
+  [SEP-986](https://github.com/modelcontextprotocol/modelcontextprotocol/issues/986)
+  landing after the SDK was at v1, we missed an opportunity to panic on invalid
+  tool names. Instead, we have to simply produce an error log. In v2, we should
+  panic.
+
+- Inconsistent naming.
+  - `ResourceUpdatedNotificationsParams` should probably have just been
+    `ResourceUpdatedParams`, as we don't include the word 'notification' in
+    other notification param types.
+  - Similarly, `ProgressNotificationParams` should probably have been
+    `ProgressParams`.
+
+- `AudioContent.MarshalJSON` should have had a pointer receiver, to be
+  consistent with other content types.
+
+- `ClientCapabilities.Roots` should have been a distinguished struct pointer
+  ([see #607](https://github.com/modelcontextprotocol/go-sdk/issues/607)).
+
+  **Workaround**: use `ClientCapabilities.RootsV2`, which aligns with the
+  semantics of other capability fields.
+
+- Default capabilities should have been empty. Instead, servers default to
+  advertising `logging`, and clients default to advertising `roots` with
+  `listChanged: true`. This is confusing because a nil `Capabilities` field
+  does not mean "no capabilities".
+
+  **Workaround**: to advertise no capabilities, set
+  `ServerOptions.Capabilities` or `ClientOptions.Capabilities` to an empty
+  `&ServerCapabilities{}` or `&ClientCapabilities{}` respectively.
+
+- `CreateMessageResult.Content` is singular `Content`, but the 2025-11-25 spec
+  allows `content` to be a single block or an array (for parallel tool calls).
+  We added `CreateMessageResultWithTools` (with `Content []Content`) as a
+  workaround, matching the TypeScript SDK's approach. In v2,
+  `CreateMessageResult` should use `[]Content` directly. Similarly,
+  `SamplingMessage.Content` should become `[]Content` to support sending
+  multiple tool_result blocks in a single user message.
+
+- We didn't actually need CallToolParams and CallToolParamsRaw, since even when
+  we're unmarshalling into a custom Go type (for the mcp.AddTool convenience
+  wrapper) we need to first unmarshal into a `map[string]any` in order to do
+  server-side validation of required fields. CallToolParams could have just had
+  a map[string]any.
+
+- `StreamableHTTPOptions.CrossOriginProtection` should not have been part of
+  the SDK API. Cross-origin protection is a general HTTP concern, not specific
+  to MCP, and can be applied as standard HTTP middleware.
+
+- `ToolAnnotations` (`mcp/protocol.go`) should have all fields typed as `*bool`
+  for full control to define what is being sent over the wire. Different
+  MCP clients have different requirements, and some of them require all fields
+  to be explicitly set to either `true` or `false`.

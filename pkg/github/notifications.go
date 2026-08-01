@@ -25,7 +25,7 @@ const (
 	FilterOnlyParticipating = "only_participating"
 )
 
-// ListNotifications creates a tool to list notifications for the current user.
+// ListNotifications 创建一个工具以 列出 notifications 用于current user.
 func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataNotifications,
@@ -109,7 +109,7 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 				},
 			}
 
-			// Parse time parameters if provided
+			// Parse time 参数 if provided
 			if since != "" {
 				sinceTime, err := time.Parse(time.RFC3339, since)
 				if err != nil {
@@ -151,7 +151,7 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get notifications", resp, body), nil, nil
 			}
 
-			// Marshal response to JSON
+			// Marshal 响应 to JSON
 			r, err := json.Marshal(notifications)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
@@ -162,7 +162,7 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 	)
 }
 
-// DismissNotification creates a tool to mark a notification as read/done.
+// DismissNotification 创建一个工具以 mark 一个notification as 读取/done.
 func DismissNotification(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataNotifications,
@@ -238,7 +238,7 @@ func DismissNotification(t translations.TranslationHelperFunc) inventory.ServerT
 	)
 }
 
-// MarkAllNotificationsRead creates a tool to mark all notifications as read.
+// MarkAllNotificationsRead 创建一个工具以 mark 所有notifications as 读取.
 func MarkAllNotificationsRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataNotifications,
@@ -330,7 +330,7 @@ func MarkAllNotificationsRead(t translations.TranslationHelperFunc) inventory.Se
 	)
 }
 
-// GetNotificationDetails creates a tool to get details for a specific notification.
+// GetNotificationDetails 创建一个工具以 获取 details f或一个specific notification.
 func GetNotificationDetails(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataNotifications,
@@ -388,24 +388,24 @@ func GetNotificationDetails(t translations.TranslationHelperFunc) inventory.Serv
 			}
 
 			result := utils.NewToolResultText(string(r))
-			// A notification subject points at an issue, PR, comment, or
-			// discussion whose content is user-authored (untrusted). It is
-			// delivered to a specific recipient and may reference private
-			// repositories, so confidentiality is private.
+			// 一个notification subject points at 一个议题, PR, comment, or
+			// discussion whose 内容 is user-authored (不受信任). It is
+			// delivered to 一个specific recipient 和may reference 私有
+			// 仓库, so confidentiality is 私有.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelNotificationDetails())
 			return result, nil, nil
 		},
 	)
 }
 
-// Enum values for ManageNotificationSubscription action
+// Enum 值 f或ManageNotificationSubscription action
 const (
 	NotificationActionIgnore = "ignore"
 	NotificationActionWatch  = "watch"
 	NotificationActionDelete = "delete"
 )
 
-// ManageNotificationSubscription creates a tool to manage a notification subscription (ignore, watch, delete)
+// ManageNotificationSubscription 创建一个工具以 manage 一个notification subscription (ignore, watch, 删除)
 func ManageNotificationSubscription(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataNotifications,
@@ -482,7 +482,7 @@ func ManageNotificationSubscription(t translations.TranslationHelperFunc) invent
 			}
 
 			if action == NotificationActionDelete {
-				// Special case for delete as there is no response body
+				// Special case f或删除 as there is no 响应 body
 				return utils.NewToolResultText("Notification subscription deleted"), nil, nil
 			}
 
@@ -501,7 +501,7 @@ const (
 	RepositorySubscriptionActionDelete = "delete"
 )
 
-// ManageRepositoryNotificationSubscription creates a tool to manage a repository notification subscription (ignore, watch, delete)
+// ManageRepositoryNotificationSubscription 创建一个工具以 manage 一个仓库 notification subscription (ignore, watch, 删除)
 func ManageRepositoryNotificationSubscription(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataNotifications,
@@ -589,7 +589,7 @@ func ManageRepositoryNotificationSubscription(t translations.TranslationHelperFu
 			}
 
 			if action == RepositorySubscriptionActionDelete {
-				// Special case for delete as there is no response body
+				// Special case f或删除 as there is no 响应 body
 				return utils.NewToolResultText("Repository subscription deleted"), nil, nil
 			}
 

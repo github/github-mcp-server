@@ -1,10 +1,10 @@
-# Install GitHub MCP Server in Cline
+# 在 Cline 中安装 GitHub MCP Server
 
-[Cline](https://github.com/cline/cline) is an AI coding assistant that runs in VS Code-compatible editors (VS Code, Cursor, Windsurf, etc.). For general setup information (prerequisites, Docker installation, security best practices), see the [Installation Guides README](./README.md).
+[Cline](https://github.com/cline/cline) 是在兼容 VS Code 的编辑器（VS Code、Cursor、Windsurf 等）中运行的 AI 编码助手。有关通用设置信息（前提条件、Docker 安装和安全最佳实践），请参阅[安装指南 README](./README.md)。
 
-## Remote Server
+## 远程 Server
 
-Cline stores MCP settings in `cline_mcp_settings.json`. To edit it, click the Cline icon in your editor's sidebar, open the menu in the top right corner of the Cline panel, and select **"MCP Servers"**. You can add a remote server through the **"Remote Servers"** tab, or click **"Configure MCP Servers"** to edit the JSON directly.
+Cline 将 MCP 设置存储在 `cline_mcp_settings.json` 中。要编辑它，请单击编辑器侧边栏中的 Cline 图标，打开 Cline 面板右上角的菜单，然后选择 **"MCP Servers"**。可通过 **"Remote Servers"** 选项卡添加远程 server，或单击 **"Configure MCP Servers"** 直接编辑 JSON。
 
 ```json
 {
@@ -22,16 +22,16 @@ Cline stores MCP settings in `cline_mcp_settings.json`. To edit it, click the Cl
 }
 ```
 
-Replace `YOUR_GITHUB_PAT` with your [GitHub Personal Access Token](https://github.com/settings/tokens). To customize toolsets, add server-side headers like `X-MCP-Toolsets` or `X-MCP-Readonly` to the `headers` object — see [Server Configuration Guide](../server-configuration.md).
+将 `YOUR_GITHUB_PAT` 替换为你的 [GitHub Personal Access Token](https://github.com/settings/tokens)。要自定义 toolsets，请在 `headers` 对象中添加 `X-MCP-Toolsets` 或 `X-MCP-Readonly` 等服务端标头。请参阅 [Server Configuration Guide](../server-configuration.md)。
 
-> **Important:** The transport type must be `"streamableHttp"` (camelCase, no hyphen). Using `"streamable-http"` or omitting the type will cause Cline to fall back to SSE, resulting in a `405` error.
+> **重要提示：** 传输类型必须是 `"streamableHttp"`（camelCase，不含连字符）。使用 `"streamable-http"` 或省略类型会使 Cline 回退到 SSE，从而产生 `405` 错误。
 
-## Local Server (Docker)
+## 本地 Server（Docker）
 
-1. Click the Cline icon in your editor's sidebar (or open the command palette and search for "Cline"), then click the **MCP Servers** icon (server stack icon at the top of the Cline panel), and click **"Configure MCP Servers"** to open `cline_mcp_settings.json`.
-2. Add one of the configurations below. The OAuth option needs no token; for the PAT option, replace `YOUR_GITHUB_PAT` with your [GitHub Personal Access Token](https://github.com/settings/tokens).
+1. 单击编辑器侧边栏中的 Cline 图标（或打开命令面板并搜索 "Cline"），再单击 **MCP Servers** 图标（Cline 面板顶部的 server 堆栈图标），然后单击 **"Configure MCP Servers"** 打开 `cline_mcp_settings.json`。
+2. 添加下方任一配置。OAuth 选项无需 token；PAT 选项请将 `YOUR_GITHUB_PAT` 替换为你的 [GitHub Personal Access Token](https://github.com/settings/tokens)。
 
-Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
+使用 OAuth 登录而非 token。github.com 上的官方镜像已包含 app 凭据，因此无需自行提供；server 会在首次使用时打开浏览器登录，并且仅在内存中保留 token。在 Docker 中，请将固定回调端口发布到 loopback：
 
 ```json
 {
@@ -52,9 +52,9 @@ Log in with OAuth instead of a token. On github.com the official image already i
 }
 ```
 
-See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+有关原生二进制文件流程（无固定端口）、无头/device-code 回退、GitHub Enterprise，以及自带 OAuth 或 GitHub App，请参阅 **[Local Server OAuth Login](../oauth-login.md)**。
 
-To authenticate with a Personal Access Token instead (it takes precedence over OAuth):
+若改用 Personal Access Token 进行身份验证（其优先级高于 OAuth）：
 
 ```json
 {
@@ -74,8 +74,8 @@ To authenticate with a Personal Access Token instead (it takes precedence over O
 }
 ```
 
-## Troubleshooting
+## 故障排除
 
-- **SSE error 405 with remote server**: Ensure `"type"` is set to `"streamableHttp"` (camelCase, no hyphen) in `cline_mcp_settings.json`. Using `"streamable-http"` or omitting `"type"` causes Cline to fall back to SSE, which this server does not support.
-- **Authentication failures**: Verify your PAT has the required scopes
-- **Docker issues**: Ensure Docker Desktop is installed and running
+- **远程 server 出现 SSE error 405**：确保在 `cline_mcp_settings.json` 中将 `"type"` 设为 `"streamableHttp"`（camelCase，不含连字符）。使用 `"streamable-http"` 或省略 `"type"` 会使 Cline 回退到该 server 不支持的 SSE。
+- **身份验证失败**：确认 PAT 具有所需作用域
+- **Docker 问题**：确认已安装并运行 Docker Desktop

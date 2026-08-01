@@ -21,7 +21,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// These variables are set by the build process using ldflags.
+// 这些变量由构建过程通过 ldflags 设置。
 var version = "version"
 var commit = "commit"
 var date = "date"
@@ -29,15 +29,15 @@ var date = "date"
 var (
 	rootCmd = &cobra.Command{
 		Use:     "server",
-		Short:   "GitHub MCP Server",
-		Long:    `A GitHub MCP server that handles various tools and resources.`,
-		Version: fmt.Sprintf("Version: %s\nCommit: %s\nBuild Date: %s", version, commit, date),
+		Short:   "GitHub MCP 服务器",
+		Long:    `一个用于处理各种工具和资源的 GitHub MCP 服务器。`,
+		Version: fmt.Sprintf("版本：%s\n提交：%s\n构建日期：%s", version, commit, date),
 	}
 
 	stdioCmd = &cobra.Command{
 		Use:   "stdio",
-		Short: "Start stdio server",
-		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
+		Short: "启动 stdio 服务器",
+		Long:  `启动一个通过标准输入/输出流使用 JSON-RPC 消息进行通信的服务器。`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			token := viper.GetString("personal_access_token")
 			appID := viper.GetString("app-id")
@@ -48,63 +48,62 @@ var (
 
 			oauthClientID := viper.GetString("oauth-client-id")
 			oauthClientSecret := viper.GetString("oauth-client-secret")
-			// Fall back to the build-time baked-in client (official releases) when none is
-			// configured explicitly. The baked-in app is registered on github.com, so it is
-			// only applied to the default host; GHES/ghe.com users must bring their own
-			// --oauth-client-id. Recognizing the host via NormalizeHost means an explicit
-			// GITHUB_HOST=github.com (or api.github.com) still counts as the default and keeps
-			// zero-config login working. The secret tracks the id, so an explicitly provided
-			// id with no secret never picks up the baked-in secret.
+			// 如果没有显式配置，则回退使用构建时内置的客户端（官方发布版本）。
+			// 内置应用注册在 github.com 上，因此它仅适用于默认主机；
+			// GHES/ghe.com 用户必须提供自己的 --oauth-client-id。通过 NormalizeHost
+			// 识别主机，意味着显式设置 GITHUB_HOST=github.com（或 api.github.com）
+			// 仍会被视为默认主机，并继续支持零配置登录。secret 与 id 保持关联，
+			// 因此显式提供 id 但未提供 secret 时，绝不会使用内置的 secret。
 			if oauthClientID == "" && !appAuthRequested && oauth.NormalizeHost(viper.GetString("host")) == "https://github.com" {
 				oauthClientID = buildinfo.OAuthClientID
 				oauthClientSecret = buildinfo.OAuthClientSecret
 			}
 			if token == "" && !appAuthRequested && oauthClientID == "" {
-				return errors.New("authentication required: set GITHUB_PERSONAL_ACCESS_TOKEN, configure GitHub App auth, or pass --oauth-client-id to log in via OAuth")
+				return errors.New("需要身份认证：请设置 GITHUB_PERSONAL_ACCESS_TOKEN、配置 GitHub App 身份认证，或传入 --oauth-client-id 通过 OAuth 登录")
 			}
 			if appAuthRequested && token != "" {
-				return errors.New("GitHub App authentication and GITHUB_PERSONAL_ACCESS_TOKEN are mutually exclusive: set only one")
+				return errors.New("GitHub App 身份认证与 GITHUB_PERSONAL_ACCESS_TOKEN 互斥：只能设置其中一种")
 			}
 			if appAuthRequested && oauthClientID != "" {
-				return errors.New("GitHub App authentication and OAuth login (--oauth-client-id) are mutually exclusive: set only one")
+				return errors.New("GitHub App 身份认证与 OAuth 登录（--oauth-client-id）互斥：只能设置其中一种")
 			}
 
-			// If you're wondering why we're not using viper.GetStringSlice("toolsets"),
-			// it's because viper doesn't handle comma-separated values correctly for env
-			// vars when using GetStringSlice.
+			// 如果你想知道为什么这里没有使用 viper.GetStringSlice("toolsets")，
+			// 原因是使用 GetStringSlice 时，viper 无法正确处理环境变量中的
+			// 逗号分隔值。
 			// https://github.com/spf13/viper/issues/380
 			//
-			// Additionally, viper.UnmarshalKey returns an empty slice even when the flag
-			// is not set, but we need nil to indicate "use defaults". So we check IsSet first.
+			// 此外，即使未设置该 flag，viper.UnmarshalKey 也会返回空切片，
+			// 但这里需要使用 nil 表示“使用默认值”。因此先检查 IsSet。
 			var enabledToolsets []string
 			if viper.IsSet("toolsets") {
 				if err := viper.UnmarshalKey("toolsets", &enabledToolsets); err != nil {
-					return fmt.Errorf("failed to unmarshal toolsets: %w", err)
+					return fmt.Errorf("解析 toolsets 失败：%w", err)
 				}
 			}
-			// else: enabledToolsets stays nil, meaning "use defaults"
+			// 否则：enabledToolsets 保持为 nil，表示“使用默认值”
 
-			// Parse tools (similar to toolsets)
+			// 解析 tools（与 toolsets 类似）
 			var enabledTools []string
 			if viper.IsSet("tools") {
 				if err := viper.UnmarshalKey("tools", &enabledTools); err != nil {
-					return fmt.Errorf("failed to unmarshal tools: %w", err)
+					return fmt.Errorf("解析 tools 失败：%w", err)
 				}
 			}
 
-			// Parse excluded tools (similar to tools)
+			// 解析排除的 tools（与 tools 类似）
 			var excludeTools []string
 			if viper.IsSet("exclude_tools") {
 				if err := viper.UnmarshalKey("exclude_tools", &excludeTools); err != nil {
-					return fmt.Errorf("failed to unmarshal exclude-tools: %w", err)
+					return fmt.Errorf("解析 exclude-tools 失败：%w", err)
 				}
 			}
 
-			// Parse enabled features (similar to toolsets)
+			// 解析启用的 features（与 toolsets 类似）
 			var enabledFeatures []string
 			if viper.IsSet("features") {
 				if err := viper.UnmarshalKey("features", &enabledFeatures); err != nil {
-					return fmt.Errorf("failed to unmarshal features: %w", err)
+					return fmt.Errorf("解析 features 失败：%w", err)
 				}
 			}
 
@@ -127,15 +126,15 @@ var (
 				RepoAccessCacheTTL:   &ttl,
 			}
 
-			// When no static token is provided, log in via OAuth using the given
-			// client. The requested scopes default to the full supported set
-			// (which filters out no tools); an explicit, narrower --oauth-scopes
-			// both narrows the grant and hides tools needing other scopes.
+			// 未提供静态 token 时，使用给定的客户端通过 OAuth 登录。
+			// 请求的 scopes 默认为完整的受支持集合
+			// （不会过滤任何工具）；显式指定范围更小的 --oauth-scopes
+			// 会同时缩小授权范围，并隐藏需要其他 scopes 的工具。
 			if token == "" && !appAuthRequested {
 				scopes := ghoauth.SupportedScopes
 				if viper.IsSet("oauth-scopes") {
 					if err := viper.UnmarshalKey("oauth-scopes", &scopes); err != nil {
-						return fmt.Errorf("failed to unmarshal oauth-scopes: %w", err)
+						return fmt.Errorf("解析 oauth-scopes 失败：%w", err)
 					}
 				}
 				oauthConfig := oauth.NewGitHubConfig(
@@ -163,35 +162,35 @@ var (
 
 	httpCmd = &cobra.Command{
 		Use:   "http",
-		Short: "Start HTTP server",
-		Long:  `Start an HTTP server that listens for MCP requests over HTTP.`,
+		Short: "启动 HTTP 服务器",
+		Long:  `启动一个通过 HTTP 监听 MCP 请求的 HTTP 服务器。`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			// Parse toolsets (same approach as stdio — see comment there)
+			// 解析 toolsets（处理方式与 stdio 相同，参见对应注释）
 			var enabledToolsets []string
 			if viper.IsSet("toolsets") {
 				if err := viper.UnmarshalKey("toolsets", &enabledToolsets); err != nil {
-					return fmt.Errorf("failed to unmarshal toolsets: %w", err)
+					return fmt.Errorf("解析 toolsets 失败：%w", err)
 				}
 			}
 
 			var enabledTools []string
 			if viper.IsSet("tools") {
 				if err := viper.UnmarshalKey("tools", &enabledTools); err != nil {
-					return fmt.Errorf("failed to unmarshal tools: %w", err)
+					return fmt.Errorf("解析 tools 失败：%w", err)
 				}
 			}
 
 			var excludeTools []string
 			if viper.IsSet("exclude_tools") {
 				if err := viper.UnmarshalKey("exclude_tools", &excludeTools); err != nil {
-					return fmt.Errorf("failed to unmarshal exclude-tools: %w", err)
+					return fmt.Errorf("解析 exclude-tools 失败：%w", err)
 				}
 			}
 
 			var enabledFeatures []string
 			if viper.IsSet("features") {
 				if err := viper.UnmarshalKey("features", &enabledFeatures); err != nil {
-					return fmt.Errorf("failed to unmarshal features: %w", err)
+					return fmt.Errorf("解析 features 失败：%w", err)
 				}
 			}
 
@@ -230,43 +229,43 @@ func init() {
 
 	rootCmd.SetVersionTemplate("{{.Short}}\n{{.Version}}\n")
 
-	// Add global flags that will be shared by all commands
+	// 添加由所有命令共享的全局 flags
 	rootCmd.PersistentFlags().StringSlice("toolsets", nil, github.GenerateToolsetsHelp())
-	rootCmd.PersistentFlags().StringSlice("tools", nil, "Comma-separated list of specific tools to enable")
-	rootCmd.PersistentFlags().StringSlice("exclude-tools", nil, "Comma-separated list of tool names to disable regardless of other settings")
-	rootCmd.PersistentFlags().StringSlice("features", nil, "Comma-separated list of feature flags to enable")
-	rootCmd.PersistentFlags().Bool("read-only", false, "Restrict the server to read-only operations")
-	rootCmd.PersistentFlags().String("log-file", "", "Path to log file")
-	rootCmd.PersistentFlags().Bool("enable-command-logging", false, "When enabled, the server will log all command requests and responses to the log file")
-	rootCmd.PersistentFlags().Bool("export-translations", false, "Save translations to a JSON file")
-	rootCmd.PersistentFlags().String("gh-host", "", "Specify the GitHub hostname (for GitHub Enterprise etc.)")
-	rootCmd.PersistentFlags().Int("content-window-size", 5000, "Specify the content window size")
-	rootCmd.PersistentFlags().Bool("lockdown-mode", false, "Enable lockdown mode")
-	rootCmd.PersistentFlags().Bool("insiders", false, "Enable insiders features")
-	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
+	rootCmd.PersistentFlags().StringSlice("tools", nil, "要启用的具体工具列表，使用逗号分隔")
+	rootCmd.PersistentFlags().StringSlice("exclude-tools", nil, "无论其他设置如何都要禁用的工具名称列表，使用逗号分隔")
+	rootCmd.PersistentFlags().StringSlice("features", nil, "要启用的 feature flags 列表，使用逗号分隔")
+	rootCmd.PersistentFlags().Bool("read-only", false, "将服务器限制为只读操作")
+	rootCmd.PersistentFlags().String("log-file", "", "日志文件路径")
+	rootCmd.PersistentFlags().Bool("enable-command-logging", false, "启用后，服务器会将所有命令请求和响应记录到日志文件")
+	rootCmd.PersistentFlags().Bool("export-translations", false, "将翻译内容保存到 JSON 文件")
+	rootCmd.PersistentFlags().String("gh-host", "", "指定 GitHub 主机名（例如 GitHub Enterprise）")
+	rootCmd.PersistentFlags().Int("content-window-size", 5000, "指定内容窗口大小")
+	rootCmd.PersistentFlags().Bool("lockdown-mode", false, "启用 lockdown 模式")
+	rootCmd.PersistentFlags().Bool("insiders", false, "启用 insiders 功能")
+	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "覆盖仓库访问缓存 TTL（例如 1m，设置为 0s 表示禁用）")
 
-	// stdio-specific OAuth flags. Provide --oauth-client-id (instead of a token)
-	// to log in via the browser-based OAuth flow on first use. Works for both
-	// OAuth Apps and GitHub Apps.
-	stdioCmd.Flags().String("oauth-client-id", "", "OAuth App or GitHub App client ID, enabling interactive OAuth login when no token is set")
-	stdioCmd.Flags().String("oauth-client-secret", "", "OAuth client secret, if the app requires one (it is a public, non-confidential credential for distributed clients)")
-	stdioCmd.Flags().StringSlice("oauth-scopes", nil, "Comma-separated OAuth scopes to request; also filters tools to those scopes. Defaults to the full supported set")
-	stdioCmd.Flags().Int("oauth-callback-port", 0, "Fixed local port for the OAuth callback server. Defaults to a random port; set a fixed port when mapping it through Docker")
+	// stdio 专用的 OAuth flags。提供 --oauth-client-id（而不是 token）
+	// 可在首次使用时通过基于浏览器的 OAuth 流程登录。同时适用于
+	// OAuth Apps 和 GitHub Apps。
+	stdioCmd.Flags().String("oauth-client-id", "", "OAuth App 或 GitHub App client ID，在未设置 token 时启用交互式 OAuth 登录")
+	stdioCmd.Flags().String("oauth-client-secret", "", "OAuth client secret，如果应用需要则提供（对于分发式客户端，它是公开的非机密凭证）")
+	stdioCmd.Flags().StringSlice("oauth-scopes", nil, "要请求的 OAuth scopes，使用逗号分隔；同时会将工具过滤为这些 scopes。默认使用完整的受支持集合")
+	stdioCmd.Flags().Int("oauth-callback-port", 0, "OAuth 回调服务器的固定本地端口。默认使用随机端口；通过 Docker 映射时请设置固定端口")
 
-	// The private key has no flag because passing it in argv would expose it.
-	stdioCmd.Flags().String("app-id", "", "GitHub App ID or client ID, enabling non-interactive server-to-server authentication")
-	stdioCmd.Flags().String("app-installation-id", "", "GitHub App installation ID to mint installation access tokens for")
-	stdioCmd.Flags().String("app-private-key-path", "", "Path to the GitHub App private key (PEM). Preferred over GITHUB_APP_PRIVATE_KEY: keeps the key off the command line and out of the environment")
+	// private key 没有对应的 flag，因为通过 argv 传递会导致其暴露。
+	stdioCmd.Flags().String("app-id", "", "GitHub App ID 或 client ID，用于启用非交互式的服务器到服务器身份认证")
+	stdioCmd.Flags().String("app-installation-id", "", "用于生成 installation access token 的 GitHub App installation ID")
+	stdioCmd.Flags().String("app-private-key-path", "", "GitHub App private key（PEM）的路径。推荐优先于 GITHUB_APP_PRIVATE_KEY：可避免密钥出现在命令行和环境变量中")
 
-	// HTTP-specific flags
-	httpCmd.Flags().Int("port", 8082, "HTTP server port")
-	httpCmd.Flags().String("listen-host", "", "Host the HTTP server binds to (e.g. 127.0.0.1). Empty binds to all interfaces.")
-	httpCmd.Flags().String("base-url", "", "Base URL where this server is publicly accessible (for OAuth resource metadata)")
-	httpCmd.Flags().String("base-path", "", "Externally visible base path for the HTTP server (for OAuth resource metadata)")
-	httpCmd.Flags().Bool("scope-challenge", false, "Enable OAuth scope challenge responses")
-	httpCmd.Flags().Bool("trust-proxy-headers", false, "Honor X-Forwarded-Host and X-Forwarded-Proto when constructing OAuth resource metadata URLs. Only enable when the server is deployed behind a trusted proxy that sets these headers. Ignored when --base-url is set.")
+	// HTTP 专用 flags
+	httpCmd.Flags().Int("port", 8082, "HTTP 服务器端口")
+	httpCmd.Flags().String("listen-host", "", "HTTP 服务器绑定的主机地址（例如 127.0.0.1）。为空时绑定所有网络接口。")
+	httpCmd.Flags().String("base-url", "", "该服务器可被公开访问的基础 URL（用于 OAuth resource metadata）")
+	httpCmd.Flags().String("base-path", "", "HTTP 服务器对外可见的基础路径（用于 OAuth resource metadata）")
+	httpCmd.Flags().Bool("scope-challenge", false, "启用 OAuth scope challenge 响应")
+	httpCmd.Flags().Bool("trust-proxy-headers", false, "构造 OAuth resource metadata URL 时采用 X-Forwarded-Host 和 X-Forwarded-Proto。仅当服务器部署在可信代理之后，并且代理会设置这些 Header 时启用。设置 --base-url 后将忽略此选项。")
 
-	// Bind flag to viper
+	// 将 flag 绑定到 viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
 	_ = viper.BindPFlag("tools", rootCmd.PersistentFlags().Lookup("tools"))
 	_ = viper.BindPFlag("exclude_tools", rootCmd.PersistentFlags().Lookup("exclude-tools"))
@@ -293,13 +292,13 @@ func init() {
 	_ = viper.BindPFlag("base-path", httpCmd.Flags().Lookup("base-path"))
 	_ = viper.BindPFlag("scope-challenge", httpCmd.Flags().Lookup("scope-challenge"))
 	_ = viper.BindPFlag("trust-proxy-headers", httpCmd.Flags().Lookup("trust-proxy-headers"))
-	// Add subcommands
+	// 添加子命令
 	rootCmd.AddCommand(stdioCmd)
 	rootCmd.AddCommand(httpCmd)
 }
 
 func initConfig() {
-	// Initialize Viper configuration
+	// 初始化 Viper 配置
 	viper.SetEnvPrefix("github")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
@@ -320,11 +319,11 @@ func newGitHubAppTokenProvider(appID, installationID, keyPath, keyInline, host s
 
 	apiHost, err := utils.NewAPIHost(host)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse host for GitHub App authentication: %w", err)
+		return nil, fmt.Errorf("解析用于 GitHub App 身份认证的主机失败：%w", err)
 	}
 	restURL, err := apiHost.BaseRESTURL(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve REST URL for GitHub App authentication: %w", err)
+		return nil, fmt.Errorf("解析用于 GitHub App 身份认证的 REST URL 失败：%w", err)
 	}
 
 	provider, err := githubapp.NewProvider(githubapp.Config{
@@ -334,7 +333,7 @@ func newGitHubAppTokenProvider(appID, installationID, keyPath, keyInline, host s
 		BaseRESTURL:    restURL.String(),
 	}, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to configure GitHub App authentication: %w", err)
+		return nil, fmt.Errorf("配置 GitHub App 身份认证失败：%w", err)
 	}
 	return provider.AccessToken, nil
 }
@@ -342,15 +341,15 @@ func newGitHubAppTokenProvider(appID, installationID, keyPath, keyInline, host s
 func loadAppPrivateKey(path, inline string) ([]byte, error) {
 	switch {
 	case path != "":
-		data, err := os.ReadFile(path) //#nosec G304 -- operator-supplied path to their own key
+		data, err := os.ReadFile(path) //#nosec G304 -- 由操作者提供的、指向其自有密钥的路径
 		if err != nil {
-			return nil, fmt.Errorf("reading GitHub App private key file: %w", err)
+			return nil, fmt.Errorf("读取 GitHub App private key 文件失败：%w", err)
 		}
 		return data, nil
 	case inline != "":
 		return []byte(strings.ReplaceAll(inline, `\n`, "\n")), nil
 	default:
-		return nil, errors.New("GitHub App authentication requires a private key: set GITHUB_APP_PRIVATE_KEY_PATH (preferred) or GITHUB_APP_PRIVATE_KEY")
+		return nil, errors.New("GitHub App 身份认证需要 private key：请设置 GITHUB_APP_PRIVATE_KEY_PATH（推荐）或 GITHUB_APP_PRIVATE_KEY")
 	}
 }
 

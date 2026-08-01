@@ -18,7 +18,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// ListGists creates a tool to list gists for a user
+// ListGists 创建一个工具以 列出 gists f或一个user
 func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataGists,
@@ -107,7 +107,7 @@ func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// GetGist creates a tool to get the content of a gist
+// GetGist 创建一个工具以 获取 内容 of 一个gist
 func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataGists,
@@ -167,7 +167,7 @@ func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// CreateGist creates a tool to create a new gist
+// CreateGist 创建一个工具以 创建 一个新的 gist
 func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataGists,
@@ -269,7 +269,7 @@ func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// UpdateGist creates a tool to edit an existing gist
+// UpdateGist 创建一个工具以 edit 一个existing gist
 func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataGists,
@@ -331,9 +331,9 @@ func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Content:  github.Ptr(content),
 			}
 
-			// Only set Description when the caller actually provided it, so
-			// omitting it preserves the gist's existing description. Passing an
-			// explicit empty string still clears it.
+			// 仅set Description 当调用er actually provided it, so
+			// omitting it preserves gist's existing description. Passing an
+			// explicit 空 string still clears it.
 			var descriptionPtr *string
 			if _, ok := args["description"]; ok {
 				descriptionPtr = github.Ptr(description)

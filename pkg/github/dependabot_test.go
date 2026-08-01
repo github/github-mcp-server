@@ -14,17 +14,17 @@ import (
 )
 
 func Test_GetDependabotAlert(t *testing.T) {
-	// Verify tool definition
+	// Verify 工具定义
 	toolDef := GetDependabotAlert(translations.NullTranslationHelper)
 	tool := toolDef.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	// Validate tool schema
+	// Validate 工具 schema
 	assert.Equal(t, "get_dependabot_alert", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.True(t, tool.Annotations.ReadOnlyHint, "get_dependabot_alert tool should be read-only")
 
-	// Setup mock alert for success case
+	// Setup 模拟 alert f或成功 case
 	mockAlert := &github.DependabotAlert{
 		Number:  github.Ptr(42),
 		State:   github.Ptr("open"),
@@ -88,18 +88,18 @@ func Test_GetDependabotAlert(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{Client: client}
 			handler := toolDef.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -111,10 +111,10 @@ func Test_GetDependabotAlert(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedAlert github.DependabotAlert
 			err = json.Unmarshal([]byte(textContent.Text), &returnedAlert)
 			assert.NoError(t, err)
@@ -126,7 +126,7 @@ func Test_GetDependabotAlert(t *testing.T) {
 }
 
 func Test_ListDependabotAlerts(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	toolDef := ListDependabotAlerts(translations.NullTranslationHelper)
 	tool := toolDef.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -135,7 +135,7 @@ func Test_ListDependabotAlerts(t *testing.T) {
 	assert.NotEmpty(t, tool.Description)
 	assert.True(t, tool.Annotations.ReadOnlyHint, "list_dependabot_alerts tool should be read-only")
 
-	// Setup mock alerts for success case
+	// Setup 模拟 alerts f或成功 case
 	criticalAlert := github.DependabotAlert{
 		Number:  github.Ptr(1),
 		HTMLURL: github.Ptr("https://github.com/owner/repo/security/dependabot/1"),
@@ -311,7 +311,7 @@ func Test_ListDependabotAlerts(t *testing.T) {
 
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedResult struct {
 				Alerts   []*github.DependabotAlert `json:"alerts"`
 				PageInfo struct {

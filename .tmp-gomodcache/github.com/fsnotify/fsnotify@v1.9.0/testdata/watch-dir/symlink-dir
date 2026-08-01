@@ -1,0 +1,31 @@
+# Create a new symlink to a watched file.
+require symlink
+
+mkdir /dir
+watch /
+ln -s /dir /link
+
+# Shouldn't give any events.
+touch link/file
+
+Output:
+	create  /link
+
+	# kqueue sends an event because it sends an event every time a directory
+	# changes, but fsnotify doesn't detect the symlink as a "directory". It's
+	# been like this for over a decade. When it was changed before people
+	# complained so I'm hesitant to fix it now as part of a bugfix.
+	#
+	# TODO: it shouldn't do this; it doesn't work like this on inotify.
+	kqueue:
+		create  /link
+		write   /link
+
+	# TODO: should also fix FEN, which seems to send a write for regular dirs as
+	# well.
+	fen:
+		create  /link
+		write   /dir
+
+	dragonfly: # TODO: can we fix this?
+		no-events

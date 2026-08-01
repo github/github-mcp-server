@@ -18,8 +18,8 @@ import (
 
 var generateDocsCmd = &cobra.Command{
 	Use:   "generate-docs",
-	Short: "Generate documentation for tools and toolsets",
-	Long:  `Generate the automated sections of README.md and docs/remote-server.md with current tool and toolset information.`,
+	Short: "生成工具和工具集文档",
+	Long:  `使用当前工具和工具集信息生成 README.md 与 docs/remote-server.md 中的自动化章节。`,
 	RunE: func(_ *cobra.Command, _ []string) error {
 		return generateAllDocs()
 	},
@@ -29,8 +29,8 @@ func init() {
 	rootCmd.AddCommand(generateDocsCmd)
 }
 
-// noFeatureFlagsChecker reports every feature flag as disabled. It models the
-// default user experience used by the generated documentation.
+// noFeatureFlagsChecker 报告所有 feature flag 均为禁用状态。
+// 它模拟生成文档所使用的默认用户体验。
 func noFeatureFlagsChecker(_ context.Context, _ string) (bool, error) {
 	return false, nil
 }
@@ -40,7 +40,7 @@ func generateAllDocs() error {
 		path string
 		fn   func(string) error
 	}{
-		// File to edit, function to generate its docs
+		// 要编辑的文件，以及用于生成其文档的函数。
 		{"README.md", generateReadmeDocs},
 		{"docs/remote-server.md", generateRemoteServerDocs},
 		{"docs/insiders-features.md", generateInsidersFeaturesDocs},
@@ -48,57 +48,55 @@ func generateAllDocs() error {
 		{"docs/tool-renaming.md", generateDeprecatedAliasesDocs},
 	} {
 		if err := doc.fn(doc.path); err != nil {
-			return fmt.Errorf("failed to generate docs for %s: %w", doc.path, err)
+			return fmt.Errorf("为 %s 生成文档失败: %w", doc.path, err)
 		}
-		fmt.Printf("Successfully updated %s with automated documentation\n", doc.path)
+		fmt.Printf("已使用自动化文档更新 %s\n", doc.path)
 	}
 	return nil
 }
 
 func generateReadmeDocs(readmePath string) error {
-	// Create translation helper
+	// 创建翻译 helper。
 	t, _ := translations.TranslationHelper()
 
-	// The README documents the default user experience: tools that are
-	// enabled with no special flags set. Installing a checker that reports
-	// every flag as disabled excludes tools gated by FeatureFlagEnable and
-	// keeps the legacy variants of tools gated by FeatureFlagDisable, so
-	// flag-gated duplicates don't appear twice.
-	// Build() can only fail if WithTools specifies invalid tools - not used here
+	// README 记录默认用户体验：未设置特殊 flag 时启用的工具。安装一个报告所有 flag
+	// 均禁用的 checker，会排除由 FeatureFlagEnable 控制的工具，并保留由
+	// FeatureFlagDisable 控制的旧变体，从而避免 flag 控制的重复项出现两次。
+	// Build() 只有在 WithTools 指定无效工具时才会失败，此处未使用该配置。
 	r, _ := github.NewInventory(t).
 		WithToolsets([]string{"all"}).
 		WithFeatureChecker(noFeatureFlagsChecker).
 		Build()
 
-	// Generate toolsets documentation
+	// 生成工具集文档。
 	toolsetsDoc := generateToolsetsDoc(r)
 
-	// Generate tools documentation
+	// 生成工具文档。
 	toolsDoc := generateToolsDoc(r)
 
-	// Read the current README.md
+	// 读取当前 README.md。
 	// #nosec G304 - readmePath is controlled by command line flag, not user input
 	content, err := os.ReadFile(readmePath)
 	if err != nil {
-		return fmt.Errorf("failed to read README.md: %w", err)
+		return fmt.Errorf("读取 README.md 失败: %w", err)
 	}
 
-	// Replace toolsets section
+	// 替换工具集章节。
 	updatedContent, err := replaceSection(string(content), "START AUTOMATED TOOLSETS", "END AUTOMATED TOOLSETS", toolsetsDoc)
 	if err != nil {
 		return err
 	}
 
-	// Replace tools section
+	// 替换工具章节。
 	updatedContent, err = replaceSection(updatedContent, "START AUTOMATED TOOLS", "END AUTOMATED TOOLS", toolsDoc)
 	if err != nil {
 		return err
 	}
 
-	// Write back to file
+	// 写回文件。
 	err = os.WriteFile(readmePath, []byte(updatedContent), 0600)
 	if err != nil {
-		return fmt.Errorf("failed to write README.md: %w", err)
+		return fmt.Errorf("写入 README.md 失败: %w", err)
 	}
 
 	return nil
@@ -107,18 +105,18 @@ func generateReadmeDocs(readmePath string) error {
 func generateRemoteServerDocs(docsPath string) error {
 	content, err := os.ReadFile(docsPath) //#nosec G304
 	if err != nil {
-		return fmt.Errorf("failed to read docs file: %w", err)
+		return fmt.Errorf("读取 docs 文件失败: %w", err)
 	}
 
 	toolsetsDoc := generateRemoteToolsetsDoc()
 
-	// Replace content between markers
+	// 替换标记之间的内容。
 	updatedContent, err := replaceSection(string(content), "START AUTOMATED TOOLSETS", "END AUTOMATED TOOLSETS", toolsetsDoc)
 	if err != nil {
 		return err
 	}
 
-	// Also generate remote-only toolsets section
+	// 同时生成仅远程可用的工具集章节。
 	remoteOnlyDoc := generateRemoteOnlyToolsetsDoc()
 	updatedContent, err = replaceSection(updatedContent, "START AUTOMATED REMOTE TOOLSETS", "END AUTOMATED REMOTE TOOLSETS", remoteOnlyDoc)
 	if err != nil {
@@ -128,10 +126,10 @@ func generateRemoteServerDocs(docsPath string) error {
 	return os.WriteFile(docsPath, []byte(updatedContent), 0600) //#nosec G306
 }
 
-// octiconImg returns an img tag for an Octicon that works with GitHub's light/dark theme.
-// Uses picture element with prefers-color-scheme for automatic theme switching.
-// References icons from the repo's pkg/octicons/icons directory.
-// Optional pathPrefix for files in subdirectories (e.g., "../" for docs/).
+// octiconImg 返回适配 GitHub 浅色/深色主题的 Octicon img 标签。
+// 使用包含 prefers-color-scheme 的 picture 元素自动切换主题。
+// 图标引用仓库中 pkg/octicons/icons 目录下的文件。
+// pathPrefix 可选，用于子目录中的文件（例如 docs/ 使用 "../"）。
 func octiconImg(name string, pathPrefix ...string) string {
 	if name == "" {
 		return ""
@@ -140,8 +138,8 @@ func octiconImg(name string, pathPrefix ...string) string {
 	if len(pathPrefix) > 0 {
 		prefix = pathPrefix[0]
 	}
-	// Use picture element with media queries for light/dark mode support
-	// GitHub renders these correctly in markdown
+	// 使用带 media query 的 picture 元素支持浅色/深色模式。
+	// GitHub 能在 markdown 中正确渲染这些元素。
 	lightIcon := fmt.Sprintf("%spkg/octicons/icons/%s-light.png", prefix, name)
 	darkIcon := fmt.Sprintf("%spkg/octicons/icons/%s-dark.png", prefix, name)
 	return fmt.Sprintf(`<picture><source media="(prefers-color-scheme: dark)" srcset="%s"><source media="(prefers-color-scheme: light)" srcset="%s"><img src="%s" width="20" height="20" alt="%s"></picture>`, darkIcon, lightIcon, lightIcon, name)
@@ -150,17 +148,17 @@ func octiconImg(name string, pathPrefix ...string) string {
 func generateToolsetsDoc(i *inventory.Inventory) string {
 	var buf strings.Builder
 
-	// Add table header and separator (with icon column)
-	buf.WriteString("|     | Toolset                 | Description                                                   |\n")
+	// 添加表头和分隔行（含图标列）。
+	buf.WriteString("|     | 工具集                  | 描述                                                          |\n")
 	buf.WriteString("| --- | ----------------------- | ------------------------------------------------------------- |\n")
 
-	// Add the context toolset row with custom description (strongly recommended)
-	// Get context toolset for its icon
+	// 添加带自定义描述的 context 工具集行（强烈推荐）。
+	// 获取 context 工具集的图标。
 	contextIcon := octiconImg("person")
-	fmt.Fprintf(&buf, "| %s | `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |\n", contextIcon)
+	fmt.Fprintf(&buf, "| %s | `context`               | **强烈推荐**：提供当前用户以及正在操作的 GitHub 上下文的工具 |\n", contextIcon)
 
-	// AvailableToolsets() returns toolsets that have tools, sorted by ID
-	// Exclude context (custom description above)
+	// AvailableToolsets() 返回拥有工具的工具集，并按 ID 排序。
+	// 排除 context（上方已有自定义描述）。
 	for _, ts := range i.AvailableToolsets("context") {
 		icon := octiconImg(ts.Icon)
 		fmt.Fprintf(&buf, "| %s | `%s` | %s |\n", icon, ts.ID, ts.Description)
@@ -199,7 +197,7 @@ func generateToolsDoc(r *inventory.Inventory) string {
 	}
 
 	for _, tool := range tools {
-		// When toolset changes, emit the previous section
+		// 工具集发生变化时，输出前一个章节。
 		if tool.Toolset.ID != currentToolsetID {
 			writeSection()
 			currentToolsetID = tool.Toolset.ID
@@ -209,56 +207,54 @@ func generateToolsDoc(r *inventory.Inventory) string {
 		toolBuf.WriteString("\n\n")
 	}
 
-	// Emit the last section
+	// 输出最后一个章节。
 	writeSection()
 
 	return buf.String()
 }
 
 func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
-	// Tool name (no icon - section header already has the toolset icon)
+	// 工具名称（不带图标；章节标题已有工具集图标）。
 	fmt.Fprintf(buf, "- **%s** - %s\n", tool.Tool.Name, tool.Tool.Annotations.Title)
 
-	// OAuth scopes if present
+	// 如果存在 OAuth scopes，则输出它们。
 	if len(tool.RequiredScopes) > 0 {
-		// Scope filtering uses "any of" semantics (see scopes.HasRequiredScopes),
-		// so when multiple required scopes are listed, render them as alternatives
-		// rather than implying all are required.
+		// Scope 过滤使用“任一满足”语义（见 scopes.HasRequiredScopes），
+		// 因此列出多个 required scopes 时，应渲染为可选项，而不是暗示必须全部具备。
 		scopeList := "`" + strings.Join(tool.RequiredScopes, "`, `") + "`"
 		if len(tool.RequiredScopes) > 1 {
-			fmt.Fprintf(buf, "  - **Required OAuth Scopes (any of)**: %s\n", scopeList)
+			fmt.Fprintf(buf, "  - **所需 OAuth Scopes（任一）**：%s\n", scopeList)
 		} else {
-			fmt.Fprintf(buf, "  - **Required OAuth Scopes**: %s\n", scopeList)
+			fmt.Fprintf(buf, "  - **所需 OAuth Scopes**：%s\n", scopeList)
 		}
 
-		// Only show accepted scopes if they differ from required scopes
+		// 仅当 accepted scopes 与 required scopes 不同时显示。
 		if len(tool.AcceptedScopes) > 0 && !scopesEqual(tool.RequiredScopes, tool.AcceptedScopes) {
-			fmt.Fprintf(buf, "  - **Accepted OAuth Scopes**: `%s`\n", strings.Join(tool.AcceptedScopes, "`, `"))
+			fmt.Fprintf(buf, "  - **可接受 OAuth Scopes**：`%s`\n", strings.Join(tool.AcceptedScopes, "`, `"))
 		}
 	}
 
-	// MCP App UI metadata (only rendered when the remote_mcp_ui_apps flag
-	// applied to the inventory; for the no-flags README this section is
-	// stripped by inventory.ToolsForRegistration before rendering).
+	// MCP App UI metadata 仅在 remote_mcp_ui_apps flag 应用于清单时渲染；
+	// 对于无 flag 的 README，该部分会在渲染前由 inventory.ToolsForRegistration 移除。
 	if ui, ok := tool.Tool.Meta["ui"].(map[string]any); ok {
 		if uri, ok := ui["resourceUri"].(string); ok && uri != "" {
-			fmt.Fprintf(buf, "  - **MCP App UI**: `%s`\n", uri)
+			fmt.Fprintf(buf, "  - **MCP App UI**：`%s`\n", uri)
 		}
 	}
 
-	// Parameters
+	// 参数。
 	if tool.Tool.InputSchema == nil {
-		buf.WriteString("  - No parameters required")
+		buf.WriteString("  - 无需参数")
 		return
 	}
 	schema, ok := tool.Tool.InputSchema.(*jsonschema.Schema)
 	if !ok || schema == nil {
-		buf.WriteString("  - No parameters required")
+		buf.WriteString("  - 无需参数")
 		return
 	}
 
 	if len(schema.Properties) > 0 {
-		// Get parameter names and sort them for deterministic order
+		// 获取参数名并排序，以保证输出确定。
 		var paramNames []string
 		for propName := range schema.Properties {
 			paramNames = append(paramNames, propName)
@@ -268,14 +264,14 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 		for i, propName := range paramNames {
 			prop := schema.Properties[propName]
 			required := slices.Contains(schema.Required, propName)
-			requiredStr := "optional"
+			requiredStr := "可选"
 			if required {
-				requiredStr = "required"
+				requiredStr = "必需"
 			}
 
 			var typeStr string
 
-			// Get the type and description
+			// 获取类型和描述。
 			switch prop.Type {
 			case "array":
 				if prop.Items != nil {
@@ -287,7 +283,7 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 				typeStr = prop.Type
 			}
 
-			// Indent any continuation lines in the description to maintain markdown formatting
+			// 缩进描述中的续行，以保持 markdown 格式。
 			description := indentMultilineDescription(prop.Description, "    ")
 
 			fmt.Fprintf(buf, "  - `%s`: %s (%s, %s)", propName, description, typeStr, requiredStr)
@@ -296,23 +292,23 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 			}
 		}
 	} else {
-		buf.WriteString("  - No parameters required")
+		buf.WriteString("  - 无需参数")
 	}
 }
 
-// scopesEqual checks if two scope slices contain the same elements (order-independent)
+// scopesEqual 检查两个 scope 切片是否包含相同元素（忽略顺序）。
 func scopesEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
 
-	// Create a map for quick lookup
+	// 创建用于快速查找的 map。
 	aMap := make(map[string]bool, len(a))
 	for _, scope := range a {
 		aMap[scope] = true
 	}
 
-	// Check if all elements in b are in a
+	// 检查 b 中所有元素是否都在 a 中。
 	for _, scope := range b {
 		if !aMap[scope] {
 			return false
@@ -322,8 +318,8 @@ func scopesEqual(a, b []string) bool {
 	return true
 }
 
-// indentMultilineDescription adds the specified indent to all lines after the first line.
-// This ensures that multi-line descriptions maintain proper markdown list formatting.
+// indentMultilineDescription 将指定缩进添加到首行之后的所有行。
+// 这可确保多行描述保持正确的 markdown 列表格式。
 func indentMultilineDescription(description, indent string) string {
 	if !strings.Contains(description, "\n") {
 		return description
@@ -346,7 +342,7 @@ func replaceSection(content, startMarker, endMarker, newContent string) (string,
 	before, _, ok := strings.Cut(content, start)
 	endIdx := strings.Index(content, end)
 	if !ok || endIdx == -1 {
-		return "", fmt.Errorf("markers not found: %s / %s", start, end)
+		return "", fmt.Errorf("未找到标记: %s / %s", start, end)
 	}
 
 	var buf strings.Builder
@@ -362,44 +358,44 @@ func replaceSection(content, startMarker, endMarker, newContent string) (string,
 func generateRemoteToolsetsDoc() string {
 	var buf strings.Builder
 
-	// Create translation helper
+	// 创建翻译 helper。
 	t, _ := translations.TranslationHelper()
 
-	// Build inventory - stateless
-	// Build() can only fail if WithTools specifies invalid tools - not used here
+	// 构建无状态清单。
+	// Build() 只有在 WithTools 指定无效工具时才会失败，此处未使用该配置。
 	r, _ := github.NewInventory(t).Build()
 
-	// Generate table header (icon is combined with Name column)
-	buf.WriteString("| Name | Description | API URL | 1-Click Install (VS Code) | Read-only Link | 1-Click Read-only Install (VS Code) |\n")
+	// 生成表头（图标合并到名称列）。
+	buf.WriteString("| 名称 | 描述 | API URL | 一键安装（VS Code） | 只读链接 | 一键只读安装（VS Code） |\n")
 	buf.WriteString("| ---- | ----------- | ------- | ------------------------- | -------------- | ----------------------------------- |\n")
 
-	// Add "default" and "all" meta toolsets first (special cases). The base
-	// URL serves the default toolset; /x/all enables every toolset at once.
+	// 先添加 "default" 和 "all" 元工具集（特殊情况）。
+	// 基础 URL 提供默认工具集，/x/all 会一次性启用所有工具集。
 	metaIcon := octiconImg("apps", "../")
-	fmt.Fprintf(&buf, "| %s<br>`default` | Default toolset | https://api.githubcopilot.com/mcp/ | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2F%%22%%7D) | [read-only](https://api.githubcopilot.com/mcp/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Freadonly%%22%%7D) |\n", metaIcon)
-	fmt.Fprintf(&buf, "| %s<br>`all` | All available GitHub MCP tools | https://api.githubcopilot.com/mcp/x/all | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-all&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Fx%%2Fall%%22%%7D) | [read-only](https://api.githubcopilot.com/mcp/x/all/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-all&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Fx%%2Fall%%2Freadonly%%22%%7D) |\n", metaIcon)
+	fmt.Fprintf(&buf, "| %s<br>`default` | 默认工具集 | https://api.githubcopilot.com/mcp/ | [安装](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2F%%22%%7D) | [只读](https://api.githubcopilot.com/mcp/readonly) | [安装只读](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Freadonly%%22%%7D) |\n", metaIcon)
+	fmt.Fprintf(&buf, "| %s<br>`all` | 所有可用的 GitHub MCP 工具 | https://api.githubcopilot.com/mcp/x/all | [安装](https://insiders.vscode.dev/redirect/mcp/install?name=gh-all&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Fx%%2Fall%%22%%7D) | [只读](https://api.githubcopilot.com/mcp/x/all/readonly) | [安装只读](https://insiders.vscode.dev/redirect/mcp/install?name=gh-all&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Fx%%2Fall%%2Freadonly%%22%%7D) |\n", metaIcon)
 
-	// AvailableToolsets() returns toolsets that have tools, sorted by ID
-	// Exclude context (handled separately)
+	// AvailableToolsets() 返回拥有工具的工具集，并按 ID 排序。
+	// 排除 context（单独处理）。
 	for _, ts := range r.AvailableToolsets("context") {
 		idStr := string(ts.ID)
 
 		apiURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s", idStr)
 		readonlyURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s/readonly", idStr)
 
-		// Create install config JSON (URL encoded)
+		// 创建安装配置 JSON（URL 编码）。
 		installConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, apiURL))
 		readonlyConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, readonlyURL))
 
-		// Fix URL encoding to use %20 instead of + for spaces
+		// 修正 URL 编码，对空格使用 %20 而不是 +。
 		installConfig = strings.ReplaceAll(installConfig, "+", "%20")
 		readonlyConfig = strings.ReplaceAll(readonlyConfig, "+", "%20")
 
-		installLink := fmt.Sprintf("[Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, installConfig)
-		readonlyInstallLink := fmt.Sprintf("[Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, readonlyConfig)
+		installLink := fmt.Sprintf("[安装](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, installConfig)
+		readonlyInstallLink := fmt.Sprintf("[安装只读](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, readonlyConfig)
 
 		icon := octiconImg(ts.Icon, "../")
-		fmt.Fprintf(&buf, "| %s<br>`%s` | %s | %s | %s | [read-only](%s) | %s |\n",
+		fmt.Fprintf(&buf, "| %s<br>`%s` | %s | %s | %s | [只读](%s) | %s |\n",
 			icon,
 			idStr,
 			ts.Description,
@@ -416,30 +412,30 @@ func generateRemoteToolsetsDoc() string {
 func generateRemoteOnlyToolsetsDoc() string {
 	var buf strings.Builder
 
-	// Generate table header (icon is combined with Name column)
-	buf.WriteString("| Name | Description | API URL | 1-Click Install (VS Code) | Read-only Link | 1-Click Read-only Install (VS Code) |\n")
+	// 生成表头（图标合并到名称列）。
+	buf.WriteString("| 名称 | 描述 | API URL | 一键安装（VS Code） | 只读链接 | 一键只读安装（VS Code） |\n")
 	buf.WriteString("| ---- | ----------- | ------- | ------------------------- | -------------- | ----------------------------------- |\n")
 
-	// Use RemoteOnlyToolsets from github package
+	// 使用 github package 中的 RemoteOnlyToolsets。
 	for _, ts := range github.RemoteOnlyToolsets() {
 		idStr := string(ts.ID)
 
 		apiURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s", idStr)
 		readonlyURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s/readonly", idStr)
 
-		// Create install config JSON (URL encoded)
+		// 创建安装配置 JSON（URL 编码）。
 		installConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, apiURL))
 		readonlyConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, readonlyURL))
 
-		// Fix URL encoding to use %20 instead of + for spaces
+		// 修正 URL 编码，对空格使用 %20 而不是 +。
 		installConfig = strings.ReplaceAll(installConfig, "+", "%20")
 		readonlyConfig = strings.ReplaceAll(readonlyConfig, "+", "%20")
 
-		installLink := fmt.Sprintf("[Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, installConfig)
-		readonlyInstallLink := fmt.Sprintf("[Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, readonlyConfig)
+		installLink := fmt.Sprintf("[安装](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, installConfig)
+		readonlyInstallLink := fmt.Sprintf("[安装只读](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, readonlyConfig)
 
 		icon := octiconImg(ts.Icon, "../")
-		fmt.Fprintf(&buf, "| %s<br>`%s` | %s | %s | %s | [read-only](%s) | %s |\n",
+		fmt.Fprintf(&buf, "| %s<br>`%s` | %s | %s | %s | [只读](%s) | %s |\n",
 			icon,
 			idStr,
 			ts.Description,
@@ -454,25 +450,25 @@ func generateRemoteOnlyToolsetsDoc() string {
 }
 
 func generateDeprecatedAliasesDocs(docsPath string) error {
-	// Read the current file
+	// 读取当前文件。
 	content, err := os.ReadFile(docsPath) //#nosec G304
 	if err != nil {
-		return fmt.Errorf("failed to read docs file: %w", err)
+		return fmt.Errorf("读取 docs 文件失败: %w", err)
 	}
 
-	// Generate the table
+	// 生成表格。
 	aliasesDoc := generateDeprecatedAliasesTable()
 
-	// Replace content between markers
+	// 替换标记之间的内容。
 	updatedContent, err := replaceSection(string(content), "START AUTOMATED ALIASES", "END AUTOMATED ALIASES", aliasesDoc)
 	if err != nil {
 		return err
 	}
 
-	// Write back to file
+	// 写回文件。
 	err = os.WriteFile(docsPath, []byte(updatedContent), 0600)
 	if err != nil {
-		return fmt.Errorf("failed to write deprecated aliases docs: %w", err)
+		return fmt.Errorf("写入弃用别名文档失败: %w", err)
 	}
 
 	return nil
@@ -481,15 +477,15 @@ func generateDeprecatedAliasesDocs(docsPath string) error {
 func generateDeprecatedAliasesTable() string {
 	var buf strings.Builder
 
-	// Add table header
-	buf.WriteString("| Old Name | New Name |\n")
+	// 添加表头。
+	buf.WriteString("| 旧名称 | 新名称 |\n")
 	buf.WriteString("|----------|----------|\n")
 
 	aliases := github.DeprecatedToolAliases
 	if len(aliases) == 0 {
-		buf.WriteString("| *(none currently)* | |")
+		buf.WriteString("| *（当前无）* | |")
 	} else {
-		// Sort keys for deterministic output
+		// 排序 key，确保输出确定。
 		var oldNames []string
 		for oldName := range aliases {
 			oldNames = append(oldNames, oldName)

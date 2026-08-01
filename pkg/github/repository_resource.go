@@ -30,7 +30,7 @@ var (
 	repositoryResourcePrContentURITemplate     = uritemplate.MustNew("repo://{owner}/{repo}/refs/pull/{prNumber}/head/contents{/path*}")
 )
 
-// GetRepositoryResourceContent defines the resource template for getting repository content.
+// GetRepositoryResourceContent defines 资源 template f或获取ting 仓库 内容.
 func GetRepositoryResourceContent(t translations.TranslationHelperFunc) inventory.ServerResourceTemplate {
 	return inventory.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
@@ -44,7 +44,7 @@ func GetRepositoryResourceContent(t translations.TranslationHelperFunc) inventor
 	)
 }
 
-// GetRepositoryResourceBranchContent defines the resource template for getting repository content for a branch.
+// GetRepositoryResourceBranchContent defines 资源 template f或获取ting 仓库 内容 f或一个分支.
 func GetRepositoryResourceBranchContent(t translations.TranslationHelperFunc) inventory.ServerResourceTemplate {
 	return inventory.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
@@ -58,7 +58,7 @@ func GetRepositoryResourceBranchContent(t translations.TranslationHelperFunc) in
 	)
 }
 
-// GetRepositoryResourceCommitContent defines the resource template for getting repository content for a commit.
+// GetRepositoryResourceCommitContent defines 资源 template f或获取ting 仓库 内容 f或一个commit.
 func GetRepositoryResourceCommitContent(t translations.TranslationHelperFunc) inventory.ServerResourceTemplate {
 	return inventory.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
@@ -72,7 +72,7 @@ func GetRepositoryResourceCommitContent(t translations.TranslationHelperFunc) in
 	)
 }
 
-// GetRepositoryResourceTagContent defines the resource template for getting repository content for a tag.
+// GetRepositoryResourceTagContent defines 资源 template f或获取ting 仓库 内容 f或一个tag.
 func GetRepositoryResourceTagContent(t translations.TranslationHelperFunc) inventory.ServerResourceTemplate {
 	return inventory.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
@@ -86,7 +86,7 @@ func GetRepositoryResourceTagContent(t translations.TranslationHelperFunc) inven
 	)
 }
 
-// GetRepositoryResourcePrContent defines the resource template for getting repository content for a pull request.
+// GetRepositoryResourcePrContent defines 资源 template f或获取ting 仓库 内容 f或一个拉取请求.
 func GetRepositoryResourcePrContent(t translations.TranslationHelperFunc) inventory.ServerResourceTemplate {
 	return inventory.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
@@ -100,25 +100,25 @@ func GetRepositoryResourcePrContent(t translations.TranslationHelperFunc) invent
 	)
 }
 
-// repositoryResourceContentsHandlerFunc returns a ResourceHandlerFunc that creates handlers on-demand.
+// 仓库ResourceContentsHandlerFunc 返回 一个ResourceHandlerFunc that 创建s 处理器s on-demand.
 func repositoryResourceContentsHandlerFunc(resourceURITemplate *uritemplate.Template) inventory.ResourceHandlerFunc {
 	return func(_ any) mcp.ResourceHandler {
 		return RepositoryResourceContentsHandler(resourceURITemplate)
 	}
 }
 
-// RepositoryResourceContentsHandler returns a handler function for repository content requests.
-// It retrieves ToolDependencies from the context at call time via MustDepsFromContext.
+// RepositoryResourceContentsHandler 返回 一个处理器 函数 f或仓库 内容 请求s.
+// It retrieves ToolDependencies 来自上下文 at c所有time via MustDepsFromContext.
 func RepositoryResourceContentsHandler(resourceURITemplate *uritemplate.Template) mcp.ResourceHandler {
 	return func(ctx context.Context, request *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		deps := MustDepsFromContext(ctx)
-		// Match the URI to extract parameters
+		// Match URI to extract 参数
 		uriValues := resourceURITemplate.Match(request.Params.URI)
 		if uriValues == nil {
 			return nil, fmt.Errorf("failed to match URI: %s", request.Params.URI)
 		}
 
-		// Extract required vars
+		// Extract 必需 vars
 		owner := uriValues.Get("owner").String()
 		repo := uriValues.Get("repo").String()
 
@@ -163,7 +163,7 @@ func RepositoryResourceContentsHandler(resourceURITemplate *uritemplate.Template
 
 		prNumber := uriValues.Get("prNumber").String()
 		if prNumber != "" {
-			// fetch the PR from the API to get the latest commit and use SHA
+			// fetch PR 来自API to 获取 latest commit 和use SHA
 			githubClient, err := deps.GetClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
@@ -180,7 +180,7 @@ func RepositoryResourceContentsHandler(resourceURITemplate *uritemplate.Template
 			rawOpts.SHA = sha
 			opts.Ref = sha
 		}
-		//  if it's a directory
+		//  if it's 一个directory
 		if path == "" || strings.HasSuffix(path, "/") {
 			return nil, fmt.Errorf("directories are not supported: %s", path)
 		}
@@ -197,7 +197,7 @@ func RepositoryResourceContentsHandler(resourceURITemplate *uritemplate.Template
 		defer func() {
 			_ = resp.Body.Close()
 		}()
-		// If the raw content is not found, we will fall back to the GitHub API (in case it is a directory)
+		// 如果raw 内容 is 不found, we will f所有back 到GitHub API (in case it is 一个directory)
 		switch {
 		case resp.StatusCode == http.StatusOK:
 			ext := filepath.Ext(path)
@@ -246,21 +246,21 @@ func RepositoryResourceContentsHandler(resourceURITemplate *uritemplate.Template
 				}, nil
 			}
 		case resp.StatusCode != http.StatusNotFound:
-			// If we got a response but it is not 200 OK, we return an error
+			// If we got 一个响应 但it is 不200 OK, we 返回 一个错误
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read response body: %w", err)
 			}
 			return nil, fmt.Errorf("failed to fetch raw content: %s", string(body))
 		default:
-			// This should be unreachable because GetContents should return an error if neither file nor directory content is found.
+			// 此应当是 unreachable 因为GetContents should 返回 一个错误 if neither 文件 n或directory 内容 is found.
 			return nil, errors.New("404 Not Found")
 		}
 	}
 }
 
-// expandRepoResourceURI builds a resource URI using the appropriate URI template
-// based on the provided parameters (sha, ref, or default).
+// expandRepoResourceURI builds 一个资源 URI using appropriate URI template
+// based 在provided 参数 (sha, ref, 或default).
 func expandRepoResourceURI(owner, repo, sha, ref string, pathParts []string) (string, error) {
 	baseValues := uritemplate.Values{
 		"owner": uritemplate.String(owner),
@@ -294,13 +294,13 @@ func expandRepoResourceURI(owner, repo, sha, ref string, pathParts []string) (st
 			return repositoryResourcePrContentURITemplate.Expand(baseValues)
 
 		case looksLikeSHA(ref):
-			// ref is actually a SHA (e.g., from resolveGitReference)
+			// ref is actually 一个SH一个(e.g., from resolveGitReference)
 			baseValues["sha"] = uritemplate.String(ref)
 			return repositoryResourceCommitContentURITemplate.Expand(baseValues)
 
 		default:
-			// For other refs (like a branch name without refs/heads/ prefix),
-			// treat it as a branch
+			// F或other refs (like 一个分支 name without refs/heads/ prefix),
+			// treat it as 一个分支
 			baseValues["branch"] = uritemplate.String(ref)
 			return repositoryResourceBranchContentURITemplate.Expand(baseValues)
 		}

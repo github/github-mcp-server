@@ -1,0 +1,41 @@
+# Overwrite watched file with non-watched file.
+
+touch /file
+touch /other
+
+watch /file
+watch /other
+
+mv /other /file
+
+echo asd >>/file
+rm /file
+
+# TODO: think what the best behaviour is here; do we want to keep the watch or
+# lose it? It's inconsistent now.
+Output:
+	# On inotify we just get IN_MOVE_SELF and IN_DELETE_SELF without cookie; no
+	# way to track this.
+	chmod    /file
+	rename   /other
+	remove   /file
+
+	kqueue:
+		rename   /other
+		remove   /file
+		create   /file
+		write    /file
+		remove   /file
+
+	windows:
+		remove   /file
+		rename   /other
+		write    /file
+		remove   /file
+
+	fen:
+		remove   /file
+		rename   /other
+
+	dragonfly:
+		rename /other

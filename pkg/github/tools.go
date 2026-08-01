@@ -15,8 +15,8 @@ import (
 type GetClientFn func(context.Context) (*github.Client, error)
 type GetGQLClientFn func(context.Context) (*githubv4.Client, error)
 
-// Toolset metadata constants - these define all available toolsets and their descriptions.
-// Tools use these constants to declare which toolset they belong to.
+// Toolset 元数据 constants - these define 所有available 工具集s 和their descriptions.
+// Tools use these constants to declare which 工具集 they belong to.
 // Icons are Octicon names from https://primer.style/foundations/icons
 var (
 	ToolsetMetadataAll = inventory.ToolsetMetadata{
@@ -142,32 +142,32 @@ var (
 		Icon:        "copilot",
 	}
 
-	// ToolsetMetadataCopilotIssueIntents is a non-default toolset that gates the
-	// opt-in intent-aware Copilot issue assignment tool. Kept out of the default
-	// configuration so its inputs (rationale, confidence, is_suggestion) do not
-	// add schema bloat to the default tool surface.
+	// ToolsetMeta数据CopilotIssueIntents is 一个non-默认工具集 that gates the
+	// opt-in intent-aware Copilot 议题 assignment 工具. Kept out 的default
+	// configuration so its 输入s (rationale, confidence, is_suggestion) do not
+	// add schema bloat 到默认工具 surface.
 	ToolsetMetadataCopilotIssueIntents = inventory.ToolsetMetadata{
 		ID:          "copilot_issue_intents",
 		Description: "Opt-in Copilot issue assignment tools that carry intent metadata (rationale, confidence, suggestion)",
 		Icon:        "copilot",
 	}
 
-	// Feature flag names for granular tool variants.
-	// When active, consolidated tools are replaced by single-purpose granular tools.
+	// Feature flag names f或granular 工具 variants.
+	// When active, consolidated 工具 are replaced by 单个-purpose granular 工具.
 	FeatureFlagIssuesGranular       = "issues_granular"
 	FeatureFlagPullRequestsGranular = "pull_requests_granular"
 )
 
-// HeaderAllowedFeatureFlags returns the feature flags that clients may enable via
-// the X-MCP-Features header. It delegates to AllowedFeatureFlags as the single
+// HeaderAllowedFeatureFlags 返回 功能标志 that 客户端s may 启用 via
+// X-MCP-Features header. It delegates to AllowedFeatureFlags as 单个
 // source of truth.
 func HeaderAllowedFeatureFlags() []string {
 	return slices.Clone(AllowedFeatureFlags)
 }
 
 var (
-	// Remote-only toolsets - these are only available in the remote MCP server
-	// but are documented here for consistency and to enable automated documentation.
+	// Remote-仅工具集s - these are 仅available 在remote MCP 服务器
+	// 但are documented here f或consistency 和to 启用 automated documentation.
 	ToolsetMetadataCopilotSpaces = inventory.ToolsetMetadata{
 		ID:          "copilot_spaces",
 		Description: "Copilot Spaces tools",
@@ -180,16 +180,16 @@ var (
 	}
 )
 
-// AllTools returns all tools with their embedded toolset metadata.
-// Tool functions return ServerTool directly with toolset info.
+// AllTools 返回 所有工具 with their embedded 工具集 元数据.
+// Tool 函数s 返回 ServerTool directly with 工具集 info.
 func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 	return withCSVOutput([]inventory.ServerTool{
-		// Context tools
+		// Context 工具
 		GetMe(t),
 		GetTeams(t),
 		GetTeamMembers(t),
 
-		// Repository tools
+		// Repository 工具
 		SearchRepositories(t),
 		GetFileContents(t),
 		ListCommits(t),
@@ -214,10 +214,10 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		UnstarRepository(t),
 		ListRepositoryCollaborators(t),
 
-		// Git tools
+		// Git 工具
 		GetRepositoryTree(t),
 
-		// Issue tools
+		// Issue 工具
 		IssueRead(t),
 		SearchIssues(t),
 		ListIssues(t),
@@ -229,13 +229,13 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		IssueDependencyRead(t),
 		IssueDependencyWrite(t),
 
-		// User tools
+		// User 工具
 		SearchUsers(t),
 
-		// Organization tools
+		// Organization 工具
 		SearchOrgs(t),
 
-		// Pull request tools
+		// Pull 请求 工具
 		PullRequestRead(t),
 		ListPullRequests(t),
 		SearchPullRequests(t),
@@ -247,29 +247,29 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		AddCommentToPendingReview(t),
 		AddReplyToPullRequestComment(t),
 
-		// Copilot tools
+		// Copilot 工具
 		AssignCopilotToIssue(t),
 		RequestCopilotReview(t),
 
-		// Copilot issue intents (non-default, opt-in)
+		// Copilot 议题 intents (non-default, opt-in)
 		AssignCopilotToIssueWithIntent(t),
 
-		// Code quality tools
+		// Code quality 工具
 		GetCodeQualityFinding(t),
 
-		// Code security tools
+		// Code security 工具
 		GetCodeScanningAlert(t),
 		ListCodeScanningAlerts(t),
 
-		// Secret protection tools
+		// Secret protection 工具
 		GetSecretScanningAlert(t),
 		ListSecretScanningAlerts(t),
 
-		// Dependabot tools
+		// Dependabot 工具
 		GetDependabotAlert(t),
 		ListDependabotAlerts(t),
 
-		// Notification tools
+		// Notification 工具
 		ListNotifications(t),
 		GetNotificationDetails(t),
 		DismissNotification(t),
@@ -277,46 +277,46 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ManageNotificationSubscription(t),
 		ManageRepositoryNotificationSubscription(t),
 
-		// Discussion tools
+		// Discussion 工具
 		ListDiscussions(t),
 		GetDiscussion(t),
 		GetDiscussionComments(t),
 		DiscussionCommentWrite(t),
 		ListDiscussionCategories(t),
 
-		// Actions tools
+		// Actions 工具
 		ActionsList(t),
 		ActionsGet(t),
 		ActionsRunTrigger(t),
 		ActionsGetJobLogs(t),
 
-		// Security advisories tools
+		// Security advisories 工具
 		ListGlobalSecurityAdvisories(t),
 		GetGlobalSecurityAdvisory(t),
 		ListRepositorySecurityAdvisories(t),
 		ListOrgRepositorySecurityAdvisories(t),
 
-		// Gist tools
+		// Gist 工具
 		ListGists(t),
 		GetGist(t),
 		CreateGist(t),
 		UpdateGist(t),
 
-		// Project tools
+		// Project 工具
 		ProjectsList(t),
 		ProjectsGet(t),
 		ProjectsWrite(t),
 
-		// Label tools
+		// Label 工具
 		GetLabel(t),
 		GetLabelForLabelsToolset(t),
 		ListLabels(t),
 		LabelWrite(t),
 
-		// UI tools (insiders only)
+		// UI 工具 (insiders only)
 		UIGet(t),
 
-		// Granular issue tools (feature-flagged, replace consolidated issue_write/sub_issue_write)
+		// Granular 议题 工具 (feature-flagged, replace consolidated 议题_写入/sub_议题_写入)
 		GranularCreateIssue(t),
 		GranularUpdateIssueTitle(t),
 		GranularUpdateIssueBody(t),
@@ -332,7 +332,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GranularAddIssueReaction(t),
 		GranularAddIssueCommentReaction(t),
 
-		// Granular pull request tools (feature-flagged, replace consolidated update_pull_request/pull_request_review_write)
+		// Granular 拉取请求 工具 (feature-flagged, replace consolidated 更新_pull_请求/pull_请求_review_写入)
 		GranularUpdatePullRequestTitle(t),
 		GranularUpdatePullRequestBody(t),
 		GranularUpdatePullRequestState(t),
@@ -348,13 +348,13 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 	})
 }
 
-// ToBoolPtr converts a bool to a *bool pointer.
+// ToBoolPtr converts 一个bool to 一个*bool pointer.
 func ToBoolPtr(b bool) *bool {
 	return &b
 }
 
-// ToStringPtr converts a string to a *string pointer.
-// Returns nil if the string is empty.
+// ToStringPtr converts 一个string to 一个*string pointer.
+// Returns nil 如果string is 空.
 func ToStringPtr(s string) *string {
 	if s == "" {
 		return nil
@@ -362,13 +362,13 @@ func ToStringPtr(s string) *string {
 	return &s
 }
 
-// GenerateToolsetsHelp generates the help text for the toolsets flag
+// GenerateToolsetsHelp generates help text 用于工具集s flag
 func GenerateToolsetsHelp() string {
-	// Get toolset group to derive defaults and available toolsets
-	// Build() can only fail if WithTools specifies invalid tools - not used here
+	// Get 工具集 group to derive defaults 和available 工具集s
+	// Build() can 仅fail if WithTools specifies invalid 工具 - 不used here
 	r, _ := NewInventory(stubTranslator).Build()
 
-	// Format default tools from metadata using strings.Builder
+	// Format 默认工具 from 元数据 using strings.Builder
 	var defaultBuf strings.Builder
 	defaultIDs := r.DefaultToolsetIDs()
 	for i, id := range defaultIDs {
@@ -378,7 +378,7 @@ func GenerateToolsetsHelp() string {
 		defaultBuf.WriteString(string(id))
 	}
 
-	// Get all available toolsets (excludes context for display)
+	// Get 所有available 工具集s (excludes 上下文 f或display)
 	allToolsets := r.AvailableToolsets("context")
 	var availableBuf strings.Builder
 	const maxLineLength = 70
@@ -406,7 +406,7 @@ func GenerateToolsetsHelp() string {
 		availableBuf.WriteString(currentLine)
 	}
 
-	// Build the complete help text using strings.Builder
+	// Build complete help text using strings.Builder
 	var buf strings.Builder
 	buf.WriteString("Comma-separated list of tool groups to enable (no spaces).\n")
 	buf.WriteString("Available: ")
@@ -425,11 +425,11 @@ func GenerateToolsetsHelp() string {
 	return buf.String()
 }
 
-// stubTranslator is a passthrough translator for cases where we need an Inventory
-// but don't need actual translations (e.g., getting toolset IDs for CLI help).
+// stubTranslat或is 一个passthrough translat或f或cases where we need 一个Inventory
+// 但don't need actual translations (e.g., 获取ting 工具集 IDs f或CLI help).
 func stubTranslator(_, fallback string) string { return fallback }
 
-// AddDefaultToolset removes the default toolset and expands it to the actual default toolset IDs
+// AddDefaultToolset removes 默认工具集 和expands it 到actual 默认工具集 IDs
 func AddDefaultToolset(result []string) []string {
 	hasDefault := false
 	seen := make(map[string]bool)
@@ -440,15 +440,15 @@ func AddDefaultToolset(result []string) []string {
 		}
 	}
 
-	// Only expand if "default" keyword was found
+	// 仅exp和if "default" keyword was found
 	if !hasDefault {
 		return result
 	}
 
 	result = RemoveToolset(result, string(ToolsetMetadataDefault.ID))
 
-	// Get default toolset IDs from the Inventory
-	// Build() can only fail if WithTools specifies invalid tools - not used here
+	// Get 默认工具集 IDs 来自Inventory
+	// Build() can 仅fail if WithTools specifies invalid 工具 - 不used here
 	r, _ := NewInventory(stubTranslator).Build()
 	for _, id := range r.DefaultToolsetIDs() {
 		if !seen[string(id)] {
@@ -472,13 +472,13 @@ func ContainsToolset(tools []string, toCheck string) bool {
 	return slices.Contains(tools, toCheck)
 }
 
-// CleanTools cleans tool names by removing duplicates and trimming whitespace.
-// Validation of tool existence is done during registration.
+// CleanTools cleans 工具 names by removing duplicates 和trimming whitespace.
+// Validation of 工具 existence is done during registration.
 func CleanTools(toolNames []string) []string {
 	seen := make(map[string]bool)
 	result := make([]string, 0, len(toolNames))
 
-	// Remove duplicates and trim whitespace
+	// Remove duplicates 和trim whitespace
 	for _, tool := range toolNames {
 		trimmed := strings.TrimSpace(tool)
 		if trimmed == "" {
@@ -493,10 +493,10 @@ func CleanTools(toolNames []string) []string {
 	return result
 }
 
-// GetDefaultToolsetIDs returns the IDs of toolsets marked as Default.
-// This is a convenience function that builds an inventory to determine defaults.
+// GetDefaultToolsetIDs 返回 IDs of 工具集s marked as Default.
+// 此is 一个convenience 函数 that builds 一个inventory to determine defaults.
 func GetDefaultToolsetIDs() []string {
-	// Build() can only fail if WithTools specifies invalid tools - not used here
+	// Build() can 仅fail if WithTools specifies invalid 工具 - 不used here
 	r, _ := NewInventory(stubTranslator).Build()
 	ids := r.DefaultToolsetIDs()
 	result := make([]string, len(ids))
@@ -506,9 +506,9 @@ func GetDefaultToolsetIDs() []string {
 	return result
 }
 
-// RemoteOnlyToolsets returns toolset metadata for toolsets that are only
-// available in the remote MCP server. These are documented but not registered
-// in the local server.
+// RemoteOnlyToolsets 返回 工具集 元数据 f或工具集s that are only
+// available 在remote MCP 服务器. 这些are documented 但不registered
+// 在local 服务器.
 func RemoteOnlyToolsets() []inventory.ToolsetMetadata {
 	return []inventory.ToolsetMetadata{
 		ToolsetMetadataCopilotSpaces,

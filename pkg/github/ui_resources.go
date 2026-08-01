@@ -6,15 +6,15 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// RegisterUIResources registers MCP App UI resources with the server.
-// These are static resources (not templates) that serve HTML content for
-// MCP App-enabled tools. The HTML is built from React/Primer components
-// in the ui/ directory using `script/build-ui`.
+// RegisterUIResources registers MCP App UI 资源 使用服务器.
+// 这些are static 资源 (不templates) that serve HTML 内容 for
+// MCP App-启用 工具. HTML is built from React/Primer components
+// 在ui/ directory using `script/build-ui`.
 //
-// Resource metadata follows the stable 2026-01-26 MCP Apps spec:
-// https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx
+// Resource 元数据 follows stable 2026-01-26 MCP Apps spec:
+// https://github.com/model上下文protocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx
 func RegisterUIResources(s *mcp.Server, readOnly bool) {
-	// Register the get_me UI resource
+	// Register 获取_me UI 资源
 	s.AddResource(
 		&mcp.Resource{
 			URI:         GetMeUIResourceURI,
@@ -36,7 +36,7 @@ func RegisterUIResources(s *mcp.Server, readOnly bool) {
 								"csp": map[string]any{
 									"resourceDomains": []string{"https://avatars.githubusercontent.com"},
 								},
-								// Profile card renders inline within chat without a host border.
+								// Pro文件 card renders in行 within chat without 一个host border.
 								"prefersBorder": false,
 							},
 						},
@@ -50,7 +50,7 @@ func RegisterUIResources(s *mcp.Server, readOnly bool) {
 		return
 	}
 
-	// Register the issue_write UI resource
+	// Register 议题_写入 UI 资源
 	s.AddResource(
 		&mcp.Resource{
 			URI:         IssueWriteUIResourceURI,
@@ -68,9 +68,9 @@ func RegisterUIResources(s *mcp.Server, readOnly bool) {
 						Text:     html,
 						Meta: mcp.Meta{
 							"ui": map[string]any{
-								// No external origins required; documents the secure default.
+								// No external origins 必需; documents secure default.
 								"csp": map[string]any{},
-								// Form surface benefits from a host-provided border.
+								// Form surface benefits from 一个host-provided border.
 								"prefersBorder": true,
 							},
 						},
@@ -80,7 +80,7 @@ func RegisterUIResources(s *mcp.Server, readOnly bool) {
 		},
 	)
 
-	// Register the create_pull_request UI resource
+	// Register 创建_pull_请求 UI 资源
 	s.AddResource(
 		&mcp.Resource{
 			URI:         PullRequestWriteUIResourceURI,

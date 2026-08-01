@@ -39,7 +39,7 @@ func TestReadJSONRPCResponse_SkipsNotifications(t *testing.T) {
 	if err := json.Unmarshal([]byte(got), &msg); err != nil {
 		t.Fatalf("response is not valid JSON: %v", err)
 	}
-	// Verify we got the response with id:42, not a notification
+	// 验证得到的是 id:42 的响应，而不是通知。
 	var id int
 	if err := json.Unmarshal(msg["id"], &id); err != nil {
 		t.Fatalf("failed to parse id: %v", err)
@@ -51,7 +51,7 @@ func TestReadJSONRPCResponse_SkipsNotifications(t *testing.T) {
 
 func TestReadJSONRPCResponse_NoResponse(t *testing.T) {
 	t.Parallel()
-	// Only notifications, no response
+	// 只有通知，没有响应。
 	input := `{"jsonrpc":"2.0","method":"notifications/resources/list_changed","params":{}}` + "\n"
 	scanner := bufio.NewScanner(strings.NewReader(input))
 
@@ -117,14 +117,14 @@ func TestBuildInitializeRequest(t *testing.T) {
 		t.Fatalf("result is not valid JSON: %v", err)
 	}
 
-	// Verify required fields
+	// 验证必填字段。
 	for _, field := range []string{"jsonrpc", "id", "method", "params"} {
 		if _, ok := msg[field]; !ok {
 			t.Errorf("missing required field %q", field)
 		}
 	}
 
-	// Verify method
+	// 验证方法。
 	var method string
 	if err := json.Unmarshal(msg["method"], &method); err != nil {
 		t.Fatalf("failed to parse method: %v", err)
@@ -133,7 +133,7 @@ func TestBuildInitializeRequest(t *testing.T) {
 		t.Errorf("expected method 'initialize', got %q", method)
 	}
 
-	// Verify params contain protocolVersion and clientInfo
+	// 验证 params 包含 protocolVersion 和 clientInfo。
 	var params map[string]json.RawMessage
 	if err := json.Unmarshal(msg["params"], &params); err != nil {
 		t.Fatalf("failed to parse params: %v", err)
@@ -162,7 +162,7 @@ func TestBuildInitializedNotification(t *testing.T) {
 		t.Fatalf("result is not valid JSON: %v", err)
 	}
 
-	// Must have jsonrpc and method
+	// 必须包含 jsonrpc 和 method。
 	var method string
 	if err := json.Unmarshal(msg["method"], &method); err != nil {
 		t.Fatalf("failed to parse method: %v", err)
@@ -171,7 +171,7 @@ func TestBuildInitializedNotification(t *testing.T) {
 		t.Errorf("expected method 'notifications/initialized', got %q", method)
 	}
 
-	// Must NOT have an id (it's a notification)
+	// 不得包含 id（这是通知）。
 	if _, hasID := msg["id"]; hasID {
 		t.Error("notification should not have an 'id' field")
 	}

@@ -1,17 +1,17 @@
-# Install GitHub MCP Server in Roo Code
+# 在 Roo Code 中安装 GitHub MCP Server
 
-[Roo Code](https://github.com/RooCodeInc/Roo-Code) is an AI coding assistant that runs in VS Code-compatible editors (VS Code, Cursor, Windsurf, etc.). For general setup information (prerequisites, Docker installation, security best practices), see the [Installation Guides README](./README.md).
+[Roo Code](https://github.com/RooCodeInc/Roo-Code) 是在兼容 VS Code 的编辑器（VS Code、Cursor、Windsurf 等）中运行的 AI 编码助手。有关通用设置信息（前提条件、Docker 安装和安全最佳实践），请参阅[安装指南 README](./README.md)。
 
-## Remote Server
+## 远程 Server
 
-### Step-by-step setup
+### 分步设置
 
-1. Click the **Roo Code icon** in your editor's sidebar to open the Roo Code pane
-2. Click the **gear icon** (⚙️) in the top navigation of the Roo Code pane, then click on **"MCP Servers"** icon on the left.
-3. Scroll to the bottom and click **"Edit Global MCP"** (for all projects) or **"Edit Project MCP"** (for the current project only)
-4. Add the configuration below to the opened file (`mcp_settings.json` or `.roo/mcp.json`)
-5. Replace `YOUR_GITHUB_PAT` with your [GitHub Personal Access Token](https://github.com/settings/tokens)
-6. Save the file — the server should connect automatically
+1. 单击编辑器侧边栏中的 **Roo Code 图标**，打开 Roo Code 面板
+2. 单击 Roo Code 面板顶部导航中的**齿轮图标**（⚙️），再单击左侧的 **"MCP Servers"** 图标。
+3. 滚动到底部，单击 **"Edit Global MCP"**（所有项目）或 **"Edit Project MCP"**（仅当前项目）
+4. 将下方配置添加到打开的文件（`mcp_settings.json` 或 `.roo/mcp.json`）
+5. 将 `YOUR_GITHUB_PAT` 替换为你的 [GitHub Personal Access Token](https://github.com/settings/tokens)
+6. 保存文件，server 应自动连接
 
 ```json
 {
@@ -27,13 +27,13 @@
 }
 ```
 
-> **Important:** The `type` must be `"streamable-http"` (with hyphen). Using `"http"` or omitting the type will fail.
+> **重要提示：** `type` 必须为 `"streamable-http"`（带连字符）。使用 `"http"` 或省略该类型会失败。
 
-To customize toolsets, add server-side headers like `X-MCP-Toolsets` or `X-MCP-Readonly` to the `headers` object — see [Server Configuration Guide](../server-configuration.md).
+要自定义 toolsets，请在 `headers` 对象中添加 `X-MCP-Toolsets` 或 `X-MCP-Readonly` 等服务端标头。请参阅 [Server Configuration Guide](../server-configuration.md)。
 
-## Local Server (Docker)
+## 本地 Server（Docker）
 
-Log in with OAuth instead of a token. On github.com the official image already includes the app credentials, so you provide none yourself — the server opens a browser login on first use and keeps the token in memory only. In Docker, publish a fixed callback port to loopback:
+使用 OAuth 登录而非 token。github.com 上的官方镜像已包含 app 凭据，因此无需自行提供；server 会在首次使用时打开浏览器登录，并且仅在内存中保留 token。在 Docker 中，请将固定回调端口发布到 loopback：
 
 ```json
 {
@@ -54,9 +54,9 @@ Log in with OAuth instead of a token. On github.com the official image already i
 }
 ```
 
-See **[Local Server OAuth Login](../oauth-login.md)** for the native-binary flow (no fixed port), headless/device-code fallback, GitHub Enterprise, and bringing your own OAuth or GitHub App.
+有关原生二进制文件流程（无固定端口）、无头/device-code 回退、GitHub Enterprise，以及自带 OAuth 或 GitHub App，请参阅 **[Local Server OAuth Login](../oauth-login.md)**。
 
-To authenticate with a Personal Access Token instead (replace `YOUR_GITHUB_PAT`; it takes precedence over OAuth):
+若改用 Personal Access Token 进行身份验证（替换 `YOUR_GITHUB_PAT`；其优先级高于 OAuth）：
 
 ```json
 {
@@ -76,8 +76,8 @@ To authenticate with a Personal Access Token instead (replace `YOUR_GITHUB_PAT`;
 }
 ```
 
-## Troubleshooting
+## 故障排除
 
-- **Connection failures**: Ensure `type` is `streamable-http`, not `http`
-- **Authentication failures**: Verify PAT is prefixed with `Bearer ` in the `Authorization` header
-- **Docker issues**: Ensure Docker Desktop is running
+- **连接失败**：确保 `type` 是 `streamable-http`，而不是 `http`
+- **身份验证失败**：确认 `Authorization` 标头中的 PAT 带有 `Bearer ` 前缀
+- **Docker 问题**：确保 Docker Desktop 正在运行

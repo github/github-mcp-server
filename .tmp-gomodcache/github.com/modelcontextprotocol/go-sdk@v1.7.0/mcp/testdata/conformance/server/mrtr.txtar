@@ -1,0 +1,94 @@
+Check the multi-round-trip request pattern under protocol version
+2026-07-28. The server's tool handler returns an
+InputRequiredResult on the first call, requesting elicitation input from the
+client and providing an opaque RequestState token. The client fulfills the
+input request and retries the tool call with the responses and the echoed
+RequestState; the handler then returns the final result.
+
+-- tools --
+confirmThenGreet
+-- client --
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": { "name": "ExampleClient", "version": "1.0.0" },
+      "io.modelcontextprotocol/clientCapabilities": { "elicitation": {} }
+    },
+    "name": "confirmThenGreet",
+    "arguments": {}
+  }
+}
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": { "name": "ExampleClient", "version": "1.0.0" },
+      "io.modelcontextprotocol/clientCapabilities": { "elicitation": {} }
+    },
+    "name": "confirmThenGreet",
+    "arguments": {},
+    "requestState": "step=1",
+    "inputResponses": {
+      "who": { "action": "accept", "content": { "name": "MCP Go" } }
+    }
+  }
+}
+-- server --
+{
+	"jsonrpc": "2.0",
+	"id": 1,
+	"result": {
+		"_meta": {
+			"io.modelcontextprotocol/serverInfo": {
+				"name": "testServer",
+				"version": "v1.0.0"
+			}
+		},
+		"content": null,
+		"requestState": "step=1",
+		"resultType": "input_required",
+		"inputRequests": {
+			"who": {
+				"method": "elicitation/create",
+				"params": {
+					"mode": "form",
+					"message": "What is your name?",
+					"requestedSchema": {
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string"
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+{
+	"jsonrpc": "2.0",
+	"id": 2,
+	"result": {
+		"_meta": {
+			"io.modelcontextprotocol/serverInfo": {
+				"name": "testServer",
+				"version": "v1.0.0"
+			}
+		},
+		"content": [
+			{
+				"type": "text",
+				"text": "hello MCP Go"
+			}
+		],
+		"resultType": "complete"
+	}
+}

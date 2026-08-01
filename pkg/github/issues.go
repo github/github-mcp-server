@@ -25,8 +25,8 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
-// CloseIssueInput represents the input for closing an issue via the GraphQL API.
-// Used to extend the functionality of the githubv4 library to support closing issues as duplicates.
+// CloseIssueInput represents 输入 f或closing 一个议题 via GraphQL API.
+// Used to extend 函数ality 的githubv4 library to support closing 议题 as duplicates.
 type CloseIssueInput struct {
 	IssueID          githubv4.ID             `json:"issueId"`
 	ClientMutationID *githubv4.String        `json:"clientMutationId,omitempty"`
@@ -34,12 +34,12 @@ type CloseIssueInput struct {
 	DuplicateIssueID *githubv4.ID            `json:"duplicateIssueId,omitempty"`
 }
 
-// IssueClosedStateReason represents the reason an issue was closed.
-// Used to extend the functionality of the githubv4 library to support closing issues as duplicates.
+// IssueClosedStateReason represents reason 一个议题 was closed.
+// Used to extend 函数ality 的githubv4 library to support closing 议题 as duplicates.
 type IssueClosedStateReason string
 
-// issueWriteFieldInput is a user-friendly issue field input for issue_write.
-// Field IDs and option IDs are resolved internally before calling the REST API.
+// 议题WriteFieldInput is 一个user-friendly 议题 field 输入 f或议题_写入.
+// Field IDs 和option IDs are resolved internally before 调用ing REST API.
 type issueWriteFieldInput struct {
 	FieldName       string
 	Value           any
@@ -53,19 +53,19 @@ const (
 	IssueClosedStateReasonNotPlanned IssueClosedStateReason = "NOT_PLANNED"
 )
 
-// fetchIssueIDs retrieves issue IDs via the GraphQL API.
-// When duplicateOf is 0, it fetches only the main issue ID.
-// When duplicateOf is non-zero, it fetches both the main issue and duplicate issue IDs in a single query.
+// fetchIssueIDs retrieves 议题 IDs via GraphQL API.
+// When duplicateOf is 0, it fetches 仅main 议题 ID.
+// When duplicateOf is non-zero, it fetches both main 议题 和duplicate 议题 IDs in 一个单个 query.
 func fetchIssueIDs(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueNumber int, duplicateOf int) (githubv4.ID, githubv4.ID, error) {
 	// Build query variables common to both cases
 	vars := map[string]any{
 		"owner":       githubv4.String(owner),
 		"repo":        githubv4.String(repo),
-		"issueNumber": githubv4.Int(issueNumber), // #nosec G115 - issue numbers are always small positive integers
+		"issueNumber": githubv4.Int(issueNumber), // #nosec G115 - 议题 numbers are 始终sm所有positive integers
 	}
 
 	if duplicateOf == 0 {
-		// Only fetch the main issue ID
+		// 仅fetch main 议题 ID
 		var query struct {
 			Repository struct {
 				Issue struct {
@@ -81,7 +81,7 @@ func fetchIssueIDs(ctx context.Context, gqlClient *githubv4.Client, owner, repo 
 		return query.Repository.Issue.ID, "", nil
 	}
 
-	// Fetch both issue IDs in a single query
+	// Fetch both 议题 IDs in 一个单个 query
 	var query struct {
 		Repository struct {
 			Issue struct {
@@ -93,8 +93,8 @@ func fetchIssueIDs(ctx context.Context, gqlClient *githubv4.Client, owner, repo 
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
 
-	// Add duplicate issue number to variables
-	vars["duplicateOf"] = githubv4.Int(duplicateOf) // #nosec G115 - issue numbers are always small positive integers
+	// Add duplicate 议题 number to variables
+	vars["duplicateOf"] = githubv4.Int(duplicateOf) // #nosec G115 - 议题 numbers are 始终sm所有positive integers
 
 	if err := gqlClient.Query(ctx, &query, vars); err != nil {
 		return "", "", fmt.Errorf("failed to get issue ID: %w", err)
@@ -103,22 +103,22 @@ func fetchIssueIDs(ctx context.Context, gqlClient *githubv4.Client, owner, repo 
 	return query.Repository.Issue.ID, query.Repository.DuplicateIssue.ID, nil
 }
 
-// getCloseStateReason converts a string state reason to the appropriate enum value
+// 获取CloseStateReason converts 一个string state reason 到appropriate enum 值
 func getCloseStateReason(stateReason string) IssueClosedStateReason {
 	switch stateReason {
 	case "not_planned":
 		return IssueClosedStateReasonNotPlanned
 	case "duplicate":
 		return IssueClosedStateReasonDuplicate
-	default: // Default to "completed" for empty or "completed" values
+	default: // 默认to "completed" f或空 或"completed" 值
 		return IssueClosedStateReasonCompleted
 	}
 }
 
-// issueFieldWriteMetadataNode queries only the fields needed to resolve a write: the field's
-// fullDatabaseId (BigInt scalar, returned as string) plus its name and data type for validation.
-// shurcooL/githubv4 cannot use interface-level fragments at union top-level, so we repeat
-// fullDatabaseId on each concrete type; all four implement IssueFieldCommon.
+// 议题FieldWriteMeta数据Node queries 仅fields needed to resolve 一个写入: field's
+// fullDatabaseId (BigInt scalar, 返回ed as string) plus its name 和数据 type f或validation.
+// shurcooL/githubv4 can不use interface-level fragments at union top-level, so we repeat
+// fullDatabaseId on 每个concrete type; 所有four implement IssueFieldCommon.
 type issueFieldWriteMetadataNode struct {
 	TypeName       githubv4.String `graphql:"__typename"`
 	IssueFieldText struct {
@@ -155,9 +155,9 @@ type issueFieldWriteMetadataQuery struct {
 	} `graphql:"repository(owner: $owner, name: $repo)"`
 }
 
-// IssueFieldRef resolves the name of an issue field across its concrete types.
-// IssueFields is a union of IssueFieldDate, IssueFieldNumber, IssueFieldSingleSelect, IssueFieldText,
-// so we have to ask for `name` on each member.
+// IssueFieldRef resolves name of 一个议题 field across its concrete types.
+// IssueFields is 一个union of IssueFieldDate, IssueFieldNumber, IssueFieldSingleSelect, IssueFieldText,
+// so we have to ask f或`name` on 每个member.
 type IssueFieldRef struct {
 	Date struct {
 		Name           githubv4.String
@@ -177,7 +177,7 @@ type IssueFieldRef struct {
 	} `graphql:"... on IssueFieldText"`
 }
 
-// Name returns the populated name from whichever IssueFields union variant the field resolved to.
+// Name 返回 populated name from whichever IssueFields union variant field resolved to.
 func (r IssueFieldRef) Name() string {
 	switch {
 	case r.Date.Name != "":
@@ -192,8 +192,8 @@ func (r IssueFieldRef) Name() string {
 	return ""
 }
 
-// FullDatabaseIDStr returns the fullDatabaseId string from whichever IssueFields union variant
-// the field resolved to.
+// FullDatabaseIDStr 返回 fullDatabaseId string from whichever IssueFields union variant
+// field resolved to.
 func (r IssueFieldRef) FullDatabaseIDStr() string {
 	switch {
 	case r.Date.FullDatabaseID != "":
@@ -208,9 +208,9 @@ func (r IssueFieldRef) FullDatabaseIDStr() string {
 	return ""
 }
 
-// IssueFieldValueFragment captures the value of a custom issue field. IssueFieldValue is a union
-// of 4 concrete value types; each carries its own value scalar and a reference to its parent field.
-// The Number variant's `value` is aliased to `valueNumber` to avoid a Float vs String type clash on decode.
+// IssueFieldValueFragment captures 值 of 一个custom 议题 field. IssueFieldValue is 一个union
+// of 4 concrete 值 types; 每个carries its own 值 scalar 和a reference to its parent field.
+// Number variant's `值` is aliased to `值Number` to avoid 一个Float vs String type clash on decode.
 type IssueFieldValueFragment struct {
 	TypeName  string `graphql:"__typename"`
 	DateValue struct {
@@ -377,7 +377,7 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 			optionFound := false
 			for _, option := range node.IssueFieldSingleSelect.Options {
 				if strings.EqualFold(strings.TrimSpace(string(option.Name)), strings.TrimSpace(fieldInput.FieldOptionName)) {
-					// REST API expects the option name, not the ID
+					// REST API expects option name, 不ID
 					resolvedValue = string(option.Name)
 					optionFound = true
 					break
@@ -398,8 +398,8 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 	return resolved, fieldIDsToDelete, nil
 }
 
-// fetchExistingIssueFieldValues retrieves the current field values for an issue
-// as IssueRequestFieldValue entries, ready to be merged before an update.
+// fetchExistingIssueFieldValues retrieves current field 值 f或一个议题
+// as IssueRequestFieldValue entries, 读取y to be merged before 一个更新.
 func fetchExistingIssueFieldValues(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueNumber int) ([]*github.IssueRequestFieldValue, error) {
 	ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
 
@@ -416,7 +416,7 @@ func fetchExistingIssueFieldValues(ctx context.Context, gqlClient *githubv4.Clie
 	vars := map[string]any{
 		"owner":  githubv4.String(owner),
 		"repo":   githubv4.String(repo),
-		"number": githubv4.Int(issueNumber), // #nosec G115 - issue numbers are always small positive integers
+		"number": githubv4.Int(issueNumber), // #nosec G115 - 议题 numbers are 始终sm所有positive integers
 	}
 
 	if err := gqlClient.Query(ctxWithFeatures, &query, vars); err != nil {
@@ -459,9 +459,9 @@ func fetchExistingIssueFieldValues(ctx context.Context, gqlClient *githubv4.Clie
 	return result, nil
 }
 
-// mergeIssueFieldValues returns a merged slice where incoming values override existing ones
-// for the same field ID, and existing fields not present in incoming are preserved.
-// Ordering is deterministic: incoming entries first in their original order, followed by any
+// mergeIssueFieldValues 返回 一个merged slice where incoming 值 override existing ones
+// 用于相同 field ID, 和existing fields 不present in incoming are preserved.
+// Ordering is deterministic: incoming entries 第一个 in their original order, followed by any
 // existing entries (in their original order) whose field IDs weren't seen in incoming.
 func mergeIssueFieldValues(existing, incoming []*github.IssueRequestFieldValue) []*github.IssueRequestFieldValue {
 	seen := make(map[int64]struct{}, len(incoming))
@@ -479,7 +479,7 @@ func mergeIssueFieldValues(existing, incoming []*github.IssueRequestFieldValue) 
 	return result
 }
 
-// IssueFragment represents a fragment of an issue node in the GraphQL API.
+// IssueFragment represents 一个fragment of 一个议题 node 在GraphQL API.
 type IssueFragment struct {
 	Number     githubv4.Int
 	Title      githubv4.String
@@ -507,7 +507,7 @@ type IssueFragment struct {
 	} `graphql:"issueFieldValues(first: 25)"`
 }
 
-// Common interface for all issue query types
+// Common interface f或所有议题 query types
 type IssueQueryResult interface {
 	GetIssueFragment() IssueQueryFragment
 	GetIsPrivate() bool
@@ -524,7 +524,7 @@ type IssueQueryFragment struct {
 	TotalCount int
 }
 
-// ListIssuesQuery is the root query structure for fetching issues with optional label filtering.
+// ListIssuesQuery is root query structure f或fetching 议题 with 可选 label 筛选ing.
 type ListIssuesQuery struct {
 	Repository struct {
 		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues})"`
@@ -532,7 +532,7 @@ type ListIssuesQuery struct {
 	} `graphql:"repository(owner: $owner, name: $repo)"`
 }
 
-// ListIssuesQueryTypeWithLabels is the query structure for fetching issues with optional label filtering.
+// ListIssuesQueryTypeWithLabels is query structure f或fetching 议题 with 可选 label 筛选ing.
 type ListIssuesQueryTypeWithLabels struct {
 	Repository struct {
 		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues})"`
@@ -540,7 +540,7 @@ type ListIssuesQueryTypeWithLabels struct {
 	} `graphql:"repository(owner: $owner, name: $repo)"`
 }
 
-// ListIssuesQueryWithSince is the query structure for fetching issues without label filtering but with since filtering.
+// ListIssuesQueryWithSince is query structure f或fetching 议题 without label 筛选ing 但with since 筛选ing.
 type ListIssuesQueryWithSince struct {
 	Repository struct {
 		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since, issueFieldValues: $issueFieldValues})"`
@@ -548,7 +548,7 @@ type ListIssuesQueryWithSince struct {
 	} `graphql:"repository(owner: $owner, name: $repo)"`
 }
 
-// ListIssuesQueryTypeWithLabelsWithSince is the query structure for fetching issues with both label and since filtering.
+// ListIssuesQueryTypeWithLabelsWithSince is query structure f或fetching 议题 with both label 和since 筛选ing.
 type ListIssuesQueryTypeWithLabelsWithSince struct {
 	Repository struct {
 		Issues    IssueQueryFragment `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since, issueFieldValues: $issueFieldValues})"`
@@ -556,8 +556,8 @@ type ListIssuesQueryTypeWithLabelsWithSince struct {
 	} `graphql:"repository(owner: $owner, name: $repo)"`
 }
 
-// IssueFieldValueFilter mirrors the GraphQL IssueFieldValueFilter input. Exactly one typed value
-// field should be set per filter (the monolith resolver rejects multiple).
+// IssueFieldValueFilter mirrors GraphQL IssueFieldValueFilter 输入. Exactly one typed 值
+// field 应当是 set per 筛选 (the monolith resolver rejects 多个).
 type IssueFieldValueFilter struct {
 	FieldName               githubv4.String  `json:"fieldName"`
 	TextValue               *githubv4.String `json:"textValue,omitempty"`
@@ -566,7 +566,7 @@ type IssueFieldValueFilter struct {
 	SingleSelectOptionValue *githubv4.String `json:"singleSelectOptionValue,omitempty"`
 }
 
-// Implement the interface for all query types
+// Implement interface f或所有query types
 func (q *ListIssuesQueryTypeWithLabels) GetIssueFragment() IssueQueryFragment {
 	return q.Repository.Issues
 }
@@ -606,7 +606,7 @@ func getIssueQueryType(hasLabels bool, hasSince bool) any {
 	}
 }
 
-// IssueRead creates a tool to get details of a specific issue in a GitHub repository.
+// IssueRead 创建一个工具以 获取 details of 一个specific 议题 in 一个GitHub 仓库.
 func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -685,9 +685,9 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub graphql client", err), nil, nil
 			}
 
-			// attachIFC adds the IFC label to a successful tool result when
-			// IFC labels are enabled. If the visibility lookup fails the
-			// label is omitted rather than misclassifying the result.
+			// attachIFC adds IFC label to 一个成功ful 工具 结果 when
+			// IFC labels are 启用. 如果visibility lookup fails the
+			// label is omitted rather than misclassifying 结果.
 			attachIFC := newRepoVisibilityIFCLabeler(ctx, deps, client, owner, repo, ifc.LabelRepoUserContent)
 
 			switch method {
@@ -739,7 +739,7 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 		}
 	}
 
-	// Sanitize title/body on response
+	// Sanitize title/body on 响应
 	if issue != nil {
 		if issue.Title != nil {
 			issue.Title = github.Ptr(sanitize.Sanitize(*issue.Title))
@@ -751,9 +751,9 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 
 	minimalIssue := convertToMinimalIssue(issue)
 
-	// Always drop the verbose REST IssueFieldValues; enrich with the GraphQL
-	// field_values view and the hierarchy relationship signals instead. The
-	// enrichment is best-effort: a failure here must never fail `get`.
+	// Always drop verbose REST IssueFieldValues; enrich 使用GraphQL
+	// field_值 view 以及hierarchy relationship signals instead. The
+	// enrichment is best-effort: 一个failure here must 绝不fail `获取`.
 	minimalIssue.IssueFieldValues = nil
 	if issue != nil && issue.NodeID != nil && *issue.NodeID != "" {
 		gqlClient, err := deps.GetGQLClient(ctx)
@@ -767,10 +767,10 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 	return MarshalledTextResult(minimalIssue), nil
 }
 
-// applyIssueReadEnrichment populates the hierarchy relationship signals (has_parent/has_children,
-// parent, sub_issues_summary) and field_values onto the minimal issue. In lockdown mode the parent
-// reference is omitted unless the parent content can be verified as safe; has_parent and the numeric
-// counts are structural routing signals and are always safe to surface.
+// applyIssueReadEnrichment populates hierarchy relationship signals (has_parent/has_children,
+// parent, sub_议题_summary) 和field_值 on到minimal 议题. In lockdown mode parent
+// reference is omitted unless parent 内容 可以 verified as safe; has_parent 以及numeric
+// counts are structural routing signals 和are 始终safe to surface.
 func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, enrichment *issueReadEnrichment, cache *lockdown.RepoAccessCache, lockdownMode bool) {
 	if enrichment == nil {
 		return
@@ -781,10 +781,10 @@ func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, e
 	minimalIssue.HasChildren = ToBoolPtr(enrichment.SubIssuesSummary.Total > 0)
 
 	if parent := enrichment.Parent; parent != nil {
-		// Surface the parent reference only when it is safe to expose. Under lockdown an
+		// Surface parent reference 仅when it is safe to expose. Under lockdown an
 		// unverified (possibly cross-repo) parent is omitted entirely, mirroring how unsafe
-		// comments and sub-issues are filtered out. has_parent still routes an agent to
-		// get_parent if it needs to follow up.
+		// comments 和sub-议题 are 筛选ed out. has_parent still routes 一个agent to
+		// 获取_parent if it needs to follow up.
 		if !lockdownMode || isSafeParentContent(ctx, cache, parent) {
 			ref := parent.Ref
 			minimalIssue.Parent = &ref
@@ -797,9 +797,9 @@ func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, e
 	}
 }
 
-// isSafeParentContent reports whether the parent issue reference can be exposed under lockdown mode.
-// It fails closed: any inability to positively verify safe content (missing cache, missing author,
-// unparseable repository, or a lookup error) results in the parent reference being omitted.
+// isSafeParentContent reports whether parent 议题 reference 可以 exposed under lockdown mode.
+// It fails closed: any inability to positively verify safe 内容 (missing cache, missing author,
+// unparseable 仓库, 或一个lookup 错误) 结果 在parent reference being omitted.
 func isSafeParentContent(ctx context.Context, cache *lockdown.RepoAccessCache, parent *issueReadParent) bool {
 	if cache == nil || parent.AuthorLogin == "" {
 		return false
@@ -939,13 +939,13 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 	return utils.NewToolResultText(string(r)), nil
 }
 
-// GetIssueParent returns the parent issue of the given issue, or a null
-// parent when the issue is not a sub-issue. It reads the GraphQL
-// Issue.parent field, the upward counterpart to get_sub_issues.
+// GetIssueParent 返回 parent 议题 的given 议题, 或一个null
+// parent 当议题 is 不a sub-议题. It 读取s GraphQL
+// Issue.parent field, upward counterpart to 获取_sub_议题.
 //
-// The parent title is always sanitized (it may be cross-repo). Under
-// lockdown mode the parent is only returned when its author has push
-// access to the parent repo (mirroring GetIssue); otherwise it is omitted.
+// parent title is 始终sanitized (it may be cross-repo). Under
+// lockdown mode parent is 仅返回ed when its auth或has push
+// access 到parent repo (mirroring GetIssue); otherwise it is omitted.
 func GetIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDependencies, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
@@ -975,7 +975,7 @@ func GetIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDepen
 	vars := map[string]any{
 		"owner":       githubv4.String(owner),
 		"repo":        githubv4.String(repo),
-		"issueNumber": githubv4.Int(issueNumber), // #nosec G115 - issue numbers are always small positive integers
+		"issueNumber": githubv4.Int(issueNumber), // #nosec G115 - 议题 numbers are 始终sm所有positive integers
 	}
 
 	if err := client.Query(ctx, &query, vars); err != nil {
@@ -991,8 +991,8 @@ func GetIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDepen
 		if cache == nil {
 			return nil, fmt.Errorf("lockdown cache is not configured")
 		}
-		// Fail closed: omit the parent if anything needed for the safe-content
-		// check is missing or unverifiable.
+		// Fail closed: omit parent if anything needed 用于safe-内容
+		// 检查 is missing 或unverifiable.
 		parentAuthorLogin := string(parent.Author.Login)
 		parentOwner, parentRepo, ok := strings.Cut(string(parent.Repository.NameWithOwner), "/")
 		if parentAuthorLogin == "" || !ok || parentOwner == "" || parentRepo == "" {
@@ -1016,7 +1016,7 @@ func GetIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDepen
 }
 
 func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
-	// Get current labels on the issue using GraphQL
+	// Get current labels 在议题 using GraphQL
 	var query struct {
 		Repository struct {
 			Issue struct {
@@ -1036,14 +1036,14 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 	vars := map[string]any{
 		"owner":       githubv4.String(owner),
 		"repo":        githubv4.String(repo),
-		"issueNumber": githubv4.Int(issueNumber), // #nosec G115 - issue numbers are always small positive integers
+		"issueNumber": githubv4.Int(issueNumber), // #nosec G115 - 议题 numbers are 始终sm所有positive integers
 	}
 
 	if err := client.Query(ctx, &query, vars); err != nil {
 		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to get issue labels", err), nil
 	}
 
-	// Extract label information
+	// Extract label 信息
 	issueLabels := make([]map[string]any, len(query.Repository.Issue.Labels.Nodes))
 	for i, label := range query.Repository.Issue.Labels.Nodes {
 		issueLabels[i] = map[string]any{
@@ -1067,8 +1067,8 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 	return utils.NewToolResultText(string(out)), nil
 }
 
-// ListIssueTypes creates a tool to list defined issue types for an organization or repository.
-// This can be used to understand supported issue type values for creating or updating issues.
+// ListIssueTypes 创建一个工具以 列出 defined 议题 types f或一个organization 或仓库.
+// 此可以 用于 underst和supported 议题 type 值 f或creating 或updating 议题.
 func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
@@ -1161,16 +1161,16 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			result := utils.NewToolResultText(string(r))
-			// Issue types are org-defined structural metadata (trusted, not
-			// attacker-authored). They are scoped to an organization rather
-			// than a single repo, so confidentiality is conservatively treated
-			// as private (restricted to org members).
+			// Issue types are org-defined structural 元数据 (受信任, not
+			// attacker-authored). They are scoped to 一个organization rather
+			// than 一个单个 repo, so confidentiality is conservatively treated
+			// as 私有 (restricted to org members).
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoMetadata(true))
 			return result, nil, nil
 		})
 }
 
-// AddIssueComment creates a tool to add a comment or reaction to an issue.
+// AddIssueComment 创建一个工具以 add 一个comment 或reaction to 一个议题.
 func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
@@ -1366,7 +1366,7 @@ func issueNumberFromIssueURL(issueURL string) (int, error) {
 	return issueNumber, nil
 }
 
-// SubIssueWrite creates a tool to add a sub-issue to a parent issue.
+// SubIssueWrite 创建一个工具以 add 一个sub-议题 to 一个parent 议题.
 func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
@@ -1467,11 +1467,11 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				result, err := AddSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, replaceParent)
 				return result, nil, err
 			case "remove":
-				// Call the remove sub-issue function
+				// C所有remove sub-议题 函数
 				result, err := RemoveSubIssue(ctx, client, owner, repo, issueNumber, subIssueID)
 				return result, nil, err
 			case "reprioritize":
-				// Call the reprioritize sub-issue function
+				// C所有reprioritize sub-议题 函数
 				result, err := ReprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID)
 				return result, nil, err
 			default:
@@ -1547,7 +1547,7 @@ func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, re
 }
 
 func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int, afterID int, beforeID int) (*mcp.CallToolResult, error) {
-	// Validate that either after_id or before_id is specified, but not both
+	// Validate that either after_id 或before_id is specified, 但不both
 	if afterID == 0 && beforeID == 0 {
 		return utils.NewToolResultError("either after_id or before_id must be specified"), nil
 	}
@@ -1595,7 +1595,7 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 	return utils.NewToolResultText(string(r)), nil
 }
 
-// SearchIssues creates a tool to search for issues.
+// SearchIssues 创建一个工具以 search f或议题.
 func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -1667,11 +1667,11 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 		})
 }
 
-// searchIssuesIFCPostProcess returns a searchPostProcessFn that attaches the
-// IFC label for a search_issues result. It looks up the visibility (and, for
-// private repos, collaborators) of every repository represented in the search
-// payload and joins the labels via ifc.LabelSearchIssues. If any per-repo
-// lookup fails the label is omitted to avoid misclassifying the result.
+// searchIssuesIFCPostProcess 返回 一个searchPostProcessFn that attaches the
+// IFC label f或一个search_议题 结果. It looks up visibility (and, for
+// 私有 repos, collaborators) of every 仓库 represented 在search
+// payload 和joins labels via ifc.LabelSearchIssues. If any per-repo
+// lookup fails label is omitted to avoid misclassifying 结果.
 func searchIssuesIFCPostProcess(deps ToolDependencies) searchPostProcessFn {
 	return func(ctx context.Context, result *github.IssuesSearchResult, callResult *mcp.CallToolResult) {
 		if callResult == nil || callResult.IsError || result == nil {
@@ -1705,8 +1705,8 @@ type searchIssuesRepoRef struct {
 	repo  string
 }
 
-// uniqueSearchIssuesRepos extracts the owner/repo pairs of every issue in the
-// search result, preserving order of first appearance and deduplicating.
+// uniqueSearchIssuesRepos extracts owner/repo pairs of every 议题 in the
+// search 结果, preserving order of 第一个 appearance 和deduplicating.
 func uniqueSearchIssuesRepos(result *github.IssuesSearchResult) []searchIssuesRepoRef {
 	if result == nil {
 		return nil
@@ -1731,8 +1731,8 @@ func uniqueSearchIssuesRepos(result *github.IssuesSearchResult) []searchIssuesRe
 	return out
 }
 
-// parseRepositoryURL extracts the owner and repo from a GitHub API repository
-// URL of the form https://api.github.com/repos/{owner}/{repo}.
+// parseRepositoryURL extracts owner 和repo from 一个GitHub API 仓库
+// URL 的form https://api.github.com/repos/{owner}/{repo}.
 func parseRepositoryURL(repoURL string) (string, string, bool) {
 	if repoURL == "" {
 		return "", "", false
@@ -1749,14 +1749,14 @@ func parseRepositoryURL(repoURL string) (string, string, bool) {
 	return parts[0], parts[1], true
 }
 
-// SearchIssueResult wraps a REST search hit with its custom issue field values, fetched in a follow-up GraphQL nodes() query.
+// SearchIssueResult wraps 一个REST search hit with its custom 议题 field 值, fetched in 一个follow-up GraphQL nodes() query.
 type SearchIssueResult struct {
 	*github.Issue
 	FieldValues []MinimalFieldValue `json:"field_values,omitempty"`
 }
 
-// MarshalJSON serializes SearchIssueResult, suppressing the raw issue_field_values from the
-// embedded REST response in favour of the normalized field_values populated via GraphQL enrichment.
+// MarshalJSON serializes SearchIssueResult, suppressing raw 议题_field_值 from the
+// embedded REST 响应 in favour 的normalized field_值 populated via GraphQL enrichment.
 func (r SearchIssueResult) MarshalJSON() ([]byte, error) {
 	issueBytes, err := json.Marshal(r.Issue)
 	if err != nil {
@@ -1777,16 +1777,16 @@ func (r SearchIssueResult) MarshalJSON() ([]byte, error) {
 	return json.Marshal(m)
 }
 
-// SearchIssuesResponse mirrors the REST IssuesSearchResult JSON shape and adds field_values
-// per item, sourced from a single GraphQL nodes() round-trip.
+// SearchIssuesResponse mirrors REST IssuesSearchResult JSON shape 和adds field_值
+// per item, sourced from 一个单个 GraphQL nodes() round-trip.
 type SearchIssuesResponse struct {
 	Total             *int                `json:"total_count,omitempty"`
 	IncompleteResults *bool               `json:"incomplete_results,omitempty"`
 	Items             []SearchIssueResult `json:"items"`
 }
 
-// searchIssuesNodesQuery batches a nodes(ids:) lookup over the REST search results to retrieve
-// each issue's custom field values in a single GraphQL request.
+// searchIssuesNodesQuery batches 一个nodes(ids:) lookup over REST search 结果 to retrieve
+// 每个议题's custom field 值 in 一个单个 GraphQL 请求.
 type searchIssuesNodesQuery struct {
 	Nodes []struct {
 		Issue struct {
@@ -1798,9 +1798,9 @@ type searchIssuesNodesQuery struct {
 	} `graphql:"nodes(ids: $ids)"`
 }
 
-// fetchIssueFieldValuesByNodeID runs one GraphQL nodes() query for the given REST issues and
-// returns a map of node_id -> flattened field values. Issues without a node_id are skipped, and
-// an empty result set short-circuits the round-trip.
+// fetchIssueFieldValuesByNodeID runs one GraphQL nodes() query 用于given REST 议题 and
+// 返回 一个map of node_id -> flattened field 值. Issues without 一个node_id are skipped, and
+// 一个空 结果 set short-circuits round-trip.
 func fetchIssueFieldValuesByNodeID(ctx context.Context, gqlClient *githubv4.Client, issues []*github.Issue) (map[string][]MinimalFieldValue, error) {
 	ids := make([]githubv4.ID, 0, len(issues))
 	for _, iss := range issues {
@@ -1835,9 +1835,9 @@ func fetchIssueFieldValuesByNodeID(ctx context.Context, gqlClient *githubv4.Clie
 	return result, nil
 }
 
-// issueReadEnrichmentQuery fetches, in a single GraphQL round-trip, the custom field values,
-// parent reference, and sub-issue summary counts for the issues identified by their node IDs.
-// It powers the issue_read `get` relationship signals without adding extra round-trips.
+// 议题ReadEnrichmentQuery fetches, in 一个单个 GraphQL round-trip, custom field 值,
+// parent reference, 和sub-议题 summary counts 用于议题 identified by their node IDs.
+// It powers 议题_读取 `获取` relationship signals without adding extra round-trips.
 type issueReadEnrichmentQuery struct {
 	Nodes []struct {
 		Issue struct {
@@ -1866,23 +1866,23 @@ type issueReadEnrichmentQuery struct {
 	} `graphql:"nodes(ids: $ids)"`
 }
 
-// issueReadParent is the parent reference plus the metadata needed to make a lockdown
-// safe-content decision about whether the (possibly cross-repo) parent title may be exposed.
+// 议题ReadParent is parent reference plus 元数据 needed to make 一个lockdown
+// safe-内容 decision about whether (possibly cross-repo) parent title may be exposed.
 type issueReadParent struct {
 	Ref         MinimalIssueRef
 	AuthorLogin string
 }
 
-// issueReadEnrichment is the flattened result of the issue_read `get` enrichment query.
+// 议题ReadEnrichment is flattened 结果 的议题_读取 `获取` enrichment query.
 type issueReadEnrichment struct {
 	FieldValues      []MinimalFieldValue
 	Parent           *issueReadParent
 	SubIssuesSummary MinimalSubIssuesSummary
 }
 
-// fetchIssueReadEnrichment runs one GraphQL nodes() query for the given issue node ID and returns
-// its field values, parent reference, and sub-issue summary counts. The parent title is sanitized
-// here because it may originate from a different repository.
+// fetchIssueReadEnrichment runs one GraphQL nodes() query 用于given 议题 node ID 和返回
+// its field 值, parent reference, 和sub-议题 summary counts. parent title is sanitized
+// here 因为it may originate from 一个different 仓库.
 func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, nodeID string) (*issueReadEnrichment, error) {
 	var q issueReadEnrichmentQuery
 	if err := gqlClient.Query(ctx, &q, map[string]any{"ids": []githubv4.ID{githubv4.ID(nodeID)}}); err != nil {
@@ -1927,8 +1927,8 @@ func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, n
 	return enrichment, nil
 }
 
-// searchIssuesHandler runs the REST issues search, enriches each hit with custom field values
-// fetched via a single follow-up GraphQL nodes() query, and applies any post-process options
+// searchIssuesHandler runs REST 议题 search, enriches 每个hit with custom field 值
+// fetched via 一个单个 follow-up GraphQL nodes() query, 和applies any post-process options
 // (e.g. IFC labelling).
 func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[string]any, options ...searchOption) (*mcp.CallToolResult, error) {
 	const errorPrefix = "failed to search issues"
@@ -2019,16 +2019,16 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 	return callResult, nil
 }
 
-// IssueWriteUIResourceURI is the URI for the issue_write tool's MCP App UI resource.
+// IssueWriteUIResourceURI is URI 用于议题_写入 工具's MCP App UI 资源.
 const IssueWriteUIResourceURI = "ui://github-mcp-server/issue-write"
 
-// issueWriteFormParams are the parameters the issue_write MCP App form collects
-// and re-sends on submit. Any other parameter present on a call cannot be
-// represented by the form. The form collects (and prefills) every parameter in
-// the tool's current input schema, so hasNonFormParams against this set is a
-// forward-compatibility safety net: a parameter added to the schema in the
-// future but not yet wired into the form trips the check and bypasses the form
-// so the supplied value isn't silently dropped.
+// 议题WriteFormParams are 参数 议题_写入 MCP App form collects
+// 和re-sends on submit. Any other 参数 present on 一个c所有can不be
+// represented 由form. form collects (和prefills) every 参数 in
+// 工具's current 输入 schema, so hasNonFormParams against this set is a
+// forward-compatibility safety net: 一个参数 added 到schema in the
+// future 但不yet wired in到form trips 检查 和bypasses form
+// so supplied 值 isn't silently dropped.
 var issueWriteFormParams = map[string]struct{}{
 	"method":        {},
 	"owner":         {},
@@ -2047,12 +2047,12 @@ var issueWriteFormParams = map[string]struct{}{
 	"_ui_submitted": {},
 }
 
-// issueWriteAwaitingFormResult builds the "awaiting form submission" stub
-// returned when issue_write hands off to the MCP App form. The body is shared
-// by IssueWrite and LegacyIssueWrite. The result is marked IsError=true so
-// agents that bail on error don't claim success or chain dependent tool calls
-// while the user is still interacting with the form; the host renders the UI
-// regardless because rendering is keyed off the tool's _meta.ui resourceUri.
+// 议题WriteAwaitingFormResult builds "awaiting form submission" stub
+// 返回ed when 议题_写入 hands off 到MCP App form. body is shared
+// by IssueWrite 和LegacyIssueWrite. 结果 is marked IsError=真 so
+// agents that bail on 错误 don't claim 成功 或chain dependent 工具 调用
+// 当the user is still interacting 使用form; host renders UI
+// regardless 因为rendering is keyed off 工具's _meta.ui 资源Uri.
 func issueWriteAwaitingFormResult(method, owner, repo string, issueNumber int) *mcp.CallToolResult {
 	var msg string
 	if method == "update" {
@@ -2077,11 +2077,11 @@ func issueWriteAwaitingFormResult(method, owner, repo string, issueNumber int) *
 	return utils.NewToolResultAwaitingFormSubmission(msg)
 }
 
-// IssueWrite is the FeatureFlagIssueFields-enabled variant of issue_write
-// (with the issue_fields parameter). LegacyIssueWrite is served when the flag
-// is off. Both register under the tool name "issue_write"; exactly one is
-// active at a time via mutually exclusive feature-flag annotations. When the
-// flag is removed, delete LegacyIssueWrite outright and drop the feature-flag
+// IssueWrite is FeatureFlagIssueFields-启用 variant of 议题_写入
+// (使用议题_fields 参数). LegacyIssueWrite is served 当flag
+// is off. Both register under 工具 name "议题_写入"; exactly one is
+// active at 一个time via mutually exclusive feature-flag annotations. When the
+// flag is removed, 删除 LegacyIssueWrite outright 和drop feature-flag
 // fields on IssueWrite.
 func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
@@ -2222,7 +2222,7 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Hand off to the interactive MCP App form unless this call must
+			// H和off 到interactive MCP App form unless this c所有must
 			// execute now (see shouldDeferToForm).
 			if shouldDeferToForm(ctx, deps, req, args, issueWriteFormParams) {
 				issueNumber := 0
@@ -2241,7 +2241,7 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Optional parameters
+			// Optional 参数
 			body, err := OptionalParam[string](args, "body")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -2263,7 +2263,7 @@ Options are:
 			labelsValue, labelsProvided := args["labels"]
 			labelsProvided = labelsProvided && labelsValue != nil
 
-			// Get optional milestone
+			// Get 可选 milestone
 			milestone, err := OptionalIntParam(args, "milestone")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -2274,13 +2274,13 @@ Options are:
 				milestoneNum = milestone
 			}
 
-			// Get optional type
+			// Get 可选 type
 			issueType, err := OptionalParam[string](args, "type")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Handle state, state_reason and duplicateOf parameters
+			// Handle state, state_reason 和duplicateOf 参数
 			state, err := OptionalParam[string](args, "state")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -2351,7 +2351,7 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 		return utils.NewToolResultError("missing required parameter: title"), nil
 	}
 
-	// Create the issue request
+	// Create 议题 请求
 	issueRequest := github.CreateIssueRequest{
 		Title:            title,
 		Body:             github.Ptr(body),
@@ -2386,7 +2386,7 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create issue", resp, body), nil
 	}
 
-	// Return minimal response with just essential information
+	// Return minimal 响应 with just essential 信息
 	minimalResponse := MinimalResponse{
 		ID:  fmt.Sprintf("%d", issue.GetID()),
 		URL: issue.GetHTMLURL(),
@@ -2400,11 +2400,11 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 	return utils.NewToolResultText(string(r)), nil
 }
 
-// UpdateIssueOptions controls which optional fields are included in an issue update request.
+// UpdateIssueOptions controls which 可选 fields are included in 一个议题 更新 请求.
 type UpdateIssueOptions struct {
-	// AssigneesProvided sends the assignees field even when the slice is empty.
+	// AssigneesProvided sends assignees field even 当slice is 空.
 	AssigneesProvided bool
-	// LabelsProvided sends the labels field even when the slice is empty.
+	// LabelsProvided sends labels field even 当slice is 空.
 	LabelsProvided bool
 }
 
@@ -2418,10 +2418,10 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		updateOptions.LabelsProvided = updateOptions.LabelsProvided || opt.LabelsProvided
 	}
 
-	// Create the issue request with only provided fields
+	// Create 议题 请求 with 仅provided fields
 	issueRequest := github.UpdateIssueRequest{}
 
-	// Set optional parameters if provided
+	// Set 可选 参数 if provided
 	if title != "" {
 		issueRequest.Title = github.Ptr(title)
 	}
@@ -2446,13 +2446,13 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		issueRequest.Type = github.Ptr(issueType)
 	}
 
-	// Field IDs to clear via DELETE after the PATCH. See the post-PATCH loop
-	// for why we can't just rely on REST set semantics.
+	// Field IDs to clear via DELETE after PATCH. See post-PATCH loop
+	// f或why we can't just rely on REST set semantics.
 	var fallbackDeleteFieldIDs []int64
 
 	if len(issueFieldValues) > 0 || len(fieldIDsToDelete) > 0 {
-		// REST PATCH uses set semantics, so fetch existing values, merge in
-		// the new ones, then drop anything explicitly deleted.
+		// REST PATCH uses set semantics, so fetch existing 值, merge in
+		// 新的 ones, 然后drop anything explicitly 删除d.
 		existing, err := fetchExistingIssueFieldValues(ctx, gqlClient, owner, repo, issueNumber)
 		if err != nil {
 			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to fetch existing issue field values", err), nil
@@ -2472,9 +2472,9 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 			merged = kept
 		}
 		if len(merged) == 0 && len(fieldIDsToDelete) > 0 {
-			// Only queue DELETEs for fields actually present — the endpoint
-			// returns 404 otherwise, and "delete a field that isn't set" should
-			// stay a no-op (callers often invoke delete:true idempotently).
+			// 仅queue DELETEs f或fields actually present — endpoint
+			// 返回 404 otherwise, 和"删除 一个field that isn't set" should
+			// stay 一个no-op (调用ers often invoke 删除:真 idempotently).
 			existingIDs := make(map[int64]bool, len(existing))
 			for _, e := range existing {
 				existingIDs[e.FieldID] = true
@@ -2507,11 +2507,11 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update issue", resp, body), nil
 	}
 
-	// Per-field DELETE fallback. The PATCH can't clear field values when the
-	// merged set is empty — go-github's `omitempty` strips the empty slice
-	// and the dotcom REST handler skips its issue_field_values block when the
-	// key is absent. Errors are aggregated (not short-circuited) so callers
-	// can see which fields succeeded and which need retry.
+	// Per-field DELETE fallback. PATCH can't clear field 值 when the
+	// merged set is 空 — go-github's `omit空` strips 空 slice
+	// 以及dotcom REST 处理器 skips its 议题_field_值 block when the
+	// key is absent. Errors are aggregated (不short-circuited) so 调用ers
+	// can see which fields succeeded 和which need retry.
 	if len(fallbackDeleteFieldIDs) > 0 {
 		var failedIDs, succeededIDs []int64
 		var firstFailureErr error
@@ -2544,14 +2544,14 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		}
 	}
 
-	// Use GraphQL API for state updates
+	// Use GraphQL API f或state 更新s
 	if state != "" {
 		// Mandate specifying duplicateOf when trying to close as duplicate
 		if state == "closed" && stateReason == "duplicate" && duplicateOf == 0 {
 			return utils.NewToolResultError("duplicate_of must be provided when state_reason is 'duplicate'"), nil
 		}
 
-		// Get target issue ID (and duplicate issue ID if needed)
+		// Get tar获取 议题 ID (和duplicate 议题 ID if needed)
 		issueID, duplicateIssueID, err := fetchIssueIDs(ctx, gqlClient, owner, repo, issueNumber, duplicateOf)
 		if err != nil {
 			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find issues", err), nil
@@ -2559,7 +2559,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 
 		switch state {
 		case "open":
-			// Use ReopenIssue mutation for opening
+			// Use ReopenIssue mutation f或opening
 			var mutation struct {
 				ReopenIssue struct {
 					Issue struct {
@@ -2578,7 +2578,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to reopen issue", err), nil
 			}
 		case "closed":
-			// Use CloseIssue mutation for closing
+			// Use CloseIssue mutation f或closing
 			var mutation struct {
 				CloseIssue struct {
 					Issue struct {
@@ -2596,7 +2596,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 				StateReason: &stateReasonValue,
 			}
 
-			// Set duplicate issue ID if needed
+			// Set duplicate 议题 ID if needed
 			if stateReason == "duplicate" {
 				closeInput.DuplicateIssueID = &duplicateIssueID
 			}
@@ -2608,7 +2608,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		}
 	}
 
-	// Return minimal response with just essential information
+	// Return minimal 响应 with just essential 信息
 	minimalResponse := MinimalResponse{
 		ID:  fmt.Sprintf("%d", updatedIssue.GetID()),
 		URL: updatedIssue.GetHTMLURL(),
@@ -2622,7 +2622,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	return utils.NewToolResultText(string(r)), nil
 }
 
-// ListIssues creates a tool to list issues in a GitHub repository.
+// ListIssues 创建一个工具以 列出 议题 in 一个GitHub 仓库.
 func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -2715,13 +2715,13 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Set optional parameters if provided
+			// Set 可选 参数 if provided
 			state, err := OptionalParam[string](args, "state")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Normalize and filter by state
+			// Normalize 和筛选 by state
 			state = strings.ToUpper(state)
 			var states []githubv4.IssueState
 
@@ -2748,7 +2748,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Normalize and validate orderBy
+			// Normalize 和验证 orderBy
 			orderBy = strings.ToUpper(orderBy)
 			switch orderBy {
 			case "CREATED_AT", "UPDATED_AT", "COMMENTS":
@@ -2757,7 +2757,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				orderBy = "CREATED_AT"
 			}
 
-			// Normalize and validate direction
+			// Normalize 和验证 direction
 			direction = strings.ToUpper(direction)
 			switch direction {
 			case "ASC", "DESC":
@@ -2771,7 +2771,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// There are two optional parameters: since and labels.
+			// There are two 可选 参数: since 和labels.
 			var sinceTime time.Time
 			var hasSince bool
 			if since != "" {
@@ -2788,18 +2788,18 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Get pagination parameters and convert to GraphQL format
+			// Get pagination 参数 和convert to GraphQL format
 			pagination, err := OptionalCursorPaginationParams(args)
 			if err != nil {
 				return nil, nil, err
 			}
 
-			// Check if someone tried to use page-based pagination instead of cursor-based
+			// Check if someone tried to use 页-based pagination instead of cursor-based
 			if _, pageProvided := args["page"]; pageProvided {
 				return utils.NewToolResultError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), nil, nil
 			}
 
-			// Check if pagination parameters were explicitly provided
+			// Check if pagination 参数 were explicitly provided
 			_, perPageProvided := args["perPage"]
 			paginationExplicit := perPageProvided
 
@@ -2808,7 +2808,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, err
 			}
 
-			// Use default of 30 if pagination was not explicitly provided
+			// Use 默认of 30 if pagination was 不explicitly provided
 			if !paginationExplicit {
 				defaultFirst := int32(DefaultGraphQLPageSize)
 				paginationParams.First = &defaultFirst
@@ -2819,8 +2819,8 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
 
-			// Resolve field filters by looking up the repo's issue fields so we can
-			// coerce each value into the right typed slot on IssueFieldValueFilter.
+			// Resolve field 筛选s by looking up repo's 议题 fields so we can
+			// coerce 每个值 in到right typed slot on IssueFieldValueFilter.
 			fieldFilters := []IssueFieldValueFilter{}
 			if len(rawFilters) > 0 {
 				fields, err := fetchIssueFields(ctx, client, owner, repo)
@@ -2846,13 +2846,13 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if paginationParams.After != nil {
 				vars["after"] = githubv4.String(*paginationParams.After)
 			} else {
-				// Used within query, therefore must be set to nil and provided as $after
+				// Used within query, therefore 必须是 set to nil 和provided as $after
 				vars["after"] = (*githubv4.String)(nil)
 			}
 
-			// Ensure optional parameters are set
+			// Ensure 可选 参数 are set
 			if hasLabels {
-				// Use query with labels filtering - convert string labels to githubv4.String slice
+				// Use query with labels 筛选ing - convert string labels to githubv4.String slice
 				labelStrings := make([]githubv4.String, len(labels))
 				for i, label := range labels {
 					labelStrings[i] = githubv4.String(label)
@@ -2865,9 +2865,9 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			issueQuery := getIssueQueryType(hasLabels, hasSince)
-			// The list_issues query references the issue_fields-gated IssueFieldValueFilter
-			// input type unconditionally, so we always opt into the feature via header. This
-			// is a no-op once the flags are globally rolled out.
+			// 列出_议题 query references 议题_fields-gated IssueFieldValueFilter
+			// 输入 type unconditionally, so we 始终opt in到feature via header. 此
+			// is 一个no-op once flags are globally rolled out.
 			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
 			if err := client.Query(ctxWithFeatures, issueQuery, vars); err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(
@@ -2913,15 +2913,15 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return st
 }
 
-// rawFieldFilter is the user-supplied {field_name, value} pair before type resolution.
+// rawFieldFilter is user-supplied {field_name, 值} pair before type resolution.
 type rawFieldFilter struct {
 	Name  string
 	Value string
 }
 
-// parseRawFieldFilters extracts the optional field_filters parameter into a list of
-// {name, value} pairs. The value is always a string here; type-aware coercion happens
-// later in resolveFieldFilters once we know each field's data_type.
+// parseRawFieldFilters extracts 可选 field_筛选s 参数 into 一个列出 of
+// {name, 值} pairs. 值 is 始终a string here; type-aware coercion happens
+// later in resolveFieldFilters once we know 每个field's 数据_type.
 func parseRawFieldFilters(args map[string]any) ([]rawFieldFilter, error) {
 	raw, ok := args["field_filters"]
 	if !ok {
@@ -2959,10 +2959,10 @@ func parseRawFieldFilters(args map[string]any) ([]rawFieldFilter, error) {
 	return filters, nil
 }
 
-// resolveFieldFilters matches each raw filter against a known field definition and
-// coerces the value into the right typed slot on IssueFieldValueFilter. Matching is
-// case-insensitive on field name; option names are also matched case-insensitively for
-// single-select fields.
+// resolveFieldFilters matches 每个raw 筛选 against 一个known field definition and
+// coerces 值 in到right typed slot on IssueFieldValueFilter. Matching is
+// case-insensitive on field name; option names are 也matched case-insensitively for
+// 单个-select fields.
 func resolveFieldFilters(rawFilters []rawFieldFilter, fields []IssueField) ([]IssueFieldValueFilter, error) {
 	byName := make(map[string]IssueField, len(fields))
 	knownNames := make([]string, 0, len(fields))
@@ -2981,8 +2981,8 @@ func resolveFieldFilters(rawFilters []rawFieldFilter, fields []IssueField) ([]Is
 		filter := IssueFieldValueFilter{FieldName: githubv4.String(field.Name)}
 		switch field.DataType {
 		case "SINGLE_SELECT":
-			// Validate the option name against the field's options so we fail fast
-			// with a useful error instead of an opaque GraphQL one.
+			// Validate option name against field's options so we fail fast
+			// with 一个useful 错误 instead of 一个opaque GraphQL one.
 			var matched string
 			for _, o := range field.Options {
 				if strings.EqualFold(o.Name, rf.Value) {
@@ -3023,8 +3023,8 @@ func resolveFieldFilters(rawFilters []rawFieldFilter, fields []IssueField) ([]Is
 	return out, nil
 }
 
-// parseISOTimestamp parses an ISO 8601 timestamp string into a time.Time object.
-// Returns the parsed time or an error if parsing fails.
+// parseISOTimestamp parses 一个ISO 8601 timestamp string into 一个time.Time object.
+// Returns parsed time 或一个错误 if parsing fails.
 // Example formats supported: "2023-01-15T14:30:00Z", "2023-01-15"
 func parseISOTimestamp(timestamp string) (time.Time, error) {
 	if timestamp == "" {
@@ -3043,6 +3043,6 @@ func parseISOTimestamp(timestamp string) (time.Time, error) {
 		return t, nil
 	}
 
-	// Return error with supported formats
+	// Return 错误 with supported formats
 	return time.Time{}, fmt.Errorf("invalid ISO 8601 timestamp: %s (supported formats: YYYY-MM-DDThh:mm:ssZ or YYYY-MM-DD)", timestamp)
 }

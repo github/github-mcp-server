@@ -35,7 +35,7 @@ const (
 	maxProjectItemsPerBatch              = 50
 )
 
-// Method constants for consolidated project tools
+// Method constants f或consolidated project 工具
 const (
 	projectsMethodListProjects              = "list_projects"
 	projectsMethodListProjectFields         = "list_project_fields"
@@ -54,7 +54,7 @@ const (
 	projectsMethodCreateIterationField      = "create_iteration_field"
 )
 
-// GraphQL types for ProjectV2 status updates
+// GraphQL types f或ProjectV2 status 更新s
 
 type statusUpdateNode struct {
 	ID         githubv4.ID
@@ -87,29 +87,29 @@ type statusUpdatesProject struct {
 	StatusUpdates statusUpdateConnection `graphql:"statusUpdates(first: $first, after: $after, orderBy: {field: CREATED_AT, direction: DESC})"`
 }
 
-// statusUpdatesUserQuery is the GraphQL query for listing status updates on a user-owned project.
+// statusUpdatesUserQuery is GraphQL query f或列出ing status 更新s on 一个user-owned project.
 type statusUpdatesUserQuery struct {
 	User struct {
 		ProjectV2 statusUpdatesProject `graphql:"projectV2(number: $projectNumber)"`
 	} `graphql:"user(login: $owner)"`
 }
 
-// statusUpdatesOrgQuery is the GraphQL query for listing status updates on an org-owned project.
+// statusUpdatesOrgQuery is GraphQL query f或列出ing status 更新s on 一个org-owned project.
 type statusUpdatesOrgQuery struct {
 	Organization struct {
 		ProjectV2 statusUpdatesProject `graphql:"projectV2(number: $projectNumber)"`
 	} `graphql:"organization(login: $owner)"`
 }
 
-// statusUpdateNodeQuery is the GraphQL query for fetching a single status update by node ID.
+// statusUpdateNodeQuery is GraphQL query f或fetching 一个单个 status 更新 by node ID.
 type statusUpdateNodeQuery struct {
 	Node struct {
 		StatusUpdate statusUpdateNodeWithProject `graphql:"... on ProjectV2StatusUpdate"`
 	} `graphql:"node(id: $id)"`
 }
 
-// CreateProjectV2StatusUpdateInput is the input for the createProjectV2StatusUpdate mutation.
-// Defined locally because the shurcooL/githubv4 library does not include this type.
+// CreateProjectV2StatusUpdateInput is 输入 用于创建ProjectV2StatusUpdate mutation.
+// Defined lo调用y 因为the shurcooL/githubv4 library does 不include this type.
 type CreateProjectV2StatusUpdateInput struct {
 	ProjectID        githubv4.ID      `json:"projectId"`
 	Body             *githubv4.String `json:"body,omitempty"`
@@ -119,7 +119,7 @@ type CreateProjectV2StatusUpdateInput struct {
 	ClientMutationID *githubv4.String `json:"clientMutationId,omitempty"`
 }
 
-// validProjectV2StatusUpdateStatuses is the set of valid status values for the createProjectV2StatusUpdate mutation.
+// validProjectV2StatusUpdateStatuses is set of valid status 值 用于创建ProjectV2StatusUpdate mutation.
 var validProjectV2StatusUpdateStatuses = map[string]bool{
 	"INACTIVE":  true,
 	"ON_TRACK":  true,
@@ -152,7 +152,7 @@ func derefString(s *githubv4.String) string {
 	return string(*s)
 }
 
-// ProjectsList returns the tool and handler for listing GitHub Projects resources.
+// ProjectsList 返回 工具 和处理器 f或列出ing GitHub Projects 资源.
 func ProjectsList(t translations.TranslationHelperFunc) inventory.ServerTool {
 	tool := NewTool(
 		ToolsetMetadataProjects,
@@ -254,7 +254,7 @@ Use this tool to list projects for a user or organization, or list project field
 				result = attachJoinedIFCLabel(ctx, deps, result, visibilities, ifc.LabelProjectList)
 				return result, payload, err
 			case projectsMethodListProjectFields, projectsMethodListProjectItems, projectsMethodListProjectStatusUpdates:
-				// All other methods require project_number and ownerType detection
+				// 所有other methods require project_number 和ownerType detection
 				projectNumber, err := RequiredInt(args, "project_number")
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
@@ -308,7 +308,7 @@ Use this tool to list projects for a user or organization, or list project field
 	return tool
 }
 
-// ProjectsGet returns the tool and handler for getting GitHub Projects resources.
+// ProjectsGet 返回 工具 和处理器 f或获取ting GitHub Projects 资源.
 func ProjectsGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 	tool := NewTool(
 		ToolsetMetadataProjects,
@@ -384,7 +384,7 @@ Use this tool to get details about individual projects, project fields, and proj
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Handle get_project_status_update early — it only needs status_update_id
+			// Handle 获取_project_status_更新 early — it 仅needs status_更新_id
 			if method == projectsMethodGetProjectStatusUpdate {
 				statusUpdateID, err := RequiredParam[string](args, "status_update_id")
 				if err != nil {
@@ -419,7 +419,7 @@ Use this tool to get details about individual projects, project fields, and proj
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Detect owner type if not provided
+			// Detect owner type if 不provided
 			if ownerType == "" {
 				ownerType, err = detectOwnerType(ctx, client, owner, projectNumber)
 				if err != nil {
@@ -569,7 +569,7 @@ func projectUpdatedFieldSchema() *jsonschema.Schema {
 	}
 }
 
-// ProjectsWrite returns the tool and handler for modifying GitHub Projects resources.
+// ProjectsWrite 返回 工具 和处理器 f或modifying GitHub Projects 资源.
 func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	tool := NewTool(
 		ToolsetMetadataProjects,
@@ -719,7 +719,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// create_project does not require project_number or a REST client
+			// 创建_project does 不require project_number 或一个REST 客户端
 			if method == projectsMethodCreateProject {
 				return createProject(ctx, gqlClient, owner, ownerType, args)
 			}
@@ -734,7 +734,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Detect owner type if not provided
+			// Detect owner type if 不provided
 			if ownerType == "" {
 				ownerType, err = detectOwnerType(ctx, client, owner, projectNumber)
 				if err != nil {
@@ -783,7 +783,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					}
 					itemID = id
 				} else {
-					// Resolve the item by (item_owner, item_repo, issue_number).
+					// Resolve item by (item_owner, item_repo, 议题_number).
 					resolvedItemID, resolveErr := resolveItemIDFromIssueArgs(ctx, gqlClient, owner, ownerType, projectNumber, args)
 					if resolveErr != nil {
 						var structured *ghErrors.StructuredResolutionError
@@ -840,7 +840,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return tool
 }
 
-// Helper functions for consolidated projects tools
+// Helper 函数s f或consolidated projects 工具
 
 func listProjects(ctx context.Context, client *github.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, []bool, any, error) {
 	queryStr, err := OptionalParam[string](args, "query")
@@ -862,7 +862,7 @@ func listProjects(ctx context.Context, client *github.Client, args map[string]an
 		Query:                         queryStr,
 	}
 
-	// If owner_type not provided, fetch from both user and org
+	// If owner_type 不provided, fetch from both user 和org
 	switch ownerType {
 	case "":
 		return listProjectsFromBothOwnerTypes(ctx, client, owner, opts)
@@ -886,7 +886,7 @@ func listProjects(ctx context.Context, client *github.Client, args map[string]an
 		}
 	}
 
-	// For specified owner_type, process normally
+	// F或specified owner_type, process normally
 	if ownerType != "" {
 		defer func() { _ = resp.Body.Close() }()
 
@@ -912,8 +912,8 @@ func listProjects(ctx context.Context, client *github.Client, args map[string]an
 	return nil, nil, nil, fmt.Errorf("unexpected state in listProjects")
 }
 
-// listProjectsFromBothOwnerTypes fetches projects from both user and org endpoints
-// when owner_type is not specified, combining the results with owner_type labels.
+// 列出ProjectsFromBothOwnerTypes fetches projects from both user 和org endpoints
+// when owner_type is 不specified, combining 结果 with owner_type labels.
 func listProjectsFromBothOwnerTypes(ctx context.Context, client *github.Client, owner string, opts *github.ListProjectsOptions) (*mcp.CallToolResult, []bool, any, error) {
 	var minimalProjects []MinimalProject
 	var resp *github.Response
@@ -937,12 +937,12 @@ func listProjectsFromBothOwnerTypes(ctx context.Context, client *github.Client, 
 			mp.OwnerType = "org"
 			minimalProjects = append(minimalProjects, *mp)
 		}
-		resp = orgResp // Use org response for pagination info
+		resp = orgResp // Use org 响应 f或pagination info
 	} else if userResp != nil {
-		resp = userResp // Fallback to user response
+		resp = userResp // Fallback to user 响应
 	}
 
-	// If both failed, return error
+	// If both failed, 返回 错误
 	if (userErr != nil || userResp == nil || userResp.StatusCode != http.StatusOK) &&
 		(orgErr != nil || orgResp == nil || orgResp.StatusCode != http.StatusOK) {
 		return utils.NewToolResultError(fmt.Sprintf("failed to list projects for owner '%s': not found as user or organization", owner)), nil, nil, nil
@@ -1113,7 +1113,7 @@ func fetchProjectV2(ctx context.Context, client *github.Client, owner, ownerType
 	return client.Projects.GetUserProject(ctx, owner, projectNumber)
 }
 
-// FetchProjectIsPrivate returns whether a GitHub Project is private.
+// FetchProjectIsPrivate 返回是否 一个GitHub Project is 私有.
 func FetchProjectIsPrivate(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int) (bool, error) {
 	project, resp, err := fetchProjectV2(ctx, client, owner, ownerType, projectNumber)
 	if resp != nil && resp.Body != nil {
@@ -1306,7 +1306,7 @@ func deleteProjectItem(ctx context.Context, client *github.Client, owner, ownerT
 	return utils.NewToolResultText("project item successfully deleted"), nil, nil
 }
 
-// resolveProjectNodeID resolves (owner, ownerType, projectNumber) to a project node ID via GraphQL.
+// resolveProjectNodeID resolves (owner, ownerType, projectNumber) to 一个project node ID via GraphQL.
 func resolveProjectNodeID(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int) (githubv4.ID, error) {
 	var projectIDQueryUser struct {
 		User struct {
@@ -1325,7 +1325,7 @@ func resolveProjectNodeID(ctx context.Context, gqlClient *githubv4.Client, owner
 
 	queryVars := map[string]any{
 		"owner":         githubv4.String(owner),
-		"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are small integers
+		"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are sm所有integers
 	}
 
 	if ownerType == "org" {
@@ -1343,13 +1343,13 @@ func resolveProjectNodeID(ctx context.Context, gqlClient *githubv4.Client, owner
 	return projectIDQueryUser.User.ProjectV2.ID, nil
 }
 
-// addProjectItem adds an item to a project by resolving the issue/PR number to a node ID
+// addProjectItem adds 一个item to 一个project by resolving 议题/PR number to 一个node ID
 func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, itemOwner, itemRepo string, itemNumber int, itemType string) (*mcp.CallToolResult, any, error) {
 	if itemType != "issue" && itemType != "pull_request" {
 		return utils.NewToolResultError("item_type must be either 'issue' or 'pull_request'"), nil, nil
 	}
 
-	// Resolve the item number to a node ID
+	// Resolve item number to 一个node ID
 	var nodeID githubv4.ID
 	var err error
 	if itemType == "issue" {
@@ -1361,7 +1361,7 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 		return utils.NewToolResultError(fmt.Sprintf("failed to resolve %s: %v", itemType, err)), nil, nil
 	}
 
-	// Use GraphQL to add the item to the project
+	// Use GraphQL to add item 到project
 	var mutation struct {
 		AddProjectV2ItemByID struct {
 			Item struct {
@@ -1371,13 +1371,13 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 		} `graphql:"addProjectV2ItemById(input: $input)"`
 	}
 
-	// Resolve the project number to a node ID
+	// Resolve project number to 一个node ID
 	projectID, err := resolveProjectNodeID(ctx, gqlClient, owner, ownerType, projectNumber)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
-	// Add the item to the project
+	// Add item 到project
 	input := githubv4.AddProjectV2ItemByIdInput{
 		ProjectID: projectID,
 		ContentID: nodeID,
@@ -1407,7 +1407,7 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 	return utils.NewToolResultText(string(r)), nil, nil
 }
 
-// validateDateFormat checks that a date string is in YYYY-MM-DD format.
+// 验证DateFormat 检查s that 一个date string is in YYYY-MM-DD format.
 func validateDateFormat(value, fieldName string) error {
 	if _, err := time.Parse("2006-01-02", value); err != nil {
 		return fmt.Errorf("invalid %s %q: must be YYYY-MM-DD format", fieldName, value)
@@ -1415,9 +1415,9 @@ func validateDateFormat(value, fieldName string) error {
 	return nil
 }
 
-// createProjectStatusUpdate creates a new status update for a project via GraphQL.
+// 创建ProjectStatusUpdate 创建s 一个新的 status 更新 f或一个project via GraphQL.
 func createProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, body, status, startDate, targetDate string) (*mcp.CallToolResult, any, error) {
-	// Validate inputs
+	// Validate 输入s
 	if ownerType != "user" && ownerType != "org" {
 		return utils.NewToolResultError(fmt.Sprintf("invalid owner_type %q: must be \"user\" or \"org\"", ownerType)), nil, nil
 	}
@@ -1441,7 +1441,7 @@ func createProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, 
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
-	// Build mutation input
+	// Build mutation 输入
 	input := CreateProjectV2StatusUpdateInput{
 		ProjectID: projectID,
 	}
@@ -1475,7 +1475,7 @@ func createProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, 
 		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectStatusUpdateCreateFailedError, err)), nil, nil
 	}
 
-	// Convert and return
+	// Convert 和返回
 	result := convertToMinimalStatusUpdate(mutation.CreateProjectV2StatusUpdate.StatusUpdate)
 
 	r, err := json.Marshal(result)
@@ -1486,7 +1486,7 @@ func createProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, 
 	return utils.NewToolResultText(string(r)), nil, nil
 }
 
-// listProjectStatusUpdates lists status updates for a project via GraphQL.
+// 列出ProjectStatusUpdates 列出s status 更新s f或一个project via GraphQL.
 func listProjectStatusUpdates(ctx context.Context, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, bool, any, error) {
 	if ownerType != "user" && ownerType != "org" {
 		return utils.NewToolResultError(fmt.Sprintf("invalid owner_type %q: must be \"user\" or \"org\"", ownerType)), false, nil, nil
@@ -1515,7 +1515,7 @@ func listProjectStatusUpdates(ctx context.Context, gqlClient *githubv4.Client, a
 
 	vars := map[string]any{
 		"owner":         githubv4.String(owner),
-		"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are small integers
+		"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are sm所有integers
 		"first":         githubv4.Int(int32(perPage)),       //nolint:gosec // perPage is bounded by MaxProjectsPerPage
 	}
 	if afterCursor != "" {
@@ -1570,7 +1570,7 @@ func listProjectStatusUpdates(ctx context.Context, gqlClient *githubv4.Client, a
 	return utils.NewToolResultText(string(r)), isPrivate, nil, nil
 }
 
-// getProjectStatusUpdate fetches a single status update by its node ID via GraphQL.
+// 获取ProjectStatusUpdate fetches 一个单个 status 更新 by its node ID via GraphQL.
 func getProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, statusUpdateID string) (*mcp.CallToolResult, bool, any, error) {
 	var q statusUpdateNodeQuery
 	vars := map[string]any{
@@ -1595,11 +1595,11 @@ func getProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, sta
 	return utils.NewToolResultText(string(r)), isPrivate, nil, nil
 }
 
-// validateAndConvertToInt64 ensures the value is a number and converts it to int64.
+// 验证AndConvertToInt64 ensures 值 is 一个number 和converts it to int64.
 func validateAndConvertToInt64(value any) (int64, error) {
 	switch v := value.(type) {
 	case float64:
-		// Validate that the float64 can be safely converted to int64
+		// Validate that float64 可以 safely converted to int64
 		intVal := int64(v)
 		if float64(intVal) != v {
 			return 0, fmt.Errorf("value must be a valid integer (got %v)", v)
@@ -1614,7 +1614,7 @@ func validateAndConvertToInt64(value any) (int64, error) {
 	}
 }
 
-// buildUpdateProjectItem builds UpdateProjectItemOptions, resolving field names and SINGLE_SELECT option names server-side.
+// buildUpdateProjectItem builds UpdateProjectItemOptions, resolving field names 和SINGLE_SELECT option names 服务器-side.
 func buildUpdateProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, input map[string]any) (*github.UpdateProjectItemOptions, error) {
 	if input == nil {
 		return nil, fmt.Errorf("updated_field must be an object")
@@ -1666,13 +1666,13 @@ func buildUpdateProjectItem(ctx context.Context, gqlClient *githubv4.Client, own
 		fieldID = parsedID
 	}
 
-	// SINGLE_SELECT: resolve option name to ID; pass through if it's already a known option ID.
+	// SINGLE_SELECT: resolve option name to ID; pass through if it's al读取y 一个known option ID.
 	if resolved != nil && resolved.DataType == "SINGLE_SELECT" {
 		if str, ok := valueField.(string); ok && str != "" {
 			if optID, optErr := resolveSingleSelectOptionByName(resolved, str); optErr == nil {
 				valueField = optID
 			} else {
-				// Fall back: if the string is already a known option ID, accept it.
+				// F所有back: 如果string is al读取y 一个known option ID, accept it.
 				known := false
 				for _, opt := range resolved.Options {
 					if opt.ID == str {
@@ -1725,7 +1725,7 @@ func extractPaginationOptionsFromArgs(args map[string]any) (github.ListProjectsP
 	return opts, nil
 }
 
-// resolveIssueNodeID resolves an issue number to its GraphQL node ID
+// resolveIssueNodeID resolves 一个议题 number to its GraphQL node ID
 func resolveIssueNodeID(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueNumber int) (githubv4.ID, error) {
 	var query struct {
 		Repository struct {
@@ -1738,7 +1738,7 @@ func resolveIssueNodeID(ctx context.Context, gqlClient *githubv4.Client, owner, 
 	variables := map[string]any{
 		"owner":       githubv4.String(owner),
 		"repo":        githubv4.String(repo),
-		"issueNumber": githubv4.Int(int32(issueNumber)), //nolint:gosec // Issue numbers are small integers
+		"issueNumber": githubv4.Int(int32(issueNumber)), //nolint:gosec // Issue numbers are sm所有integers
 	}
 
 	err := gqlClient.Query(ctx, &query, variables)
@@ -1749,7 +1749,7 @@ func resolveIssueNodeID(ctx context.Context, gqlClient *githubv4.Client, owner, 
 	return query.Repository.Issue.ID, nil
 }
 
-// resolvePullRequestNodeID resolves a pull request number to its GraphQL node ID
+// resolvePullRequestNodeID resolves 一个拉取请求 number to its GraphQL node ID
 func resolvePullRequestNodeID(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, prNumber int) (githubv4.ID, error) {
 	var query struct {
 		Repository struct {
@@ -1762,7 +1762,7 @@ func resolvePullRequestNodeID(ctx context.Context, gqlClient *githubv4.Client, o
 	variables := map[string]any{
 		"owner":    githubv4.String(owner),
 		"repo":     githubv4.String(repo),
-		"prNumber": githubv4.Int(int32(prNumber)), //nolint:gosec // PR numbers are small integers
+		"prNumber": githubv4.Int(int32(prNumber)), //nolint:gosec // PR numbers are sm所有integers
 	}
 
 	err := gqlClient.Query(ctx, &query, variables)
@@ -1773,7 +1773,7 @@ func resolvePullRequestNodeID(ctx context.Context, gqlClient *githubv4.Client, o
 	return query.Repository.PullRequest.ID, nil
 }
 
-// createProject handles the create_project method for ProjectsWrite.
+// 创建Project handles 创建_project method f或ProjectsWrite.
 func createProject(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, args map[string]any) (*mcp.CallToolResult, any, error) {
 	if ownerType == "" {
 		return utils.NewToolResultError("owner_type is required for create_project"), nil, nil
@@ -1828,15 +1828,15 @@ func createProject(ctx context.Context, gqlClient *githubv4.Client, owner, owner
 	return MarshalledTextResult(result), nil, nil
 }
 
-// createIterationField handles the create_iteration_field method for ProjectsWrite.
+// 创建IterationField handles 创建_iteration_field method f或ProjectsWrite.
 //
-// GitHub's GraphQL API requires two mutations to fully configure an iteration field:
-//  1. createProjectV2Field creates the field with DataType=ITERATION (no schedule yet).
-//  2. updateProjectV2Field sets the start date, duration, and optional named iterations.
+// GitHub's GraphQL API requires two mutations to fully configure 一个iteration field:
+//  1. 创建ProjectV2Field 创建s field with DataType=ITERATION (no schedule yet).
+//  2. 更新ProjectV2Field sets start date, duration, 和可选 named iterations.
 //
-// If step 2 fails, the field already exists with default settings and can be reconfigured
-// by calling this method again (the create will fail with a duplicate-name error, which
-// surfaces clearly) or by deleting the field via the GitHub UI.
+// If step 2 fails, field al读取y exists with 默认settings 和可以 reconfigured
+// by 调用ing this method again (the 创建 will fail with 一个duplicate-name 错误, which
+// surfaces clearly) 或by deleting field via GitHub UI.
 func createIterationField(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, args map[string]any) (*mcp.CallToolResult, any, error) {
 	fieldName, err := RequiredParam[string](args, "field_name")
 	if err != nil {
@@ -1856,7 +1856,7 @@ func createIterationField(ctx context.Context, gqlClient *githubv4.Client, owner
 		return utils.NewToolResultError(fmt.Sprintf("failed to get project ID: %v", err)), nil, nil
 	}
 
-	// Step 1: Create the iteration field.
+	// Step 1: Create iteration field.
 	var createMutation struct {
 		CreateProjectV2Field struct {
 			ProjectV2Field struct {
@@ -1881,7 +1881,7 @@ func createIterationField(ctx context.Context, gqlClient *githubv4.Client, owner
 
 	fieldID := createMutation.CreateProjectV2Field.ProjectV2Field.ProjectV2IterationField.ID
 
-	// Step 2: Configure the iteration field with start date and duration.
+	// Step 2: Configure iteration field with start date 和duration.
 	var updateMutation struct {
 		UpdateProjectV2Field struct {
 			ProjectV2Field struct {
@@ -1907,8 +1907,8 @@ func createIterationField(ctx context.Context, gqlClient *githubv4.Client, owner
 	}
 
 	// GitHub's ProjectV2IterationFieldConfigurationInput requires `iterations` as a
-	// non-null array, so we always send at least an empty slice. When omitted, GitHub
-	// generates a default set of iterations from start_date and duration.
+	// non-null array, so we 始终send at least 一个空 slice. When omitted, GitHub
+	// generates 一个默认set of iterations from start_date 和duration.
 	iterationsInput := []ProjectV2IterationFieldIterationInput{}
 
 	if rawIterations, ok := args["iterations"].([]any); ok && len(rawIterations) > 0 {
@@ -1938,13 +1938,13 @@ func createIterationField(ctx context.Context, gqlClient *githubv4.Client, owner
 			iterationsInput = append(iterationsInput, ProjectV2IterationFieldIterationInput{
 				Title:     githubv4.String(iterTitle),
 				StartDate: githubv4.Date{Time: parsedIterStartDate},
-				Duration:  githubv4.Int(int32(iterDuration)), //nolint:gosec // Iteration durations are small day counts
+				Duration:  githubv4.Int(int32(iterDuration)), //nolint:gosec // Iteration durations are sm所有day counts
 			})
 		}
 	}
 
 	configInput := ProjectV2IterationFieldConfigurationInput{
-		Duration:   githubv4.Int(int32(duration)), //nolint:gosec // Iteration durations are small day counts
+		Duration:   githubv4.Int(int32(duration)), //nolint:gosec // Iteration durations are sm所有day counts
 		StartDate:  githubv4.Date{Time: parsedStartDate},
 		Iterations: iterationsInput,
 	}
@@ -1981,7 +1981,7 @@ func createIterationField(ctx context.Context, gqlClient *githubv4.Client, owner
 	return MarshalledTextResult(result), nil, nil
 }
 
-// getOwnerNodeID resolves a GitHub user or organization login to its GraphQL node ID.
+// 获取OwnerNodeID resolves 一个GitHub user 或organization login to its GraphQL node ID.
 func getOwnerNodeID(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string) (string, error) {
 	if ownerType == "org" {
 		var query struct {
@@ -2008,33 +2008,33 @@ func getOwnerNodeID(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 	return query.User.ID, err
 }
 
-// UpdateProjectV2FieldInput is the GraphQL input for the updateProjectV2Field mutation.
-// These types are defined locally because the pinned shurcooL/githubv4 release
-// (v0.0.0-20240727222349) does not yet expose them. Upstream master now generates
-// equivalent types, so this block can be removed when the dependency is next bumped.
+// UpdateProjectV2FieldInput is GraphQL 输入 用于更新ProjectV2Field mutation.
+// 这些types are defined lo调用y 因为the pinned shurcooL/githubv4 release
+// (v0.0.0-20240727222349) does 不yet expose them. Upstream master now generates
+// equivalent types, so this block 可以 removed 当dependency is 下一个 bumped.
 type UpdateProjectV2FieldInput struct {
 	FieldID                githubv4.ID                                `json:"fieldId"`
 	IterationConfiguration *ProjectV2IterationFieldConfigurationInput `json:"iterationConfiguration,omitempty"`
 }
 
-// ProjectV2IterationFieldConfigurationInput is the GraphQL input for configuring an iteration field.
-// GitHub's schema marks iterations as a required non-null list, so the field is not omitempty.
+// ProjectV2IterationFieldConfigurationInput is GraphQL 输入 f或configuring 一个iteration field.
+// GitHub's schema marks iterations as 一个必需 non-null 列出, so field is 不omit空.
 type ProjectV2IterationFieldConfigurationInput struct {
 	Duration   githubv4.Int                            `json:"duration"`
 	StartDate  githubv4.Date                           `json:"startDate"`
 	Iterations []ProjectV2IterationFieldIterationInput `json:"iterations"`
 }
 
-// ProjectV2IterationFieldIterationInput is the GraphQL input for a single iteration definition.
+// ProjectV2IterationFieldIterationInput is GraphQL 输入 f或一个单个 iteration definition.
 type ProjectV2IterationFieldIterationInput struct {
 	StartDate githubv4.Date   `json:"startDate"`
 	Duration  githubv4.Int    `json:"duration"`
 	Title     githubv4.String `json:"title"`
 }
 
-// detectOwnerType attempts to detect whether the project owner is a user or org.
-// It first asks GitHub for the account type, then falls back to project probes
-// for older or mocked clients where the account type is unavailable.
+// detectOwnerType attempts to detect whether project owner is 一个user 或org.
+// It 第一个 asks GitHub 用于account type, 然后falls back to project probes
+// f或older 或模拟ed 客户端s 其中account type is unavailable.
 func detectOwnerType(ctx context.Context, client *github.Client, owner string, projectNumber int) (string, error) {
 	user, resp, err := client.Users.Get(ctx, owner)
 	if resp != nil && resp.Body != nil {
@@ -2049,7 +2049,7 @@ func detectOwnerType(ctx context.Context, client *github.Client, owner string, p
 		}
 	}
 
-	// Try user first (more common for personal projects)
+	// Try user 第一个 (more common f或personal projects)
 	_, resp, err = client.Projects.GetUserProject(ctx, owner, projectNumber)
 	if err == nil && resp.StatusCode == http.StatusOK {
 		_ = resp.Body.Close()
@@ -2059,7 +2059,7 @@ func detectOwnerType(ctx context.Context, client *github.Client, owner string, p
 		_ = resp.Body.Close()
 	}
 
-	// If not found (404) or other error, try org
+	// If 不found (404) 或other 错误, try org
 	_, resp, err = client.Projects.GetOrganizationProject(ctx, owner, projectNumber)
 	if err == nil && resp.StatusCode == http.StatusOK {
 		_ = resp.Body.Close()

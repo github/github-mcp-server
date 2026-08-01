@@ -1,0 +1,11 @@
+# Compiled object files, static and dynamic libs (shared objects)
+*.o
+*.a
+*.so
+*.exe
+
+# Folders
+_test
+
+# Backup files
+*~

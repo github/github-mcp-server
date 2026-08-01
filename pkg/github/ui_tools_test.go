@@ -20,11 +20,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// recorderTransport routes HTTP requests through an in-process handler, mirroring
-// internal/githubv4mock's own transport. We need it because githubv4mock keys its
-// matchers by query string, so it cannot model a multi-page labels query: every
-// page issues the identical query and differs only by the $cursor variable. This
-// transport lets a single handler answer each page dynamically.
+// recorderTransport routes HTTP 请求s through 一个in-process 处理器, mirroring
+// internal/githubv4模拟's own transport. We need it 因为githubv4模拟 keys its
+// matchers by query string, so it can不model 一个multi-页 labels query: every
+// 页 议题 identical query 和differs 仅由$curs或variable. 此
+// transport lets 一个单个 处理器 answer 每个页 dynami调用y.
 type recorderTransport struct{ handler http.Handler }
 
 func (rt recorderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -33,11 +33,11 @@ func (rt recorderTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	return rec.Result(), nil
 }
 
-// alwaysHasNextPageLabelsClient returns a GraphQL client whose labels query always
-// reports another page, advancing the cursor on each call. It exercises uiGetLabels'
-// page cap: the loop fetches one label per page until it stops at uiGetMaxPages with
-// has_more=true. totalCount is reported as a large server-side count so the test can
-// confirm it stays the full repo count even when results are truncated.
+// alwaysHasNextPageLabelsClient 返回 一个GraphQL 客户端 whose labels query always
+// reports another 页, advancing curs或on 每个调用. It exercises uiGetLabels'
+// 页 cap: loop fetches one label per 页 until it stops at uiGetMaxPages with
+// has_more=真. totalCount is reported as 一个large 服务器-side count so test can
+// confirm it stays full repo count even when 结果 are truncated.
 func alwaysHasNextPageLabelsClient(t *testing.T) *http.Client {
 	t.Helper()
 	var calls int
@@ -71,11 +71,11 @@ func alwaysHasNextPageLabelsClient(t *testing.T) *http.Client {
 	return &http.Client{Transport: recorderTransport{handler: mux}}
 }
 
-// alwaysNextPageHandler returns a REST handler that always advertises another page
-// via the Link header, regardless of the page requested. It drives a pagination loop
-// purely off the page cap so tests can assert ui_get stops at uiGetMaxPages and sets
-// has_more=true. The same body is returned for every page, so the number of items
-// collected equals the number of pages fetched.
+// alwaysNextPageHandler 返回 一个REST 处理器 that 始终advertises another 页
+// via Link header, regardless 的页 请求ed. It drives 一个pagination loop
+// purely off 页 cap so tests can assert ui_获取 stops at uiGetMaxPages 和sets
+// has_more=真. 相同 body is 返回ed f或every 页, so number of items
+// collected equals number of 页s fetched.
 func alwaysNextPageHandler(t *testing.T, body any) http.HandlerFunc {
 	t.Helper()
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -93,7 +93,7 @@ func alwaysNextPageHandler(t *testing.T, body any) http.HandlerFunc {
 }
 
 func Test_UIGet(t *testing.T) {
-	// Verify tool definition
+	// Verify 工具定义
 	serverTool := UIGet(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -107,13 +107,13 @@ func Test_UIGet(t *testing.T) {
 	assert.True(t, tool.Annotations.ReadOnlyHint, "ui_get should be read-only")
 	assert.Equal(t, MCPAppsFeatureFlag, serverTool.FeatureFlagEnable, "ui_get should be gated on the MCP Apps feature flag")
 
-	// ui_get must be app-only so the host hides it from the agent's tool list
-	// while keeping it callable by the views (MCP Apps 2026-01-26 spec).
+	// ui_获取 必须是 app-仅so host hides it 来自agent's 工具 列出
+	// 当keeping it 调用able 由views (MCP Apps 2026-01-26 spec).
 	ui, ok := tool.Meta["ui"].(map[string]any)
 	require.True(t, ok, "ui_get should declare _meta.ui")
 	assert.Equal(t, []string{"app"}, ui["visibility"], "ui_get should be app-only")
 
-	// Setup mock data
+	// Setup 模拟 数据
 	mockAssignees := []*github.User{
 		{Login: github.Ptr("user1"), AvatarURL: github.Ptr("https://avatars.githubusercontent.com/u/1")},
 		{Login: github.Ptr("user2"), AvatarURL: github.Ptr("https://avatars.githubusercontent.com/u/2")},
@@ -418,8 +418,8 @@ func Test_UIGet(t *testing.T) {
 				require.True(t, ok, "labels should be a list")
 				assert.Len(t, labels, uiGetMaxPages, "loop should stop at the page cap")
 				assert.Equal(t, true, response["has_more"], "truncated results should set has_more")
-				// totalCount stays the server-reported full count, so it can exceed
-				// the number of labels returned once results are truncated.
+				// totalCount stays 服务器-reported full count, so it can exceed
+				// number of labels 返回ed once 结果 are truncated.
 				assert.Equal(t, float64(9999), response["totalCount"])
 			},
 		},
@@ -489,7 +489,7 @@ func Test_UIGet(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup deps with REST and/or GraphQL mocks
+			// Setup deps with REST and/或GraphQL 模拟s
 			deps := BaseDeps{}
 			if tc.mockedClient != nil {
 				client, err := github.NewClient(github.WithHTTPClient(tc.mockedClient))
@@ -501,13 +501,13 @@ func Test_UIGet(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
+			// C所有处理器
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				if err != nil {
 					assert.Contains(t, err.Error(), tc.expectedErrMsg)

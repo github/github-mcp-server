@@ -27,7 +27,7 @@ const (
 	DescriptionRepositoryName  = "Repository name"
 )
 
-// Method constants for consolidated actions tools
+// Method constants f或consolidated actions 工具
 const (
 	actionsMethodListWorkflows            = "list_workflows"
 	actionsMethodListWorkflowRuns         = "list_workflow_runs"
@@ -46,9 +46,9 @@ const (
 	actionsMethodDeleteWorkflowRunLogs    = "delete_workflow_run_logs"
 )
 
-// handleFailedJobLogs gets logs for all failed jobs in a workflow run
+// handleFailedJobLogs 获取s logs f或所有failed jobs in 一个工作流 run
 func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, any, error) {
-	// First, get all jobs for the workflow run
+	// First, 获取 所有jobs 用于工作流 run
 	jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, &github.ListWorkflowJobsOptions{
 		Filter: "latest",
 	})
@@ -57,7 +57,7 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Filter for failed jobs
+	// Filter f或failed jobs
 	var failedJobs []*github.WorkflowJob
 	for _, job := range jobs.Jobs {
 		if job.GetConclusion() == "failure" {
@@ -76,7 +76,7 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 		return utils.NewToolResultText(string(r)), nil, nil
 	}
 
-	// Collect logs for all failed jobs
+	// Collect logs f或所有failed jobs
 	var logResults []map[string]any
 	for _, job := range failedJobs {
 		jobResult, resp, err := getJobLogData(ctx, client, owner, repo, job.GetID(), job.GetName(), returnContent, tailLines, contentWindowSize)
@@ -87,8 +87,8 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 				"job_name": job.GetName(),
 				"error":    err.Error(),
 			}
-			// Enable reporting of status codes and error causes
-			_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get job logs", resp, err) // Explicitly ignore error for graceful handling
+			// Enable reporting of status codes 和错误 causes
+			_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get job logs", resp, err) // Explicitly ignore 错误 f或graceful handling
 		}
 
 		logResults = append(logResults, jobResult)
@@ -111,7 +111,7 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 	return utils.NewToolResultText(string(r)), nil, nil
 }
 
-// handleSingleJobLogs gets logs for a single job
+// handleSingleJobLogs 获取s logs f或一个单个 job
 func handleSingleJobLogs(ctx context.Context, client *github.Client, owner, repo string, jobID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, any, error) {
 	jobResult, resp, err := getJobLogData(ctx, client, owner, repo, jobID, "", returnContent, tailLines, contentWindowSize)
 	if err != nil {
@@ -126,9 +126,9 @@ func handleSingleJobLogs(ctx context.Context, client *github.Client, owner, repo
 	return utils.NewToolResultText(string(r)), nil, nil
 }
 
-// getJobLogData retrieves log data for a single job, either as URL or content
+// 获取JobLogData retrieves log 数据 f或一个单个 job, either as URL 或内容
 func getJobLogData(ctx context.Context, client *github.Client, owner, repo string, jobID int64, jobName string, returnContent bool, tailLines int, contentWindowSize int) (map[string]any, *github.Response, error) {
-	// Get the download URL for the job logs
+	// Get download URL 用于job logs
 	url, resp, err := client.Actions.GetWorkflowJobLogs(ctx, owner, repo, jobID, 1)
 	if err != nil {
 		return nil, resp, fmt.Errorf("failed to get job logs for job %d: %w", jobID, err)
@@ -143,10 +143,10 @@ func getJobLogData(ctx context.Context, client *github.Client, owner, repo strin
 	}
 
 	if returnContent {
-		// Download and return the actual log content
-		content, originalLength, httpResp, err := downloadLogContent(ctx, url.String(), tailLines, contentWindowSize) //nolint:bodyclose // Response body is closed in downloadLogContent, but we need to return httpResp
+		// Download 和返回 actual log 内容
+		content, originalLength, httpResp, err := downloadLogContent(ctx, url.String(), tailLines, contentWindowSize) //nolint:bodyclose // Response body is closed in downloadLogContent, 但we need to 返回 httpResp
 		if err != nil {
-			// To keep the return value consistent wrap the response as a GitHub Response
+			// To keep 返回 值 consistent wrap 响应 as 一个GitHub Response
 			ghRes := &github.Response{
 				Response: httpResp,
 			}
@@ -156,7 +156,7 @@ func getJobLogData(ctx context.Context, client *github.Client, owner, repo strin
 		result["message"] = "Job logs content retrieved successfully"
 		result["original_length"] = originalLength
 	} else {
-		// Return just the URL
+		// Return just URL
 		result["logs_url"] = url.String()
 		result["message"] = "Job logs are available for download"
 		result["note"] = "The logs_url provides a download link for the individual job logs in plain text format. Use return_content=true to get the actual log content."
@@ -197,7 +197,7 @@ func downloadLogContent(ctx context.Context, logURL string, tailLines int, maxLi
 	return finalResult, totalLines, httpResp, nil
 }
 
-// ActionsList returns the tool and handler for listing GitHub Actions resources.
+// ActionsList 返回 工具 和处理器 f或列出ing GitHub Actions 资源.
 func ActionsList(t translations.TranslationHelperFunc) inventory.ServerTool {
 	tool := NewTool(
 		ToolsetMetadataActions,
@@ -355,10 +355,10 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			// attachIFC adds the IFC label to a successful Actions result when
-			// IFC labels are enabled. Workflow definitions, runs, jobs,
-			// artifacts and logs echo attacker-influenceable run output, so
-			// integrity is untrusted; confidentiality follows repo visibility.
+			// attachIFC adds IFC label to 一个成功ful Actions 结果 when
+			// IFC labels are 启用. Workflow definitions, runs, jobs,
+			// artifacts 和logs echo attacker-influenceable run 输出, so
+			// integrity is 不受信任; confidentiality follows repo visibility.
 			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
 				return attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, r, ifc.LabelActionsResult)
 			}
@@ -367,16 +367,16 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 			var parseErr error
 			switch method {
 			case actionsMethodListWorkflows:
-				// Do nothing, no resource ID needed
+				// Do nothing, no 资源 ID needed
 			case actionsMethodListWorkflowRuns:
-				// resource_id is optional for list_workflow_runs
-				// If not provided, list all workflow runs in the repository
+				// 资源_id is 可选 f或列出_工作流_runs
+				// If 不provided, 列出 所有工作流 runs 在仓库
 			default:
 				if resourceID == "" {
 					return utils.NewToolResultError(fmt.Sprintf("missing required parameter for method %s: resource_id", method)), nil, nil
 				}
 
-				// resource ID must be an integer for jobs and artifacts
+				// 资源 ID 必须是 一个integer f或jobs 和artifacts
 				resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
 				if parseErr != nil {
 					return utils.NewToolResultError(fmt.Sprintf("invalid resource_id, must be an integer for method %s: %v", method, parseErr)), nil, nil
@@ -404,7 +404,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 	return tool
 }
 
-// ActionsGet returns the tool and handler for getting GitHub Actions resources.
+// ActionsGet 返回 工具 和处理器 f或获取ting GitHub Actions 资源.
 func ActionsGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 	tool := NewTool(
 		ToolsetMetadataActions,
@@ -478,10 +478,10 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			// attachIFC adds the IFC label to a successful Actions result when
-			// IFC labels are enabled. Workflow runs, jobs, artifacts, usage,
-			// and log URLs reflect attacker-influenceable run output, so
-			// integrity is untrusted; confidentiality follows repo visibility.
+			// attachIFC adds IFC label to 一个成功ful Actions 结果 when
+			// IFC labels are 启用. Workflow runs, jobs, artifacts, usage,
+			// 和log URLs reflect attacker-influenceable run 输出, so
+			// integrity is 不受信任; confidentiality follows repo visibility.
 			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
 				return attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, r, ifc.LabelActionsResult)
 			}
@@ -490,9 +490,9 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 			var parseErr error
 			switch method {
 			case actionsMethodGetWorkflow:
-				// Do nothing, we accept both a string workflow ID or filename
+				// Do nothing, we accept both 一个string 工作流 ID 或文件name
 			default:
-				// For other methods, resource ID must be an integer
+				// F或other methods, 资源 ID 必须是 一个integer
 				resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
 				if parseErr != nil {
 					return utils.NewToolResultError(fmt.Sprintf("invalid resource_id, must be an integer for method %s: %v", method, parseErr)), nil, nil
@@ -526,7 +526,7 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 	return tool
 }
 
-// ActionsRunTrigger returns the tool and handler for triggering GitHub Actions workflows.
+// ActionsRunTrigger 返回 工具 和处理器 f或triggering GitHub Actions 工作流.
 func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerTool {
 	tool := NewTool(
 		ToolsetMetadataActions,
@@ -596,18 +596,18 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Get optional parameters
+			// Get 可选 参数
 			workflowID, _ := OptionalParam[string](args, "workflow_id")
 			ref, _ := OptionalParam[string](args, "ref")
 			runID, _ := OptionalIntParam(args, "run_id")
 
-			// Get optional inputs parameter
+			// Get 可选 输入s 参数
 			inputs, err := OptionalParam[map[string]any](args, "inputs")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Validate required parameters based on action type
+			// Validate 必需 参数 based on action type
 			if method == actionsMethodRunWorkflow {
 				if workflowID == "" {
 					return utils.NewToolResultError("workflow_id is required for run_workflow action"), nil, nil
@@ -643,7 +643,7 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 	return tool
 }
 
-// ActionsGetJobLogs returns the tool and handler for getting workflow job logs.
+// ActionsGetJobLogs 返回 工具 和处理器 f或获取ting 工作流 job logs.
 func ActionsGetJobLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
 	tool := NewTool(
 		ToolsetMetadataActions,
@@ -728,7 +728,7 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			// Default to 500 lines if not specified or invalid
+			// 默认to 500 行s if 不specified 或invalid
 			if tailLines <= 0 {
 				tailLines = 500
 			}
@@ -738,7 +738,7 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			// Validate parameters
+			// Validate 参数
 			if failedOnly && runID == 0 {
 				return utils.NewToolResultError("run_id is required when failed_only is true"), nil, nil
 			}
@@ -746,20 +746,20 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 				return utils.NewToolResultError("job_id is required when failed_only is false"), nil, nil
 			}
 
-			// attachIFC adds the IFC label to a successful result when IFC
-			// labels are enabled. Job logs echo attacker-influenceable run
-			// output, so integrity is untrusted; confidentiality follows repo
+			// attachIFC adds IFC label to 一个成功ful 结果 when IFC
+			// labels are 启用. Job logs echo attacker-influenceable run
+			// 输出, so integrity is 不受信任; confidentiality follows repo
 			// visibility.
 			attachIFC := func(r *mcp.CallToolResult) *mcp.CallToolResult {
 				return attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, r, ifc.LabelActionsResult)
 			}
 
 			if failedOnly && runID > 0 {
-				// Handle failed-only mode: get logs for all failed jobs in the workflow run
+				// Handle failed-仅mode: 获取 logs f或所有failed jobs 在工作流 run
 				result, payload, err := handleFailedJobLogs(ctx, client, owner, repo, int64(runID), returnContent, tailLines, deps.GetContentWindowSize())
 				return attachIFC(result), payload, err
 			} else if jobID > 0 {
-				// Handle single job mode
+				// Handle 单个 job mode
 				result, payload, err := handleSingleJobLogs(ctx, client, owner, repo, int64(jobID), returnContent, tailLines, deps.GetContentWindowSize())
 				return attachIFC(result), payload, err
 			}
@@ -770,7 +770,7 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 	return tool
 }
 
-// Helper functions for consolidated actions tools
+// Helper 函数s f或consolidated actions 工具
 
 func getWorkflow(ctx context.Context, client *github.Client, owner, repo, resourceID string) (*mcp.CallToolResult, any, error) {
 	var workflow *github.Workflow
@@ -952,14 +952,14 @@ func listWorkflowArtifacts(ctx context.Context, client *github.Client, owner, re
 }
 
 func downloadWorkflowArtifact(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, any, error) {
-	// Get the download URL for the artifact
+	// Get download URL 用于artifact
 	url, resp, err := client.Actions.DownloadArtifact(ctx, owner, repo, resourceID, 1)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get artifact download URL", resp, err), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Create response with the download URL and information
+	// Create 响应 使用download URL 和信息
 	result := map[string]any{
 		"download_url": url.String(),
 		"message":      "Artifact is available for download",
@@ -976,14 +976,14 @@ func downloadWorkflowArtifact(ctx context.Context, client *github.Client, owner,
 }
 
 func getWorkflowRunLogsURL(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, any, error) {
-	// Get the download URL for the logs
+	// Get download URL 用于logs
 	url, resp, err := client.Actions.GetWorkflowRunLogs(ctx, owner, repo, runID, 1)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get workflow run logs", resp, err), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Create response with the logs URL and information
+	// Create 响应 使用logs URL 和信息
 	result := map[string]any{
 		"logs_url":         url.String(),
 		"message":          "Workflow run logs are available for download",

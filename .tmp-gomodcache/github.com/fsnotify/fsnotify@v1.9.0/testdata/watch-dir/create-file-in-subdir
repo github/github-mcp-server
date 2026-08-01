@@ -1,0 +1,10 @@
+watch /
+mkdir /dir
+touch /dir/file
+
+Output:
+	create  /dir
+
+	fen: # TODO
+		create  /dir
+		write   /dir

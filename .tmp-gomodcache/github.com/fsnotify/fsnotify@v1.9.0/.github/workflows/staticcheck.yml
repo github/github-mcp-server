@@ -1,0 +1,70 @@
+name: 'staticcheck'
+on:
+  pull_request:
+    paths: ['**.go', 'go.mod', '.github/workflows/*']
+  push:
+    branches: ['main']
+
+jobs:
+  staticcheck:
+    name:    'staticcheck'
+    runs-on: 'ubuntu-latest'
+    env:     {cache: 'staticcheck-${{ github.ref }}'}
+    steps:
+      # Setup
+      - uses: 'actions/checkout@v4'
+      - id:   'cache-restore'
+        uses: 'actions/cache/restore@v4'
+        with:
+          key: '${{ env.cache }}'
+          path: |
+            ${{ runner.temp }}/staticcheck
+            /home/runner/.cache/go-build
+          restore-keys: |
+            staticcheck-${{ github.ref }}
+            staticcheck-refs/heads/main
+      - uses: 'actions/setup-go@v5'
+        with: {go-version: '1.24'}
+      - uses: 'actions/cache@v4'
+        with:
+          key: '${{ runner.os }}-staticcheck'
+          path: |
+            ${{ runner.temp }}/staticcheck
+            ${{ steps.install_go.outputs.GOCACHE || '' }}
+
+      # Run
+      - run: |
+          export STATICCHECK_CACHE="${{ runner.temp }}/staticcheck"
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+
+          fail=0
+          for a in $(go tool dist list); do
+            export GOOS=${a%%/*}
+            export GOARCH=${a#*/}
+
+            case "$GOOS" in
+              (android|ios)  continue ;; # Requires cgo to link.
+              (js|wasip1)    continue ;; # No build tags in internal/ TODO: should maybe fix?
+              (plan9)        continue ;; # Errors out on some missing definitions like syscall.Errno.
+            esac
+
+            echo $a
+            go vet ./... || fail=1
+            staticcheck ./... || fail=1
+          done
+          exit $fail
+
+      # Store cache
+      - name: 'delete existing cache'
+        if:   '${{ steps.cache-restore.outputs.cache-hit }}'
+        env:  {GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'}
+        continue-on-error: true
+        run: |
+          gh extension install actions/gh-actions-cache
+          gh actions-cache delete "${{ env.cache }}" --confirm
+      - uses: 'actions/cache/save@v4'
+        with:
+          key: '${{ env.cache }}'
+          path: |
+            ${{ runner.temp }}/staticcheck
+            /home/runner/.cache/go-build

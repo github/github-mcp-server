@@ -1,0 +1,69 @@
+concurrency:
+  group: ${{ github.repository }}-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+name: tests
+env:
+  GO111MODULE: on
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      matrix:
+        go-version: [stable, oldstable] # test with N and the .0 release of N-1
+        platform: [ubuntu-latest]
+        include:
+          # include windows, but only with the latest Go version, since there
+          # is very little in the library that is platform specific
+          - go-version: stable
+            platform: windows-latest
+
+          # only update test coverage stats with the most recent go version on linux
+          - go-version: stable
+            platform: ubuntu-latest
+            update-coverage: true
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache-dependency-path: "**/go.sum"
+
+      - name: Run go test
+        run: |
+          if [ -n "${{ matrix.update-coverage }}" ]; then
+            script/test.sh -race -covermode atomic -coverprofile coverage.txt ./...
+            exit
+          fi
+          script/test.sh -race -covermode atomic ./...
+
+      - name: Ensure integration tests build
+        # don't actually run tests since they hit live GitHub API
+        run: go test -v -tags=integration -run=^$ ./test/integration
+
+      - name: Upload coverage to Codecov
+        if: ${{ matrix.update-coverage }}
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          use_oidc: true

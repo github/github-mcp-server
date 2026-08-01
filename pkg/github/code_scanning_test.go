@@ -15,7 +15,7 @@ import (
 )
 
 func Test_GetCodeScanningAlert(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	toolDef := GetCodeScanningAlert(translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
@@ -30,7 +30,7 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 	assert.Contains(t, schema.Properties, "alertNumber")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "alertNumber"})
 
-	// Setup mock alert for success case
+	// Setup 模拟 alert f或成功 case
 	mockAlert := &github.Alert{
 		Number:  github.Ptr(42),
 		State:   github.Ptr("open"),
@@ -79,20 +79,20 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := toolDef.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler with new signature
+			// C所有处理器 with 新的 signature
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -104,10 +104,10 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedAlert github.Alert
 			err = json.Unmarshal([]byte(textContent.Text), &returnedAlert)
 			assert.NoError(t, err)
@@ -121,7 +121,7 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 }
 
 func Test_ListCodeScanningAlerts(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	toolDef := ListCodeScanningAlerts(translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
@@ -141,7 +141,7 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
-	// Setup mock alerts for success case
+	// Setup 模拟 alerts f或成功 case
 	mockAlerts := []*github.Alert{
 		{
 			Number:  github.Ptr(42),
@@ -228,20 +228,20 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
+			// Setup 客户端 with 模拟
 			client := mustNewGHClient(t, tc.mockedClient)
 			deps := BaseDeps{
 				Client: client,
 			}
 			handler := toolDef.Handler(deps)
 
-			// Create call request
+			// Create c所有请求
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler with new signature
+			// C所有处理器 with 新的 signature
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
-			// Verify results
+			// Verify 结果
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
@@ -253,10 +253,10 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse 结果 和获取 text 内容 如果没有错误
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Unmarshal 和verify 结果
 			var returnedAlerts []*github.Alert
 			err = json.Unmarshal([]byte(textContent.Text), &returnedAlerts)
 			assert.NoError(t, err)

@@ -1,0 +1,16 @@
+# Rename a symlink.
+require symlink
+
+touch /file
+ln -s /file /link
+
+watch /
+
+mv /link /link-rename
+
+Output:
+	rename /link
+	create /link-rename ← /link
+
+	kqueue:  # TODO: this is broken.
+		create /link-rename

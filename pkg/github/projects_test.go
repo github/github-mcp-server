@@ -15,10 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Tests for consolidated project tools
+// Tests f或consolidated project 工具
 
 func Test_ProjectsList(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	toolDef := ProjectsList(translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
@@ -580,7 +580,7 @@ func Test_ProjectsList_IFC_InsidersMode(t *testing.T) {
 }
 
 func Test_ProjectsGet(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	toolDef := ProjectsGet(translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
@@ -861,7 +861,7 @@ func Test_ProjectsGet_GetProjectItem(t *testing.T) {
 }
 
 func Test_ProjectsWrite(t *testing.T) {
-	// Verify tool definition once
+	// Verify 工具定义 once
 	toolDef := ProjectsWrite(translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
@@ -973,7 +973,7 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 					},
 				}),
 			),
-			// Mock project ID query for org
+			// Mock project ID query f或org
 			githubv4mock.NewQueryMatcher(
 				struct {
 					Organization struct {
@@ -1074,7 +1074,7 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 					},
 				}),
 			),
-			// Mock project ID query for user
+			// Mock project ID query f或user
 			githubv4mock.NewQueryMatcher(
 				struct {
 					User struct {
@@ -1442,12 +1442,12 @@ func Test_ProjectsList_ListProjectStatusUpdates(t *testing.T) {
 	toolDef := ProjectsList(translations.NullTranslationHelper)
 
 	t.Run("success via consolidated tool", func(t *testing.T) {
-		// REST mock for detectOwnerType (when owner_type is omitted)
+		// REST 模拟 f或detectOwnerType (when owner_type is omitted)
 		restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetUsersProjectsV2ByUsernameByProject: mockResponse(t, http.StatusOK, map[string]any{"id": 1}),
 		})
 
-		// GQL mock for listProjectStatusUpdates
+		// GQL 模拟 f或列出ProjectStatusUpdates
 		gqlMockedClient := githubv4mock.NewMockedHTTPClient(
 			githubv4mock.NewQueryMatcher(
 				statusUpdatesUserQuery{},
@@ -1570,7 +1570,7 @@ func Test_ProjectsWrite_CreateProjectStatusUpdate(t *testing.T) {
 		statusStr := githubv4.String("AT_RISK")
 
 		gqlMockedClient := githubv4mock.NewMockedHTTPClient(
-			// Mock project ID query for user
+			// Mock project ID query f或user
 			githubv4mock.NewQueryMatcher(
 				struct {
 					User struct {
@@ -1591,7 +1591,7 @@ func Test_ProjectsWrite_CreateProjectStatusUpdate(t *testing.T) {
 					},
 				}),
 			),
-			// Mock createProjectV2StatusUpdate mutation
+			// Mock 创建ProjectV2StatusUpdate mutation
 			githubv4mock.NewMutationMatcher(
 				struct {
 					CreateProjectV2StatusUpdate struct {

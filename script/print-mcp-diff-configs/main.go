@@ -1,28 +1,23 @@
-// Command print-mcp-diff-configs emits the configuration matrix consumed by
-// the mcp-server-diff GitHub Action. The matrix is composed of three parts:
+// Command print-mcp-diff-configs 输出由 mcp-server-diff GitHub Action 使用的配置矩阵。
+// 该矩阵由三部分组成：
 //
-//  1. Hand-curated baseline configs (default, read-only, common toolset combos)
-//  2. Insiders configs (--insiders, --insiders --read-only) — meta flag that
-//     expands to the curated insiders feature set
-//  3. One config per entry in github.AllowedFeatureFlags — automatically kept
-//     in sync with the Go source so any new user-controllable feature flag
-//     gets diffed without touching the workflow
+//  1. 人工维护的基准配置（默认、只读和常用工具集组合）
+//  2. Insiders 配置（--insiders、--insiders --read-only），该元标志会展开为精心维护的 insiders 功能集
+//  3. github.AllowedFeatureFlags 中每个条目各有一个配置；它与 Go 源码自动保持同步，
+//     因而任何新的用户可控 feature flag 都会被比较，无需修改工作流
 //
-// The same logical matrix is rendered for two transports, selected by
-// -transport:
+// 同一逻辑矩阵会渲染为两种传输方式，由 -transport 选择：
 //
-// stdio        Default. Args are appended to the action's top-level
+// stdio        默认方式。参数会附加到 action 的顶层
 //
-//	start_command (one stdio process per config).
+//	start_command（每个配置一个 stdio 进程）。
 //
-// http-headers streamable-http transport against a shared HTTP server. The
+// http-headers 针对共享 HTTP 服务器的 streamable-http 传输方式。该
 //
-//	server is started once with no extra flags and every config
-//	provides its settings via X-MCP-* request headers, mirroring
-//	how the remote server is invoked in production (server-side
-//	defaults + per-user header overrides).
+//	服务器仅启动一次且不带额外标志；每个配置通过 X-MCP-* 请求头提供设置，
+//	这与生产环境调用远程服务器的方式一致（服务器端默认值加上每用户请求头覆盖）。
 //
-// Usage:
+// 用法：
 //
 // go run ./script/print-mcp-diff-configs
 // go run ./script/print-mcp-diff-configs -transport http-headers
@@ -48,16 +43,15 @@ type config struct {
 	Headers   map[string]string `json:"headers,omitempty"`
 }
 
-// baseEntry describes one logical configuration in transport-agnostic form.
-// settings are translated to either CLI flags or X-MCP-* headers depending on
-// the target transport.
+// baseEntry 以与传输方式无关的形式描述一个逻辑配置。
+// settings 会根据目标传输方式转换为 CLI 标志或 X-MCP-* 请求头。
 type baseEntry struct {
 	name     string
 	settings settings
 }
 
 type settings struct {
-	toolsets     string // comma-separated, "" for defaults
+	toolsets     string // 以逗号分隔，"" 表示默认值
 	tools        string
 	excludeTools string
 	features     string
@@ -86,10 +80,8 @@ func main() {
 			if h == nil {
 				h = map[string]string{}
 			}
-			// The action's top-level headers may be replaced (not merged) by
-			// per-config headers, so always include the bearer token here.
-			// The token must match a recognized GitHub prefix so the server's
-			// Authorization parser accepts it without contacting the API.
+			// action 的顶层请求头可能被每个配置的请求头替换（而非合并），因此始终在此包含 bearer token。
+			// token 必须具有已识别的 GitHub 前缀，服务器的 Authorization 解析器才能在不联系 API 的情况下接受它。
 			h[mcphdr.AuthorizationHeader] = "Bearer ghp_test"
 			out = append(out, config{
 				Name:      e.name,
@@ -127,8 +119,7 @@ func baseEntries() []baseEntry {
 		{name: "toolsets-repos+read-only", settings: settings{toolsets: "repos", readOnly: true}},
 		{name: "insiders", settings: settings{insiders: true}},
 		{name: "insiders+read-only", settings: settings{insiders: true, readOnly: true}},
-		// Combined entries: exercise multiple settings together so we catch
-		// regressions when several X-MCP-* headers (or CLI flags) are merged.
+		// 组合条目：一并覆盖多个设置，以捕获合并多个 X-MCP-* 请求头（或 CLI 标志）时的回归。
 		{name: "combined-toolsets+exclude+readonly", settings: settings{
 			toolsets:     "repos,issues",
 			excludeTools: "delete_file",

@@ -1,22 +1,22 @@
-# Install GitHub MCP Server in Rovo Dev CLI
+# 在 Rovo Dev CLI 中安装 GitHub MCP Server
 
-## Prerequisites
+## 前提条件
 
-1. Rovo Dev CLI installed (latest version)
-2. [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new) with appropriate scopes
+1. 已安装 Rovo Dev CLI（最新版本）
+2. 具有适当作用域的 [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new)
 
-## MCP Server Setup
+## MCP Server 设置
 
-Uses GitHub's hosted server at https://api.githubcopilot.com/mcp/.
+使用 GitHub 托管的服务器：https://api.githubcopilot.com/mcp/。
 
-### Install steps
+### 安装步骤
 
-1. Run `acli rovodev mcp` to open the MCP configuration for Rovo Dev CLI
-2. Add configuration by following example below.
-3. Replace `YOUR_GITHUB_PAT` with your actual [GitHub Personal Access Token](https://github.com/settings/tokens)
-4. Save the file and restart Rovo Dev CLI with `acli rovodev`
+1. 运行 `acli rovodev mcp`，打开 Rovo Dev CLI 的 MCP 配置
+2. 按照下方示例添加配置。
+3. 将 `YOUR_GITHUB_PAT` 替换为实际的 [GitHub Personal Access Token](https://github.com/settings/tokens)
+4. 保存文件，并通过 `acli rovodev` 重启 Rovo Dev CLI
 
-### Example configuration
+### 配置示例
 
 ```json
 {

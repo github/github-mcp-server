@@ -1,0 +1,23 @@
+# Create a watcher in a directory with an unreadable file.
+
+skip windows # TODO: figure out how to make a file unreadable
+
+touch /unreadable
+chmod 0 /unreadable
+touch /file
+watch /
+
+echo hello >>/file
+rm /file
+rm /unreadable
+
+Output:
+	write     /file
+	remove    /file
+	remove    /unreadable
+
+	# We never set up a watcher on the unreadable file, so we don't get the
+	# remove.
+	kqueue:
+		write    /file
+		remove   /file

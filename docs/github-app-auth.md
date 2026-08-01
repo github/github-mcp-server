@@ -1,34 +1,26 @@
-# GitHub App authentication
+# GitHub App 身份验证
 
-The local stdio server can authenticate as a GitHub App installation without a
-browser, device flow, or elicitation. It signs a short-lived JWT with the app's
-private key, exchanges it for an installation access token, and refreshes the
-token before it expires.
+本地 stdio 服务器无需浏览器、设备流或 elicitation，即可作为 GitHub App installation 进行身份验证。它使用 App 的私钥签署短期 JWT，将其交换为 installation access token，并在 token 过期前刷新。
 
-This authentication mode is not available for the `http` command. HTTP clients
-must continue to provide their own `Authorization` token.
+此身份验证模式不适用于 `http` 命令。HTTP 客户端必须继续提供自己的 `Authorization` token。
 
 > [!WARNING]
-> The private key can mint tokens for every repository and permission granted to
-> the installation. Keep it out of source control, restrict access to the server
-> process, and install the app only on the repositories it needs.
+> 私钥可以为 installation 获授的每个 repository 和权限签发 token。请勿将其纳入源代码管理，限制服务器进程的访问权限，并且只在所需的 repository 上安装此 App。
 
-## Configuration
+## 配置
 
-Configure exactly one of a Personal Access Token, OAuth login, or GitHub App
-authentication.
+在 Personal Access Token、OAuth 登录和 GitHub App 身份验证中，只能配置其中一种。
 
-| Flag | Environment variable | Description |
+| Flag | 环境变量 | 描述 |
 |------|----------------------|-------------|
-| `--app-id` | `GITHUB_APP_ID` | App ID or client ID used as the JWT issuer |
-| `--app-installation-id` | `GITHUB_APP_INSTALLATION_ID` | Installation whose access token is used |
-| `--app-private-key-path` | `GITHUB_APP_PRIVATE_KEY_PATH` | Path to the private key PEM |
-| _(none)_ | `GITHUB_APP_PRIVATE_KEY` | PEM contents, optionally with literal `\n` escapes |
+| `--app-id` | `GITHUB_APP_ID` | 用作 JWT issuer 的 App ID 或 client ID |
+| `--app-installation-id` | `GITHUB_APP_INSTALLATION_ID` | 使用其 access token 的 installation |
+| `--app-private-key-path` | `GITHUB_APP_PRIVATE_KEY_PATH` | 私钥 PEM 的路径 |
+| _(无)_ | `GITHUB_APP_PRIVATE_KEY` | PEM 内容，可选择包含字面量 `\n` 转义符 |
 
-A mounted private-key file is preferred. There is no flag for inline PEM
-contents because command-line arguments may be visible to other processes.
+建议使用挂载的私钥文件。由于命令行参数可能会被其他进程读取，因此没有用于内联 PEM 内容的 flag。
 
-## Usage
+## 使用方法
 
 ```bash
 github-mcp-server stdio \
@@ -37,7 +29,7 @@ github-mcp-server stdio \
   --app-private-key-path /secrets/github-app.pem
 ```
 
-The equivalent environment configuration is:
+等效的环境变量配置为：
 
 ```bash
 export GITHUB_APP_ID=123456
@@ -46,7 +38,7 @@ export GITHUB_APP_PRIVATE_KEY_PATH=/secrets/github-app.pem
 github-mcp-server stdio
 ```
 
-For Docker, mount the key read-only:
+对于 Docker，请以只读方式挂载密钥：
 
 ```bash
 docker run -i --rm \
@@ -57,17 +49,11 @@ docker run -i --rm \
   ghcr.io/github/github-mcp-server
 ```
 
-For GitHub Enterprise Server or `ghe.com`, also set `--gh-host` or
-`GITHUB_HOST`. The server derives the installation-token endpoint from that
-host.
+对于 GitHub Enterprise Server 或 `ghe.com`，还需设置 `--gh-host` 或 `GITHUB_HOST`。服务器将从该 host 推导 installation-token endpoint。
 
-## Troubleshooting
+## 故障排除
 
-- **Private key required**: set `GITHUB_APP_PRIVATE_KEY_PATH` or
-  `GITHUB_APP_PRIVATE_KEY`.
-- **Invalid private key**: provide the RSA PEM generated in the GitHub App
-  settings. PKCS#1 and PKCS#8 keys are supported.
-- **401 from the installation-token endpoint**: verify the app ID or client ID,
-  private key, target host, and system clock.
-- **404 from the installation-token endpoint**: verify the installation ID and
-  that the app is installed on the target host.
+- **需要私钥**：设置 `GITHUB_APP_PRIVATE_KEY_PATH` 或 `GITHUB_APP_PRIVATE_KEY`。
+- **私钥无效**：提供 GitHub App 设置中生成的 RSA PEM。支持 PKCS#1 和 PKCS#8 密钥。
+- **installation-token endpoint 返回 401**：验证 app ID 或 client ID、私钥、目标 host 和系统时钟。
+- **installation-token endpoint 返回 404**：验证 installation ID，并确认 App 已安装在目标 host 上。
