@@ -538,26 +538,40 @@ func TestOAuthMultiRoundTripResultType(t *testing.T) {
 	assert.False(t, toolRan)
 }
 
-// TestRunStdioServerRejectsTokenAndOAuth verifies the mutually-exclusive guard:
-// supplying both a static token and an OAuth manager is rejected before the
-// server starts, rather than silently preferring one for auth and the other for
-// scope filtering.
-func TestRunStdioServerRejectsTokenAndOAuth(t *testing.T) {
+func TestRunStdioServerRejectsMultipleAuthModes(t *testing.T) {
 	t.Parallel()
 
 	mgr := oauth.NewManager(oauth.NewGitHubConfig("client-id", "", nil, "", 0), discardLogger())
-	err := RunStdioServer(StdioServerConfig{
-		Token:        "ghp_static",
-		OAuthManager: mgr,
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "mutually exclusive")
+
+	tests := []struct {
+		name string
+		cfg  StdioServerConfig
+	}{
+		{
+			name: "token and oauth",
+			cfg:  StdioServerConfig{Token: "ghp_static", OAuthManager: mgr},
+		},
+		{
+			name: "token and provider",
+			cfg:  StdioServerConfig{Token: "ghp_static", TokenProvider: func() string { return "token" }},
+		},
+		{
+			name: "oauth and provider",
+			cfg:  StdioServerConfig{OAuthManager: mgr, TokenProvider: func() string { return "token" }},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := RunStdioServer(tt.cfg)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "exactly one authentication mode")
+		})
+	}
 }
 
-// TestCreateGitHubClientsTokenProvider proves the OAuth wiring: when a
-// TokenProvider is configured the REST client authenticates with the provider's
-// current token on every request (and never pins a stale one), which is what the
-// lazy, refreshing OAuth token depends on.
+// TestCreateGitHubClientsTokenProvider verifies that clients resolve the
+// provider for every request instead of pinning a token.
 func TestCreateGitHubClientsTokenProvider(t *testing.T) {
 	t.Parallel()
 

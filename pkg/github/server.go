@@ -69,8 +69,7 @@ type MCPServerConfig struct {
 	TokenScopes []string
 
 	// TokenProvider, when non-nil, supplies the GitHub token for each API
-	// request instead of the static Token. It backs OAuth login, where the
-	// token is obtained lazily on first use and refreshed thereafter.
+	// request instead of the static Token.
 	TokenProvider func() string
 
 	// ToolHandlerMiddleware wraps every registered tool handler. Unlike MCP
@@ -90,6 +89,18 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 		Instructions:      inv.Instructions(),
 		Logger:            cfg.Logger,
 		CompletionHandler: CompletionsHandler(deps.GetClient),
+		// Advertise tools, prompts, and resources without list-changed
+		// notifications. The server has a static set of tools/prompts/resources
+		// and never mutates them at runtime, so it never emits list_changed
+		// notifications. Left unset, the SDK would infer listChanged:true from
+		// the presence of items and advertise a capability we don't support -
+		// which the 2026-07-28 spec (subscriptions/listen) makes stricter still.
+		// Explicitly declaring these keeps the advertised capabilities honest.
+		Capabilities: &mcp.ServerCapabilities{
+			Tools:     &mcp.ToolCapabilities{},
+			Prompts:   &mcp.PromptCapabilities{},
+			Resources: &mcp.ResourceCapabilities{},
+		},
 	}
 
 	// Apply any additional server options

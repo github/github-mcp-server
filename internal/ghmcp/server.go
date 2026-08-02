@@ -62,7 +62,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
 	}
 
-	// Construct REST client. When a TokenProvider is configured (OAuth), we
+	// Construct REST client. When a TokenProvider is configured, we
 	// authenticate via BearerAuthTransport and skip go-github's WithAuthToken:
 	// the latter installs its own round tripper that would pin the static token
 	// and shadow the dynamic one.
@@ -257,15 +257,21 @@ type StdioServerConfig struct {
 	// are hidden. The default set is the full supported list, which hides
 	// nothing; an explicit, narrower list filters accordingly.
 	OAuthScopes []string
+
+	// TokenProvider supplies a token for each GitHub API request.
+	TokenProvider func() string
 }
 
 // RunStdioServer is not concurrent safe.
 func RunStdioServer(cfg StdioServerConfig) error {
-	// OAuth login and a static token are mutually exclusive: they would
-	// disagree on how the token is sourced (lazy provider vs. static) and on
-	// scope filtering, so reject the ambiguous combination up front.
-	if cfg.OAuthManager != nil && cfg.Token != "" {
-		return fmt.Errorf("OAuthManager and a static Token are mutually exclusive: provide one or the other")
+	authModes := 0
+	for _, on := range []bool{cfg.Token != "", cfg.OAuthManager != nil, cfg.TokenProvider != nil} {
+		if on {
+			authModes++
+		}
+	}
+	if authModes > 1 {
+		return fmt.Errorf("choose exactly one authentication mode: a static Token, OAuthManager, or TokenProvider")
 	}
 
 	// Create app context
@@ -311,9 +317,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		logger.Debug("skipping scope filtering for non-PAT token")
 	}
 
-	// For OAuth, the token is resolved lazily: empty until the user authorizes
-	// on the first tool call, then refreshed for the rest of the session.
-	var tokenProvider func() string
+	tokenProvider := cfg.TokenProvider
 	var toolHandlerMiddleware []inventory.ToolHandlerMiddleware
 	if cfg.OAuthManager != nil {
 		tokenProvider = cfg.OAuthManager.AccessToken

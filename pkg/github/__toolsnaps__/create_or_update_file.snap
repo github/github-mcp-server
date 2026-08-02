@@ -12,7 +12,7 @@
         "type": "string"
       },
       "content": {
-        "description": "Content of the file",
+        "description": "Content of the file, exactly as it should appear once written. Do not base64-encode it; this server does that before calling the REST API.",
         "type": "string"
       },
       "message": {

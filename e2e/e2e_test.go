@@ -1085,7 +1085,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 	textContent, ok = resp.Content[0].(*mcp.TextContent)
 	require.True(t, ok, "expected content to be of type TextContent")
 
-	possibleExpectedFailure := "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information."
+	possibleExpectedFailure := "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent for more information."
 	if resp.IsError && textContent.Text == possibleExpectedFailure {
 		t.Skip("skipping because copilot wasn't available as an assignee on this issue, it's likely that the owner doesn't have copilot enabled in their settings")
 	}
@@ -1102,6 +1102,115 @@ func TestAssignCopilotToIssue(t *testing.T) {
 	require.Equal(t, http.StatusOK, response.StatusCode, "expected to get issue successfully")
 	require.Len(t, assignees.Assignees, 1, "expected to find one assignee")
 	require.Equal(t, "Copilot", *assignees.Assignees[0].Login, "expected copilot to be assigned to the issue")
+}
+
+// TestAssignCopilotToIssueWithIntent exercises the opt-in intent-aware assignment
+// tool along the is_suggestion=true path. That path records a pending Copilot
+// assignment intent rather than launching the agent, so the tool returns a
+// suggestion-shaped result without a linked pull request and no Copilot user is
+// added to the issue's assignees.
+func TestAssignCopilotToIssueWithIntent(t *testing.T) {
+	t.Parallel()
+
+	if getE2EHost() != "" && getE2EHost() != "https://github.com" {
+		t.Skip("Skipping test because the host does not support copilot being assigned to issues")
+	}
+
+	mcpClient := setupMCPClient(t)
+	ctx := context.Background()
+
+	t.Log("Getting current user...")
+	resp, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{Name: "get_me"})
+	require.NoError(t, err, "expected to call 'get_me' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+	require.Len(t, resp.Content, 1, "expected content to have one item")
+
+	textContent, ok := resp.Content[0].(*mcp.TextContent)
+	require.True(t, ok, "expected content to be of type TextContent")
+
+	var trimmedGetMeText struct {
+		Login string `json:"login"`
+	}
+	err = json.Unmarshal([]byte(textContent.Text), &trimmedGetMeText)
+	require.NoError(t, err, "expected to unmarshal text content successfully")
+	currentOwner := trimmedGetMeText.Login
+
+	repoName := fmt.Sprintf("github-mcp-server-e2e-%s-%d", t.Name(), time.Now().UnixMilli())
+
+	t.Logf("Creating repository %s/%s...", currentOwner, repoName)
+	_, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: "create_repository",
+		Arguments: map[string]any{
+			"name":     repoName,
+			"private":  true,
+			"autoInit": true,
+		},
+	})
+	require.NoError(t, err, "expected to call 'create_repository' tool successfully")
+
+	t.Cleanup(func() {
+		ghClient := getRESTClient(t)
+		t.Logf("Deleting repository %s/%s...", currentOwner, repoName)
+		_, err := ghClient.Repositories.Delete(context.Background(), currentOwner, repoName)
+		require.NoError(t, err, "expected to delete repository successfully")
+	})
+
+	t.Logf("Creating issue in %s/%s...", currentOwner, repoName)
+	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: "issue_write",
+		Arguments: map[string]any{
+			"method": "create",
+			"owner":  currentOwner,
+			"repo":   repoName,
+			"title":  "Test issue for intent-aware copilot suggestion",
+		},
+	})
+	require.NoError(t, err, "expected to call 'issue_write' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+	t.Logf("Recording pending copilot assignment suggestion in %s/%s...", currentOwner, repoName)
+	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: "assign_copilot_to_issue_with_intent",
+		Arguments: map[string]any{
+			"owner":         currentOwner,
+			"repo":          repoName,
+			"issue_number":  1,
+			"rationale":     "E2E: well-scoped test task.",
+			"confidence":    "HIGH",
+			"is_suggestion": true,
+		},
+	})
+	require.NoError(t, err, "expected to call 'assign_copilot_to_issue_with_intent' tool successfully")
+
+	require.Len(t, resp.Content, 1, "expected content to have one item")
+	textContent, ok = resp.Content[0].(*mcp.TextContent)
+	require.True(t, ok, "expected content to be of type TextContent")
+
+	possibleExpectedFailure := "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent for more information."
+	if resp.IsError && textContent.Text == possibleExpectedFailure {
+		t.Skip("skipping because copilot wasn't available as an assignee on this issue, it's likely that the owner doesn't have copilot enabled in their settings")
+	}
+
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &response), "expected suggestion result to be JSON")
+	require.Equal(t, true, response["is_suggestion"], "expected is_suggestion=true in result")
+	require.Contains(t, response["message"], "pending copilot assignment suggestion",
+		"expected suggestion-shaped message, got %v", response["message"])
+	require.NotContains(t, response, "pull_request",
+		"suggestion path must not claim PR creation")
+
+	// A pure suggestion does not launch Copilot, so no Copilot user should appear
+	// on the issue's assignees list.
+	ghClient := getRESTClient(t)
+	issue, response2, err := ghClient.Issues.Get(context.Background(), currentOwner, repoName, 1)
+	require.NoError(t, err, "expected to get issue successfully")
+	require.Equal(t, http.StatusOK, response2.StatusCode, "expected to get issue successfully")
+	for _, a := range issue.Assignees {
+		require.NotEqual(t, "Copilot", *a.Login,
+			"suggestion path must not add Copilot to applied assignees")
+	}
 }
 
 func TestPullRequestAtomicCreateAndSubmit(t *testing.T) {
