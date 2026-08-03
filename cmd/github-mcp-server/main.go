@@ -28,7 +28,7 @@ var date = "date"
 
 var (
 	rootCmd = &cobra.Command{
-		Use:     "server",
+		Use:     "github-mcp-server",
 		Short:   "GitHub MCP Server",
 		Long:    `A GitHub MCP server that handles various tools and resources.`,
 		Version: fmt.Sprintf("Version: %s\nCommit: %s\nBuild Date: %s", version, commit, date),
