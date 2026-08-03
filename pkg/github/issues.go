@@ -615,7 +615,7 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Type: "string",
 				Description: "The read operation to perform on a single issue.\n" +
 					"Options are:\n" +
-					"1. get - Get issue details. Also returns best-effort hierarchy flags (`has_parent`, `has_children`); `parent` and `sub_issues_summary` are optional relationship summaries, and `closed_by_pull_requests` lists the pull requests configured to close the issue.\n" +
+					"1. get - Get issue details. Also returns best-effort hierarchy flags (`has_parent`, `has_children`); `parent` and `sub_issues_summary` are optional relationship summaries, and `closed_by_pull_requests` summarizes the pull requests configured to close the issue as `total_count` plus up to 5 `references`.\n" +
 					"2. get_comments - Get issue comments.\n" +
 					"3. get_sub_issues - Get sub-issues (children) of the issue.\n" +
 					"4. get_parent - Get the parent issue, if this issue is a sub-issue of another.\n" +
@@ -791,14 +791,18 @@ func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, e
 		}
 	}
 
-	// An empty list is meaningful here: it tells an agent that nothing is currently set up to
-	// close the issue, so it does not need to fall back to scanning pull requests.
-	closing := make([]MinimalPullRequestRef, 0, len(enrichment.ClosedByPullRequests))
+	// A zero total is meaningful here: it tells an agent that nothing is currently set up to close
+	// the issue, so it does not need to fall back to scanning pull requests. Only a few references
+	// are embedded, so total_count is what distinguishes a complete list from a truncated one.
+	closing := MinimalClosingPullRequests{
+		TotalCount: enrichment.ClosedByPullRequestsTotal,
+		References: make([]MinimalPullRequestRef, 0, len(enrichment.ClosedByPullRequests)),
+	}
 	for _, pr := range enrichment.ClosedByPullRequests {
 		if lockdownMode && !isSafeRefContent(ctx, cache, pr.Ref.Repository, pr.AuthorLogin) {
 			continue
 		}
-		closing = append(closing, pr.Ref)
+		closing.References = append(closing.References, pr.Ref)
 	}
 	minimalIssue.ClosedByPullRequests = &closing
 
@@ -1852,8 +1856,9 @@ func fetchIssueFieldValuesByNodeID(ctx context.Context, gqlClient *githubv4.Clie
 // extra round-trips.
 //
 // closedByPullRequestsReferences needs includeClosedPrs so that a merged or closed pull request
-// still explains why an issue was closed, and orderByState so that open pull requests come first
-// and survive the node cap.
+// still explains why an issue was closed, and orderByState so that open pull requests come first.
+// Only a handful of references are embedded because this enrichment runs on every issue_read `get`;
+// totalCount is selected so that a truncated list is never mistaken for the complete set.
 type issueReadEnrichmentQuery struct {
 	Nodes []struct {
 		Issue struct {
@@ -1874,7 +1879,8 @@ type issueReadEnrichmentQuery struct {
 				}
 			}
 			ClosedByPullRequestsReferences struct {
-				Nodes []struct {
+				TotalCount githubv4.Int
+				Nodes      []struct {
 					Number githubv4.Int
 					Title  githubv4.String
 					State  githubv4.String
@@ -1886,7 +1892,7 @@ type issueReadEnrichmentQuery struct {
 						NameWithOwner githubv4.String
 					}
 				}
-			} `graphql:"closedByPullRequestsReferences(first: 25, includeClosedPrs: true, orderByState: true)"`
+			} `graphql:"closedByPullRequestsReferences(first: 5, includeClosedPrs: true, orderByState: true)"`
 			SubIssuesSummary struct {
 				Total            githubv4.Int
 				Completed        githubv4.Int
@@ -1912,10 +1918,11 @@ type issueReadClosingPullRequest struct {
 
 // issueReadEnrichment is the flattened result of the issue_read `get` enrichment query.
 type issueReadEnrichment struct {
-	FieldValues          []MinimalFieldValue
-	Parent               *issueReadParent
-	ClosedByPullRequests []issueReadClosingPullRequest
-	SubIssuesSummary     MinimalSubIssuesSummary
+	FieldValues               []MinimalFieldValue
+	Parent                    *issueReadParent
+	ClosedByPullRequests      []issueReadClosingPullRequest
+	ClosedByPullRequestsTotal int
+	SubIssuesSummary          MinimalSubIssuesSummary
 }
 
 // fetchIssueReadEnrichment runs one GraphQL nodes() query for the given issue node ID and returns
@@ -1969,6 +1976,7 @@ func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, n
 			})
 		}
 		enrichment.ClosedByPullRequests = closing
+		enrichment.ClosedByPullRequestsTotal = int(n.Issue.ClosedByPullRequestsReferences.TotalCount)
 
 		enrichment.SubIssuesSummary = MinimalSubIssuesSummary{
 			Total:            int(n.Issue.SubIssuesSummary.Total),

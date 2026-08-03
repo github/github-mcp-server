@@ -49,7 +49,7 @@ func newRepoAccessHTTPClient() *http.Client {
 	return &http.Client{Transport: &repoAccessMockTransport{responses: responses}}
 }
 
-const issueReadEnrichmentQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}},parent{number,title,state,url,author{login},repository{nameWithOwner}},closedByPullRequestsReferences(first: 25, includeClosedPrs: true, orderByState: true){nodes{number,title,state,url,author{login},repository{nameWithOwner}}},subIssuesSummary{total,completed,percentCompleted}}}}"
+const issueReadEnrichmentQueryString = "query($ids:[ID!]!){nodes(ids: $ids){... on Issue{id,issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}},parent{number,title,state,url,author{login},repository{nameWithOwner}},closedByPullRequestsReferences(first: 5, includeClosedPrs: true, orderByState: true){totalCount,nodes{number,title,state,url,author{login},repository{nameWithOwner}}},subIssuesSummary{total,completed,percentCompleted}}}}"
 
 // newIssueReadEnrichmentMatcher builds a matcher for the issue_read `get` enrichment query for a
 // single issue node ID.
@@ -822,7 +822,8 @@ func Test_GetIssue_ClosedByPullRequests(t *testing.T) {
 	tests := []struct {
 		name           string
 		closingPRs     []map[string]any
-		assertResponse func(t *testing.T, refs []MinimalPullRequestRef)
+		totalCount     int
+		assertResponse func(t *testing.T, closing MinimalClosingPullRequests)
 	}{
 		{
 			name: "closing pull requests are returned as compact references",
@@ -844,27 +845,40 @@ func Test_GetIssue_ClosedByPullRequests(t *testing.T) {
 					"repository": map[string]any{"nameWithOwner": "fork-owner/repo"},
 				},
 			},
-			assertResponse: func(t *testing.T, refs []MinimalPullRequestRef) {
-				require.Len(t, refs, 2)
+			totalCount: 2,
+			assertResponse: func(t *testing.T, closing MinimalClosingPullRequests) {
+				assert.Equal(t, 2, closing.TotalCount)
+				require.Len(t, closing.References, 2)
 				assert.Equal(t, MinimalPullRequestRef{
 					Number:     4242,
 					Title:      "Fix the broken thing",
 					State:      "OPEN",
 					URL:        "https://github.com/owner/repo/pull/4242",
 					Repository: "owner/repo",
-				}, refs[0])
+				}, closing.References[0])
 				// Closed and cross-repository pull requests are kept: they still explain what
 				// is (or was) set up to close the issue.
-				assert.Equal(t, 77, refs[1].Number)
-				assert.Equal(t, "CLOSED", refs[1].State)
-				assert.Equal(t, "fork-owner/repo", refs[1].Repository)
+				assert.Equal(t, 77, closing.References[1].Number)
+				assert.Equal(t, "CLOSED", closing.References[1].State)
+				assert.Equal(t, "fork-owner/repo", closing.References[1].Repository)
 			},
 		},
 		{
-			name:       "no closing pull requests yields an explicit empty list",
+			name:       "no closing pull requests yields an explicit zero total",
 			closingPRs: []map[string]any{},
-			assertResponse: func(t *testing.T, refs []MinimalPullRequestRef) {
-				assert.Empty(t, refs)
+			totalCount: 0,
+			assertResponse: func(t *testing.T, closing MinimalClosingPullRequests) {
+				assert.Equal(t, 0, closing.TotalCount)
+				assert.Empty(t, closing.References)
+			},
+		},
+		{
+			name:       "total count exceeding the embedded references marks the list as truncated",
+			closingPRs: closingPullRequestFixtures(5),
+			totalCount: 9,
+			assertResponse: func(t *testing.T, closing MinimalClosingPullRequests) {
+				require.Len(t, closing.References, 5, "at most five references are embedded")
+				assert.Equal(t, 9, closing.TotalCount, "total_count must report the full set so a truncated list is not read as complete")
 			},
 		},
 		{
@@ -879,9 +893,10 @@ func Test_GetIssue_ClosedByPullRequests(t *testing.T) {
 					"repository": map[string]any{"nameWithOwner": "owner/repo"},
 				},
 			},
-			assertResponse: func(t *testing.T, refs []MinimalPullRequestRef) {
-				require.Len(t, refs, 1)
-				assert.Equal(t, "Fix the thing", refs[0].Title)
+			totalCount: 1,
+			assertResponse: func(t *testing.T, closing MinimalClosingPullRequests) {
+				require.Len(t, closing.References, 1)
+				assert.Equal(t, "Fix the thing", closing.References[0].Title)
 			},
 		},
 	}
@@ -898,7 +913,7 @@ func Test_GetIssue_ClosedByPullRequests(t *testing.T) {
 						"id":                             "I_node_2990",
 						"issueFieldValues":               map[string]any{"nodes": []map[string]any{}},
 						"parent":                         nil,
-						"closedByPullRequestsReferences": map[string]any{"nodes": tc.closingPRs},
+						"closedByPullRequestsReferences": map[string]any{"totalCount": tc.totalCount, "nodes": tc.closingPRs},
 						"subIssuesSummary":               map[string]any{"total": 0, "completed": 0, "percentCompleted": 0},
 					},
 				},
@@ -928,7 +943,7 @@ func Test_GetIssue_ClosedByPullRequests(t *testing.T) {
 			require.False(t, result.IsError, "expected result to not be an error")
 
 			text := getTextResult(t, result).Text
-			assert.Contains(t, text, `"closed_by_pull_requests"`, "the key must always be present on an enriched issue so an empty list is a definitive answer")
+			assert.Contains(t, text, `"closed_by_pull_requests"`, "the key must always be present on an enriched issue so a zero total is a definitive answer")
 
 			var returnedIssue MinimalIssue
 			require.NoError(t, json.Unmarshal([]byte(text), &returnedIssue))
@@ -936,6 +951,23 @@ func Test_GetIssue_ClosedByPullRequests(t *testing.T) {
 			tc.assertResponse(t, *returnedIssue.ClosedByPullRequests)
 		})
 	}
+}
+
+// closingPullRequestFixtures builds n distinct closing pull request nodes for the GraphQL mock.
+func closingPullRequestFixtures(n int) []map[string]any {
+	prs := make([]map[string]any, 0, n)
+	for i := range n {
+		number := 4242 + i
+		prs = append(prs, map[string]any{
+			"number":     number,
+			"title":      fmt.Sprintf("Candidate fix %d", number),
+			"state":      "OPEN",
+			"url":        fmt.Sprintf("https://github.com/owner/repo/pull/%d", number),
+			"author":     map[string]any{"login": "author"},
+			"repository": map[string]any{"nameWithOwner": "owner/repo"},
+		})
+	}
+	return prs
 }
 
 func Test_GetIssue_ClosedByPullRequests_Lockdown(t *testing.T) {
@@ -962,6 +994,7 @@ func Test_GetIssue_ClosedByPullRequests_Lockdown(t *testing.T) {
 				"issueFieldValues": map[string]any{"nodes": []map[string]any{}},
 				"parent":           nil,
 				"closedByPullRequestsReferences": map[string]any{
+					"totalCount": 2,
 					"nodes": []map[string]any{
 						{
 							"number":     4242,
@@ -1013,8 +1046,9 @@ func Test_GetIssue_ClosedByPullRequests_Lockdown(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returnedIssue))
 
 	require.NotNil(t, returnedIssue.ClosedByPullRequests)
-	require.Len(t, *returnedIssue.ClosedByPullRequests, 1, "unverified pull request references should be filtered out under lockdown")
-	assert.Equal(t, 4242, (*returnedIssue.ClosedByPullRequests)[0].Number)
+	require.Len(t, returnedIssue.ClosedByPullRequests.References, 1, "unverified pull request references should be filtered out under lockdown")
+	assert.Equal(t, 4242, returnedIssue.ClosedByPullRequests.References[0].Number)
+	assert.Equal(t, 2, returnedIssue.ClosedByPullRequests.TotalCount, "total_count reports what GitHub linked, so a filtered list is not read as complete")
 }
 
 func Test_SearchIssues(t *testing.T) {
