@@ -436,7 +436,7 @@ SHA MUST be provided for existing file updates.
 					},
 					"content": {
 						Type:        "string",
-						Description: "Content of the file",
+						Description: "Content of the file, exactly as it should appear once written. Do not base64-encode it; this server does that before calling the REST API.",
 					},
 					"message": {
 						Type:        "string",

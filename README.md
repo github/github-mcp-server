@@ -1278,7 +1278,7 @@ The following sets of tools are available:
 - **create_or_update_file** - Create or update file
   - **Required OAuth Scopes**: `repo`
   - `branch`: Branch to create/update the file in (string, required)
-  - `content`: Content of the file (string, required)
+  - `content`: Content of the file, exactly as it should appear once written. Do not base64-encode it; this server does that before calling the REST API. (string, required)
   - `message`: Commit message (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: Path where to create/update the file (string, required)
