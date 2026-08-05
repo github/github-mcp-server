@@ -200,7 +200,7 @@ runtime behavior (such as output formatting) won't appear here.
   - `confidence`: How confident you are in this choice. Use 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal. (string, optional)
   - `is_suggestion`: If true, this issue type change is sent to the API as a suggestion (suggest:true) rather than an applied value. Whether the type is applied or recorded as a proposal is determined by the API. (boolean, optional)
   - `issue_number`: The issue number to update (number, required)
-  - `issue_type`: The issue type to set (string, required)
+  - `issue_type`: The issue type to set, or null to remove the current type (string | null, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `rationale`: One concise sentence explaining what specifically about the issue led you to choose this type. State the concrete signal (e.g. 'Reports a crash when saving' → bug, 'Asks for dark mode support' → feature). (string, optional)
   - `repo`: Repository name (string, required)
