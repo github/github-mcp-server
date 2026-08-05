@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -2807,6 +2808,70 @@ func Test_ListIssues_IFC_InsidersMode(t *testing.T) {
 		assert.Equal(t, "trusted", ifcMap["integrity"])
 		assert.Equal(t, "private", ifcMap["confidentiality"])
 	})
+}
+
+func TestIssueWriteUpdatesIssueType(t *testing.T) {
+	tests := []struct {
+		name            string
+		args            map[string]any
+		wantRequestBody string
+	}{
+		{
+			name: "omit issue type",
+			args: map[string]any{
+				"title": "Updated title",
+			},
+			wantRequestBody: `{"title":"Updated title"}`,
+		},
+		{
+			name: "set issue type",
+			args: map[string]any{
+				"type": "Bug",
+			},
+			wantRequestBody: `{"type":"Bug"}`,
+		},
+		{
+			name: "clear issue type",
+			args: map[string]any{
+				"type": nil,
+			},
+			wantRequestBody: `{"type":null}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var gotRequestBody []byte
+			var readErr error
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: func(w http.ResponseWriter, r *http.Request) {
+					gotRequestBody, readErr = io.ReadAll(r.Body)
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write([]byte(`{"number":123,"html_url":"https://github.com/owner/repo/issues/123"}`))
+				},
+			}))
+			deps := BaseDeps{
+				Client:    client,
+				GQLClient: githubv4.NewClient(githubv4mock.NewMockedHTTPClient()),
+			}
+			serverTool := IssueWrite(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+			requestArgs := map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+			}
+			maps.Copy(requestArgs, tc.args)
+			request := createMCPRequest(requestArgs)
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+			require.NoError(t, readErr)
+			require.JSONEq(t, tc.wantRequestBody, string(gotRequestBody))
+		})
+	}
 }
 
 func Test_UpdateIssue(t *testing.T) {

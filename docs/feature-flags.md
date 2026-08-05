@@ -71,7 +71,7 @@ runtime behavior (such as output formatting) won't appear here.
   - `state`: New state (string, optional)
   - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
   - `title`: Issue title (string, optional)
-  - `type`: Type of this issue. Only use if issue types are enabled for this repository. Use list_issue_types tool to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
+  - `type`: Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string | null, optional)
 
 - **ui_get** - Get UI data
   - **Required OAuth Scopes (any of)**: `repo`, `read:org`

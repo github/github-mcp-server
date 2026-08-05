@@ -2150,8 +2150,11 @@ Options are:
 						Description: "Milestone number",
 					},
 					"type": {
-						Type:        "string",
-						Description: "Type of this issue. Only use if issue types are enabled for this repository. Use list_issue_types tool to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter.",
+						AnyOf: []*jsonschema.Schema{
+							{Type: "string", MinLength: jsonschema.Ptr(1)},
+							{Type: "null"},
+						},
+						Description: "Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter.",
 					},
 					"state": {
 						Type:        "string",
@@ -2275,9 +2278,13 @@ Options are:
 			}
 
 			// Get optional type
-			issueType, err := OptionalParam[string](args, "type")
+			issueTypeParam, issueTypeProvided, err := OptionalNullableStringParam(args, "type")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueType := ""
+			if issueTypeParam != nil {
+				issueType = *issueTypeParam
 			}
 
 			// Handle state, state_reason and duplicateOf parameters
@@ -2336,6 +2343,7 @@ Options are:
 				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, UpdateIssueOptions{
 					AssigneesProvided: assigneesProvided,
 					LabelsProvided:    labelsProvided,
+					IssueTypeProvided: issueTypeProvided,
 				})
 				return result, nil, err
 			default:
@@ -2406,6 +2414,8 @@ type UpdateIssueOptions struct {
 	AssigneesProvided bool
 	// LabelsProvided sends the labels field even when the slice is empty.
 	LabelsProvided bool
+	// IssueTypeProvided sends the type field, including an explicit clear.
+	IssueTypeProvided bool
 }
 
 func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldIDsToDelete []int64, state string, stateReason string, duplicateOf int, opts ...UpdateIssueOptions) (*mcp.CallToolResult, error) {
@@ -2416,6 +2426,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	for _, opt := range opts {
 		updateOptions.AssigneesProvided = updateOptions.AssigneesProvided || opt.AssigneesProvided
 		updateOptions.LabelsProvided = updateOptions.LabelsProvided || opt.LabelsProvided
+		updateOptions.IssueTypeProvided = updateOptions.IssueTypeProvided || opt.IssueTypeProvided
 	}
 
 	// Create the issue request with only provided fields
@@ -2489,7 +2500,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		}
 	}
 
-	updatedIssue, resp, err := client.Issues.Update(ctx, owner, repo, issueNumber, issueRequest)
+	updatedIssue, resp, err := patchIssue(ctx, client, owner, repo, issueNumber, issueRequest, issueType, updateOptions.IssueTypeProvided)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
 			"failed to update issue",
@@ -2620,6 +2631,28 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	}
 
 	return utils.NewToolResultText(string(r)), nil
+}
+
+type updateIssueRequestWithNullableType struct {
+	github.UpdateIssueRequest
+	Type *string `json:"type"`
+}
+
+func patchIssue(ctx context.Context, client *github.Client, owner, repo string, issueNumber int, issueRequest github.UpdateIssueRequest, issueType string, issueTypeProvided bool) (*github.Issue, *github.Response, error) {
+	if !issueTypeProvided || issueType != "" {
+		return client.Issues.Update(ctx, owner, repo, issueNumber, issueRequest)
+	}
+
+	apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
+	body := &updateIssueRequestWithNullableType{UpdateIssueRequest: issueRequest}
+	req, err := client.NewRequest(ctx, http.MethodPatch, apiURL, body)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	issue := &github.Issue{}
+	resp, err := client.Do(req, issue)
+	return issue, resp, err
 }
 
 // ListIssues creates a tool to list issues in a GitHub repository.
