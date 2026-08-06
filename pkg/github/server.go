@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -115,6 +116,16 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	skillsPublisher := &skills.Publisher{Registry: skills.Bundled()}
 	skillsPublisher.DeclareCapability(serverOpts)
 
+	// When the `skills` toolset is enabled, skills/get and
+	// resources/directory/read additionally answer for repo-hosted skills —
+	// the SEP's unenumerable-catalog case, reachable by URI only.
+	if slices.ContainsFunc(inv.EnabledToolsets(), func(ts inventory.ToolsetMetadata) bool {
+		return ts.ID == ToolsetMetadataSkills.ID
+	}) {
+		skillsPublisher.DynamicGet = RepoSkillEntry
+		skillsPublisher.DynamicDirectoryRead = RepoSkillDirectory
+	}
+
 	ghServer := NewServer(cfg.Version, cfg.Translator("SERVER_NAME", "github-mcp-server"), cfg.Translator("SERVER_TITLE", "GitHub MCP Server"), serverOpts)
 
 	// Add middlewares. Order matters - for example, the error context middleware should be applied last so that it runs FIRST (closest to the handler) to ensure all errors are captured,
@@ -214,6 +225,9 @@ func CompletionsHandler(getClient GetClientFn) func(ctx context.Context, req *mc
 		case "ref/resource":
 			if strings.HasPrefix(req.Params.Ref.URI, "repo://") {
 				return RepositoryResourceCompletionHandler(getClient)(ctx, req)
+			}
+			if strings.HasPrefix(req.Params.Ref.URI, "skill://") {
+				return SkillResourceCompletionHandler(getClient)(ctx, req)
 			}
 			return nil, fmt.Errorf("unsupported resource URI: %s", req.Params.Ref.URI)
 		case "ref/prompt":

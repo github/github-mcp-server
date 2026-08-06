@@ -135,6 +135,12 @@ var (
 		Icon:        "tag",
 	}
 
+	ToolsetMetadataSkills = inventory.ToolsetMetadata{
+		ID:          "skills",
+		Description: "Agent Skills discovery via skill:// resources from arbitrary GitHub repositories (experimental, see agentskills.io)",
+		Icon:        "beaker",
+	}
+
 	ToolsetMetadataCopilot = inventory.ToolsetMetadata{
 		ID:          "copilot",
 		Description: "Copilot related tools",
@@ -331,6 +337,9 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GranularSetIssueFields(t),
 		GranularAddIssueReaction(t),
 		GranularAddIssueCommentReaction(t),
+
+		// Skill tools (per-repo Agent Skills discovery — see also pkg/github/skills_resource.go)
+		ListRepoSkills(t),
 
 		// Granular pull request tools (feature-flagged, replace consolidated update_pull_request/pull_request_review_write)
 		GranularUpdatePullRequestTitle(t),
