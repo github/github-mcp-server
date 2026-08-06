@@ -257,6 +257,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		IssueDependencyWrite(t),
 
 		// User tools
+		GetUser(t),
 		SearchUsers(t),
 
 		// Organization tools

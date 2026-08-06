@@ -1,0 +1,20 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get a user by username"
+  },
+  "description": "Get a user by username. Use this when you need information about a specific GitHub user.",
+  "inputSchema": {
+    "properties": {
+      "username": {
+        "description": "Username of the user",
+        "type": "string"
+      }
+    },
+    "required": [
+      "username"
+    ],
+    "type": "object"
+  },
+  "name": "get_user"
+}
