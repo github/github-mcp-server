@@ -136,7 +136,7 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "list_label",
 			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository, ordered by issue count (descending) so the most-used labels are returned first"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository"),
+				Title:        t("TOOL_LIST_LABEL_TITLE", "List labels from a repository"),
 				ReadOnlyHint: true,
 			},
 			InputSchema: &jsonschema.Schema{
