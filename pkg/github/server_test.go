@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/observability"
 	"github.com/github/github-mcp-server/pkg/observability/metrics"
@@ -189,6 +190,97 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 	//
 	// The actual middleware functionality and tool execution with ContextWithDeps
 	// is already tested in pkg/github/*_test.go.
+}
+
+// advertisedServerCapabilities connects an in-memory client to the given server
+// and returns the capabilities the server advertised during initialization.
+func advertisedServerCapabilities(t *testing.T, server *mcp.Server) *mcp.ServerCapabilities {
+	t.Helper()
+
+	ctx := context.Background()
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	require.NoError(t, err, "expected server to connect")
+	t.Cleanup(func() { _ = serverSession.Close() })
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err, "expected client to connect")
+	t.Cleanup(func() { _ = clientSession.Close() })
+
+	result := clientSession.InitializeResult()
+	require.NotNil(t, result, "expected an initialize result")
+	return result.Capabilities
+}
+
+// TestNewMCPServer_AdvertisedCapabilities locks in the capability contract set by
+// NewMCPServer: tools, prompts, and resources are advertised without list-changed
+// notifications (the server has a static item set and never emits list_changed),
+// the deprecated logging capability is not advertised, and the inferred
+// completions capability is preserved. This is asserted for both the stdio path
+// (full inventory, items present) and the HTTP path (inventory emptied for the
+// discovery/initialize request), which share the same NewMCPServer entry point.
+func TestNewMCPServer_AdvertisedCapabilities(t *testing.T) {
+	t.Parallel()
+
+	cfg := MCPServerConfig{
+		Version:           "test",
+		Token:             "test-token",
+		EnabledToolsets:   []string{"context"},
+		Translator:        translations.NullTranslationHelper,
+		ContentWindowSize: 5000,
+	}
+
+	deps := stubDeps{obsv: stubExporters()}
+
+	fullInventory, err := NewInventory(cfg.Translator).
+		WithDeprecatedAliases(DeprecatedToolAliases).
+		WithToolsets(cfg.EnabledToolsets).
+		Build()
+	require.NoError(t, err, "expected inventory build to succeed")
+
+	tests := []struct {
+		name string
+		inv  *inventory.Inventory
+	}{
+		{
+			name: "stdio path with registered items",
+			inv:  fullInventory,
+		},
+		{
+			// The HTTP handler registers only the items relevant to a request;
+			// for initialize/discover that is nothing, so capabilities must come
+			// from the explicit declaration rather than being inferred from items.
+			name: "http path with no registered items for discovery",
+			inv:  fullInventory.ForMCPRequest(inventory.MCPMethodDiscover, ""),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server, err := NewMCPServer(context.Background(), &cfg, deps, tt.inv)
+			require.NoError(t, err, "expected server creation to succeed")
+
+			caps := advertisedServerCapabilities(t, server)
+
+			require.NotNil(t, caps.Tools, "tools capability should be advertised")
+			assert.False(t, caps.Tools.ListChanged, "tools list-changed must not be advertised")
+
+			require.NotNil(t, caps.Prompts, "prompts capability should be advertised")
+			assert.False(t, caps.Prompts.ListChanged, "prompts list-changed must not be advertised")
+
+			require.NotNil(t, caps.Resources, "resources capability should be advertised")
+			assert.False(t, caps.Resources.ListChanged, "resources list-changed must not be advertised")
+			assert.False(t, caps.Resources.Subscribe, "resources subscribe must not be advertised")
+
+			assert.NotNil(t, caps.Completions, "completions capability should be preserved")
+			// Intentionally asserting the deprecated logging capability is absent.
+			assert.Nil(t, caps.Logging, "deprecated logging capability should not be advertised") //nolint:staticcheck // SA1019: verifying the deprecated capability is not advertised
+		})
+	}
 }
 
 // TestNewServer_NameAndTitleViaTranslation verifies that server name and title
