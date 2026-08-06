@@ -42,7 +42,7 @@ func TestETagTransport_ServesCachedBodyOn304(t *testing.T) {
 
 	rt := &ETagTransport{Transport: http.DefaultTransport}
 
-	do := func() (*http.Response, string) {
+	do := func() (int, string) {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
 		require.NoError(t, err)
 		resp, err := rt.RoundTrip(req)
@@ -50,16 +50,16 @@ func TestETagTransport_ServesCachedBodyOn304(t *testing.T) {
 		defer resp.Body.Close()
 		data, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		return resp, string(data)
+		return resp.StatusCode, string(data)
 	}
 
-	resp1, body1 := do()
-	assert.Equal(t, http.StatusOK, resp1.StatusCode)
+	status1, body1 := do()
+	assert.Equal(t, http.StatusOK, status1)
 	assert.Equal(t, body, body1)
 	assert.Empty(t, lastIfNoneMatch, "first request must not send If-None-Match")
 
-	resp2, body2 := do()
-	assert.Equal(t, http.StatusOK, resp2.StatusCode, "304 is translated to the cached 200")
+	status2, body2 := do()
+	assert.Equal(t, http.StatusOK, status2, "304 is translated to the cached 200")
 	assert.Equal(t, body, body2, "cached body is served on 304")
 	assert.Equal(t, etag, lastIfNoneMatch, "second request sends the cached ETag")
 	assert.Equal(t, int32(2), atomic.LoadInt32(&requests), "every request still reaches the server")
@@ -90,21 +90,21 @@ func TestETagTransport_UpdatesRateLimitHeadersFrom304(t *testing.T) {
 
 	rt := &ETagTransport{Transport: http.DefaultTransport}
 
-	do := func() *http.Response {
+	do := func() http.Header {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
 		require.NoError(t, err)
 		resp, err := rt.RoundTrip(req)
 		require.NoError(t, err)
 		_, _ = io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
-		return resp
+		return resp.Header
 	}
 
-	resp1 := do()
-	assert.Equal(t, "100", resp1.Header.Get("X-RateLimit-Remaining"))
+	h1 := do()
+	assert.Equal(t, "100", h1.Get("X-RateLimit-Remaining"))
 
-	resp2 := do()
-	assert.Equal(t, "99", resp2.Header.Get("X-RateLimit-Remaining"), "rate-limit headers come from the live 304")
+	h2 := do()
+	assert.Equal(t, "99", h2.Get("X-RateLimit-Remaining"), "rate-limit headers come from the live 304")
 }
 
 // TestETagTransport_ScopesCacheByAuthorization verifies cached bodies are not
