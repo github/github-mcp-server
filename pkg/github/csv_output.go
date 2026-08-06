@@ -51,7 +51,7 @@ func withCSVOutput(tools []inventory.ServerTool) []inventory.ServerTool {
 		if !isCSVOutputTool(tools[i]) {
 			continue
 		}
-		tools[i].HandlerFunc = wrapHandlerWithCSVOutput(tools[i].HandlerFunc)
+		tools[i].HandlerFunc = wrapHandlerWithCSVOutput(tools[i].Tool.Name, tools[i].HandlerFunc)
 	}
 	return tools
 }
@@ -68,7 +68,7 @@ func isCSVOutputTool(tool inventory.ServerTool) bool {
 	return strings.HasPrefix(tool.Tool.Name, "list_")
 }
 
-func wrapHandlerWithCSVOutput(next inventory.HandlerFunc) inventory.HandlerFunc {
+func wrapHandlerWithCSVOutput(toolName string, next inventory.HandlerFunc) inventory.HandlerFunc {
 	return func(deps any) mcp.ToolHandler {
 		handler := next(deps)
 		csvDeps, _ := deps.(ToolDependencies)
@@ -78,6 +78,9 @@ func wrapHandlerWithCSVOutput(next inventory.HandlerFunc) inventory.HandlerFunc 
 				return result, err
 			}
 			if csvDeps == nil || !csvDeps.IsFeatureEnabled(ctx, FeatureFlagCSVOutput) {
+				return result, nil
+			}
+			if isAdaptiveMarkdownOutputTool(toolName) && csvDeps.IsFeatureEnabled(ctx, FeatureFlagMarkdownOutput) {
 				return result, nil
 			}
 			return convertJSONTextResultToCSV(result), nil
