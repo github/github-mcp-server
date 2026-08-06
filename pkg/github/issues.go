@@ -615,7 +615,7 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Type: "string",
 				Description: "The read operation to perform on a single issue.\n" +
 					"Options are:\n" +
-					"1. get - Get issue details. Also returns best-effort hierarchy flags (`has_parent`, `has_children`); `parent` and `sub_issues_summary` are optional relationship summaries.\n" +
+					"1. get - Get issue details. Also returns best-effort hierarchy flags (`has_parent`, `has_children`); `parent` and `sub_issues_summary` are optional relationship summaries, and `closed_by_pull_requests` summarizes the pull requests configured to close the issue as `total_count` plus up to 5 `references`.\n" +
 					"2. get_comments - Get issue comments.\n" +
 					"3. get_sub_issues - Get sub-issues (children) of the issue.\n" +
 					"4. get_parent - Get the parent issue, if this issue is a sub-issue of another.\n" +
@@ -768,9 +768,9 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 }
 
 // applyIssueReadEnrichment populates the hierarchy relationship signals (has_parent/has_children,
-// parent, sub_issues_summary) and field_values onto the minimal issue. In lockdown mode the parent
-// reference is omitted unless the parent content can be verified as safe; has_parent and the numeric
-// counts are structural routing signals and are always safe to surface.
+// parent, sub_issues_summary), the closing pull request references, and field_values onto the
+// minimal issue. In lockdown mode references whose content cannot be verified as safe are omitted;
+// has_parent and the numeric counts are structural routing signals and are always safe to surface.
 func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, enrichment *issueReadEnrichment, cache *lockdown.RepoAccessCache, lockdownMode bool) {
 	if enrichment == nil {
 		return
@@ -785,11 +785,26 @@ func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, e
 		// unverified (possibly cross-repo) parent is omitted entirely, mirroring how unsafe
 		// comments and sub-issues are filtered out. has_parent still routes an agent to
 		// get_parent if it needs to follow up.
-		if !lockdownMode || isSafeParentContent(ctx, cache, parent) {
+		if !lockdownMode || isSafeRefContent(ctx, cache, parent.Ref.Repository, parent.AuthorLogin) {
 			ref := parent.Ref
 			minimalIssue.Parent = &ref
 		}
 	}
+
+	// A zero total is meaningful here: it tells an agent that nothing is currently set up to close
+	// the issue, so it does not need to fall back to scanning pull requests. Only a few references
+	// are embedded, so total_count is what distinguishes a complete list from a truncated one.
+	closing := MinimalClosingPullRequests{
+		TotalCount: enrichment.ClosedByPullRequestsTotal,
+		References: make([]MinimalPullRequestRef, 0, len(enrichment.ClosedByPullRequests)),
+	}
+	for _, pr := range enrichment.ClosedByPullRequests {
+		if lockdownMode && !isSafeRefContent(ctx, cache, pr.Ref.Repository, pr.AuthorLogin) {
+			continue
+		}
+		closing.References = append(closing.References, pr.Ref)
+	}
+	minimalIssue.ClosedByPullRequests = &closing
 
 	if enrichment.SubIssuesSummary.Total > 0 {
 		summary := enrichment.SubIssuesSummary
@@ -797,18 +812,18 @@ func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, e
 	}
 }
 
-// isSafeParentContent reports whether the parent issue reference can be exposed under lockdown mode.
-// It fails closed: any inability to positively verify safe content (missing cache, missing author,
-// unparseable repository, or a lookup error) results in the parent reference being omitted.
-func isSafeParentContent(ctx context.Context, cache *lockdown.RepoAccessCache, parent *issueReadParent) bool {
-	if cache == nil || parent.AuthorLogin == "" {
+// isSafeRefContent reports whether a related issue or pull request reference can be exposed under
+// lockdown mode. It fails closed: any inability to positively verify safe content (missing cache,
+// missing author, unparseable repository, or a lookup error) results in the reference being omitted.
+func isSafeRefContent(ctx context.Context, cache *lockdown.RepoAccessCache, repository, authorLogin string) bool {
+	if cache == nil || authorLogin == "" {
 		return false
 	}
-	owner, repo, ok := strings.Cut(parent.Ref.Repository, "/")
+	owner, repo, ok := strings.Cut(repository, "/")
 	if !ok || owner == "" || repo == "" {
 		return false
 	}
-	safe, err := cache.IsSafeContent(ctx, parent.AuthorLogin, owner, repo)
+	safe, err := cache.IsSafeContent(ctx, authorLogin, owner, repo)
 	if err != nil {
 		return false
 	}
@@ -1836,8 +1851,14 @@ func fetchIssueFieldValuesByNodeID(ctx context.Context, gqlClient *githubv4.Clie
 }
 
 // issueReadEnrichmentQuery fetches, in a single GraphQL round-trip, the custom field values,
-// parent reference, and sub-issue summary counts for the issues identified by their node IDs.
-// It powers the issue_read `get` relationship signals without adding extra round-trips.
+// parent reference, closing pull request references, and sub-issue summary counts for the issues
+// identified by their node IDs. It powers the issue_read `get` relationship signals without adding
+// extra round-trips.
+//
+// closedByPullRequestsReferences needs includeClosedPrs so that a merged or closed pull request
+// still explains why an issue was closed, and orderByState so that open pull requests come first.
+// Only a handful of references are embedded because this enrichment runs on every issue_read `get`;
+// totalCount is selected so that a truncated list is never mistaken for the complete set.
 type issueReadEnrichmentQuery struct {
 	Nodes []struct {
 		Issue struct {
@@ -1857,6 +1878,21 @@ type issueReadEnrichmentQuery struct {
 					NameWithOwner githubv4.String
 				}
 			}
+			ClosedByPullRequestsReferences struct {
+				TotalCount githubv4.Int
+				Nodes      []struct {
+					Number githubv4.Int
+					Title  githubv4.String
+					State  githubv4.String
+					URL    githubv4.String
+					Author struct {
+						Login githubv4.String
+					}
+					Repository struct {
+						NameWithOwner githubv4.String
+					}
+				}
+			} `graphql:"closedByPullRequestsReferences(first: 5, includeClosedPrs: true, orderByState: true)"`
 			SubIssuesSummary struct {
 				Total            githubv4.Int
 				Completed        githubv4.Int
@@ -1873,16 +1909,25 @@ type issueReadParent struct {
 	AuthorLogin string
 }
 
+// issueReadClosingPullRequest is a closing pull request reference plus the metadata needed to make
+// a lockdown safe-content decision about it.
+type issueReadClosingPullRequest struct {
+	Ref         MinimalPullRequestRef
+	AuthorLogin string
+}
+
 // issueReadEnrichment is the flattened result of the issue_read `get` enrichment query.
 type issueReadEnrichment struct {
-	FieldValues      []MinimalFieldValue
-	Parent           *issueReadParent
-	SubIssuesSummary MinimalSubIssuesSummary
+	FieldValues               []MinimalFieldValue
+	Parent                    *issueReadParent
+	ClosedByPullRequests      []issueReadClosingPullRequest
+	ClosedByPullRequestsTotal int
+	SubIssuesSummary          MinimalSubIssuesSummary
 }
 
 // fetchIssueReadEnrichment runs one GraphQL nodes() query for the given issue node ID and returns
-// its field values, parent reference, and sub-issue summary counts. The parent title is sanitized
-// here because it may originate from a different repository.
+// its field values, parent reference, closing pull requests, and sub-issue summary counts. Titles
+// are sanitized here because they may originate from a different repository.
 func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, nodeID string) (*issueReadEnrichment, error) {
 	var q issueReadEnrichmentQuery
 	if err := gqlClient.Query(ctx, &q, map[string]any{"ids": []githubv4.ID{githubv4.ID(nodeID)}}); err != nil {
@@ -1916,6 +1961,22 @@ func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, n
 				AuthorLogin: string(p.Author.Login),
 			}
 		}
+
+		closing := make([]issueReadClosingPullRequest, 0, len(n.Issue.ClosedByPullRequestsReferences.Nodes))
+		for _, pr := range n.Issue.ClosedByPullRequestsReferences.Nodes {
+			closing = append(closing, issueReadClosingPullRequest{
+				Ref: MinimalPullRequestRef{
+					Number:     int(pr.Number),
+					Title:      sanitize.Sanitize(string(pr.Title)),
+					State:      string(pr.State),
+					URL:        string(pr.URL),
+					Repository: string(pr.Repository.NameWithOwner),
+				},
+				AuthorLogin: string(pr.Author.Login),
+			})
+		}
+		enrichment.ClosedByPullRequests = closing
+		enrichment.ClosedByPullRequestsTotal = int(n.Issue.ClosedByPullRequestsReferences.TotalCount)
 
 		enrichment.SubIssuesSummary = MinimalSubIssuesSummary{
 			Total:            int(n.Issue.SubIssuesSummary.Total),
