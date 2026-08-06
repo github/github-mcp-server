@@ -184,6 +184,17 @@ func TestResolveFeatureFlags(t *testing.T) {
 			expectedFlags:   []string{FeatureFlagIFCLabels},
 		},
 		{
+			name:            "artifacts can be directly enabled",
+			enabledFeatures: []string{FeatureFlagArtifacts},
+			expectedFlags:   []string{FeatureFlagArtifacts},
+		},
+		{
+			name:            "insiders mode does not auto-enable artifacts",
+			enabledFeatures: nil,
+			insidersMode:    true,
+			unexpectedFlags: []string{FeatureFlagArtifacts},
+		},
+		{
 			name:            "unknown flags are filtered out",
 			enabledFeatures: []string{"unknown_flag", "another_unknown"},
 			unexpectedFlags: []string{"unknown_flag", "another_unknown"},
