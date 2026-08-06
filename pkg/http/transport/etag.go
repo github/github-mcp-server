@@ -183,11 +183,11 @@ func (t *ETagTransport) add(key string, entry etagEntry) {
 	el := t.ll.PushFront(&lruItem{key: key, entry: entry})
 	t.items[key] = el
 
-	max := t.MaxEntries
-	if max <= 0 {
-		max = defaultETagCacheSize
+	limit := t.MaxEntries
+	if limit <= 0 {
+		limit = defaultETagCacheSize
 	}
-	for t.ll.Len() > max {
+	for t.ll.Len() > limit {
 		oldest := t.ll.Back()
 		if oldest == nil {
 			break
