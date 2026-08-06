@@ -17,12 +17,25 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// duplicateIssueResult mirrors a single "Ranked Similar Issue" element returned
-// by the semantic-similarity endpoint. Issue is kept as raw JSON so the full
-// issue representation is preserved verbatim, and Score is nullable because the
-// API may omit a similarity score.
-type duplicateIssueResult struct {
-	Issue           json.RawMessage `json:"issue"`
+// rankedSimilarIssue is a single "Ranked Similar Issue" element returned by the
+// semantic-similarity endpoint. Only the issue fields the tool surfaces are
+// decoded, and Score is nullable because the API may omit a similarity score.
+type rankedSimilarIssue struct {
+	Issue *struct {
+		Number  int    `json:"number"`
+		Title   string `json:"title"`
+		State   string `json:"state"`
+		HTMLURL string `json:"html_url"`
+	} `json:"issue"`
+	Score           *float64 `json:"score"`
+	Confidence      string   `json:"confidence"`
+	LikelyDuplicate bool     `json:"likely_duplicate"`
+}
+
+// duplicateCandidate is the trimmed output for a ranked duplicate candidate,
+// carrying only what an agent needs to explain and act on it.
+type duplicateCandidate struct {
+	Issue           MinimalIssueRef `json:"issue"`
 	Score           *float64        `json:"score"`
 	Confidence      string          `json:"confidence"`
 	LikelyDuplicate bool            `json:"likely_duplicate"`
@@ -51,9 +64,7 @@ func FindDuplicate(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			"confidence_threshold": {
 				Type:        "number",
-				Description: "Minimum similarity threshold for a candidate to be returned. When omitted, the API's high-precision default is used.",
-				Minimum:     jsonschema.Ptr(0.0),
-				Maximum:     jsonschema.Ptr(1.0),
+				Description: "Minimum similarity threshold a candidate must meet to be returned; higher values are stricter. When omitted, the API's high-precision default is used. The scale is defined by the API, so no client-side bounds are enforced.",
 			},
 		},
 		Required: []string{"owner", "repo", "issue_number"},
@@ -124,23 +135,35 @@ func FindDuplicate(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultErrorFromErr("failed to create request", err), nil, nil
 			}
 
-			var results []duplicateIssueResult
+			var results []rankedSimilarIssue
 			resp, err := client.Do(req, &results)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to find duplicate issues", resp, err), nil, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			// When ranked duplicate detection is not enabled for the caller, the
-			// endpoint returns bare issue resources instead of ranked results.
-			// Surface that as an explicit error rather than incomplete candidates.
-			for i := range results {
-				if results[i].Confidence == "" || len(results[i].Issue) == 0 {
+			candidates := make([]duplicateCandidate, 0, len(results))
+			for _, res := range results {
+				// A bare issue (no ranking metadata) means ranked duplicate
+				// detection is not enabled for this caller; fail clearly rather
+				// than returning incomplete candidates.
+				if res.Confidence == "" || res.Issue == nil {
 					return utils.NewToolResultError("ranked duplicate detection is unavailable: the semantic-similarity endpoint returned issues without ranking metadata (the server-side duplicate-ranking feature is not enabled for this caller or repository)"), nil, nil
 				}
+				candidates = append(candidates, duplicateCandidate{
+					Issue: MinimalIssueRef{
+						Number: res.Issue.Number,
+						Title:  res.Issue.Title,
+						State:  res.Issue.State,
+						URL:    res.Issue.HTMLURL,
+					},
+					Score:           res.Score,
+					Confidence:      res.Confidence,
+					LikelyDuplicate: res.LikelyDuplicate,
+				})
 			}
 
-			r, err := json.Marshal(results)
+			r, err := json.Marshal(candidates)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal duplicate candidates", err), nil, nil
 			}

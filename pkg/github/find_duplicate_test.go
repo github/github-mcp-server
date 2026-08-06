@@ -101,7 +101,7 @@ func Test_FindDuplicate_RankedResults(t *testing.T) {
 	assert.Equal(t, "1", capturedURL.Query().Get("page"))
 
 	text := getTextResult(t, result)
-	var candidates []duplicateIssueResult
+	var candidates []duplicateCandidate
 	require.NoError(t, json.Unmarshal([]byte(text.Text), &candidates))
 	require.Len(t, candidates, 2)
 
@@ -109,16 +109,10 @@ func Test_FindDuplicate_RankedResults(t *testing.T) {
 	assert.True(t, candidates[0].LikelyDuplicate)
 	require.NotNil(t, candidates[0].Score)
 	assert.InDelta(t, 0.95, *candidates[0].Score, 0.0001)
-	var firstIssue struct {
-		Number int    `json:"number"`
-		Title  string `json:"title"`
-		State  string `json:"state"`
-		URL    string `json:"html_url"`
-	}
-	require.NoError(t, json.Unmarshal(candidates[0].Issue, &firstIssue))
-	assert.Equal(t, 456, firstIssue.Number)
-	assert.Equal(t, "open", firstIssue.State)
-	assert.NotEmpty(t, firstIssue.URL)
+	assert.Equal(t, 456, candidates[0].Issue.Number)
+	assert.Equal(t, "Example failure when saving", candidates[0].Issue.Title)
+	assert.Equal(t, "open", candidates[0].Issue.State)
+	assert.Equal(t, "https://github.com/owner/repo/issues/456", candidates[0].Issue.URL)
 
 	// A null score must decode successfully.
 	assert.Nil(t, candidates[1].Score)
@@ -176,7 +170,7 @@ func Test_FindDuplicate_EmptyResults(t *testing.T) {
 	require.False(t, result.IsError, "empty results is a successful search")
 
 	text := getTextResult(t, result)
-	var candidates []duplicateIssueResult
+	var candidates []duplicateCandidate
 	require.NoError(t, json.Unmarshal([]byte(text.Text), &candidates))
 	assert.Empty(t, candidates)
 }

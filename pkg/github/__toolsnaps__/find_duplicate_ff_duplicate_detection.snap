@@ -8,9 +8,7 @@
   "inputSchema": {
     "properties": {
       "confidence_threshold": {
-        "description": "Minimum similarity threshold for a candidate to be returned. When omitted, the API's high-precision default is used.",
-        "maximum": 1,
-        "minimum": 0,
+        "description": "Minimum similarity threshold a candidate must meet to be returned; higher values are stricter. When omitted, the API's high-precision default is used. The scale is defined by the API, so no client-side bounds are enforced.",
         "type": "number"
       },
       "issue_number": {
