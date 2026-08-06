@@ -8,14 +8,26 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
 )
 
-// defaultETagCacheSize bounds the number of cached conditional responses held
-// in memory by an ETagTransport.
-const defaultETagCacheSize = 512
+const (
+	// defaultETagCacheSize bounds the number of cached conditional responses held
+	// in memory by an ETagTransport.
+	defaultETagCacheSize = 512
+
+	// defaultMaxEntryBytes bounds the size of a single cached body. Responses
+	// larger than this are still revalidated normally but are never retained, so
+	// a few large reads cannot pin large buffers in memory.
+	defaultMaxEntryBytes = 1 << 20 // 1 MiB
+
+	// defaultMaxTotalBytes bounds the combined size of all cached bodies. The
+	// least-recently-used entries are evicted until the cache is within budget.
+	defaultMaxTotalBytes = 32 << 20 // 32 MiB
+)
 
 // rateLimitHeaders are copied from the live 304 response onto a cache-served
 // response so downstream rate-limit accounting observes the current state.
@@ -80,8 +92,14 @@ type lruItem struct {
 // rate-limit budget and bandwidth.
 //
 // Cached entries are scoped by the request's Authorization header so responses
-// are never shared across tokens. The cache is bounded (LRU) and safe for
-// concurrent use.
+// are never shared across tokens. Responses marked non-storable by HTTP cache
+// directives (request or response Cache-Control: no-store, or Vary: *) are never
+// retained. The cache is bounded both by entry count and by a total-byte budget
+// (LRU) and is safe for concurrent use.
+//
+// This transport is intended for the long-lived local (stdio) server only. The
+// hosted, horizontally-scaled server constructs a fresh REST client per request
+// and does not use it, so an in-process cache adds nothing there.
 type ETagTransport struct {
 	Transport http.RoundTripper
 
@@ -89,9 +107,19 @@ type ETagTransport struct {
 	// defaultETagCacheSize is used.
 	MaxEntries int
 
-	mu    sync.Mutex
-	ll    *list.List
-	items map[string]*list.Element
+	// MaxEntryBytes bounds the size of a single cached body. Responses larger
+	// than this are revalidated but not retained. When zero, defaultMaxEntryBytes
+	// is used.
+	MaxEntryBytes int
+
+	// MaxTotalBytes bounds the combined size of all cached bodies. When zero,
+	// defaultMaxTotalBytes is used.
+	MaxTotalBytes int
+
+	mu       sync.Mutex
+	ll       *list.List
+	items    map[string]*list.Element
+	curBytes int
 }
 
 func (t *ETagTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -100,9 +128,9 @@ func (t *ETagTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		rt = http.DefaultTransport
 	}
 
-	// Only cache GET requests, and never override a caller-supplied conditional
-	// header.
-	if req.Method != http.MethodGet || req.Header.Get(headers.IfNoneMatchHeader) != "" {
+	// Only cache GET requests, never override a caller-supplied conditional
+	// header, and honor a client request to bypass the cache entirely.
+	if req.Method != http.MethodGet || req.Header.Get(headers.IfNoneMatchHeader) != "" || hasNoStore(req.Header) {
 		return rt.RoundTrip(req)
 	}
 
@@ -129,24 +157,74 @@ func (t *ETagTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	if resp.StatusCode == http.StatusOK {
-		if etag := resp.Header.Get(headers.ETagHeader); etag != "" {
-			body, readErr := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			if readErr != nil {
-				return nil, readErr
-			}
-			t.add(key, etagEntry{
-				etag:   etag,
-				status: resp.StatusCode,
-				header: resp.Header.Clone(),
-				body:   body,
-			})
-			resp.Body = io.NopCloser(bytes.NewReader(body))
-			resp.ContentLength = int64(len(body))
+		etag := resp.Header.Get(headers.ETagHeader)
+
+		// Drop any prior entry and skip caching when the response is missing an
+		// ETag or is marked non-storable by HTTP cache directives.
+		if etag == "" || !storable(resp) {
+			t.remove(key)
+			return resp, nil
 		}
+
+		// Skip caching bodies that exceed the per-entry byte budget. When the
+		// length is known up front, avoid buffering the body at all.
+		maxEntry := t.maxEntryBytes()
+		if resp.ContentLength > int64(maxEntry) {
+			t.remove(key)
+			return resp, nil
+		}
+
+		body, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if readErr != nil {
+			return nil, readErr
+		}
+		resp.Body = io.NopCloser(bytes.NewReader(body))
+		resp.ContentLength = int64(len(body))
+
+		if len(body) > maxEntry {
+			t.remove(key)
+			return resp, nil
+		}
+
+		t.add(key, etagEntry{
+			etag:   etag,
+			status: resp.StatusCode,
+			header: resp.Header.Clone(),
+			body:   body,
+		})
 	}
 
 	return resp, nil
+}
+
+// hasNoStore reports whether a Cache-Control header carries the no-store
+// directive.
+func hasNoStore(h http.Header) bool {
+	for _, cc := range h.Values(headers.CacheControlHeader) {
+		for _, directive := range strings.Split(cc, ",") {
+			if strings.EqualFold(strings.TrimSpace(directive), "no-store") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// storable reports whether a response may be retained. Responses that request
+// no-store or that vary on every request (Vary: *) must not be cached.
+func storable(resp *http.Response) bool {
+	if hasNoStore(resp.Header) {
+		return false
+	}
+	for _, vary := range resp.Header.Values(headers.VaryHeader) {
+		for _, field := range strings.Split(vary, ",") {
+			if strings.TrimSpace(field) == "*" {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func cacheKey(req *http.Request) string {
@@ -168,6 +246,36 @@ func (t *ETagTransport) get(key string) (etagEntry, bool) {
 	return el.Value.(*lruItem).entry, true
 }
 
+func (t *ETagTransport) maxEntryBytes() int {
+	if t.MaxEntryBytes > 0 {
+		return t.MaxEntryBytes
+	}
+	return defaultMaxEntryBytes
+}
+
+func (t *ETagTransport) maxTotalBytes() int {
+	if t.MaxTotalBytes > 0 {
+		return t.MaxTotalBytes
+	}
+	return defaultMaxTotalBytes
+}
+
+// remove drops a cached entry if present, keeping the byte accounting in sync.
+func (t *ETagTransport) remove(key string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.items == nil {
+		return
+	}
+	el, ok := t.items[key]
+	if !ok {
+		return
+	}
+	t.curBytes -= len(el.Value.(*lruItem).entry.body)
+	t.ll.Remove(el)
+	delete(t.items, key)
+}
+
 func (t *ETagTransport) add(key string, entry etagEntry) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -176,23 +284,31 @@ func (t *ETagTransport) add(key string, entry etagEntry) {
 		t.ll = list.New()
 	}
 	if el, ok := t.items[key]; ok {
-		el.Value.(*lruItem).entry = entry
+		item := el.Value.(*lruItem)
+		t.curBytes += len(entry.body) - len(item.entry.body)
+		item.entry = entry
 		t.ll.MoveToFront(el)
-		return
+	} else {
+		el := t.ll.PushFront(&lruItem{key: key, entry: entry})
+		t.items[key] = el
+		t.curBytes += len(entry.body)
 	}
-	el := t.ll.PushFront(&lruItem{key: key, entry: entry})
-	t.items[key] = el
 
 	limit := t.MaxEntries
 	if limit <= 0 {
 		limit = defaultETagCacheSize
 	}
-	for t.ll.Len() > limit {
+	maxBytes := t.maxTotalBytes()
+	// Evict least-recently-used entries until within both the entry-count and
+	// total-byte budgets. Always keep at least the entry just inserted.
+	for t.ll.Len() > 1 && (t.ll.Len() > limit || t.curBytes > maxBytes) {
 		oldest := t.ll.Back()
 		if oldest == nil {
 			break
 		}
+		item := oldest.Value.(*lruItem)
+		t.curBytes -= len(item.entry.body)
 		t.ll.Remove(oldest)
-		delete(t.items, oldest.Value.(*lruItem).key)
+		delete(t.items, item.key)
 	}
 }

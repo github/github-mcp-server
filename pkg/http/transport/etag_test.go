@@ -199,3 +199,177 @@ func TestETagTransport_DoesNotOverrideCallerConditional(t *testing.T) {
 
 	assert.Equal(t, `"caller"`, gotIfNoneMatch)
 }
+
+// TestETagTransport_SkipsBodiesOverEntryByteBudget verifies a response whose
+// body exceeds the per-entry byte budget is served but never cached, so a
+// subsequent request is not revalidated against a stored ETag.
+func TestETagTransport_SkipsBodiesOverEntryByteBudget(t *testing.T) {
+	t.Parallel()
+
+	const etag = `"big"`
+	body := make([]byte, 64)
+
+	var lastIfNoneMatch string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lastIfNoneMatch = r.Header.Get(headers.IfNoneMatchHeader)
+		w.Header().Set(headers.ETagHeader, etag)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(body)
+	}))
+	defer server.Close()
+
+	rt := &ETagTransport{Transport: http.DefaultTransport, MaxEntryBytes: 16}
+
+	do := func() []byte {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+		require.NoError(t, err)
+		resp, err := rt.RoundTrip(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		data, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return data
+	}
+
+	assert.Equal(t, body, do())
+	assert.Equal(t, body, do(), "oversized body is served in full each time")
+	assert.Empty(t, lastIfNoneMatch, "an oversized response must not be cached or revalidated")
+}
+
+// TestETagTransport_EvictsByTotalByteBudget verifies that inserting a second
+// entry that pushes the cache over its total-byte budget evicts the
+// least-recently-used entry, which is then re-fetched in full.
+func TestETagTransport_EvictsByTotalByteBudget(t *testing.T) {
+	t.Parallel()
+
+	body := make([]byte, 10)
+	ifNoneMatch := map[string]string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ifNoneMatch[r.URL.Path] = r.Header.Get(headers.IfNoneMatchHeader)
+		w.Header().Set(headers.ETagHeader, `"`+r.URL.Path+`"`)
+		if r.Header.Get(headers.IfNoneMatchHeader) != "" {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(body)
+	}))
+	defer server.Close()
+
+	// Budget holds a single 10-byte entry; a second entry evicts the first.
+	rt := &ETagTransport{Transport: http.DefaultTransport, MaxTotalBytes: 15}
+
+	get := func(path string) {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL+path, nil)
+		require.NoError(t, err)
+		resp, err := rt.RoundTrip(req)
+		require.NoError(t, err)
+		_, _ = io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+	}
+
+	get("/a") // cache A
+	get("/b") // cache B, evicts A
+	get("/a") // A was evicted -> full GET, no conditional header
+
+	assert.Empty(t, ifNoneMatch["/a"], "A must be re-fetched in full after eviction")
+}
+
+// TestETagTransport_DoesNotCacheNoStoreResponse verifies a response marked
+// Cache-Control: no-store is never retained.
+func TestETagTransport_DoesNotCacheNoStoreResponse(t *testing.T) {
+	t.Parallel()
+
+	var lastIfNoneMatch string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lastIfNoneMatch = r.Header.Get(headers.IfNoneMatchHeader)
+		w.Header().Set(headers.ETagHeader, `"ns"`)
+		w.Header().Set(headers.CacheControlHeader, "private, no-store")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, "secret")
+	}))
+	defer server.Close()
+
+	rt := &ETagTransport{Transport: http.DefaultTransport}
+
+	do := func() {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+		require.NoError(t, err)
+		resp, err := rt.RoundTrip(req)
+		require.NoError(t, err)
+		_, _ = io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+	}
+
+	do()
+	do()
+	assert.Empty(t, lastIfNoneMatch, "a no-store response must not be cached or revalidated")
+}
+
+// TestETagTransport_DoesNotCacheVaryStar verifies a response with Vary: * is
+// never retained.
+func TestETagTransport_DoesNotCacheVaryStar(t *testing.T) {
+	t.Parallel()
+
+	var lastIfNoneMatch string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lastIfNoneMatch = r.Header.Get(headers.IfNoneMatchHeader)
+		w.Header().Set(headers.ETagHeader, `"vary"`)
+		w.Header().Set(headers.VaryHeader, "*")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, "body")
+	}))
+	defer server.Close()
+
+	rt := &ETagTransport{Transport: http.DefaultTransport}
+
+	do := func() {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+		require.NoError(t, err)
+		resp, err := rt.RoundTrip(req)
+		require.NoError(t, err)
+		_, _ = io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+	}
+
+	do()
+	do()
+	assert.Empty(t, lastIfNoneMatch, "a Vary:* response must not be cached or revalidated")
+}
+
+// TestETagTransport_RequestNoStoreBypassesCache verifies a client request that
+// sends Cache-Control: no-store neither reads from nor revalidates against the
+// cache, even after a prior response was cached.
+func TestETagTransport_RequestNoStoreBypassesCache(t *testing.T) {
+	t.Parallel()
+
+	var lastIfNoneMatch string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lastIfNoneMatch = r.Header.Get(headers.IfNoneMatchHeader)
+		w.Header().Set(headers.ETagHeader, `"x"`)
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, "body")
+	}))
+	defer server.Close()
+
+	rt := &ETagTransport{Transport: http.DefaultTransport}
+
+	// Prime the cache with a normal GET.
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	require.NoError(t, err)
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	_, _ = io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+
+	// A no-store request must not send If-None-Match.
+	req2, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	require.NoError(t, err)
+	req2.Header.Set(headers.CacheControlHeader, "no-store")
+	resp2, err := rt.RoundTrip(req2)
+	require.NoError(t, err)
+	_, _ = io.Copy(io.Discard, resp2.Body)
+	resp2.Body.Close()
+
+	assert.Empty(t, lastIfNoneMatch, "a no-store request must bypass the cache")
+}
