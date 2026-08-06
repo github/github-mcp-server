@@ -2984,6 +2984,7 @@ func Test_UpdateIssue(t *testing.T) {
 		expectError      bool
 		expectedIssue    *github.Issue
 		expectedErrMsg   string
+		expectNoRequests bool
 	}{
 		{
 			name: "partial update of non-state fields only",
@@ -3403,11 +3404,35 @@ func Test_UpdateIssue(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "duplicate_of can only be used when state_reason is 'duplicate'",
 		},
+		{
+			name:             "duplicate state reason without duplicate_of should fail before updates",
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			mockedGQLClient:  githubv4mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"type":         nil,
+				"state":        "closed",
+				"state_reason": "duplicate",
+			},
+			expectError:      true,
+			expectedErrMsg:   "duplicate_of must be provided when state_reason is 'duplicate'",
+			expectNoRequests: true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup clients with mocks
+			var restRequests, gqlRequests *requestCountingTransport
+			if tc.expectNoRequests {
+				restRequests = &requestCountingTransport{inner: tc.mockedRESTClient.Transport}
+				tc.mockedRESTClient.Transport = restRequests
+				gqlRequests = &requestCountingTransport{inner: tc.mockedGQLClient.Transport}
+				tc.mockedGQLClient.Transport = gqlRequests
+			}
 			restClient := mustNewGHClient(t, tc.mockedRESTClient)
 			gqlClient := githubv4.NewClient(tc.mockedGQLClient)
 			deps := BaseDeps{
@@ -3421,6 +3446,10 @@ func Test_UpdateIssue(t *testing.T) {
 
 			// Call handler
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			if tc.expectNoRequests {
+				assert.Zero(t, restRequests.count)
+				assert.Zero(t, gqlRequests.count)
+			}
 
 			// Verify results
 			if tc.expectError || tc.expectedErrMsg != "" {

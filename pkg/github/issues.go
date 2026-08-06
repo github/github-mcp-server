@@ -2168,7 +2168,7 @@ Options are:
 					},
 					"duplicate_of": {
 						Type:        "number",
-						Description: "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
+						Description: "Issue number that this issue is a duplicate of. Required when state_reason is 'duplicate'.",
 					},
 					"issue_fields": {
 						Type:        "array",
@@ -2305,6 +2305,9 @@ Options are:
 			if duplicateOf != 0 && stateReason != "duplicate" {
 				return utils.NewToolResultError("duplicate_of can only be used when state_reason is 'duplicate'"), nil, nil
 			}
+			if err := validateDuplicateState(state, stateReason, duplicateOf); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
 			var issueFields []issueWriteFieldInput
 			issueFields, err = optionalIssueWriteFields(args)
@@ -2419,6 +2422,11 @@ type UpdateIssueOptions struct {
 }
 
 func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldIDsToDelete []int64, state string, stateReason string, duplicateOf int, opts ...UpdateIssueOptions) (*mcp.CallToolResult, error) {
+	// UpdateIssue is exported and may be called without the tool handler.
+	if err := validateDuplicateState(state, stateReason, duplicateOf); err != nil {
+		return utils.NewToolResultError(err.Error()), nil
+	}
+
 	updateOptions := UpdateIssueOptions{
 		AssigneesProvided: len(assignees) > 0,
 		LabelsProvided:    len(labels) > 0,
@@ -2557,11 +2565,6 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 
 	// Use GraphQL API for state updates
 	if state != "" {
-		// Mandate specifying duplicateOf when trying to close as duplicate
-		if state == "closed" && stateReason == "duplicate" && duplicateOf == 0 {
-			return utils.NewToolResultError("duplicate_of must be provided when state_reason is 'duplicate'"), nil
-		}
-
 		// Get target issue ID (and duplicate issue ID if needed)
 		issueID, duplicateIssueID, err := fetchIssueIDs(ctx, gqlClient, owner, repo, issueNumber, duplicateOf)
 		if err != nil {
@@ -2631,6 +2634,13 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	}
 
 	return utils.NewToolResultText(string(r)), nil
+}
+
+func validateDuplicateState(state, stateReason string, duplicateOf int) error {
+	if state == "closed" && stateReason == "duplicate" && duplicateOf == 0 {
+		return fmt.Errorf("duplicate_of must be provided when state_reason is 'duplicate'")
+	}
+	return nil
 }
 
 type updateIssueRequestWithNullableType struct {

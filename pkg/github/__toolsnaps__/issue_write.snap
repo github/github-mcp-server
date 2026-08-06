@@ -28,7 +28,7 @@
         "type": "string"
       },
       "duplicate_of": {
-        "description": "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
+        "description": "Issue number that this issue is a duplicate of. Required when state_reason is 'duplicate'.",
         "type": "number"
       },
       "issue_fields": {
