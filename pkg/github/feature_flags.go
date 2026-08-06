@@ -27,6 +27,11 @@ const FeatureFlagFileBlame = "file_blame"
 // unless explicitly opted in.
 const FeatureFlagIssueDependencies = "issue_dependencies"
 
+// FeatureFlagArtifacts is the feature flag name for issue artifact tools.
+// It is user-toggleable but intentionally excluded from insiders mode until
+// the dotcom scribe_artifacts_api cohort is broad enough.
+const FeatureFlagArtifacts = "artifacts"
+
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag or X-MCP-Features HTTP header.
 // Only flags in this list are accepted; unknown flags are silently ignored.
@@ -40,6 +45,7 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagPullRequestsGranular,
 	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,
+	FeatureFlagArtifacts,
 }
 
 // InsidersFeatureFlags is the list of feature flags that insiders mode enables.
