@@ -129,6 +129,10 @@ func RunHTTPServer(cfg ServerConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse API host: %w", err)
 	}
+	hostType, err := utils.ParseHostType(cfg.Host)
+	if err != nil {
+		return fmt.Errorf("failed to classify API host: %w", err)
+	}
 
 	repoAccessOpts := []lockdown.RepoAccessOption{
 		lockdown.WithLogger(logger.With("component", "lockdown")),
@@ -156,7 +160,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 	)
 
 	// Initialize the global tool scope map
-	err = initGlobalToolScopeMap(t)
+	err = initGlobalToolScopeMap(t, hostType)
 	if err != nil {
 		return fmt.Errorf("failed to initialize tool scope map: %w", err)
 	}
@@ -239,10 +243,10 @@ func resolveListenAddress(host string, port int) string {
 	return net.JoinHostPort(host, strconv.Itoa(port))
 }
 
-func initGlobalToolScopeMap(t translations.TranslationHelperFunc) error {
+func initGlobalToolScopeMap(t translations.TranslationHelperFunc, hostType utils.HostType) error {
 	// Build inventory with all tools to extract scope information
 	inv, err := inventory.NewBuilder().
-		SetTools(github.AllTools(t)).
+		SetTools(github.AllTools(t, github.WithHost(hostType))).
 		Build()
 
 	if err != nil {
