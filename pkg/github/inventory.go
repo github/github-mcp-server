@@ -10,9 +10,9 @@ import (
 // This function is stateless - no dependencies are captured.
 // Handlers are generated on-demand during registration via RegisterAll(ctx, server, deps).
 // The "default" keyword in WithToolsets will expand to toolsets marked with Default: true.
-func NewInventory(t translations.TranslationHelperFunc) *inventory.Builder {
+func NewInventory(t translations.TranslationHelperFunc, opts ...ToolOption) *inventory.Builder {
 	return inventory.NewBuilder().
-		SetTools(AllTools(t)).
+		SetTools(AllTools(t, opts...)).
 		SetResources(AllResources(t)).
 		SetPrompts(AllPrompts(t))
 }

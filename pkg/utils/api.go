@@ -235,13 +235,53 @@ func parseAPIHost(s string) (APIHost, error) {
 		return APIHost{}, fmt.Errorf("host must have a scheme (http or https): %s", s)
 	}
 
-	if u.Hostname() == "github.com" || strings.HasSuffix(u.Hostname(), ".github.com") {
+	switch classifyHost(u) {
+	case HostTypeDotcom:
 		return newDotcomHost()
-	}
-
-	if u.Hostname() == "ghe.com" || strings.HasSuffix(u.Hostname(), ".ghe.com") {
+	case HostTypeGHEC:
 		return newGHECHost(s)
+	default:
+		return newGHESHost(s)
+	}
+}
+
+// HostType identifies which GitHub deployment a host refers to. Tools use this
+// to skip capabilities that only exist on some deployments.
+type HostType int
+
+const (
+	HostTypeDotcom HostType = iota
+	HostTypeGHEC
+	HostTypeGHES
+)
+
+func classifyHost(u *url.URL) HostType {
+	switch {
+	case u.Hostname() == "github.com" || strings.HasSuffix(u.Hostname(), ".github.com"):
+		return HostTypeDotcom
+	case u.Hostname() == "ghe.com" || strings.HasSuffix(u.Hostname(), ".ghe.com"):
+		return HostTypeGHEC
+	default:
+		return HostTypeGHES
+	}
+}
+
+// ParseHostType classifies a host string. An empty string means github.com,
+// matching NewAPIHost. It returns an error only when the string is not a URL
+// with a scheme.
+func ParseHostType(s string) (HostType, error) {
+	if s == "" {
+		return HostTypeDotcom, nil
 	}
 
-	return newGHESHost(s)
+	u, err := url.Parse(s)
+	if err != nil {
+		return HostTypeDotcom, fmt.Errorf("could not parse host as URL: %s", s)
+	}
+
+	if u.Scheme == "" {
+		return HostTypeDotcom, fmt.Errorf("host must have a scheme (http or https): %s", s)
+	}
+
+	return classifyHost(u), nil
 }
