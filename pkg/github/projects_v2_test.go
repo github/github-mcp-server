@@ -3,7 +3,9 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -195,6 +197,7 @@ func projectViewParentMatcher(viewID, projectID string) githubv4mock.Matcher {
 		githubv4mock.DataResponse(map[string]any{
 			"node": map[string]any{
 				"id":      viewID,
+				"layout":  "TABLE_LAYOUT",
 				"project": map[string]any{"id": projectID},
 			},
 		}),
@@ -207,6 +210,24 @@ func projectViewParentErrorMatcher(viewID, message string) githubv4mock.Matcher 
 		map[string]any{"id": githubv4.ID(viewID)},
 		githubv4mock.ErrorResponse(message),
 	)
+}
+
+// countingGraphQLClient wraps a mocked GraphQL client and reports how many requests it served.
+func countingGraphQLClient(matchers ...githubv4mock.Matcher) (*http.Client, func() int) {
+	client := githubv4mock.NewMockedHTTPClient(matchers...)
+	counter := &countingRoundTripper{next: client.Transport}
+	client.Transport = counter
+	return client, func() int { return int(counter.count.Load()) }
+}
+
+type countingRoundTripper struct {
+	next  http.RoundTripper
+	count atomic.Int64
+}
+
+func (c *countingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	c.count.Add(1)
+	return c.next.RoundTrip(req)
 }
 
 func projectFieldNamesMatcher(owner, ownerType string, projectNumber int, nodes []map[string]any) githubv4mock.Matcher {
@@ -240,6 +261,23 @@ func projectFieldNamesMatcher(owner, ownerType string, projectNumber int, nodes 
 		fieldsQueryVars(owner, projectNumber),
 		githubv4mock.DataResponse(response),
 	)
+}
+
+func projectViewResponse(id string, number int, name, layout, filter string, visibleFieldIDs ...int) map[string]any {
+	nodes := make([]map[string]any, 0, len(visibleFieldIDs))
+	for _, fieldID := range visibleFieldIDs {
+		nodes = append(nodes, map[string]any{"databaseId": fieldID})
+	}
+	return map[string]any{
+		"id":     id,
+		"number": number,
+		"name":   name,
+		"layout": layout,
+		"filter": filter,
+		"configuration": map[string]any{
+			"visibleFields": map[string]any{"nodes": nodes},
+		},
+	}
 }
 
 func createFieldMatcher() githubv4mock.Matcher {
@@ -562,6 +600,11 @@ func Test_ProjectsList_ListProjectViews(t *testing.T) {
 									"name":   "Ready work",
 									"layout": "TABLE_LAYOUT",
 									"filter": "status:Ready",
+									"configuration": map[string]any{
+										"visibleFields": map[string]any{
+											"nodes": []map[string]any{{"databaseId": 101}, {"databaseId": 202}},
+										},
+									},
 								},
 							},
 							"pageInfo": map[string]any{
@@ -606,11 +649,12 @@ func Test_ProjectsList_ListProjectViews(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
 		require.Len(t, response.Views, 1)
 		assert.Equal(t, MinimalProjectView{
-			ID:     "PVTV_view1",
-			Number: 1,
-			Name:   "Ready work",
-			Layout: "table",
-			Filter: "status:Ready",
+			ID:            "PVTV_view1",
+			Number:        1,
+			Name:          "Ready work",
+			Layout:        "table",
+			Filter:        "status:Ready",
+			VisibleFields: []int64{101, 202},
 		}, response.Views[0])
 		assert.Equal(t, "end-cursor", response.PageInfo["nextCursor"])
 		require.NotNil(t, result.Meta)
@@ -717,6 +761,11 @@ func Test_ProjectsGet_GetProjectView(t *testing.T) {
 						"layout":  "BOARD_LAYOUT",
 						"filter":  "status:Ready",
 						"project": map[string]any{"public": false},
+						"configuration": map[string]any{
+							"visibleFields": map[string]any{
+								"nodes": []map[string]any{{"databaseId": 101}, {"databaseId": 202}},
+							},
+						},
 					},
 				}),
 			),
@@ -739,6 +788,7 @@ func Test_ProjectsGet_GetProjectView(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &view))
 		assert.Equal(t, "PVTV_view1", view.ID)
 		assert.Equal(t, "board", view.Layout)
+		assert.Equal(t, []int64{101, 202}, view.VisibleFields)
 		require.NotNil(t, result.Meta)
 		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
 		assert.Equal(t, "private", ifcMap["confidentiality"])
@@ -768,145 +818,85 @@ func Test_ProjectsGet_GetProjectView(t *testing.T) {
 
 func Test_ProjectsWrite_CreateProjectView(t *testing.T) {
 	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+	emptyRESTClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
 
-	t.Run("creates organization view with filter and visible fields", func(t *testing.T) {
-		restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			"POST /orgs/{org}/projectsV2/{project}/views": func(w http.ResponseWriter, r *http.Request) {
-				require.Equal(t, "/orgs/octo-org/projectsV2/7/views", r.URL.Path)
-				var body map[string]any
-				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
-				assert.Equal(t, "Ready work", body["name"])
-				assert.Equal(t, "table", body["layout"])
-				assert.Equal(t, "status:Ready", body["filter"])
-				assert.Equal(t, []any{float64(101), float64(202)}, body["visible_fields"])
-				mockResponse(t, http.StatusCreated, map[string]any{
-					"node_id":        "PVTV_view1",
-					"number":         1,
-					"name":           "Ready work",
-					"layout":         "table",
-					"filter":         "status:Ready",
-					"visible_fields": []int64{101, 202},
-				})(w, r)
-			},
-		})
-		deps := BaseDeps{Client: mustNewGHClient(t, restClient)}
-		handler := toolDef.Handler(deps)
-		request := createMCPRequest(map[string]any{
-			"method":         "create_project_view",
-			"owner":          "octo-org",
-			"owner_type":     "org",
-			"project_number": float64(7),
-			"name":           "Ready work",
-			"layout":         "table",
-			"filter":         "status:Ready",
-			"visible_fields": []any{"101", "202"},
-		})
-
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-		require.False(t, result.IsError)
-
-		var view MinimalProjectView
-		require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &view))
-		assert.Equal(t, "PVTV_view1", view.ID)
-		assert.Equal(t, []int64{101, 202}, view.VisibleFields)
-	})
-
-	t.Run("resolves organization visible field names in caller order", func(t *testing.T) {
-		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
+	t.Run("creates an ordered view and preserves create filter support", func(t *testing.T) {
+		filter := githubv4.String("status:Ready")
+		gqlClient := githubv4mock.NewMockedHTTPClient(
 			projectFieldNamesMatcher("octo-org", "org", 7, []map[string]any{
 				statusFieldNode("PVTSSF_status", 101, "Status", nil),
-				statusFieldNode("PVTSSF_priority", 202, "Priority", nil),
+				multiSelectFieldNode("PVTMSSF_teams", 202, "Teams"),
 			}),
-		))
-		restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			"POST /orgs/{org}/projectsV2/{project}/views": func(w http.ResponseWriter, r *http.Request) {
-				var body map[string]any
-				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
-				assert.Equal(t, []any{float64(202), float64(101)}, body["visible_fields"])
-				mockResponse(t, http.StatusCreated, map[string]any{
-					"node_id":        "PVTV_named_org",
-					"number":         2,
-					"name":           "Named fields",
-					"layout":         "table",
-					"visible_fields": []int64{202, 101},
-				})(w, r)
-			},
-		})
-		deps := BaseDeps{
-			Client:    mustNewGHClient(t, restClient),
-			GQLClient: gqlClient,
-		}
+			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
+			githubv4mock.NewMutationMatcher(
+				createProjectV2ViewMutation{},
+				CreateProjectV2ViewInput{
+					ProjectID: githubv4.ID("PVT_project7"),
+					Name:      githubv4.String("Ready work"),
+					Layout:    githubv4.ProjectV2ViewLayoutTableLayout,
+					Configuration: &ProjectV2ViewConfigurationInput{
+						VisibleFieldIDs: []githubv4.ID{"PVTMSSF_teams", "PVTSSF_status"},
+					},
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"createProjectV2View": map[string]any{
+						"projectV2View": projectViewResponse("PVTV_view1", 1, "Ready work", "TABLE_LAYOUT", "", 202, 101),
+					},
+				}),
+			),
+			githubv4mock.NewMutationMatcher(
+				updateProjectV2ViewMutation{},
+				UpdateProjectV2ViewInput{ViewID: githubv4.ID("PVTV_view1"), Filter: &filter},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"updateProjectV2View": map[string]any{
+						"projectV2View": projectViewResponse("PVTV_view1", 1, "Ready work", "TABLE_LAYOUT", "status:Ready", 202, 101),
+					},
+				}),
+			),
+		)
+		deps := BaseDeps{Client: emptyRESTClient, GQLClient: githubv4.NewClient(gqlClient)}
 		handler := toolDef.Handler(deps)
 		request := createMCPRequest(map[string]any{
 			"method":              "create_project_view",
 			"owner":               "octo-org",
 			"owner_type":          "org",
 			"project_number":      float64(7),
-			"name":                "Named fields",
+			"name":                "Ready work",
 			"layout":              "table",
-			"visible_field_names": []any{"Priority", "status"},
+			"filter":              "status:Ready",
+			"visible_field_names": []any{"Teams", "Status"},
 		})
 
 		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
-		require.False(t, result.IsError)
+		require.False(t, result.IsError, getTextResult(t, result).Text)
+		var view MinimalProjectView
+		require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &view))
+		assert.Equal(t, []int64{202, 101}, view.VisibleFields)
+		assert.Equal(t, "status:Ready", view.Filter)
 	})
 
-	t.Run("resolves user visible field names", func(t *testing.T) {
-		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
-			projectFieldNamesMatcher("octocat", "user", 8, []map[string]any{
-				statusFieldNode("PVTSSF_status", 303, "Status", nil),
-			}),
-		))
-		restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			"POST /users/{user_id}/projectsV2/{project}/views": func(w http.ResponseWriter, r *http.Request) {
-				require.Equal(t, "/users/octocat/projectsV2/8/views", r.URL.Path)
-				var body map[string]any
-				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
-				assert.Equal(t, []any{float64(303)}, body["visible_fields"])
-				mockResponse(t, http.StatusCreated, map[string]any{
-					"node_id":        "PVTV_named_user",
-					"number":         3,
-					"name":           "User fields",
-					"layout":         "board",
-					"visible_fields": []int64{303},
-				})(w, r)
-			},
-		})
-		deps := BaseDeps{
-			Client:    mustNewGHClient(t, restClient),
-			GQLClient: gqlClient,
-		}
-		handler := toolDef.Handler(deps)
-		request := createMCPRequest(map[string]any{
-			"method":              "create_project_view",
-			"owner":               "octocat",
-			"owner_type":          "user",
-			"project_number":      float64(8),
-			"name":                "User fields",
-			"layout":              "board",
-			"visible_field_names": []any{"Status"},
-		})
-
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-		require.False(t, result.IsError)
-	})
-
-	t.Run("creates a user view by login", func(t *testing.T) {
-		restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			"POST /users/{user_id}/projectsV2/{project}/views": func(w http.ResponseWriter, r *http.Request) {
-				require.Equal(t, "/users/octocat/projectsV2/8/views", r.URL.Path)
-				mockResponse(t, http.StatusCreated, map[string]any{
-					"node_id": "PVTV_view2",
-					"number":  2,
-					"name":    "Board",
-					"layout":  "board",
-				})(w, r)
-			},
-		})
-		deps := BaseDeps{Client: mustNewGHClient(t, restClient)}
+	t.Run("keeps omitted configuration omitted", func(t *testing.T) {
+		gqlClient := githubv4mock.NewMockedHTTPClient(
+			resolveProjectNodeIDUserMatcher("octocat", 8, "PVT_project8"),
+			githubv4mock.NewMutationMatcher(
+				createProjectV2ViewMutation{},
+				CreateProjectV2ViewInput{
+					ProjectID: githubv4.ID("PVT_project8"),
+					Name:      githubv4.String("Board"),
+					Layout:    githubv4.ProjectV2ViewLayoutBoardLayout,
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"createProjectV2View": map[string]any{
+						"projectV2View": projectViewResponse("PVTV_view2", 2, "Board", "BOARD_LAYOUT", ""),
+					},
+				}),
+			),
+		)
+		deps := BaseDeps{Client: emptyRESTClient, GQLClient: githubv4.NewClient(gqlClient)}
 		handler := toolDef.Handler(deps)
 		request := createMCPRequest(map[string]any{
 			"method":         "create_project_view",
@@ -919,24 +909,229 @@ func Test_ProjectsWrite_CreateProjectView(t *testing.T) {
 
 		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
-		require.False(t, result.IsError)
-		assert.Contains(t, getTextResult(t, result).Text, `"id":"PVTV_view2"`)
+		require.False(t, result.IsError, getTextResult(t, result).Text)
+		assert.JSONEq(t, `{"id":"PVTV_view2","number":2,"name":"Board","layout":"board","filter":"","visible_fields":[]}`, getTextResult(t, result).Text)
+	})
+
+	t.Run("cleans up when applying a create filter fails", func(t *testing.T) {
+		filter := githubv4.String("status:Ready")
+		gqlClient := githubv4mock.NewMockedHTTPClient(
+			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
+			githubv4mock.NewMutationMatcher(
+				createProjectV2ViewMutation{},
+				CreateProjectV2ViewInput{
+					ProjectID: githubv4.ID("PVT_project7"),
+					Name:      githubv4.String("Filtered"),
+					Layout:    githubv4.ProjectV2ViewLayoutTableLayout,
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"createProjectV2View": map[string]any{
+						"projectV2View": projectViewResponse("PVTV_cleanup", 4, "Filtered", "TABLE_LAYOUT", ""),
+					},
+				}),
+			),
+			githubv4mock.NewMutationMatcher(
+				updateProjectV2ViewMutation{},
+				UpdateProjectV2ViewInput{ViewID: githubv4.ID("PVTV_cleanup"), Filter: &filter},
+				nil,
+				githubv4mock.ErrorResponse("filter failed"),
+			),
+			githubv4mock.NewMutationMatcher(
+				struct {
+					DeleteProjectV2View struct {
+						ProjectV2View struct {
+							ID githubv4.ID
+						} `graphql:"projectV2View"`
+					} `graphql:"deleteProjectV2View(input: $input)"`
+				}{},
+				DeleteProjectV2ViewInput{ViewID: githubv4.ID("PVTV_cleanup")},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"deleteProjectV2View": map[string]any{
+						"projectV2View": map[string]any{"id": "PVTV_cleanup"},
+					},
+				}),
+			),
+		)
+		deps := BaseDeps{Client: emptyRESTClient, GQLClient: githubv4.NewClient(gqlClient)}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "create_project_view",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(7),
+			"name":           "Filtered",
+			"layout":         "table",
+			"filter":         "status:Ready",
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		assert.Contains(t, getTextResult(t, result).Text, "filter failed")
+		assert.Contains(t, getTextResult(t, result).Text, "created view was cleaned up")
+	})
+
+	t.Run("returns the orphaned view ID when cleanup fails", func(t *testing.T) {
+		filter := githubv4.String("status:Ready")
+		gqlClient := githubv4mock.NewMockedHTTPClient(
+			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
+			githubv4mock.NewMutationMatcher(
+				createProjectV2ViewMutation{},
+				CreateProjectV2ViewInput{
+					ProjectID: githubv4.ID("PVT_project7"),
+					Name:      githubv4.String("Filtered"),
+					Layout:    githubv4.ProjectV2ViewLayoutTableLayout,
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"createProjectV2View": map[string]any{
+						"projectV2View": projectViewResponse("PVTV_orphan", 4, "Filtered", "TABLE_LAYOUT", ""),
+					},
+				}),
+			),
+			githubv4mock.NewMutationMatcher(
+				updateProjectV2ViewMutation{},
+				UpdateProjectV2ViewInput{ViewID: githubv4.ID("PVTV_orphan"), Filter: &filter},
+				nil,
+				githubv4mock.ErrorResponse("filter failed"),
+			),
+			githubv4mock.NewMutationMatcher(
+				struct {
+					DeleteProjectV2View struct {
+						ProjectV2View struct {
+							ID githubv4.ID
+						} `graphql:"projectV2View"`
+					} `graphql:"deleteProjectV2View(input: $input)"`
+				}{},
+				DeleteProjectV2ViewInput{ViewID: githubv4.ID("PVTV_orphan")},
+				nil,
+				githubv4mock.ErrorResponse("cleanup failed"),
+			),
+		)
+		deps := BaseDeps{Client: emptyRESTClient, GQLClient: githubv4.NewClient(gqlClient)}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "create_project_view",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(7),
+			"name":           "Filtered",
+			"layout":         "table",
+			"filter":         "status:Ready",
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		text := getTextResult(t, result).Text
+		assert.Contains(t, text, "filter failed")
+		assert.Contains(t, text, "cleanup failed")
+		assert.Contains(t, text, "PVTV_orphan")
+	})
+
+	t.Run("skips the filter mutation when the filter is null", func(t *testing.T) {
+		// Only the create mutation is registered, so a follow-up filter mutation would 404.
+		gqlClient := githubv4mock.NewMockedHTTPClient(
+			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
+			githubv4mock.NewMutationMatcher(
+				createProjectV2ViewMutation{},
+				CreateProjectV2ViewInput{
+					ProjectID: githubv4.ID("PVT_project7"),
+					Name:      githubv4.String("Unfiltered"),
+					Layout:    githubv4.ProjectV2ViewLayoutTableLayout,
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"createProjectV2View": map[string]any{
+						"projectV2View": projectViewResponse("PVTV_nullfilter", 5, "Unfiltered", "TABLE_LAYOUT", ""),
+					},
+				}),
+			),
+		)
+		deps := BaseDeps{Client: emptyRESTClient, GQLClient: githubv4.NewClient(gqlClient)}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "create_project_view",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(7),
+			"name":           "Unfiltered",
+			"layout":         "table",
+			"filter":         nil,
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError, getTextResult(t, result).Text)
+		var view MinimalProjectView
+		require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &view))
+		assert.Equal(t, "PVTV_nullfilter", view.ID)
+		assert.Equal(t, "", view.Filter)
+	})
+
+	t.Run("sends explicit empty configuration", func(t *testing.T) {
+		gqlClient := githubv4mock.NewMockedHTTPClient(
+			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
+			githubv4mock.NewMutationMatcher(
+				createProjectV2ViewMutation{},
+				CreateProjectV2ViewInput{
+					ProjectID: githubv4.ID("PVT_project7"),
+					Name:      githubv4.String("Title only"),
+					Layout:    githubv4.ProjectV2ViewLayoutTableLayout,
+					Configuration: &ProjectV2ViewConfigurationInput{
+						VisibleFieldIDs: []githubv4.ID{},
+					},
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"createProjectV2View": map[string]any{
+						"projectV2View": projectViewResponse("PVTV_empty", 3, "Title only", "TABLE_LAYOUT", "", 101),
+					},
+				}),
+			),
+		)
+		deps := BaseDeps{Client: emptyRESTClient, GQLClient: githubv4.NewClient(gqlClient)}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "create_project_view",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(7),
+			"name":           "Title only",
+			"layout":         "table",
+			"visible_fields": []any{},
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError, getTextResult(t, result).Text)
+		assert.Contains(t, getTextResult(t, result).Text, `"visible_fields":[101]`)
 	})
 
 	t.Run("auto-detects an organization owner", func(t *testing.T) {
 		restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			GetUsersByUsername: mockResponse(t, http.StatusOK, map[string]any{
-				"id":   99,
-				"type": "Organization",
-			}),
-			"POST /orgs/{org}/projectsV2/{project}/views": mockResponse(t, http.StatusCreated, map[string]any{
-				"node_id": "PVTV_view3",
-				"number":  3,
-				"name":    "Table",
-				"layout":  "table",
-			}),
+			GetUsersByUsername: mockResponse(t, http.StatusOK, map[string]any{"id": 99, "type": "Organization"}),
 		})
-		deps := BaseDeps{Client: mustNewGHClient(t, restClient)}
+		gqlClient := githubv4mock.NewMockedHTTPClient(
+			resolveProjectNodeIDOrgMatcher("octo-org", 9, "PVT_project9"),
+			githubv4mock.NewMutationMatcher(
+				createProjectV2ViewMutation{},
+				CreateProjectV2ViewInput{
+					ProjectID: githubv4.ID("PVT_project9"),
+					Name:      githubv4.String("Table"),
+					Layout:    githubv4.ProjectV2ViewLayoutTableLayout,
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"createProjectV2View": map[string]any{
+						"projectV2View": projectViewResponse("PVTV_view3", 3, "Table", "TABLE_LAYOUT", ""),
+					},
+				}),
+			),
+		)
+		deps := BaseDeps{Client: mustNewGHClient(t, restClient), GQLClient: githubv4.NewClient(gqlClient)}
 		handler := toolDef.Handler(deps)
 		request := createMCPRequest(map[string]any{
 			"method":         "create_project_view",
@@ -948,127 +1143,101 @@ func Test_ProjectsWrite_CreateProjectView(t *testing.T) {
 
 		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
-		require.False(t, result.IsError)
+		require.False(t, result.IsError, getTextResult(t, result).Text)
 	})
 
-	t.Run("rejects visible fields and names together", func(t *testing.T) {
-		deps := BaseDeps{
-			Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
-			GQLClient: githubv4.NewClient(githubv4mock.NewMockedHTTPClient()),
+	t.Run("rejects conflicting, unknown, duplicate, and roadmap fields before mutation", func(t *testing.T) {
+		tests := []struct {
+			name          string
+			fields        []map[string]any
+			request       map[string]any
+			expectedError string
+			expectedHint  string
+		}{
+			{
+				name: "conflicting identifiers",
+				request: map[string]any{
+					"visible_fields":      []any{"101"},
+					"visible_field_names": []any{"Status"},
+				},
+				expectedError: "provide either 'visible_fields' or 'visible_field_names'",
+			},
+			{
+				name:          "unknown numeric ID",
+				fields:        []map[string]any{statusFieldNode("PVTSSF_status", 101, "Status", nil)},
+				request:       map[string]any{"visible_fields": []any{"202"}},
+				expectedError: "database ID 202 was not found",
+			},
+			{
+				name:          "duplicate name",
+				fields:        []map[string]any{statusFieldNode("PVTSSF_status", 101, "Status", nil)},
+				request:       map[string]any{"visible_field_names": []any{"Status", "status"}},
+				expectedError: "included more than once",
+			},
+			{
+				name:          "unknown name",
+				fields:        []map[string]any{statusFieldNode("PVTSSF_status", 101, "Status", nil)},
+				request:       map[string]any{"visible_field_names": []any{"Priority"}},
+				expectedError: "field_not_found",
+			},
+			{
+				name: "ambiguous name",
+				fields: []map[string]any{
+					statusFieldNode("PVTSSF_status1", 101, "Status", nil),
+					statusFieldNode("PVTSSF_status2", 202, "Status", nil),
+				},
+				request:       map[string]any{"visible_field_names": []any{"Status"}},
+				expectedError: "field_ambiguous",
+				expectedHint:  "visible_fields",
+			},
 		}
-		handler := toolDef.Handler(deps)
-		request := createMCPRequest(map[string]any{
-			"method":              "create_project_view",
-			"owner":               "octo-org",
-			"owner_type":          "org",
-			"project_number":      float64(7),
-			"name":                "Table",
-			"layout":              "table",
-			"visible_fields":      []any{"101"},
-			"visible_field_names": []any{"Status"},
-		})
-
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-		require.True(t, result.IsError)
-		assert.Contains(t, getTextResult(t, result).Text, "provide either 'visible_fields' or 'visible_field_names', not both")
-	})
-
-	for _, tc := range []struct {
-		name          string
-		nodes         []map[string]any
-		requestedName string
-		expectedError string
-		expectedHint  string
-	}{
-		{
-			name: "returns structured not-found errors",
-			nodes: []map[string]any{
-				statusFieldNode("PVTSSF_status", 101, "Status", nil),
-			},
-			requestedName: "Priority",
-			expectedError: "field_not_found",
-		},
-		{
-			name: "returns structured ambiguous errors",
-			nodes: []map[string]any{
-				statusFieldNode("PVTSSF_status1", 101, "Status", nil),
-				statusFieldNode("PVTSSF_status2", 202, "Status", nil),
-			},
-			requestedName: "Status",
-			expectedError: "field_ambiguous",
-			expectedHint:  "visible_fields",
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
-				projectFieldNamesMatcher("octo-org", "org", 7, tc.nodes),
-			))
-			deps := BaseDeps{
-				Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
-				GQLClient: gqlClient,
-			}
-			handler := toolDef.Handler(deps)
-			request := createMCPRequest(map[string]any{
-				"method":              "create_project_view",
-				"owner":               "octo-org",
-				"owner_type":          "org",
-				"project_number":      float64(7),
-				"name":                "Table",
-				"layout":              "table",
-				"visible_field_names": []any{tc.requestedName},
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				matchers := []githubv4mock.Matcher{}
+				if len(tc.fields) > 0 {
+					matchers = append(matchers, projectFieldNamesMatcher("octo-org", "org", 7, tc.fields))
+				}
+				deps := BaseDeps{
+					Client:    emptyRESTClient,
+					GQLClient: githubv4.NewClient(githubv4mock.NewMockedHTTPClient(matchers...)),
+				}
+				handler := toolDef.Handler(deps)
+				requestArgs := map[string]any{
+					"method":         "create_project_view",
+					"owner":          "octo-org",
+					"owner_type":     "org",
+					"project_number": float64(7),
+					"name":           "Table",
+					"layout":         "table",
+				}
+				maps.Copy(requestArgs, tc.request)
+				request := createMCPRequest(requestArgs)
+				result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				assert.Contains(t, getTextResult(t, result).Text, tc.expectedError)
+				if tc.expectedHint != "" {
+					var response map[string]any
+					require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+					assert.Contains(t, response["hint"], tc.expectedHint)
+					assert.NotContains(t, response["hint"], "'fields'")
+				}
 			})
-
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-			require.NoError(t, err)
-			require.True(t, result.IsError)
-			var response map[string]any
-			require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
-			assert.Equal(t, tc.expectedError, response["error"])
-			assert.Equal(t, tc.requestedName, response["name"])
-			if tc.expectedHint != "" {
-				assert.Contains(t, response["hint"], tc.expectedHint)
-				assert.NotContains(t, response["hint"], "'fields'")
-			}
-		})
-	}
-
-	t.Run("rejects visible fields for roadmap layout", func(t *testing.T) {
-		deps := BaseDeps{Client: mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))}
-		handler := toolDef.Handler(deps)
-		request := createMCPRequest(map[string]any{
-			"method":         "create_project_view",
-			"owner":          "octo-org",
-			"owner_type":     "org",
-			"project_number": float64(7),
-			"name":           "Roadmap",
-			"layout":         "roadmap",
-			"visible_fields": []any{"101"},
-		})
-
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-		require.True(t, result.IsError)
-		assert.Contains(t, getTextResult(t, result).Text, "visible fields are not supported for roadmap views")
+		}
 	})
 
-	t.Run("resolves visible field names before rejecting roadmap layout", func(t *testing.T) {
-		gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
-			projectFieldNamesMatcher("octo-org", "org", 7, []map[string]any{
-				statusFieldNode("PVTSSF_status", 101, "Status", nil),
-			}),
-		))
-		deps := BaseDeps{
-			Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
-			GQLClient: gqlClient,
-		}
+	t.Run("rejects roadmap layout before resolving visible field names", func(t *testing.T) {
+		gqlClient, requests := countingGraphQLClient(
+			projectFieldNamesMatcher("octo-org", "org", 7, []map[string]any{statusFieldNode("PVTSSF_status", 101, "Status", nil)}),
+		)
+		deps := BaseDeps{Client: emptyRESTClient, GQLClient: githubv4.NewClient(gqlClient)}
 		handler := toolDef.Handler(deps)
 		request := createMCPRequest(map[string]any{
 			"method":              "create_project_view",
 			"owner":               "octo-org",
 			"owner_type":          "org",
 			"project_number":      float64(7),
-			"name":                "Roadmap",
+			"name":                "Timeline",
 			"layout":              "roadmap",
 			"visible_field_names": []any{"Status"},
 		})
@@ -1077,6 +1246,7 @@ func Test_ProjectsWrite_CreateProjectView(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, result.IsError)
 		assert.Contains(t, getTextResult(t, result).Text, "visible fields are not supported for roadmap views")
+		assert.Zero(t, requests(), "expected no field-listing GraphQL request")
 	})
 }
 
@@ -1101,13 +1271,7 @@ func Test_ProjectsWrite_UpdateProjectView(t *testing.T) {
 				nil,
 				githubv4mock.DataResponse(map[string]any{
 					"updateProjectV2View": map[string]any{
-						"projectV2View": map[string]any{
-							"id":     "PVTV_view1",
-							"number": 1,
-							"name":   "Renamed",
-							"layout": "TABLE_LAYOUT",
-							"filter": "status:Ready",
-						},
+						"projectV2View": projectViewResponse("PVTV_view1", 1, "Renamed", "TABLE_LAYOUT", "status:Ready", 101, 202),
 					},
 				}),
 			),
@@ -1130,6 +1294,129 @@ func Test_ProjectsWrite_UpdateProjectView(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, result.IsError)
 		assert.Contains(t, getTextResult(t, result).Text, `"name":"Renamed"`)
+		assert.Contains(t, getTextResult(t, result).Text, `"visible_fields":[101,202]`)
+	})
+
+	t.Run("replaces and reorders visible fields by database ID", func(t *testing.T) {
+		gqlClient := githubv4mock.NewMockedHTTPClient(
+			projectFieldNamesMatcher("octo-org", "org", 7, []map[string]any{
+				statusFieldNode("PVTSSF_status", 101, "Status", nil),
+				multiSelectFieldNode("PVTMSSF_teams", 202, "Teams"),
+			}),
+			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
+			projectViewParentMatcher("PVTV_view1", "PVT_project7"),
+			githubv4mock.NewMutationMatcher(
+				updateProjectV2ViewMutation{},
+				UpdateProjectV2ViewInput{
+					ViewID: githubv4.ID("PVTV_view1"),
+					Configuration: &ProjectV2ViewConfigurationInput{
+						VisibleFieldIDs: []githubv4.ID{"PVTMSSF_teams", "PVTSSF_status"},
+					},
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"updateProjectV2View": map[string]any{
+						"projectV2View": projectViewResponse("PVTV_view1", 1, "Ready work", "TABLE_LAYOUT", "", 202, 101),
+					},
+				}),
+			),
+		)
+		deps := BaseDeps{
+			Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
+			GQLClient: githubv4.NewClient(gqlClient),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "update_project_view",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(7),
+			"view_id":        "PVTV_view1",
+			"visible_fields": []any{"202", "101"},
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError, getTextResult(t, result).Text)
+		assert.Contains(t, getTextResult(t, result).Text, `"visible_fields":[202,101]`)
+	})
+
+	t.Run("sends explicit empty visible fields to reset", func(t *testing.T) {
+		gqlClient := githubv4mock.NewMockedHTTPClient(
+			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
+			projectViewParentMatcher("PVTV_view1", "PVT_project7"),
+			githubv4mock.NewMutationMatcher(
+				updateProjectV2ViewMutation{},
+				UpdateProjectV2ViewInput{
+					ViewID: githubv4.ID("PVTV_view1"),
+					Configuration: &ProjectV2ViewConfigurationInput{
+						VisibleFieldIDs: []githubv4.ID{},
+					},
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"updateProjectV2View": map[string]any{
+						"projectV2View": projectViewResponse("PVTV_view1", 1, "Ready work", "TABLE_LAYOUT", "", 101),
+					},
+				}),
+			),
+		)
+		deps := BaseDeps{
+			Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
+			GQLClient: githubv4.NewClient(gqlClient),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":              "update_project_view",
+			"owner":               "octo-org",
+			"owner_type":          "org",
+			"project_number":      float64(7),
+			"view_id":             "PVTV_view1",
+			"visible_field_names": []any{},
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError, getTextResult(t, result).Text)
+		assert.Contains(t, getTextResult(t, result).Text, `"visible_fields":[101]`)
+	})
+
+	t.Run("rejects nonempty visible fields on an existing roadmap", func(t *testing.T) {
+		gqlClient := githubv4mock.NewMockedHTTPClient(
+			projectFieldNamesMatcher("octo-org", "org", 7, []map[string]any{
+				statusFieldNode("PVTSSF_status", 101, "Status", nil),
+			}),
+			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
+			githubv4mock.NewQueryMatcher(
+				projectViewParentQuery{},
+				map[string]any{"id": githubv4.ID("PVTV_roadmap")},
+				githubv4mock.DataResponse(map[string]any{
+					"node": map[string]any{
+						"id":      "PVTV_roadmap",
+						"layout":  "ROADMAP_LAYOUT",
+						"project": map[string]any{"id": "PVT_project7"},
+					},
+				}),
+			),
+		)
+		deps := BaseDeps{
+			Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
+			GQLClient: githubv4.NewClient(gqlClient),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":              "update_project_view",
+			"owner":               "octo-org",
+			"owner_type":          "org",
+			"project_number":      float64(7),
+			"view_id":             "PVTV_roadmap",
+			"visible_field_names": []any{"Status"},
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		assert.Contains(t, getTextResult(t, result).Text, "visible fields are not supported for roadmap views")
 	})
 
 	t.Run("sends null filter to clear it", func(t *testing.T) {
@@ -1380,7 +1667,7 @@ func Test_ProjectsWrite_UpdateProjectView(t *testing.T) {
 		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
 		require.True(t, result.IsError)
-		assert.Contains(t, getTextResult(t, result).Text, "requires at least one of name, layout, or filter")
+		assert.Contains(t, getTextResult(t, result).Text, "requires at least one of name, layout, filter, visible_fields, or visible_field_names")
 	})
 }
 

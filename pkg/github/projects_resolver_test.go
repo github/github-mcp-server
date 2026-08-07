@@ -34,6 +34,12 @@ type projectFieldsTestQuery struct {
 						Name       githubv4.String
 						DataType   githubv4.String
 					} `graphql:"... on ProjectV2IterationField"`
+					ProjectV2MultiSelectField struct {
+						ID         githubv4.ID
+						DatabaseID githubv4.Int `graphql:"databaseId"`
+						Name       githubv4.String
+						DataType   githubv4.String
+					} `graphql:"... on ProjectV2MultiSelectField"`
 					ProjectV2SingleSelectField struct {
 						ID         githubv4.ID
 						DatabaseID githubv4.Int `graphql:"databaseId"`
@@ -91,6 +97,15 @@ func genericFieldNode(nodeID string, databaseID int, name, dataType string) map[
 		"databaseId": databaseID,
 		"name":       name,
 		"dataType":   dataType,
+	}
+}
+
+func multiSelectFieldNode(nodeID string, databaseID int, name string) map[string]any {
+	return map[string]any{
+		"id":         nodeID,
+		"databaseId": databaseID,
+		"name":       name,
+		"dataType":   "MULTI_SELECT",
 	}
 }
 
@@ -264,6 +279,7 @@ func Test_ResolveProjectFieldByName_NodeIDsForAllVariants(t *testing.T) {
 					{"id": "OPT_a", "name": "Todo"},
 				}),
 				iterationFieldNode("PVTIF_iteration1", 222, "Sprint"),
+				multiSelectFieldNode("PVTMSSF_multi1", 444, "Teams"),
 				genericFieldNode("PVTF_text1", 333, "Notes", "TEXT"),
 			})),
 		),
@@ -277,6 +293,7 @@ func Test_ResolveProjectFieldByName_NodeIDsForAllVariants(t *testing.T) {
 	}{
 		{"Status", "SINGLE_SELECT", "PVTSSF_single1"},
 		{"Sprint", "ITERATION", "PVTIF_iteration1"},
+		{"Teams", "MULTI_SELECT", "PVTMSSF_multi1"},
 		{"Notes", "TEXT", "PVTF_text1"},
 	}
 	for _, v := range variants {
