@@ -753,8 +753,11 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Enum:        []any{"table", "board", "roadmap"},
 					},
 					"filter": {
-						Type:        "string",
-						Description: "Saved view filter; omit on update to preserve it, or pass an empty string to clear it.",
+						AnyOf: []*jsonschema.Schema{
+							{Type: "string"},
+							{Type: "null"},
+						},
+						Description: "Saved view filter; omit on update to preserve it, or pass null to clear it.",
 					},
 					"visible_fields": {
 						Type:        "array",
@@ -2014,7 +2017,7 @@ func createProjectView(ctx context.Context, client *github.Client, gqlClient *gi
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
-	filter, hasFilter, err := OptionalParamOK[string](args, "filter")
+	filter, hasFilter, err := OptionalNullableStringParam(args, "filter")
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
@@ -2046,7 +2049,12 @@ func createProjectView(ctx context.Context, client *github.Client, gqlClient *gi
 		VisibleFields: visibleFields,
 	}
 	if hasFilter {
-		requestBody.Filter = &filter
+		// The API clears a filter with an empty string, so a null filter is sent as "".
+		value := ""
+		if filter != nil {
+			value = *filter
+		}
+		requestBody.Filter = &value
 	}
 
 	var endpoint string
@@ -2122,7 +2130,7 @@ func updateProjectView(ctx context.Context, gqlClient *githubv4.Client, args map
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
-	filter, hasFilter, err := OptionalParamOK[string](args, "filter")
+	filter, hasFilter, err := OptionalNullableStringParam(args, "filter")
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
@@ -2146,7 +2154,11 @@ func updateProjectView(ctx context.Context, gqlClient *githubv4.Client, args map
 		input.Layout = &layout
 	}
 	if hasFilter {
-		value := githubv4.String(filter)
+		// The API clears a filter with an empty string, so a null filter is sent as "".
+		value := githubv4.String("")
+		if filter != nil {
+			value = githubv4.String(*filter)
+		}
 		input.Filter = &value
 	}
 	if err := verifyProjectViewParent(ctx, gqlClient, viewID, owner, ownerType, projectNumber); err != nil {
@@ -2186,10 +2198,10 @@ func deleteProjectView(ctx context.Context, gqlClient *githubv4.Client, args map
 	if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
 		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewDeleteFailedError, err)), nil, nil
 	}
-	deletedID := fmt.Sprintf("%v", mutation.DeleteProjectV2View.ProjectV2View.ID)
-	if deletedID == "" || deletedID == "<nil>" {
+	if id := mutation.DeleteProjectV2View.ProjectV2View.ID; id == nil || id == "" {
 		return utils.NewToolResultError(fmt.Sprintf("%s: response did not include the deleted view", ProjectViewDeleteFailedError)), nil, nil
 	}
+	deletedID := fmt.Sprintf("%v", mutation.DeleteProjectV2View.ProjectV2View.ID)
 	return MarshalledTextResult(map[string]string{"deleted_view_id": deletedID}), nil, nil
 }
 

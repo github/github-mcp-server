@@ -1119,7 +1119,7 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `project`
   - `body`: The body of the status update (markdown). Used for 'create_project_status_update' method. (string, optional)
   - `field_name`: The name of the iteration field (e.g. 'Sprint'). Required for 'create_iteration_field' method. (string, optional)
-  - `filter`: Saved view filter; omit on update to preserve it, or pass an empty string to clear it. (string, optional)
+  - `filter`: Saved view filter; omit on update to preserve it, or pass null to clear it. (string | null, optional)
   - `issue_number`: The issue number. Required for 'add_project_item' when item_type is 'issue'. Also accepted by 'update_project_item' to resolve the item by issue number (combine with item_owner and item_repo). (number, optional)
   - `item_id`: The project item ID. Required for 'delete_project_item'. For 'update_project_item', provide either item_id, or (item_owner + item_repo + issue_number) to resolve the item by issue. (number, optional)
   - `item_owner`: The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method. Also accepted by 'update_project_item' when resolving the item by issue number. (string, optional)

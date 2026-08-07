@@ -1126,7 +1126,7 @@ func Test_ProjectsWrite_UpdateProjectView(t *testing.T) {
 		assert.Contains(t, getTextResult(t, result).Text, `"name":"Renamed"`)
 	})
 
-	t.Run("sends an explicit empty filter to clear it", func(t *testing.T) {
+	t.Run("sends null filter to clear it", func(t *testing.T) {
 		filter := githubv4.String("")
 		gqlClient := githubv4mock.NewMockedHTTPClient(
 			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
@@ -1166,13 +1166,34 @@ func Test_ProjectsWrite_UpdateProjectView(t *testing.T) {
 			"owner_type":     "org",
 			"project_number": float64(7),
 			"view_id":        "PVTV_view1",
-			"filter":         "",
+			"filter":         nil,
 		})
 
 		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
 		require.False(t, result.IsError)
 		assert.Contains(t, getTextResult(t, result).Text, `"filter":""`)
+	})
+
+	t.Run("rejects an empty string filter", func(t *testing.T) {
+		deps := BaseDeps{
+			Client:    mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})),
+			GQLClient: githubv4.NewClient(githubv4mock.NewMockedHTTPClient()),
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "update_project_view",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(7),
+			"view_id":        "PVTV_view1",
+			"filter":         "",
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		assert.Contains(t, getTextResult(t, result).Text, "must not be empty")
 	})
 
 	t.Run("normalizes an updated layout to the GraphQL enum", func(t *testing.T) {
