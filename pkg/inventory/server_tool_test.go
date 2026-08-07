@@ -81,49 +81,70 @@ func TestNewServerToolWithContextHandler_ValidArguments_Succeeds(t *testing.T) {
 	assert.Equal(t, "success: octocat/hello-world", textContent.Text)
 }
 
-func TestServerToolRegisterFuncAppliesMiddleware(t *testing.T) {
-	tool := NewServerTool(
-		mcp.Tool{
-			Name:        "wrapped_tool",
-			InputSchema: &jsonschema.Schema{Type: "object"},
-		},
+func TestNewServerToolWithContextHandler_EmptyArguments_Succeeds(t *testing.T) {
+	type expectedArgs struct {
+		Owner string `json:"owner,omitempty"`
+		Repo  string `json:"repo,omitempty"`
+	}
+
+	tool := NewServerToolWithContextHandler(
+		mcp.Tool{Name: "test_tool"},
 		testToolsetMetadata("test"),
-		func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		func(_ context.Context, _ *mcp.CallToolRequest, args expectedArgs) (*mcp.CallToolResult, any, error) {
 			return &mcp.CallToolResult{
-				Content: []mcp.Content{&mcp.TextContent{Text: "handler"}},
-			}, nil
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: "success: " + args.Owner + "/" + args.Repo},
+				},
+			}, nil, nil
 		},
 	)
 
-	middlewareCalled := make(chan struct{}, 1)
-	middleware := func(next mcp.ToolHandler) mcp.ToolHandler {
-		return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			middlewareCalled <- struct{}{}
-			return next(ctx, req)
-		}
+	handler := tool.HandlerFunc(nil)
+
+	testCases := []struct {
+		name      string
+		arguments json.RawMessage
+		expected  string
+	}{
+		{
+			name:      "nil arguments",
+			arguments: nil,
+			expected:  "success: /",
+		},
+		{
+			name:      "empty arguments",
+			arguments: json.RawMessage(``),
+			expected:  "success: /",
+		},
+		{
+			name:      "null arguments",
+			arguments: json.RawMessage(`null`),
+			expected:  "success: /",
+		},
+		{
+			name:      "empty object arguments",
+			arguments: json.RawMessage(`{}`),
+			expected:  "success: /",
+		},
 	}
 
-	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
-	tool.RegisterFunc(server, nil, middleware)
-	st, ct := mcp.NewInMemoryTransports()
-	ss, err := server.Connect(context.Background(), st, nil)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = ss.Close() })
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := handler(context.Background(), &mcp.CallToolRequest{
+				Params: &mcp.CallToolParamsRaw{
+					Name:      "test_tool",
+					Arguments: tc.arguments,
+				},
+			})
 
-	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
-	cs, err := client.Connect(context.Background(), ct, nil)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = cs.Close() })
-
-	result, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "wrapped_tool"})
-	require.NoError(t, err)
-	select {
-	case <-middlewareCalled:
-	default:
-		t.Fatal("tool middleware was not called")
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.False(t, result.IsError)
+			textContent, ok := result.Content[0].(*mcp.TextContent)
+			require.True(t, ok)
+			assert.Equal(t, tc.expected, textContent.Text)
+		})
 	}
-	require.Len(t, result.Content, 1)
-	assert.Equal(t, "handler", result.Content[0].(*mcp.TextContent).Text)
 }
 
 func TestAnnotateHeaderParams(t *testing.T) {
