@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"maps"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -209,6 +210,24 @@ func projectViewParentErrorMatcher(viewID, message string) githubv4mock.Matcher 
 		map[string]any{"id": githubv4.ID(viewID)},
 		githubv4mock.ErrorResponse(message),
 	)
+}
+
+// countingGraphQLClient wraps a mocked GraphQL client and reports how many requests it served.
+func countingGraphQLClient(matchers ...githubv4mock.Matcher) (*http.Client, func() int) {
+	client := githubv4mock.NewMockedHTTPClient(matchers...)
+	counter := &countingRoundTripper{next: client.Transport}
+	client.Transport = counter
+	return client, func() int { return int(counter.count.Load()) }
+}
+
+type countingRoundTripper struct {
+	next  http.RoundTripper
+	count atomic.Int64
+}
+
+func (c *countingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	c.count.Add(1)
+	return c.next.RoundTrip(req)
 }
 
 func projectFieldNamesMatcher(owner, ownerType string, projectNumber int, nodes []map[string]any) githubv4mock.Matcher {
@@ -954,6 +973,104 @@ func Test_ProjectsWrite_CreateProjectView(t *testing.T) {
 		assert.Contains(t, getTextResult(t, result).Text, "created view was cleaned up")
 	})
 
+	t.Run("returns the orphaned view ID when cleanup fails", func(t *testing.T) {
+		filter := githubv4.String("status:Ready")
+		gqlClient := githubv4mock.NewMockedHTTPClient(
+			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
+			githubv4mock.NewMutationMatcher(
+				createProjectV2ViewMutation{},
+				CreateProjectV2ViewInput{
+					ProjectID: githubv4.ID("PVT_project7"),
+					Name:      githubv4.String("Filtered"),
+					Layout:    githubv4.ProjectV2ViewLayoutTableLayout,
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"createProjectV2View": map[string]any{
+						"projectV2View": projectViewResponse("PVTV_orphan", 4, "Filtered", "TABLE_LAYOUT", ""),
+					},
+				}),
+			),
+			githubv4mock.NewMutationMatcher(
+				updateProjectV2ViewMutation{},
+				UpdateProjectV2ViewInput{ViewID: githubv4.ID("PVTV_orphan"), Filter: &filter},
+				nil,
+				githubv4mock.ErrorResponse("filter failed"),
+			),
+			githubv4mock.NewMutationMatcher(
+				struct {
+					DeleteProjectV2View struct {
+						ProjectV2View struct {
+							ID githubv4.ID
+						} `graphql:"projectV2View"`
+					} `graphql:"deleteProjectV2View(input: $input)"`
+				}{},
+				DeleteProjectV2ViewInput{ViewID: githubv4.ID("PVTV_orphan")},
+				nil,
+				githubv4mock.ErrorResponse("cleanup failed"),
+			),
+		)
+		deps := BaseDeps{Client: emptyRESTClient, GQLClient: githubv4.NewClient(gqlClient)}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "create_project_view",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(7),
+			"name":           "Filtered",
+			"layout":         "table",
+			"filter":         "status:Ready",
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		text := getTextResult(t, result).Text
+		assert.Contains(t, text, "filter failed")
+		assert.Contains(t, text, "cleanup failed")
+		assert.Contains(t, text, "PVTV_orphan")
+	})
+
+	t.Run("skips the filter mutation when the filter is null", func(t *testing.T) {
+		// Only the create mutation is registered, so a follow-up filter mutation would 404.
+		gqlClient := githubv4mock.NewMockedHTTPClient(
+			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
+			githubv4mock.NewMutationMatcher(
+				createProjectV2ViewMutation{},
+				CreateProjectV2ViewInput{
+					ProjectID: githubv4.ID("PVT_project7"),
+					Name:      githubv4.String("Unfiltered"),
+					Layout:    githubv4.ProjectV2ViewLayoutTableLayout,
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"createProjectV2View": map[string]any{
+						"projectV2View": projectViewResponse("PVTV_nullfilter", 5, "Unfiltered", "TABLE_LAYOUT", ""),
+					},
+				}),
+			),
+		)
+		deps := BaseDeps{Client: emptyRESTClient, GQLClient: githubv4.NewClient(gqlClient)}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "create_project_view",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(7),
+			"name":           "Unfiltered",
+			"layout":         "table",
+			"filter":         nil,
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError, getTextResult(t, result).Text)
+		var view MinimalProjectView
+		require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &view))
+		assert.Equal(t, "PVTV_nullfilter", view.ID)
+		assert.Equal(t, "", view.Filter)
+	})
+
 	t.Run("sends explicit empty configuration", func(t *testing.T) {
 		gqlClient := githubv4mock.NewMockedHTTPClient(
 			resolveProjectNodeIDOrgMatcher("octo-org", 7, "PVT_project7"),
@@ -1073,12 +1190,6 @@ func Test_ProjectsWrite_CreateProjectView(t *testing.T) {
 				expectedError: "field_ambiguous",
 				expectedHint:  "visible_fields",
 			},
-			{
-				name:          "nonempty roadmap fields",
-				fields:        []map[string]any{statusFieldNode("PVTSSF_status", 101, "Status", nil)},
-				request:       map[string]any{"visible_field_names": []any{"Status"}, "layout": "roadmap"},
-				expectedError: "visible fields are not supported for roadmap views",
-			},
 		}
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
@@ -1113,6 +1224,29 @@ func Test_ProjectsWrite_CreateProjectView(t *testing.T) {
 				}
 			})
 		}
+	})
+
+	t.Run("rejects roadmap layout before resolving visible field names", func(t *testing.T) {
+		gqlClient, requests := countingGraphQLClient(
+			projectFieldNamesMatcher("octo-org", "org", 7, []map[string]any{statusFieldNode("PVTSSF_status", 101, "Status", nil)}),
+		)
+		deps := BaseDeps{Client: emptyRESTClient, GQLClient: githubv4.NewClient(gqlClient)}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":              "create_project_view",
+			"owner":               "octo-org",
+			"owner_type":          "org",
+			"project_number":      float64(7),
+			"name":                "Timeline",
+			"layout":              "roadmap",
+			"visible_field_names": []any{"Status"},
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		assert.Contains(t, getTextResult(t, result).Text, "visible fields are not supported for roadmap views")
+		assert.Zero(t, requests(), "expected no field-listing GraphQL request")
 	})
 }
 
