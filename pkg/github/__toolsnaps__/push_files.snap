@@ -4,7 +4,7 @@
     "readOnlyHint": false,
     "title": "Push files to repository"
   },
-  "description": "Push multiple files to a GitHub repository in a single commit",
+  "description": "Push multiple files to a GitHub repository in a single commit.\n\nEach file entry accepts an optional \"mode\" matching the Git Data API tree-entry modes (100644 regular file, 100755 executable, 120000 symlink, 040000 subtree, 160000 submodule). Omit \"mode\" for a regular file.\n\nUse this tool with a single-entry files array when you need to land an executable file (mode 100755); create_or_update_file cannot set the executable bit because the Contents API always writes 100644.",
   "inputSchema": {
     "properties": {
       "branch": {
@@ -12,12 +12,23 @@
         "type": "string"
       },
       "files": {
-        "description": "Array of file objects to push, each object with path (string) and content (string)",
+        "description": "Array of file objects to push. Each object has path (string), content (string), and an optional mode (string) selecting the Git Data API tree-entry mode.",
         "items": {
           "additionalProperties": false,
           "properties": {
             "content": {
               "description": "file content",
+              "type": "string"
+            },
+            "mode": {
+              "description": "Git tree-entry mode. Defaults to 100644 (regular file) when omitted. Use 100755 for an executable file.",
+              "enum": [
+                "100644",
+                "100755",
+                "120000",
+                "040000",
+                "160000"
+              ],
               "type": "string"
             },
             "path": {

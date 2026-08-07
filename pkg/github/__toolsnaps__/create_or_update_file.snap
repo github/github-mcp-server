@@ -4,7 +4,7 @@
     "readOnlyHint": false,
     "title": "Create or update file"
   },
-  "description": "Create or update a single file in a GitHub repository. \nIf updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.\n\nIn order to obtain the SHA of original file version before updating, use the following git command:\ngit rev-parse \u003cbranch\u003e:\u003cpath to file\u003e\n\nSHA MUST be provided for existing file updates.\n",
+  "description": "Create or update a single file in a GitHub repository.\nIf updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.\n\nIn order to obtain the SHA of original file version before updating, use the following git command:\ngit rev-parse \u003cbranch\u003e:\u003cpath to file\u003e\n\nSHA MUST be provided for existing file updates.\n\nThis tool always writes the file with mode 100644 because the Contents API has no way to set the executable bit. If you need to publish an executable file, use push_files with a single-entry files array and mode set to 100755 instead.\n",
   "inputSchema": {
     "properties": {
       "branch": {
