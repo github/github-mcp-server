@@ -6,7 +6,7 @@
     "readOnlyHint": false,
     "title": "Update Issue Type"
   },
-  "description": "Update the type of an existing issue (e.g. 'bug', 'feature'). When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice.",
+  "description": "Set or remove the type of an existing issue. Pass null to remove the current type. When setting a value, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice.",
   "inputSchema": {
     "properties": {
       "confidence": {
@@ -28,8 +28,16 @@
         "type": "number"
       },
       "issue_type": {
-        "description": "The issue type to set",
-        "type": "string"
+        "anyOf": [
+          {
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The issue type to set, or null to remove the current type"
       },
       "owner": {
         "description": "Repository owner (username or organization)",

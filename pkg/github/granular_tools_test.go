@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"strings"
 	"testing"
@@ -787,6 +788,18 @@ func TestGranularUpdateIssueType(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "remove type with null",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   nil,
+			},
+			expectedReq: map[string]any{
+				"type": nil,
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -803,6 +816,45 @@ func TestGranularUpdateIssueType(t *testing.T) {
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 			assert.False(t, result.IsError)
+		})
+	}
+}
+
+func TestGranularUpdateIssueTypeRejectsInvalidInput(t *testing.T) {
+	tests := []struct {
+		name      string
+		args      map[string]any
+		omitType  bool
+		wantError string
+	}{
+		{name: "missing type", omitType: true, wantError: "missing required parameter: issue_type"},
+		{name: "empty type", args: map[string]any{"issue_type": ""}, wantError: "parameter issue_type must not be empty"},
+		{name: "null with rationale", args: map[string]any{"rationale": "live validation"}, wantError: "suggestion metadata is not supported"},
+		{name: "null with confidence", args: map[string]any{"confidence": "HIGH"}, wantError: "suggestion metadata is not supported"},
+		{name: "null suggestion", args: map[string]any{"is_suggestion": true}, wantError: "suggestion metadata is not supported"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			deps := BaseDeps{}
+			serverTool := GranularUpdateIssueType(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+			args := map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"issue_type":   nil,
+			}
+			if tc.omitType {
+				delete(args, "issue_type")
+			}
+			maps.Copy(args, tc.args)
+			request := createMCPRequest(args)
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			errorContent := getErrorResult(t, result)
+			assert.Contains(t, errorContent.Text, tc.wantError)
 		})
 	}
 }
