@@ -18,7 +18,9 @@ Check 'list_issue_types' first for organizations to use proper issue types. Use 
 func generatePullRequestsToolsetInstructions(inv *inventory.Inventory) string {
 	instructions := `## Pull Requests
 
-PR review workflow: Always use 'pull_request_review_write' with method 'create' to create a pending review, then 'add_comment_to_pending_review' to add comments, and finally 'pull_request_review_write' with method 'submit_pending' to submit the review for complex reviews with line-specific comments.`
+PR review workflow: Always use 'pull_request_review_write' with method 'create' to create a pending review, then 'add_comment_to_pending_review' to add comments, and finally 'pull_request_review_write' with method 'submit_pending' to submit the review for complex reviews with line-specific comments.
+
+Stacked PRs workflow: Use 'link_stack' to group dependent pull requests into a native GitHub stack, 'get_stack' or 'list_stacks' to inspect stack layers, 'update_stack' to update ordering or base branches, and 'dissolve_stack' to un-group stack layers.`
 
 	if inv.HasToolset("repos") {
 		instructions += `
