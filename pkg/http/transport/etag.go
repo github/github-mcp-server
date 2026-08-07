@@ -202,7 +202,7 @@ func (t *ETagTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 // directive.
 func hasNoStore(h http.Header) bool {
 	for _, cc := range h.Values(headers.CacheControlHeader) {
-		for _, directive := range strings.Split(cc, ",") {
+		for directive := range strings.SplitSeq(cc, ",") {
 			if strings.EqualFold(strings.TrimSpace(directive), "no-store") {
 				return true
 			}
@@ -218,7 +218,7 @@ func storable(resp *http.Response) bool {
 		return false
 	}
 	for _, vary := range resp.Header.Values(headers.VaryHeader) {
-		for _, field := range strings.Split(vary, ",") {
+		for field := range strings.SplitSeq(vary, ",") {
 			if strings.TrimSpace(field) == "*" {
 				return false
 			}
