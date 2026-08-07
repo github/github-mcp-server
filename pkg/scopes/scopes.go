@@ -29,6 +29,14 @@ const (
 	// AdminOrg grants full control of organizations and teams
 	AdminOrg Scope = "admin:org"
 
+	// ReadEnterprise grants read-only access to enterprise profile data, including
+	// enterprise-level custom properties
+	ReadEnterprise Scope = "read:enterprise"
+
+	// AdminEnterprise grants full control of enterprises, including enterprise-level
+	// rulesets and custom properties
+	AdminEnterprise Scope = "admin:enterprise"
+
 	// Gist grants write access to gists
 	Gist Scope = "gist"
 
@@ -64,12 +72,13 @@ const (
 // A parent scope implicitly grants access to all child scopes.
 // For example, "repo" grants access to "public_repo" and "security_events".
 var ScopeHierarchy = map[Scope][]Scope{
-	Repo:          {PublicRepo, SecurityEvents},
-	AdminOrg:      {WriteOrg, ReadOrg},
-	WriteOrg:      {ReadOrg},
-	Project:       {ReadProject},
-	WritePackages: {ReadPackages},
-	User:          {ReadUser, UserEmail},
+	Repo:            {PublicRepo, SecurityEvents},
+	AdminOrg:        {WriteOrg, ReadOrg},
+	AdminEnterprise: {ReadEnterprise},
+	WriteOrg:        {ReadOrg},
+	Project:         {ReadProject},
+	WritePackages:   {ReadPackages},
+	User:            {ReadUser, UserEmail},
 }
 
 // ScopeSet represents a set of OAuth scopes.
