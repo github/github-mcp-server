@@ -238,3 +238,102 @@ func Test_FindDuplicate_Errors(t *testing.T) {
 		getErrorResult(t, result)
 	})
 }
+
+func Test_FindDuplicate_IFCLabels(t *testing.T) {
+	serverTool := FindDuplicate(translations.NullTranslationHelper)
+
+	rankedResults := []map[string]any{
+		{
+			"issue": map[string]any{
+				"number":   585,
+				"title":    "Improve the onboarding flow for new users",
+				"state":    "open",
+				"html_url": "https://github.com/owner/repo/issues/585",
+			},
+			"score":            1.93,
+			"confidence":       "high",
+			"likely_duplicate": true,
+		},
+	}
+
+	// makeClient serves the semantic-similarity endpoint plus the repo lookup
+	// that the IFC labeler uses to resolve visibility.
+	makeClient := func(isPrivate bool, repoStatus int) *http.Client {
+		handlers := map[string]http.HandlerFunc{
+			string(endpointSemanticallySimilar): mockResponse(t, http.StatusOK, rankedResults),
+		}
+		if repoStatus != 0 && repoStatus != http.StatusOK {
+			handlers[GetReposByOwnerByRepo] = mockResponse(t, repoStatus, "boom")
+		} else {
+			handlers[GetReposByOwnerByRepo] = mockResponse(t, http.StatusOK, map[string]any{
+				"name":    "repo",
+				"private": isPrivate,
+			})
+		}
+		return MockHTTPClientWithHandlers(handlers)
+	}
+
+	req := map[string]any{
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(769),
+	}
+
+	t.Run("flag disabled omits ifc label", func(t *testing.T) {
+		deps := BaseDeps{Client: mustNewGHClient(t, makeClient(false, 0))}
+		handler := serverTool.Handler(deps)
+		request := createMCPRequest(req)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		assert.Nil(t, result.Meta)
+	})
+
+	t.Run("flag enabled on public repo emits public untrusted", func(t *testing.T) {
+		deps := BaseDeps{
+			Client:         mustNewGHClient(t, makeClient(false, 0)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := serverTool.Handler(deps)
+		request := createMCPRequest(req)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
+	})
+
+	t.Run("flag enabled on private repo emits private trusted", func(t *testing.T) {
+		deps := BaseDeps{
+			Client:         mustNewGHClient(t, makeClient(true, 0)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := serverTool.Handler(deps)
+		request := createMCPRequest(req)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		require.NotNil(t, result.Meta)
+		ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+		assert.Equal(t, "trusted", ifcMap["integrity"])
+		assert.Equal(t, "private", ifcMap["confidentiality"])
+	})
+
+	t.Run("visibility lookup failure omits label but still succeeds", func(t *testing.T) {
+		deps := BaseDeps{
+			Client:         mustNewGHClient(t, makeClient(false, http.StatusInternalServerError)),
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := serverTool.Handler(deps)
+		request := createMCPRequest(req)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError, "tool call should still succeed when visibility lookup fails")
+		if result.Meta != nil {
+			_, hasIFC := result.Meta["ifc"]
+			assert.False(t, hasIFC, "label must be omitted on visibility lookup failure")
+		}
+	})
+}

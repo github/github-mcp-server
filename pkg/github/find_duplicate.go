@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -168,7 +169,11 @@ func FindDuplicate(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultErrorFromErr("failed to marshal duplicate candidates", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			// Candidate issue titles are user-authored content scoped to the source
+			// repository, so classify the result like issue_read.
+			result := utils.NewToolResultText(string(r))
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoUserContent)
+			return result, nil, nil
 		})
 	st.FeatureFlagEnable = FeatureFlagDuplicateDetection
 	return st
