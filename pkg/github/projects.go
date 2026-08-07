@@ -588,7 +588,7 @@ Use this tool to get details about individual projects, project fields, project 
 					if gqlErr != nil {
 						return utils.NewToolResultError(gqlErr.Error()), nil, nil
 					}
-					resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, fieldNames)
+					resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, fieldNames, "fields")
 					if resolveErr != nil {
 						var structured *ghErrors.StructuredResolutionError
 						if errors.As(resolveErr, &structured) {
@@ -1228,7 +1228,7 @@ func listProjectItems(ctx context.Context, client *github.Client, gqlClient *git
 		return utils.NewToolResultError("provide either 'fields' or 'field_names', not both"), nil, nil
 	}
 	if len(fieldNames) > 0 {
-		resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, fieldNames)
+		resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, fieldNames, "fields")
 		if resolveErr != nil {
 			var structured *ghErrors.StructuredResolutionError
 			if errors.As(resolveErr, &structured) {
@@ -2029,7 +2029,7 @@ func createProjectView(ctx context.Context, client *github.Client, gqlClient *gi
 		return utils.NewToolResultError("provide either 'visible_fields' or 'visible_field_names', not both"), nil, nil
 	}
 	if len(visibleFieldNames) > 0 {
-		resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, visibleFieldNames)
+		resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, visibleFieldNames, "visible_fields")
 		if resolveErr != nil {
 			var structured *ghErrors.StructuredResolutionError
 			if errors.As(resolveErr, &structured) {

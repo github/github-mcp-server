@@ -979,6 +979,7 @@ func Test_ProjectsWrite_CreateProjectView(t *testing.T) {
 		nodes         []map[string]any
 		requestedName string
 		expectedError string
+		expectedHint  string
 	}{
 		{
 			name: "returns structured not-found errors",
@@ -996,6 +997,7 @@ func Test_ProjectsWrite_CreateProjectView(t *testing.T) {
 			},
 			requestedName: "Status",
 			expectedError: "field_ambiguous",
+			expectedHint:  "visible_fields",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1024,6 +1026,10 @@ func Test_ProjectsWrite_CreateProjectView(t *testing.T) {
 			require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
 			assert.Equal(t, tc.expectedError, response["error"])
 			assert.Equal(t, tc.requestedName, response["name"])
+			if tc.expectedHint != "" {
+				assert.Contains(t, response["hint"], tc.expectedHint)
+				assert.NotContains(t, response["hint"], "'fields'")
+			}
 		})
 	}
 

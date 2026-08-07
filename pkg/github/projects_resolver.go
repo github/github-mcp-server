@@ -530,7 +530,7 @@ func parseInt64(s string) (int64, error) {
 
 // resolveFieldNamesToIDs resolves field names to numeric IDs in one GraphQL
 // hop. Fails fast with a structured error on any unresolved or ambiguous name.
-func resolveFieldNamesToIDs(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, names []string) ([]int64, error) {
+func resolveFieldNamesToIDs(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, names []string, idParameter string) ([]int64, error) {
 	if len(names) == 0 {
 		return nil, nil
 	}
@@ -540,6 +540,10 @@ func resolveFieldNamesToIDs(ctx context.Context, gqlClient *githubv4.Client, own
 		return nil, err
 	}
 
+	return resolveFieldNamesToIDsFromFields(all, names, owner, projectNumber, idParameter)
+}
+
+func resolveFieldNamesToIDsFromFields(all []ResolvedField, names []string, owner string, projectNumber int, idParameter string) ([]int64, error) {
 	// Build a name -> []ResolvedField map so we can detect duplicates per name.
 	// Matching is case-insensitive to align with the GraphQL API's behaviour.
 	byName := make(map[string][]ResolvedField, len(all))
@@ -566,7 +570,7 @@ func resolveFieldNamesToIDs(ctx context.Context, gqlClient *githubv4.Client, own
 		case 1:
 			id, parseErr := parseInt64(matches[0].ID)
 			if parseErr != nil {
-				return nil, fmt.Errorf("resolved field %q has non-numeric ID %q; pass it via 'fields' instead", name, matches[0].ID)
+				return nil, fmt.Errorf("resolved field %q has non-numeric ID %q; pass it via '%s' instead", name, matches[0].ID, idParameter)
 			}
 			out = append(out, id)
 		default:
@@ -577,7 +581,7 @@ func resolveFieldNamesToIDs(ctx context.Context, gqlClient *githubv4.Client, own
 			return nil, ghErrors.NewStructuredResolutionError(
 				"field_ambiguous",
 				name,
-				"multiple fields share this name; pass numeric IDs via 'fields' to disambiguate",
+				fmt.Sprintf("multiple fields share this name; pass numeric IDs via '%s' to disambiguate", idParameter),
 				candidates,
 			)
 		}
