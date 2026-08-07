@@ -27,6 +27,13 @@ const FeatureFlagFileBlame = "file_blame"
 // unless explicitly opted in.
 const FeatureFlagIssueDependencies = "issue_dependencies"
 
+// FeatureFlagDuplicateDetection is the feature flag name for the find_duplicate
+// tool, which returns ranked duplicate candidates for an existing issue. It is
+// gated so the extra tool is not advertised by default, and is deliberately
+// excluded from insiders mode so duplicate detection is only ever an explicit
+// opt-in.
+const FeatureFlagDuplicateDetection = "duplicate_detection"
+
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag or X-MCP-Features HTTP header.
 // Only flags in this list are accepted; unknown flags are silently ignored.
@@ -40,6 +47,7 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagPullRequestsGranular,
 	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,
+	FeatureFlagDuplicateDetection,
 }
 
 // InsidersFeatureFlags is the list of feature flags that insiders mode enables.
