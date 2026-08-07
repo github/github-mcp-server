@@ -581,10 +581,236 @@ func Test_ActionsGetJobLogs_SingleJob(t *testing.T) {
 		assert.Contains(t, response, "logs_url")
 		assert.Equal(t, "Job logs are available for download", response["message"])
 	})
+
+	t.Run("failed_only single failed job returns logs", func(t *testing.T) {
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposActionsJobsByOwnerByRepoByJobID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				job := &github.WorkflowJob{
+					ID:         github.Ptr(int64(123)),
+					Name:       github.Ptr("test-job"),
+					Conclusion: github.Ptr("failure"),
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(job)
+			}),
+			GetReposActionsJobsLogsByOwnerByRepoByJobID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Location", "https://github.com/logs/job/123")
+				w.WriteHeader(http.StatusFound)
+			}),
+		})
+
+		client := mustNewGHClient(t, mockedClient)
+		deps := BaseDeps{
+			Client:            client,
+			ContentWindowSize: 5000,
+		}
+		handler := toolDef.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":       "owner",
+			"repo":        "repo",
+			"job_id":      float64(123),
+			"failed_only": true,
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		assert.Equal(t, float64(123), response["job_id"])
+		assert.Equal(t, "https://github.com/logs/job/123", response["logs_url"])
+	})
+
+	t.Run("failed_only single job skips successful job", func(t *testing.T) {
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposActionsJobsByOwnerByRepoByJobID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				job := &github.WorkflowJob{
+					ID:         github.Ptr(int64(123)),
+					Name:       github.Ptr("test-job"),
+					Conclusion: github.Ptr("success"),
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(job)
+			}),
+			GetReposActionsJobsLogsByOwnerByRepoByJobID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				t.Fatal("logs endpoint should not be called when failed_only=true and the job succeeded")
+			}),
+		})
+
+		client := mustNewGHClient(t, mockedClient)
+		deps := BaseDeps{
+			Client:            client,
+			ContentWindowSize: 5000,
+		}
+		handler := toolDef.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":       "owner",
+			"repo":        "repo",
+			"job_id":      float64(123),
+			"failed_only": true,
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		assert.Equal(t, "job 123 did not fail; conclusion is success", textContent.Text)
+	})
+
+	t.Run("rejects both job_id and run_id", func(t *testing.T) {
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":  "owner",
+			"repo":   "repo",
+			"job_id": float64(123),
+			"run_id": float64(456),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		assert.Equal(t, "provide either job_id or run_id, not both", textContent.Text)
+	})
+
+	t.Run("rejects missing job_id and run_id", func(t *testing.T) {
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner": "owner",
+			"repo":  "repo",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		assert.Equal(t, "Either job_id or run_id must be provided", textContent.Text)
+	})
 }
 
 func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 	toolDef := ActionsGetJobLogs(translations.NullTranslationHelper)
+
+	t.Run("successful all job logs for run", func(t *testing.T) {
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposActionsRunsJobsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				jobs := &github.Jobs{
+					TotalCount: github.Ptr(2),
+					Jobs: []*github.WorkflowJob{
+						{
+							ID:         github.Ptr(int64(1)),
+							Name:       github.Ptr("test-job-1"),
+							Conclusion: github.Ptr("success"),
+						},
+						{
+							ID:         github.Ptr(int64(2)),
+							Name:       github.Ptr("test-job-2"),
+							Conclusion: github.Ptr("failure"),
+						},
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(jobs)
+			}),
+			GetReposActionsJobsLogsByOwnerByRepoByJobID: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Location", "https://github.com/logs/job/"+r.URL.Path[len(r.URL.Path)-1:])
+				w.WriteHeader(http.StatusFound)
+			}),
+		})
+
+		client := mustNewGHClient(t, mockedClient)
+		deps := BaseDeps{
+			Client:            client,
+			ContentWindowSize: 5000,
+		}
+		handler := toolDef.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":       "owner",
+			"repo":        "repo",
+			"run_id":      float64(456),
+			"failed_only": false,
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		assert.Equal(t, float64(456), response["run_id"])
+		assert.Equal(t, float64(2), response["total_jobs"])
+		assert.Equal(t, float64(2), response["returned_jobs"])
+		assert.Contains(t, response["message"], "Retrieved logs for 2 jobs")
+	})
+
+	t.Run("successful all job logs for run when failed_only omitted", func(t *testing.T) {
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposActionsRunsJobsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				jobs := &github.Jobs{
+					TotalCount: github.Ptr(1),
+					Jobs: []*github.WorkflowJob{
+						{
+							ID:         github.Ptr(int64(1)),
+							Name:       github.Ptr("test-job-1"),
+							Conclusion: github.Ptr("success"),
+						},
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(jobs)
+			}),
+			GetReposActionsJobsLogsByOwnerByRepoByJobID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Location", "https://github.com/logs/job/1")
+				w.WriteHeader(http.StatusFound)
+			}),
+		})
+
+		client := mustNewGHClient(t, mockedClient)
+		deps := BaseDeps{
+			Client:            client,
+			ContentWindowSize: 5000,
+		}
+		handler := toolDef.Handler(deps)
+
+		request := createMCPRequest(map[string]any{
+			"owner":  "owner",
+			"repo":   "repo",
+			"run_id": float64(456),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		assert.Equal(t, float64(456), response["run_id"])
+		assert.Equal(t, float64(1), response["returned_jobs"])
+		assert.Contains(t, response["message"], "Retrieved logs for 1 jobs")
+	})
 
 	t.Run("successful failed jobs logs", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
