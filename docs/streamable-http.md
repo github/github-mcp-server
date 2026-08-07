@@ -71,6 +71,31 @@ github-mcp-server http --trust-proxy-headers
 
 Equivalent environment variable: `GITHUB_TRUST_PROXY_HEADERS=1`. Only enable this when the upstream proxy is trusted to set or strip these headers; otherwise prefer `--base-url`. When `--base-url` is set, it always takes precedence and `--trust-proxy-headers` has no effect.
 
+### With an OAuth Proxy (GHES / non-standard authorization server)
+
+When deploying against GitHub Enterprise Server, GHES does not natively support the OAuth extensions required by MCP (RFC 8414 metadata discovery, RFC 7591 Dynamic Client Registration, PKCE). In this case you can run a separate OAuth proxy that implements the MCP OAuth spec and forwards authentication to GHES. Use `--authorization-server` to advertise the proxy's URL in the protected resource metadata instead of the one derived from `--gh-host`:
+
+```bash
+github-mcp-server http \
+  --gh-host https://github.example.com \
+  --base-url https://mcp.example.com \
+  --authorization-server https://mcp.example.com/oauth-proxy
+```
+
+The `authorization_servers` field in the protected resource metadata will then point at your proxy:
+
+```json
+{
+  "resource": "https://mcp.example.com",
+  "authorization_servers": [
+    "https://mcp.example.com/oauth-proxy"
+  ],
+  ...
+}
+```
+
+Equivalent environment variable: `GITHUB_AUTHORIZATION_SERVER=https://mcp.example.com/oauth-proxy`.
+
 ## Client Configuration
 
 ### Using OAuth Authentication
