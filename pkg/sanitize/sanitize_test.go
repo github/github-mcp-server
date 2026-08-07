@@ -129,6 +129,7 @@ func TestShouldRemoveRune(t *testing.T) {
 		expected bool
 	}{
 		// Individual characters that should be removed
+		{name: "NUL byte", rune: 0x0000, expected: true},
 		{name: "zero width space", rune: 0x200B, expected: true},
 		{name: "zero width non-joiner", rune: 0x200C, expected: true},
 		{name: "left-to-right mark", rune: 0x200E, expected: true},
@@ -299,4 +300,86 @@ func TestSanitizeRemovesInvisibleCodeFenceMetadata(t *testing.T) {
 
 	result := Sanitize(input)
 	assert.Equal(t, expected, result)
+}
+
+func TestSanitizePreservesAngleBracketsInCodeBlocks(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "fenced code block with angle brackets",
+			input:    "```\nlet ptr: mut_raw_ptr<int> = raw_new int;\n```",
+			expected: "```\nlet ptr: mut_raw_ptr<int> = raw_new int;\n```",
+		},
+		{
+			name:     "inline code with angle brackets",
+			input:    "Use `Vec<String>` for collections.",
+			expected: "Use `Vec<String>` for collections.",
+		},
+		{
+			name:     "angle brackets outside code are sanitized",
+			input:    "This has <script>alert('xss')</script> in it.",
+			expected: "This has  in it.",
+		},
+		{
+			name:     "fenced code block with generic types",
+			input:    "Example:\n```go\nfunc Foo[T comparable](x T) {}\n```\nDone.",
+			expected: "Example:\n```go\nfunc Foo[T comparable](x T) {}\n```\nDone.",
+		},
+		{
+			name:     "multiple inline code spans with angle brackets",
+			input:    "Compare `Map<K, V>` and `Set<T>`.",
+			expected: "Compare `Map<K, V>` and `Set<T>`.",
+		},
+		{
+			name:     "shorter fence inside code does not close block",
+			input:    "````\nline<A>\n```\nstill<B>\n````",
+			expected: "````\nline<A>\n```\nstill<B>\n````",
+		},
+		{
+			name:     "sentinel collision does not bypass sanitizer",
+			input:    "\x00LT\x00script\x00GT\x00alert(1)\x00LT\x00/script\x00GT\x00",
+			expected: "LTscriptGTalert(1)LT/scriptGT",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := Sanitize(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestProtectCodeAngleBrackets(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "fenced code block with angle brackets",
+			input:    "```\nvector<int> v;\n```",
+			expected: "```\nvector" + ltSentinel + "int" + gtSentinel + " v;\n```",
+		},
+		{
+			name:     "inline code with angle brackets",
+			input:    "Use `Map<K, V>` here.",
+			expected: "Use `Map" + ltSentinel + "K, V" + gtSentinel + "` here.",
+		},
+		{
+			name:     "angle brackets outside code unchanged",
+			input:    "Use <b>bold</b>\n```\ncode<T>\n```",
+			expected: "Use <b>bold</b>\n```\ncode" + ltSentinel + "T" + gtSentinel + "\n```",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := protectCodeAngleBrackets(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }
