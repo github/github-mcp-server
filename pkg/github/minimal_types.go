@@ -820,8 +820,10 @@ func convertToMinimalIssuesResponse(fragment IssueQueryFragment) MinimalIssuesRe
 
 func convertToMinimalIssueComment(comment *github.IssueComment) MinimalIssueComment {
 	m := MinimalIssueComment{
-		ID:                comment.GetID(),
-		Body:              comment.GetBody(),
+		ID: comment.GetID(),
+		// Bodies carry the same invisible-glyph / HTML injection surface as
+		// issue and PR bodies, which the read paths already sanitize.
+		Body:              sanitize.Sanitize(comment.GetBody()),
 		HTMLURL:           comment.GetHTMLURL(),
 		User:              convertToMinimalUser(comment.GetUser()),
 		AuthorAssociation: comment.GetAuthorAssociation(),

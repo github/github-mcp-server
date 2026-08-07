@@ -946,6 +946,15 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 		subIssues = filteredSubIssues
 	}
 
+	for _, subIssue := range subIssues {
+		if subIssue.Title != nil {
+			subIssue.Title = github.Ptr(sanitize.Sanitize(*subIssue.Title))
+		}
+		if subIssue.Body != nil {
+			subIssue.Body = github.Ptr(sanitize.Sanitize(*subIssue.Body))
+		}
+	}
+
 	r, err := json.Marshal(subIssues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
