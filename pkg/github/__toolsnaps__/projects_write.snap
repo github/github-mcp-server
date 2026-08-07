@@ -17,8 +17,15 @@
         "type": "string"
       },
       "filter": {
-        "description": "Saved view filter; omit on update to preserve it, or pass an empty string to clear it.",
-        "type": "string"
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Saved view filter; omit on update to preserve it, or pass null to clear it."
       },
       "issue_number": {
         "description": "The issue number. Required for 'add_project_item' when item_type is 'issue'. Also accepted by 'update_project_item' to resolve the item by issue number (combine with item_owner and item_repo).",
