@@ -1,0 +1,166 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "openWorldHint": true,
+    "title": "Update repository security advisory"
+  },
+  "description": "Update a repository security advisory, including publishing it. Severity and cvssVectorString cannot both be set. Omit credits and cweIds to leave them unchanged; empty arrays are rejected and clearing these fields is not supported.",
+  "inputSchema": {
+    "properties": {
+      "credits": {
+        "description": "Users credited for the advisory. Omit to leave unchanged; empty arrays are rejected and clearing this field is not supported.",
+        "items": {
+          "properties": {
+            "login": {
+              "description": "The GitHub username of the credited user.",
+              "type": "string"
+            },
+            "type": {
+              "description": "The credit type.",
+              "enum": [
+                "analyst",
+                "finder",
+                "reporter",
+                "coordinator",
+                "remediation_developer",
+                "remediation_reviewer",
+                "remediation_verifier",
+                "tool",
+                "sponsor",
+                "other"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "login",
+            "type"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "cveId": {
+        "description": "The CVE ID to assign to the advisory.",
+        "type": "string"
+      },
+      "cvssVectorString": {
+        "description": "The CVSS vector string for the advisory. Cannot be set together with severity.",
+        "type": "string"
+      },
+      "cweIds": {
+        "description": "Common Weakness Enumeration IDs (for example, [\"CWE-79\"]). Omit to leave unchanged; empty arrays are rejected and clearing this field is not supported.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "description": {
+        "description": "A detailed description of the security advisory.",
+        "type": "string"
+      },
+      "ghsaId": {
+        "description": "GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx).",
+        "type": "string"
+      },
+      "owner": {
+        "description": "The owner of the repository.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "The name of the repository.",
+        "type": "string"
+      },
+      "severity": {
+        "description": "The severity of the advisory. Cannot be set together with cvssVectorString.",
+        "enum": [
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "type": "string"
+      },
+      "state": {
+        "description": "The advisory state. Set to \"published\" to publish the advisory.",
+        "enum": [
+          "draft",
+          "published",
+          "closed",
+          "triage"
+        ],
+        "type": "string"
+      },
+      "summary": {
+        "description": "A short summary of the security advisory.",
+        "type": "string"
+      },
+      "vulnerabilities": {
+        "description": "Affected products and version ranges.",
+        "items": {
+          "properties": {
+            "package": {
+              "properties": {
+                "ecosystem": {
+                  "description": "The package ecosystem.",
+                  "enum": [
+                    "actions",
+                    "composer",
+                    "erlang",
+                    "go",
+                    "maven",
+                    "npm",
+                    "nuget",
+                    "other",
+                    "pip",
+                    "pub",
+                    "rubygems",
+                    "rust",
+                    "swift"
+                  ],
+                  "type": "string"
+                },
+                "name": {
+                  "description": "The package name.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "ecosystem",
+                "name"
+              ],
+              "type": "object"
+            },
+            "patched_versions": {
+              "description": "The version that patches the vulnerability.",
+              "type": "string"
+            },
+            "vulnerable_functions": {
+              "description": "Functions in the package that are affected.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "vulnerable_version_range": {
+              "description": "The range of affected versions (for example, \"\u003c 2.0.0\").",
+              "type": "string"
+            }
+          },
+          "required": [
+            "package"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "ghsaId"
+    ],
+    "type": "object"
+  },
+  "name": "update_repository_security_advisory"
+}
