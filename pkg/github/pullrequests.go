@@ -23,6 +23,60 @@ import (
 	"github.com/github/github-mcp-server/pkg/utils"
 )
 
+func updatePullRequestDraftState(ctx context.Context, deps ToolDependencies, owner, repo string, pullNumber int, draft bool) *mcp.CallToolResult {
+	client, err := deps.GetClient(ctx)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to get GitHub client", err)
+	}
+
+	pullRequest, getResp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get pull request", getResp, err)
+	}
+	defer func() { _ = getResp.Body.Close() }()
+
+	if getResp.StatusCode != http.StatusOK {
+		bodyBytes, err := io.ReadAll(getResp.Body)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr("failed to read response body", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", getResp, bodyBytes)
+	}
+
+	if pullRequest.GetDraft() == draft {
+		return nil
+	}
+
+	actionPath := "ready_for_review"
+	actionName := "mark pull request ready for review"
+	if draft {
+		actionPath = "convert-to-draft"
+		actionName = "convert pull request to draft"
+	}
+
+	apiURL := fmt.Sprintf("repos/%s/%s/pulls/%d/%s", owner, repo, pullNumber, actionPath)
+	req, err := client.NewRequest(ctx, http.MethodPost, apiURL, nil)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to create request", err)
+	}
+
+	actionResp, err := client.Do(req, nil)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to "+actionName, actionResp, err)
+	}
+	defer func() { _ = actionResp.Body.Close() }()
+
+	if actionResp.StatusCode != http.StatusOK {
+		bodyBytes, err := io.ReadAll(actionResp.Body)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr("failed to read response body", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to "+actionName, actionResp, bodyBytes)
+	}
+
+	return nil
+}
+
 // PullRequestRead creates a tool to get details of a specific pull request.
 func PullRequestRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
@@ -1039,69 +1093,10 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				}
 			}
 
-			// Handle draft status changes using GraphQL
+			// Handle draft status changes using REST
 			if draftProvided {
-				gqlClient, err := deps.GetGQLClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
-				}
-
-				var prQuery struct {
-					Repository struct {
-						PullRequest struct {
-							ID      githubv4.ID
-							IsDraft githubv4.Boolean
-						} `graphql:"pullRequest(number: $prNum)"`
-					} `graphql:"repository(owner: $owner, name: $repo)"`
-				}
-
-				err = gqlClient.Query(ctx, &prQuery, map[string]any{
-					"owner": githubv4.String(owner),
-					"repo":  githubv4.String(repo),
-					"prNum": githubv4.Int(pullNumber), // #nosec G115 - pull request numbers are always small positive integers
-				})
-				if err != nil {
-					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find pull request", err), nil, nil
-				}
-
-				currentIsDraft := bool(prQuery.Repository.PullRequest.IsDraft)
-
-				if currentIsDraft != draftValue {
-					if draftValue {
-						// Convert to draft
-						var mutation struct {
-							ConvertPullRequestToDraft struct {
-								PullRequest struct {
-									ID      githubv4.ID
-									IsDraft githubv4.Boolean
-								}
-							} `graphql:"convertPullRequestToDraft(input: $input)"`
-						}
-
-						err = gqlClient.Mutate(ctx, &mutation, githubv4.ConvertPullRequestToDraftInput{
-							PullRequestID: prQuery.Repository.PullRequest.ID,
-						}, nil)
-						if err != nil {
-							return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to convert pull request to draft", err), nil, nil
-						}
-					} else {
-						// Mark as ready for review
-						var mutation struct {
-							MarkPullRequestReadyForReview struct {
-								PullRequest struct {
-									ID      githubv4.ID
-									IsDraft githubv4.Boolean
-								}
-							} `graphql:"markPullRequestReadyForReview(input: $input)"`
-						}
-
-						err = gqlClient.Mutate(ctx, &mutation, githubv4.MarkPullRequestReadyForReviewInput{
-							PullRequestID: prQuery.Repository.PullRequest.ID,
-						}, nil)
-						if err != nil {
-							return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to mark pull request ready for review", err), nil, nil
-						}
-					}
+				if result := updatePullRequestDraftState(ctx, deps, owner, repo, pullNumber, draftValue); result != nil {
+					return result, nil, nil
 				}
 			}
 
