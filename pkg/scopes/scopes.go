@@ -168,28 +168,47 @@ func expandScopeSet(scopes []string) map[string]bool {
 	return expanded
 }
 
-// HasRequiredScopes checks if tokenScopes satisfy the acceptedScopes requirement.
-// A tool's acceptedScopes includes both the required scopes AND parent scopes
-// that implicitly grant the required permissions (via ExpandScopes).
+// HasRequiredScopes reports whether tokenScopes satisfy EVERY scope in
+// requiredScopes. The requiredScopes are the literal scopes a tool declares and
+// they are all required: satisfaction is AND-of-ORs (conjunctive normal form).
 //
-// For PAT filtering: if ANY of the acceptedScopes are granted by the token
-// (directly or via scope hierarchy), the tool should be visible.
+// The AND is over the distinct required scopes. The OR, for each required
+// scope, is limited to the scope hierarchy: a required scope is satisfied
+// directly or by one of its ANCESTOR scopes that implicitly grants it. This is
+// implemented by expanding the TOKEN downward through the hierarchy (via
+// expandScopeSet, e.g. repo -> public_repo and admin:org -> read:org) and
+// checking that every required scope is present in that expanded set.
 //
-// Returns true if the tool should be visible to the token holder.
-func HasRequiredScopes(tokenScopes []string, acceptedScopes []string) bool {
+// An empty requiredScopes is always satisfied.
+//
+// Scope filtering is a best-effort UX nicety for classic PATs, NOT an
+// authorization boundary: the GitHub API remains the source of truth, so the
+// intended posture is to fail open (only hide when confident the token cannot
+// work). See docs/scope-filtering.md.
+//
+// Limitation: the hierarchy only models ancestor substitution, not sibling
+// alternatives, so it does not capture every way a tool may be satisfied. For
+// example, reading code scanning alerts on a PUBLIC repo is possible with
+// public_repo, a sibling of the declared security_events (both children of
+// repo), which token expansion cannot bridge. Representing that faithfully
+// would require RequiredScopes to become a CNF list of OR-groups (groups
+// AND-ed, members within a group OR-ed), e.g. code scanning =
+// {security_events OR public_repo OR repo}. That structure is deliberately not
+// built yet (YAGNI).
+func HasRequiredScopes(tokenScopes []string, requiredScopes []string) bool {
 	// No scopes required = always allowed
-	if len(acceptedScopes) == 0 {
+	if len(requiredScopes) == 0 {
 		return true
 	}
 
 	// Expand token scopes to include child scopes they grant
-	grantedScopes := expandScopeSet(tokenScopes)
+	granted := expandScopeSet(tokenScopes)
 
-	// Check if any accepted scope is granted by the token
-	for _, accepted := range acceptedScopes {
-		if grantedScopes[accepted] {
-			return true
+	// Every required scope must be granted by the token (directly or via hierarchy)
+	for _, required := range requiredScopes {
+		if !granted[required] {
+			return false
 		}
 	}
-	return false
+	return true
 }

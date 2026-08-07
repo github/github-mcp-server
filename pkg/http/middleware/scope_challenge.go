@@ -109,14 +109,14 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 			ctx = ghcontext.WithTokenScopes(ctx, activeScopes)
 			r = r.WithContext(ctx)
 
-			// Check if user has the required scopes
-			if toolScopeInfo.HasAcceptedScope(activeScopes...) {
+			// Check if user satisfies all required scopes
+			if toolScopeInfo.Satisfies(activeScopes...) {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			// User lacks required scopes - get the scopes they need
-			requiredScopes := toolScopeInfo.GetRequiredScopesSlice()
+			// User lacks one or more required scopes - request only the missing ones
+			missingScopes := toolScopeInfo.MissingScopes(activeScopes...)
 
 			// Build the resource metadata URL using the shared utility
 			// GetEffectiveResourcePath returns the original path (e.g., /mcp or /mcp/x/all)
@@ -124,16 +124,16 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 			resourcePath := oauth.ResolveResourcePath(r, oauthCfg)
 			resourceMetadataURL := oauth.BuildResourceMetadataURL(r, oauthCfg, resourcePath)
 
-			// Build recommended scopes: existing scopes + required scopes
-			recommendedScopes := make([]string, 0, len(activeScopes)+len(requiredScopes))
+			// Build recommended scopes: existing scopes + missing required scopes
+			recommendedScopes := make([]string, 0, len(activeScopes)+len(missingScopes))
 			recommendedScopes = append(recommendedScopes, activeScopes...)
-			recommendedScopes = append(recommendedScopes, requiredScopes...)
+			recommendedScopes = append(recommendedScopes, missingScopes...)
 
 			// Build the WWW-Authenticate header value
 			wwwAuthenticateHeader := fmt.Sprintf(`Bearer error="insufficient_scope", scope=%q, resource_metadata=%q, error_description=%q`,
 				strings.Join(recommendedScopes, " "),
 				resourceMetadataURL,
-				"Additional scopes required: "+strings.Join(requiredScopes, ", "),
+				"Additional scopes required: "+strings.Join(missingScopes, ", "),
 			)
 
 			// Send scope challenge response with the superset of existing and required scopes
