@@ -196,6 +196,10 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 						Type:        "string",
 						Description: "Optional custom instructions to guide the agent beyond the issue body. Use this to provide additional context, constraints, or guidance that is not captured in the issue description",
 					},
+					"custom_agent": {
+						Type:        "string",
+						Description: "Optional custom agent slug to use instead of the default Copilot coding agent",
+					},
 				},
 				Required: []string{"owner", "repo", "issue_number"},
 			},
@@ -208,6 +212,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				IssueNumber        int32  `mapstructure:"issue_number"`
 				BaseRef            string `mapstructure:"base_ref"`
 				CustomInstructions string `mapstructure:"custom_instructions"`
+				CustomAgent        string `mapstructure:"custom_agent"`
 			}
 			if err := mapstructure.WeakDecode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -326,6 +331,12 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 			if params.CustomInstructions != "" {
 				customInstructions := githubv4.String(params.CustomInstructions)
 				agentAssignment.CustomInstructions = &customInstructions
+			}
+
+			// Add custom agent if provided
+			if params.CustomAgent != "" {
+				customAgent := githubv4.String(params.CustomAgent)
+				agentAssignment.CustomAgent = &customAgent
 			}
 
 			// Execute the updateIssue mutation with the GraphQL-Features header
