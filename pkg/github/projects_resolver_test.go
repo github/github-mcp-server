@@ -236,7 +236,7 @@ func Test_ResolveFieldNamesToIDs_QueryRemainsIssueFieldUngated(t *testing.T) {
 	capture := &headerCaptureTransport{inner: mocked.Transport}
 	gql := githubv4.NewClient(&http.Client{Transport: &transportpkg.GraphQLFeaturesTransport{Transport: capture}})
 
-	ids, err := resolveFieldNamesToIDs(context.Background(), gql, "octo-org", "org", 1, []string{"Customer"})
+	ids, err := resolveFieldNamesToIDs(context.Background(), gql, "octo-org", "org", 1, []string{"Customer"}, "fields")
 	require.NoError(t, err)
 	assert.Equal(t, []int64{101}, ids)
 	assert.Empty(t, capture.captured.Get(headers.GraphQLFeaturesHeader))
@@ -734,7 +734,7 @@ func Test_ResolveFieldNamesToIDs_Success(t *testing.T) {
 	)
 	gql := githubv4.NewClient(mocked)
 
-	ids, err := resolveFieldNamesToIDs(context.Background(), gql, "octo-org", "org", 1, []string{"Status", "Priority"})
+	ids, err := resolveFieldNamesToIDs(context.Background(), gql, "octo-org", "org", 1, []string{"Status", "Priority"}, "fields")
 	require.NoError(t, err)
 	assert.Equal(t, []int64{100, 200}, ids)
 }
@@ -781,9 +781,57 @@ func Test_ResolveFieldNamesToIDs_CaseInsensitive(t *testing.T) {
 	)
 	gql := githubv4.NewClient(mocked)
 
-	ids, err := resolveFieldNamesToIDs(context.Background(), gql, "octo-org", "org", 1, []string{"status", "PRIORITY"})
+	ids, err := resolveFieldNamesToIDs(context.Background(), gql, "octo-org", "org", 1, []string{"status", "PRIORITY"}, "fields")
 	require.NoError(t, err)
 	assert.Equal(t, []int64{100, 200}, ids)
+}
+
+func Test_ResolveFieldNamesToIDs_IDParameterErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		fields      []ResolvedField
+		idParameter string
+		want        string
+	}{
+		{
+			name: "normal project item fields",
+			fields: []ResolvedField{
+				{ID: "100", Name: "Status"},
+				{ID: "200", Name: "Status"},
+			},
+			idParameter: "fields",
+			want:        "'fields'",
+		},
+		{
+			name: "project view visible fields",
+			fields: []ResolvedField{
+				{ID: "100", Name: "Status"},
+				{ID: "200", Name: "Status"},
+			},
+			idParameter: "visible_fields",
+			want:        "'visible_fields'",
+		},
+		{
+			name:        "nonnumeric project item field ID",
+			fields:      []ResolvedField{{ID: "not-numeric", Name: "Status"}},
+			idParameter: "fields",
+			want:        "'fields'",
+		},
+		{
+			name:        "nonnumeric project view field ID",
+			fields:      []ResolvedField{{ID: "not-numeric", Name: "Status"}},
+			idParameter: "visible_fields",
+			want:        "'visible_fields'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := resolveFieldNamesToIDsFromFields(tt.fields, []string{"Status"}, "octo-org", 1, tt.idParameter)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
 }
 
 // Test_ProjectsWrite_UpdateProjectItem_ByName is the acceptance test for the

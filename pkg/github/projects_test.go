@@ -36,6 +36,7 @@ func Test_ProjectsList(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "project_number")
 	assert.Contains(t, inputSchema.Properties, "query")
 	assert.Contains(t, inputSchema.Properties, "fields")
+	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodListProjectViews)
 	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner"})
 }
 
@@ -596,6 +597,8 @@ func Test_ProjectsGet(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "owner")
 	assert.Contains(t, inputSchema.Properties, "owner_type")
 	assert.Contains(t, inputSchema.Properties, "project_number")
+	assert.Contains(t, inputSchema.Properties, "view_id")
+	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodGetProjectView)
 	assert.Contains(t, inputSchema.Properties, "field_id")
 	assert.Contains(t, inputSchema.Properties, "item_id")
 	assert.ElementsMatch(t, inputSchema.Required, []string{"method"})
@@ -885,6 +888,15 @@ func Test_ProjectsWrite(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "pull_request_number")
 	assert.Contains(t, inputSchema.Properties, "updated_field")
 	assert.Contains(t, inputSchema.Properties, "items")
+	assert.Contains(t, inputSchema.Properties, "view_id")
+	assert.Contains(t, inputSchema.Properties, "name")
+	assert.Contains(t, inputSchema.Properties, "layout")
+	assert.Contains(t, inputSchema.Properties, "filter")
+	assert.Contains(t, inputSchema.Properties, "visible_fields")
+	assert.Contains(t, inputSchema.Properties, "visible_field_names")
+	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodCreateProjectView)
+	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodUpdateProjectView)
+	assert.Contains(t, inputSchema.Properties["method"].Enum, projectsMethodDeleteProjectView)
 	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner"})
 
 	// Verify DestructiveHint is set

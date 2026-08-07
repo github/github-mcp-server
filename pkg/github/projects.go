@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
@@ -31,6 +32,11 @@ const (
 	ProjectStatusUpdateListFailedError   = "failed to list project status updates"
 	ProjectStatusUpdateGetFailedError    = "failed to get project status update"
 	ProjectStatusUpdateCreateFailedError = "failed to create project status update"
+	ProjectViewListFailedError           = "failed to list project views"
+	ProjectViewGetFailedError            = "failed to get project view"
+	ProjectViewCreateFailedError         = "failed to create project view"
+	ProjectViewUpdateFailedError         = "failed to update project view"
+	ProjectViewDeleteFailedError         = "failed to delete project view"
 	ProjectResolveIDFailedError          = "failed to resolve project ID"
 	MaxProjectsPerPage                   = 50
 	maxProjectItemsPerBatch              = 50
@@ -51,6 +57,11 @@ const (
 	projectsMethodListProjectStatusUpdates  = "list_project_status_updates"
 	projectsMethodGetProjectStatusUpdate    = "get_project_status_update"
 	projectsMethodCreateProjectStatusUpdate = "create_project_status_update"
+	projectsMethodListProjectViews          = "list_project_views"
+	projectsMethodGetProjectView            = "get_project_view"
+	projectsMethodCreateProjectView         = "create_project_view"
+	projectsMethodUpdateProjectView         = "update_project_view"
+	projectsMethodDeleteProjectView         = "delete_project_view"
 	projectsMethodCreateProject             = "create_project"
 	projectsMethodCreateIterationField      = "create_iteration_field"
 )
@@ -109,6 +120,89 @@ type statusUpdateNodeQuery struct {
 	} `graphql:"node(id: $id)"`
 }
 
+type projectViewNode struct {
+	ID     githubv4.ID
+	Number githubv4.Int
+	Name   githubv4.String
+	Layout githubv4.ProjectV2ViewLayout
+	Filter *githubv4.String
+}
+
+type projectViewNodeWithProject struct {
+	projectViewNode
+	Project projectVisibility
+}
+
+type projectViewConnection struct {
+	Nodes    []projectViewNode
+	PageInfo PageInfoFragment
+}
+
+type projectViewsProject struct {
+	ID     githubv4.ID
+	Public githubv4.Boolean
+	Views  projectViewConnection `graphql:"views(first: $first, after: $after, last: $last, before: $before)"`
+}
+
+type projectViewsUserQuery struct {
+	User struct {
+		ProjectV2 projectViewsProject `graphql:"projectV2(number: $projectNumber)"`
+	} `graphql:"user(login: $owner)"`
+}
+
+type projectViewsOrgQuery struct {
+	Organization struct {
+		ProjectV2 projectViewsProject `graphql:"projectV2(number: $projectNumber)"`
+	} `graphql:"organization(login: $owner)"`
+}
+
+type projectViewNodeQuery struct {
+	Node struct {
+		ProjectView projectViewNodeWithProject `graphql:"... on ProjectV2View"`
+	} `graphql:"node(id: $id)"`
+}
+
+type projectViewParentQuery struct {
+	Node struct {
+		ProjectView struct {
+			ID      githubv4.ID
+			Project struct {
+				ID githubv4.ID
+			}
+		} `graphql:"... on ProjectV2View"`
+	} `graphql:"node(id: $id)"`
+}
+
+// CreateProjectV2ViewRequest is the REST request for creating a project view.
+type CreateProjectV2ViewRequest struct {
+	Name          string  `json:"name"`
+	Layout        string  `json:"layout"`
+	Filter        *string `json:"filter,omitempty"`
+	VisibleFields []int64 `json:"visible_fields,omitempty"`
+}
+
+type projectV2ViewRESTResponse struct {
+	NodeID        string  `json:"node_id"`
+	Number        int     `json:"number"`
+	Name          string  `json:"name"`
+	Layout        string  `json:"layout"`
+	Filter        *string `json:"filter,omitempty"`
+	VisibleFields []int64 `json:"visible_fields,omitempty"`
+}
+
+// UpdateProjectV2ViewInput is the GraphQL input for updating a project view.
+type UpdateProjectV2ViewInput struct {
+	ViewID githubv4.ID                   `json:"viewId"`
+	Name   *githubv4.String              `json:"name,omitempty"`
+	Layout *githubv4.ProjectV2ViewLayout `json:"layout,omitempty"`
+	Filter *githubv4.String              `json:"filter,omitempty"`
+}
+
+// DeleteProjectV2ViewInput is the GraphQL input for deleting a project view.
+type DeleteProjectV2ViewInput struct {
+	ViewID githubv4.ID `json:"viewId"`
+}
+
 // CreateProjectV2StatusUpdateInput is the input for the createProjectV2StatusUpdate mutation.
 // Defined locally because the shurcooL/githubv4 library does not include this type.
 type CreateProjectV2StatusUpdateInput struct {
@@ -161,7 +255,7 @@ func ProjectsList(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name: "projects_list",
 			Description: t("TOOL_PROJECTS_LIST_DESCRIPTION",
 				`Tools for listing GitHub Projects resources.
-Use this tool to list projects for a user or organization, or list project fields and items for a specific project.
+Use this tool to list projects for a user or organization, or list project fields, items, views, and status updates for a specific project.
 `),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_PROJECTS_LIST_USER_TITLE", "List GitHub Projects resources"),
@@ -178,6 +272,7 @@ Use this tool to list projects for a user or organization, or list project field
 							projectsMethodListProjectFields,
 							projectsMethodListProjectItems,
 							projectsMethodListProjectStatusUpdates,
+							projectsMethodListProjectViews,
 						},
 					},
 					"owner_type": {
@@ -191,7 +286,7 @@ Use this tool to list projects for a user or organization, or list project field
 					},
 					"project_number": {
 						Type:        "number",
-						Description: "The project's number. Required for 'list_project_fields', 'list_project_items', and 'list_project_status_updates' methods.",
+						Description: "The project's number. Required for 'list_project_fields', 'list_project_items', 'list_project_views', and 'list_project_status_updates' methods.",
 					},
 					"query": {
 						Type:        "string",
@@ -254,7 +349,7 @@ Use this tool to list projects for a user or organization, or list project field
 				result, visibilities, payload, err := listProjects(ctx, client, args, owner, ownerType)
 				result = attachJoinedIFCLabel(ctx, deps, result, visibilities, ifc.LabelProjectList)
 				return result, payload, err
-			case projectsMethodListProjectFields, projectsMethodListProjectItems, projectsMethodListProjectStatusUpdates:
+			case projectsMethodListProjectFields, projectsMethodListProjectItems, projectsMethodListProjectStatusUpdates, projectsMethodListProjectViews:
 				// All other methods require project_number and ownerType detection
 				projectNumber, err := RequiredInt(args, "project_number")
 				if err != nil {
@@ -298,6 +393,14 @@ Use this tool to list projects for a user or organization, or list project field
 					result, isPrivate, payload, err := listProjectStatusUpdates(ctx, gqlClient, args, owner, ownerType)
 					result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelProjectContent(isPrivate))
 					return result, payload, err
+				case projectsMethodListProjectViews:
+					gqlClient, err := deps.GetGQLClient(ctx)
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+					result, isPrivate, payload, err := listProjectViews(ctx, gqlClient, args, owner, ownerType)
+					result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelProjectContent(isPrivate))
+					return result, payload, err
 				default:
 					return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 				}
@@ -316,7 +419,7 @@ func ProjectsGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 		mcp.Tool{
 			Name: "projects_get",
 			Description: t("TOOL_PROJECTS_GET_DESCRIPTION", `Get details about specific GitHub Projects resources.
-Use this tool to get details about individual projects, project fields, and project items by their unique IDs.
+Use this tool to get details about individual projects, project fields, project items, and project views by their unique IDs.
 `),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_PROJECTS_GET_USER_TITLE", "Get details of GitHub Projects resources"),
@@ -333,6 +436,7 @@ Use this tool to get details about individual projects, project fields, and proj
 							projectsMethodGetProjectField,
 							projectsMethodGetProjectItem,
 							projectsMethodGetProjectStatusUpdate,
+							projectsMethodGetProjectView,
 						},
 					},
 					"owner_type": {
@@ -374,6 +478,10 @@ Use this tool to get details about individual projects, project fields, and proj
 						Type:        "string",
 						Description: "The node ID of the project status update. Required for 'get_project_status_update' method.",
 					},
+					"view_id": {
+						Type:        "string",
+						Description: "The node ID of the project view. Required for 'get_project_view' method.",
+					},
 				},
 				Required: []string{"method"},
 			},
@@ -385,7 +493,7 @@ Use this tool to get details about individual projects, project fields, and proj
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Handle get_project_status_update early — it only needs status_update_id
+			// Handle node-ID-only methods before requiring owner and project_number.
 			if method == projectsMethodGetProjectStatusUpdate {
 				statusUpdateID, err := RequiredParam[string](args, "status_update_id")
 				if err != nil {
@@ -396,6 +504,19 @@ Use this tool to get details about individual projects, project fields, and proj
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
 				result, isPrivate, payload, err := getProjectStatusUpdate(ctx, gqlClient, statusUpdateID)
+				result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelProjectContent(isPrivate))
+				return result, payload, err
+			}
+			if method == projectsMethodGetProjectView {
+				viewID, err := RequiredParam[string](args, "view_id")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				gqlClient, err := deps.GetGQLClient(ctx)
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				result, isPrivate, payload, err := getProjectView(ctx, gqlClient, viewID)
 				result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelProjectContent(isPrivate))
 				return result, payload, err
 			}
@@ -467,7 +588,7 @@ Use this tool to get details about individual projects, project fields, and proj
 					if gqlErr != nil {
 						return utils.NewToolResultError(gqlErr.Error()), nil, nil
 					}
-					resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, fieldNames)
+					resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, fieldNames, "fields")
 					if resolveErr != nil {
 						var structured *ghErrors.StructuredResolutionError
 						if errors.As(resolveErr, &structured) {
@@ -576,7 +697,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "projects_write",
-			Description: t("TOOL_PROJECTS_WRITE_DESCRIPTION", "Create and manage GitHub Projects: create projects, add/update/delete items, bulk-update many items at once, create status updates, and add iteration fields."),
+			Description: t("TOOL_PROJECTS_WRITE_DESCRIPTION", "Create and manage GitHub Projects: create projects, add/update/delete items, bulk-update many items at once, manage views, create status updates, and add iteration fields."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_PROJECTS_WRITE_USER_TITLE", "Manage GitHub Projects"),
 				ReadOnlyHint:    false,
@@ -594,6 +715,9 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 							projectsMethodUpdateProjectItems,
 							projectsMethodDeleteProjectItem,
 							projectsMethodCreateProjectStatusUpdate,
+							projectsMethodCreateProjectView,
+							projectsMethodUpdateProjectView,
+							projectsMethodDeleteProjectView,
 							projectsMethodCreateProject,
 							projectsMethodCreateIterationField,
 						},
@@ -614,6 +738,40 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					"title": {
 						Type:        "string",
 						Description: "The project title. Required for 'create_project' method.",
+					},
+					"view_id": {
+						Type:        "string",
+						Description: "Project view node ID for update or delete; must belong to owner/project_number.",
+					},
+					"name": {
+						Type:        "string",
+						Description: "View name; required when creating a view.",
+					},
+					"layout": {
+						Type:        "string",
+						Description: "View layout; required when creating a view.",
+						Enum:        []any{"table", "board", "roadmap"},
+					},
+					"filter": {
+						AnyOf: []*jsonschema.Schema{
+							{Type: "string"},
+							{Type: "null"},
+						},
+						Description: "Saved view filter; omit on update to preserve it, or pass null to clear it.",
+					},
+					"visible_fields": {
+						Type:        "array",
+						Description: "Field database IDs for table or board creation; mutually exclusive with visible_field_names.",
+						Items: &jsonschema.Schema{
+							Type: "string",
+						},
+					},
+					"visible_field_names": {
+						Type:        "array",
+						Description: "Field names for table or board creation; mutually exclusive with visible_fields.",
+						Items: &jsonschema.Schema{
+							Type: "string",
+						},
 					},
 					"item_id": {
 						Type:        "number",
@@ -715,13 +873,12 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			gqlClient, err := deps.GetGQLClient(ctx)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
 			// create_project does not require project_number or a REST client
 			if method == projectsMethodCreateProject {
+				gqlClient, gqlErr := deps.GetGQLClient(ctx)
+				if gqlErr != nil {
+					return utils.NewToolResultError(gqlErr.Error()), nil, nil
+				}
 				return createProject(ctx, gqlClient, owner, ownerType, args)
 			}
 
@@ -741,6 +898,26 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
+			}
+
+			if method == projectsMethodCreateProjectView {
+				visibleFieldNames, namesErr := OptionalStringArrayParam(args, "visible_field_names")
+				if namesErr != nil {
+					return utils.NewToolResultError(namesErr.Error()), nil, nil
+				}
+				var gqlClient *githubv4.Client
+				if len(visibleFieldNames) > 0 {
+					gqlClient, err = deps.GetGQLClient(ctx)
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+				}
+				return createProjectView(ctx, client, gqlClient, args, owner, ownerType, projectNumber, visibleFieldNames)
+			}
+
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			switch method {
@@ -833,6 +1010,10 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return createProjectStatusUpdate(ctx, gqlClient, owner, ownerType, projectNumber, body, status, startDate, targetDate)
 			case projectsMethodCreateIterationField:
 				return createIterationField(ctx, gqlClient, owner, ownerType, projectNumber, args)
+			case projectsMethodUpdateProjectView:
+				return updateProjectView(ctx, gqlClient, args, owner, ownerType, projectNumber)
+			case projectsMethodDeleteProjectView:
+				return deleteProjectView(ctx, gqlClient, args, owner, ownerType, projectNumber)
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
@@ -1047,7 +1228,7 @@ func listProjectItems(ctx context.Context, client *github.Client, gqlClient *git
 		return utils.NewToolResultError("provide either 'fields' or 'field_names', not both"), nil, nil
 	}
 	if len(fieldNames) > 0 {
-		resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, fieldNames)
+		resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, fieldNames, "fields")
 		if resolveErr != nil {
 			var structured *ghErrors.StructuredResolutionError
 			if errors.As(resolveErr, &structured) {
@@ -1676,6 +1857,352 @@ func getProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, sta
 		return nil, false, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 	return utils.NewToolResultText(string(r)), isPrivate, nil, nil
+}
+
+func convertToMinimalProjectView(node projectViewNode) MinimalProjectView {
+	return MinimalProjectView{
+		ID:     fmt.Sprintf("%v", node.ID),
+		Number: int(node.Number),
+		Name:   string(node.Name),
+		Layout: projectViewLayoutName(node.Layout),
+		Filter: derefString(node.Filter),
+	}
+}
+
+func projectViewLayoutName(layout githubv4.ProjectV2ViewLayout) string {
+	switch layout {
+	case githubv4.ProjectV2ViewLayoutTableLayout:
+		return "table"
+	case githubv4.ProjectV2ViewLayoutBoardLayout:
+		return "board"
+	case githubv4.ProjectV2ViewLayoutRoadmapLayout:
+		return "roadmap"
+	default:
+		return strings.ToLower(strings.TrimSuffix(string(layout), "_LAYOUT"))
+	}
+}
+
+func parseProjectViewLayout(layout string) (githubv4.ProjectV2ViewLayout, error) {
+	switch strings.ToLower(strings.TrimSpace(layout)) {
+	case "table":
+		return githubv4.ProjectV2ViewLayoutTableLayout, nil
+	case "board":
+		return githubv4.ProjectV2ViewLayoutBoardLayout, nil
+	case "roadmap":
+		return githubv4.ProjectV2ViewLayoutRoadmapLayout, nil
+	default:
+		return "", fmt.Errorf("invalid layout %q: must be \"table\", \"board\", or \"roadmap\"", layout)
+	}
+}
+
+func listProjectViews(ctx context.Context, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, bool, any, error) {
+	if ownerType != "user" && ownerType != "org" {
+		return utils.NewToolResultError(fmt.Sprintf("invalid owner_type %q: must be \"user\" or \"org\"", ownerType)), false, nil, nil
+	}
+
+	projectNumber, err := RequiredInt(args, "project_number")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), false, nil, nil
+	}
+	perPage, err := OptionalIntParamWithDefault(args, "per_page", MaxProjectsPerPage)
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), false, nil, nil
+	}
+	if perPage < 1 || perPage > MaxProjectsPerPage {
+		perPage = MaxProjectsPerPage
+	}
+	after, err := OptionalParam[string](args, "after")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), false, nil, nil
+	}
+	before, err := OptionalParam[string](args, "before")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), false, nil, nil
+	}
+	if after != "" && before != "" {
+		return utils.NewToolResultError("provide either 'after' or 'before', not both"), false, nil, nil
+	}
+
+	vars := map[string]any{
+		"owner":         githubv4.String(owner),
+		"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are small integers
+		"first":         (*githubv4.Int)(nil),
+		"after":         (*githubv4.String)(nil),
+		"last":          (*githubv4.Int)(nil),
+		"before":        (*githubv4.String)(nil),
+	}
+	if before != "" {
+		last := githubv4.Int(int32(perPage)) //nolint:gosec // perPage is bounded by MaxProjectsPerPage
+		cursor := githubv4.String(before)
+		vars["last"] = &last
+		vars["before"] = &cursor
+	} else {
+		first := githubv4.Int(int32(perPage)) //nolint:gosec // perPage is bounded by MaxProjectsPerPage
+		vars["first"] = &first
+		if after != "" {
+			cursor := githubv4.String(after)
+			vars["after"] = &cursor
+		}
+	}
+
+	var project projectViewsProject
+	if ownerType == "org" {
+		var query projectViewsOrgQuery
+		if err := gqlClient.Query(ctx, &query, vars); err != nil {
+			return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewListFailedError, err)), false, nil, nil
+		}
+		project = query.Organization.ProjectV2
+	} else {
+		var query projectViewsUserQuery
+		if err := gqlClient.Query(ctx, &query, vars); err != nil {
+			return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewListFailedError, err)), false, nil, nil
+		}
+		project = query.User.ProjectV2
+	}
+	if project.ID == nil || project.ID == "" {
+		return utils.NewToolResultError(fmt.Sprintf("%s: project was not found", ProjectViewListFailedError)), false, nil, nil
+	}
+
+	views := make([]MinimalProjectView, 0, len(project.Views.Nodes))
+	for _, node := range project.Views.Nodes {
+		views = append(views, convertToMinimalProjectView(node))
+	}
+	response := map[string]any{
+		"views": views,
+		"pageInfo": map[string]any{
+			"hasNextPage":     project.Views.PageInfo.HasNextPage,
+			"hasPreviousPage": project.Views.PageInfo.HasPreviousPage,
+			"nextCursor":      string(project.Views.PageInfo.EndCursor),
+			"prevCursor":      string(project.Views.PageInfo.StartCursor),
+		},
+	}
+	result, err := json.Marshal(response)
+	if err != nil {
+		return nil, false, nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+	return utils.NewToolResultText(string(result)), !bool(project.Public), nil, nil
+}
+
+func getProjectView(ctx context.Context, gqlClient *githubv4.Client, viewID string) (*mcp.CallToolResult, bool, any, error) {
+	var query projectViewNodeQuery
+	vars := map[string]any{"id": githubv4.ID(viewID)}
+	if err := gqlClient.Query(ctx, &query, vars); err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewGetFailedError, err)), false, nil, nil
+	}
+	if query.Node.ProjectView.ID == nil || query.Node.ProjectView.ID == "" {
+		return utils.NewToolResultError(fmt.Sprintf("%s: node is not a ProjectV2View or was not found", ProjectViewGetFailedError)), false, nil, nil
+	}
+
+	view := convertToMinimalProjectView(query.Node.ProjectView.projectViewNode)
+	result, err := json.Marshal(view)
+	if err != nil {
+		return nil, false, nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+	return utils.NewToolResultText(string(result)), !bool(query.Node.ProjectView.Project.Public), nil, nil
+}
+
+func createProjectView(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string, projectNumber int, visibleFieldNames []string) (*mcp.CallToolResult, any, error) {
+	name, err := RequiredParam[string](args, "name")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	if strings.TrimSpace(name) == "" {
+		return utils.NewToolResultError("name must not be empty"), nil, nil
+	}
+	layoutName, err := RequiredParam[string](args, "layout")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	layout, err := parseProjectViewLayout(layoutName)
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	filter, hasFilter, err := OptionalNullableStringParam(args, "filter")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	visibleFields, err := OptionalBigIntArrayParam(args, "visible_fields")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	if len(visibleFields) > 0 && len(visibleFieldNames) > 0 {
+		return utils.NewToolResultError("provide either 'visible_fields' or 'visible_field_names', not both"), nil, nil
+	}
+	if len(visibleFieldNames) > 0 {
+		resolvedIDs, resolveErr := resolveFieldNamesToIDs(ctx, gqlClient, owner, ownerType, projectNumber, visibleFieldNames, "visible_fields")
+		if resolveErr != nil {
+			var structured *ghErrors.StructuredResolutionError
+			if errors.As(resolveErr, &structured) {
+				return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
+			}
+			return utils.NewToolResultError(resolveErr.Error()), nil, nil
+		}
+		visibleFields = resolvedIDs
+	}
+	if layout == githubv4.ProjectV2ViewLayoutRoadmapLayout && len(visibleFields) > 0 {
+		return utils.NewToolResultError("visible fields are not supported for roadmap views"), nil, nil
+	}
+
+	requestBody := CreateProjectV2ViewRequest{
+		Name:          name,
+		Layout:        projectViewLayoutName(layout),
+		VisibleFields: visibleFields,
+	}
+	if hasFilter {
+		// The API clears a filter with an empty string, so a null filter is sent as "".
+		value := ""
+		if filter != nil {
+			value = *filter
+		}
+		requestBody.Filter = &value
+	}
+
+	var endpoint string
+	switch ownerType {
+	case "org":
+		endpoint = fmt.Sprintf("orgs/%s/projectsV2/%d/views", owner, projectNumber)
+	case "user":
+		endpoint = fmt.Sprintf("users/%s/projectsV2/%d/views", owner, projectNumber)
+	default:
+		return utils.NewToolResultError(fmt.Sprintf("invalid owner_type %q: must be \"user\" or \"org\"", ownerType)), nil, nil
+	}
+
+	req, err := client.NewRequest(ctx, http.MethodPost, endpoint, requestBody)
+	if err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewCreateFailedError, err)), nil, nil
+	}
+	var response projectV2ViewRESTResponse
+	resp, err := client.Do(req, &response)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, ProjectViewCreateFailedError, resp, err), nil, nil
+	}
+	if response.NodeID == "" {
+		return utils.NewToolResultError(fmt.Sprintf("%s: response did not include a project view node ID", ProjectViewCreateFailedError)), nil, nil
+	}
+
+	filterValue := ""
+	if response.Filter != nil {
+		filterValue = *response.Filter
+	}
+	view := MinimalProjectView{
+		ID:            response.NodeID,
+		Number:        response.Number,
+		Name:          response.Name,
+		Layout:        projectViewLayoutName(githubv4.ProjectV2ViewLayout(response.Layout)),
+		Filter:        filterValue,
+		VisibleFields: response.VisibleFields,
+	}
+	return MarshalledTextResult(view), nil, nil
+}
+
+func verifyProjectViewParent(ctx context.Context, gqlClient *githubv4.Client, viewID, owner, ownerType string, projectNumber int) error {
+	expectedProjectID, err := resolveProjectNodeID(ctx, gqlClient, owner, ownerType, projectNumber)
+	if err != nil {
+		return fmt.Errorf("failed to resolve requested project: %w", err)
+	}
+	if expectedProjectID == nil || expectedProjectID == "" {
+		return fmt.Errorf("requested project was not found")
+	}
+
+	var query projectViewParentQuery
+	if err := gqlClient.Query(ctx, &query, map[string]any{"id": githubv4.ID(viewID)}); err != nil {
+		return fmt.Errorf("failed to resolve project view: %w", err)
+	}
+	if query.Node.ProjectView.ID == nil || query.Node.ProjectView.ID == "" {
+		return fmt.Errorf("node is not a ProjectV2View or was not found")
+	}
+	if query.Node.ProjectView.Project.ID != expectedProjectID {
+		return fmt.Errorf("project view does not belong to the requested project")
+	}
+	return nil
+}
+
+func updateProjectView(ctx context.Context, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string, projectNumber int) (*mcp.CallToolResult, any, error) {
+	viewID, err := RequiredParam[string](args, "view_id")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	name, hasName, err := OptionalParamOK[string](args, "name")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	layoutName, hasLayout, err := OptionalParamOK[string](args, "layout")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	filter, hasFilter, err := OptionalNullableStringParam(args, "filter")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	if !hasName && !hasLayout && !hasFilter {
+		return utils.NewToolResultError("update_project_view requires at least one of name, layout, or filter"), nil, nil
+	}
+	if hasName && strings.TrimSpace(name) == "" {
+		return utils.NewToolResultError("name must not be empty"), nil, nil
+	}
+
+	input := UpdateProjectV2ViewInput{ViewID: githubv4.ID(viewID)}
+	if hasName {
+		value := githubv4.String(name)
+		input.Name = &value
+	}
+	if hasLayout {
+		layout, err := parseProjectViewLayout(layoutName)
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		input.Layout = &layout
+	}
+	if hasFilter {
+		// The API clears a filter with an empty string, so a null filter is sent as "".
+		value := githubv4.String("")
+		if filter != nil {
+			value = githubv4.String(*filter)
+		}
+		input.Filter = &value
+	}
+	if err := verifyProjectViewParent(ctx, gqlClient, viewID, owner, ownerType, projectNumber); err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewUpdateFailedError, err)), nil, nil
+	}
+
+	var mutation struct {
+		UpdateProjectV2View struct {
+			ProjectV2View projectViewNode `graphql:"projectV2View"`
+		} `graphql:"updateProjectV2View(input: $input)"`
+	}
+	if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewUpdateFailedError, err)), nil, nil
+	}
+	if mutation.UpdateProjectV2View.ProjectV2View.ID == nil || mutation.UpdateProjectV2View.ProjectV2View.ID == "" {
+		return utils.NewToolResultError(fmt.Sprintf("%s: response did not include a project view", ProjectViewUpdateFailedError)), nil, nil
+	}
+	return MarshalledTextResult(convertToMinimalProjectView(mutation.UpdateProjectV2View.ProjectV2View)), nil, nil
+}
+
+func deleteProjectView(ctx context.Context, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string, projectNumber int) (*mcp.CallToolResult, any, error) {
+	viewID, err := RequiredParam[string](args, "view_id")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	if err := verifyProjectViewParent(ctx, gqlClient, viewID, owner, ownerType, projectNumber); err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewDeleteFailedError, err)), nil, nil
+	}
+	input := DeleteProjectV2ViewInput{ViewID: githubv4.ID(viewID)}
+	var mutation struct {
+		DeleteProjectV2View struct {
+			ProjectV2View struct {
+				ID githubv4.ID
+			} `graphql:"projectV2View"`
+		} `graphql:"deleteProjectV2View(input: $input)"`
+	}
+	if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewDeleteFailedError, err)), nil, nil
+	}
+	if id := mutation.DeleteProjectV2View.ProjectV2View.ID; id == nil || id == "" {
+		return utils.NewToolResultError(fmt.Sprintf("%s: response did not include the deleted view", ProjectViewDeleteFailedError)), nil, nil
+	}
+	deletedID := fmt.Sprintf("%v", mutation.DeleteProjectV2View.ProjectV2View.ID)
+	return MarshalledTextResult(map[string]string{"deleted_view_id": deletedID}), nil, nil
 }
 
 // validateAndConvertToInt64 ensures the value is a number and converts it to int64.

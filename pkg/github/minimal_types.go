@@ -351,6 +351,15 @@ type MinimalProject struct {
 	OwnerType        string            `json:"owner_type,omitempty"`
 }
 
+type MinimalProjectView struct {
+	ID            string  `json:"id"`
+	Number        int     `json:"number"`
+	Name          string  `json:"name"`
+	Layout        string  `json:"layout"`
+	Filter        string  `json:"filter"`
+	VisibleFields []int64 `json:"visible_fields,omitempty"`
+}
+
 type MinimalProjectItem struct {
 	ID          int64                          `json:"id"`
 	NodeID      string                         `json:"node_id,omitempty"`
