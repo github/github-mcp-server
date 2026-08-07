@@ -138,6 +138,11 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
 	}
 
+	hostType, err := utils.ParseHostType(cfg.Host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to classify API host: %w", err)
+	}
+
 	clients, err := createGitHubClients(cfg, apiHost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
@@ -165,7 +170,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		obs,
 	)
 	// Build and register the tool/resource/prompt inventory
-	inventoryBuilder := github.NewInventory(cfg.Translator).
+	inventoryBuilder := github.NewInventory(cfg.Translator, github.WithHost(hostType)).
 		WithDeprecatedAliases(github.DeprecatedToolAliases).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools)).

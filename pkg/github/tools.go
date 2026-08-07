@@ -10,6 +10,7 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/pkg/utils"
 )
 
 type GetClientFn func(context.Context) (*github.Client, error)
@@ -180,9 +181,35 @@ var (
 	}
 )
 
+// ToolOption configures how tools are built. Options carry deployment
+// capabilities that are known when the inventory is constructed, so a tool's
+// description and its behaviour are decided from the same value and cannot
+// drift apart.
+type ToolOption func(*toolConfig)
+
+type toolConfig struct {
+	// hostType is the deployment the tools will talk to. The zero value is
+	// dotcom, which is also what an empty GITHUB_HOST resolves to.
+	hostType utils.HostType
+}
+
+// WithHost tells the tools which deployment they will talk to, so those with
+// host-specific capabilities can adapt. Derive it from utils.ParseHostType.
+func WithHost(h utils.HostType) ToolOption {
+	return func(c *toolConfig) { c.hostType = h }
+}
+
+func newToolConfig(opts []ToolOption) toolConfig {
+	var cfg toolConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return cfg
+}
+
 // AllTools returns all tools with their embedded toolset metadata.
 // Tool functions return ServerTool directly with toolset info.
-func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
+func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []inventory.ServerTool {
 	return withCSVOutput([]inventory.ServerTool{
 		// Context tools
 		GetMe(t),
@@ -219,7 +246,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 
 		// Issue tools
 		IssueRead(t),
-		SearchIssues(t),
+		SearchIssues(t, opts...),
 		ListIssues(t),
 		ListIssueTypes(t),
 		ListIssueFields(t),

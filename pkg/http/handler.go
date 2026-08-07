@@ -328,11 +328,20 @@ func hasStaticConfig(cfg *ServerConfig) bool {
 // inventory, which then installs a checker and resolves the flag before
 // registering tools with the MCP server.
 func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFunc) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt) {
+	// Tools with host-specific capabilities need to know the deployment they
+	// will talk to. An unparseable host is not fatal here: NewAPIHost rejects
+	// it later with a clearer error, so fall back to the dotcom default.
+	hostType, err := utils.ParseHostType(cfg.Host)
+	if err != nil {
+		hostType = utils.HostTypeDotcom
+	}
+	opts := []github.ToolOption{github.WithHost(hostType)}
+
 	if !hasStaticConfig(cfg) {
-		return github.AllTools(t), github.AllResources(t), github.AllPrompts(t)
+		return github.AllTools(t, opts...), github.AllResources(t), github.AllPrompts(t)
 	}
 
-	b := github.NewInventory(t).
+	b := github.NewInventory(t, opts...).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools))
 
@@ -348,7 +357,7 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 	if err != nil {
 		// Fall back to all tools if there's an error (e.g. unknown tool names).
 		// The error will surface again at per-request time if relevant.
-		return github.AllTools(t), github.AllResources(t), github.AllPrompts(t)
+		return github.AllTools(t, opts...), github.AllResources(t), github.AllPrompts(t)
 	}
 
 	ctx := context.Background()

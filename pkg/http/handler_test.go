@@ -783,6 +783,60 @@ func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTo
 	return inv.AvailableTools(ctx), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx)
 }
 
+// TestStaticInventoryAppliesHostCapabilities guards against HTTP deployments
+// silently getting dotcom behaviour. ServerConfig.Host can point at GHES, where
+// semantic issue search 403s, so the static inventory has to classify the host
+// rather than fall through to the zero value.
+func TestStaticInventoryAppliesHostCapabilities(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		host            string
+		wantDescription string
+	}{
+		{
+			name:            "empty host defaults to dotcom",
+			host:            "",
+			wantDescription: "semantic",
+		},
+		{
+			name:            "dotcom",
+			host:            "https://github.com",
+			wantDescription: "semantic",
+		},
+		{
+			name:            "GHES falls back to lexical",
+			host:            "https://ghes.example.com",
+			wantDescription: "lexical",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := &ServerConfig{Version: "test", Host: tt.host}
+			staticTools, _, _ := buildStaticInventory(cfg, translations.NullTranslationHelper)
+
+			var found bool
+			for _, st := range staticTools {
+				if st.Tool.Name != "search_issues" {
+					continue
+				}
+				found = true
+				isSemantic := strings.Contains(st.Tool.Description, "semantic matching")
+				if tt.wantDescription == "semantic" {
+					assert.True(t, isSemantic, "expected semantic description, got: %s", st.Tool.Description)
+				} else {
+					assert.False(t, isSemantic, "expected lexical description, got: %s", st.Tool.Description)
+				}
+			}
+			require.True(t, found, "search_issues should be in the static inventory")
+		})
+	}
+}
+
 func TestCrossOriginProtection(t *testing.T) {
 	jsonRPCBody := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}`
 
