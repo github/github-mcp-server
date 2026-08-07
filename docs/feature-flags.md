@@ -338,4 +338,15 @@ runtime behavior (such as output formatting) won't appear here.
     - 'blocked_by' - the subject issue is blocked by the related issue.
     - 'blocking' - the subject issue blocks the related issue. (string, required)
 
+### `duplicate_detection`
+
+- **find_duplicate** - Find duplicate issues
+  - **Required OAuth Scopes**: `repo`
+  - `confidence_threshold`: Minimum similarity threshold a candidate must meet to be returned; higher values are stricter. When omitted, the API's high-precision default is used. The scale is defined by the API, so no client-side bounds are enforced. (number, optional)
+  - `issue_number`: The number of the existing issue to find duplicates for (number, required)
+  - `owner`: The owner of the repository (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: The name of the repository (string, required)
+
 <!-- END AUTOMATED FEATURE FLAG TOOLS -->
