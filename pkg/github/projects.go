@@ -2100,6 +2100,16 @@ func projectViewVisibleFieldsInput(ctx context.Context, gqlClient *githubv4.Clie
 	return &ProjectV2ViewConfigurationInput{VisibleFieldIDs: nodeIDs}, nil
 }
 
+// projectViewRequestsVisibleFields reports whether the caller asked for a non-empty
+// set of visible fields, without resolving them against the project.
+func projectViewRequestsVisibleFields(args map[string]any) bool {
+	if databaseIDs, err := OptionalBigIntArrayParam(args, "visible_fields"); err == nil && len(databaseIDs) > 0 {
+		return true
+	}
+	names, err := OptionalStringArrayParam(args, "visible_field_names")
+	return err == nil && len(names) > 0
+}
+
 func createProjectView(ctx context.Context, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string, projectNumber int) (*mcp.CallToolResult, any, error) {
 	name, err := RequiredParam[string](args, "name")
 	if err != nil {
@@ -2120,6 +2130,9 @@ func createProjectView(ctx context.Context, gqlClient *githubv4.Client, args map
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
+	if layout == githubv4.ProjectV2ViewLayoutRoadmapLayout && projectViewRequestsVisibleFields(args) {
+		return utils.NewToolResultError("visible fields are not supported for roadmap views"), nil, nil
+	}
 	configuration, err := projectViewVisibleFieldsInput(ctx, gqlClient, args, owner, ownerType, projectNumber)
 	if err != nil {
 		var structured *ghErrors.StructuredResolutionError
@@ -2127,9 +2140,6 @@ func createProjectView(ctx context.Context, gqlClient *githubv4.Client, args map
 			return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
 		}
 		return utils.NewToolResultError(err.Error()), nil, nil
-	}
-	if layout == githubv4.ProjectV2ViewLayoutRoadmapLayout && configuration != nil && len(configuration.VisibleFieldIDs) > 0 {
-		return utils.NewToolResultError("visible fields are not supported for roadmap views"), nil, nil
 	}
 
 	projectID, err := resolveProjectNodeID(ctx, gqlClient, owner, ownerType, projectNumber)
@@ -2155,12 +2165,8 @@ func createProjectView(ctx context.Context, gqlClient *githubv4.Client, args map
 		return utils.NewToolResultError(fmt.Sprintf("%s: response did not include a project view", ProjectViewCreateFailedError)), nil, nil
 	}
 
-	if hasFilter {
-		filterValue := githubv4.String("")
-		// The API clears a filter with an empty string, so a null filter is sent as "".
-		if filter != nil {
-			filterValue = githubv4.String(*filter)
-		}
+	if hasFilter && filter != nil {
+		filterValue := githubv4.String(*filter)
 		updateInput := UpdateProjectV2ViewInput{
 			ViewID: githubv4.ID(fmt.Sprintf("%v", view.ID)),
 			Filter: &filterValue,
@@ -2169,7 +2175,7 @@ func createProjectView(ctx context.Context, gqlClient *githubv4.Client, args map
 		if err := gqlClient.Mutate(ctx, &updateMutation, updateInput, nil); err != nil {
 			cleanupErr := deleteProjectViewByID(ctx, gqlClient, updateInput.ViewID)
 			if cleanupErr != nil {
-				return utils.NewToolResultError(fmt.Sprintf("%s: failed to set filter: %v; failed to clean up created view: %v", ProjectViewCreateFailedError, err, cleanupErr)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("%s: failed to set filter: %v; failed to clean up created view %v: %v", ProjectViewCreateFailedError, err, updateInput.ViewID, cleanupErr)), nil, nil
 			}
 			return utils.NewToolResultError(fmt.Sprintf("%s: failed to set filter: %v; created view was cleaned up", ProjectViewCreateFailedError, err)), nil, nil
 		}
@@ -2217,15 +2223,9 @@ func updateProjectView(ctx context.Context, gqlClient *githubv4.Client, args map
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
-	configuration, err := projectViewVisibleFieldsInput(ctx, gqlClient, args, owner, ownerType, projectNumber)
-	if err != nil {
-		var structured *ghErrors.StructuredResolutionError
-		if errors.As(err, &structured) {
-			return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
-		}
-		return utils.NewToolResultError(err.Error()), nil, nil
-	}
-	if !hasName && !hasLayout && !hasFilter && configuration == nil {
+	_, hasVisibleFields := args["visible_fields"]
+	_, hasVisibleFieldNames := args["visible_field_names"]
+	if !hasName && !hasLayout && !hasFilter && !hasVisibleFields && !hasVisibleFieldNames {
 		return utils.NewToolResultError("update_project_view requires at least one of name, layout, filter, visible_fields, or visible_field_names"), nil, nil
 	}
 	if hasName && strings.TrimSpace(name) == "" {
@@ -2252,7 +2252,6 @@ func updateProjectView(ctx context.Context, gqlClient *githubv4.Client, args map
 		}
 		input.Filter = &value
 	}
-	input.Configuration = configuration
 	currentLayout, err := verifyProjectViewParent(ctx, gqlClient, viewID, owner, ownerType, projectNumber)
 	if err != nil {
 		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectViewUpdateFailedError, err)), nil, nil
@@ -2261,9 +2260,19 @@ func updateProjectView(ctx context.Context, gqlClient *githubv4.Client, args map
 	if input.Layout != nil {
 		effectiveLayout = *input.Layout
 	}
-	if effectiveLayout == githubv4.ProjectV2ViewLayoutRoadmapLayout && configuration != nil && len(configuration.VisibleFieldIDs) > 0 {
+	if effectiveLayout == githubv4.ProjectV2ViewLayoutRoadmapLayout && projectViewRequestsVisibleFields(args) {
 		return utils.NewToolResultError("visible fields are not supported for roadmap views"), nil, nil
 	}
+
+	configuration, err := projectViewVisibleFieldsInput(ctx, gqlClient, args, owner, ownerType, projectNumber)
+	if err != nil {
+		var structured *ghErrors.StructuredResolutionError
+		if errors.As(err, &structured) {
+			return ghErrors.NewStructuredResolutionErrorResponse(structured), nil, nil
+		}
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	input.Configuration = configuration
 
 	var mutation updateProjectV2ViewMutation
 	if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
