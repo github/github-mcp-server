@@ -327,3 +327,206 @@ func resolveDefaultBranch(ctx context.Context, githubClient *github.Client, owne
 
 	return defaultRef, nil
 }
+
+const maxGitRefUpdateRetries = 5
+
+type pushFileEntry struct {
+	Path    string
+	Content string
+}
+
+// parsePushFilesEntries normalizes the push_files "files" argument from MCP clients.
+// Some hosts send []any, typed slices, or a JSON-encoded string; all are accepted.
+func parsePushFilesEntries(raw any) ([]pushFileEntry, error) {
+	if raw == nil {
+		return nil, fmt.Errorf("files parameter must be an array of objects with path and content")
+	}
+
+	var items []any
+	switch v := raw.(type) {
+	case []any:
+		items = v
+	case string:
+		if err := json.Unmarshal([]byte(v), &items); err != nil {
+			return nil, fmt.Errorf("files parameter must be an array of objects with path and content")
+		}
+	case json.RawMessage:
+		if err := json.Unmarshal(v, &items); err != nil {
+			return nil, fmt.Errorf("files parameter must be an array of objects with path and content")
+		}
+	default:
+		encoded, err := json.Marshal(raw)
+		if err != nil {
+			return nil, fmt.Errorf("files parameter must be an array of objects with path and content")
+		}
+		if err := json.Unmarshal(encoded, &items); err != nil {
+			return nil, fmt.Errorf("files parameter must be an array of objects with path and content")
+		}
+	}
+
+	entries := make([]pushFileEntry, 0, len(items))
+	for _, item := range items {
+		fileMap, ok := item.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("each file must be an object with path and content")
+		}
+
+		path, ok := fileMap["path"].(string)
+		if !ok || path == "" {
+			return nil, fmt.Errorf("each file must have a path")
+		}
+
+		content, ok := fileMap["content"].(string)
+		if !ok {
+			return nil, fmt.Errorf("each file must have content")
+		}
+
+		entries = append(entries, pushFileEntry{Path: path, Content: content})
+	}
+
+	return entries, nil
+}
+
+func pushFileEntriesToTreeEntries(entries []pushFileEntry) []*github.TreeEntry {
+	treeEntries := make([]*github.TreeEntry, 0, len(entries))
+	for _, entry := range entries {
+		treeEntries = append(treeEntries, &github.TreeEntry{
+			Path:    github.Ptr(entry.Path),
+			Mode:    github.Ptr("100644"),
+			Type:    github.Ptr("blob"),
+			Content: github.Ptr(entry.Content),
+		})
+	}
+	return treeEntries
+}
+
+func closeGitHubResponse(resp *github.Response) {
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+}
+
+func isGitRefUpdateConflict(err error, resp *github.Response) bool {
+	if ghErr, ok := err.(*github.ErrorResponse); ok {
+		msg := strings.ToLower(ghErr.Message)
+		if strings.Contains(msg, "fast forward") ||
+			strings.Contains(msg, "fast-forward") ||
+			strings.Contains(msg, "not a fast forward") {
+			return true
+		}
+	}
+	return false
+}
+
+type gitPushResult struct {
+	Ref    *github.Reference
+	Commit *github.Commit
+}
+
+// ensurePushFilesBranchRef ensures the target branch exists for push_files.
+// Empty repositories are initialized and missing branches are created from the default branch.
+func ensurePushFilesBranchRef(ctx context.Context, client *github.Client, owner, repo, branch string) (string, error) {
+	refName := "refs/heads/" + branch
+	ref, resp, err := client.Git.GetRef(ctx, owner, repo, refName)
+	if err == nil {
+		closeGitHubResponse(resp)
+		return refName, nil
+	}
+
+	var repositoryIsEmpty bool
+	var branchNotFound bool
+	if ghErr, isGhErr := err.(*github.ErrorResponse); isGhErr {
+		if ghErr.Response.StatusCode == http.StatusConflict && ghErr.Message == "Git Repository is empty." {
+			repositoryIsEmpty = true
+		} else if ghErr.Response.StatusCode == http.StatusNotFound {
+			branchNotFound = true
+		}
+	}
+
+	closeGitHubResponse(resp)
+
+	if !repositoryIsEmpty && !branchNotFound {
+		return "", fmt.Errorf("failed to get branch reference: %w", err)
+	}
+
+	if repositoryIsEmpty {
+		ref, _, err = initializeRepository(ctx, client, owner, repo)
+		if err != nil {
+			return "", fmt.Errorf("failed to initialize repository: %w", err)
+		}
+
+		defaultBranch := strings.TrimPrefix(ref.GetRef(), "refs/heads/")
+		if branch != defaultBranch {
+			_, err = createReferenceFromDefaultBranch(ctx, client, owner, repo, branch)
+			if err != nil {
+				return "", fmt.Errorf("failed to create branch from default: %w", err)
+			}
+		}
+		return refName, nil
+	}
+
+	_, err = createReferenceFromDefaultBranch(ctx, client, owner, repo, branch)
+	if err != nil {
+		return "", fmt.Errorf("failed to create branch from default: %w", err)
+	}
+
+	return refName, nil
+}
+
+// commitEntriesToRef creates a commit from tree entries and updates the branch ref.
+// When another push updates the branch concurrently, the operation is retried with the latest ref.
+func commitEntriesToRef(
+	ctx context.Context,
+	client *github.Client,
+	owner, repo, refName, message string,
+	entries []*github.TreeEntry,
+) (*gitPushResult, *github.Response, error) {
+	for attempt := 0; attempt < maxGitRefUpdateRetries; attempt++ {
+		ref, resp, err := client.Git.GetRef(ctx, owner, repo, refName)
+		if err != nil {
+			return nil, resp, fmt.Errorf("failed to get branch reference: %w", err)
+		}
+		closeGitHubResponse(resp)
+
+		baseCommit, resp, err := client.Git.GetCommit(ctx, owner, repo, ref.GetObject().GetSHA())
+		if err != nil {
+			return nil, resp, fmt.Errorf("failed to get base commit: %w", err)
+		}
+		closeGitHubResponse(resp)
+
+		newTree, resp, err := client.Git.CreateTree(ctx, owner, repo, baseCommit.GetTree().GetSHA(), entries)
+		if err != nil {
+			return nil, resp, fmt.Errorf("failed to create tree: %w", err)
+		}
+		closeGitHubResponse(resp)
+
+		commit := github.Commit{
+			Message: github.Ptr(message),
+			Tree:    newTree,
+			Parents: []*github.Commit{{SHA: baseCommit.SHA}},
+		}
+		newCommit, resp, err := client.Git.CreateCommit(ctx, owner, repo, commit, nil)
+		if err != nil {
+			return nil, resp, fmt.Errorf("failed to create commit: %w", err)
+		}
+		closeGitHubResponse(resp)
+
+		updatedRef, resp, err := client.Git.UpdateRef(ctx, owner, repo, refName, github.UpdateRef{
+			SHA:   newCommit.GetSHA(),
+			Force: github.Ptr(false),
+		})
+		if err == nil && (resp == nil || resp.StatusCode == http.StatusOK) {
+			closeGitHubResponse(resp)
+			return &gitPushResult{Ref: updatedRef, Commit: newCommit}, nil, nil
+		}
+
+		if isGitRefUpdateConflict(err, resp) && attempt < maxGitRefUpdateRetries-1 {
+			closeGitHubResponse(resp)
+			continue
+		}
+
+		return nil, resp, fmt.Errorf("failed to update reference: %w", err)
+	}
+
+	return nil, nil, fmt.Errorf("failed to update reference after %d attempts due to concurrent branch updates", maxGitRefUpdateRetries)
+}
