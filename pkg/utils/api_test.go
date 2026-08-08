@@ -73,3 +73,27 @@ func TestParseAPIHost(t *testing.T) {
 		})
 	}
 }
+
+func TestParseHostType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		host string
+		want HostType
+	}{
+		{name: "GitHub.com is case insensitive", host: "https://API.GITHUB.COM", want: HostTypeDotcom},
+		{name: "GHEC is case insensitive", host: "https://API.EXAMPLE.GHE.COM", want: HostTypeGHEC},
+		{name: "lookalike domain is GHES", host: "https://api.github.com.example.org", want: HostTypeGHES},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := ParseHostType(tt.host)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

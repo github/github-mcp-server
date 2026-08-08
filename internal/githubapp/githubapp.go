@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/pkg/http/transport"
 	"golang.org/x/oauth2"
 )
 
@@ -143,7 +144,7 @@ func (s *installationTokenSource) Token() (*oauth2.Token, error) {
 	}
 	req.Header.Set(headers.AuthorizationHeader, "Bearer "+jwt)
 	req.Header.Set(headers.AcceptHeader, "application/vnd.github+json")
-	req.Header.Set(headers.GitHubAPIVersionHeader, headers.GitHubAPIVersion)
+	transport.SetGitHubAPIVersionHeader(req)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {

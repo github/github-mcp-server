@@ -36,7 +36,7 @@ func testExporters() observability.Exporters {
 	return obs
 }
 
-func TestRequestDepsGetClientSetsAPIVersion(t *testing.T) {
+func TestRequestDepsGetClientPreservesGHESAPIVersion(t *testing.T) {
 	t.Parallel()
 
 	var gotVersion string
@@ -60,7 +60,7 @@ func TestRequestDepsGetClientSetsAPIVersion(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	assert.Equal(t, headers.GitHubAPIVersion, gotVersion)
+	assert.Equal(t, headers.GitHubEnterpriseServerAPIVersion, gotVersion)
 }
 
 func TestIsFeatureEnabled_WithEnabledFlag(t *testing.T) {

@@ -602,7 +602,7 @@ func TestCreateGitHubClientsTokenProvider(t *testing.T) {
 
 	do()
 	assert.Equal(t, "", gotAuth, "no auth header before authorization")
-	assert.Equal(t, headers.GitHubAPIVersion, gotAPIVersion)
+	assert.Equal(t, headers.GitHubEnterpriseServerAPIVersion, gotAPIVersion)
 
 	current = "oauth-token"
 	do()
