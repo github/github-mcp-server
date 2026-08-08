@@ -484,6 +484,29 @@ type MinimalIssue struct {
 	HasChildren      *bool                    `json:"has_children,omitempty"`
 	Parent           *MinimalIssueRef         `json:"parent,omitempty"`
 	SubIssuesSummary *MinimalSubIssuesSummary `json:"sub_issues_summary,omitempty"`
+
+	// ClosedByPullRequests summarizes the pull requests configured to close this issue. It is a
+	// pointer so that an enriched issue with no such pull requests still serializes a definitive
+	// "nothing will close this issue" answer, while issues returned by paths that never run the
+	// enrichment omit the key entirely.
+	ClosedByPullRequests *MinimalClosingPullRequests `json:"closed_by_pull_requests,omitempty"`
+}
+
+// MinimalClosingPullRequests summarizes the pull requests configured to close an issue.
+// References is capped, so TotalCount is authoritative: when it exceeds the number of
+// references the list is a truncated view rather than the complete set.
+type MinimalClosingPullRequests struct {
+	TotalCount int                     `json:"total_count"`
+	References []MinimalPullRequestRef `json:"references"`
+}
+
+// MinimalPullRequestRef is a compact reference to a related pull request.
+type MinimalPullRequestRef struct {
+	Number     int    `json:"number"`
+	Title      string `json:"title"`
+	State      string `json:"state"`
+	URL        string `json:"url"`
+	Repository string `json:"repository,omitempty"`
 }
 
 // MinimalIssueRef is a compact reference to a related issue (e.g. a parent issue).

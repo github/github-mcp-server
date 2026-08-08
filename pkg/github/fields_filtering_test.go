@@ -7,29 +7,15 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
-	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v89/github"
-	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // --- list_commits ---------------------------------------------------------
-
-func Test_LegacyListCommits_Definition(t *testing.T) {
-	serverTool := LegacyListCommits(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Equal(t, []string{FeatureFlagFieldsParam}, serverTool.FeatureFlagDisable)
-
-	assert.Equal(t, "list_commits", tool.Name)
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.NotContains(t, schema.Properties, "fields")
-}
 
 func mockListCommits() []*github.RepositoryCommit {
 	return []*github.RepositoryCommit{
@@ -88,18 +74,6 @@ func Test_ListCommits_FieldsTelemetry(t *testing.T) {
 
 // --- list_releases --------------------------------------------------------
 
-func Test_LegacyListReleases_Definition(t *testing.T) {
-	serverTool := LegacyListReleases(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Equal(t, []string{FeatureFlagFieldsParam}, serverTool.FeatureFlagDisable)
-
-	assert.Equal(t, "list_releases", tool.Name)
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.NotContains(t, schema.Properties, "fields")
-}
-
 func mockListReleases() []*github.RepositoryRelease {
 	return []*github.RepositoryRelease{
 		{
@@ -152,18 +126,6 @@ func Test_ListReleases_FieldsTelemetry(t *testing.T) {
 }
 
 // --- list_pull_requests ---------------------------------------------------
-
-func Test_LegacyListPullRequests_Definition(t *testing.T) {
-	serverTool := LegacyListPullRequests(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Equal(t, []string{FeatureFlagFieldsParam}, serverTool.FeatureFlagDisable)
-
-	assert.Equal(t, "list_pull_requests", tool.Name)
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.NotContains(t, schema.Properties, "fields")
-}
 
 func mockListPullRequests() []*github.PullRequest {
 	return []*github.PullRequest{
@@ -219,18 +181,6 @@ func Test_ListPullRequests_FieldsTelemetry(t *testing.T) {
 
 // --- search_pull_requests -------------------------------------------------
 
-func Test_LegacySearchPullRequests_Definition(t *testing.T) {
-	serverTool := LegacySearchPullRequests(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Equal(t, []string{FeatureFlagFieldsParam}, serverTool.FeatureFlagDisable)
-
-	assert.Equal(t, "search_pull_requests", tool.Name)
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.NotContains(t, schema.Properties, "fields")
-}
-
 // mockIssueSearchResult returns a single-item issues search result. It is used
 // for both search_pull_requests and search_issues since both hit the REST
 // issues search endpoint. Issues intentionally omit NodeID so search_issues
@@ -285,18 +235,6 @@ func Test_SearchPullRequests_FieldsTelemetry(t *testing.T) {
 
 // --- search_issues --------------------------------------------------------
 
-func Test_LegacySearchIssues_Definition(t *testing.T) {
-	serverTool := LegacySearchIssues(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Equal(t, []string{FeatureFlagFieldsParam}, serverTool.FeatureFlagDisable)
-
-	assert.Equal(t, "search_issues", tool.Name)
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.NotContains(t, schema.Properties, "fields")
-}
-
 func Test_SearchIssues_FieldFiltering(t *testing.T) {
 	serverTool := SearchIssues(translations.NullTranslationHelper)
 	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
@@ -329,18 +267,6 @@ func Test_SearchIssues_FieldsTelemetry(t *testing.T) {
 }
 
 // --- list_issues (GraphQL) ------------------------------------------------
-
-func Test_LegacyListIssues_Definition(t *testing.T) {
-	serverTool := LegacyListIssues(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Equal(t, []string{FeatureFlagFieldsParam}, serverTool.FeatureFlagDisable)
-
-	assert.Equal(t, "list_issues", tool.Name)
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.NotContains(t, schema.Properties, "fields")
-}
 
 // listIssuesFieldsQuery and listIssuesFieldsVars mirror the exact GraphQL query
 // and variables list_issues issues for owner/repo with default parameters (no

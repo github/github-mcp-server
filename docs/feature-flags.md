@@ -56,7 +56,7 @@ runtime behavior (such as output formatting) won't appear here.
   - **MCP App UI**: `ui://github-mcp-server/issue-write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
-  - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
+  - `duplicate_of`: Issue number that this issue is a duplicate of. Required when state_reason is 'duplicate'. (number, optional)
   - `issue_fields`: Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', or 'delete: true'. (object[], optional)
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
@@ -71,7 +71,7 @@ runtime behavior (such as output formatting) won't appear here.
   - `state`: New state (string, optional)
   - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
   - `title`: Issue title (string, optional)
-  - `type`: Type of this issue. Only use if issue types are enabled for this repository. Use list_issue_types tool to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
+  - `type`: Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string | null, optional)
 
 - **ui_get** - Get UI data
   - **Required OAuth Scopes (any of)**: `repo`, `read:org`
@@ -200,7 +200,7 @@ runtime behavior (such as output formatting) won't appear here.
   - `confidence`: How confident you are in this choice. Use 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal. (string, optional)
   - `is_suggestion`: If true, this issue type change is sent to the API as a suggestion (suggest:true) rather than an applied value. Whether the type is applied or recorded as a proposal is determined by the API. (boolean, optional)
   - `issue_number`: The issue number to update (number, required)
-  - `issue_type`: The issue type to set (string, required)
+  - `issue_type`: The issue type to set, or null to remove the current type (string | null, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `rationale`: One concise sentence explaining what specifically about the issue led you to choose this type. State the concrete signal (e.g. 'Reports a crash when saving' → bug, 'Asks for dark mode support' → feature). (string, optional)
   - `repo`: Repository name (string, required)
@@ -338,94 +338,15 @@ runtime behavior (such as output formatting) won't appear here.
     - 'blocked_by' - the subject issue is blocked by the related issue.
     - 'blocking' - the subject issue blocks the related issue. (string, required)
 
-### `fields_param`
+### `duplicate_detection`
 
-- **get_file_contents** - Get file or directory contents
+- **find_duplicate** - Find duplicate issues
   - **Required OAuth Scopes**: `repo`
-  - `fields`: Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'. (string[], optional)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: Path to file/directory (string, optional)
-  - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)
-  - `repo`: Repository name (string, required)
-  - `sha`: Accepts optional commit SHA. If specified, it will be used instead of ref (string, optional)
-
-- **list_commits** - List commits
-  - **Required OAuth Scopes**: `repo`
-  - `author`: Author username or email address to filter commits by (string, optional)
-  - `fields`: Subset of fields to return for each commit. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields, e.g. just 'sha' and 'html_url'. (string[], optional)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `path`: Only commits containing this file path will be returned (string, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `sha`: Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA. (string, optional)
-  - `since`: Only commits after this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD) (string, optional)
-  - `until`: Only commits before this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD) (string, optional)
-
-- **list_issues** - List issues
-  - **Required OAuth Scopes**: `repo`
-  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
-  - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
-  - `field_filters`: Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date). (object[], optional)
-  - `fields`: Subset of fields to return for each issue. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' and 'field_values' in particular drops the largest per-result data. (string[], optional)
-  - `labels`: Filter by labels (string[], optional)
-  - `orderBy`: Order issues by field. If provided, the 'direction' also needs to be provided. (string, optional)
-  - `owner`: Repository owner (string, required)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
-  - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
-
-- **list_pull_requests** - List pull requests
-  - **Required OAuth Scopes**: `repo`
-  - `base`: Filter by base branch (string, optional)
-  - `direction`: Sort direction (string, optional)
-  - `fields`: Subset of fields to return for each pull request. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' in particular drops the largest per-result data. (string[], optional)
-  - `head`: Filter by head user/org and branch (string, optional)
-  - `owner`: Repository owner (string, required)
+  - `confidence_threshold`: Minimum similarity threshold a candidate must meet to be returned; higher values are stricter. When omitted, the API's high-precision default is used. The scale is defined by the API, so no client-side bounds are enforced. (number, optional)
+  - `issue_number`: The number of the existing issue to find duplicates for (number, required)
+  - `owner`: The owner of the repository (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `sort`: Sort by (string, optional)
-  - `state`: Filter by state (string, optional)
-
-- **list_releases** - List releases
-  - **Required OAuth Scopes**: `repo`
-  - `fields`: Subset of fields to return for each release. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' in particular drops the largest per-release data. (string[], optional)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-
-- **search_code** - Search code
-  - **Required OAuth Scopes**: `repo`
-  - `fields`: Subset of fields to return for each code search result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'repository' and 'text_matches' in particular drops the largest per-result data. (string[], optional)
-  - `order`: Sort order for results (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `query`: Search query (GitHub code search REST). Implicit AND between terms; supports `OR`, `NOT`, and `"quoted phrase"` for exact match. Qualifiers: `repo:owner/repo`, `org:`, `user:`, `language:`, `path:dir` (prefix match), `filename:exact.ext`, `extension:`, `in:file`, `in:path`, `size:`, `is:archived`, `is:fork`. Max 256 chars. Examples: `WithContext language:go org:github`; `"package main" repo:o/r`; `func extension:go path:cmd repo:o/r`; `NOT TODO language:go repo:o/r`. (string, required)
-  - `sort`: Sort field ('indexed' only) (string, optional)
-
-- **search_issues** - Search issues
-  - **Required OAuth Scopes**: `repo`
-  - `fields`: Subset of fields to return for each issue result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data. (string[], optional)
-  - `order`: Sort order (string, optional)
-  - `owner`: Optional repository owner. If provided with repo, only issues for this repository are listed. (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `query`: Search query using GitHub issues search syntax (string, required)
-  - `repo`: Optional repository name. If provided with owner, only issues for this repository are listed. (string, optional)
-  - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
-
-- **search_pull_requests** - Search pull requests
-  - **Required OAuth Scopes**: `repo`
-  - `fields`: Subset of fields to return for each pull request result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data. (string[], optional)
-  - `order`: Sort order (string, optional)
-  - `owner`: Optional repository owner. If provided with repo, only pull requests for this repository are listed. (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `query`: Search query using GitHub pull request search syntax (string, required)
-  - `repo`: Optional repository name. If provided with owner, only pull requests for this repository are listed. (string, optional)
-  - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
+  - `repo`: The name of the repository (string, required)
 
 <!-- END AUTOMATED FEATURE FLAG TOOLS -->

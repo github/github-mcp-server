@@ -342,11 +342,7 @@ func Test_SearchCode(t *testing.T) {
 	// Verify tool definition once
 	serverTool := SearchCode(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	// SearchCode is the FeatureFlagFieldsParam-enabled variant; it owns the
-	// _ff_<flag> snapshot. The canonical search_code.snap is owned by
-	// LegacySearchCode (see Test_LegacySearchCode_Definition).
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
-	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_code", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -569,20 +565,6 @@ func Test_SearchCode_FieldFiltering(t *testing.T) {
 
 	assert.NotContains(t, textContent.Text, "repository")
 	assert.NotContains(t, textContent.Text, "text_matches")
-}
-
-func Test_LegacySearchCode_Definition(t *testing.T) {
-	serverTool := LegacySearchCode(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	// LegacySearchCode is the FeatureFlagFieldsParam-disabled variant and owns
-	// the canonical search_code.snap (no `fields`).
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Equal(t, []string{FeatureFlagFieldsParam}, serverTool.FeatureFlagDisable)
-
-	assert.Equal(t, "search_code", tool.Name)
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.NotContains(t, schema.Properties, "fields")
 }
 
 func Test_SearchCode_FieldsTelemetry(t *testing.T) {

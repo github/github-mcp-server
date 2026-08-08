@@ -5,12 +5,12 @@ go 1.25.12
 require (
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-viper/mapstructure/v2 v2.5.0
-	github.com/google/go-github/v89 v89.0.0
+	github.com/google/go-github/v89 v89.0.1-0.20260728185857-34349a88bac3
 	github.com/google/jsonschema-go v0.4.3
 	github.com/josephburnett/jd/v2 v2.5.0
 	github.com/lithammer/fuzzysearch v1.1.8
 	github.com/microcosm-cc/bluemonday v1.0.27
-	github.com/modelcontextprotocol/go-sdk v1.7.0-pre.3
+	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/muesli/cache2go v0.0.0-20221011235721-518229cd8021
 	github.com/shurcooL/githubv4 v0.0.0-20240727222349-48295856cce7
 	github.com/shurcooL/graphql v0.0.0-20230722043721-ed46e5a46466
