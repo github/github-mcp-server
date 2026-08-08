@@ -4,18 +4,63 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/observability"
 	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+type requestDepsAPIHost struct {
+	url *url.URL
+}
+
+func (h requestDepsAPIHost) BaseRESTURL(context.Context) (*url.URL, error) { return h.url, nil }
+func (h requestDepsAPIHost) GraphqlURL(context.Context) (*url.URL, error)  { return h.url, nil }
+func (h requestDepsAPIHost) UploadURL(context.Context) (*url.URL, error)   { return h.url, nil }
+func (h requestDepsAPIHost) RawURL(context.Context) (*url.URL, error)      { return h.url, nil }
+func (h requestDepsAPIHost) AuthorizationServerURL(context.Context) (*url.URL, error) {
+	return h.url, nil
+}
 
 func testExporters() observability.Exporters {
 	obs, _ := observability.NewExporters(slog.New(slog.DiscardHandler), metrics.NewNoopMetrics())
 	return obs
+}
+
+func TestRequestDepsGetClientSetsAPIVersion(t *testing.T) {
+	t.Parallel()
+
+	var gotVersion string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotVersion = r.Header.Get(headers.GitHubAPIVersionHeader)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	apiHost := requestDepsAPIHost{url: serverURL}
+	deps := github.NewRequestDeps(apiHost, "test", false, nil, nil, 0, nil, testExporters())
+	ctx := ghcontext.WithTokenInfo(context.Background(), &ghcontext.TokenInfo{Token: "test-token"})
+	client, err := deps.GetClient(ctx)
+	require.NoError(t, err)
+
+	req, err := client.NewRequest(ctx, http.MethodGet, "rate_limit", nil)
+	require.NoError(t, err)
+	resp, err := client.Do(req, nil)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, headers.GitHubAPIVersion, gotVersion)
 }
 
 func TestIsFeatureEnabled_WithEnabledFlag(t *testing.T) {

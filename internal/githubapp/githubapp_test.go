@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -155,6 +156,7 @@ func installationServer(t *testing.T, pub *rsa.PublicKey, token string, expiresA
 		calls.Add(1)
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "/app/installations/456/access_tokens", r.URL.Path)
+		assert.Equal(t, headers.GitHubAPIVersion, r.Header.Get(headers.GitHubAPIVersionHeader))
 
 		authz := r.Header.Get("Authorization")
 		require.True(t, strings.HasPrefix(authz, "Bearer "), "must send the app JWT as a bearer token")

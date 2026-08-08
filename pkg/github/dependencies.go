@@ -324,6 +324,9 @@ func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
 
 	// Construct REST client
 	restClient, err := gogithub.NewClient(
+		gogithub.WithHTTPClient(&http.Client{
+			Transport: &transport.APIVersionTransport{Transport: http.DefaultTransport},
+		}),
 		gogithub.WithAuthToken(token),
 		gogithub.WithUserAgent(fmt.Sprintf("github-mcp-server/%s", d.version)),
 		gogithub.WithEnterpriseURLs(baseRestURL.String(), uploadURL.String()),

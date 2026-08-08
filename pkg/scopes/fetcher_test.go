@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -140,6 +141,19 @@ func TestFetcher_FetchTokenScopes(t *testing.T) {
 				authHeader := r.Header.Get("Authorization")
 				if authHeader != "Bearer test-token" {
 					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				w.Header().Set("X-OAuth-Scopes", "repo")
+				w.WriteHeader(http.StatusOK)
+			},
+			expectedScopes: []string{"repo"},
+			expectError:    false,
+		},
+		{
+			name: "verifies API version header is set",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get(headers.GitHubAPIVersionHeader) != headers.GitHubAPIVersion {
+					w.WriteHeader(http.StatusBadRequest)
 					return
 				}
 				w.Header().Set("X-OAuth-Scopes", "repo")

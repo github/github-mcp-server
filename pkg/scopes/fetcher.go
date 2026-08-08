@@ -81,7 +81,7 @@ func (f *Fetcher) FetchTokenScopes(ctx context.Context, token string) ([]string,
 
 	req.Header.Set(headers.AuthorizationHeader, "Bearer "+token)
 	req.Header.Set(headers.AcceptHeader, "application/vnd.github+json")
-	req.Header.Set(headers.GitHubAPIVersionHeader, "2022-11-28")
+	req.Header.Set(headers.GitHubAPIVersionHeader, headers.GitHubAPIVersion)
 
 	resp, err := f.client.Do(req)
 	if err != nil {
