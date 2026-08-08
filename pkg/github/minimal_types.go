@@ -1805,8 +1805,8 @@ func convertToMinimalRelease(release *github.RepositoryRelease) MinimalRelease {
 	m := MinimalRelease{
 		ID:         release.GetID(),
 		TagName:    release.GetTagName(),
-		Name:       release.GetName(),
-		Body:       release.GetBody(),
+		Name:       sanitize.Sanitize(release.GetName()),
+		Body:       sanitize.Sanitize(release.GetBody()),
 		HTMLURL:    release.GetHTMLURL(),
 		Prerelease: release.GetPrerelease(),
 		Draft:      release.GetDraft(),
