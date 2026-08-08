@@ -8,12 +8,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type testAPIHostResolver struct {
 	baseURL string
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func (t testAPIHostResolver) BaseRESTURL(_ context.Context) (*url.URL, error) {
@@ -149,6 +156,19 @@ func TestFetcher_FetchTokenScopes(t *testing.T) {
 			expectError:    false,
 		},
 		{
+			name: "sets compatible API version header for GHES",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get(headers.GitHubAPIVersionHeader) != headers.GitHubEnterpriseServerAPIVersion {
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				w.Header().Set("X-OAuth-Scopes", "repo")
+				w.WriteHeader(http.StatusOK)
+			},
+			expectedScopes: []string{"repo"},
+			expectError:    false,
+		},
+		{
 			name: "verifies request method is HEAD",
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				if r.Method != http.MethodHead {
@@ -181,6 +201,35 @@ func TestFetcher_FetchTokenScopes(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, tt.expectedScopes, scopes)
 			}
+		})
+	}
+}
+
+func TestFetcher_FetchTokenScopesSetsAPIVersionForGitHubCloud(t *testing.T) {
+	t.Parallel()
+
+	for _, baseURL := range []string{"https://api.github.com", "https://api.example.ghe.com"} {
+		t.Run(baseURL, func(t *testing.T) {
+			t.Parallel()
+
+			var gotVersion string
+			client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				gotVersion = req.Header.Get(headers.GitHubAPIVersionHeader)
+				responseHeaders := make(http.Header)
+				responseHeaders.Set(OAuthScopesHeader, "repo")
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     responseHeaders,
+					Body:       http.NoBody,
+					Request:    req,
+				}, nil
+			})}
+			fetcher := NewFetcher(testAPIHostResolver{baseURL: baseURL}, FetcherOptions{HTTPClient: client})
+
+			scopes, err := fetcher.FetchTokenScopes(context.Background(), "test-token")
+			require.NoError(t, err)
+			assert.Equal(t, []string{"repo"}, scopes)
+			assert.Equal(t, headers.GitHubAPIVersion, gotVersion)
 		})
 	}
 }

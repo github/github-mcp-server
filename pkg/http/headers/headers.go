@@ -53,4 +53,10 @@ const (
 	GraphQLFeaturesHeader = "GraphQL-Features"
 	// GitHubAPIVersionHeader is the header used to specify the GitHub API version.
 	GitHubAPIVersionHeader = "X-GitHub-Api-Version"
+	// GitHubAPIVersion is the GitHub REST API version used for GitHub.com and
+	// GitHub Enterprise Cloud requests.
+	GitHubAPIVersion = "2026-03-10"
+	// GitHubEnterpriseServerAPIVersion is the compatibility version used for
+	// GitHub Enterprise Server requests.
+	GitHubEnterpriseServerAPIVersion = "2022-11-28"
 )
