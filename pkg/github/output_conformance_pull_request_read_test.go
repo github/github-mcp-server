@@ -59,7 +59,7 @@ func TestPullRequestReadOutputValidatesAgainstDeclaredSchema(t *testing.T) {
 			Ref: gogithub.Ptr("main"),
 			SHA: gogithub.Ptr("ef567890"),
 		},
-		Labels:             []*gogithub.Label{{Name: gogithub.Ptr("bug")}},
+		Labels:             []*gogithub.Label{{Name: "bug"}},
 		Assignees:          []*gogithub.User{{Login: gogithub.Ptr("octocat")}},
 		RequestedReviewers: []*gogithub.User{{Login: gogithub.Ptr("reviewer")}},
 		Additions:          gogithub.Ptr(10),
