@@ -1,0 +1,1314 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "description": "Output of the actions_list tool. The shape depends on the `method` argument: `list_workflows`, `list_workflow_runs` and `list_workflow_run_artifacts` return the GitHub API list envelope directly, while `list_workflow_jobs` nests the envelope under a `jobs` key. Every field of every envelope is optional: go-github tags them `omitempty`, so an empty collection is reported as {\"total_count\":0} with the item array absent rather than as an empty array. Each branch forbids the other branches' discriminator keys so that a payload is checked against the branch it actually belongs to. Because every field is optional, each branch and each item type also carries an anyOf over singleton `required` — \"at least one recognised field must be present\" — so that the union is not vacuous. That idiom deliberately says nothing about UNKNOWN fields, so a go-github bump that adds a struct field cannot make the server emit a payload its own schema rejects; additionalProperties:false would, and is never used here.",
+  "anyOf": [
+    {
+      "title": "list_workflows",
+      "description": "method=list_workflows. Serialized github.Workflows.",
+      "type": "object",
+      "anyOf": [
+        {
+          "required": [
+            "total_count"
+          ]
+        },
+        {
+          "required": [
+            "workflows"
+          ]
+        }
+      ],
+      "properties": {
+        "total_count": {
+          "type": "integer",
+          "description": "Total number of workflows in the repository."
+        },
+        "workflows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/workflow"
+          }
+        },
+        "workflow_runs": false,
+        "jobs": false,
+        "artifacts": false
+      }
+    },
+    {
+      "title": "list_workflow_runs",
+      "description": "method=list_workflow_runs. Serialized github.WorkflowRuns.",
+      "type": "object",
+      "anyOf": [
+        {
+          "required": [
+            "total_count"
+          ]
+        },
+        {
+          "required": [
+            "workflow_runs"
+          ]
+        }
+      ],
+      "properties": {
+        "total_count": {
+          "type": "integer",
+          "description": "Total number of workflow runs matching the query."
+        },
+        "workflow_runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/workflowRun"
+          }
+        },
+        "workflows": false,
+        "jobs": false,
+        "artifacts": false
+      }
+    },
+    {
+      "title": "list_workflow_jobs",
+      "description": "method=list_workflow_jobs. The github.Jobs envelope wrapped in an outer object under the `jobs` key, so the payload is double-nested: {\"jobs\":{\"total_count\":N,\"jobs\":[...]}}. `jobs` is null if the API returned an empty body.",
+      "type": "object",
+      "required": [
+        "jobs"
+      ],
+      "properties": {
+        "jobs": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "The github.Jobs envelope, or null when go-github left the *Jobs pointer nil (empty response body). When it is an object it carries at least one recognised field, or is empty; maxProperties:0 keeps the genuinely-empty envelope reachable while still rejecting an object made only of unrecognised keys.",
+          "anyOf": [
+            {
+              "required": [
+                "total_count"
+              ]
+            },
+            {
+              "required": [
+                "jobs"
+              ]
+            },
+            {
+              "maxProperties": 0
+            }
+          ],
+          "properties": {
+            "total_count": {
+              "type": "integer",
+              "description": "Total number of jobs in the workflow run."
+            },
+            "jobs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/workflowJob"
+              }
+            }
+          }
+        },
+        "workflows": false,
+        "workflow_runs": false,
+        "artifacts": false
+      }
+    },
+    {
+      "title": "list_workflow_run_artifacts",
+      "description": "method=list_workflow_run_artifacts. Serialized github.ArtifactList.",
+      "type": "object",
+      "anyOf": [
+        {
+          "required": [
+            "total_count"
+          ]
+        },
+        {
+          "required": [
+            "artifacts"
+          ]
+        }
+      ],
+      "properties": {
+        "total_count": {
+          "type": "integer",
+          "description": "Total number of artifacts for the workflow run."
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        },
+        "workflows": false,
+        "workflow_runs": false,
+        "jobs": false
+      }
+    }
+  ],
+  "$defs": {
+    "workflow": {
+      "type": "object",
+      "description": "A repository workflow definition (github.Workflow).",
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "path"
+          ]
+        },
+        {
+          "required": [
+            "state"
+          ]
+        },
+        {
+          "required": [
+            "created_at"
+          ]
+        },
+        {
+          "required": [
+            "updated_at"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "html_url"
+          ]
+        },
+        {
+          "required": [
+            "badge_url"
+          ]
+        }
+      ],
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string",
+          "description": "Path to the workflow file, e.g. .github/workflows/ci.yml"
+        },
+        "state": {
+          "type": "string",
+          "description": "e.g. active, disabled_manually, disabled_inactivity"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "url": {
+          "type": "string"
+        },
+        "html_url": {
+          "type": "string"
+        },
+        "badge_url": {
+          "type": "string"
+        }
+      }
+    },
+    "workflowRun": {
+      "type": "object",
+      "description": "A single workflow run (github.WorkflowRun).",
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "required": [
+            "head_branch"
+          ]
+        },
+        {
+          "required": [
+            "head_sha"
+          ]
+        },
+        {
+          "required": [
+            "path"
+          ]
+        },
+        {
+          "required": [
+            "run_number"
+          ]
+        },
+        {
+          "required": [
+            "run_attempt"
+          ]
+        },
+        {
+          "required": [
+            "event"
+          ]
+        },
+        {
+          "required": [
+            "display_title"
+          ]
+        },
+        {
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "required": [
+            "conclusion"
+          ]
+        },
+        {
+          "required": [
+            "workflow_id"
+          ]
+        },
+        {
+          "required": [
+            "check_suite_id"
+          ]
+        },
+        {
+          "required": [
+            "check_suite_node_id"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "html_url"
+          ]
+        },
+        {
+          "required": [
+            "pull_requests"
+          ]
+        },
+        {
+          "required": [
+            "created_at"
+          ]
+        },
+        {
+          "required": [
+            "updated_at"
+          ]
+        },
+        {
+          "required": [
+            "run_started_at"
+          ]
+        },
+        {
+          "required": [
+            "jobs_url"
+          ]
+        },
+        {
+          "required": [
+            "logs_url"
+          ]
+        },
+        {
+          "required": [
+            "check_suite_url"
+          ]
+        },
+        {
+          "required": [
+            "artifacts_url"
+          ]
+        },
+        {
+          "required": [
+            "cancel_url"
+          ]
+        },
+        {
+          "required": [
+            "rerun_url"
+          ]
+        },
+        {
+          "required": [
+            "previous_attempt_url"
+          ]
+        },
+        {
+          "required": [
+            "head_commit"
+          ]
+        },
+        {
+          "required": [
+            "workflow_url"
+          ]
+        },
+        {
+          "required": [
+            "repository"
+          ]
+        },
+        {
+          "required": [
+            "head_repository"
+          ]
+        },
+        {
+          "required": [
+            "actor"
+          ]
+        },
+        {
+          "required": [
+            "triggering_actor"
+          ]
+        },
+        {
+          "required": [
+            "referenced_workflows"
+          ]
+        }
+      ],
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "head_branch": {
+          "type": "string"
+        },
+        "head_sha": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "run_number": {
+          "type": "integer"
+        },
+        "run_attempt": {
+          "type": "integer"
+        },
+        "event": {
+          "type": "string"
+        },
+        "display_title": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "description": "e.g. queued, in_progress, completed"
+        },
+        "conclusion": {
+          "type": "string",
+          "description": "e.g. success, failure, cancelled, skipped; omitted while the run is not complete"
+        },
+        "workflow_id": {
+          "type": "integer"
+        },
+        "check_suite_id": {
+          "type": "integer"
+        },
+        "check_suite_node_id": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "html_url": {
+          "type": "string"
+        },
+        "pull_requests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "Pull request associated with the run (github.PullRequest). The API returns a reduced form of the pull request here, so only the keys it is known to carry are listed; unknown keys are still accepted.",
+            "anyOf": [
+              {
+                "required": [
+                  "id"
+                ]
+              },
+              {
+                "required": [
+                  "number"
+                ]
+              },
+              {
+                "required": [
+                  "url"
+                ]
+              },
+              {
+                "required": [
+                  "html_url"
+                ]
+              },
+              {
+                "required": [
+                  "node_id"
+                ]
+              },
+              {
+                "required": [
+                  "head"
+                ]
+              },
+              {
+                "required": [
+                  "base"
+                ]
+              }
+            ]
+          }
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "run_started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "jobs_url": {
+          "type": "string"
+        },
+        "logs_url": {
+          "type": "string"
+        },
+        "check_suite_url": {
+          "type": "string"
+        },
+        "artifacts_url": {
+          "type": "string"
+        },
+        "cancel_url": {
+          "type": "string"
+        },
+        "rerun_url": {
+          "type": "string"
+        },
+        "previous_attempt_url": {
+          "type": "string"
+        },
+        "head_commit": {
+          "$ref": "#/$defs/headCommit"
+        },
+        "workflow_url": {
+          "type": "string"
+        },
+        "repository": {
+          "$ref": "#/$defs/repository"
+        },
+        "head_repository": {
+          "$ref": "#/$defs/repository"
+        },
+        "actor": {
+          "$ref": "#/$defs/user"
+        },
+        "triggering_actor": {
+          "$ref": "#/$defs/user"
+        },
+        "referenced_workflows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/referencedWorkflow"
+          }
+        }
+      }
+    },
+    "workflowJob": {
+      "type": "object",
+      "description": "A single job within a workflow run (github.WorkflowJob).",
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "run_id"
+          ]
+        },
+        {
+          "required": [
+            "run_url"
+          ]
+        },
+        {
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "required": [
+            "head_branch"
+          ]
+        },
+        {
+          "required": [
+            "head_sha"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "html_url"
+          ]
+        },
+        {
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "required": [
+            "conclusion"
+          ]
+        },
+        {
+          "required": [
+            "created_at"
+          ]
+        },
+        {
+          "required": [
+            "started_at"
+          ]
+        },
+        {
+          "required": [
+            "completed_at"
+          ]
+        },
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "steps"
+          ]
+        },
+        {
+          "required": [
+            "check_run_url"
+          ]
+        },
+        {
+          "required": [
+            "labels"
+          ]
+        },
+        {
+          "required": [
+            "runner_id"
+          ]
+        },
+        {
+          "required": [
+            "runner_name"
+          ]
+        },
+        {
+          "required": [
+            "runner_group_id"
+          ]
+        },
+        {
+          "required": [
+            "runner_group_name"
+          ]
+        },
+        {
+          "required": [
+            "run_attempt"
+          ]
+        },
+        {
+          "required": [
+            "workflow_name"
+          ]
+        }
+      ],
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "run_id": {
+          "type": "integer"
+        },
+        "run_url": {
+          "type": "string"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "head_branch": {
+          "type": "string"
+        },
+        "head_sha": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "html_url": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "description": "e.g. queued, in_progress, completed"
+        },
+        "conclusion": {
+          "type": "string",
+          "description": "e.g. success, failure, cancelled, skipped; omitted while the job is not complete"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "name": {
+          "type": "string"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/taskStep"
+          }
+        },
+        "check_run_url": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "array",
+          "description": "Runner labels from the `runs-on:` key of the workflow.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "runner_id": {
+          "type": "integer"
+        },
+        "runner_name": {
+          "type": "string"
+        },
+        "runner_group_id": {
+          "type": "integer"
+        },
+        "runner_group_name": {
+          "type": "string"
+        },
+        "run_attempt": {
+          "type": "integer"
+        },
+        "workflow_name": {
+          "type": "string"
+        }
+      }
+    },
+    "taskStep": {
+      "type": "object",
+      "description": "A step within a workflow job (github.TaskStep).",
+      "anyOf": [
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "required": [
+            "conclusion"
+          ]
+        },
+        {
+          "required": [
+            "number"
+          ]
+        },
+        {
+          "required": [
+            "started_at"
+          ]
+        },
+        {
+          "required": [
+            "completed_at"
+          ]
+        }
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "conclusion": {
+          "type": "string"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "description": "An artifact produced by a workflow run (github.Artifact).",
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "size_in_bytes"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "archive_download_url"
+          ]
+        },
+        {
+          "required": [
+            "expired"
+          ]
+        },
+        {
+          "required": [
+            "created_at"
+          ]
+        },
+        {
+          "required": [
+            "updated_at"
+          ]
+        },
+        {
+          "required": [
+            "expires_at"
+          ]
+        },
+        {
+          "required": [
+            "digest"
+          ]
+        },
+        {
+          "required": [
+            "workflow_run"
+          ]
+        }
+      ],
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "size_in_bytes": {
+          "type": "integer"
+        },
+        "url": {
+          "type": "string"
+        },
+        "archive_download_url": {
+          "type": "string"
+        },
+        "expired": {
+          "type": "boolean"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "digest": {
+          "type": "string",
+          "description": "SHA256 digest; only present for artifacts uploaded with upload-artifact v4 or newer."
+        },
+        "workflow_run": {
+          "$ref": "#/$defs/artifactWorkflowRun"
+        }
+      }
+    },
+    "artifactWorkflowRun": {
+      "type": "object",
+      "description": "The workflow run an artifact belongs to (github.ArtifactWorkflowRun).",
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "repository_id"
+          ]
+        },
+        {
+          "required": [
+            "head_repository_id"
+          ]
+        },
+        {
+          "required": [
+            "head_branch"
+          ]
+        },
+        {
+          "required": [
+            "head_sha"
+          ]
+        }
+      ],
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "repository_id": {
+          "type": "integer"
+        },
+        "head_repository_id": {
+          "type": "integer"
+        },
+        "head_branch": {
+          "type": "string"
+        },
+        "head_sha": {
+          "type": "string"
+        }
+      }
+    },
+    "referencedWorkflow": {
+      "type": "object",
+      "description": "A reusable workflow referenced by a run (github.ReferencedWorkflow).",
+      "anyOf": [
+        {
+          "required": [
+            "path"
+          ]
+        },
+        {
+          "required": [
+            "sha"
+          ]
+        },
+        {
+          "required": [
+            "ref"
+          ]
+        }
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "ref": {
+          "type": "string"
+        }
+      }
+    },
+    "headCommit": {
+      "type": "object",
+      "description": "The head commit of a workflow run (github.HeadCommit).",
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "sha"
+          ]
+        },
+        {
+          "required": [
+            "message"
+          ]
+        },
+        {
+          "required": [
+            "tree_id"
+          ]
+        },
+        {
+          "required": [
+            "timestamp"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "distinct"
+          ]
+        },
+        {
+          "required": [
+            "author"
+          ]
+        },
+        {
+          "required": [
+            "committer"
+          ]
+        },
+        {
+          "required": [
+            "added"
+          ]
+        },
+        {
+          "required": [
+            "removed"
+          ]
+        },
+        {
+          "required": [
+            "modified"
+          ]
+        }
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "tree_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "url": {
+          "type": "string"
+        },
+        "distinct": {
+          "type": "boolean"
+        },
+        "author": {
+          "$ref": "#/$defs/commitAuthor"
+        },
+        "committer": {
+          "$ref": "#/$defs/commitAuthor"
+        },
+        "added": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "modified": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "commitAuthor": {
+      "type": "object",
+      "description": "Author or committer of the head commit (github.CommitAuthor). `username` is go-github's rename of the Login field and only appears on webhook-sourced payloads.",
+      "anyOf": [
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "email"
+          ]
+        },
+        {
+          "required": [
+            "date"
+          ]
+        },
+        {
+          "required": [
+            "username"
+          ]
+        }
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "username": {
+          "type": "string"
+        }
+      }
+    },
+    "repository": {
+      "type": "object",
+      "description": "Repository the run belongs to (full github.Repository payload; only the most useful fields are described).",
+      "anyOf": [
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "required": [
+            "full_name"
+          ]
+        },
+        {
+          "required": [
+            "private"
+          ]
+        },
+        {
+          "required": [
+            "html_url"
+          ]
+        },
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "owner"
+          ]
+        }
+      ],
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "full_name": {
+          "type": "string"
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "html_url": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "owner": {
+          "$ref": "#/$defs/user"
+        }
+      }
+    },
+    "user": {
+      "type": "object",
+      "description": "A GitHub account (full github.User payload; only the most useful fields are described).",
+      "anyOf": [
+        {
+          "required": [
+            "login"
+          ]
+        },
+        {
+          "required": [
+            "id"
+          ]
+        },
+        {
+          "required": [
+            "node_id"
+          ]
+        },
+        {
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "required": [
+            "avatar_url"
+          ]
+        },
+        {
+          "required": [
+            "html_url"
+          ]
+        }
+      ],
+      "properties": {
+        "login": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "avatar_url": {
+          "type": "string"
+        },
+        "html_url": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

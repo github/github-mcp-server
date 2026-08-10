@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "issue_dependency_read result",
+  "description": "Result of issue_dependency_read. Both methods (get_blocked_by, get_blocking) return the same shape: the related issues projected into the compact MinimalIssueRef form, plus page-based pagination info.",
+  "type": "object",
+  "properties": {
+    "issues": {
+      "type": "array",
+      "description": "The related issues. For get_blocked_by these are the issues blocking the subject issue; for get_blocking these are the issues the subject issue blocks. Empty when there are none.",
+      "items": {
+        "$ref": "#/$defs/minimalIssueRef"
+      }
+    },
+    "pageInfo": {
+      "type": "object",
+      "description": "Page-based pagination info derived from the REST Link header.",
+      "properties": {
+        "hasNextPage": {
+          "type": "boolean",
+          "description": "True when the API advertised a next page."
+        },
+        "nextPage": {
+          "type": "integer",
+          "description": "The next page number, or 0 when there is no next page."
+        }
+      },
+      "required": [
+        "hasNextPage",
+        "nextPage"
+      ]
+    }
+  },
+  "required": [
+    "issues",
+    "pageInfo"
+  ],
+  "$defs": {
+    "minimalIssueRef": {
+      "type": "object",
+      "title": "MinimalIssueRef",
+      "description": "Compact reference to a related issue.",
+      "properties": {
+        "number": {
+          "type": "integer",
+          "description": "The issue number."
+        },
+        "title": {
+          "type": "string",
+          "description": "The issue title."
+        },
+        "state": {
+          "type": "string",
+          "description": "The issue state, upper-cased to match the GraphQL-sourced state used elsewhere (e.g. OPEN, CLOSED)."
+        },
+        "url": {
+          "type": "string",
+          "description": "The issue's HTML URL."
+        },
+        "repository": {
+          "type": "string",
+          "description": "The issue's repository as \"owner/repo\". Omitted when it could not be derived from the issue's repository URL."
+        }
+      },
+      "required": [
+        "number",
+        "title",
+        "state",
+        "url"
+      ]
+    }
+  }
+}

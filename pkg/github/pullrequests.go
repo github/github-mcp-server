@@ -157,7 +157,7 @@ Possible options:
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
-		})
+		}).WithOutputSchema(pullRequestReadOutputSchema)
 }
 
 func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {

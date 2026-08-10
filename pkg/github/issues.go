@@ -709,7 +709,7 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
-		})
+		}).WithOutputSchema(issueReadOutputSchema)
 }
 
 func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
@@ -944,6 +944,15 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 			}
 		}
 		subIssues = filteredSubIssues
+	}
+
+	// go-github declares `var subIssues []*SubIssue` and leaves it nil when the
+	// response body is empty or null, which json.Marshal renders as the literal
+	// `null` rather than `[]`. Every sibling method normalises (they build with
+	// make), so normalise here too: callers parsing the result expect an array,
+	// and null does not conform to this tool's declared output schema.
+	if subIssues == nil {
+		subIssues = []*github.SubIssue{}
 	}
 
 	r, err := json.Marshal(subIssues)
@@ -1403,6 +1412,7 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 							"- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.\n" +
 							"- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.\n" +
 							"Writes issue hierarchy. To move a sub-issue to a new parent, use `add` with `replace_parent=true`; there is no writable parent field.\n",
+						Enum: []any{"add", "remove", "reprioritize"},
 					},
 					"owner": {
 						Type:        "string",
