@@ -884,7 +884,7 @@ func listWorkflowRuns(ctx context.Context, client *github.Client, args map[strin
 	}
 
 	defer func() { _ = resp.Body.Close() }()
-	r, err := json.Marshal(workflowRuns)
+	r, err := json.Marshal(convertToMinimalWorkflowRuns(workflowRuns))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal workflow runs: %w", err)
 	}
@@ -919,7 +919,7 @@ func listWorkflowJobs(ctx context.Context, client *github.Client, args map[strin
 	}
 
 	response := map[string]any{
-		"jobs": workflowJobs,
+		"jobs": convertToMinimalWorkflowJobs(workflowJobs),
 	}
 
 	defer func() { _ = resp.Body.Close() }()
