@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
+	"github.com/github/github-mcp-server/pkg/http/headers"
+	transportpkg "github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -137,6 +139,119 @@ func Test_ResolveProjectFieldByName_Success(t *testing.T) {
 	optionID, err := resolveSingleSelectOptionByName(field, "In Progress")
 	require.NoError(t, err)
 	assert.Equal(t, "OPT_b", optionID)
+}
+
+func Test_ResolveIssueFieldForUpdate(t *testing.T) {
+	tests := []struct {
+		name       string
+		resolved   ResolvedField
+		databaseID int
+		typeName   string
+		issueField map[string]any
+		wantID     string
+		wantOption ResolvedFieldOption
+	}{
+		{name: "text", resolved: ResolvedField{ID: "101", Name: "Customer", DataType: "TEXT"}, databaseID: 101, typeName: "ProjectV2Field", issueField: map[string]any{"id": "IF_TEXT"}, wantID: "IF_TEXT"},
+		{
+			name: "single select", resolved: ResolvedField{ID: "102", Name: "Impact", DataType: "SINGLE_SELECT"},
+			databaseID: 102, typeName: "ProjectV2SingleSelectField",
+			issueField: map[string]any{"id": "IF_SELECT", "options": []any{map[string]any{"id": "OPT_HIGH", "name": "High"}}},
+			wantID:     "IF_SELECT",
+			wantOption: ResolvedFieldOption{ID: "OPT_HIGH", Name: "High"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mocked := githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(projectIssueFieldMetadataQueryOrg{}, fieldsQueryVars("octo-org", 7),
+					githubv4mock.DataResponse(issueFieldMetadataResponse(tt.typeName, tt.databaseID, true, tt.issueField))),
+			)
+			capture := &headerCaptureTransport{inner: mocked.Transport}
+			gql := githubv4.NewClient(&http.Client{Transport: &transportpkg.GraphQLFeaturesTransport{Transport: capture}})
+
+			field, err := resolveIssueFieldForUpdate(context.Background(), gql, "octo-org", "org", 7, &tt.resolved)
+			require.NoError(t, err)
+			assert.True(t, field.IsIssueField)
+			assert.Equal(t, tt.wantID, field.IssueFieldID)
+			if tt.wantOption.ID != "" {
+				assert.Equal(t, []ResolvedFieldOption{tt.wantOption}, field.Options)
+			}
+			assert.Equal(t, "issue_fields", capture.captured.Get(headers.GraphQLFeaturesHeader))
+		})
+	}
+}
+
+func Test_ResolveIssueFieldForUpdate_ErrorHandling(t *testing.T) {
+	for _, tt := range []struct {
+		name, message string
+		fallback      bool
+	}{
+		{name: "missing schema falls back", message: "Field 'isIssueField' doesn't exist on type 'ProjectV2Field'", fallback: true},
+		{name: "missing text fragment type falls back", message: "No such type IssueFieldText, so it cannot be a fragment condition", fallback: true},
+		{name: "missing number fragment type falls back", message: "No such type IssueFieldNumber, so it cannot be a fragment condition", fallback: true},
+		{name: "missing date fragment type falls back", message: "No such type IssueFieldDate, so it cannot be a fragment condition", fallback: true},
+		{name: "missing single select fragment type falls back", message: "No such type IssueFieldSingleSelect, so it cannot be a fragment condition", fallback: true},
+		{name: "unknown fragment type propagates", message: "No such type IssueFieldMultiSelect, so it cannot be a fragment condition"},
+		{name: "unrelated error propagates", message: "Resource not accessible by integration"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			mocked := githubv4mock.NewMockedHTTPClient(githubv4mock.NewQueryMatcher(
+				projectIssueFieldMetadataQueryOrg{}, fieldsQueryVars("octo-org", 7), githubv4mock.ErrorResponse(tt.message),
+			))
+			resolved := &ResolvedField{ID: "101", Name: "Status", DataType: "SINGLE_SELECT"}
+			field, err := resolveIssueFieldForUpdate(context.Background(), githubv4.NewClient(mocked), "octo-org", "org", 7, resolved)
+			if tt.fallback {
+				require.NoError(t, err)
+				assert.Equal(t, resolved, field)
+			} else {
+				require.ErrorContains(t, err, tt.message)
+			}
+		})
+	}
+
+	t.Run("supported type missing metadata still fails", func(t *testing.T) {
+		mocked := githubv4mock.NewMockedHTTPClient(githubv4mock.NewQueryMatcher(
+			projectIssueFieldMetadataQueryOrg{},
+			fieldsQueryVars("octo-org", 7),
+			githubv4mock.DataResponse(fieldsResponse(nil)),
+		))
+		resolved := &ResolvedField{ID: "101", Name: "Customer", DataType: "TEXT"}
+
+		_, err := resolveIssueFieldForUpdate(context.Background(), githubv4.NewClient(mocked), "octo-org", "org", 7, resolved)
+		require.ErrorContains(t, err, "missing_field_metadata")
+	})
+}
+
+func Test_ResolveFieldNamesToIDs_QueryRemainsIssueFieldUngated(t *testing.T) {
+	mocked := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 1),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				genericFieldNode("PVTF_text", 101, "Customer", "TEXT"),
+			})),
+		),
+	)
+	capture := &headerCaptureTransport{inner: mocked.Transport}
+	gql := githubv4.NewClient(&http.Client{Transport: &transportpkg.GraphQLFeaturesTransport{Transport: capture}})
+
+	ids, err := resolveFieldNamesToIDs(context.Background(), gql, "octo-org", "org", 1, []string{"Customer"})
+	require.NoError(t, err)
+	assert.Equal(t, []int64{101}, ids)
+	assert.Empty(t, capture.captured.Get(headers.GraphQLFeaturesHeader))
+}
+
+func issueFieldMetadataResponse(typeName string, databaseID any, isIssueField bool, issueField map[string]any) map[string]any {
+	node := map[string]any{
+		"__typename":   typeName,
+		"databaseId":   databaseID,
+		"isIssueField": isIssueField,
+	}
+	if issueField != nil {
+		node["issueField"] = issueField
+	}
+	return fieldsResponse([]map[string]any{node})
 }
 
 func Test_ResolveProjectFieldByName_NodeIDsForAllVariants(t *testing.T) {
@@ -740,6 +855,30 @@ func Test_ProjectsWrite_UpdateProjectItem_ByName(t *testing.T) {
 				}),
 			})),
 		),
+		// 4. supplemental update metadata confirms this is a standard Project field
+		githubv4mock.NewQueryMatcher(
+			projectIssueFieldMetadataQueryOrg{},
+			fieldsQueryVars("octo-org", 1),
+			githubv4mock.DataResponse(map[string]any{
+				"organization": map[string]any{
+					"projectV2": map[string]any{
+						"fields": map[string]any{
+							"nodes": []any{
+								map[string]any{
+									"__typename":   "ProjectV2SingleSelectField",
+									"databaseId":   101,
+									"isIssueField": false,
+								},
+							},
+							"pageInfo": map[string]any{
+								"hasNextPage": false, "hasPreviousPage": false,
+								"startCursor": "", "endCursor": "",
+							},
+						},
+					},
+				},
+			}),
+		),
 	)
 	gqlClient := githubv4.NewClient(mockedGQL)
 
@@ -762,6 +901,60 @@ func Test_ProjectsWrite_UpdateProjectItem_ByName(t *testing.T) {
 
 	require.NoError(t, err)
 	require.False(t, result.IsError, getTextResult(t, result).Text)
+}
+
+func Test_ProjectsWrite_UpdateProjectItem_ByNameIteration(t *testing.T) {
+	updatedItem := verbosePullRequestProjectItemFixture()
+	restCalled := false
+	mockedREST := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PatchOrgsProjectsV2ItemsByProjectByItemID: func(w http.ResponseWriter, r *http.Request) {
+			restCalled = true
+			var update struct {
+				Fields []struct {
+					ID    int64 `json:"id"`
+					Value any   `json:"value"`
+				} `json:"fields"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&update))
+			require.Len(t, update.Fields, 1)
+			assert.Equal(t, int64(222), update.Fields[0].ID)
+			assert.Equal(t, "ITERATION_1", update.Fields[0].Value)
+
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(updatedItem))
+		},
+	})
+	mockedGQL := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 1),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+				iterationFieldNode("PVTIF_iteration1", 222, "Sprint"),
+			})),
+		),
+	)
+	deps := BaseDeps{
+		Client:    mustNewGHClient(t, mockedREST),
+		GQLClient: githubv4.NewClient(mockedGQL),
+	}
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+	handler := toolDef.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":         "update_project_item",
+		"owner":          "octo-org",
+		"owner_type":     "org",
+		"project_number": float64(1),
+		"item_id":        float64(1001),
+		"updated_field": map[string]any{
+			"name":  "Sprint",
+			"value": "ITERATION_1",
+		},
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, getTextResult(t, result).Text)
+	assert.True(t, restCalled)
 }
 
 func Test_ProjectsWrite_UpdateProjectItem_NameNotFound_StructuredError(t *testing.T) {

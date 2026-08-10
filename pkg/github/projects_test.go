@@ -8,7 +8,12 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
+	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/http/headers"
+	transportpkg "github.com/github/github-mcp-server/pkg/http/transport"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
+	gogithub "github.com/google/go-github/v89/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -1281,6 +1286,174 @@ func Test_ProjectsWrite_UpdateProjectItem(t *testing.T) {
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "missing required parameter: updated_field")
 	})
+}
+
+func Test_ProjectItemReads_FieldNamesIncludeIssueFieldValues(t *testing.T) {
+	item := issueProjectItemFixture("Issue")
+	tests := []struct {
+		name     string
+		tool     inventory.ServerTool
+		method   string
+		restPath string
+		response any
+	}{
+		{name: "get project item", tool: ProjectsGet(translations.NullTranslationHelper), method: "get_project_item", restPath: GetOrgsProjectsV2ItemsByProjectByItemID, response: item},
+		{name: "list project items", tool: ProjectsList(translations.NullTranslationHelper), method: "list_project_items", restPath: GetOrgsProjectsV2ItemsByProject, response: []any{item}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				tt.restPath: mockResponse(t, http.StatusOK, tt.response),
+			}))
+			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					projectFieldsTestQuery{},
+					fieldsQueryVars("octo-org", 1),
+					githubv4mock.DataResponse(fieldsResponse([]map[string]any{
+						genericFieldNode("PVTF_customer", 101, "Customer", "TEXT"),
+					})),
+				),
+			))
+
+			deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
+			handler := tt.tool.Handler(deps)
+			args := map[string]any{"method": tt.method, "owner": "octo-org", "owner_type": "org", "project_number": float64(1), "field_names": []any{"Customer"}}
+			if tt.method == "get_project_item" {
+				args["item_id"] = float64(1001)
+			}
+
+			request := createMCPRequest(args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.False(t, result.IsError, getTextResult(t, result).Text)
+
+			var response map[string]any
+			require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+			if tt.method == "list_project_items" {
+				response = response["items"].([]any)[0].(map[string]any)
+			}
+			fields := response["fields"].([]any)
+			require.Len(t, fields, 1)
+			assert.Equal(t, "Customer", fields[0].(map[string]any)["name"])
+			assert.Equal(t, "Acme", fields[0].(map[string]any)["value"])
+		})
+	}
+}
+
+func Test_ProjectsWrite_UpdateProjectItem_AttachedIssueFieldDispatch(t *testing.T) {
+	mockClient := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			projectFieldsTestQuery{},
+			fieldsQueryVars("octo-org", 1),
+			githubv4mock.DataResponse(fieldsResponse([]map[string]any{genericFieldNode("PVTF_field", 101, "Customer", "TEXT")})),
+		),
+		githubv4mock.NewQueryMatcher(
+			projectIssueFieldMetadataQueryOrg{},
+			fieldsQueryVars("octo-org", 1),
+			githubv4mock.DataResponse(issueFieldMetadataResponse(
+				"ProjectV2Field", 101, true, map[string]any{"id": "IF_TEXT"},
+			)),
+		),
+		githubv4mock.NewMutationMatcher(
+			setIssueFieldValueMutation{},
+			SetIssueFieldValueInput{
+				IssueID: githubv4.ID("ISSUE_1"),
+				IssueFields: []IssueFieldCreateOrUpdateInput{{
+					FieldID:   githubv4.ID("IF_TEXT"),
+					TextValue: githubv4.NewString("Acme"),
+				}},
+			},
+			nil,
+			githubv4mock.DataResponse(map[string]any{"setIssueFieldValue": map[string]any{
+				"issue": map[string]any{"id": "ISSUE_1", "url": "https://github.com/octo-org/repo/issues/1"},
+			}}),
+		),
+	)
+
+	spy := &headerCaptureTransport{inner: mockClient.Transport}
+	gqlClient := githubv4.NewClient(&http.Client{
+		Transport: &transportpkg.GraphQLFeaturesTransport{Transport: spy},
+	})
+	restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetOrgsProjectsV2ItemsByProjectByItemID: mockResponse(t, http.StatusOK, issueProjectItemFixture("Issue")),
+	}))
+	deps := BaseDeps{Client: restClient, GQLClient: gqlClient}
+	tool := ProjectsWrite(translations.NullTranslationHelper)
+	handler := tool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method": "update_project_item", "owner": "octo-org", "owner_type": "org",
+		"project_number": float64(1), "item_id": float64(1001),
+		"updated_field": map[string]any{"name": "Customer", "value": "Acme"},
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, getTextResult(t, result).Text)
+	assert.JSONEq(t, `{"id":"ISSUE_1","url":"https://github.com/octo-org/repo/issues/1"}`, getTextResult(t, result).Text)
+	// The last request captured is the mutation; the preceding field/metadata
+	// queries do not require the update_issue_suggestions feature flag.
+	assert.Equal(t, "update_issue_suggestions", spy.captured.Get(headers.GraphQLFeaturesHeader))
+}
+
+func Test_BuildIssueFieldUpdate(t *testing.T) {
+	selectField := ResolvedField{
+		Name: "Impact", DataType: "SINGLE_SELECT", IssueFieldID: "IF_SELECT",
+		Options: []ResolvedFieldOption{{ID: "OPT_HIGH", Name: "High"}},
+	}
+	tests := []struct {
+		name  string
+		field ResolvedField
+		value any
+		kind  string
+		want  *IssueFieldCreateOrUpdateInput
+	}{
+		{name: "text", field: ResolvedField{Name: "Customer", DataType: "TEXT", IssueFieldID: "IF_TEXT"}, value: "Acme", want: &IssueFieldCreateOrUpdateInput{FieldID: githubv4.ID("IF_TEXT"), TextValue: githubv4.NewString("Acme")}},
+		{name: "number", field: ResolvedField{Name: "Score", DataType: "NUMBER", IssueFieldID: "IF_NUMBER"}, value: float64(42.5), want: &IssueFieldCreateOrUpdateInput{FieldID: githubv4.ID("IF_NUMBER"), NumberValue: githubv4.NewFloat(42.5)}},
+		{name: "date", field: ResolvedField{Name: "Target", DataType: "DATE", IssueFieldID: "IF_DATE"}, value: "2026-07-27", want: &IssueFieldCreateOrUpdateInput{FieldID: githubv4.ID("IF_DATE"), DateValue: githubv4.NewString("2026-07-27")}},
+		{name: "single select name", field: selectField, value: "high", want: &IssueFieldCreateOrUpdateInput{FieldID: githubv4.ID("IF_SELECT"), SingleSelectOptionID: githubv4.NewID("OPT_HIGH")}},
+		{name: "clear", field: ResolvedField{Name: "Customer", DataType: "TEXT", IssueFieldID: "IF_TEXT"}, value: nil, want: &IssueFieldCreateOrUpdateInput{FieldID: githubv4.ID("IF_TEXT"), Delete: githubv4.NewBoolean(true)}},
+		{name: "invalid text", field: ResolvedField{Name: "Customer", DataType: "TEXT", IssueFieldID: "IF_TEXT"}, value: 42, kind: "invalid_field_value"},
+		{name: "invalid number", field: ResolvedField{Name: "Score", DataType: "NUMBER", IssueFieldID: "IF_NUMBER"}, value: "42", kind: "invalid_field_value"},
+		{name: "invalid date", field: ResolvedField{Name: "Target", DataType: "DATE", IssueFieldID: "IF_DATE"}, value: "2026-02-30", kind: "invalid_field_value"},
+		{name: "option ID rejected", field: selectField, value: "OPT_HIGH", kind: "option_not_found"},
+		{name: "missing metadata", field: ResolvedField{Name: "Customer", DataType: "TEXT"}, value: "Acme", kind: "missing_field_metadata"},
+		{name: "unsupported type", field: ResolvedField{Name: "Related", DataType: "MULTI_SELECT", IssueFieldID: "IF_MULTI"}, value: "one", kind: "unsupported_field_type"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := buildIssueFieldUpdate(&tt.field, tt.value)
+			if tt.kind == "" {
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+				return
+			}
+			var structured *ghErrors.StructuredResolutionError
+			require.ErrorAs(t, err, &structured)
+			assert.Equal(t, tt.kind, structured.Kind)
+		})
+	}
+}
+
+func Test_ProjectItemIssueID_RejectsNonIssueItems(t *testing.T) {
+	for _, contentType := range []string{"PullRequest", "DraftIssue"} {
+		t.Run(contentType, func(t *testing.T) {
+			item := &gogithub.ProjectV2Item{ContentType: gogithub.Ptr(gogithub.ProjectV2ItemContentType(contentType))}
+			_, err := projectItemIssueID(item)
+			var structured *ghErrors.StructuredResolutionError
+			require.ErrorAs(t, err, &structured)
+			assert.Equal(t, "unsupported_item_type", structured.Kind)
+		})
+	}
+}
+
+func issueProjectItemFixture(contentType string) map[string]any {
+	return map[string]any{
+		"id": 1001, "node_id": "PVTI_1", "content_type": contentType,
+		"content": map[string]any{"node_id": "ISSUE_1"},
+		"fields":  []any{map[string]any{"id": 101, "name": "Customer", "data_type": "text", "value": "Acme"}},
+	}
 }
 
 func Test_ProjectsWrite_DeleteProjectItem(t *testing.T) {
