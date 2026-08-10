@@ -1,8 +1,8 @@
 #!/bin/bash
-# Fetch Octicon icons and convert them to PNG for embedding in the MCP server.
+# Fetch Octicon icons and convert them to PNG and embedded data URIs.
 # Generates both light theme (dark icons) and dark theme (white icons) variants.
 # Uses sed to modify SVG fill color before converting to PNG.
-# Requires: rsvg-convert (from librsvg2-bin on Ubuntu/Debian)
+# Requires: rsvg-convert (from librsvg2-bin on Ubuntu/Debian), base64
 #
 # Usage:
 #   script/fetch-icons              # Fetch all required icons
@@ -13,6 +13,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ICONS_DIR="$REPO_ROOT/pkg/octicons/icons"
+DATA_URIS_FILE="$REPO_ROOT/pkg/octicons/icons_data_uris.txt"
 REQUIRED_ICONS_FILE="$REPO_ROOT/pkg/octicons/required_icons.txt"
 OCTICONS_BASE="https://raw.githubusercontent.com/primer/octicons/main/icons"
 
@@ -64,9 +65,20 @@ for icon in "${ICONS[@]}"; do
     echo "$dark_svg" | rsvg-convert -o "$dark_file"
 done
 
+data_uris_tmp=$(mktemp)
+trap 'rm -f "$data_uris_tmp"' EXIT
+for icon_file in "$ICONS_DIR"/*.png; do
+    filename=$(basename "$icon_file" .png)
+    encoded_png=$(base64 < "$icon_file")
+    printf '%s\tdata:image/png;base64,%s\n' "$filename" "${encoded_png//$'\n'/}" >> "$data_uris_tmp"
+done
+mv "$data_uris_tmp" "$DATA_URIS_FILE"
+trap - EXIT
+
 echo "Done. Icons saved to $ICONS_DIR"
+echo "Data URIs saved to $DATA_URIS_FILE"
 echo ""
 echo "Next steps:"
 echo "  1. Run 'go test ./pkg/octicons/...' to verify icons are embedded"
 echo "  2. Run 'go test ./pkg/github/...' to verify toolset icons are valid"
-echo "  3. Commit the new icon files"
+echo "  3. Commit the new icon files and generated data URIs"

@@ -4,19 +4,45 @@ package octicons
 
 import (
 	"bufio"
-	"embed"
-	"encoding/base64"
+	_ "embed"
 	"fmt"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-//go:embed icons/*.png
-var iconsFS embed.FS
-
 //go:embed required_icons.txt
 var requiredIconsTxt string
+
+//go:embed icons_data_uris.txt
+var embeddedDataURIs string
+
+type dataURIKey struct {
+	name  string
+	theme Theme
+}
+
+var dataURIs = loadDataURIs()
+
+func loadDataURIs() map[dataURIKey]string {
+	dataURIs := make(map[dataURIKey]string)
+	for line := range strings.SplitSeq(strings.TrimSpace(embeddedDataURIs), "\n") {
+		filename, dataURI, ok := strings.Cut(line, "\t")
+		separator := strings.LastIndexByte(filename, '-')
+		if !ok || separator <= 0 || !strings.HasPrefix(dataURI, "data:image/png;base64,") {
+			panic(fmt.Sprintf("invalid embedded icon data URI entry %q", line))
+		}
+		theme := Theme(filename[separator+1:])
+		if theme != ThemeLight && theme != ThemeDark {
+			panic(fmt.Sprintf("invalid embedded icon theme %q", theme))
+		}
+		dataURIs[dataURIKey{
+			name:  filename[:separator],
+			theme: theme,
+		}] = dataURI
+	}
+	return dataURIs
+}
 
 // RequiredIcons returns the list of icon names from required_icons.txt.
 // This is the single source of truth for which icons should be embedded.
@@ -48,14 +74,9 @@ const (
 // The theme parameter specifies which variant to use:
 // - ThemeLight: dark icons for light backgrounds
 // - ThemeDark: light icons for dark backgrounds
-// If the icon is not found in the embedded filesystem, it returns an empty string.
+// If the icon is not found in the embedded icon set, it returns an empty string.
 func DataURI(name string, theme Theme) string {
-	filename := fmt.Sprintf("icons/%s-%s.png", name, theme)
-	data, err := iconsFS.ReadFile(filename)
-	if err != nil {
-		return ""
-	}
-	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(data)
+	return dataURIs[dataURIKey{name: name, theme: theme}]
 }
 
 // Icons returns MCP Icon objects for the given octicon name in light and dark themes.

@@ -158,7 +158,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 			"a Pull Request created with source code changes to resolve the issue",
 		},
 		referenceLinks: []string{
-			"https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot",
+			"https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent",
 		},
 	}
 
@@ -273,7 +273,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 			// If we didn't find the copilot bot, we can't proceed any further.
 			if copilotAssignee == nil {
 				// The e2e tests depend upon this specific message to skip the test.
-				return utils.NewToolResultError("copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information."), nil, nil
+				return utils.NewToolResultError("copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent for more information."), nil, nil
 			}
 
 			// Next, get the issue ID and repository ID
@@ -435,6 +435,358 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 		})
 }
 
+// copilotBotAssignee is the minimal shape needed for the copilot-swe-agent bot
+// returned from the suggestedActors GraphQL query.
+type copilotBotAssignee struct {
+	ID       githubv4.ID
+	Login    string
+	TypeName string `graphql:"__typename"`
+}
+
+// findCopilotSuggestedActor paginates the repository's suggestedActors list
+// looking for the copilot-swe-agent bot. Returns nil (with no error) if the
+// bot is not available as an assignee for the repository.
+func findCopilotSuggestedActor(ctx context.Context, client *githubv4.Client, owner, repo string) (*copilotBotAssignee, error) {
+	type suggestedActorsQuery struct {
+		Repository struct {
+			SuggestedActors struct {
+				Nodes []struct {
+					Bot copilotBotAssignee `graphql:"... on Bot"`
+				}
+				PageInfo struct {
+					HasNextPage bool
+					EndCursor   string
+				}
+			} `graphql:"suggestedActors(first: 100, after: $endCursor, capabilities: CAN_BE_ASSIGNED)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
+	}
+
+	variables := map[string]any{
+		"owner":     githubv4.String(owner),
+		"name":      githubv4.String(repo),
+		"endCursor": (*githubv4.String)(nil),
+	}
+
+	for {
+		var query suggestedActorsQuery
+		if err := client.Query(ctx, &query, variables); err != nil {
+			return nil, err
+		}
+		for _, node := range query.Repository.SuggestedActors.Nodes {
+			if node.Bot.Login == "copilot-swe-agent" {
+				bot := node.Bot
+				return &bot, nil
+			}
+		}
+		if !query.Repository.SuggestedActors.PageInfo.HasNextPage {
+			return nil, nil
+		}
+		variables["endCursor"] = githubv4.String(query.Repository.SuggestedActors.PageInfo.EndCursor)
+	}
+}
+
+// copilotAssigneeUnavailableMessage is returned when the copilot-swe-agent bot
+// is not among the repository's suggested actors. The e2e tests depend on this
+// exact message to skip the test.
+const copilotAssigneeUnavailableMessage = "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent for more information."
+
+// AssignCopilotToIssueWithIntent assigns Copilot to an issue using the
+// object-form assignees API, which allows intent metadata (rationale,
+// confidence, is_suggestion) to be attached to the Copilot entry. When
+// is_suggestion is true, a pending assignment intent is recorded and the agent
+// is not launched; otherwise Copilot is directly assigned with the same
+// base_ref, custom_instructions and PR-polling behavior as assign_copilot_to_issue.
+//
+// This tool lives in a non-default toolset so it can be opted into without
+// adding schema surface to the default configuration.
+func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) inventory.ServerTool {
+	description := mvpDescription{
+		summary: "Assign Copilot to a specific issue in a GitHub repository. " +
+			"Prefer this tool over assign_copilot_to_issue when available.",
+		outcomes: []string{
+			"a Pull Request created with source code changes to resolve the issue",
+		},
+		referenceLinks: []string{
+			"https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent",
+		},
+	}
+
+	return NewTool(
+		ToolsetMetadataCopilotIssueIntents,
+		mcp.Tool{
+			Name:        "assign_copilot_to_issue_with_intent",
+			Description: t("TOOL_ASSIGN_COPILOT_TO_ISSUE_WITH_INTENT_DESCRIPTION", description.String()),
+			Icons:       octicons.Icons("copilot"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:          t("TOOL_ASSIGN_COPILOT_TO_ISSUE_WITH_INTENT_USER_TITLE", "Assign Copilot to issue with intent"),
+				ReadOnlyHint:   false,
+				IdempotentHint: true,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"issue_number": {
+						Type:        "number",
+						Description: "Issue number",
+					},
+					"base_ref": {
+						Type:        "string",
+						Description: "Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch. Ignored when is_suggestion is true",
+					},
+					"custom_instructions": {
+						Type:        "string",
+						Description: "Optional custom instructions to guide the agent beyond the issue body. Ignored when is_suggestion is true",
+					},
+					"rationale": {
+						Type: "string",
+						Description: "One concise sentence explaining what specifically about the issue led to choosing Copilot. " +
+							"State the concrete signal (e.g. 'Well-scoped task with clear acceptance criteria').",
+						MaxLength: jsonschema.Ptr(280),
+					},
+					"confidence": {
+						Type:        "string",
+						Description: "How confident you are in this choice. 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal.",
+						Enum:        []any{"LOW", "MEDIUM", "HIGH"},
+					},
+					"is_suggestion": {
+						Type:        "boolean",
+						Description: "If true, records a pending Copilot assignment intent rather than launching the agent. Approval later supplies the launch context; base_ref and custom_instructions are ignored in this case.",
+					},
+				},
+				Required: []string{"owner", "repo", "issue_number", "rationale", "confidence", "is_suggestion"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, request *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			// Presence-check is_suggestion before decoding: mapstructure defaults a
+			// missing bool to false, which would silently launch Copilot instead of
+			// recording a suggestion. Require callers to make the choice explicit.
+			if _, ok := args["is_suggestion"]; !ok {
+				return utils.NewToolResultError("is_suggestion is required"), nil, nil
+			}
+
+			var params struct {
+				Owner              string `mapstructure:"owner"`
+				Repo               string `mapstructure:"repo"`
+				IssueNumber        int32  `mapstructure:"issue_number"`
+				BaseRef            string `mapstructure:"base_ref"`
+				CustomInstructions string `mapstructure:"custom_instructions"`
+				Rationale          string `mapstructure:"rationale"`
+				Confidence         string `mapstructure:"confidence"`
+				IsSuggestion       bool   `mapstructure:"is_suggestion"`
+			}
+			if err := mapstructure.WeakDecode(args, &params); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Validate rationale length (rune count, matching the granular assignee tools).
+			rationale := strings.TrimSpace(params.Rationale)
+			if rationale == "" {
+				return utils.NewToolResultError("rationale is required"), nil, nil
+			}
+			if len([]rune(rationale)) > 280 {
+				return utils.NewToolResultError("rationale must be 280 characters or less"), nil, nil
+			}
+
+			// Validate/normalize confidence.
+			confidence := normalizeConfidence(params.Confidence)
+			if confidence == "" {
+				return utils.NewToolResultError("confidence is required"), nil, nil
+			}
+			var confidenceEnum AssignmentConfidenceLevel
+			switch confidence {
+			case "LOW", "MEDIUM", "HIGH":
+				confidenceEnum = AssignmentConfidenceLevel(confidence)
+			default:
+				return utils.NewToolResultError("confidence must be one of: LOW, MEDIUM, HIGH"), nil, nil
+			}
+
+			client, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			// Locate the copilot-swe-agent bot in the repository's suggested actors.
+			copilotAssignee, err := findCopilotSuggestedActor(ctx, client, params.Owner, params.Repo)
+			if err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get suggested actors", err), nil, nil
+			}
+			if copilotAssignee == nil {
+				return utils.NewToolResultError(copilotAssigneeUnavailableMessage), nil, nil
+			}
+
+			// Fetch issue ID, repository ID, and current assignee IDs so they can be preserved.
+			var getIssueQuery struct {
+				Repository struct {
+					ID    githubv4.ID
+					Issue struct {
+						ID        githubv4.ID
+						Assignees struct {
+							Nodes []struct {
+								ID githubv4.ID
+							}
+						} `graphql:"assignees(first: 100)"`
+					} `graphql:"issue(number: $number)"`
+				} `graphql:"repository(owner: $owner, name: $name)"`
+			}
+			variables := map[string]any{
+				"owner":  githubv4.String(params.Owner),
+				"name":   githubv4.String(params.Repo),
+				"number": githubv4.Int(params.IssueNumber),
+			}
+			if err := client.Query(ctx, &getIssueQuery, variables); err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue ID", err), nil, nil
+			}
+
+			// Build object-form assignees: preserved assignees carry only actorId;
+			// the copilot entry carries the intent metadata. Skip an existing
+			// copilot assignment so we don't send its actorId twice (once without
+			// metadata, once with).
+			existing := getIssueQuery.Repository.Issue.Assignees.Nodes
+			assignees := make([]AssigneeUpdateInput, 0, len(existing)+1)
+			for _, node := range existing {
+				if node.ID == copilotAssignee.ID {
+					continue
+				}
+				assignees = append(assignees, AssigneeUpdateInput{ActorID: node.ID})
+			}
+			// Build the Copilot entry with the required intent metadata. Preserved
+			// assignees carry only actorId; intent fields are attached only to the
+			// Copilot entry.
+			rationaleGQL := githubv4.String(rationale)
+			suggest := githubv4.Boolean(params.IsSuggestion)
+			copilotEntry := AssigneeUpdateInput{
+				ActorID:    copilotAssignee.ID,
+				Rationale:  &rationaleGQL,
+				Confidence: &confidenceEnum,
+				Suggest:    &suggest,
+			}
+			assignees = append(assignees, copilotEntry)
+
+			// A pure suggestion does not launch Copilot; approval later supplies the
+			// launch context. Direct assignments keep the existing agentAssignment
+			// launch configuration and PR-polling behavior.
+			input := UpdateIssueInput{
+				ID:        getIssueQuery.Repository.Issue.ID,
+				Assignees: assignees,
+			}
+			if !params.IsSuggestion {
+				emptyString := githubv4.String("")
+				agentAssignment := &AgentAssignmentInput{
+					CustomAgent:        &emptyString,
+					CustomInstructions: &emptyString,
+					TargetRepositoryID: getIssueQuery.Repository.ID,
+				}
+				if params.BaseRef != "" {
+					baseRef := githubv4.String(params.BaseRef)
+					agentAssignment.BaseRef = &baseRef
+				}
+				if params.CustomInstructions != "" {
+					customInstructions := githubv4.String(params.CustomInstructions)
+					agentAssignment.CustomInstructions = &customInstructions
+				}
+				input.AgentAssignment = agentAssignment
+			}
+
+			var updateIssueMutation struct {
+				UpdateIssue struct {
+					Issue struct {
+						ID     githubv4.ID
+						Number githubv4.Int
+						URL    githubv4.String
+					}
+				} `graphql:"updateIssue(input: $input)"`
+			}
+
+			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issues_copilot_assignment_api_support")
+			assignmentTime := time.Now().UTC()
+
+			if err := client.Mutate(ctxWithFeatures, &updateIssueMutation, input, nil); err != nil {
+				return nil, nil, fmt.Errorf("failed to update issue with agent assignment: %w", err)
+			}
+
+			result := map[string]any{
+				"issue_number":  int(updateIssueMutation.UpdateIssue.Issue.Number),
+				"issue_url":     string(updateIssueMutation.UpdateIssue.Issue.URL),
+				"owner":         params.Owner,
+				"repo":          params.Repo,
+				"is_suggestion": params.IsSuggestion,
+			}
+
+			// Suggestion path: do not poll for a PR and return a suggestion-shaped result.
+			if params.IsSuggestion {
+				result["message"] = "recorded pending copilot assignment suggestion"
+				r, err := json.Marshal(result)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("failed to marshal response: %s", err)), nil, nil
+				}
+				return utils.NewToolResultText(string(r)), result, nil
+			}
+
+			// Direct-assignment path: poll for a linked PR created by Copilot after the assignment.
+			pollConfig := getPollConfig(ctx)
+			progressToken := request.Params.GetProgressToken()
+			if progressToken != nil && request.Session != nil && pollConfig.MaxAttempts > 0 {
+				_ = request.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
+					ProgressToken: progressToken,
+					Progress:      0,
+					Total:         float64(pollConfig.MaxAttempts),
+					Message:       "Copilot assigned to issue, waiting for PR creation...",
+				})
+			}
+
+			var linkedPR *linkedPullRequest
+			for attempt := range pollConfig.MaxAttempts {
+				if attempt > 0 {
+					time.Sleep(pollConfig.Delay)
+				}
+				if progressToken != nil && request.Session != nil {
+					_ = request.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
+						ProgressToken: progressToken,
+						Progress:      float64(attempt + 1),
+						Total:         float64(pollConfig.MaxAttempts),
+						Message:       fmt.Sprintf("Waiting for Copilot to create PR... (attempt %d/%d)", attempt+1, pollConfig.MaxAttempts),
+					})
+				}
+				pr, err := findLinkedCopilotPR(ctx, client, params.Owner, params.Repo, int(params.IssueNumber), assignmentTime)
+				if err != nil {
+					continue
+				}
+				if pr != nil {
+					linkedPR = pr
+					break
+				}
+			}
+
+			if linkedPR != nil {
+				result["pull_request"] = map[string]any{
+					"number": linkedPR.Number,
+					"url":    linkedPR.URL,
+					"title":  linkedPR.Title,
+					"state":  linkedPR.State,
+				}
+				result["message"] = "successfully assigned copilot to issue - pull request created"
+			} else {
+				result["message"] = "successfully assigned copilot to issue - pull request pending"
+				result["note"] = "The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates."
+			}
+
+			r, err := json.Marshal(result)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to marshal response: %s", err)), nil, nil
+			}
+			return utils.NewToolResultText(string(r)), result, nil
+		})
+}
+
 type ReplaceActorsForAssignableInput struct {
 	AssignableID githubv4.ID   `json:"assignableId"`
 	ActorIDs     []githubv4.ID `json:"actorIds"`
@@ -448,10 +800,34 @@ type AgentAssignmentInput struct {
 	TargetRepositoryID githubv4.ID      `json:"targetRepositoryId"`
 }
 
-// UpdateIssueInput represents the input for updating an issue with agent assignment.
+// AssignmentConfidenceLevel is a GraphQL enum indicating how confident an
+// intent-aware assignment choice is. Encoded as its string value in variables.
+type AssignmentConfidenceLevel string
+
+const (
+	AssignmentConfidenceLevelLow    AssignmentConfidenceLevel = "LOW"
+	AssignmentConfidenceLevelMedium AssignmentConfidenceLevel = "MEDIUM"
+	AssignmentConfidenceLevelHigh   AssignmentConfidenceLevel = "HIGH"
+)
+
+// AssigneeUpdateInput is the object-form assignee entry accepted by
+// updateIssue when opting into intent metadata. Intent fields (rationale,
+// confidence, suggest) are only attached to the entry that carries the intent;
+// preserved assignees are sent with only actorId populated.
+type AssigneeUpdateInput struct {
+	ActorID    githubv4.ID                `json:"actorId"`
+	Rationale  *githubv4.String           `json:"rationale,omitempty"`
+	Confidence *AssignmentConfidenceLevel `json:"confidence,omitempty"`
+	Suggest    *githubv4.Boolean          `json:"suggest,omitempty"`
+}
+
+// UpdateIssueInput represents the input for updating an issue with agent
+// assignment. AssigneeIDs and Assignees are mutually exclusive: legacy callers
+// use AssigneeIDs; intent-aware callers use Assignees (object-form).
 type UpdateIssueInput struct {
 	ID              githubv4.ID           `json:"id"`
-	AssigneeIDs     []githubv4.ID         `json:"assigneeIds"`
+	AssigneeIDs     []githubv4.ID         `json:"assigneeIds,omitempty"`
+	Assignees       []AssigneeUpdateInput `json:"assignees,omitempty"`
 	AgentAssignment *AgentAssignmentInput `json:"agentAssignment,omitempty"`
 }
 

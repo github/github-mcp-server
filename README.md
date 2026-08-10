@@ -311,6 +311,8 @@ Add one of the following JSON blocks to your IDE's MCP settings.
 
 See **[Local Server OAuth Login](docs/oauth-login.md)** for the native-binary flow (no fixed port needed), the headless/device-code fallback, GitHub Enterprise Server / `ghe.com`, and bringing your own OAuth or GitHub App.
 
+For non-interactive stdio deployments, see **[GitHub App Authentication](docs/github-app-auth.md)**.
+
 **Or authenticate with a Personal Access Token.** Set `GITHUB_PERSONAL_ACCESS_TOKEN` instead (it takes precedence over OAuth):
 
 ```json
@@ -590,6 +592,7 @@ The following sets of tools are available:
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/code-square-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/code-square-light.png"><img src="pkg/octicons/icons/code-square-light.png" width="20" height="20" alt="code-square"></picture> | `code_quality` | GitHub Code Quality related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/codescan-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/codescan-light.png"><img src="pkg/octicons/icons/codescan-light.png" width="20" height="20" alt="codescan"></picture> | `code_security` | Code security related tools, such as GitHub Code Scanning |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/copilot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/copilot-light.png"><img src="pkg/octicons/icons/copilot-light.png" width="20" height="20" alt="copilot"></picture> | `copilot` | Copilot related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/copilot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/copilot-light.png"><img src="pkg/octicons/icons/copilot-light.png" width="20" height="20" alt="copilot"></picture> | `copilot_issue_intents` | Opt-in Copilot issue assignment tools that carry intent metadata (rationale, confidence, suggestion) |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/dependabot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/dependabot-light.png"><img src="pkg/octicons/icons/dependabot-light.png" width="20" height="20" alt="dependabot"></picture> | `dependabot` | Dependabot tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/comment-discussion-light.png"><img src="pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture> | `discussions` | GitHub Discussions related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/logo-gist-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/logo-gist-light.png"><img src="pkg/octicons/icons/logo-gist-light.png" width="20" height="20" alt="logo-gist"></picture> | `gists` | GitHub Gist related tools |
@@ -750,6 +753,23 @@ The following sets of tools are available:
 
 <details>
 
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/copilot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/copilot-light.png"><img src="pkg/octicons/icons/copilot-light.png" width="20" height="20" alt="copilot"></picture> Copilot Issue Intents</summary>
+
+- **assign_copilot_to_issue_with_intent** - Assign Copilot to issue with intent
+  - **Required OAuth Scopes**: `repo`
+  - `base_ref`: Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch. Ignored when is_suggestion is true (string, optional)
+  - `confidence`: How confident you are in this choice. 'HIGH' for clear signal or explicit user request, 'MEDIUM' for reasonable inference with some ambiguity, 'LOW' for best guess with limited signal. (string, required)
+  - `custom_instructions`: Optional custom instructions to guide the agent beyond the issue body. Ignored when is_suggestion is true (string, optional)
+  - `is_suggestion`: If true, records a pending Copilot assignment intent rather than launching the agent. Approval later supplies the launch context; base_ref and custom_instructions are ignored in this case. (boolean, required)
+  - `issue_number`: Issue number (number, required)
+  - `owner`: Repository owner (string, required)
+  - `rationale`: One concise sentence explaining what specifically about the issue led to choosing Copilot. State the concrete signal (e.g. 'Well-scoped task with clear acceptance criteria'). (string, required)
+  - `repo`: Repository name (string, required)
+
+</details>
+
+<details>
+
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/dependabot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/dependabot-light.png"><img src="pkg/octicons/icons/dependabot-light.png" width="20" height="20" alt="dependabot"></picture> Dependabot</summary>
 
 - **get_dependabot_alert** - Get dependabot alert
@@ -891,7 +911,7 @@ The following sets of tools are available:
   - `issue_number`: The number of the issue (number, required)
   - `method`: The read operation to perform on a single issue.
     Options are:
-    1. get - Get issue details. Also returns best-effort hierarchy flags (`has_parent`, `has_children`); `parent` and `sub_issues_summary` are optional relationship summaries.
+    1. get - Get issue details. Also returns best-effort hierarchy flags (`has_parent`, `has_children`); `parent` and `sub_issues_summary` are optional relationship summaries, and `closed_by_pull_requests` summarizes the pull requests configured to close the issue as `total_count` plus up to 5 `references`.
     2. get_comments - Get issue comments.
     3. get_sub_issues - Get sub-issues (children) of the issue.
     4. get_parent - Get the parent issue, if this issue is a sub-issue of another.
@@ -906,7 +926,7 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `repo`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
-  - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
+  - `duplicate_of`: Issue number that this issue is a duplicate of. Required when state_reason is 'duplicate'. (number, optional)
   - `issue_fields`: Issue field values to set or clear. Each item requires 'field_name' and exactly one of 'value', 'field_option_name', or 'delete: true'. (object[], optional)
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
@@ -921,7 +941,7 @@ The following sets of tools are available:
   - `state`: New state (string, optional)
   - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
   - `title`: Issue title (string, optional)
-  - `type`: Type of this issue. Only use if issue types are enabled for this repository. Use list_issue_types tool to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
+  - `type`: Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string | null, optional)
 
 - **list_issue_fields** - List issue fields
   - **Required OAuth Scopes (any of)**: `repo`, `read:org`
@@ -940,6 +960,7 @@ The following sets of tools are available:
   - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
   - `field_filters`: Filter by custom issue field values. Each entry takes a field_name and a value; the server looks up the field and coerces the value to its type (single-select option name, text, number, or YYYY-MM-DD date). (object[], optional)
+  - `fields`: Subset of fields to return for each issue. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' and 'field_values' in particular drops the largest per-result data. (string[], optional)
   - `labels`: Filter by labels (string[], optional)
   - `orderBy`: Order issues by field. If provided, the 'direction' also needs to be provided. (string, optional)
   - `owner`: Repository owner (string, required)
@@ -950,11 +971,12 @@ The following sets of tools are available:
 
 - **search_issues** - Search issues
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of fields to return for each issue result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data. (string[], optional)
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only issues for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `query`: Search query using GitHub issues search syntax (string, required)
+  - `query`: The search query, as natural language. When the user gives alternative wordings, include them as plain words rather than joining them with OR. (string, required)
   - `repo`: Optional repository name. If provided with owner, only issues for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
 
@@ -1101,6 +1123,7 @@ The following sets of tools are available:
   - `item_owner`: The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method. Also accepted by 'update_project_item' when resolving the item by issue number. (string, optional)
   - `item_repo`: The name of the repository containing the issue or pull request. Required for 'add_project_item' method. Also accepted by 'update_project_item' when resolving the item by issue number. (string, optional)
   - `item_type`: The item's type, either issue or pull_request. Required for 'add_project_item' method. (string, optional)
+  - `items`: The items to update with the top-level 'updated_field'. Required for 'update_project_items'; prefer it over calling 'update_project_item' in a loop. Each entry must match exactly one reference variant: 'node_id', numeric 'item_id', or 'item_owner' + 'item_repo' + 'issue_number'. Limit: 50 items per call. (object[], optional)
   - `iteration_duration`: Duration in days for iterations of the field (e.g. 7 for weekly, 14 for bi-weekly). Required for 'create_iteration_field' method. (number, optional)
   - `iterations`: Custom iterations for 'create_iteration_field' method. Only set this when you need iterations with varying durations, breaks between them, or specific titles. Otherwise omit it: GitHub auto-creates three iterations of 'iteration_duration' days starting on 'start_date', which is the right choice for most cases. (object[], optional)
   - `method`: The method to execute (string, required)
@@ -1112,7 +1135,7 @@ The following sets of tools are available:
   - `status`: The status of the project. Used for 'create_project_status_update' method. (string, optional)
   - `target_date`: The target date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method. (string, optional)
   - `title`: The project title. Required for 'create_project' method. (string, optional)
-  - `updated_field`: Object describing the field to update and its new value. Required for 'update_project_item'. Two shapes are accepted: (1) by ID — {"id": 123456, "value": "..."}; (2) by name — {"name": "Status", "value": "In Progress"}. For single-select fields, option-name resolution requires the by-name shape; on the by-ID shape, pass the option ID. Set value to null to clear the field. (object, optional)
+  - `updated_field`: The field/value to apply, using {"id": 123, "value": ...} or {"name": "Status", "value": ...}; null clears the field. Required for 'update_project_item' and 'update_project_items', where one top-level field/value applies to every item in a batch. For 'update_project_item' SINGLE_SELECT fields, the name form accepts option names; the ID form expects an option ID. (object, optional)
 
 </details>
 
@@ -1158,6 +1181,7 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `repo`
   - `base`: Filter by base branch (string, optional)
   - `direction`: Sort direction (string, optional)
+  - `fields`: Subset of fields to return for each pull request. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' in particular drops the largest per-result data. (string[], optional)
   - `head`: Filter by head user/org and branch (string, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1209,6 +1233,7 @@ The following sets of tools are available:
 
 - **search_pull_requests** - Search pull requests
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of fields to return for each pull request result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data. (string[], optional)
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only pull requests for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1253,7 +1278,7 @@ The following sets of tools are available:
 - **create_or_update_file** - Create or update file
   - **Required OAuth Scopes**: `repo`
   - `branch`: Branch to create/update the file in (string, required)
-  - `content`: Content of the file (string, required)
+  - `content`: Content of the file, exactly as it should appear once written. Do not base64-encode it; this server does that before calling the REST API. (string, required)
   - `message`: Commit message (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: Path where to create/update the file (string, required)
@@ -1293,6 +1318,7 @@ The following sets of tools are available:
 
 - **get_file_contents** - Get file or directory contents
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'. (string[], optional)
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: Path to file/directory (string, optional)
   - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)
@@ -1326,6 +1352,7 @@ The following sets of tools are available:
 - **list_commits** - List commits
   - **Required OAuth Scopes**: `repo`
   - `author`: Author username or email address to filter commits by (string, optional)
+  - `fields`: Subset of fields to return for each commit. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields, e.g. just 'sha' and 'html_url'. (string[], optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `path`: Only commits containing this file path will be returned (string, optional)
@@ -1337,6 +1364,7 @@ The following sets of tools are available:
 
 - **list_releases** - List releases
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of fields to return for each release. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' in particular drops the largest per-release data. (string[], optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1367,6 +1395,7 @@ The following sets of tools are available:
 
 - **search_code** - Search code
   - **Required OAuth Scopes**: `repo`
+  - `fields`: Subset of fields to return for each code search result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'repository' and 'text_matches' in particular drops the largest per-result data. (string[], optional)
   - `order`: Sort order for results (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)

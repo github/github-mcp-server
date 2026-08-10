@@ -18,6 +18,10 @@ import (
 // should define their own typed dependencies struct and type-assert as needed.
 type HandlerFunc func(deps any) mcp.ToolHandler
 
+// ToolHandlerMiddleware wraps an MCP tool handler. Middleware is applied from
+// right to left, so the first middleware passed to RegisterFunc executes first.
+type ToolHandlerMiddleware func(next mcp.ToolHandler) mcp.ToolHandler
+
 // ToolsetID is a unique identifier for a toolset.
 // Using a distinct type provides compile-time type safety.
 type ToolsetID string
@@ -110,8 +114,11 @@ func (st *ServerTool) Handler(deps any) mcp.ToolHandler {
 // Icons are automatically applied from the toolset metadata if not already set.
 // A shallow copy of the tool is made to avoid mutating the original ServerTool.
 // Panics if the tool has no handler - all tools should have handlers.
-func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any) {
+func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
 	handler := st.Handler(deps) // This will panic if HandlerFunc is nil
+	for i := len(middleware) - 1; i >= 0; i-- {
+		handler = middleware[i](handler)
+	}
 	// Make a shallow copy of the tool to avoid mutating the original
 	toolCopy := st.Tool
 	// Apply icons from toolset metadata if tool doesn't have icons set

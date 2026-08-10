@@ -62,7 +62,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
 	}
 
-	// Construct REST client. When a TokenProvider is configured (OAuth), we
+	// Construct REST client. When a TokenProvider is configured, we
 	// authenticate via BearerAuthTransport and skip go-github's WithAuthToken:
 	// the latter installs its own round tripper that would pin the static token
 	// and shadow the dynamic one.
@@ -138,6 +138,11 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
 	}
 
+	hostType, err := utils.ParseHostType(cfg.Host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to classify API host: %w", err)
+	}
+
 	clients, err := createGitHubClients(cfg, apiHost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
@@ -165,7 +170,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		obs,
 	)
 	// Build and register the tool/resource/prompt inventory
-	inventoryBuilder := github.NewInventory(cfg.Translator).
+	inventoryBuilder := github.NewInventory(cfg.Translator, github.WithHost(hostType)).
 		WithDeprecatedAliases(github.DeprecatedToolAliases).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools)).
@@ -257,15 +262,21 @@ type StdioServerConfig struct {
 	// are hidden. The default set is the full supported list, which hides
 	// nothing; an explicit, narrower list filters accordingly.
 	OAuthScopes []string
+
+	// TokenProvider supplies a token for each GitHub API request.
+	TokenProvider func() string
 }
 
 // RunStdioServer is not concurrent safe.
 func RunStdioServer(cfg StdioServerConfig) error {
-	// OAuth login and a static token are mutually exclusive: they would
-	// disagree on how the token is sourced (lazy provider vs. static) and on
-	// scope filtering, so reject the ambiguous combination up front.
-	if cfg.OAuthManager != nil && cfg.Token != "" {
-		return fmt.Errorf("OAuthManager and a static Token are mutually exclusive: provide one or the other")
+	authModes := 0
+	for _, on := range []bool{cfg.Token != "", cfg.OAuthManager != nil, cfg.TokenProvider != nil} {
+		if on {
+			authModes++
+		}
+	}
+	if authModes > 1 {
+		return fmt.Errorf("choose exactly one authentication mode: a static Token, OAuthManager, or TokenProvider")
 	}
 
 	// Create app context
@@ -311,39 +322,34 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		logger.Debug("skipping scope filtering for non-PAT token")
 	}
 
-	// For OAuth, the token is resolved lazily: empty until the user authorizes
-	// on the first tool call, then refreshed for the rest of the session.
-	var tokenProvider func() string
+	tokenProvider := cfg.TokenProvider
+	var toolHandlerMiddleware []inventory.ToolHandlerMiddleware
 	if cfg.OAuthManager != nil {
 		tokenProvider = cfg.OAuthManager.AccessToken
+		toolHandlerMiddleware = append(toolHandlerMiddleware, createOAuthToolMiddleware(cfg.OAuthManager, logger))
 	}
 
 	ghServer, err := NewStdioMCPServer(ctx, github.MCPServerConfig{
-		Version:           cfg.Version,
-		Host:              cfg.Host,
-		Token:             cfg.Token,
-		EnabledToolsets:   cfg.EnabledToolsets,
-		EnabledTools:      cfg.EnabledTools,
-		EnabledFeatures:   cfg.EnabledFeatures,
-		ReadOnly:          cfg.ReadOnly,
-		Translator:        t,
-		ContentWindowSize: cfg.ContentWindowSize,
-		LockdownMode:      cfg.LockdownMode,
-		InsidersMode:      cfg.InsidersMode,
-		ExcludeTools:      cfg.ExcludeTools,
-		Logger:            logger,
-		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
-		TokenScopes:       tokenScopes,
-		TokenProvider:     tokenProvider,
+		Version:               cfg.Version,
+		Host:                  cfg.Host,
+		Token:                 cfg.Token,
+		EnabledToolsets:       cfg.EnabledToolsets,
+		EnabledTools:          cfg.EnabledTools,
+		EnabledFeatures:       cfg.EnabledFeatures,
+		ReadOnly:              cfg.ReadOnly,
+		Translator:            t,
+		ContentWindowSize:     cfg.ContentWindowSize,
+		LockdownMode:          cfg.LockdownMode,
+		InsidersMode:          cfg.InsidersMode,
+		ExcludeTools:          cfg.ExcludeTools,
+		Logger:                logger,
+		RepoAccessTTL:         cfg.RepoAccessCacheTTL,
+		TokenScopes:           tokenScopes,
+		TokenProvider:         tokenProvider,
+		ToolHandlerMiddleware: toolHandlerMiddleware,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
-	}
-
-	// With OAuth, intercept tool calls to run the authorization flow on first
-	// use, before the handler tries to call GitHub with an empty token.
-	if cfg.OAuthManager != nil {
-		ghServer.AddReceivingMiddleware(createOAuthMiddleware(cfg.OAuthManager, logger))
 	}
 
 	if cfg.ExportTranslations {

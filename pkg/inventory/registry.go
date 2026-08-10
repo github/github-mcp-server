@@ -219,9 +219,9 @@ func shouldStripMCPAppsMetadata(ctx context.Context, featureFlagEnabled bool) bo
 // user identity from ctx would otherwise see context.Background() and
 // falsely report the flag off, even when the actual request arrived on the
 // /insiders route.
-func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any) {
+func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
 	for _, tool := range r.ToolsForRegistration(ctx) {
-		tool.RegisterFunc(s, deps)
+		tool.RegisterFunc(s, deps, middleware...)
 	}
 }
 
@@ -257,8 +257,8 @@ func (r *Inventory) RegisterPrompts(ctx context.Context, s *mcp.Server) {
 
 // RegisterAll registers all available tools, resources, and prompts with the server.
 // The context is used for feature flag evaluation.
-func (r *Inventory) RegisterAll(ctx context.Context, s *mcp.Server, deps any) {
-	r.RegisterTools(ctx, s, deps)
+func (r *Inventory) RegisterAll(ctx context.Context, s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
+	r.RegisterTools(ctx, s, deps, middleware...)
 	r.RegisterResourceTemplates(ctx, s, deps)
 	r.RegisterPrompts(ctx, s)
 }
