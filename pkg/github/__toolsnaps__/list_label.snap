@@ -4,7 +4,7 @@
     "readOnlyHint": true,
     "title": "List labels from a repository"
   },
-  "description": "List labels from a repository",
+  "description": "List labels from a repository, ordered by issue count (descending) so the most-used labels are returned first",
   "inputSchema": {
     "properties": {
       "owner": {
