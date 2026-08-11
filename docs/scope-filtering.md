@@ -82,6 +82,21 @@ WARN: failed to fetch token scopes, continuing without scope filtering
 
 **Fine-grained PATs** (`github_pat_` prefix) use a different permission model based on repository access and specific permissions rather than OAuth scopes. They don't return the `X-OAuth-Scopes` header, so scope filtering is skipped. All tools will be available, but the GitHub API will still enforce permissions at the API level—you'll get errors if you try to use tools your token doesn't have permission for.
 
+### Minimum permissions (default toolsets)
+
+When you run the server without custom `--toolsets`, the default set (`context`, `repos`, `issues`, `pull_requests`, `users`, `copilot`) needs repository read/write access for core issue/PR/file workflows:
+
+| Token type | Grant |
+|------------|-------|
+| Fine-grained PAT | Limit repository access to the repos you need. Under **Repository permissions**, enable **Contents**, **Issues**, and **Pull requests** (Read and write). Org-scoped tools (`get_teams`, `list_issue_types`, …) may also need **Organization → Members** (Read). |
+| Classic PAT | `repo` (add `read:org` if you use org team or issue-type tools in the default toolsets) |
+
+Enable additional classic scopes only for non-default toolsets you turn on (for example `notifications`, `project`, `gist`). Each tool's required scopes are listed in the [README tool tables](../README.md#tools).
+
+For read-only mode (`--read-only` / `GITHUB_READ_ONLY=1`), use the smallest read access that matches your repositories: `public_repo` for public repos only, or `repo` when private repositories must be readable.
+
+See also the [installation prerequisites](./installation-guides/README.md#minimum-token-permissions) for links to the token-creation UI.
+
 ## GitHub App and Server-to-Server Tokens
 
 **GitHub App installation tokens** (`ghs_` prefix) and other server-to-server tokens use a permission model based on the app's installation permissions rather than OAuth scopes. These tokens don't return the `X-OAuth-Scopes` header, so scope filtering is skipped. The GitHub API enforces permissions based on the app's configuration.
