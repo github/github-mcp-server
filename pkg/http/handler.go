@@ -267,7 +267,7 @@ func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies
 func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelperFunc, featureChecker inventory.FeatureFlagChecker, scopeFetcher scopes.FetcherInterface) InventoryFactoryFunc {
 	// Build the static tool/resource/prompt universe from CLI flags.
 	// This is done once at startup and captured in the closure.
-	staticTools, staticResources, staticPrompts := buildStaticInventory(cfg, t)
+	staticTools, staticResources, staticPrompts, staticErr := buildStaticInventory(cfg, t)
 	hasStaticFilters := hasStaticConfig(cfg)
 
 	// Pre-compute valid tool names for filtering per-request tool headers.
@@ -279,6 +279,10 @@ func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelper
 	}
 
 	return func(r *http.Request) (*inventory.Inventory, error) {
+		if staticErr != nil {
+			return nil, staticErr
+		}
+
 		b := inventory.NewBuilder().
 			SetTools(staticTools).
 			SetResources(staticResources).
@@ -350,7 +354,7 @@ func hasStaticConfig(cfg *ServerConfig) bool {
 // non-granular siblings — must be carried through to the per-request
 // inventory, which then installs a checker and resolves the flag before
 // registering tools with the MCP server.
-func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFunc) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt) {
+func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFunc) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt, error) {
 	// Tools with host-specific capabilities need to know the deployment they
 	// will talk to. An unparseable host is not fatal here: NewAPIHost rejects
 	// it later with a clearer error, so fall back to the dotcom default.
@@ -370,7 +374,7 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 	}
 
 	if !hasStaticConfig(cfg) {
-		return filterUnavailable(tools), github.AllResources(t), github.AllPrompts(t)
+		return filterUnavailable(tools), github.AllResources(t), github.AllPrompts(t), nil
 	}
 
 	b := inventory.NewBuilder().
@@ -390,13 +394,11 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 
 	inv, err := b.Build()
 	if err != nil {
-		// Invalid static tool names must fail closed rather than widening an
-		// explicit allowlist to every tool.
-		return nil, github.AllResources(t), github.AllPrompts(t)
+		return nil, nil, nil, err
 	}
 
 	ctx := context.Background()
-	return filterUnavailable(inv.AvailableTools(ctx)), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx)
+	return filterUnavailable(inv.AvailableTools(ctx)), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx), nil
 }
 
 // InventoryFiltersForRequest applies filters to the inventory builder

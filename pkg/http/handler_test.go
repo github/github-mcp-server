@@ -637,6 +637,33 @@ func TestStaticConfigEnforcement(t *testing.T) {
 	}
 }
 
+func TestStaticInventoryInvalidEnabledToolsReturnsBadRequest(t *testing.T) {
+	apiHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{Version: "test", EnabledTools: []string{"nonexistent_tool"}},
+		nil,
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+	)
+
+	r := chi.NewRouter()
+	handler.RegisterMiddleware(r)
+	handler.RegisterRoutes(r)
+
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.Header.Set(headers.AuthorizationHeader, "Bearer ghp_testtoken")
+
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Contains(t, rr.Body.String(), "unknown tools specified")
+}
+
 func TestStaticInventoryPreservesPerRequestFeatureVariants(t *testing.T) {
 	tools := []inventory.ServerTool{
 		mockToolWithFeatureFlag("list_issues", "issues", true, "", github.FeatureFlagCSVOutput),
@@ -843,7 +870,7 @@ func TestStaticInventoryAppliesHostCapabilities(t *testing.T) {
 			t.Parallel()
 
 			cfg := &ServerConfig{Version: "test", Host: tt.host}
-			staticTools, _, _ := buildStaticInventory(cfg, translations.NullTranslationHelper)
+			staticTools, _, _, _ := buildStaticInventory(cfg, translations.NullTranslationHelper)
 
 			var found bool
 			for _, st := range staticTools {
