@@ -27,11 +27,7 @@ func Test_GetFileContents(t *testing.T) {
 	// Verify tool definition once
 	serverTool := GetFileContents(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	// GetFileContents is the FeatureFlagFieldsParam-enabled variant; it owns the
-	// _ff_<flag> snapshot. The canonical get_file_contents.snap is owned by
-	// LegacyGetFileContents (see Test_LegacyGetFileContents_Definition).
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
-	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -546,20 +542,6 @@ func Test_GetFileContents_DirectoryFieldFiltering(t *testing.T) {
 
 	assert.NotContains(t, textContent.Text, "html_url")
 	assert.NotContains(t, textContent.Text, "download_url")
-}
-
-func Test_LegacyGetFileContents_Definition(t *testing.T) {
-	serverTool := LegacyGetFileContents(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	// LegacyGetFileContents is the FeatureFlagFieldsParam-disabled variant and
-	// owns the canonical get_file_contents.snap (no `fields`).
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Equal(t, []string{FeatureFlagFieldsParam}, serverTool.FeatureFlagDisable)
-
-	assert.Equal(t, "get_file_contents", tool.Name)
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.NotContains(t, schema.Properties, "fields")
 }
 
 func Test_GetFileContents_DirectoryFieldsTelemetry(t *testing.T) {
@@ -1402,11 +1384,7 @@ func Test_ListCommits(t *testing.T) {
 	// Verify tool definition once
 	serverTool := ListCommits(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	// ListCommits is the FeatureFlagFieldsParam-enabled variant; it owns the
-	// _ff_<flag> snapshot. The canonical list_commits.snap is owned by
-	// LegacyListCommits (see Test_LegacyListCommits_Definition).
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
-	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -3644,11 +3622,7 @@ func Test_GetTag(t *testing.T) {
 func Test_ListReleases(t *testing.T) {
 	serverTool := ListReleases(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	// ListReleases is the FeatureFlagFieldsParam-enabled variant; it owns the
-	// _ff_<flag> snapshot. The canonical list_releases.snap is owned by
-	// LegacyListReleases (see Test_LegacyListReleases_Definition).
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
-	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")

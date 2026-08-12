@@ -28,7 +28,7 @@
         "type": "string"
       },
       "duplicate_of": {
-        "description": "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
+        "description": "Issue number that this issue is a duplicate of. Required when state_reason is 'duplicate'.",
         "type": "number"
       },
       "issue_fields": {
@@ -120,8 +120,16 @@
         "type": "string"
       },
       "type": {
-        "description": "Type of this issue. Only use if issue types are enabled for this repository. Use list_issue_types tool to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter.",
-        "type": "string"
+        "anyOf": [
+          {
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter."
       }
     },
     "required": [

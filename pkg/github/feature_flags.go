@@ -27,13 +27,12 @@ const FeatureFlagFileBlame = "file_blame"
 // unless explicitly opted in.
 const FeatureFlagIssueDependencies = "issue_dependencies"
 
-// FeatureFlagFieldsParam is the feature flag name for the optional `fields`
-// parameter on selected read tools (for example search_code and
-// get_file_contents). When enabled, those tools advertise `fields` and filter
-// each result to the requested subset, reducing response size. It is gated so
-// the feature can be rolled out gradually and disabled as a kill switch without
-// a redeploy.
-const FeatureFlagFieldsParam = "fields_param"
+// FeatureFlagDuplicateDetection is the feature flag name for the find_duplicate
+// tool, which returns ranked duplicate candidates for an existing issue. It is
+// gated so the extra tool is not advertised by default, and is deliberately
+// excluded from insiders mode so duplicate detection is only ever an explicit
+// opt-in.
+const FeatureFlagDuplicateDetection = "duplicate_detection"
 
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag or X-MCP-Features HTTP header.
@@ -48,7 +47,7 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagPullRequestsGranular,
 	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,
-	FeatureFlagFieldsParam,
+	FeatureFlagDuplicateDetection,
 }
 
 // InsidersFeatureFlags is the list of feature flags that insiders mode enables.
@@ -60,7 +59,6 @@ var InsidersFeatureFlags = []string{
 	FeatureFlagCSVOutput,
 	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,
-	FeatureFlagFieldsParam,
 }
 
 // FeatureFlags defines runtime feature toggles that adjust tool behavior.

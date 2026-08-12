@@ -191,34 +191,8 @@ func attachSearchRepositoriesIFCLabel(ctx context.Context, deps ToolDependencies
 	setIFCLabel(callResult, ifc.LabelSearchIssues(visibilities))
 }
 
-// SearchCode creates a tool to search for code across GitHub repositories. It is
-// the FeatureFlagFieldsParam-enabled variant: it advertises the optional
-// `fields` parameter and filters each result to the requested subset. Both this
-// and LegacySearchCode register under the tool name "search_code"; exactly one
-// is active for any given request thanks to mutually exclusive
-// FeatureFlagEnable / FeatureFlagDisable annotations.
+// SearchCode creates a tool to search for code across GitHub repositories.
 func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := searchCodeTool(t, true)
-	st.FeatureFlagEnable = FeatureFlagFieldsParam
-	return st
-}
-
-// LegacySearchCode is the FeatureFlagFieldsParam-disabled variant of
-// search_code. It exposes the original schema (no `fields` parameter) and never
-// filters results, so it acts as the kill switch when the flag is off. It owns
-// the canonical search_code.snap; the flag-enabled variant owns
-// search_code_ff_<flag>.snap. Delete this function when the flag is removed.
-func LegacySearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := searchCodeTool(t, false)
-	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
-	return st
-}
-
-// searchCodeTool builds the search_code tool. When includeFields is true the
-// tool advertises the optional `fields` parameter, filters each result to the
-// requested subset, and emits fields telemetry. When false it is the original
-// tool with no fields parameter and no filtering.
-func searchCodeTool(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -238,12 +212,10 @@ func searchCodeTool(t translations.TranslationHelperFunc, includeFields bool) in
 		},
 		Required: []string{"query"},
 	}
-	if includeFields {
-		schema.Properties["fields"] = fieldsSchemaProperty(
-			"Subset of fields to return for each code search result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'repository' and 'text_matches' in particular drops the largest per-result data.",
-			codeSearchItemFieldEnum,
-		)
-	}
+	schema.Properties["fields"] = fieldsSchemaProperty(
+		"Subset of fields to return for each code search result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'repository' and 'text_matches' in particular drops the largest per-result data.",
+		codeSearchItemFieldEnum,
+	)
 	WithPagination(schema)
 
 	return NewTool(
@@ -271,12 +243,9 @@ func searchCodeTool(t translations.TranslationHelperFunc, includeFields bool) in
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			var fields []string
-			if includeFields {
-				fields, err = OptionalStringArrayParam(args, "fields")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
+			fields, err := OptionalStringArrayParam(args, "fields")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
@@ -338,7 +307,7 @@ func searchCodeTool(t translations.TranslationHelperFunc, includeFields bool) in
 
 			filtered := false
 			var payload any = minimalResult
-			if includeFields && len(fields) > 0 {
+			if len(fields) > 0 {
 				filteredItems, err := filterEachField(minimalItems, fields)
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to filter code search results", err), nil, nil
@@ -356,9 +325,7 @@ func searchCodeTool(t translations.TranslationHelperFunc, includeFields bool) in
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			if includeFields {
-				recordSearchCodeFieldsUsage(ctx, deps, minimalResult, filtered, len(r))
-			}
+			recordSearchCodeFieldsUsage(ctx, deps, minimalResult, filtered, len(r))
 
 			callResult := utils.NewToolResultText(string(r))
 			// Code search spans repositories; the IFC label is the conservative

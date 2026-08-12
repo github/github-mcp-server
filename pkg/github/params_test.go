@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/go-github/v89/github"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_IsAcceptedError(t *testing.T) {
@@ -144,6 +145,40 @@ func Test_OptionalStringParam(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestOptionalNullableStringParam(t *testing.T) {
+	tests := []struct {
+		name         string
+		params       map[string]any
+		want         string
+		wantProvided bool
+		wantError    string
+	}{
+		{name: "omitted", params: map[string]any{}},
+		{name: "null", params: map[string]any{"type": nil}, wantProvided: true},
+		{name: "string", params: map[string]any{"type": "Bug"}, want: "Bug", wantProvided: true},
+		{name: "empty", params: map[string]any{"type": ""}, wantProvided: true, wantError: "parameter type must not be empty"},
+		{name: "wrong type", params: map[string]any{"type": float64(1)}, wantProvided: true, wantError: "parameter type is not of type string or null, is float64"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, provided, err := OptionalNullableStringParam(tc.params, "type")
+
+			assert.Equal(t, tc.wantProvided, provided)
+			if tc.wantError != "" {
+				require.EqualError(t, err, tc.wantError)
+				return
+			}
+			require.NoError(t, err)
+			if tc.want == "" {
+				assert.Nil(t, got)
+			} else {
+				assert.Equal(t, tc.want, *got)
 			}
 		})
 	}
