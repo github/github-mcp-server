@@ -699,6 +699,24 @@ type MinimalPRBranchRepo struct {
 	Description string `json:"description,omitempty"`
 }
 
+// MinimalRepoStatus is the trimmed output type for an individual commit status.
+type MinimalRepoStatus struct {
+	State       string `json:"state"`
+	Context     string `json:"context"`
+	Description string `json:"description,omitempty"`
+	TargetURL   string `json:"target_url,omitempty"`
+	CreatedAt   string `json:"created_at,omitempty"`
+	UpdatedAt   string `json:"updated_at,omitempty"`
+}
+
+// MinimalCombinedStatus is the trimmed output type for a combined commit status.
+type MinimalCombinedStatus struct {
+	State      string              `json:"state"`
+	SHA        string              `json:"sha"`
+	TotalCount int                 `json:"total_count"`
+	Statuses   []MinimalRepoStatus `json:"statuses"`
+}
+
 type MinimalProjectStatusUpdate struct {
 	ID         string       `json:"id"`
 	Body       string       `json:"body,omitempty"`
@@ -1055,6 +1073,42 @@ func convertToMinimalPRBranch(branch *github.PullRequestBranch) *MinimalPRBranch
 	}
 
 	return b
+}
+
+func convertToMinimalCombinedStatus(status *github.CombinedStatus) MinimalCombinedStatus {
+	minimalStatus := MinimalCombinedStatus{
+		Statuses: make([]MinimalRepoStatus, 0),
+	}
+	if status == nil {
+		return minimalStatus
+	}
+
+	minimalStatus.State = status.GetState()
+	minimalStatus.SHA = status.GetSHA()
+	minimalStatus.TotalCount = status.GetTotalCount()
+	minimalStatus.Statuses = make([]MinimalRepoStatus, 0, len(status.GetStatuses()))
+	for _, repoStatus := range status.GetStatuses() {
+		if repoStatus != nil {
+			minimalStatus.Statuses = append(minimalStatus.Statuses, convertToMinimalRepoStatus(repoStatus))
+		}
+	}
+
+	return minimalStatus
+}
+
+func convertToMinimalRepoStatus(status *github.RepoStatus) MinimalRepoStatus {
+	if status == nil {
+		return MinimalRepoStatus{}
+	}
+
+	return MinimalRepoStatus{
+		State:       status.GetState(),
+		Context:     status.GetContext(),
+		Description: status.GetDescription(),
+		TargetURL:   status.GetTargetURL(),
+		CreatedAt:   formatMinimalTimestamp(status.CreatedAt),
+		UpdatedAt:   formatMinimalTimestamp(status.UpdatedAt),
+	}
 }
 
 func convertToMinimalProject(fullProject *github.ProjectV2) *MinimalProject {

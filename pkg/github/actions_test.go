@@ -307,14 +307,9 @@ func Test_ActionsGet_GetWorkflowRun(t *testing.T) {
 	toolDef := ActionsGet(translations.NullTranslationHelper)
 
 	t.Run("successful workflow run get", func(t *testing.T) {
+		run := actionsTestWorkflowRun()
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetReposActionsRunsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				run := &github.WorkflowRun{
-					ID:         github.Ptr(int64(12345)),
-					Name:       github.Ptr("CI"),
-					Status:     github.Ptr("completed"),
-					Conclusion: github.Ptr("success"),
-				}
 				w.WriteHeader(http.StatusOK)
 				_ = json.NewEncoder(w).Encode(run)
 			}),
@@ -338,11 +333,21 @@ func Test_ActionsGet_GetWorkflowRun(t *testing.T) {
 		require.False(t, result.IsError)
 
 		textContent := getTextResult(t, result)
-		var response github.WorkflowRun
+		var response MinimalWorkflowRun
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
-		assert.NotNil(t, response.ID)
-		assert.Equal(t, int64(12345), *response.ID)
+
+		expected := convertToMinimalWorkflowRun(run)
+		assert.Equal(t, expected, response)
+
+		var payload map[string]any
+		require.NoError(t, json.Unmarshal([]byte(textContent.Text), &payload))
+		assert.Equal(t, marshalActionsObject(t, expected), payload)
+		assert.NotContains(t, payload, "node_id")
+		assert.NotContains(t, payload, "repository")
+		assert.NotContains(t, payload, "head_repository")
+		assert.NotContains(t, payload, "url")
+		assert.NotContains(t, payload, "jobs_url")
 	})
 }
 

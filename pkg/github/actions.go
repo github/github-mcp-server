@@ -802,7 +802,7 @@ func getWorkflowRun(ctx context.Context, client *github.Client, owner, repo stri
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get workflow run", resp, err), nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
-	r, err := json.Marshal(workflowRun)
+	r, err := json.Marshal(convertToMinimalWorkflowRun(workflowRun))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal workflow run: %w", err)
 	}
