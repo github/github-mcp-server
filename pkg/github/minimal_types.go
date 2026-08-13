@@ -33,9 +33,10 @@ var fileContentFieldEnum = []any{"type", "name", "path", "size", "sha", "url", "
 // REST conversion sets (for example html_url, reactions, issue_field_values) are
 // never emitted here and are intentionally omitted. The body and field_values
 // fields are the heaviest, so omitting them is the main lever for shrinking large
-// result sets.
+// result sets. Note that user is the issue author; assignees is who it is
+// assigned to, and is always present (empty when unassigned).
 var listIssuesItemFieldEnum = []any{
-	"number", "title", "body", "state", "user", "labels",
+	"number", "title", "body", "state", "user", "labels", "assignees",
 	"comments", "created_at", "updated_at", "field_values",
 }
 
@@ -543,6 +544,10 @@ type MinimalFieldValue struct {
 }
 
 // MinimalIssue is the trimmed output type for issue objects to reduce verbosity.
+//
+// Assignees is deliberately not omitempty: both conversions below populate it
+// non-nil, so an empty list is a definitive "nobody is assigned" answer rather
+// than an absent key. Callers filtering for unassigned issues depend on that.
 type MinimalIssue struct {
 	Number            int                      `json:"number"`
 	Title             string                   `json:"title"`
@@ -555,7 +560,7 @@ type MinimalIssue struct {
 	User              *MinimalUser             `json:"user,omitempty"`
 	AuthorAssociation string                   `json:"author_association,omitempty"`
 	Labels            []string                 `json:"labels,omitempty"`
-	Assignees         []string                 `json:"assignees,omitempty"`
+	Assignees         []string                 `json:"assignees"`
 	Milestone         string                   `json:"milestone,omitempty"`
 	Comments          int                      `json:"comments,omitempty"`
 	Reactions         *MinimalReactions        `json:"reactions,omitempty"`
@@ -799,6 +804,7 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 		}
 	}
 
+	m.Assignees = make([]string, 0, len(issue.Assignees))
 	for _, assignee := range issue.Assignees {
 		if assignee != nil {
 			m.Assignees = append(m.Assignees, assignee.GetLogin())
@@ -870,6 +876,11 @@ func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 
 	for _, label := range fragment.Labels.Nodes {
 		m.Labels = append(m.Labels, string(label.Name))
+	}
+
+	m.Assignees = make([]string, 0, len(fragment.Assignees.Nodes))
+	for _, assignee := range fragment.Assignees.Nodes {
+		m.Assignees = append(m.Assignees, string(assignee.Login))
 	}
 
 	for _, fv := range fragment.IssueFieldValues.Nodes {

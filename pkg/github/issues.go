@@ -499,6 +499,12 @@ type IssueFragment struct {
 			Description githubv4.String
 		}
 	} `graphql:"labels(first: 100)"`
+	// GitHub caps issue assignees at 10, so first: 100 cannot truncate.
+	Assignees struct {
+		Nodes []struct {
+			Login githubv4.String
+		}
+	} `graphql:"assignees(first: 100)"`
 	Comments struct {
 		TotalCount githubv4.Int
 	} `graphql:"comments"`
