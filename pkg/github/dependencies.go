@@ -355,6 +355,33 @@ func (d *RequestDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error
 	}
 	token := tokenInfo.Token
 
+	baseRestURL, err := d.apiHosts.BaseRESTURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get base REST URL: %w", err)
+	}
+	uploadURL, err := d.apiHosts.UploadURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get upload URL: %w", err)
+	}
+	graphqlURL, err := d.apiHosts.GraphqlURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get GraphQL URL: %w", err)
+	}
+	rawURL, err := d.apiHosts.RawURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
+	}
+
+	// allowedHosts scopes the bearer token to the configured GitHub hosts, so a
+	// response that redirects off them does not carry the token to the redirect
+	// target. See transport.BearerAuthTransport.
+	allowedHosts := []string{
+		baseRestURL.Hostname(),
+		uploadURL.Hostname(),
+		graphqlURL.Hostname(),
+		rawURL.Hostname(),
+	}
+
 	// Construct GraphQL client
 	// We use NewEnterpriseClient unconditionally since we already parsed the API host
 	// Wrap transport with GraphQLFeaturesTransport to inject feature flags from context,
@@ -364,13 +391,9 @@ func (d *RequestDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error
 			Transport: &transport.GraphQLFeaturesTransport{
 				Transport: http.DefaultTransport,
 			},
-			Token: token,
+			Token:        token,
+			AllowedHosts: allowedHosts,
 		},
-	}
-
-	graphqlURL, err := d.apiHosts.GraphqlURL(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get GraphQL URL: %w", err)
 	}
 
 	gqlClient := githubv4.NewEnterpriseClient(graphqlURL.String(), gqlHTTPClient)

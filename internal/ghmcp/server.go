@@ -63,6 +63,16 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
 	}
 
+	// allowedHosts scopes the bearer token to the configured GitHub hosts, so a
+	// response that redirects off them does not carry the token to the redirect
+	// target. See transport.BearerAuthTransport.
+	allowedHosts := []string{
+		restURL.Hostname(),
+		uploadURL.Hostname(),
+		graphQLURL.Hostname(),
+		rawURL.Hostname(),
+	}
+
 	// Construct REST client. When a TokenProvider is configured, we
 	// authenticate via BearerAuthTransport and skip go-github's WithAuthToken:
 	// the latter installs its own round tripper that would pin the static token
@@ -77,6 +87,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 			gogithub.WithHTTPClient(&http.Client{Transport: &transport.BearerAuthTransport{
 				Transport:     restUATransport,
 				TokenProvider: cfg.TokenProvider,
+				AllowedHosts:  allowedHosts,
 			}}),
 			gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
 		)
@@ -100,6 +111,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 			},
 			Token:         cfg.Token,
 			TokenProvider: cfg.TokenProvider,
+			AllowedHosts:  allowedHosts,
 		},
 	}
 

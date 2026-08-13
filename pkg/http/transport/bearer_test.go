@@ -162,3 +162,82 @@ func TestBearerAuthTransport_DoesNotMutateOriginalRequest(t *testing.T) {
 
 	assert.Empty(t, req.Header.Get(headers.AuthorizationHeader), "original request must not be mutated")
 }
+
+// hostRecordingTransport records the Authorization header seen for each request
+// host, so a test can assert what the token would be attached to without a live
+// network. It stands in for the real transport at the bottom of the chain.
+type hostRecordingTransport struct {
+	authByHost map[string]string
+}
+
+func (h *hostRecordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	h.authByHost[req.URL.Hostname()] = req.Header.Get(headers.AuthorizationHeader)
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       http.NoBody,
+		Header:     make(http.Header),
+		Request:    req,
+	}, nil
+}
+
+// TestBearerAuthTransport_HostScoping verifies that when AllowedHosts is set,
+// the token is attached to a request on an allowed host but withheld from a
+// request to any other host. A redirect off the configured GitHub hosts arrives
+// here as a RoundTrip to a different host, so this is the property that keeps
+// the token from following such a redirect. net/http's own cross-host stripping
+// does not cover it, because this transport re-adds the header on every hop.
+//
+// The hosts are distinct hostnames (matching the real case: api.github.com
+// versus objects.githubusercontent.com) rather than two loopback servers on
+// different ports, because AllowedHosts matches on hostname and ignores port.
+func TestBearerAuthTransport_HostScoping(t *testing.T) {
+	t.Parallel()
+
+	rec := &hostRecordingTransport{authByHost: map[string]string{}}
+	rt := &BearerAuthTransport{
+		Transport:    rec,
+		Token:        "secret-token",
+		AllowedHosts: []string{"api.github.com", "raw.githubusercontent.com"},
+	}
+
+	for _, target := range []string{
+		"https://api.github.com/repos/o/r",
+		"https://raw.githubusercontent.com/o/r/main/f", // allowed, different host
+		"https://objects.githubusercontent.com/evil",   // redirect target, not allowed
+		"https://attacker.example.com/steal",           // arbitrary host, not allowed
+	} {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, target, nil)
+		require.NoError(t, err)
+		resp, err := rt.RoundTrip(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+	}
+
+	assert.Equal(t, "Bearer secret-token", rec.authByHost["api.github.com"],
+		"token must be sent to an allowed host")
+	assert.Equal(t, "Bearer secret-token", rec.authByHost["raw.githubusercontent.com"],
+		"token must be sent to every allowed host")
+	assert.Empty(t, rec.authByHost["objects.githubusercontent.com"],
+		"token must not be sent to a non-allowed host (a redirect target)")
+	assert.Empty(t, rec.authByHost["attacker.example.com"],
+		"token must not be sent to an arbitrary non-allowed host")
+}
+
+// TestBearerAuthTransport_EmptyAllowedHostsPreservesBehavior verifies the
+// backward-compatible default: with no AllowedHosts, the token is attached to
+// every host, exactly as before this change.
+func TestBearerAuthTransport_EmptyAllowedHostsPreservesBehavior(t *testing.T) {
+	t.Parallel()
+
+	rec := &hostRecordingTransport{authByHost: map[string]string{}}
+	rt := &BearerAuthTransport{Transport: rec, Token: "secret-token"}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://anywhere.example.com/x", nil)
+	require.NoError(t, err)
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	assert.Equal(t, "Bearer secret-token", rec.authByHost["anywhere.example.com"],
+		"with no AllowedHosts, token attaches to every host as before")
+}
