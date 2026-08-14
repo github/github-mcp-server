@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -46,6 +47,7 @@ type allScopesFetcher struct{}
 func (f allScopesFetcher) FetchTokenScopes(_ context.Context, _ string) ([]string, error) {
 	return []string{
 		string(scopes.Repo),
+		string(scopes.DeleteRepo),
 		string(scopes.WriteOrg),
 		string(scopes.User),
 		string(scopes.Gist),
@@ -902,6 +904,95 @@ func TestCrossOriginProtection(t *testing.T) {
 			r.ServeHTTP(rr, req)
 
 			assert.Equal(t, http.StatusOK, rr.Code, "unexpected status code; body: %s", rr.Body.String())
+		})
+	}
+}
+
+func TestHTTPToolMinimumProtocolVersion(t *testing.T) {
+	apiHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+
+	inventoryFactory := func(_ *http.Request) (*inventory.Inventory, error) {
+		return inventory.NewBuilder().
+			SetTools([]inventory.ServerTool{github.DeleteRepository(translations.NullTranslationHelper)}).
+			WithToolsets([]string{"all"}).
+			Build()
+	}
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{Version: "test"},
+		github.BaseDeps{},
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+		WithInventoryFactory(inventoryFactory),
+		WithScopeFetcher(allScopesFetcher{}),
+	)
+
+	router := chi.NewRouter()
+	handler.RegisterMiddleware(router)
+	handler.RegisterRoutes(router)
+
+	for _, tt := range []struct {
+		name               string
+		protocolVersion    string
+		wantDeleteRepoTool bool
+	}{
+		{
+			name:               "current protocol includes delete repository",
+			protocolVersion:    inventory.ProtocolVersionMultiRoundTrip,
+			wantDeleteRepoTool: true,
+		},
+		{
+			name:               "legacy protocol hides delete repository",
+			protocolVersion:    "2025-11-25",
+			wantDeleteRepoTool: false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			body := strings.Replace(
+				`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"PROTOCOL_VERSION","io.modelcontextprotocol/clientCapabilities":{"elicitation":{"form":{}}},"io.modelcontextprotocol/clientInfo":{"name":"test","version":"v0.0.1"}}}}`,
+				"PROTOCOL_VERSION",
+				tt.protocolVersion,
+				1,
+			)
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+			req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
+			req.Header.Set(headers.AuthorizationHeader, "Bearer test-token")
+			req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+			req.Header.Set("Mcp-Protocol-Version", tt.protocolVersion)
+			req.Header.Set("Mcp-Method", "tools/list")
+			req.Header.Set(headers.AuthorizationHeader, strings.Join([]string{"ghs", "test-token"}, "_"))
+
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, req)
+			require.Equal(t, http.StatusOK, recorder.Code, "response body: %s", recorder.Body.String())
+
+			var response struct {
+				Result struct {
+					Tools []struct {
+						Name string `json:"name"`
+					} `json:"tools"`
+				} `json:"result"`
+			}
+			responseBody := recorder.Body.String()
+			for line := range strings.SplitSeq(responseBody, "\n") {
+				if data, ok := strings.CutPrefix(line, "data: "); ok {
+					responseBody = data
+					break
+				}
+			}
+			require.NoError(t, json.Unmarshal([]byte(responseBody), &response))
+
+			toolNames := make([]string, 0, len(response.Result.Tools))
+			for _, tool := range response.Result.Tools {
+				toolNames = append(toolNames, tool.Name)
+			}
+			if tt.wantDeleteRepoTool {
+				assert.Contains(t, toolNames, "delete_repository")
+			} else {
+				assert.NotContains(t, toolNames, "delete_repository")
+			}
 		})
 	}
 }

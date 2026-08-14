@@ -20,6 +20,9 @@ const (
 	// PublicRepo grants access to public repositories
 	PublicRepo Scope = "public_repo"
 
+	// DeleteRepo grants permission to delete repositories
+	DeleteRepo Scope = "delete_repo"
+
 	// ReadOrg grants read-only access to organization membership, teams, and projects
 	ReadOrg Scope = "read:org"
 

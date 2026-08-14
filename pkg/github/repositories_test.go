@@ -12,7 +12,9 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v89/github"
@@ -2982,6 +2984,171 @@ func Test_PushFiles(t *testing.T) {
 			assert.Equal(t, *tc.expectedRef.Object.SHA, *returnedRef.Object.SHA)
 		})
 	}
+}
+
+func Test_DeleteRepository(t *testing.T) {
+	serverTool := DeleteRepository(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Equal(t, "delete_repository", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.ElementsMatch(t, []string{"owner", "repo"}, schema.Required)
+	require.NotNil(t, tool.Annotations)
+	require.NotNil(t, tool.Annotations.DestructiveHint)
+	assert.True(t, *tool.Annotations.DestructiveHint)
+	assert.Equal(t, inventory.ProtocolVersionMultiRoundTrip, serverTool.MinimumProtocolVersion)
+	assert.Equal(t, []string{string(scopes.DeleteRepo)}, serverTool.RequiredScopes)
+
+	t.Run("requests exact repository name through elicitation", func(t *testing.T) {
+		result := invokeDeleteRepository(t, serverTool, NewMockedHTTPClient(), nil)
+
+		require.False(t, result.IsError)
+		require.Len(t, result.InputRequests, 1)
+		inputRequest, ok := result.InputRequests[deleteRepositoryConfirmationID].(*mcp.ElicitParams)
+		require.True(t, ok)
+		assert.Equal(t, "form", inputRequest.Mode)
+		assert.Contains(t, inputRequest.Message, `"owner/repo"`)
+
+		requestedSchema, ok := inputRequest.RequestedSchema.(*jsonschema.Schema)
+		require.True(t, ok)
+		assert.ElementsMatch(t, []string{deleteRepositoryConfirmationField}, requestedSchema.Required)
+		assert.Contains(t, requestedSchema.Properties, deleteRepositoryConfirmationField)
+	})
+
+	t.Run("deletes after exact confirmation", func(t *testing.T) {
+		client := NewMockedHTTPClient(
+			WithRequestMatchHandler(
+				DeleteReposByOwnerByRepo,
+				mockResponse(t, http.StatusNoContent, nil),
+			),
+		)
+		result := invokeDeleteRepository(t, serverTool, client, &mcp.ElicitResult{
+			Action: "accept",
+			Content: map[string]any{
+				deleteRepositoryConfirmationField: "owner/repo",
+			},
+		})
+
+		require.False(t, result.IsError)
+		assert.Contains(t, getTextResult(t, result).Text, "owner/repo was deleted")
+	})
+
+	t.Run("completes multi-round-trip elicitation before deleting", func(t *testing.T) {
+		httpClient := NewMockedHTTPClient(
+			WithRequestMatchHandler(
+				DeleteReposByOwnerByRepo,
+				mockResponse(t, http.StatusNoContent, nil),
+			),
+		)
+		deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+
+		inv, err := inventory.NewBuilder().
+			SetTools([]inventory.ServerTool{serverTool}).
+			WithToolsets([]string{"all"}).
+			Build()
+		require.NoError(t, err)
+
+		server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+		server.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+			return func(ctx context.Context, method string, request mcp.Request) (mcp.Result, error) {
+				return next(ContextWithDeps(ctx, deps), method, request)
+			}
+		})
+		inv.RegisterTools(context.Background(), server, deps)
+
+		serverTransport, clientTransport := mcp.NewInMemoryTransports()
+		serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = serverSession.Close() })
+
+		client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, &mcp.ClientOptions{
+			ElicitationHandler: func(_ context.Context, _ *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+				return &mcp.ElicitResult{
+					Action: "accept",
+					Content: map[string]any{
+						deleteRepositoryConfirmationField: "owner/repo",
+					},
+				}, nil
+			},
+		})
+		clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = clientSession.Close() })
+
+		result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{
+			Name: "delete_repository",
+			Arguments: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+		})
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		assert.Contains(t, getTextResult(t, result).Text, "owner/repo was deleted")
+	})
+
+	t.Run("refuses mismatched confirmation", func(t *testing.T) {
+		result := invokeDeleteRepository(t, serverTool, NewMockedHTTPClient(), &mcp.ElicitResult{
+			Action: "accept",
+			Content: map[string]any{
+				deleteRepositoryConfirmationField: "owner/another-repo",
+			},
+		})
+
+		require.True(t, result.IsError)
+		assert.Contains(t, getErrorResult(t, result).Text, "did not match")
+	})
+
+	t.Run("refuses declined confirmation", func(t *testing.T) {
+		result := invokeDeleteRepository(t, serverTool, NewMockedHTTPClient(), &mcp.ElicitResult{
+			Action: "decline",
+		})
+
+		require.True(t, result.IsError)
+		assert.Contains(t, getErrorResult(t, result).Text, "was not confirmed")
+	})
+
+	t.Run("returns GitHub API errors", func(t *testing.T) {
+		client := NewMockedHTTPClient(
+			WithRequestMatchHandler(
+				DeleteReposByOwnerByRepo,
+				mockResponse(t, http.StatusForbidden, map[string]any{"message": "Requires admin permissions"}),
+			),
+		)
+		result := invokeDeleteRepository(t, serverTool, client, &mcp.ElicitResult{
+			Action: "accept",
+			Content: map[string]any{
+				deleteRepositoryConfirmationField: "owner/repo",
+			},
+		})
+
+		require.True(t, result.IsError)
+		assert.Contains(t, getErrorResult(t, result).Text, "failed to delete repository")
+	})
+}
+
+func invokeDeleteRepository(t *testing.T, tool inventory.ServerTool, httpClient *http.Client, confirmation *mcp.ElicitResult) *mcp.CallToolResult {
+	t.Helper()
+
+	deps := BaseDeps{Client: mustNewGHClient(t, httpClient)}
+	handler := tool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"owner": "owner",
+		"repo":  "repo",
+	})
+	if confirmation != nil {
+		request.Params.InputResponses = mcp.InputResponseMap{
+			deleteRepositoryConfirmationID: confirmation,
+		}
+	}
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	return result
 }
 
 func Test_ListBranches(t *testing.T) {

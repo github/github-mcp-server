@@ -81,6 +81,10 @@ type ServerTool struct {
 	// Returns (enabled, error). On error, the tool should be treated as disabled.
 	Enabled func(ctx context.Context) (bool, error)
 
+	// MinimumProtocolVersion is the oldest MCP protocol version that may list or
+	// call this tool. Empty means the tool is available on every version.
+	MinimumProtocolVersion string
+
 	// RequiredScopes specifies the minimum OAuth scopes required for this tool.
 	// These are the scopes that must be present for the tool to function.
 	RequiredScopes []string

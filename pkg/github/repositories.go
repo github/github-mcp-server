@@ -704,6 +704,119 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 	)
 }
 
+const (
+	deleteRepositoryConfirmationID    = "delete_repository_confirmation"
+	deleteRepositoryConfirmationField = "repository_name"
+)
+
+// DeleteRepository creates a tool that deletes a GitHub repository after the
+// user confirms its full name through elicitation.
+func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
+	tool := NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        "delete_repository",
+			Description: t("TOOL_DELETE_REPOSITORY_DESCRIPTION", "Delete a GitHub repository after the user confirms the exact owner/repository name"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_DELETE_REPOSITORY_USER_TITLE", "Delete repository"),
+				ReadOnlyHint:    false,
+				DestructiveHint: github.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+				},
+				Required: []string{"owner", "repo"},
+			},
+		},
+		[]scopes.Scope{scopes.DeleteRepo},
+		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			fullName := owner + "/" + repo
+			var responses mcp.InputResponseMap
+			if req != nil && req.Params != nil {
+				responses = req.Params.InputResponses
+			}
+			response, ok := responses[deleteRepositoryConfirmationID]
+			if !ok {
+				return &mcp.CallToolResult{
+					InputRequests: mcp.InputRequestMap{
+						deleteRepositoryConfirmationID: &mcp.ElicitParams{
+							Mode:    "form",
+							Message: fmt.Sprintf("Type %q to confirm permanent deletion of this repository.", fullName),
+							RequestedSchema: &jsonschema.Schema{
+								Type: "object",
+								Properties: map[string]*jsonschema.Schema{
+									deleteRepositoryConfirmationField: {
+										Type:        "string",
+										Title:       "Repository name",
+										Description: fmt.Sprintf("Enter %s exactly to confirm deletion", fullName),
+									},
+								},
+								Required: []string{deleteRepositoryConfirmationField},
+							},
+						},
+					},
+				}, nil, nil
+			}
+
+			confirmation, ok := response.(*mcp.ElicitResult)
+			if !ok {
+				return utils.NewToolResultError("Repository deletion confirmation was invalid. The repository was not deleted."), nil, nil
+			}
+			if confirmation.Action != "accept" {
+				return utils.NewToolResultError("Repository deletion was not confirmed. The repository was not deleted."), nil, nil
+			}
+			confirmedName, ok := confirmation.Content[deleteRepositoryConfirmationField].(string)
+			if !ok || confirmedName != fullName {
+				return utils.NewToolResultError(fmt.Sprintf("Repository name confirmation did not match %q. The repository was not deleted.", fullName)), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+			resp, err := client.Repositories.Delete(ctx, owner, repo)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					fmt.Sprintf("failed to delete repository: %s", fullName),
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusNoContent {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to delete repository", resp, body), nil, nil
+			}
+
+			return utils.NewToolResultText(fmt.Sprintf("Repository %s was deleted.", fullName)), nil, nil
+		},
+	)
+	tool.MinimumProtocolVersion = inventory.ProtocolVersionMultiRoundTrip
+	return tool
+}
+
 // FetchRepoIsPrivate returns whether a repository is private. It is a thin
 // wrapper around the GitHub Repositories.Get endpoint provided as a shared
 // helper for IFC label computation across tools.

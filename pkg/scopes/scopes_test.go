@@ -34,6 +34,11 @@ func TestExpandScopes(t *testing.T) {
 			expected: []string{"public_repo", "repo"},
 		},
 		{
+			name:     "delete_repo returns just delete_repo",
+			required: []Scope{DeleteRepo},
+			expected: []string{"delete_repo"},
+		},
+		{
 			name:     "security_events also accepts repo (parent)",
 			required: []Scope{SecurityEvents},
 			expected: []string{"repo", "security_events"},

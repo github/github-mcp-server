@@ -1308,6 +1308,11 @@ The following sets of tools are available:
   - `path`: Path to the file to delete (string, required)
   - `repo`: Repository name (string, required)
 
+- **delete_repository** - Delete repository
+  - **Required OAuth Scopes**: `delete_repo`
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `repo`: Repository name (string, required)
+
 - **fork_repository** - Fork repository
   - **Required OAuth Scopes**: `repo`
   - `organization`: Organization to fork to (string, optional)
