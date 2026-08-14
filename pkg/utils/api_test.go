@@ -77,6 +77,21 @@ func TestParseAPIHost(t *testing.T) {
 			wantRestURL: "http://127.0.0.1/api/v3/",
 		},
 		{
+			name:        "http loopback preserves port for local development",
+			input:       "http://localhost:3000",
+			wantRestURL: "http://localhost:3000/api/v3/",
+		},
+		{
+			name:        "http ipv6 loopback preserves brackets",
+			input:       "http://[::1]",
+			wantRestURL: "http://[::1]/api/v3/",
+		},
+		{
+			name:        "http ipv6 loopback preserves brackets and port",
+			input:       "http://[::1]:8080",
+			wantRestURL: "http://[::1]:8080/api/v3/",
+		},
+		{
 			name:        "http remote host rejected",
 			input:       "http://notgithub.com",
 			wantErr:     true,

@@ -145,12 +145,20 @@ func newGHESHost(hostname string) (APIHost, error) {
 		return APIHost{}, fmt.Errorf("failed to parse GHES URL: %w", err)
 	}
 
-	restURL, err := url.Parse(fmt.Sprintf("%s://%s/api/v3/", u.Scheme, u.Hostname()))
+	// Preserve the full authority (host, port, and IPv6 brackets) for the
+	// base-host URLs. u.Hostname() drops the port and strips IPv6 brackets,
+	// which would silently retarget a loopback dev server to port 80 and produce
+	// an unusable URL for [::1]. The subdomain-isolation URLs below still derive
+	// from the bare hostname, since a label cannot be prepended to a host:port or
+	// an IP literal.
+	authority := u.Host
+
+	restURL, err := url.Parse(fmt.Sprintf("%s://%s/api/v3/", u.Scheme, authority))
 	if err != nil {
 		return APIHost{}, fmt.Errorf("failed to parse GHES REST URL: %w", err)
 	}
 
-	gqlURL, err := url.Parse(fmt.Sprintf("%s://%s/api/graphql", u.Scheme, u.Hostname()))
+	gqlURL, err := url.Parse(fmt.Sprintf("%s://%s/api/graphql", u.Scheme, authority))
 	if err != nil {
 		return APIHost{}, fmt.Errorf("failed to parse GHES GraphQL URL: %w", err)
 	}
@@ -165,7 +173,7 @@ func newGHESHost(hostname string) (APIHost, error) {
 		uploadURL, err = url.Parse(fmt.Sprintf("%s://uploads.%s/", u.Scheme, u.Hostname()))
 	} else {
 		// Without subdomain isolation: https://hostname/api/uploads/
-		uploadURL, err = url.Parse(fmt.Sprintf("%s://%s/api/uploads/", u.Scheme, u.Hostname()))
+		uploadURL, err = url.Parse(fmt.Sprintf("%s://%s/api/uploads/", u.Scheme, authority))
 	}
 	if err != nil {
 		return APIHost{}, fmt.Errorf("failed to parse GHES Upload URL: %w", err)
@@ -177,13 +185,13 @@ func newGHESHost(hostname string) (APIHost, error) {
 		rawURL, err = url.Parse(fmt.Sprintf("%s://raw.%s/", u.Scheme, u.Hostname()))
 	} else {
 		// Without subdomain isolation: https://hostname/raw/
-		rawURL, err = url.Parse(fmt.Sprintf("%s://%s/raw/", u.Scheme, u.Hostname()))
+		rawURL, err = url.Parse(fmt.Sprintf("%s://%s/raw/", u.Scheme, authority))
 	}
 	if err != nil {
 		return APIHost{}, fmt.Errorf("failed to parse GHES Raw URL: %w", err)
 	}
 
-	authorizationServerURL, err := url.Parse(fmt.Sprintf("%s://%s/login/oauth", u.Scheme, u.Hostname()))
+	authorizationServerURL, err := url.Parse(fmt.Sprintf("%s://%s/login/oauth", u.Scheme, authority))
 	if err != nil {
 		return APIHost{}, fmt.Errorf("failed to parse GHES Authorization Server URL: %w", err)
 	}
