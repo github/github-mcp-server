@@ -6,7 +6,11 @@ import "github.com/github/github-mcp-server/pkg/inventory"
 // They are called during inventory build to generate server instructions.
 
 func generateContextToolsetInstructions(_ *inventory.Inventory) string {
-	return "Always call 'get_me' first to understand current user permissions and context."
+	return `Always call 'get_me' first to understand current user permissions and context.
+
+## GitHub Autolinked References
+
+When creating issues, pull requests, comments, or discussions, use GitHub's autolinked reference syntax: issue numbers (#123), user mentions (@example-username), and cross-repository references (example-owner/example-repo#123). GitHub renders these references as links automatically. See the official documentation for complete details: https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls`
 }
 
 func generateIssuesToolsetInstructions(_ *inventory.Inventory) string {
