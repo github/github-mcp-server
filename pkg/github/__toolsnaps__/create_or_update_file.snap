@@ -24,7 +24,7 @@
         "type": "string"
       },
       "path": {
-        "description": "Path where to create/update the file",
+        "description": "Exact Git path to write. Writing to a symbolic link path rewrites the symbolic link's target path; use the linked file's path to update its contents.",
         "type": "string"
       },
       "repo": {

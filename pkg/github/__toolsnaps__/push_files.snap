@@ -21,7 +21,7 @@
               "type": "string"
             },
             "path": {
-              "description": "path to the file",
+              "description": "Exact Git path to write. Writing to a symbolic link path replaces the link with a regular file; use the linked file's path to update its contents.",
               "type": "string"
             }
           },

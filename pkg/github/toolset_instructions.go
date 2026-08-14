@@ -9,6 +9,12 @@ func generateContextToolsetInstructions(_ *inventory.Inventory) string {
 	return "Always call 'get_me' first to understand current user permissions and context."
 }
 
+func generateReposToolsetInstructions(_ *inventory.Inventory) string {
+	return `## Repository file writes
+
+'get_file_contents' may return the target contents when a path is a symbolic link, but repository file writes use exact Git paths and do not follow symbolic links. To edit content that a symlink points to, write to the target path.`
+}
+
 func generateIssuesToolsetInstructions(_ *inventory.Inventory) string {
 	return `## Issues
 

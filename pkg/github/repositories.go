@@ -433,7 +433,7 @@ SHA MUST be provided for existing file updates.
 					},
 					"path": {
 						Type:        "string",
-						Description: "Path where to create/update the file",
+						Description: "Exact Git path to write. Writing to a symbolic link path rewrites the symbolic link's target path; use the linked file's path to update its contents.",
 					},
 					"content": {
 						Type:        "string",
@@ -1573,7 +1573,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 							Properties: map[string]*jsonschema.Schema{
 								"path": {
 									Type:        "string",
-									Description: "path to the file",
+									Description: "Exact Git path to write. Writing to a symbolic link path replaces the link with a regular file; use the linked file's path to update its contents.",
 								},
 								"content": {
 									Type:        "string",

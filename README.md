@@ -1288,7 +1288,7 @@ The following sets of tools are available:
   - `content`: Content of the file, exactly as it should appear once written. Do not base64-encode it; this server does that before calling the REST API. (string, required)
   - `message`: Commit message (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: Path where to create/update the file (string, required)
+  - `path`: Exact Git path to write. Writing to a symbolic link path rewrites the symbolic link's target path; use the linked file's path to update its contents. (string, required)
   - `repo`: Repository name (string, required)
   - `sha`: The blob SHA of the file being replaced. Required if the file already exists. (string, optional)
 
