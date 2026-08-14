@@ -13,6 +13,7 @@ func TestParseAPIHost(t *testing.T) {
 		input       string
 		wantRestURL string
 		wantErr     bool
+		errContains string
 	}{
 		{
 			name:        "empty string defaults to dotcom",
@@ -59,13 +60,38 @@ func TestParseAPIHost(t *testing.T) {
 			input:   "github.com",
 			wantErr: true,
 		},
+		{
+			name:        "http GHES rejected to avoid cleartext credentials",
+			input:       "http://ghes.example.com",
+			wantErr:     true,
+			errContains: "host must use https",
+		},
+		{
+			name:        "http loopback allowed for local development",
+			input:       "http://localhost",
+			wantRestURL: "http://localhost/api/v3/",
+		},
+		{
+			name:        "http 127.0.0.1 loopback allowed for local development",
+			input:       "http://127.0.0.1",
+			wantRestURL: "http://127.0.0.1/api/v3/",
+		},
+		{
+			name:        "http remote host rejected",
+			input:       "http://notgithub.com",
+			wantErr:     true,
+			errContains: "host must use https",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			host, err := parseAPIHost(tc.input)
 			if tc.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+				if tc.errContains != "" {
+					assert.Contains(t, err.Error(), tc.errContains)
+				}
 				return
 			}
 			require.NoError(t, err)

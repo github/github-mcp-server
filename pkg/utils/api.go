@@ -235,6 +235,13 @@ func parseAPIHost(s string) (APIHost, error) {
 		return APIHost{}, fmt.Errorf("host must have a scheme (http or https): %s", s)
 	}
 
+	// Enforce HTTPS centrally so no deployment (GHES in particular) can build
+	// authenticated REST/GraphQL/upload/raw URLs over cleartext http, which
+	// would leak the bearer token/PAT to anyone on the network.
+	if err := requireSecureScheme(u); err != nil {
+		return APIHost{}, err
+	}
+
 	switch classifyHost(u) {
 	case HostTypeDotcom:
 		return newDotcomHost()
@@ -242,6 +249,36 @@ func parseAPIHost(s string) (APIHost, error) {
 		return newGHECHost(s)
 	default:
 		return newGHESHost(s)
+	}
+}
+
+// requireSecureScheme rejects hosts that would carry credentials over cleartext.
+// Every REST/GraphQL/upload/raw/authorization URL is derived from this host and
+// used for authenticated requests, so an http scheme would expose the bearer
+// token/PAT to network interception and replay. http is permitted only for
+// loopback hosts so that local development against a dev server still works.
+func requireSecureScheme(u *url.URL) error {
+	if u.Scheme == "https" {
+		return nil
+	}
+	if u.Scheme == "http" && isLoopbackHost(u.Hostname()) {
+		return nil
+	}
+	return fmt.Errorf(
+		"host must use https to avoid sending credentials over cleartext: %s (http is only permitted for loopback hosts such as localhost, 127.0.0.1, or ::1)",
+		u.Scheme+"://"+u.Hostname(),
+	)
+}
+
+// isLoopbackHost reports whether hostname is a loopback address. Only exact
+// loopback names/addresses qualify, so credentials are never sent in cleartext
+// to a remote host.
+func isLoopbackHost(hostname string) bool {
+	switch strings.ToLower(hostname) {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	default:
+		return false
 	}
 }
 
