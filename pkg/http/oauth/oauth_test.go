@@ -691,10 +691,11 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:               "GHES with http scheme returns the correct authorization server URL",
-			host:               "http://ghe.example.com",
-			expectedURL:        "http://ghe.example.com/login/oauth",
-			expectedStatusCode: http.StatusOK,
+			name:          "GHES with http scheme is rejected to avoid cleartext credentials",
+			host:          "http://ghe.example.com",
+			expectedURL:   "",
+			expectedError: true,
+			errorContains: "host must use https",
 		},
 		{
 			name: "custom authorization server in config takes precedence",
