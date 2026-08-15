@@ -2447,9 +2447,10 @@ Options are:
 								},
 								"delete": {
 									Type: "boolean",
-									Enum: []any{true},
 									Description: "Set to true to clear this field's current value on the " +
-										"issue. Cannot be combined with 'value' or 'field_option_name'.",
+										"issue. Cannot be combined with 'value' or 'field_option_name'. " +
+										"Omit this property, or set it to false, to leave the field's " +
+										"current value unchanged.",
 								},
 							},
 							Required: []string{"field_name"},

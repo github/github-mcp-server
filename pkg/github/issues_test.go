@@ -2115,6 +2115,63 @@ func Test_issueWriteHasNonFormParams(t *testing.T) {
 	}
 }
 
+// Test_optionalIssueWriteFields covers parsing of issue_write's issue_fields
+// items. The delete:false cases matter because the schema deliberately does not
+// constrain 'delete' to a single value: clients that populate every property of
+// a schema need a way to say "not deleting", and false must be a no-op that
+// falls through to the normal value path.
+func Test_optionalIssueWriteFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		item    map[string]any
+		want    issueWriteFieldInput
+		wantErr string
+	}{
+		{
+			name: "delete false alongside a value sets the value",
+			item: map[string]any{"field_name": "Start date", "value": "2026-08-14", "delete": false, "field_option_name": ""},
+			want: issueWriteFieldInput{FieldName: "Start date", Value: "2026-08-14"},
+		},
+		{
+			name: "delete true alone clears the field",
+			item: map[string]any{"field_name": "Start date", "delete": true},
+			want: issueWriteFieldInput{FieldName: "Start date", Delete: true},
+		},
+		{
+			name: "delete omitted with field_option_name",
+			item: map[string]any{"field_name": "Priority", "field_option_name": "High"},
+			want: issueWriteFieldInput{FieldName: "Priority", FieldOptionName: "High"},
+		},
+		{
+			name:    "delete true with a value is rejected",
+			item:    map[string]any{"field_name": "Start date", "value": "2026-08-14", "delete": true},
+			wantErr: "cannot specify 'delete' together with 'value' or 'field_option_name'",
+		},
+		{
+			name:    "delete false with nothing to set is rejected",
+			item:    map[string]any{"field_name": "Start date", "delete": false},
+			wantErr: "must specify either value or field_option_name",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := optionalIssueWriteFields(map[string]any{"issue_fields": []any{tc.item}})
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, got, 1)
+			assert.Equal(t, tc.want, got[0])
+		})
+	}
+}
+
 // Test_issueWriteSchemaClassification fails when a schema property is added
 // without classifying it as either form-resendable (issueWriteFormParams) or
 // known-non-form (knownNonForm below). Without this guard, an unclassified
