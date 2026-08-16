@@ -2240,8 +2240,11 @@ Options are:
 						Description: "Milestone number",
 					},
 					"type": {
-						Type:        "string",
-						Description: "Type of this issue. Only use if issue types are enabled for this repository. Use list_issue_types tool to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter.",
+						AnyOf: []*jsonschema.Schema{
+							{Type: "string", MinLength: jsonschema.Ptr(1)},
+							{Type: "null"},
+						},
+						Description: "Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter.",
 					},
 					"state": {
 						Type:        "string",
@@ -2255,7 +2258,7 @@ Options are:
 					},
 					"duplicate_of": {
 						Type:        "number",
-						Description: "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
+						Description: "Issue number that this issue is a duplicate of. Required when state_reason is 'duplicate'.",
 					},
 					"issue_fields": {
 						Type:        "array",
@@ -2365,9 +2368,13 @@ Options are:
 			}
 
 			// Get optional type
-			issueType, err := OptionalParam[string](args, "type")
+			issueTypeParam, issueTypeProvided, err := OptionalNullableStringParam(args, "type")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueType := ""
+			if issueTypeParam != nil {
+				issueType = *issueTypeParam
 			}
 
 			// Handle state, state_reason and duplicateOf parameters
@@ -2387,6 +2394,9 @@ Options are:
 			}
 			if duplicateOf != 0 && stateReason != "duplicate" {
 				return utils.NewToolResultError("duplicate_of can only be used when state_reason is 'duplicate'"), nil, nil
+			}
+			if err := validateDuplicateState(state, stateReason, duplicateOf); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			var issueFields []issueWriteFieldInput
@@ -2426,6 +2436,7 @@ Options are:
 				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, UpdateIssueOptions{
 					AssigneesProvided: assigneesProvided,
 					LabelsProvided:    labelsProvided,
+					IssueTypeProvided: issueTypeProvided,
 				})
 				return result, nil, err
 			default:
@@ -2496,9 +2507,16 @@ type UpdateIssueOptions struct {
 	AssigneesProvided bool
 	// LabelsProvided sends the labels field even when the slice is empty.
 	LabelsProvided bool
+	// IssueTypeProvided sends the type field, including an explicit clear.
+	IssueTypeProvided bool
 }
 
 func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldIDsToDelete []int64, state string, stateReason string, duplicateOf int, opts ...UpdateIssueOptions) (*mcp.CallToolResult, error) {
+	// UpdateIssue is exported and may be called without the tool handler.
+	if err := validateDuplicateState(state, stateReason, duplicateOf); err != nil {
+		return utils.NewToolResultError(err.Error()), nil
+	}
+
 	updateOptions := UpdateIssueOptions{
 		AssigneesProvided: len(assignees) > 0,
 		LabelsProvided:    len(labels) > 0,
@@ -2506,6 +2524,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	for _, opt := range opts {
 		updateOptions.AssigneesProvided = updateOptions.AssigneesProvided || opt.AssigneesProvided
 		updateOptions.LabelsProvided = updateOptions.LabelsProvided || opt.LabelsProvided
+		updateOptions.IssueTypeProvided = updateOptions.IssueTypeProvided || opt.IssueTypeProvided
 	}
 
 	// Create the issue request with only provided fields
@@ -2579,7 +2598,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		}
 	}
 
-	updatedIssue, resp, err := client.Issues.Update(ctx, owner, repo, issueNumber, issueRequest)
+	updatedIssue, resp, err := patchIssue(ctx, client, owner, repo, issueNumber, issueRequest, issueType, updateOptions.IssueTypeProvided)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
 			"failed to update issue",
@@ -2636,11 +2655,6 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 
 	// Use GraphQL API for state updates
 	if state != "" {
-		// Mandate specifying duplicateOf when trying to close as duplicate
-		if state == "closed" && stateReason == "duplicate" && duplicateOf == 0 {
-			return utils.NewToolResultError("duplicate_of must be provided when state_reason is 'duplicate'"), nil
-		}
-
 		// Get target issue ID (and duplicate issue ID if needed)
 		issueID, duplicateIssueID, err := fetchIssueIDs(ctx, gqlClient, owner, repo, issueNumber, duplicateOf)
 		if err != nil {
@@ -2710,6 +2724,35 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	}
 
 	return utils.NewToolResultText(string(r)), nil
+}
+
+func validateDuplicateState(state, stateReason string, duplicateOf int) error {
+	if state == "closed" && stateReason == "duplicate" && duplicateOf == 0 {
+		return fmt.Errorf("duplicate_of must be provided when state_reason is 'duplicate'")
+	}
+	return nil
+}
+
+type updateIssueRequestWithNullableType struct {
+	github.UpdateIssueRequest
+	Type *string `json:"type"`
+}
+
+func patchIssue(ctx context.Context, client *github.Client, owner, repo string, issueNumber int, issueRequest github.UpdateIssueRequest, issueType string, issueTypeProvided bool) (*github.Issue, *github.Response, error) {
+	if !issueTypeProvided || issueType != "" {
+		return client.Issues.Update(ctx, owner, repo, issueNumber, issueRequest)
+	}
+
+	apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
+	body := &updateIssueRequestWithNullableType{UpdateIssueRequest: issueRequest}
+	req, err := client.NewRequest(ctx, http.MethodPatch, apiURL, body)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	issue := &github.Issue{}
+	resp, err := client.Do(req, issue)
+	return issue, resp, err
 }
 
 // ListIssues creates a tool to list issues in a GitHub repository.
