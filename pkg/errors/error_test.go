@@ -687,3 +687,50 @@ func TestNewGitHubAPIErrorResponse_RateLimits(t *testing.T) {
 		assert.Contains(t, text, "validation failed")
 	})
 }
+
+func TestNewGitHubAPIErrorResponse_ValidationMessages(t *testing.T) {
+	t.Run("ruleset ErrorResponse includes nested validation messages", func(t *testing.T) {
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		originalErr := &github.ErrorResponse{
+			Response: &http.Response{StatusCode: http.StatusUnprocessableEntity},
+			Message:  "Validation Failed",
+			Errors: []github.Error{
+				{
+					Resource: "GitRef",
+					Field:    "ref",
+					Code:     "custom",
+					Message:  "ref name does not match the required pattern 'feature/*'",
+				},
+			},
+			DocumentationURL: "https://docs.github.com/rest/git/refs#create-a-reference",
+		}
+
+		result := NewGitHubAPIErrorResponse(ctx, "failed to create branch", nil, originalErr)
+
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "failed to create branch")
+		assert.Contains(t, text, "HTTP 422 Validation Failed")
+		assert.Contains(t, text, "ref name does not match the required pattern 'feature/*'")
+		assert.Contains(t, text, "See https://docs.github.com/rest/git/refs#create-a-reference")
+		assert.NotContains(t, text, "Resource:")
+	})
+
+	t.Run("wrapped ErrorResponse is still unwrapped", func(t *testing.T) {
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		originalErr := fmt.Errorf("create ref: %w", &github.ErrorResponse{
+			Response: &http.Response{StatusCode: http.StatusUnprocessableEntity},
+			Message:  "Validation Failed",
+			Errors: []github.Error{
+				{Message: "Changes must be made through a pull request."},
+			},
+		})
+
+		result := NewGitHubAPIErrorResponse(ctx, "failed to create branch", nil, originalErr)
+
+		text := requireErrorText(t, result)
+		assert.Contains(t, text, "Changes must be made through a pull request.")
+		assert.NotContains(t, text, "create ref:")
+	})
+}

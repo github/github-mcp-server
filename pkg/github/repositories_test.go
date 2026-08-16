@@ -1098,6 +1098,36 @@ func Test_CreateBranch(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to create branch",
 		},
+		{
+			name: "create branch surfaces ruleset validation details",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef:           mockResponse(t, http.StatusOK, mockSourceRef),
+				"GET /repos/owner/repo/git/ref/heads/main": mockResponse(t, http.StatusOK, mockSourceRef),
+				PostReposGitRefsByOwnerByRepo: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					_, _ = w.Write([]byte(`{
+						"message": "Validation Failed",
+						"documentation_url": "https://docs.github.com/rest/git/refs#create-a-reference",
+						"errors": [
+							{
+								"resource": "GitRef",
+								"field": "ref",
+								"code": "custom",
+								"message": "ref name does not match the required pattern 'feature/*'"
+							}
+						]
+					}`))
+				},
+			}),
+			requestArgs: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"branch":      "hotfix",
+				"from_branch": "main",
+			},
+			expectError:    true,
+			expectedErrMsg: "ref name does not match the required pattern 'feature/*'",
+		},
 	}
 
 	for _, tc := range tests {

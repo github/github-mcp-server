@@ -6,6 +6,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -191,7 +192,56 @@ func NewGitHubAPIErrorResponse(ctx context.Context, message string, resp *github
 			"%s: GitHub secondary rate limit exceeded. Wait before retrying.", message))
 	}
 
-	return utils.NewToolResultErrorFromErr(message, err)
+	return utils.NewToolResultErrorFromErr(message, formattedGitHubAPIError(err))
+}
+
+// formattedGitHubAPIError unwraps a github.ErrorResponse so tool results include
+// nested validation messages (for example repository ruleset violations) instead
+// of go-github's compact 422 dump.
+func formattedGitHubAPIError(err error) error {
+	var ghErr *github.ErrorResponse
+	if !stderrors.As(err, &ghErr) {
+		return err
+	}
+
+	var parts []string
+	switch {
+	case ghErr.Response != nil && ghErr.Response.StatusCode != 0 && ghErr.Message != "":
+		parts = append(parts, fmt.Sprintf("HTTP %d %s", ghErr.Response.StatusCode, ghErr.Message))
+	case ghErr.Response != nil && ghErr.Response.StatusCode != 0:
+		parts = append(parts, fmt.Sprintf("HTTP %d", ghErr.Response.StatusCode))
+	case ghErr.Message != "":
+		parts = append(parts, ghErr.Message)
+	}
+
+	for _, item := range ghErr.Errors {
+		detail := strings.TrimSpace(item.Message)
+		if detail == "" {
+			var bits []string
+			if item.Resource != "" {
+				bits = append(bits, item.Resource)
+			}
+			if item.Field != "" {
+				bits = append(bits, item.Field)
+			}
+			if item.Code != "" {
+				bits = append(bits, item.Code)
+			}
+			detail = strings.Join(bits, " ")
+		}
+		if detail != "" {
+			parts = append(parts, detail)
+		}
+	}
+
+	if ghErr.DocumentationURL != "" {
+		parts = append(parts, "See "+ghErr.DocumentationURL)
+	}
+
+	if len(parts) == 0 {
+		return err
+	}
+	return stderrors.New(strings.Join(parts, "\n"))
 }
 
 // NewGitHubGraphQLErrorResponse returns an mcp.NewToolResultError and retains the error in the context for access via middleware
