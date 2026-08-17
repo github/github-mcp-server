@@ -156,6 +156,11 @@ func RunHTTPServer(cfg ServerConfig) error {
 	}
 
 	featureChecker := createHTTPFeatureChecker(cfg.EnabledFeatures, cfg.InsidersMode)
+	scopeFetcher := scopes.NewFetcher(apiHost, scopes.FetcherOptions{})
+	inventoryFactory, err := NewDefaultInventoryFactory(&cfg, t, featureChecker, scopeFetcher)
+	if err != nil {
+		return fmt.Errorf("failed to build inventory: %w", err)
+	}
 
 	obs, err := observability.NewExporters(logger, metrics.NewNoopMetrics())
 	if err != nil {
@@ -187,10 +192,9 @@ func RunHTTPServer(cfg ServerConfig) error {
 		TrustProxyHeaders: cfg.TrustProxyHeaders,
 	}
 
-	serverOptions := []HandlerOption{}
-	if cfg.ScopeChallenge {
-		scopeFetcher := scopes.NewFetcher(apiHost, scopes.FetcherOptions{})
-		serverOptions = append(serverOptions, WithScopeFetcher(scopeFetcher))
+	serverOptions := []HandlerOption{
+		WithInventoryFactory(inventoryFactory),
+		WithScopeFetcher(scopeFetcher),
 	}
 
 	r := chi.NewRouter()

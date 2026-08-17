@@ -559,7 +559,8 @@ func TestStaticConfigEnforcement(t *testing.T) {
 			require.NoError(t, err)
 
 			// Build static tools the same way the production code does
-			staticTools, staticResources, staticPrompts := buildStaticInventoryFromTools(tt.config, tools)
+			staticTools, staticResources, staticPrompts, err := buildStaticInventoryFromTools(tt.config, tools)
+			require.NoError(t, err)
 			hasStatic := hasStaticConfig(tt.config)
 
 			validToolNames := make(map[string]bool, len(staticTools))
@@ -637,6 +638,41 @@ func TestStaticConfigEnforcement(t *testing.T) {
 	}
 }
 
+func TestNewDefaultInventoryFactoryRejectsInvalidEnabledTools(t *testing.T) {
+	tests := []struct {
+		name         string
+		enabledTools []string
+		unknownTools []string
+	}{
+		{
+			name:         "mixed valid and invalid tools",
+			enabledTools: []string{"get_file_contents", "nonexistent_tool"},
+			unknownTools: []string{"nonexistent_tool"},
+		},
+		{
+			name:         "all invalid tools",
+			enabledTools: []string{"nonexistent_tool", "another_nonexistent_tool"},
+			unknownTools: []string{"nonexistent_tool", "another_nonexistent_tool"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			factory, err := NewDefaultInventoryFactory(
+				&ServerConfig{Version: "test", EnabledTools: tt.enabledTools},
+				translations.NullTranslationHelper,
+				nil,
+				allScopesFetcher{},
+			)
+			require.ErrorIs(t, err, inventory.ErrUnknownTools)
+			for _, unknownTool := range tt.unknownTools {
+				assert.Contains(t, err.Error(), unknownTool)
+			}
+			assert.Nil(t, factory, "invalid static configuration must not produce a widened inventory factory")
+		})
+	}
+}
+
 func TestStaticInventoryInvalidEnabledToolsReturnsBadRequest(t *testing.T) {
 	apiHost, err := utils.NewAPIHost("https://api.github.com")
 	require.NoError(t, err)
@@ -673,7 +709,8 @@ func TestStaticInventoryPreservesPerRequestFeatureVariants(t *testing.T) {
 	cfg := &ServerConfig{Version: "test", EnabledToolsets: []string{"issues"}}
 	featureChecker := createHTTPFeatureChecker(nil, false)
 
-	staticTools, _, _ := buildStaticInventoryFromTools(cfg, tools)
+	staticTools, _, _, err := buildStaticInventoryFromTools(cfg, tools)
+	require.NoError(t, err)
 	require.Len(t, staticTools, 2, "static upper bounds should preserve both feature variants")
 
 	inv, err := inventory.NewBuilder().
@@ -809,9 +846,9 @@ func TestContentTypeHandling(t *testing.T) {
 
 // buildStaticInventoryFromTools is a test helper that mirrors buildStaticInventory
 // but uses the provided mock tools instead of calling github.AllTools.
-func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTool) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt) {
+func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTool) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt, error) {
 	if !hasStaticConfig(cfg) {
-		return tools, nil, nil
+		return tools, nil, nil, nil
 	}
 
 	b := inventory.NewBuilder().
@@ -829,11 +866,11 @@ func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTo
 
 	inv, err := b.Build()
 	if err != nil {
-		return tools, nil, nil
+		return nil, nil, nil, err
 	}
 
 	ctx := context.Background()
-	return inv.AvailableTools(ctx), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx)
+	return inv.AvailableTools(ctx), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx), nil
 }
 
 // TestStaticInventoryAppliesHostCapabilities guards against HTTP deployments

@@ -265,9 +265,24 @@ func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies
 // a static inventory is built once at factory creation to pre-filter the tool
 // universe. Per-request headers can only narrow within these bounds.
 func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelperFunc, featureChecker inventory.FeatureFlagChecker, scopeFetcher scopes.FetcherInterface) InventoryFactoryFunc {
+	factory, err := NewDefaultInventoryFactory(cfg, t, featureChecker, scopeFetcher)
+	if err != nil {
+		return func(_ *http.Request) (*inventory.Inventory, error) {
+			return nil, err
+		}
+	}
+	return factory
+}
+
+// NewDefaultInventoryFactory creates the default HTTP inventory factory and
+// validates static tool configuration before returning it.
+func NewDefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelperFunc, featureChecker inventory.FeatureFlagChecker, scopeFetcher scopes.FetcherInterface) (InventoryFactoryFunc, error) {
 	// Build the static tool/resource/prompt universe from CLI flags.
 	// This is done once at startup and captured in the closure.
-	staticTools, staticResources, staticPrompts, staticErr := buildStaticInventory(cfg, t)
+	staticTools, staticResources, staticPrompts, err := buildStaticInventory(cfg, t)
+	if err != nil {
+		return nil, err
+	}
 	hasStaticFilters := hasStaticConfig(cfg)
 
 	// Pre-compute valid tool names for filtering per-request tool headers.
@@ -279,10 +294,6 @@ func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelper
 	}
 
 	return func(r *http.Request) (*inventory.Inventory, error) {
-		if staticErr != nil {
-			return nil, staticErr
-		}
-
 		b := inventory.NewBuilder().
 			SetTools(staticTools).
 			SetResources(staticResources).
@@ -315,7 +326,7 @@ func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelper
 		b.WithServerInstructions()
 
 		return b.Build()
-	}
+	}, nil
 }
 
 // filterRequestTools returns a shallow copy of the request with any per-request
