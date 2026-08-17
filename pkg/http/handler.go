@@ -223,6 +223,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Let the SDK validate missing or mismatched method headers before the
+	// middleware rejects a well-formed request as unsupported.
 	if r.Header.Get(headers.MCPMethodHeader) == subscriptionsListenMethod {
 		ghServer.AddReceivingMiddleware(rejectSubscriptionsListen)
 	}

@@ -19,6 +19,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -937,18 +938,18 @@ func TestSubscriptionsListenIsRejected(t *testing.T) {
 			name:             "matching method header",
 			methodHeader:     subscriptionsListenMethod,
 			expectedStatus:   http.StatusNotFound,
-			expectedJSONCode: -32601,
+			expectedJSONCode: jsonrpc.CodeMethodNotFound,
 		},
 		{
 			name:             "missing method header",
 			expectedStatus:   http.StatusBadRequest,
-			expectedJSONCode: -32020,
+			expectedJSONCode: mcp.CodeHeaderMismatch,
 		},
 		{
 			name:             "mismatched method header",
 			methodHeader:     "tools/list",
 			expectedStatus:   http.StatusBadRequest,
-			expectedJSONCode: -32020,
+			expectedJSONCode: mcp.CodeHeaderMismatch,
 		},
 	}
 
