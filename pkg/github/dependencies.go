@@ -330,10 +330,29 @@ func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get upload URL: %w", err)
 	}
+	graphqlURL, err := d.apiHosts.GraphqlURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get GraphQL URL: %w", err)
+	}
+	rawURL, err := d.apiHosts.RawURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
+	}
+
+	allowedHosts := []string{
+		baseRestURL.Host,
+		uploadURL.Host,
+		graphqlURL.Host,
+		rawURL.Host,
+	}
 
 	// Construct REST client
 	restClient, err := gogithub.NewClient(
-		gogithub.WithAuthToken(token),
+		gogithub.WithHTTPClient(&http.Client{Transport: &transport.BearerAuthTransport{
+			Transport:    http.DefaultTransport,
+			Token:        token,
+			AllowedHosts: allowedHosts,
+		}}),
 		gogithub.WithUserAgent(fmt.Sprintf("github-mcp-server/%s", d.version)),
 		gogithub.WithEnterpriseURLs(baseRestURL.String(), uploadURL.String()),
 	)
@@ -376,10 +395,10 @@ func (d *RequestDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error
 	// response that redirects off them does not carry the token to the redirect
 	// target. See transport.BearerAuthTransport.
 	allowedHosts := []string{
-		baseRestURL.Hostname(),
-		uploadURL.Hostname(),
-		graphqlURL.Hostname(),
-		rawURL.Hostname(),
+		baseRestURL.Host,
+		uploadURL.Host,
+		graphqlURL.Host,
+		rawURL.Host,
 	}
 
 	// Construct GraphQL client

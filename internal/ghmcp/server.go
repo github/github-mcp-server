@@ -67,37 +67,28 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	// response that redirects off them does not carry the token to the redirect
 	// target. See transport.BearerAuthTransport.
 	allowedHosts := []string{
-		restURL.Hostname(),
-		uploadURL.Hostname(),
-		graphQLURL.Hostname(),
-		rawURL.Hostname(),
+		restURL.Host,
+		uploadURL.Host,
+		graphQLURL.Host,
+		rawURL.Host,
 	}
 
-	// Construct REST client. When a TokenProvider is configured, we
-	// authenticate via BearerAuthTransport and skip go-github's WithAuthToken:
-	// the latter installs its own round tripper that would pin the static token
-	// and shadow the dynamic one.
+	// Construct REST client. BearerAuthTransport handles both static and
+	// provider-backed tokens so every authentication mode uses the same host
+	// restrictions.
 	restUATransport := &transport.UserAgentTransport{
 		Transport: http.DefaultTransport,
 		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
 	}
-	var restClient *gogithub.Client
-	if cfg.TokenProvider != nil {
-		restClient, err = gogithub.NewClient(
-			gogithub.WithHTTPClient(&http.Client{Transport: &transport.BearerAuthTransport{
-				Transport:     restUATransport,
-				TokenProvider: cfg.TokenProvider,
-				AllowedHosts:  allowedHosts,
-			}}),
-			gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
-		)
-	} else {
-		restClient, err = gogithub.NewClient(
-			gogithub.WithHTTPClient(&http.Client{Transport: restUATransport}),
-			gogithub.WithAuthToken(cfg.Token),
-			gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
-		)
-	}
+	restClient, err := gogithub.NewClient(
+		gogithub.WithHTTPClient(&http.Client{Transport: &transport.BearerAuthTransport{
+			Transport:     restUATransport,
+			Token:         cfg.Token,
+			TokenProvider: cfg.TokenProvider,
+			AllowedHosts:  allowedHosts,
+		}}),
+		gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create REST client: %w", err)
 	}

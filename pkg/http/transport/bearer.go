@@ -18,10 +18,10 @@ type BearerAuthTransport struct {
 
 	// AllowedHosts, when non-empty, restricts the hosts the Authorization
 	// header is attached to. The token is set only when the request host
-	// matches one of these entries (case-insensitive, host only, port
-	// ignored). This scopes the credential to the configured GitHub hosts, so
-	// that if a response redirects off them the token is not carried to the
-	// redirect target.
+	// and port exactly match one of these entries (case-insensitive). This
+	// scopes the credential to the configured GitHub hosts, so that if a
+	// response redirects off them the token is not carried to the redirect
+	// target.
 	//
 	// net/http strips a cross-host Authorization header when it follows a
 	// redirect, but only for headers set on the initial request. This
@@ -39,7 +39,9 @@ func (t *BearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	if t.TokenProvider != nil {
 		token = t.TokenProvider()
 	}
-	if token != "" && t.hostAllowed(req.URL.Hostname()) {
+	if !t.hostAllowed(req.URL.Host) {
+		req.Header.Del(headers.AuthorizationHeader)
+	} else if token != "" {
 		req.Header.Set(headers.AuthorizationHeader, "Bearer "+token)
 	}
 
