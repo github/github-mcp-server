@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -902,6 +904,80 @@ func TestCrossOriginProtection(t *testing.T) {
 			r.ServeHTTP(rr, req)
 
 			assert.Equal(t, http.StatusOK, rr.Code, "unexpected status code; body: %s", rr.Body.String())
+		})
+	}
+}
+
+func TestSubscriptionsListenIsRejected(t *testing.T) {
+	apiHost, err := utils.NewAPIHost("https://api.githubcopilot.com")
+	require.NoError(t, err)
+
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{Version: "test"},
+		nil,
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+		WithInventoryFactory(func(_ *http.Request) (*inventory.Inventory, error) {
+			return inventory.NewBuilder().Build()
+		}),
+		WithGitHubMCPServerFactory(func(_ *http.Request, _ github.ToolDependencies, _ *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+			return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+		}),
+	)
+
+	body := `{"jsonrpc":"2.0","id":1,"method":"subscriptions/listen","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1.0.0"},"io.modelcontextprotocol/clientCapabilities":{}},"notifications":{"toolsListChanged":true}}}`
+	tests := []struct {
+		name             string
+		methodHeader     string
+		expectedStatus   int
+		expectedJSONCode int
+	}{
+		{
+			name:             "matching method header",
+			methodHeader:     subscriptionsListenMethod,
+			expectedStatus:   http.StatusNotFound,
+			expectedJSONCode: jsonrpc.CodeMethodNotFound,
+		},
+		{
+			name:             "missing method header",
+			expectedStatus:   http.StatusBadRequest,
+			expectedJSONCode: mcp.CodeHeaderMismatch,
+		},
+		{
+			name:             "mismatched method header",
+			methodHeader:     "tools/list",
+			expectedStatus:   http.StatusBadRequest,
+			expectedJSONCode: mcp.CodeHeaderMismatch,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+			req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
+			req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+			req.Header.Set("MCP-Protocol-Version", "2026-07-28")
+			if tt.methodHeader != "" {
+				req.Header.Set(headers.MCPMethodHeader, tt.methodHeader)
+			}
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectedStatus, rr.Code)
+			assert.Equal(t, headers.ContentTypeJSON, rr.Header().Get(headers.ContentTypeHeader))
+
+			var response struct {
+				ID    int `json:"id"`
+				Error struct {
+					Code int `json:"code"`
+				} `json:"error"`
+			}
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+			assert.Equal(t, 1, response.ID)
+			assert.Equal(t, tt.expectedJSONCode, response.Error.Code)
 		})
 	}
 }

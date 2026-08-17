@@ -8,6 +8,7 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -15,8 +16,11 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+const subscriptionsListenMethod = "subscriptions/listen"
 
 type InventoryFactoryFunc func(r *http.Request) (*inventory.Inventory, error)
 
@@ -219,6 +223,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Let the SDK validate missing or mismatched method headers before the
+	// middleware rejects a well-formed request as unsupported.
+	if r.Header.Get(headers.MCPMethodHeader) == subscriptionsListenMethod {
+		ghServer.AddReceivingMiddleware(rejectSubscriptionsListen)
+	}
+
 	// Cross-origin protection is intentionally left unset: this server
 	// authenticates via bearer tokens (not cookies), so Sec-Fetch-Site CSRF
 	// checks are unnecessary and would block browser-based MCP clients. As of
@@ -231,6 +241,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 
 	mcpHandler.ServeHTTP(w, r)
+}
+
+func rejectSubscriptionsListen(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+		if method == subscriptionsListenMethod {
+			return nil, &jsonrpc.Error{
+				Code:    jsonrpc.CodeMethodNotFound,
+				Message: "method not found",
+			}
+		}
+		return next(ctx, method, req)
+	}
 }
 
 func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error) {
