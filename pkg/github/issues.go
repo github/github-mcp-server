@@ -1212,13 +1212,14 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 						Description: "Issue or pull request number to comment on or react to.",
 					},
 					"comment_id": {
-						Type:        "number",
+						Type:        "integer",
 						Description: "The numeric ID of the issue or pull request comment to react to. Use this for reactions to comments; omit it to react to the issue or pull request itself. Cannot be combined with body.",
 						Minimum:     jsonschema.Ptr(1.0),
 					},
 					"body": {
 						Type:        "string",
 						Description: "Comment content. Required unless reaction is provided.",
+						MinLength:   jsonschema.Ptr(1),
 					},
 					"reaction": {
 						Type:        "string",
@@ -1227,6 +1228,16 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 					},
 				},
 				Required: []string{"owner", "repo", "issue_number"},
+				AnyOf: []*jsonschema.Schema{
+					{Required: []string{"body"}},
+					{Required: []string{"reaction"}},
+				},
+				DependentSchemas: map[string]*jsonschema.Schema{
+					"comment_id": {
+						Required: []string{"reaction"},
+						Not:      &jsonschema.Schema{Required: []string{"body"}},
+					},
+				},
 			},
 		},
 		[]scopes.Scope{scopes.Repo},
@@ -1245,10 +1256,10 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 			var commentID int64
 			hasCommentID := false
-			if _, ok := args["comment_id"]; ok {
-				commentID, err = RequiredBigInt(args, "comment_id")
+			if value, ok := args["comment_id"]; ok {
+				commentID, err = toInt64(value)
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return utils.NewToolResultError(fmt.Sprintf("parameter comment_id is not a valid number: %v", err)), nil, nil
 				}
 				if commentID < 1 {
 					return utils.NewToolResultError("comment_id must be greater than 0"), nil, nil
@@ -1277,6 +1288,9 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 			if hasReaction && reactionContent == "" {
 				return utils.NewToolResultError("reaction cannot be empty when provided"), nil, nil
+			}
+			if hasReaction && !isValidIssueReaction(reactionContent) {
+				return utils.NewToolResultError("reaction must be one of +1, -1, laugh, confused, heart, hooray, rocket, eyes"), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -1370,6 +1384,15 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
+}
+
+func isValidIssueReaction(reaction string) bool {
+	switch reaction {
+	case "+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes":
+		return true
+	default:
+		return false
+	}
 }
 
 func issueNumberFromIssueURL(issueURL string) (int, error) {

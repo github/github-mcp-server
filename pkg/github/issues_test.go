@@ -4738,11 +4738,10 @@ func Test_GetSubIssues(t *testing.T) {
 	}
 }
 
-func TestAddIssueComment(t *testing.T) {
+func TestAddIssueCommentSchema(t *testing.T) {
 	t.Parallel()
 
-	serverTool := AddIssueComment(translations.NullTranslationHelper)
-	tool := serverTool.Tool
+	tool := AddIssueComment(translations.NullTranslationHelper).Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "add_issue_comment", tool.Name)
@@ -4756,6 +4755,101 @@ func TestAddIssueComment(t *testing.T) {
 	assert.Contains(t, schema.Properties, "reaction")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "issue_number"})
 
+	resolved, err := schema.Resolve(nil)
+	require.NoError(t, err)
+
+	baseArgs := map[string]any{
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": 42,
+	}
+	tests := []struct {
+		name    string
+		args    map[string]any
+		isValid bool
+	}{
+		{
+			name:    "body-only comment",
+			args:    map[string]any{"body": "This is a comment"},
+			isValid: true,
+		},
+		{
+			name:    "issue or pull request reaction",
+			args:    map[string]any{"reaction": "heart"},
+			isValid: true,
+		},
+		{
+			name:    "comment and issue or pull request reaction",
+			args:    map[string]any{"body": "This is a comment", "reaction": "heart"},
+			isValid: true,
+		},
+		{
+			name:    "existing comment reaction",
+			args:    map[string]any{"comment_id": 999, "reaction": "heart"},
+			isValid: true,
+		},
+		{
+			name:    "missing body and reaction",
+			args:    map[string]any{},
+			isValid: false,
+		},
+		{
+			name:    "empty body",
+			args:    map[string]any{"body": ""},
+			isValid: false,
+		},
+		{
+			name:    "comment_id without reaction",
+			args:    map[string]any{"comment_id": 999},
+			isValid: false,
+		},
+		{
+			name:    "comment_id with body",
+			args:    map[string]any{"comment_id": 999, "body": "This is a comment"},
+			isValid: false,
+		},
+		{
+			name:    "comment_id with body and reaction",
+			args:    map[string]any{"comment_id": 999, "body": "This is a comment", "reaction": "heart"},
+			isValid: false,
+		},
+		{
+			name:    "zero comment_id",
+			args:    map[string]any{"comment_id": 0, "reaction": "heart"},
+			isValid: false,
+		},
+		{
+			name:    "fractional comment_id",
+			args:    map[string]any{"comment_id": 1.5, "reaction": "heart"},
+			isValid: false,
+		},
+		{
+			name:    "invalid reaction",
+			args:    map[string]any{"reaction": "party"},
+			isValid: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			args := maps.Clone(baseArgs)
+			maps.Copy(args, tc.args)
+			err := resolved.Validate(args)
+			if tc.isValid {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestAddIssueCommentHandler(t *testing.T) {
+	t.Parallel()
+
+	serverTool := AddIssueComment(translations.NullTranslationHelper)
 	mockComment := &github.IssueComment{
 		ID:      github.Ptr(int64(456)),
 		Body:    github.Ptr("This is a comment"),
@@ -4909,6 +5003,18 @@ func TestAddIssueComment(t *testing.T) {
 			expectedToolErrMsg: "comment_id can only be provided when reaction is provided",
 		},
 		{
+			name: "zero comment_id",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(0),
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "comment_id must be greater than 0",
+		},
+		{
 			name: "negative comment_id",
 			requestArgs: map[string]any{
 				"owner":        "owner",
@@ -4932,6 +5038,17 @@ func TestAddIssueComment(t *testing.T) {
 			},
 			expectToolError:    true,
 			expectedToolErrMsg: "comment_id cannot be combined with body",
+		},
+		{
+			name: "invalid reaction",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"reaction":     "party",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "reaction must be one of +1, -1, laugh, confused, heart, hooray, rocket, eyes",
 		},
 		{
 			name: "does not create comment when reaction fails",
