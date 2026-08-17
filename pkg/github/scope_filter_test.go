@@ -11,20 +11,21 @@ import (
 )
 
 func TestCreateToolScopeFilter(t *testing.T) {
-	// Create test tools with various scope requirements
+	// Create test tools with various scope requirements.
+	// RequiredScopes is the single source of truth for filtering.
 	toolNoScopes := &inventory.ServerTool{
 		Tool:           mcp.Tool{Name: "no_scopes_tool"},
-		AcceptedScopes: nil,
+		RequiredScopes: nil,
 	}
 
 	toolEmptyScopes := &inventory.ServerTool{
 		Tool:           mcp.Tool{Name: "empty_scopes_tool"},
-		AcceptedScopes: []string{},
+		RequiredScopes: []string{},
 	}
 
 	toolRepoScope := &inventory.ServerTool{
 		Tool:           mcp.Tool{Name: "repo_tool"},
-		AcceptedScopes: []string{"repo"},
+		RequiredScopes: []string{"repo"},
 	}
 
 	toolRepoScopeReadOnly := &inventory.ServerTool{
@@ -32,12 +33,12 @@ func TestCreateToolScopeFilter(t *testing.T) {
 			Name:        "repo_tool_readonly",
 			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		},
-		AcceptedScopes: []string{"repo"},
+		RequiredScopes: []string{"repo"},
 	}
 
 	toolPublicRepoScope := &inventory.ServerTool{
 		Tool:           mcp.Tool{Name: "public_repo_tool"},
-		AcceptedScopes: []string{"public_repo", "repo"}, // repo is parent, also accepted
+		RequiredScopes: []string{"public_repo"},
 	}
 
 	toolPublicRepoScopeReadOnly := &inventory.ServerTool{
@@ -45,17 +46,30 @@ func TestCreateToolScopeFilter(t *testing.T) {
 			Name:        "public_repo_tool_readonly",
 			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		},
-		AcceptedScopes: []string{"public_repo", "repo"},
+		RequiredScopes: []string{"public_repo"},
 	}
 
 	toolGistScope := &inventory.ServerTool{
 		Tool:           mcp.Tool{Name: "gist_tool"},
-		AcceptedScopes: []string{"gist"},
+		RequiredScopes: []string{"gist"},
 	}
 
-	toolMultiScope := &inventory.ServerTool{
-		Tool:           mcp.Tool{Name: "multi_scope_tool"},
-		AcceptedScopes: []string{"repo", "admin:org"},
+	// Models ui_get / list_issue_fields: read-only, but requires repo AND read:org.
+	toolRepoAndReadOrg := &inventory.ServerTool{
+		Tool: mcp.Tool{
+			Name:        "ui_get",
+			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
+		},
+		RequiredScopes: []string{"repo", "read:org"},
+	}
+
+	// Models security tools (code scanning etc.): read-only, single {security_events}.
+	toolSecurityEvents := &inventory.ServerTool{
+		Tool: mcp.Tool{
+			Name:        "list_code_scanning_alerts",
+			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
+		},
+		RequiredScopes: []string{"security_events"},
 	}
 
 	tests := []struct {
@@ -101,12 +115,6 @@ func TestCreateToolScopeFilter(t *testing.T) {
 			expected:    false,
 		},
 		{
-			name:        "token with one of multiple accepted scopes can see tool",
-			tokenScopes: []string{"admin:org"},
-			tool:        toolMultiScope,
-			expected:    true,
-		},
-		{
 			name:        "empty token scopes cannot see scoped tools",
 			tokenScopes: []string{},
 			tool:        toolRepoScope,
@@ -130,6 +138,42 @@ func TestCreateToolScopeFilter(t *testing.T) {
 			tool:        toolPublicRepoScope,
 			expected:    true,
 		},
+		{
+			name:        "AND: repo-only classic PAT hides {repo, read:org} tool",
+			tokenScopes: []string{"repo"},
+			tool:        toolRepoAndReadOrg,
+			expected:    false,
+		},
+		{
+			name:        "AND: {repo, read:org} token shows {repo, read:org} tool",
+			tokenScopes: []string{"repo", "read:org"},
+			tool:        toolRepoAndReadOrg,
+			expected:    true,
+		},
+		{
+			name:        "AND: {repo, admin:org} token shows {repo, read:org} tool via hierarchy",
+			tokenScopes: []string{"repo", "admin:org"},
+			tool:        toolRepoAndReadOrg,
+			expected:    true,
+		},
+		{
+			name:        "security tool: repo token satisfies security_events (neutral)",
+			tokenScopes: []string{"repo"},
+			tool:        toolSecurityEvents,
+			expected:    true,
+		},
+		{
+			name:        "security tool: security_events token shows tool",
+			tokenScopes: []string{"security_events"},
+			tool:        toolSecurityEvents,
+			expected:    true,
+		},
+		{
+			name:        "security tool: public_repo (sibling) does not show tool",
+			tokenScopes: []string{"public_repo"},
+			tool:        toolSecurityEvents,
+			expected:    false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -149,17 +193,23 @@ func TestCreateToolScopeFilter_Integration(t *testing.T) {
 		{
 			Tool:           mcp.Tool{Name: "public_tool"},
 			Toolset:        inventory.ToolsetMetadata{ID: "test"},
-			AcceptedScopes: nil, // No scopes required
+			RequiredScopes: nil, // No scopes required
 		},
 		{
 			Tool:           mcp.Tool{Name: "repo_tool"},
 			Toolset:        inventory.ToolsetMetadata{ID: "test"},
-			AcceptedScopes: []string{"repo"},
+			RequiredScopes: []string{"repo"},
 		},
 		{
 			Tool:           mcp.Tool{Name: "gist_tool"},
 			Toolset:        inventory.ToolsetMetadata{ID: "test"},
-			AcceptedScopes: []string{"gist"},
+			RequiredScopes: []string{"gist"},
+		},
+		{
+			// Requires repo AND read:org; hidden for a {repo}-only token.
+			Tool:           mcp.Tool{Name: "list_issue_fields"},
+			Toolset:        inventory.ToolsetMetadata{ID: "test"},
+			RequiredScopes: []string{"repo", "read:org"},
 		},
 	}
 
@@ -177,7 +227,7 @@ func TestCreateToolScopeFilter_Integration(t *testing.T) {
 	// Get available tools
 	availableTools := inv.AvailableTools(context.Background())
 
-	// Should see public_tool and repo_tool, but not gist_tool
+	// Should see public_tool and repo_tool, but not gist_tool or list_issue_fields
 	assert.Len(t, availableTools, 2)
 
 	toolNames := make([]string, len(availableTools))
@@ -188,4 +238,5 @@ func TestCreateToolScopeFilter_Integration(t *testing.T) {
 	assert.Contains(t, toolNames, "public_tool")
 	assert.Contains(t, toolNames, "repo_tool")
 	assert.NotContains(t, toolNames, "gist_tool")
+	assert.NotContains(t, toolNames, "list_issue_fields")
 }
