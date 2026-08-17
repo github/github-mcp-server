@@ -1,0 +1,29 @@
+{
+  "annotations": {
+    "title": "Delete branch"
+  },
+  "description": "Delete a branch from a GitHub repository. Protected branches cannot be deleted.",
+  "inputSchema": {
+    "properties": {
+      "branch": {
+        "description": "Name of the branch to delete",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "branch"
+    ],
+    "type": "object"
+  },
+  "name": "delete_branch"
+}
