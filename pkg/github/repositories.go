@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/ifc"
@@ -708,11 +709,14 @@ const (
 	DeleteRepositoryToolName          = "delete_repository"
 	deleteRepositoryConfirmationID    = "delete_repository_confirmation"
 	deleteRepositoryConfirmationField = "repository_name"
+	deleteRepositoryConfirmationTTL   = 10 * time.Minute
 )
 
 type deleteRepositoryState struct {
-	Owner string `json:"owner"`
-	Repo  string `json:"repo"`
+	Owner        string `json:"owner"`
+	Repo         string `json:"repo"`
+	RepositoryID int64  `json:"repository_id"`
+	ExpiresAt    int64  `json:"expires_at"`
 }
 
 // DeleteRepository creates a tool that deletes a GitHub repository after the
@@ -756,6 +760,7 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 
 			fullName := owner + "/" + repo
 			sealer := requestStateSealerFromDeps(deps)
+			var deletionState *deleteRepositoryState
 			var responses mcp.InputResponseMap
 			if req != nil && req.Params != nil {
 				responses = req.Params.InputResponses
@@ -764,7 +769,20 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 			if !ok {
 				var requestState string
 				if sealer != nil {
-					state, err := json.Marshal(deleteRepositoryState{Owner: owner, Repo: repo})
+					client, err := deps.GetClient(ctx)
+					if err != nil {
+						return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+					}
+					repositoryID, result := repositoryIDForDeletion(ctx, client, owner, repo)
+					if result != nil {
+						return result, nil, nil
+					}
+					state, err := json.Marshal(deleteRepositoryState{
+						Owner:        owner,
+						Repo:         repo,
+						RepositoryID: repositoryID,
+						ExpiresAt:    time.Now().Add(deleteRepositoryConfirmationTTL).Unix(),
+					})
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to marshal repository deletion state: %w", err)
 					}
@@ -810,6 +828,13 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 				if state.Owner != owner || state.Repo != repo {
 					return utils.NewToolResultError("Repository deletion target changed after confirmation was requested. The repository was not deleted."), nil, nil
 				}
+				if state.ExpiresAt <= time.Now().Unix() {
+					return utils.NewToolResultError("Repository deletion confirmation expired. The repository was not deleted."), nil, nil
+				}
+				if state.RepositoryID == 0 {
+					return utils.NewToolResultError("Repository deletion confirmation state was invalid. The repository was not deleted."), nil, nil
+				}
+				deletionState = &state
 			}
 
 			confirmation, ok := response.(*mcp.ElicitResult)
@@ -827,6 +852,15 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+			if deletionState != nil {
+				currentRepositoryID, result := repositoryIDForDeletion(ctx, client, owner, repo)
+				if result != nil {
+					return result, nil, nil
+				}
+				if currentRepositoryID != deletionState.RepositoryID {
+					return utils.NewToolResultError("Repository identity changed after confirmation was requested. The repository was not deleted."), nil, nil
+				}
 			}
 			resp, err := client.Repositories.Delete(ctx, owner, repo)
 			if err != nil {
@@ -852,6 +886,21 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 	tool.MinimumProtocolVersion = inventory.ProtocolVersionMultiRoundTrip
 	tool.RequiredElicitationMode = inventory.ElicitationModeForm
 	return tool
+}
+
+func repositoryIDForDeletion(ctx context.Context, client *github.Client, owner, repo string) (int64, *mcp.CallToolResult) {
+	repository, resp, err := client.Repositories.Get(ctx, owner, repo)
+	if err != nil {
+		return 0, ghErrors.NewGitHubAPIErrorResponse(ctx,
+			fmt.Sprintf("failed to get repository: %s/%s", owner, repo),
+			resp,
+			err,
+		)
+	}
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+	return repository.GetID(), nil
 }
 
 // FetchRepoIsPrivate returns whether a repository is private. It is a thin

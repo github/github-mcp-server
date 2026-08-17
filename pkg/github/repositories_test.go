@@ -3043,6 +3043,10 @@ func Test_DeleteRepository(t *testing.T) {
 		require.NoError(t, err)
 		client := NewMockedHTTPClient(
 			WithRequestMatchHandler(
+				GetReposByOwnerByRepo,
+				mockResponse(t, http.StatusOK, map[string]any{"id": 123}),
+			),
+			WithRequestMatchHandler(
 				DeleteReposByOwnerByRepo,
 				mockResponse(t, http.StatusNoContent, nil),
 			),
@@ -3099,11 +3103,50 @@ func Test_DeleteRepository(t *testing.T) {
 		assert.Contains(t, getErrorResult(t, result).Text, "state was invalid")
 	})
 
+	t.Run("refuses expired deletion state", func(t *testing.T) {
+		sealer, err := requeststate.New(base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")))
+		require.NoError(t, err)
+		stateJSON, err := json.Marshal(deleteRepositoryState{
+			Owner:        "owner",
+			Repo:         "repo",
+			RepositoryID: 123,
+			ExpiresAt:    time.Now().Add(-time.Minute).Unix(),
+		})
+		require.NoError(t, err)
+		state, err := sealer.Seal(context.Background(), stateJSON)
+		require.NoError(t, err)
+		deps := BaseDeps{
+			Client:      mustNewGHClient(t, NewMockedHTTPClient()),
+			StateSealer: sealer,
+		}
+		handler := serverTool.Handler(deps)
+
+		request := createMCPRequest(map[string]any{"owner": "owner", "repo": "repo"})
+		request.Params.RequestState = state
+		request.Params.InputResponses = mcp.InputResponseMap{
+			deleteRepositoryConfirmationID: &mcp.ElicitResult{
+				Action: "accept",
+				Content: map[string]any{
+					deleteRepositoryConfirmationField: "owner/repo",
+				},
+			},
+		}
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		assert.Contains(t, getErrorResult(t, result).Text, "confirmation expired")
+	})
+
 	t.Run("refuses a changed deletion target", func(t *testing.T) {
 		sealer, err := requeststate.New(base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")))
 		require.NoError(t, err)
 		deps := BaseDeps{
-			Client:      mustNewGHClient(t, NewMockedHTTPClient()),
+			Client: mustNewGHClient(t, NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetReposByOwnerByRepo,
+					mockResponse(t, http.StatusOK, map[string]any{"id": 123}),
+				),
+			)),
 			StateSealer: sealer,
 		}
 		handler := serverTool.Handler(deps)
@@ -3126,6 +3169,50 @@ func Test_DeleteRepository(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, result.IsError)
 		assert.Contains(t, getErrorResult(t, result).Text, "target changed")
+	})
+
+	t.Run("refuses a recreated repository", func(t *testing.T) {
+		sealer, err := requeststate.New(base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")))
+		require.NoError(t, err)
+		var repositoryLookups int
+		client := NewMockedHTTPClient(
+			WithRequestMatchHandler(
+				GetReposByOwnerByRepo,
+				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					repositoryLookups++
+					id := 123
+					if repositoryLookups > 1 {
+						id = 456
+					}
+					w.WriteHeader(http.StatusOK)
+					require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"id": id}))
+				}),
+			),
+		)
+		deps := BaseDeps{
+			Client:      mustNewGHClient(t, client),
+			StateSealer: sealer,
+		}
+		handler := serverTool.Handler(deps)
+
+		firstRequest := createMCPRequest(map[string]any{"owner": "owner", "repo": "repo"})
+		firstResult, err := handler(ContextWithDeps(context.Background(), deps), &firstRequest)
+		require.NoError(t, err)
+
+		retry := createMCPRequest(map[string]any{"owner": "owner", "repo": "repo"})
+		retry.Params.RequestState = firstResult.RequestState
+		retry.Params.InputResponses = mcp.InputResponseMap{
+			deleteRepositoryConfirmationID: &mcp.ElicitResult{
+				Action: "accept",
+				Content: map[string]any{
+					deleteRepositoryConfirmationField: "owner/repo",
+				},
+			},
+		}
+		result, err := handler(ContextWithDeps(context.Background(), deps), &retry)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		assert.Contains(t, getErrorResult(t, result).Text, "identity changed")
 	})
 
 	t.Run("completes multi-round-trip elicitation before deleting", func(t *testing.T) {
