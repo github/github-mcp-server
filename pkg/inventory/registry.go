@@ -221,7 +221,7 @@ func shouldStripMCPAppsMetadata(ctx context.Context, featureFlagEnabled bool) bo
 // /insiders route.
 func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
 	tools := r.ToolsForRegistration(ctx)
-	addToolProtocolVersionMiddleware(s, tools)
+	addToolAvailabilityMiddleware(s, tools)
 	for _, tool := range tools {
 		tool.RegisterFunc(s, deps, middleware...)
 	}

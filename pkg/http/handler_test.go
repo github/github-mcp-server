@@ -934,31 +934,53 @@ func TestHTTPToolMinimumProtocolVersion(t *testing.T) {
 	handler.RegisterRoutes(router)
 
 	for _, tt := range []struct {
-		name               string
-		protocolVersion    string
-		wantDeleteRepoTool bool
+		name                    string
+		protocolVersion         string
+		elicitationCapabilities map[string]any
+		wantDeleteRepoTool      bool
 	}{
 		{
-			name:               "current protocol includes delete repository",
-			protocolVersion:    inventory.ProtocolVersionMultiRoundTrip,
-			wantDeleteRepoTool: true,
+			name:                    "current protocol with form elicitation includes delete repository",
+			protocolVersion:         inventory.ProtocolVersionMultiRoundTrip,
+			elicitationCapabilities: map[string]any{"form": map[string]any{}},
+			wantDeleteRepoTool:      true,
 		},
 		{
-			name:               "legacy protocol hides delete repository",
-			protocolVersion:    "2025-11-25",
-			wantDeleteRepoTool: false,
+			name:                    "current protocol with URL-only elicitation hides delete repository",
+			protocolVersion:         inventory.ProtocolVersionMultiRoundTrip,
+			elicitationCapabilities: map[string]any{"url": map[string]any{}},
+		},
+		{
+			name:            "current protocol without elicitation hides delete repository",
+			protocolVersion: inventory.ProtocolVersionMultiRoundTrip,
+		},
+		{
+			name:                    "legacy protocol hides delete repository",
+			protocolVersion:         "2025-11-25",
+			elicitationCapabilities: map[string]any{"form": map[string]any{}},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			body := strings.Replace(
-				`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"PROTOCOL_VERSION","io.modelcontextprotocol/clientCapabilities":{"elicitation":{"form":{}}},"io.modelcontextprotocol/clientInfo":{"name":"test","version":"v0.0.1"}}}}`,
-				"PROTOCOL_VERSION",
-				tt.protocolVersion,
-				1,
-			)
-			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+			clientCapabilities := map[string]any{}
+			if tt.elicitationCapabilities != nil {
+				clientCapabilities["elicitation"] = tt.elicitationCapabilities
+			}
+			body, err := json.Marshal(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      1,
+				"method":  "tools/list",
+				"params": map[string]any{
+					"_meta": map[string]any{
+						mcp.MetaKeyProtocolVersion:    tt.protocolVersion,
+						mcp.MetaKeyClientCapabilities: clientCapabilities,
+						mcp.MetaKeyClientInfo:         map[string]any{"name": "test", "version": "v0.0.1"},
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(body)))
 			req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
-			req.Header.Set(headers.AuthorizationHeader, "Bearer test-token")
 			req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
 			req.Header.Set("Mcp-Protocol-Version", tt.protocolVersion)
 			req.Header.Set("Mcp-Method", "tools/list")

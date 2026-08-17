@@ -814,6 +814,7 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 		},
 	)
 	tool.MinimumProtocolVersion = inventory.ProtocolVersionMultiRoundTrip
+	tool.RequiredElicitationMode = inventory.ElicitationModeForm
 	return tool
 }
 

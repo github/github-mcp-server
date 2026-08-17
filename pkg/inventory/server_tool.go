@@ -85,6 +85,10 @@ type ServerTool struct {
 	// call this tool. Empty means the tool is available on every version.
 	MinimumProtocolVersion string
 
+	// RequiredElicitationMode is the elicitation mode the client must support to
+	// list or call this tool. Empty means the tool does not require elicitation.
+	RequiredElicitationMode ElicitationMode
+
 	// RequiredScopes specifies the minimum OAuth scopes required for this tool.
 	// These are the scopes that must be present for the tool to function.
 	RequiredScopes []string
@@ -123,6 +127,7 @@ func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any, middleware ...ToolHa
 	for i := len(middleware) - 1; i >= 0; i-- {
 		handler = middleware[i](handler)
 	}
+	handler = st.wrapAvailabilityCheck(handler)
 	// Make a shallow copy of the tool to avoid mutating the original
 	toolCopy := st.Tool
 	// Apply icons from toolset metadata if tool doesn't have icons set
