@@ -97,6 +97,10 @@ type ServerTool struct {
 	// This includes the required scopes plus any higher-level scopes that provide
 	// the necessary permissions due to scope hierarchy.
 	AcceptedScopes []string
+
+	// RequiredScopeGroups contains one group of accepted alternatives for each
+	// independently required OAuth scope. Every group must be satisfied.
+	RequiredScopeGroups [][]string
 }
 
 // IsReadOnly returns true if this tool is marked as read-only via annotations.

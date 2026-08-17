@@ -682,9 +682,7 @@ func TestStaticInventoryFallbackKeepsDeleteRepositoryDisabled(t *testing.T) {
 	}
 	tools, _, _ := buildStaticInventory(cfg, translations.NullTranslationHelper)
 
-	for _, tool := range tools {
-		assert.NotEqual(t, github.DeleteRepositoryToolName, tool.Tool.Name)
-	}
+	assert.Empty(t, tools, "an unavailable explicit allowlist must not widen to other tools")
 }
 
 // TestContentTypeHandling verifies that the MCP StreamableHTTP handler

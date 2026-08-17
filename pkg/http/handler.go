@@ -360,14 +360,17 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 	}
 	opts := []github.ToolOption{github.WithHost(hostType)}
 	tools := github.AllTools(t, opts...)
-	if cfg.disableDeleteRepository {
-		tools = slices.DeleteFunc(tools, func(tool inventory.ServerTool) bool {
+	filterUnavailable := func(tools []inventory.ServerTool) []inventory.ServerTool {
+		if !cfg.disableDeleteRepository {
+			return tools
+		}
+		return slices.DeleteFunc(tools, func(tool inventory.ServerTool) bool {
 			return tool.Tool.Name == github.DeleteRepositoryToolName
 		})
 	}
 
 	if !hasStaticConfig(cfg) {
-		return tools, github.AllResources(t), github.AllPrompts(t)
+		return filterUnavailable(tools), github.AllResources(t), github.AllPrompts(t)
 	}
 
 	b := inventory.NewBuilder().
@@ -387,13 +390,13 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 
 	inv, err := b.Build()
 	if err != nil {
-		// Fall back to all tools if there's an error (e.g. unknown tool names).
-		// The error will surface again at per-request time if relevant.
-		return tools, github.AllResources(t), github.AllPrompts(t)
+		// Invalid static tool names must fail closed rather than widening an
+		// explicit allowlist to every tool.
+		return nil, github.AllResources(t), github.AllPrompts(t)
 	}
 
 	ctx := context.Background()
-	return inv.AvailableTools(ctx), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx)
+	return filterUnavailable(inv.AvailableTools(ctx)), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx)
 }
 
 // InventoryFiltersForRequest applies filters to the inventory builder

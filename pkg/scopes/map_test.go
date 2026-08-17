@@ -123,6 +123,26 @@ func TestToolScopeInfo_HasAcceptedScope(t *testing.T) {
 			userScopes: []string{"public_repo"},
 			expected:   false,
 		},
+		{
+			name: "satisfies all required groups",
+			scopeInfo: &ToolScopeInfo{
+				RequiredScopes:      []string{"delete_repo", "repo"},
+				AcceptedScopes:      []string{"delete_repo", "repo"},
+				RequiredScopeGroups: [][]string{{"delete_repo"}, {"repo"}},
+			},
+			userScopes: []string{"delete_repo", "repo"},
+			expected:   true,
+		},
+		{
+			name: "missing one required group",
+			scopeInfo: &ToolScopeInfo{
+				RequiredScopes:      []string{"delete_repo", "repo"},
+				AcceptedScopes:      []string{"delete_repo", "repo"},
+				RequiredScopeGroups: [][]string{{"delete_repo"}, {"repo"}},
+			},
+			userScopes: []string{"delete_repo"},
+			expected:   false,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -177,6 +197,17 @@ func TestToolScopeInfo_MissingScopes(t *testing.T) {
 			userScopes:     []string{},
 			expectedLen:    0,
 			expectedScopes: nil,
+		},
+		{
+			name: "reports only missing required groups",
+			scopeInfo: &ToolScopeInfo{
+				RequiredScopes:      []string{"delete_repo", "repo"},
+				AcceptedScopes:      []string{"delete_repo", "repo"},
+				RequiredScopeGroups: [][]string{{"delete_repo"}, {"repo"}},
+			},
+			userScopes:     []string{"delete_repo"},
+			expectedLen:    1,
+			expectedScopes: []string{"repo"},
 		},
 	}
 

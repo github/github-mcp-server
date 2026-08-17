@@ -245,6 +245,7 @@ func NewTool[In, Out any](
 	})
 	st.RequiredScopes = scopes.ToStringSlice(requiredScopes...)
 	st.AcceptedScopes = scopes.ExpandScopes(requiredScopes...)
+	st.RequiredScopeGroups = scopes.ExpandScopeGroups(requiredScopes...)
 	return st
 }
 
@@ -268,6 +269,7 @@ func NewToolFromHandler(
 	})
 	st.RequiredScopes = scopes.ToStringSlice(requiredScopes...)
 	st.AcceptedScopes = scopes.ExpandScopes(requiredScopes...)
+	st.RequiredScopeGroups = scopes.ExpandScopeGroups(requiredScopes...)
 	return st
 }
 

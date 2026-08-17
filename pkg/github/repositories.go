@@ -747,7 +747,7 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"owner", "repo"},
 			},
 		},
-		[]scopes.Scope{scopes.DeleteRepo},
+		[]scopes.Scope{scopes.DeleteRepo, scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

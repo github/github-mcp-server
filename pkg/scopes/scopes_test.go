@@ -112,6 +112,14 @@ func TestExpandScopes(t *testing.T) {
 	}
 }
 
+func TestHasRequiredScopeGroups(t *testing.T) {
+	groups := ExpandScopeGroups(DeleteRepo, Repo)
+
+	assert.True(t, HasRequiredScopeGroups([]string{"delete_repo", "repo"}, groups))
+	assert.False(t, HasRequiredScopeGroups([]string{"delete_repo"}, groups))
+	assert.False(t, HasRequiredScopeGroups([]string{"repo"}, groups))
+}
+
 func TestToStringSlice(t *testing.T) {
 	tests := []struct {
 		name     string

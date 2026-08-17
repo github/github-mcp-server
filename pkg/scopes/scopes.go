@@ -153,6 +153,17 @@ func ExpandScopes(required ...Scope) []string {
 	return result
 }
 
+// ExpandScopeGroups returns one accepted-scope group for each independently
+// required scope. A token must satisfy every group, while any scope within a
+// group is sufficient because parent scopes grant the same permission.
+func ExpandScopeGroups(required ...Scope) [][]string {
+	groups := make([][]string, 0, len(required))
+	for _, scope := range required {
+		groups = append(groups, ExpandScopes(scope))
+	}
+	return groups
+}
+
 // expandScopeSet returns a set of all scopes granted by the given scopes,
 // including child scopes from the hierarchy.
 // For example, if "repo" is provided, the result includes "repo", "public_repo",
@@ -195,4 +206,26 @@ func HasRequiredScopes(tokenScopes []string, acceptedScopes []string) bool {
 		}
 	}
 	return false
+}
+
+// HasRequiredScopeGroups reports whether the token satisfies every independent
+// required-scope group.
+func HasRequiredScopeGroups(tokenScopes []string, groups [][]string) bool {
+	if len(groups) == 0 {
+		return true
+	}
+	grantedScopes := expandScopeSet(tokenScopes)
+	for _, group := range groups {
+		satisfied := false
+		for _, accepted := range group {
+			if grantedScopes[accepted] {
+				satisfied = true
+				break
+			}
+		}
+		if !satisfied {
+			return false
+		}
+	}
+	return true
 }

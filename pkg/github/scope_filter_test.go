@@ -58,6 +58,12 @@ func TestCreateToolScopeFilter(t *testing.T) {
 		AcceptedScopes: []string{"repo", "admin:org"},
 	}
 
+	toolConjunctiveScopes := &inventory.ServerTool{
+		Tool:                mcp.Tool{Name: "conjunctive_scope_tool"},
+		AcceptedScopes:      []string{"delete_repo", "repo"},
+		RequiredScopeGroups: [][]string{{"delete_repo"}, {"repo"}},
+	}
+
 	tests := []struct {
 		name        string
 		tokenScopes []string
@@ -128,6 +134,18 @@ func TestCreateToolScopeFilter(t *testing.T) {
 			name:        "token with multiple scopes where one matches",
 			tokenScopes: []string{"gist", "repo"},
 			tool:        toolPublicRepoScope,
+			expected:    true,
+		},
+		{
+			name:        "token must satisfy every required scope group",
+			tokenScopes: []string{"delete_repo"},
+			tool:        toolConjunctiveScopes,
+			expected:    false,
+		},
+		{
+			name:        "token satisfying every required scope group can see tool",
+			tokenScopes: []string{"delete_repo", "repo"},
+			tool:        toolConjunctiveScopes,
 			expected:    true,
 		},
 	}
