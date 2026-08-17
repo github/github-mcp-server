@@ -641,6 +641,7 @@ func TestStaticInventoryPreservesPerRequestFeatureVariants(t *testing.T) {
 		mockToolWithFeatureFlag("list_issues", "issues", true, "", github.FeatureFlagCSVOutput),
 		mockToolWithFeatureFlag("list_issues", "issues", true, github.FeatureFlagCSVOutput, ""),
 	}
+
 	cfg := &ServerConfig{Version: "test", EnabledToolsets: []string{"issues"}}
 	featureChecker := createHTTPFeatureChecker(nil, false)
 
@@ -659,6 +660,30 @@ func TestStaticInventoryPreservesPerRequestFeatureVariants(t *testing.T) {
 	require.Len(t, available, 1)
 	assert.Equal(t, "list_issues", available[0].Tool.Name)
 	assert.Equal(t, github.FeatureFlagCSVOutput, available[0].FeatureFlagEnable)
+}
+
+func TestStaticInventoryDisablesOnlyDeleteRepository(t *testing.T) {
+	cfg := &ServerConfig{disableDeleteRepository: true}
+	tools, _, _ := buildStaticInventory(cfg, translations.NullTranslationHelper)
+
+	names := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		names = append(names, tool.Tool.Name)
+	}
+	assert.NotContains(t, names, github.DeleteRepositoryToolName)
+	assert.Contains(t, names, "actions_list", "non-default toolsets must remain available for per-request selection")
+}
+
+func TestStaticInventoryFallbackKeepsDeleteRepositoryDisabled(t *testing.T) {
+	cfg := &ServerConfig{
+		EnabledTools:            []string{github.DeleteRepositoryToolName},
+		disableDeleteRepository: true,
+	}
+	tools, _, _ := buildStaticInventory(cfg, translations.NullTranslationHelper)
+
+	for _, tool := range tools {
+		assert.NotEqual(t, github.DeleteRepositoryToolName, tool.Tool.Name)
+	}
 }
 
 // TestContentTypeHandling verifies that the MCP StreamableHTTP handler

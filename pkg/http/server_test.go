@@ -2,6 +2,9 @@ package http
 
 import (
 	"context"
+	"encoding/base64"
+	"io"
+	"log/slog"
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
@@ -214,6 +217,40 @@ func TestResolveListenAddress(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestConfigureRequestState(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	t.Run("missing key disables delete repository", func(t *testing.T) {
+		cfg := &ServerConfig{}
+		sealer, err := configureRequestState(cfg, logger)
+		require.NoError(t, err)
+		assert.Nil(t, sealer)
+		assert.True(t, cfg.disableDeleteRepository)
+	})
+
+	t.Run("valid key configures sealer", func(t *testing.T) {
+		cfg := &ServerConfig{
+			MRTRStateKey: base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")),
+		}
+		sealer, err := configureRequestState(cfg, logger)
+		require.NoError(t, err)
+		require.NotNil(t, sealer)
+		assert.False(t, cfg.disableDeleteRepository)
+
+		token, err := sealer.Seal(context.Background(), []byte("state"))
+		require.NoError(t, err)
+		opened, err := sealer.Open(token)
+		require.NoError(t, err)
+		assert.Equal(t, []byte("state"), opened)
+	})
+
+	t.Run("malformed key fails", func(t *testing.T) {
+		cfg := &ServerConfig{MRTRStateKey: "invalid"}
+		_, err := configureRequestState(cfg, logger)
+		require.ErrorContains(t, err, "invalid "+MRTRStateKeyEnv)
+	})
 }
 
 func TestHeaderAllowedFeatureFlagsMatchesAllowed(t *testing.T) {

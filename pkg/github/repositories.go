@@ -705,9 +705,15 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 }
 
 const (
+	DeleteRepositoryToolName          = "delete_repository"
 	deleteRepositoryConfirmationID    = "delete_repository_confirmation"
 	deleteRepositoryConfirmationField = "repository_name"
 )
+
+type deleteRepositoryState struct {
+	Owner string `json:"owner"`
+	Repo  string `json:"repo"`
+}
 
 // DeleteRepository creates a tool that deletes a GitHub repository after the
 // user confirms its full name through elicitation.
@@ -715,7 +721,7 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 	tool := NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
-			Name:        "delete_repository",
+			Name:        DeleteRepositoryToolName,
 			Description: t("TOOL_DELETE_REPOSITORY_DESCRIPTION", "Delete a GitHub repository after the user confirms the exact owner/repository name"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_DELETE_REPOSITORY_USER_TITLE", "Delete repository"),
@@ -749,12 +755,24 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 			}
 
 			fullName := owner + "/" + repo
+			sealer := requestStateSealerFromDeps(deps)
 			var responses mcp.InputResponseMap
 			if req != nil && req.Params != nil {
 				responses = req.Params.InputResponses
 			}
 			response, ok := responses[deleteRepositoryConfirmationID]
 			if !ok {
+				var requestState string
+				if sealer != nil {
+					state, err := json.Marshal(deleteRepositoryState{Owner: owner, Repo: repo})
+					if err != nil {
+						return nil, nil, fmt.Errorf("failed to marshal repository deletion state: %w", err)
+					}
+					requestState, err = sealer.Seal(ctx, state)
+					if err != nil {
+						return nil, nil, fmt.Errorf("failed to seal repository deletion state: %w", err)
+					}
+				}
 				return &mcp.CallToolResult{
 					InputRequests: mcp.InputRequestMap{
 						deleteRepositoryConfirmationID: &mcp.ElicitParams{
@@ -773,7 +791,25 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 							},
 						},
 					},
+					RequestState: requestState,
 				}, nil, nil
+			}
+
+			if sealer != nil {
+				if req.Params.RequestState == "" {
+					return utils.NewToolResultError("Repository deletion confirmation state was missing. The repository was not deleted."), nil, nil
+				}
+				stateJSON, err := sealer.Open(req.Params.RequestState)
+				if err != nil {
+					return utils.NewToolResultError("Repository deletion confirmation state was invalid. The repository was not deleted."), nil, nil
+				}
+				var state deleteRepositoryState
+				if err := json.Unmarshal(stateJSON, &state); err != nil {
+					return utils.NewToolResultError("Repository deletion confirmation state was invalid. The repository was not deleted."), nil, nil
+				}
+				if state.Owner != owner || state.Repo != repo {
+					return utils.NewToolResultError("Repository deletion target changed after confirmation was requested. The repository was not deleted."), nil, nil
+				}
 			}
 
 			confirmation, ok := response.(*mcp.ElicitResult)

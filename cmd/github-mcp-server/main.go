@@ -217,6 +217,7 @@ var (
 				EnabledFeatures:      enabledFeatures,
 				InsidersMode:         viper.GetBool("insiders"),
 				TrustProxyHeaders:    viper.GetBool("trust-proxy-headers"),
+				MRTRStateKey:         os.Getenv(ghhttp.MRTRStateKeyEnv),
 			}
 
 			return ghhttp.RunHTTPServer(httpConfig)
