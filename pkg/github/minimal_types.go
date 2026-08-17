@@ -861,6 +861,30 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 }
 
 func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
+	m := fragmentWithoutFieldValuesToMinimalIssue(issueFragmentWithoutFieldValues{
+		Number:     fragment.Number,
+		Title:      fragment.Title,
+		Body:       fragment.Body,
+		State:      fragment.State,
+		DatabaseID: fragment.DatabaseID,
+		Author:     fragment.Author,
+		CreatedAt:  fragment.CreatedAt,
+		UpdatedAt:  fragment.UpdatedAt,
+		Labels:     fragment.Labels,
+		Assignees:  fragment.Assignees,
+		Comments:   fragment.Comments,
+	})
+
+	for _, fv := range fragment.IssueFieldValues.Nodes {
+		if mfv, ok := fragmentToMinimalFieldValue(fv); ok {
+			m.FieldValues = append(m.FieldValues, mfv)
+		}
+	}
+
+	return m
+}
+
+func fragmentWithoutFieldValuesToMinimalIssue(fragment issueFragmentWithoutFieldValues) MinimalIssue {
 	m := MinimalIssue{
 		Number:    int(fragment.Number),
 		Title:     sanitize.Sanitize(string(fragment.Title)),
@@ -881,12 +905,6 @@ func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 	m.Assignees = make([]string, 0, len(fragment.Assignees.Nodes))
 	for _, assignee := range fragment.Assignees.Nodes {
 		m.Assignees = append(m.Assignees, string(assignee.Login))
-	}
-
-	for _, fv := range fragment.IssueFieldValues.Nodes {
-		if mfv, ok := fragmentToMinimalFieldValue(fv); ok {
-			m.FieldValues = append(m.FieldValues, mfv)
-		}
 	}
 
 	return m
@@ -924,6 +942,24 @@ func convertToMinimalIssuesResponse(fragment IssueQueryFragment) MinimalIssuesRe
 	minimalIssues := make([]MinimalIssue, 0, len(fragment.Nodes))
 	for _, issue := range fragment.Nodes {
 		minimalIssues = append(minimalIssues, fragmentToMinimalIssue(issue))
+	}
+
+	return MinimalIssuesResponse{
+		Issues:     minimalIssues,
+		TotalCount: fragment.TotalCount,
+		PageInfo: MinimalPageInfo{
+			HasNextPage:     bool(fragment.PageInfo.HasNextPage),
+			HasPreviousPage: bool(fragment.PageInfo.HasPreviousPage),
+			StartCursor:     string(fragment.PageInfo.StartCursor),
+			EndCursor:       string(fragment.PageInfo.EndCursor),
+		},
+	}
+}
+
+func convertToMinimalIssuesResponseWithoutFieldValues(fragment issueQueryFragmentWithoutFieldValues) MinimalIssuesResponse {
+	minimalIssues := make([]MinimalIssue, 0, len(fragment.Nodes))
+	for _, issue := range fragment.Nodes {
+		minimalIssues = append(minimalIssues, fragmentWithoutFieldValuesToMinimalIssue(issue))
 	}
 
 	return MinimalIssuesResponse{

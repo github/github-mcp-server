@@ -2558,6 +2558,219 @@ func Test_ListIssues(t *testing.T) {
 	}
 }
 
+func Test_ListIssues_IssueFieldsSchemaCompatibility(t *testing.T) {
+	t.Parallel()
+
+	responseBody := func(t *testing.T, includeFieldValues bool) string {
+		t.Helper()
+		issue := map[string]any{
+			"number":     1,
+			"title":      "An issue",
+			"body":       "body",
+			"state":      "OPEN",
+			"databaseId": 1,
+			"createdAt":  "2026-01-01T00:00:00Z",
+			"updatedAt":  "2026-01-01T00:00:00Z",
+			"author":     map[string]any{"login": "octocat"},
+			"labels":     map[string]any{"nodes": []any{}},
+			"comments":   map[string]any{"totalCount": 0},
+		}
+		if includeFieldValues {
+			issue["issueFieldValues"] = map[string]any{
+				"nodes": []any{
+					map[string]any{
+						"__typename": "IssueFieldSingleSelectValue",
+						"field":      map[string]any{"name": "Priority"},
+						"value":      "P1",
+					},
+				},
+			}
+		}
+
+		body, err := json.Marshal(map[string]any{
+			"data": map[string]any{
+				"repository": map[string]any{
+					"issues": map[string]any{
+						"nodes": []any{issue},
+						"pageInfo": map[string]any{
+							"hasNextPage":     false,
+							"hasPreviousPage": false,
+							"startCursor":     "",
+							"endCursor":       "",
+						},
+						"totalCount": 1,
+					},
+					"isPrivate": false,
+				},
+			},
+		})
+		require.NoError(t, err)
+		return string(body)
+	}
+
+	errorBody := func(t *testing.T, message string) string {
+		t.Helper()
+		body, err := json.Marshal(map[string]any{
+			"errors": []any{map[string]any{"message": message}},
+		})
+		require.NoError(t, err)
+		return string(body)
+	}
+
+	tests := []struct {
+		name            string
+		args            map[string]any
+		primaryError    string
+		wantFallback    bool
+		wantError       bool
+		wantFieldValues bool
+	}{
+		{
+			name:            "supported schema uses issue fields",
+			args:            map[string]any{"owner": "owner", "repo": "repo"},
+			wantFieldValues: true,
+		},
+		{
+			name:         "missing filter input type falls back",
+			args:         map[string]any{"owner": "owner", "repo": "repo"},
+			primaryError: "IssueFieldValueFilter isn't a defined input type (on $issueFieldValues)",
+			wantFallback: true,
+		},
+		{
+			name: "missing selected field falls back with labels and since",
+			args: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"labels": []any{"bug"},
+				"since":  "2026-01-01T00:00:00Z",
+			},
+			primaryError: "Field 'issueFieldValues' doesn't exist on type 'Issue'",
+			wantFallback: true,
+		},
+		{
+			name:         "unrelated GraphQL error is returned",
+			args:         map[string]any{"owner": "owner", "repo": "repo"},
+			primaryError: "Resource not accessible by integration",
+			wantError:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			responses := []func(capturedGraphQLRequest) (int, string){
+				func(req capturedGraphQLRequest) (int, string) {
+					assert.Contains(t, req.Query, "IssueFieldValueFilter")
+					assert.Contains(t, req.Query, "issueFieldValues(first: 25)")
+					assert.Contains(t, req.Variables, "issueFieldValues")
+					if tt.primaryError != "" {
+						return http.StatusOK, errorBody(t, tt.primaryError)
+					}
+					return http.StatusOK, responseBody(t, true)
+				},
+			}
+			if tt.wantFallback {
+				responses = append(responses, func(req capturedGraphQLRequest) (int, string) {
+					assert.NotContains(t, req.Query, "IssueFieldValueFilter")
+					assert.NotContains(t, req.Query, "issueFieldValues")
+					assert.NotContains(t, req.Variables, "issueFieldValues")
+					if _, hasLabels := tt.args["labels"]; hasLabels {
+						assert.Contains(t, req.Query, "labels: $labels")
+					}
+					if _, hasSince := tt.args["since"]; hasSince {
+						assert.Contains(t, req.Query, "filterBy: {since: $since}")
+					}
+					return http.StatusOK, responseBody(t, false)
+				})
+			}
+
+			graphqlTransport := &sequencedGraphQLTransport{t: t, responses: responses}
+			deps := BaseDeps{
+				GQLClient: githubv4.NewClient(&http.Client{Transport: graphqlTransport}),
+			}
+			serverTool := ListIssues(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+			req := createMCPRequest(tt.args)
+			res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+			require.NoError(t, err)
+
+			if tt.wantError {
+				require.True(t, res.IsError)
+				assert.Contains(t, getTextResult(t, res).Text, tt.primaryError)
+				assert.Len(t, graphqlTransport.calls, 1)
+				return
+			}
+
+			require.False(t, res.IsError, getTextResult(t, res).Text)
+			var response MinimalIssuesResponse
+			require.NoError(t, json.Unmarshal([]byte(getTextResult(t, res).Text), &response))
+			require.Len(t, response.Issues, 1)
+			if tt.wantFieldValues {
+				assert.Equal(t, []MinimalFieldValue{{Field: "Priority", Value: "P1"}}, response.Issues[0].FieldValues)
+			} else {
+				assert.Empty(t, response.Issues[0].FieldValues)
+			}
+			assert.Len(t, graphqlTransport.calls, len(responses))
+		})
+	}
+
+	t.Run("explicit field filters are never dropped", func(t *testing.T) {
+		fieldsBody, err := json.Marshal(map[string]any{
+			"data": map[string]any{
+				"repository": map[string]any{
+					"issueFields": map[string]any{
+						"nodes": []any{
+							map[string]any{
+								"__typename": "IssueFieldSingleSelect",
+								"id":         "IFSS_1",
+								"name":       "Priority",
+								"dataType":   "SINGLE_SELECT",
+								"visibility": "ALL",
+								"options": []any{
+									map[string]any{"id": "OPT_P1", "name": "P1", "color": "red"},
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		const unsupported = "IssueFieldValueFilter isn't a defined input type (on $issueFieldValues)"
+		graphqlTransport := &sequencedGraphQLTransport{
+			t: t,
+			responses: []func(capturedGraphQLRequest) (int, string){
+				func(req capturedGraphQLRequest) (int, string) {
+					assert.Contains(t, req.Query, "issueFields")
+					return http.StatusOK, string(fieldsBody)
+				},
+				func(req capturedGraphQLRequest) (int, string) {
+					assert.Contains(t, req.Query, "IssueFieldValueFilter")
+					assert.NotEmpty(t, req.Variables["issueFieldValues"])
+					return http.StatusOK, errorBody(t, unsupported)
+				},
+			},
+		}
+		deps := BaseDeps{
+			GQLClient: githubv4.NewClient(&http.Client{Transport: graphqlTransport}),
+		}
+		serverTool := ListIssues(translations.NullTranslationHelper)
+		handler := serverTool.Handler(deps)
+		req := createMCPRequest(map[string]any{
+			"owner": "owner",
+			"repo":  "repo",
+			"field_filters": []any{
+				map[string]any{"field_name": "Priority", "value": "P1"},
+			},
+		})
+		res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+		require.NoError(t, err)
+		require.True(t, res.IsError)
+		assert.Contains(t, getTextResult(t, res).Text, unsupported)
+		assert.Len(t, graphqlTransport.calls, 2)
+	})
+}
+
 func Test_ListIssues_FieldFilters(t *testing.T) {
 	t.Parallel()
 
