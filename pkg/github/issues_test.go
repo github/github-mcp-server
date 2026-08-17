@@ -1840,8 +1840,8 @@ func Test_CreateIssue(t *testing.T) {
 				"repo":   "repo",
 				"title":  "Issue with fields",
 				"issue_fields": []any{
-					map[string]any{"field_name": "Priority", "field_option_name": "P1"},
-					map[string]any{"field_name": "Customer", "value": "Acme"},
+					map[string]any{"field_name": "Priority", "field_option_name": "P1", "delete": false},
+					map[string]any{"field_name": "Customer", "value": "Acme", "delete": false},
 				},
 			},
 			expectError: false,
@@ -1883,6 +1883,21 @@ func Test_CreateIssue(t *testing.T) {
 			},
 			expectError:    false,
 			expectedErrMsg: "cannot specify both value and field_option_name",
+		},
+		{
+			name:         "issue_fields rejects delete true with value",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"method": "create",
+				"owner":  "owner",
+				"repo":   "repo",
+				"title":  "Invalid fields",
+				"issue_fields": []any{
+					map[string]any{"field_name": "Start date", "value": "2026-08-14", "delete": true},
+				},
+			},
+			expectError:    false,
+			expectedErrMsg: "cannot specify 'delete' together with 'value' or 'field_option_name'",
 		},
 	}
 
@@ -2115,11 +2130,17 @@ func Test_issueWriteHasNonFormParams(t *testing.T) {
 	}
 }
 
-// Test_optionalIssueWriteFields covers parsing of issue_write's issue_fields
-// items. The delete:false cases matter because the schema deliberately does not
-// constrain 'delete' to a single value: clients that populate every property of
-// a schema need a way to say "not deleting", and false must be a no-op that
-// falls through to the normal value path.
+func Test_IssueWriteIssueFieldsDeleteSchema(t *testing.T) {
+	t.Parallel()
+
+	inputSchema := IssueWrite(translations.NullTranslationHelper).Tool.InputSchema.(*jsonschema.Schema)
+	deleteSchema := inputSchema.Properties["issue_fields"].Items.Properties["delete"]
+
+	assert.Equal(t, "boolean", deleteSchema.Type)
+	assert.Empty(t, deleteSchema.Enum)
+	assert.Contains(t, deleteSchema.Description, "When false or omitted, this property is ignored")
+}
+
 func Test_optionalIssueWriteFields(t *testing.T) {
 	t.Parallel()
 
@@ -2130,9 +2151,14 @@ func Test_optionalIssueWriteFields(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "delete false alongside a value sets the value",
+			name: "delete false alongside a value is ignored",
 			item: map[string]any{"field_name": "Start date", "value": "2026-08-14", "delete": false, "field_option_name": ""},
 			want: issueWriteFieldInput{FieldName: "Start date", Value: "2026-08-14"},
+		},
+		{
+			name: "delete false alongside field_option_name is ignored",
+			item: map[string]any{"field_name": "Priority", "field_option_name": "High", "delete": false},
+			want: issueWriteFieldInput{FieldName: "Priority", FieldOptionName: "High"},
 		},
 		{
 			name: "delete true alone clears the field",
@@ -2150,9 +2176,19 @@ func Test_optionalIssueWriteFields(t *testing.T) {
 			wantErr: "cannot specify 'delete' together with 'value' or 'field_option_name'",
 		},
 		{
+			name:    "delete true with field_option_name is rejected",
+			item:    map[string]any{"field_name": "Priority", "field_option_name": "High", "delete": true},
+			wantErr: "cannot specify 'delete' together with 'value' or 'field_option_name'",
+		},
+		{
 			name:    "delete false with nothing to set is rejected",
 			item:    map[string]any{"field_name": "Start date", "delete": false},
 			wantErr: "must specify either value or field_option_name",
+		},
+		{
+			name:    "delete with invalid type is rejected",
+			item:    map[string]any{"field_name": "Start date", "delete": "false"},
+			wantErr: "parameter delete is not of type bool",
 		},
 	}
 
