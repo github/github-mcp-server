@@ -638,7 +638,7 @@ func TestStaticConfigEnforcement(t *testing.T) {
 	}
 }
 
-func TestNewDefaultInventoryFactoryRejectsInvalidEnabledTools(t *testing.T) {
+func TestDefaultInventoryFactoriesRejectInvalidEnabledTools(t *testing.T) {
 	tests := []struct {
 		name         string
 		enabledTools []string
@@ -658,8 +658,9 @@ func TestNewDefaultInventoryFactoryRejectsInvalidEnabledTools(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			cfg := &ServerConfig{Version: "test", EnabledTools: tt.enabledTools}
 			factory, err := NewDefaultInventoryFactory(
-				&ServerConfig{Version: "test", EnabledTools: tt.enabledTools},
+				cfg,
 				translations.NullTranslationHelper,
 				nil,
 				allScopesFetcher{},
@@ -669,6 +670,16 @@ func TestNewDefaultInventoryFactoryRejectsInvalidEnabledTools(t *testing.T) {
 				assert.Contains(t, err.Error(), unknownTool)
 			}
 			assert.Nil(t, factory, "invalid static configuration must not produce a widened inventory factory")
+
+			factory = DefaultInventoryFactory(
+				cfg,
+				translations.NullTranslationHelper,
+				nil,
+				allScopesFetcher{},
+			)
+			inv, err := factory(httptest.NewRequest(http.MethodPost, "/", nil))
+			require.ErrorIs(t, err, inventory.ErrUnknownTools)
+			assert.Nil(t, inv, "the compatibility factory must preserve the validation error")
 		})
 	}
 }
@@ -729,7 +740,8 @@ func TestStaticInventoryPreservesPerRequestFeatureVariants(t *testing.T) {
 
 func TestStaticInventoryDisablesOnlyDeleteRepository(t *testing.T) {
 	cfg := &ServerConfig{disableDeleteRepository: true}
-	tools, _, _ := buildStaticInventory(cfg, translations.NullTranslationHelper)
+	tools, _, _, err := buildStaticInventory(cfg, translations.NullTranslationHelper)
+	require.NoError(t, err)
 
 	names := make([]string, 0, len(tools))
 	for _, tool := range tools {
@@ -739,12 +751,13 @@ func TestStaticInventoryDisablesOnlyDeleteRepository(t *testing.T) {
 	assert.Contains(t, names, "actions_list", "non-default toolsets must remain available for per-request selection")
 }
 
-func TestStaticInventoryFallbackKeepsDeleteRepositoryDisabled(t *testing.T) {
+func TestStaticInventoryKeepsExplicitDeleteRepositoryDisabled(t *testing.T) {
 	cfg := &ServerConfig{
 		EnabledTools:            []string{github.DeleteRepositoryToolName},
 		disableDeleteRepository: true,
 	}
-	tools, _, _ := buildStaticInventory(cfg, translations.NullTranslationHelper)
+	tools, _, _, err := buildStaticInventory(cfg, translations.NullTranslationHelper)
+	require.NoError(t, err)
 
 	assert.Empty(t, tools, "an unavailable explicit allowlist must not widen to other tools")
 }
