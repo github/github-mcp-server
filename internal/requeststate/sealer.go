@@ -17,6 +17,15 @@ type Sealer struct {
 	aead cipher.AEAD
 }
 
+// NewRandom constructs a sealer with a process-local random key.
+func NewRandom() (*Sealer, error) {
+	key := make([]byte, keySize)
+	if _, err := rand.Read(key); err != nil {
+		return nil, fmt.Errorf("generating key: %w", err)
+	}
+	return newFromKey(key)
+}
+
 // New constructs a sealer from a standard Base64-encoded 32-byte key.
 func New(encodedKey string) (*Sealer, error) {
 	key, err := base64.StdEncoding.DecodeString(encodedKey)
@@ -26,6 +35,10 @@ func New(encodedKey string) (*Sealer, error) {
 	if len(key) != keySize {
 		return nil, fmt.Errorf("decoded key must be %d bytes, got %d", keySize, len(key))
 	}
+	return newFromKey(key)
+}
+
+func newFromKey(key []byte) (*Sealer, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, fmt.Errorf("creating cipher: %w", err)

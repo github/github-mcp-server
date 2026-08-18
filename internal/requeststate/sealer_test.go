@@ -39,6 +39,16 @@ func TestSealer(t *testing.T) {
 	})
 }
 
+func TestNewRandom(t *testing.T) {
+	sealer, err := NewRandom()
+	require.NoError(t, err)
+	token, err := sealer.Seal(context.Background(), []byte("state"))
+	require.NoError(t, err)
+	opened, err := sealer.Open(token)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("state"), opened)
+}
+
 func TestNew(t *testing.T) {
 	tests := []struct {
 		name string

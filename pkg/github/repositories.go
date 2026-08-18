@@ -760,36 +760,36 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 
 			fullName := owner + "/" + repo
 			sealer := requestStateSealerFromDeps(deps)
-			var deletionState *deleteRepositoryState
+			if sealer == nil {
+				return utils.NewToolResultError("Repository deletion is unavailable because request-state protection is not configured."), nil, nil
+			}
+			var deletionState deleteRepositoryState
 			var responses mcp.InputResponseMap
 			if req != nil && req.Params != nil {
 				responses = req.Params.InputResponses
 			}
 			response, ok := responses[deleteRepositoryConfirmationID]
 			if !ok {
-				var requestState string
-				if sealer != nil {
-					client, err := deps.GetClient(ctx)
-					if err != nil {
-						return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-					}
-					repositoryID, result := repositoryIDForDeletion(ctx, client, owner, repo)
-					if result != nil {
-						return result, nil, nil
-					}
-					state, err := json.Marshal(deleteRepositoryState{
-						Owner:        owner,
-						Repo:         repo,
-						RepositoryID: repositoryID,
-						ExpiresAt:    time.Now().Add(deleteRepositoryConfirmationTTL).Unix(),
-					})
-					if err != nil {
-						return nil, nil, fmt.Errorf("failed to marshal repository deletion state: %w", err)
-					}
-					requestState, err = sealer.Seal(ctx, state)
-					if err != nil {
-						return nil, nil, fmt.Errorf("failed to seal repository deletion state: %w", err)
-					}
+				client, err := deps.GetClient(ctx)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				}
+				repositoryID, result := repositoryIDForDeletion(ctx, client, owner, repo)
+				if result != nil {
+					return result, nil, nil
+				}
+				state, err := json.Marshal(deleteRepositoryState{
+					Owner:        owner,
+					Repo:         repo,
+					RepositoryID: repositoryID,
+					ExpiresAt:    time.Now().Add(deleteRepositoryConfirmationTTL).Unix(),
+				})
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to marshal repository deletion state: %w", err)
+				}
+				requestState, err := sealer.Seal(ctx, state)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to seal repository deletion state: %w", err)
 				}
 				return &mcp.CallToolResult{
 					InputRequests: mcp.InputRequestMap{
@@ -813,28 +813,24 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 				}, nil, nil
 			}
 
-			if sealer != nil {
-				if req.Params.RequestState == "" {
-					return utils.NewToolResultError("Repository deletion confirmation state was missing. The repository was not deleted."), nil, nil
-				}
-				stateJSON, err := sealer.Open(req.Params.RequestState)
-				if err != nil {
-					return utils.NewToolResultError("Repository deletion confirmation state was invalid. The repository was not deleted."), nil, nil
-				}
-				var state deleteRepositoryState
-				if err := json.Unmarshal(stateJSON, &state); err != nil {
-					return utils.NewToolResultError("Repository deletion confirmation state was invalid. The repository was not deleted."), nil, nil
-				}
-				if state.Owner != owner || state.Repo != repo {
-					return utils.NewToolResultError("Repository deletion target changed after confirmation was requested. The repository was not deleted."), nil, nil
-				}
-				if state.ExpiresAt <= time.Now().Unix() {
-					return utils.NewToolResultError("Repository deletion confirmation expired. The repository was not deleted."), nil, nil
-				}
-				if state.RepositoryID == 0 {
-					return utils.NewToolResultError("Repository deletion confirmation state was invalid. The repository was not deleted."), nil, nil
-				}
-				deletionState = &state
+			if req.Params.RequestState == "" {
+				return utils.NewToolResultError("Repository deletion confirmation state was missing. The repository was not deleted."), nil, nil
+			}
+			stateJSON, err := sealer.Open(req.Params.RequestState)
+			if err != nil {
+				return utils.NewToolResultError("Repository deletion confirmation state was invalid. The repository was not deleted."), nil, nil
+			}
+			if err := json.Unmarshal(stateJSON, &deletionState); err != nil {
+				return utils.NewToolResultError("Repository deletion confirmation state was invalid. The repository was not deleted."), nil, nil
+			}
+			if deletionState.Owner != owner || deletionState.Repo != repo {
+				return utils.NewToolResultError("Repository deletion target changed after confirmation was requested. The repository was not deleted."), nil, nil
+			}
+			if deletionState.ExpiresAt <= time.Now().Unix() {
+				return utils.NewToolResultError("Repository deletion confirmation expired. The repository was not deleted."), nil, nil
+			}
+			if deletionState.RepositoryID == 0 {
+				return utils.NewToolResultError("Repository deletion confirmation state was invalid. The repository was not deleted."), nil, nil
 			}
 
 			confirmation, ok := response.(*mcp.ElicitResult)
@@ -853,14 +849,12 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			if deletionState != nil {
-				currentRepositoryID, result := repositoryIDForDeletion(ctx, client, owner, repo)
-				if result != nil {
-					return result, nil, nil
-				}
-				if currentRepositoryID != deletionState.RepositoryID {
-					return utils.NewToolResultError("Repository identity changed after confirmation was requested. The repository was not deleted."), nil, nil
-				}
+			currentRepositoryID, result := repositoryIDForDeletion(ctx, client, owner, repo)
+			if result != nil {
+				return result, nil, nil
+			}
+			if currentRepositoryID != deletionState.RepositoryID {
+				return utils.NewToolResultError("Repository identity changed after confirmation was requested. The repository was not deleted."), nil, nil
 			}
 			resp, err := client.Repositories.Delete(ctx, owner, repo)
 			if err != nil {
@@ -885,6 +879,7 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 	)
 	tool.MinimumProtocolVersion = inventory.ProtocolVersionMultiRoundTrip
 	tool.RequiredElicitationMode = inventory.ElicitationModeForm
+	tool.RequiredScopeGroups = scopes.ExpandScopeGroups(scopes.DeleteRepo, scopes.Repo)
 	return tool
 }
 

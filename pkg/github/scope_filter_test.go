@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -206,4 +207,20 @@ func TestCreateToolScopeFilter_Integration(t *testing.T) {
 	assert.Contains(t, toolNames, "public_tool")
 	assert.Contains(t, toolNames, "repo_tool")
 	assert.NotContains(t, toolNames, "gist_tool")
+}
+
+func TestCreateToolScopeFilterPreservesExistingMultiScopeSemantics(t *testing.T) {
+	filter := CreateToolScopeFilter([]string{"repo"})
+	tools := []inventory.ServerTool{
+		ListIssueFields(translations.NullTranslationHelper),
+		ListIssueTypes(translations.NullTranslationHelper),
+		UIGet(translations.NullTranslationHelper),
+	}
+
+	for i := range tools {
+		allowed, err := filter(context.Background(), &tools[i])
+		require.NoError(t, err)
+		assert.True(t, allowed, "%s should remain visible with a repo-only token", tools[i].Tool.Name)
+		assert.Empty(t, tools[i].RequiredScopeGroups, "%s should retain legacy any-of scope semantics", tools[i].Tool.Name)
+	}
 }

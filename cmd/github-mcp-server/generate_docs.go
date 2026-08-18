@@ -221,13 +221,13 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 
 	// OAuth scopes if present
 	if len(tool.RequiredScopes) > 0 {
-		// Scope filtering uses "any of" semantics (see scopes.HasRequiredScopes),
-		// so when multiple required scopes are listed, render them as alternatives
-		// rather than implying all are required.
 		scopeList := "`" + strings.Join(tool.RequiredScopes, "`, `") + "`"
-		if len(tool.RequiredScopes) > 1 {
+		switch {
+		case len(tool.RequiredScopeGroups) > 1:
+			fmt.Fprintf(buf, "  - **Required OAuth Scopes (all required)**: %s\n", scopeList)
+		case len(tool.RequiredScopes) > 1:
 			fmt.Fprintf(buf, "  - **Required OAuth Scopes (any of)**: %s\n", scopeList)
-		} else {
+		default:
 			fmt.Fprintf(buf, "  - **Required OAuth Scopes**: %s\n", scopeList)
 		}
 

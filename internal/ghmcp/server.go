@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/github/github-mcp-server/internal/oauth"
+	"github.com/github/github-mcp-server/internal/requeststate"
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/transport"
@@ -169,6 +170,10 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		featureChecker,
 		obs,
 	)
+	deps.StateSealer, err = requeststate.NewRandom()
+	if err != nil {
+		return nil, fmt.Errorf("failed to configure request-state protection: %w", err)
+	}
 	// Build and register the tool/resource/prompt inventory
 	inventoryBuilder := github.NewInventory(cfg.Translator, github.WithHost(hostType)).
 		WithDeprecatedAliases(github.DeprecatedToolAliases).
