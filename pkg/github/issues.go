@@ -745,7 +745,7 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 			issue.Title = github.Ptr(sanitize.Sanitize(*issue.Title))
 		}
 		if issue.Body != nil {
-			issue.Body = github.Ptr(sanitize.Sanitize(*issue.Body))
+			issue.Body = github.Ptr(sanitize.FilterBody(*issue.Body))
 		}
 	}
 

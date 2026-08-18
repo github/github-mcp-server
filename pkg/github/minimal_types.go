@@ -749,7 +749,7 @@ func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 	m := MinimalIssue{
 		Number:    int(fragment.Number),
 		Title:     sanitize.Sanitize(string(fragment.Title)),
-		Body:      sanitize.Sanitize(string(fragment.Body)),
+		Body:      sanitize.FilterBody(string(fragment.Body)),
 		State:     string(fragment.State),
 		Comments:  int(fragment.Comments.TotalCount),
 		CreatedAt: fragment.CreatedAt.Format(time.RFC3339),

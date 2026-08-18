@@ -74,3 +74,14 @@ func TestConvertToMinimalReviewCommentSanitizesBody(t *testing.T) {
 		assert.Equal(t, sanitizedBodyWithCode, m.Body)
 	})
 }
+
+func TestFragmentToMinimalIssueSanitization(t *testing.T) {
+	m := fragmentToMinimalIssue(IssueFragment{
+		Number: 1,
+		Title:  githubv4.String(sanitizedBodyWithHiddenChars),
+		Body:   githubv4.String(sanitizedBodyWithCode),
+	})
+
+	assert.Equal(t, "Looks good", m.Title, "hidden characters must be stripped from titles")
+	assert.Equal(t, sanitizedBodyWithCode, m.Body, "code content must survive sanitization")
+}
