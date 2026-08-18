@@ -1008,6 +1008,7 @@ func Test_CreateBranch(t *testing.T) {
 		expectError    bool
 		expectedRef    *github.Reference
 		expectedErrMsg string
+		unexpectedErrs []string
 	}{
 		{
 			name: "successful branch creation with from_branch",
@@ -1096,7 +1097,8 @@ func Test_CreateBranch(t *testing.T) {
 				"from_branch": "main",
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to create branch",
+			expectedErrMsg: "Reference already exists",
+			unexpectedErrs: []string{"422", "http://", "https://"},
 		},
 		{
 			name: "create branch surfaces ruleset validation details",
@@ -1127,6 +1129,7 @@ func Test_CreateBranch(t *testing.T) {
 			},
 			expectError:    true,
 			expectedErrMsg: "ref name does not match the required pattern 'feature/*'",
+			unexpectedErrs: []string{"422", "https://docs.github.com"},
 		},
 	}
 
@@ -1151,6 +1154,9 @@ func Test_CreateBranch(t *testing.T) {
 				require.True(t, result.IsError)
 				errorContent := getErrorResult(t, result)
 				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				for _, unexpectedErr := range tc.unexpectedErrs {
+					assert.NotContains(t, errorContent.Text, unexpectedErr)
+				}
 				return
 			}
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v89/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -192,56 +193,72 @@ func NewGitHubAPIErrorResponse(ctx context.Context, message string, resp *github
 			"%s: GitHub secondary rate limit exceeded. Wait before retrying.", message))
 	}
 
-	return utils.NewToolResultErrorFromErr(message, formattedGitHubAPIError(err))
+	return utils.NewToolResultErrorFromErr(message, formatGitHubValidationError(resp, err))
 }
 
-// formattedGitHubAPIError unwraps a github.ErrorResponse so tool results include
-// nested validation messages (for example repository ruleset violations) instead
-// of go-github's compact 422 dump.
-func formattedGitHubAPIError(err error) error {
+// formatGitHubValidationError exposes the parsed fields of 422 responses without
+// including request or response metadata from the underlying HTTP exchange.
+func formatGitHubValidationError(resp *github.Response, err error) error {
 	var ghErr *github.ErrorResponse
 	if !stderrors.As(err, &ghErr) {
 		return err
 	}
 
-	var parts []string
-	switch {
-	case ghErr.Response != nil && ghErr.Response.StatusCode != 0 && ghErr.Message != "":
-		parts = append(parts, fmt.Sprintf("HTTP %d %s", ghErr.Response.StatusCode, ghErr.Message))
-	case ghErr.Response != nil && ghErr.Response.StatusCode != 0:
-		parts = append(parts, fmt.Sprintf("HTTP %d", ghErr.Response.StatusCode))
-	case ghErr.Message != "":
-		parts = append(parts, ghErr.Message)
+	statusCode := 0
+	if ghErr.Response != nil {
+		statusCode = ghErr.Response.StatusCode
+	}
+	if statusCode == 0 && resp != nil {
+		statusCode = resp.StatusCode
+	}
+	if statusCode != http.StatusUnprocessableEntity {
+		return err
 	}
 
-	for _, item := range ghErr.Errors {
-		detail := strings.TrimSpace(item.Message)
-		if detail == "" {
-			var bits []string
-			if item.Resource != "" {
-				bits = append(bits, item.Resource)
-			}
-			if item.Field != "" {
-				bits = append(bits, item.Field)
-			}
-			if item.Code != "" {
-				bits = append(bits, item.Code)
-			}
-			detail = strings.Join(bits, " ")
-		}
-		if detail != "" {
+	parts := make([]string, 0, len(ghErr.Errors)+1)
+	if summary := sanitizeGitHubValidationText(ghErr.Message); summary != "" {
+		parts = append(parts, summary)
+	}
+	for _, validationErr := range ghErr.Errors {
+		if detail := formatGitHubValidationDetail(validationErr); detail != "" {
 			parts = append(parts, detail)
 		}
 	}
 
-	if ghErr.DocumentationURL != "" {
-		parts = append(parts, "See "+ghErr.DocumentationURL)
-	}
-
 	if len(parts) == 0 {
-		return err
+		return stderrors.New("GitHub API validation failed")
 	}
 	return stderrors.New(strings.Join(parts, "\n"))
+}
+
+func formatGitHubValidationDetail(validationErr github.Error) string {
+	resource := sanitizeGitHubValidationText(validationErr.Resource)
+	field := sanitizeGitHubValidationText(validationErr.Field)
+	code := sanitizeGitHubValidationText(validationErr.Code)
+	message := sanitizeGitHubValidationText(validationErr.Message)
+
+	location := strings.Trim(strings.Join([]string{resource, field}, "."), ".")
+	switch {
+	case location != "" && code != "":
+		location += " (" + code + ")"
+	case location == "":
+		location = code
+	}
+
+	switch {
+	case location != "" && message != "":
+		return location + ": " + message
+	case message != "":
+		return message
+	default:
+		return location
+	}
+}
+
+func sanitizeGitHubValidationText(value string) string {
+	// Tool errors are plain text; keep quoted branch patterns readable.
+	sanitized := strings.ReplaceAll(sanitize.Sanitize(value), "&#39;", "'")
+	return strings.Join(strings.Fields(sanitized), " ")
 }
 
 // NewGitHubGraphQLErrorResponse returns an mcp.NewToolResultError and retains the error in the context for access via middleware
