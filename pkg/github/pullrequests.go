@@ -191,7 +191,7 @@ func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDepende
 			pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
 		}
 		if pr.Body != nil {
-			pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
+			pr.Body = github.Ptr(sanitize.FilterBody(*pr.Body))
 		}
 	}
 
@@ -1463,7 +1463,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 					pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
 				}
 				if pr.Body != nil {
-					pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
+					pr.Body = github.Ptr(sanitize.FilterBody(*pr.Body))
 				}
 			}
 

@@ -745,7 +745,7 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 			issue.Title = github.Ptr(sanitize.Sanitize(*issue.Title))
 		}
 		if issue.Body != nil {
-			issue.Body = github.Ptr(sanitize.Sanitize(*issue.Body))
+			issue.Body = github.Ptr(sanitize.FilterBody(*issue.Body))
 		}
 	}
 
@@ -944,6 +944,15 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 			}
 		}
 		subIssues = filteredSubIssues
+	}
+
+	for _, subIssue := range subIssues {
+		if subIssue.Title != nil {
+			subIssue.Title = github.Ptr(sanitize.Sanitize(*subIssue.Title))
+		}
+		if subIssue.Body != nil {
+			subIssue.Body = github.Ptr(sanitize.FilterBody(*subIssue.Body))
+		}
 	}
 
 	r, err := json.Marshal(subIssues)

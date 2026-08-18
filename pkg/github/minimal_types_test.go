@@ -1,0 +1,87 @@
+package github
+
+import (
+	"net/url"
+	"testing"
+
+	"github.com/google/go-github/v89/github"
+	"github.com/shurcooL/githubv4"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// sanitizedBodyWithHiddenChars embeds Unicode tag characters, which are invisible to a
+// human reviewer but legible to a model.
+const sanitizedBodyWithHiddenChars = "Looks good\U000E0001\U000E0049\U000E0067\U000E006E\U000E006F\U000E0072\U000E0065"
+
+const sanitizedBodyWithCode = "Compare with:\n```go\nif a<b { fmt.Println(\"x\") }\n```\nand <Foo/> in JSX."
+
+func TestConvertToMinimalIssueCommentSanitizesBody(t *testing.T) {
+	t.Run("strips hidden characters", func(t *testing.T) {
+		m := convertToMinimalIssueComment(&github.IssueComment{
+			ID:   github.Ptr(int64(1)),
+			Body: github.Ptr(sanitizedBodyWithHiddenChars),
+		})
+		assert.Equal(t, "Looks good", m.Body)
+	})
+
+	t.Run("preserves code content", func(t *testing.T) {
+		m := convertToMinimalIssueComment(&github.IssueComment{
+			ID:   github.Ptr(int64(1)),
+			Body: github.Ptr(sanitizedBodyWithCode),
+		})
+		assert.Equal(t, sanitizedBodyWithCode, m.Body)
+	})
+}
+
+func TestConvertToMinimalPullRequestReviewSanitizesBody(t *testing.T) {
+	t.Run("strips hidden characters", func(t *testing.T) {
+		m := convertToMinimalPullRequestReview(&github.PullRequestReview{
+			ID:   github.Ptr(int64(1)),
+			Body: github.Ptr(sanitizedBodyWithHiddenChars),
+		})
+		assert.Equal(t, "Looks good", m.Body)
+	})
+
+	t.Run("preserves code content", func(t *testing.T) {
+		m := convertToMinimalPullRequestReview(&github.PullRequestReview{
+			ID:   github.Ptr(int64(1)),
+			Body: github.Ptr(sanitizedBodyWithCode),
+		})
+		assert.Equal(t, sanitizedBodyWithCode, m.Body)
+	})
+}
+
+func TestConvertToMinimalReviewCommentSanitizesBody(t *testing.T) {
+	commentURL, err := url.Parse("https://github.com/owner/repo/pull/1#discussion_r1")
+	require.NoError(t, err)
+
+	t.Run("strips hidden characters", func(t *testing.T) {
+		m := convertToMinimalReviewComment(reviewCommentNode{
+			Body: githubv4.String(sanitizedBodyWithHiddenChars),
+			Path: githubv4.String("main.go"),
+			URL:  githubv4.URI{URL: commentURL},
+		})
+		assert.Equal(t, "Looks good", m.Body)
+	})
+
+	t.Run("preserves code content", func(t *testing.T) {
+		m := convertToMinimalReviewComment(reviewCommentNode{
+			Body: githubv4.String(sanitizedBodyWithCode),
+			Path: githubv4.String("main.go"),
+			URL:  githubv4.URI{URL: commentURL},
+		})
+		assert.Equal(t, sanitizedBodyWithCode, m.Body)
+	})
+}
+
+func TestFragmentToMinimalIssueSanitization(t *testing.T) {
+	m := fragmentToMinimalIssue(IssueFragment{
+		Number: 1,
+		Title:  githubv4.String(sanitizedBodyWithHiddenChars),
+		Body:   githubv4.String(sanitizedBodyWithCode),
+	})
+
+	assert.Equal(t, "Looks good", m.Title, "hidden characters must be stripped from titles")
+	assert.Equal(t, sanitizedBodyWithCode, m.Body, "code content must survive sanitization")
+}
