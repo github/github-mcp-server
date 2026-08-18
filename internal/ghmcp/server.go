@@ -67,7 +67,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	// the latter installs its own round tripper that would pin the static token
 	// and shadow the dynamic one.
 	restUATransport := &transport.UserAgentTransport{
-		Transport: http.DefaultTransport,
+		Transport: &transport.APIVersionTransport{Transport: http.DefaultTransport},
 		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
 	}
 	var restClient *gogithub.Client

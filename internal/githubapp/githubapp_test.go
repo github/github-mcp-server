@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -20,9 +21,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
 
 func newTestKey(t *testing.T) *rsa.PrivateKey {
 	t.Helper()
@@ -155,6 +163,7 @@ func installationServer(t *testing.T, pub *rsa.PublicKey, token string, expiresA
 		calls.Add(1)
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "/app/installations/456/access_tokens", r.URL.Path)
+		assert.Equal(t, headers.GitHubEnterpriseServerAPIVersion, r.Header.Get(headers.GitHubAPIVersionHeader))
 
 		authz := r.Header.Get("Authorization")
 		require.True(t, strings.HasPrefix(authz, "Bearer "), "must send the app JWT as a bearer token")
@@ -183,6 +192,34 @@ func newTestTokenSource(t *testing.T, cfg Config, client *http.Client) *installa
 	privateKey, err := parsePrivateKey(cfg.PrivateKeyPEM)
 	require.NoError(t, err)
 	return newInstallationTokenSource(cfg, privateKey, client)
+}
+
+func TestInstallationTokenSourceSetsAPIVersionForGitHubCloud(t *testing.T) {
+	key := newTestKey(t)
+	expiresAt := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+
+	for _, baseURL := range []string{"https://api.github.com", "https://api.example.ghe.com"} {
+		t.Run(baseURL, func(t *testing.T) {
+			var gotVersion string
+			client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				gotVersion = req.Header.Get(headers.GitHubAPIVersionHeader)
+				body := fmt.Sprintf(`{"token":"ghs_test","expires_at":%q}`, expiresAt)
+				return &http.Response{
+					StatusCode: http.StatusCreated,
+					Status:     "201 Created",
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(body)),
+					Request:    req,
+				}, nil
+			})}
+			source := newTestTokenSource(t, newTestConfig(key, baseURL), client)
+
+			token, err := source.Token()
+			require.NoError(t, err)
+			assert.Equal(t, "ghs_test", token.AccessToken)
+			assert.Equal(t, headers.GitHubAPIVersion, gotVersion)
+		})
+	}
 }
 
 func TestProviderFetchesToken(t *testing.T) {
