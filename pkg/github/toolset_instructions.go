@@ -41,6 +41,8 @@ Workflow: 1) list_project_fields (get field IDs), 2) list_project_items (with pa
 
 Project lifecycle: Use create_project to create a new ProjectsV2 for a user or organization (requires owner_type and title). Returns the new project's id, number, title, and url; pass the returned number as project_number to subsequent project tools.
 
+Views: Use list_project_views and get_project_view to inspect views. Use create_project_view, update_project_view, and delete_project_view for basic name, layout, and filter management; visible_fields is create-only and unavailable for roadmap views.
+
 Iteration fields: Use create_iteration_field to add a new ITERATION field (e.g. "Sprint") to an existing project. Required: field_name, iteration_duration (days), start_date (YYYY-MM-DD). Only pass the iterations array when iterations need varying durations, breaks between them, or specific titles; otherwise omit it and GitHub creates three default iterations of iteration_duration days starting on start_date.
 
 Status updates: Use list_project_status_updates to read recent project status updates (newest first). Use get_project_status_update with a node ID to get a single update. Use create_project_status_update to create a new status update for a project.

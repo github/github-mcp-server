@@ -307,7 +307,7 @@ func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, rep
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get combined status", resp, body), nil
 	}
 
-	r, err := json.Marshal(status)
+	r, err := json.Marshal(convertToMinimalCombinedStatus(status))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
@@ -1281,10 +1281,9 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 				}
 			}
 
-			var comment *github.PullRequestComment
+			var commentResponse *MinimalResponse
 			if hasBody {
-				var resp *github.Response
-				comment, resp, err = client.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, pullNumber, body, commentID)
+				comment, resp, err := client.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, pullNumber, body, commentID)
 				if err != nil {
 					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reply to pull request comment", resp, err), nil, nil
 				}
@@ -1297,19 +1296,24 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 					}
 					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add reply to pull request comment", resp, bodyBytes), nil, nil
 				}
+
+				commentResponse = &MinimalResponse{
+					ID:  fmt.Sprintf("%d", comment.GetID()),
+					URL: comment.GetHTMLURL(),
+				}
 			}
 
 			var result any
 			switch {
 			case hasBody && hasReaction:
-				result = map[string]any{
-					"comment":  comment,
-					"reaction": reactionResponse,
+				result = map[string]MinimalResponse{
+					"comment":  *commentResponse,
+					"reaction": *reactionResponse,
 				}
 			case hasReaction:
 				result = reactionResponse
 			default:
-				result = comment
+				result = commentResponse
 			}
 
 			r, err := json.Marshal(result)

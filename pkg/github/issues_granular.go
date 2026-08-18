@@ -679,13 +679,13 @@ type issueTypeUpdateRequest struct {
 	Type issueTypeWithIntent `json:"type"`
 }
 
-// GranularUpdateIssueType creates a tool to update an issue's type.
+// GranularUpdateIssueType creates a tool to set or clear an issue's type.
 func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_type",
-			Description: t("TOOL_UPDATE_ISSUE_TYPE_DESCRIPTION", "Update the type of an existing issue (e.g. 'bug', 'feature'). When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
+			Description: t("TOOL_UPDATE_ISSUE_TYPE_DESCRIPTION", "Set or remove the type of an existing issue. Pass null to remove the current type. When setting a value, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_TYPE_USER_TITLE", "Update Issue Type"),
 				ReadOnlyHint:    false,
@@ -709,8 +709,11 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 						Minimum:     jsonschema.Ptr(1.0),
 					},
 					"issue_type": {
-						Type:        "string",
-						Description: "The issue type to set",
+						AnyOf: []*jsonschema.Schema{
+							{Type: "string", MinLength: jsonschema.Ptr(1)},
+							{Type: "null"},
+						},
+						Description: "The issue type to set, or null to remove the current type",
 					},
 					"rationale": {
 						Type: "string",
@@ -746,9 +749,12 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			issueType, err := RequiredParam[string](args, "issue_type")
+			issueType, issueTypeProvided, err := OptionalNullableStringParam(args, "issue_type")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if !issueTypeProvided {
+				return utils.NewToolResultError("missing required parameter: issue_type"), nil, nil
 			}
 			rationale, err := OptionalParam[string](args, "rationale")
 			if err != nil {
@@ -770,24 +776,29 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-
+			if issueType == nil && (rationale != "" || confidence != "" || isSuggestion) {
+				return utils.NewToolResultError("suggestion metadata is not supported when removing an issue type; omit rationale, confidence, and is_suggestion"), nil, nil
+			}
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			var body any
-			if rationale != "" || isSuggestion || confidence != "" {
+			switch {
+			case issueType == nil:
+				body = map[string]any{"type": nil}
+			case rationale != "" || isSuggestion || confidence != "":
 				body = &issueTypeUpdateRequest{
 					Type: issueTypeWithIntent{
-						Value:      issueType,
+						Value:      *issueType,
 						Rationale:  rationale,
 						Confidence: confidence,
 						Suggest:    isSuggestion,
 					},
 				}
-			} else {
-				body = &github.UpdateIssueRequest{Type: &issueType}
+			default:
+				body = &github.UpdateIssueRequest{Type: issueType}
 			}
 
 			apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
@@ -1263,6 +1274,27 @@ type IssueFieldCreateOrUpdateInput struct {
 	Suggest              *githubv4.Boolean `json:"suggest,omitempty"`
 }
 
+type setIssueFieldValueMutation struct {
+	SetIssueFieldValue struct {
+		Issue struct {
+			ID  githubv4.ID
+			URL githubv4.String
+		}
+	} `graphql:"setIssueFieldValue(input: $input)"`
+}
+
+// SetIssueFieldValues updates Issue Field values and returns the updated issue.
+func SetIssueFieldValues(ctx context.Context, gqlClient *githubv4.Client, input SetIssueFieldValueInput) (MinimalResponse, error) {
+	var mutation setIssueFieldValueMutation
+	if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
+		return MinimalResponse{}, err
+	}
+	return MinimalResponse{
+		ID:  fmt.Sprintf("%v", mutation.SetIssueFieldValue.Issue.ID),
+		URL: string(mutation.SetIssueFieldValue.Issue.URL),
+	}, nil
+}
+
 // GranularSetIssueFields creates a tool to set issue field values on an issue using GraphQL.
 func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
@@ -1486,31 +1518,6 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue", err), nil, nil
 			}
 
-			// Execute the setIssueFieldValue mutation
-			var mutation struct {
-				SetIssueFieldValue struct {
-					Issue struct {
-						ID     githubv4.ID
-						Number githubv4.Int
-						URL    githubv4.String
-					}
-					IssueFieldValues []struct {
-						TextValue struct {
-							Value string
-						} `graphql:"... on IssueFieldTextValue"`
-						SingleSelectValue struct {
-							Name string
-						} `graphql:"... on IssueFieldSingleSelectValue"`
-						DateValue struct {
-							Value string
-						} `graphql:"... on IssueFieldDateValue"`
-						NumberValue struct {
-							Value float64
-						} `graphql:"... on IssueFieldNumberValue"`
-					}
-				} `graphql:"setIssueFieldValue(input: $input)"`
-			}
-
 			mutationInput := SetIssueFieldValueInput{
 				IssueID:     issueID,
 				IssueFields: issueFields,
@@ -1519,14 +1526,12 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 			// The rationale and suggest input fields on IssueFieldCreateOrUpdateInput
 			// are gated behind the update_issue_suggestions GraphQL feature flag.
 			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "update_issue_suggestions")
-			if err := gqlClient.Mutate(ctxWithFeatures, &mutation, mutationInput, nil); err != nil {
+			response, err := SetIssueFieldValues(ctxWithFeatures, gqlClient, mutationInput)
+			if err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to set issue field values", err), nil, nil
 			}
 
-			r, err := json.Marshal(MinimalResponse{
-				ID:  fmt.Sprintf("%v", mutation.SetIssueFieldValue.Issue.ID),
-				URL: string(mutation.SetIssueFieldValue.Issue.URL),
-			})
+			r, err := json.Marshal(response)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}

@@ -6,9 +6,47 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestInitGlobalToolScopeMapUsesHost(t *testing.T) {
+	tests := []struct {
+		name     string
+		hostType utils.HostType
+		want     string
+	}{
+		{
+			name:     "dotcom uses semantic search",
+			hostType: utils.HostTypeDotcom,
+			want:     "Search issues using natural-language semantic matching. Best for conceptual or paraphrased queries (e.g. \"login fails after password reset\"). Already scoped to is:issue.",
+		},
+		{
+			name:     "GHES uses lexical search",
+			hostType: utils.HostTypeGHES,
+			want:     "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			translations := make(map[string]string)
+			translator := func(key, defaultValue string) string {
+				if value, ok := translations[key]; ok {
+					return value
+				}
+				translations[key] = defaultValue
+				return defaultValue
+			}
+
+			require.NoError(t, initGlobalToolScopeMap(translator, tt.hostType))
+
+			tool := github.SearchIssues(translator, github.WithHost(tt.hostType))
+			assert.Equal(t, tt.want, tool.Tool.Description)
+		})
+	}
+}
 
 func TestCreateHTTPFeatureChecker(t *testing.T) {
 	tests := []struct {
