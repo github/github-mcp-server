@@ -64,9 +64,6 @@ const (
 
 	// Workflow grants permission to update GitHub Actions workflow files
 	Workflow Scope = "workflow"
-
-	// Codespace grants full control of codespaces
-	Codespace Scope = "codespace"
 )
 
 type oauthScopeDefinition struct {
@@ -87,7 +84,6 @@ var oauthScopeDefinitions = []oauthScopeDefinition{
 	{scope: Gist, byDefault: true},
 	{scope: Notifications, byDefault: true},
 	{scope: Workflow},
-	{scope: Codespace},
 }
 
 // SupportedOAuthScopes returns every OAuth scope the server may request.

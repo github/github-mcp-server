@@ -18,6 +18,9 @@ import (
 // should define their own typed dependencies struct and type-assert as needed.
 type HandlerFunc func(deps any) mcp.ToolHandler
 
+// ScopeResolver returns additional OAuth scopes required for a specific call.
+type ScopeResolver func(arguments map[string]any) []string
+
 // ToolHandlerMiddleware wraps an MCP tool handler. Middleware is applied from
 // right to left, so the first middleware passed to RegisterFunc executes first.
 type ToolHandlerMiddleware func(next mcp.ToolHandler) mcp.ToolHandler
@@ -101,6 +104,10 @@ type ServerTool struct {
 	// RequiredScopeGroups contains one group of accepted alternatives for each
 	// independently required OAuth scope. Every group must be satisfied.
 	RequiredScopeGroups [][]string
+
+	// ScopeResolver returns scopes that are conditionally required based on the
+	// tool call arguments.
+	ScopeResolver ScopeResolver
 }
 
 // IsReadOnly returns true if this tool is marked as read-only via annotations.
@@ -139,8 +146,8 @@ func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any, middleware ...ToolHa
 		toolCopy.Icons = st.Toolset.Icons()
 	}
 	// Project routing-relevant params to standard MCP-Param-* headers (SEP-2243)
-	// so a remote proxy can read owner/repo from headers instead of re-parsing the
-	// JSON-RPC body. No-op for tools without these params.
+	// so a remote proxy can read top-level parameters from headers instead of
+	// re-parsing the JSON-RPC body. No-op for tools without these params.
 	AnnotateHeaderParams(&toolCopy)
 	s.AddTool(&toolCopy, handler)
 }
@@ -149,7 +156,7 @@ func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any, middleware ...ToolHa
 // header-aware proxy reads, avoiding a second parse of the request body. New
 // routing-relevant params should be added here so projection stays automatic
 // for every tool; the enforcement test in pkg/github guards full coverage.
-var HeaderParams = map[string]string{"owner": "owner", "repo": "repo"}
+var HeaderParams = map[string]string{"owner": "owner", "repo": "repo", "path": "path"}
 
 // AnnotateHeaderParams returns a copy of tool whose routing-relevant input
 // properties (per HeaderParams) carry an "x-mcp-header" annotation, which the
@@ -166,7 +173,7 @@ func AnnotateHeaderParams(tool *mcp.Tool) {
 	}
 
 	// Collect params that actually need an annotation, so a tool without
-	// owner/repo (or already annotated) is left untouched and unCloned.
+	// routing params (or already annotated) is left untouched and unCloned.
 	var toAnnotate []string
 	for prop := range HeaderParams {
 		if ps := schema.Properties[prop]; ps != nil {

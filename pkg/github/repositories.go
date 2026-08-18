@@ -404,7 +404,7 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // CreateOrUpdateFile creates a tool to create or update a file in a GitHub repository.
 func CreateOrUpdateFile(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	tool := NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name: "create_or_update_file",
@@ -469,6 +469,10 @@ SHA MUST be provided for existing file updates.
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			path, err = validateRelativePath(path)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("invalid path: %s", err)), nil, nil
+			}
 			content, err := RequiredParam[string](args, "content")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -506,8 +510,6 @@ SHA MUST be provided for existing file updates.
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-
-			path = strings.TrimPrefix(path, "/")
 
 			// SHA validation using Contents API to fetch current file metadata (blob SHA)
 			getOpts := &github.RepositoryContentGetOptions{Ref: branch}
@@ -596,6 +598,8 @@ SHA MUST be provided for existing file updates.
 			return MarshalledTextResult(minimalResponse), nil, nil
 		},
 	)
+	tool.ScopeResolver = workflowScopeForPath
+	return tool
 }
 
 // CreateRepository creates a tool to create a new GitHub repository.
@@ -1244,7 +1248,7 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 // The approach implemented here gets automatic commit signing when used with either the github-actions user or as an app,
 // both of which suit an LLM well.
 func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	tool := NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "delete_file",
@@ -1294,6 +1298,10 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 			path, err := RequiredParam[string](args, "path")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			path, err = validateRelativePath(path)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("invalid path: %s", err)), nil, nil
 			}
 			message, err := RequiredParam[string](args, "message")
 			if err != nil {
@@ -1425,6 +1433,8 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
+	tool.ScopeResolver = workflowScopeForPath
+	return tool
 }
 
 // CreateBranch creates a tool to create a new branch.
@@ -1542,7 +1552,7 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // PushFiles creates a tool to push multiple files in a single commit to a GitHub repository.
 func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	tool := NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "push_files",
@@ -1618,6 +1628,35 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError("files parameter must be an array of objects with path and content"), nil, nil
 			}
 
+			entries := make([]*github.TreeEntry, 0, len(filesObj))
+			for _, file := range filesObj {
+				fileMap, ok := file.(map[string]any)
+				if !ok {
+					return utils.NewToolResultError("each file must be an object with path and content"), nil, nil
+				}
+
+				filePath, ok := fileMap["path"].(string)
+				if !ok || filePath == "" {
+					return utils.NewToolResultError("each file must have a path"), nil, nil
+				}
+				filePath, err = validateRelativePath(filePath)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("invalid file path: %s", err)), nil, nil
+				}
+
+				content, ok := fileMap["content"].(string)
+				if !ok {
+					return utils.NewToolResultError("each file must have content"), nil, nil
+				}
+
+				entries = append(entries, &github.TreeEntry{
+					Path:    github.Ptr(filePath),
+					Mode:    github.Ptr("100644"),
+					Type:    github.Ptr("blob"),
+					Content: github.Ptr(content),
+				})
+			}
+
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
@@ -1691,34 +1730,6 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				baseCommit = base
 			}
 
-			// Create tree entries for all files (or remaining files if empty repo)
-			var entries []*github.TreeEntry
-
-			for _, file := range filesObj {
-				fileMap, ok := file.(map[string]any)
-				if !ok {
-					return utils.NewToolResultError("each file must be an object with path and content"), nil, nil
-				}
-
-				path, ok := fileMap["path"].(string)
-				if !ok || path == "" {
-					return utils.NewToolResultError("each file must have a path"), nil, nil
-				}
-
-				content, ok := fileMap["content"].(string)
-				if !ok {
-					return utils.NewToolResultError("each file must have content"), nil, nil
-				}
-
-				// Create a tree entry for the file
-				entries = append(entries, &github.TreeEntry{
-					Path:    github.Ptr(path),
-					Mode:    github.Ptr("100644"), // Regular file mode
-					Type:    github.Ptr("blob"),
-					Content: github.Ptr(content),
-				})
-			}
-
 			// Create a new tree with the file entries (baseCommit is now guaranteed to exist)
 			newTree, resp, err := client.Git.CreateTree(ctx, owner, repo, *baseCommit.Tree.SHA, entries)
 			if err != nil {
@@ -1773,6 +1784,8 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
+	tool.ScopeResolver = workflowScopeForFiles
+	return tool
 }
 
 // ListTags creates a tool to list tags in a GitHub repository.

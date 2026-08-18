@@ -10,10 +10,10 @@ import (
 )
 
 // TestAllToolsRoutingParamsGetHeaders enforces that every tool exposing a
-// routing-relevant param (owner/repo, per inventory.HeaderParams) has it
+// routing-relevant param (owner/repo/path, per inventory.HeaderParams) has it
 // projected to an Mcp-Param-* header. This guards the per-request header
 // optimization used by the remote proxy: a future tool must not silently ship
-// without its owner/repo header, so it can never fall back to body re-parsing.
+// without its top-level routing headers, so it can never fall back to body re-parsing.
 func TestAllToolsRoutingParamsGetHeaders(t *testing.T) {
 	inv, err := NewInventory(stubTranslator).WithToolsets([]string{"all"}).Build()
 	require.NoError(t, err)
@@ -40,5 +40,13 @@ func TestAllToolsRoutingParamsGetHeaders(t *testing.T) {
 			checked++
 		}
 	}
-	require.Positive(t, checked, "expected at least one owner/repo param across all toolsets")
+	require.Positive(t, checked, "expected at least one routing param across all toolsets")
+}
+
+func TestPushFilesNestedPathsRemainBodyParsed(t *testing.T) {
+	tool := PushFiles(stubTranslator).Tool
+	inventory.AnnotateHeaderParams(&tool)
+
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	require.Nil(t, schema.Properties["files"].Items.Properties["path"].Extra)
 }

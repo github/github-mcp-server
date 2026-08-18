@@ -43,6 +43,7 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 			// Try to use pre-parsed MCP method info first (performance optimization)
 			// This avoids re-parsing the JSON body if WithMCPParse middleware ran earlier
 			var toolName string
+			var arguments map[string]any
 			if methodInfo, ok := ghcontext.MCPMethod(ctx); ok && methodInfo != nil {
 				// Only check tools/call requests
 				if methodInfo.Method != "tools/call" {
@@ -50,6 +51,7 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 					return
 				}
 				toolName = methodInfo.ItemName
+				arguments = methodInfo.Arguments
 			} else {
 				// Fallback: parse the request body directly
 				body, err := io.ReadAll(r.Body)
@@ -81,6 +83,7 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 				}
 
 				toolName = mcpRequest.Params.Name
+				arguments = mcpRequest.Params.Arguments
 			}
 			toolScopeInfo, err := scopes.GetToolScopeInfo(toolName)
 			if err != nil {
@@ -93,6 +96,7 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 				next.ServeHTTP(w, r)
 				return
 			}
+			toolScopeInfo = toolScopeInfo.Resolve(arguments)
 
 			// Get OAuth scopes for Token. First check if scopes are already in context,  then fetch from GitHub if not present.
 			// This allows Remote Server to pass scope info to avoid redundant GitHub API calls.
@@ -116,7 +120,7 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 			}
 
 			// User lacks required scopes - get the scopes they need
-			requiredScopes := toolScopeInfo.GetRequiredScopesSlice()
+			requiredScopes := toolScopeInfo.MissingScopes(activeScopes...)
 
 			// Build the resource metadata URL using the shared utility
 			// GetEffectiveResourcePath returns the original path (e.g., /mcp or /mcp/x/all)

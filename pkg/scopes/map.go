@@ -1,6 +1,10 @@
 package scopes
 
-import "github.com/github/github-mcp-server/pkg/inventory"
+import (
+	"slices"
+
+	"github.com/github/github-mcp-server/pkg/inventory"
+)
 
 // ToolScopeMap maps tool names to their scope requirements.
 type ToolScopeMap map[string]*ToolScopeInfo
@@ -16,6 +20,9 @@ type ToolScopeInfo struct {
 	// RequiredScopeGroups contains accepted alternatives for each independently
 	// required scope. Every group must be satisfied.
 	RequiredScopeGroups [][]string
+
+	// ScopeResolver returns scopes that are conditionally required for a call.
+	ScopeResolver inventory.ScopeResolver
 }
 
 // globalToolScopeMap is populated from inventory when SetToolScopeMapFromInventory is called
@@ -61,16 +68,50 @@ func GetToolScopeMapFromInventory(inv *inventory.Inventory) ToolScopeMap {
 	allTools := inv.AllTools()
 	for i := range allTools {
 		tool := &allTools[i]
-		if len(tool.RequiredScopes) > 0 || len(tool.AcceptedScopes) > 0 {
+		if len(tool.RequiredScopes) > 0 || len(tool.AcceptedScopes) > 0 || tool.ScopeResolver != nil {
 			result[tool.Tool.Name] = &ToolScopeInfo{
 				RequiredScopes:      tool.RequiredScopes,
 				AcceptedScopes:      tool.AcceptedScopes,
 				RequiredScopeGroups: tool.RequiredScopeGroups,
+				ScopeResolver:       tool.ScopeResolver,
 			}
 		}
 	}
 
 	return result
+}
+
+// Resolve returns the scope requirements for a specific call.
+func (t *ToolScopeInfo) Resolve(arguments map[string]any) *ToolScopeInfo {
+	if t == nil || t.ScopeResolver == nil {
+		return t
+	}
+	additionalScopes := t.ScopeResolver(arguments)
+	if len(additionalScopes) == 0 {
+		return t
+	}
+
+	resolved := &ToolScopeInfo{
+		RequiredScopes:      append([]string(nil), t.RequiredScopes...),
+		AcceptedScopes:      append([]string(nil), t.AcceptedScopes...),
+		RequiredScopeGroups: append([][]string(nil), t.RequiredScopeGroups...),
+		ScopeResolver:       t.ScopeResolver,
+	}
+	if len(resolved.RequiredScopeGroups) == 0 {
+		for _, required := range resolved.RequiredScopes {
+			resolved.RequiredScopeGroups = append(resolved.RequiredScopeGroups, ExpandScopes(Scope(required)))
+		}
+	}
+	for _, required := range additionalScopes {
+		if slices.Contains(resolved.RequiredScopes, required) {
+			continue
+		}
+		resolved.RequiredScopes = append(resolved.RequiredScopes, required)
+		accepted := ExpandScopes(Scope(required))
+		resolved.AcceptedScopes = append(resolved.AcceptedScopes, accepted...)
+		resolved.RequiredScopeGroups = append(resolved.RequiredScopeGroups, accepted)
+	}
+	return resolved
 }
 
 // HasAcceptedScope checks if any of the provided user scopes satisfy the tool's requirements.
