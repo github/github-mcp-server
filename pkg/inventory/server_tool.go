@@ -145,21 +145,20 @@ func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any, middleware ...ToolHa
 	if len(toolCopy.Icons) == 0 {
 		toolCopy.Icons = st.Toolset.Icons()
 	}
-	// Project routing-relevant params to standard MCP-Param-* headers (SEP-2243)
-	// so a remote proxy can read top-level parameters from headers instead of
-	// re-parsing the JSON-RPC body. No-op for tools without these params.
+	// Project owner/repo routing params to standard MCP-Param-* headers (SEP-2243)
+	// so a remote proxy can route requests without re-parsing the JSON-RPC body.
+	// No-op for tools without these params.
 	AnnotateHeaderParams(&toolCopy)
 	s.AddTool(&toolCopy, handler)
 }
 
-// HeaderParams maps tool input properties to the MCP-Param-* header name a
-// header-aware proxy reads, avoiding a second parse of the request body. New
-// routing-relevant params should be added here so projection stays automatic
-// for every tool; the enforcement test in pkg/github guards full coverage.
-var HeaderParams = map[string]string{"owner": "owner", "repo": "repo", "path": "path"}
+// HeaderParams maps owner/repo input properties to the MCP-Param-* headers a
+// header-aware proxy reads for repository routing. The enforcement test in
+// pkg/github guards full coverage.
+var HeaderParams = map[string]string{"owner": "owner", "repo": "repo"}
 
-// AnnotateHeaderParams returns a copy of tool whose routing-relevant input
-// properties (per HeaderParams) carry an "x-mcp-header" annotation, which the
+// AnnotateHeaderParams returns a copy of tool whose owner/repo input properties
+// carry an "x-mcp-header" annotation, which the
 // SDK projects onto Mcp-Param-{name} request headers. It never mutates the
 // input tool's schema or any map shared with the original tool definition:
 // callers shallow-copy ServerTool.Tool, so the *jsonschema.Schema (and its
@@ -173,7 +172,7 @@ func AnnotateHeaderParams(tool *mcp.Tool) {
 	}
 
 	// Collect params that actually need an annotation, so a tool without
-	// routing params (or already annotated) is left untouched and unCloned.
+	// owner/repo (or already annotated) is left untouched and unCloned.
 	var toAnnotate []string
 	for prop := range HeaderParams {
 		if ps := schema.Properties[prop]; ps != nil {

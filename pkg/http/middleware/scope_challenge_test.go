@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
@@ -30,8 +31,8 @@ func TestWithScopeChallengeResolvesScopesFromParsedArguments(t *testing.T) {
 			wantNext:   true,
 		},
 		{
-			name:       "workflow file requires workflow",
-			arguments:  map[string]any{"path": ".github/workflows/ci.yml"},
+			name:       "non-ASCII workflow path without header requires workflow",
+			arguments:  map[string]any{"path": ".github/workflows/构建.yml"},
 			wantStatus: http.StatusForbidden,
 		},
 		{
@@ -54,6 +55,7 @@ func TestWithScopeChallengeResolvesScopesFromParsedArguments(t *testing.T) {
 			handler := WithScopeChallenge(&oauth.Config{}, &mockScopeFetcher{})(next)
 
 			request := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+			assert.Empty(t, request.Header.Get("Mcp-Param-path"))
 			ctx := scopeChallengeContext(request.Context())
 			ctx = ghcontext.WithMCPMethodInfo(ctx, &ghcontext.MCPMethodInfo{
 				Method:    "tools/call",
@@ -105,13 +107,13 @@ func setDynamicScopeTestMap(t *testing.T) {
 			RequiredScopes: []string{"repo"},
 			AcceptedScopes: []string{"repo"},
 			ScopeResolver: func(arguments map[string]any) []string {
-				if path, _ := arguments["path"].(string); path == ".github/workflows/ci.yml" {
+				if path, _ := arguments["path"].(string); strings.HasPrefix(path, ".github/workflows/") {
 					return []string{"workflow"}
 				}
 				files, _ := arguments["files"].([]any)
 				for _, file := range files {
 					fileMap, _ := file.(map[string]any)
-					if path, _ := fileMap["path"].(string); path == ".github/workflows/ci.yml" {
+					if path, _ := fileMap["path"].(string); strings.HasPrefix(path, ".github/workflows/") {
 						return []string{"workflow"}
 					}
 				}

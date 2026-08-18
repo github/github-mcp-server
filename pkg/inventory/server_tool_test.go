@@ -140,7 +140,7 @@ func TestAnnotateHeaderParams(t *testing.T) {
 	schema := tool.InputSchema.(*jsonschema.Schema)
 	assert.Equal(t, "owner", schema.Properties["owner"].Extra["x-mcp-header"])
 	assert.Equal(t, "repo", schema.Properties["repo"].Extra["x-mcp-header"])
-	assert.Equal(t, "path", schema.Properties["path"].Extra["x-mcp-header"])
+	assert.Nil(t, schema.Properties["path"].Extra)
 	assert.Nil(t, schema.Properties["detail"].Extra)
 
 	// No-op for tools without owner/repo and when InputSchema is not a *jsonschema.Schema
