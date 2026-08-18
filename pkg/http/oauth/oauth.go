@@ -19,40 +19,44 @@ const (
 	OAuthProtectedResourcePrefix = "/.well-known/oauth-protected-resource"
 )
 
-// DefaultScopes are requested by stdio OAuth unless the operator explicitly
-// supplies --oauth-scopes. High-risk scopes such as delete_repo require opt-in.
-var DefaultScopes = []string{
-	"repo",
-	"read:org",
-	"read:user",
-	"user:email",
-	"read:packages",
-	"write:packages",
-	"read:project",
-	"project",
-	"gist",
-	"notifications",
-	"workflow",
-	"codespace",
+type scopeDefinition struct {
+	name      string
+	byDefault bool
+}
+
+var scopeDefinitions = []scopeDefinition{
+	{name: "repo", byDefault: true},
+	{name: "delete_repo"},
+	{name: "read:org", byDefault: true},
+	{name: "read:user", byDefault: true},
+	{name: "user:email", byDefault: true},
+	{name: "read:packages", byDefault: true},
+	{name: "write:packages", byDefault: true},
+	{name: "read:project", byDefault: true},
+	{name: "project", byDefault: true},
+	{name: "gist", byDefault: true},
+	{name: "notifications", byDefault: true},
+	{name: "workflow", byDefault: true},
+	{name: "codespace", byDefault: true},
 }
 
 // SupportedScopes lists every OAuth scope that an MCP tool may require. HTTP
 // protected-resource metadata advertises this full set so clients can step up
 // authorization for tools excluded from the default grant.
-var SupportedScopes = []string{
-	"repo",
-	"delete_repo",
-	"read:org",
-	"read:user",
-	"user:email",
-	"read:packages",
-	"write:packages",
-	"read:project",
-	"project",
-	"gist",
-	"notifications",
-	"workflow",
-	"codespace",
+var SupportedScopes = scopesFromDefinitions(false)
+
+// DefaultScopes are requested by stdio OAuth unless the operator explicitly
+// supplies --oauth-scopes. High-risk scopes such as delete_repo require opt-in.
+var DefaultScopes = scopesFromDefinitions(true)
+
+func scopesFromDefinitions(defaultOnly bool) []string {
+	result := make([]string, 0, len(scopeDefinitions))
+	for _, scope := range scopeDefinitions {
+		if !defaultOnly || scope.byDefault {
+			result = append(result, scope.name)
+		}
+	}
+	return result
 }
 
 // Config holds the OAuth configuration for the MCP server.

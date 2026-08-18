@@ -587,6 +587,7 @@ func TestSupportedScopes(t *testing.T) {
 }
 
 func TestDefaultScopesRequiresExplicitDeleteRepoOptIn(t *testing.T) {
+	assert.Subset(t, SupportedScopes, DefaultScopes)
 	assert.Contains(t, SupportedScopes, "delete_repo")
 	assert.NotContains(t, DefaultScopes, "delete_repo")
 	assert.Contains(t, DefaultScopes, "repo")
