@@ -86,8 +86,8 @@ var oauthScopeDefinitions = []oauthScopeDefinition{
 	{scope: Project, byDefault: true},
 	{scope: Gist, byDefault: true},
 	{scope: Notifications, byDefault: true},
-	{scope: Workflow, byDefault: true},
-	{scope: Codespace, byDefault: true},
+	{scope: Workflow},
+	{scope: Codespace},
 }
 
 // SupportedOAuthScopes returns every OAuth scope the server may request.
