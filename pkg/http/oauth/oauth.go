@@ -28,6 +28,7 @@ const (
 // requirements when scopes change.
 var SupportedScopes = []string{
 	"repo",
+	"delete_repo",
 	"read:org",
 	"read:user",
 	"user:email",
