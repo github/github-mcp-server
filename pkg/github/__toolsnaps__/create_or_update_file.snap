@@ -7,6 +7,11 @@
   "description": "Create or update a single file in a GitHub repository. \nIf updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.\n\nIn order to obtain the SHA of original file version before updating, use the following git command:\ngit rev-parse \u003cbranch\u003e:\u003cpath to file\u003e\n\nSHA MUST be provided for existing file updates.\n",
   "inputSchema": {
     "properties": {
+      "allow_symlink_write": {
+        "default": false,
+        "description": "Set to true only to intentionally change a symbolic link's target. The content must be the new link target path. By default, writes to existing symbolic links are rejected to prevent replacing the link target with file contents returned by get_file_contents.",
+        "type": "boolean"
+      },
       "branch": {
         "description": "Branch to create/update the file in",
         "type": "string"
@@ -24,7 +29,7 @@
         "type": "string"
       },
       "path": {
-        "description": "Exact Git path to write. Writing to a symbolic link path rewrites the symbolic link's target path; use the linked file's path to update its contents.",
+        "description": "Exact Git path to write. Writing to a symbolic link path changes the link target to the supplied content; it does not update the linked file.",
         "type": "string"
       },
       "repo": {

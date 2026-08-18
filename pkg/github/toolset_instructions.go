@@ -12,7 +12,7 @@ func generateContextToolsetInstructions(_ *inventory.Inventory) string {
 func generateReposToolsetInstructions(_ *inventory.Inventory) string {
 	return `## Repository file writes
 
-'get_file_contents' may return the target contents when a path is a symbolic link, but repository file writes use exact Git paths and do not follow symbolic links. To edit content that a symlink points to, write to the target path.`
+'get_file_contents' may return the target contents when a path is a symbolic link, but repository file writes use exact Git paths and do not follow symbolic links. To edit content that a symlink points to, write to the target path. 'create_or_update_file' rejects writes to existing symbolic links unless 'allow_symlink_write' is true; only opt in when intentionally changing the link target.`
 }
 
 func generateIssuesToolsetInstructions(_ *inventory.Inventory) string {

@@ -25,6 +25,7 @@ func TestRepositoryInstructionsExplainSymlinkWriteSemantics(t *testing.T) {
 	assert.Contains(t, instructions, "## repository file writes")
 	assert.Contains(t, instructions, "may return the target contents")
 	assert.Contains(t, instructions, "do not follow symbolic links")
+	assert.Contains(t, instructions, "rejects writes to existing symbolic links")
 
 	defaultInventory, err := inventory.NewBuilder().
 		SetTools([]inventory.ServerTool{
@@ -53,6 +54,8 @@ func TestFileWritePathsExplainSymlinkWriteSemantics(t *testing.T) {
 	require.True(t, ok)
 	createPath := createSchema.Properties["path"]
 	require.NotNil(t, createPath)
+	createAllowSymlinkWrite := createSchema.Properties["allow_symlink_write"]
+	require.NotNil(t, createAllowSymlinkWrite)
 	pushFiles := pushSchema.Properties["files"]
 	require.NotNil(t, pushFiles)
 	require.NotNil(t, pushFiles.Items)
@@ -67,7 +70,7 @@ func TestFileWritePathsExplainSymlinkWriteSemantics(t *testing.T) {
 		{
 			name:             "create_or_update_file",
 			description:      createPath.Description,
-			expectedBehavior: "rewrites the symbolic link's target path",
+			expectedBehavior: "changes the link target",
 		},
 		{
 			name:             "push_files",
@@ -83,4 +86,7 @@ func TestFileWritePathsExplainSymlinkWriteSemantics(t *testing.T) {
 			assert.Contains(t, description, tool.expectedBehavior)
 		})
 	}
+
+	assert.Equal(t, "boolean", createAllowSymlinkWrite.Type)
+	assert.Contains(t, strings.ToLower(createAllowSymlinkWrite.Description), "intentionally change a symbolic link's target")
 }

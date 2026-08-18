@@ -433,7 +433,7 @@ SHA MUST be provided for existing file updates.
 					},
 					"path": {
 						Type:        "string",
-						Description: "Exact Git path to write. Writing to a symbolic link path rewrites the symbolic link's target path; use the linked file's path to update its contents.",
+						Description: "Exact Git path to write. Writing to a symbolic link path changes the link target to the supplied content; it does not update the linked file.",
 					},
 					"content": {
 						Type:        "string",
@@ -450,6 +450,11 @@ SHA MUST be provided for existing file updates.
 					"sha": {
 						Type:        "string",
 						Description: "The blob SHA of the file being replaced. Required if the file already exists.",
+					},
+					"allow_symlink_write": {
+						Type:        "boolean",
+						Description: "Set to true only to intentionally change a symbolic link's target. The content must be the new link target path. By default, writes to existing symbolic links are rejected to prevent replacing the link target with file contents returned by get_file_contents.",
+						Default:     json.RawMessage("false"),
 					},
 				},
 				Required: []string{"owner", "repo", "path", "content", "message", "branch"},
@@ -501,6 +506,11 @@ SHA MUST be provided for existing file updates.
 				opts.SHA = github.Ptr(sha)
 			}
 
+			allowSymlinkWrite, err := OptionalParam[bool](args, "allow_symlink_write")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
 			// Create or update the file
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -540,6 +550,19 @@ SHA MUST be provided for existing file updates.
 							"SHA mismatch: provided SHA %s is stale. Current file SHA is %s. "+
 								"Pull the latest changes and use git rev-parse %s:%s to get the current SHA.",
 							sha, currentSHA, branch, path)), nil, nil
+					}
+					if !allowSymlinkWrite {
+						symlinkTarget, isSymlink, respTree, err := symlinkTargetAtPath(ctx, client, owner, repo, branch, path)
+						if err != nil {
+							return ghErrors.NewGitHubAPIErrorResponse(ctx,
+								"failed to verify whether file path is a symbolic link",
+								respTree,
+								err,
+							), nil, nil
+						}
+						if isSymlink {
+							return newSymlinkWriteBlockedResult(path, symlinkTarget), nil, nil
+						}
 					}
 				}
 			} else {

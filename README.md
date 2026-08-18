@@ -1284,11 +1284,12 @@ The following sets of tools are available:
 
 - **create_or_update_file** - Create or update file
   - **Required OAuth Scopes**: `repo`
+  - `allow_symlink_write`: Set to true only to intentionally change a symbolic link's target. The content must be the new link target path. By default, writes to existing symbolic links are rejected to prevent replacing the link target with file contents returned by get_file_contents. (boolean, optional)
   - `branch`: Branch to create/update the file in (string, required)
   - `content`: Content of the file, exactly as it should appear once written. Do not base64-encode it; this server does that before calling the REST API. (string, required)
   - `message`: Commit message (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: Exact Git path to write. Writing to a symbolic link path rewrites the symbolic link's target path; use the linked file's path to update its contents. (string, required)
+  - `path`: Exact Git path to write. Writing to a symbolic link path changes the link target to the supplied content; it does not update the linked file. (string, required)
   - `repo`: Repository name (string, required)
   - `sha`: The blob SHA of the file being replaced. Required if the file already exists. (string, optional)
 

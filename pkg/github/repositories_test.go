@@ -1790,6 +1790,45 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			HTMLURL: github.Ptr("https://github.com/owner/repo/commit/def456abc789"),
 		},
 	}
+	mockPathTree := func(mode string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			var tree *github.Tree
+			switch {
+			case strings.HasSuffix(r.URL.Path, "/head-sha"):
+				tree = &github.Tree{
+					Entries: []*github.TreeEntry{
+						{
+							Path: github.Ptr("docs"),
+							Mode: github.Ptr("040000"),
+							Type: github.Ptr("tree"),
+							SHA:  github.Ptr("docs-tree"),
+						},
+					},
+				}
+			case strings.HasSuffix(r.URL.Path, "/docs-tree"):
+				tree = &github.Tree{
+					Entries: []*github.TreeEntry{
+						{
+							Path: github.Ptr("example.md"),
+							Mode: github.Ptr(mode),
+							Type: github.Ptr("blob"),
+							SHA:  github.Ptr("example-sha"),
+						},
+					},
+				}
+			default:
+				require.FailNow(t, "unexpected tree request", r.URL.Path)
+			}
+			mockResponse(t, http.StatusOK, tree)(w, r)
+		}
+	}
+	mockBranchRef := mockResponse(t, http.StatusOK, &github.Reference{
+		Ref: github.Ptr("refs/heads/main"),
+		Object: &github.GitObject{
+			SHA:  github.Ptr("head-sha"),
+			Type: github.Ptr("commit"),
+		},
+	})
 
 	tests := []struct {
 		name            string
@@ -1798,6 +1837,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		expectError     bool
 		expectedContent *github.RepositoryContentResponse
 		expectedErrMsg  string
+		expectedErrMsgs []string
 	}{
 		{
 			name: "successful file creation",
@@ -1831,6 +1871,8 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		{
 			name: "successful file update with SHA",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef:    mockBranchRef,
+				GetReposGitTreesByOwnerByRepoByTree: mockPathTree("100644"),
 				"GET /repos/owner/repo/contents/docs/example.md": mockResponse(t, http.StatusOK, &github.RepositoryContent{
 					SHA:  github.Ptr("abc123def456"),
 					Type: github.Ptr("file"),
@@ -1894,6 +1936,8 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		{
 			name: "sha validation - current sha matches",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef:    mockBranchRef,
+				GetReposGitTreesByOwnerByRepoByTree: mockPathTree("100644"),
 				"GET /repos/owner/repo/contents/docs/example.md": mockResponse(t, http.StatusOK, &github.RepositoryContent{
 					SHA:  github.Ptr("abc123def456"),
 					Type: github.Ptr("file"),
@@ -1927,6 +1971,118 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"message": "Update example file",
 				"branch":  "main",
 				"sha":     "abc123def456",
+			},
+			expectError:     false,
+			expectedContent: mockFileResponse,
+		},
+		{
+			name: "rejects symbolic link update without explicit opt-in",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef:    mockBranchRef,
+				GetReposGitTreesByOwnerByRepoByTree: mockPathTree("120000"),
+				GetReposGitBlobsByOwnerByRepoByFileSHA: func(w http.ResponseWriter, _ *http.Request) {
+					_, _ = w.Write([]byte("other.md"))
+				},
+				"GET /repos/owner/repo/contents/docs/example.md": mockResponse(t, http.StatusOK, &github.RepositoryContent{
+					SHA:  github.Ptr("abc123def456"),
+					Type: github.Ptr("file"),
+				}),
+				"GET /repos/{owner}/{repo}/contents/{path:.*}": mockResponse(t, http.StatusOK, &github.RepositoryContent{
+					SHA:  github.Ptr("abc123def456"),
+					Type: github.Ptr("file"),
+				}),
+			}),
+			requestArgs: map[string]any{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"content": "# Content returned by get_file_contents",
+				"message": "Update linked file",
+				"branch":  "main",
+				"sha":     "abc123def456",
+			},
+			expectError:    true,
+			expectedErrMsg: `"error":"symlink_write_requires_explicit_opt_in"`,
+			expectedErrMsgs: []string{
+				`"symlink_target":"other.md"`,
+				`"resolved_target_path":"docs/other.md"`,
+			},
+		},
+		{
+			name: "resolves special-character branch before inspecting symlink",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef: func(w http.ResponseWriter, r *http.Request) {
+					assert.Contains(t, r.URL.EscapedPath(), "/git/ref/heads/release%23candidate")
+					mockResponse(t, http.StatusOK, &github.Reference{
+						Ref: github.Ptr("refs/heads/release#candidate"),
+						Object: &github.GitObject{
+							SHA:  github.Ptr("head-sha"),
+							Type: github.Ptr("commit"),
+						},
+					})(w, r)
+				},
+				GetReposGitTreesByOwnerByRepoByTree: mockPathTree("120000"),
+				GetReposGitBlobsByOwnerByRepoByFileSHA: func(w http.ResponseWriter, _ *http.Request) {
+					_, _ = w.Write([]byte("other.md"))
+				},
+				"GET /repos/owner/repo/contents/docs/example.md": mockResponse(t, http.StatusOK, &github.RepositoryContent{
+					SHA:  github.Ptr("abc123def456"),
+					Type: github.Ptr("file"),
+				}),
+				"GET /repos/{owner}/{repo}/contents/{path:.*}": mockResponse(t, http.StatusOK, &github.RepositoryContent{
+					SHA:  github.Ptr("abc123def456"),
+					Type: github.Ptr("file"),
+				}),
+			}),
+			requestArgs: map[string]any{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"content": "# Content returned by get_file_contents",
+				"message": "Update linked file",
+				"branch":  "release#candidate",
+				"sha":     "abc123def456",
+			},
+			expectError:    true,
+			expectedErrMsg: `"error":"symlink_write_requires_explicit_opt_in"`,
+		},
+		{
+			name: "allows intentional symbolic link update with explicit opt-in",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/owner/repo/contents/docs/example.md": mockResponse(t, http.StatusOK, &github.RepositoryContent{
+					SHA:  github.Ptr("abc123def456"),
+					Type: github.Ptr("file"),
+				}),
+				"GET /repos/{owner}/{repo}/contents/{path:.*}": mockResponse(t, http.StatusOK, &github.RepositoryContent{
+					SHA:  github.Ptr("abc123def456"),
+					Type: github.Ptr("file"),
+				}),
+				PutReposContentsByOwnerByRepoByPath: expectRequestBody(t, map[string]any{
+					"message": "Change link target",
+					"content": "b3RoZXIubWQ=",
+					"branch":  "main",
+					"sha":     "abc123def456",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockFileResponse),
+				),
+				"PUT /repos/{owner}/{repo}/contents/{path:.*}": expectRequestBody(t, map[string]any{
+					"message": "Change link target",
+					"content": "b3RoZXIubWQ=",
+					"branch":  "main",
+					"sha":     "abc123def456",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockFileResponse),
+				),
+			}),
+			requestArgs: map[string]any{
+				"owner":               "owner",
+				"repo":                "repo",
+				"path":                "docs/example.md",
+				"content":             "other.md",
+				"message":             "Change link target",
+				"branch":              "main",
+				"sha":                 "abc123def456",
+				"allow_symlink_write": true,
 			},
 			expectError:     false,
 			expectedContent: mockFileResponse,
@@ -2074,6 +2230,9 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				require.True(t, result.IsError)
 				errorContent := getErrorResult(t, result)
 				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				for _, expectedErrMsg := range tc.expectedErrMsgs {
+					assert.Contains(t, errorContent.Text, expectedErrMsg)
+				}
 				return
 			}
 
