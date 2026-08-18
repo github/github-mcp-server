@@ -10,17 +10,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// bodyWithHiddenPayload embeds Unicode tag characters, which are invisible to a
+// sanitizedBodyWithHiddenChars embeds Unicode tag characters, which are invisible to a
 // human reviewer but legible to a model.
-const bodyWithHiddenPayload = "Looks good\U000E0001\U000E0049\U000E0067\U000E006E\U000E006F\U000E0072\U000E0065"
+const sanitizedBodyWithHiddenChars = "Looks good\U000E0001\U000E0049\U000E0067\U000E006E\U000E006F\U000E0072\U000E0065"
 
-const bodyWithCode = "Compare with:\n```go\nif a<b { fmt.Println(\"x\") }\n```\nand <Foo/> in JSX."
+const sanitizedBodyWithCode = "Compare with:\n```go\nif a<b { fmt.Println(\"x\") }\n```\nand <Foo/> in JSX."
 
 func TestConvertToMinimalIssueCommentSanitizesBody(t *testing.T) {
 	t.Run("strips hidden characters", func(t *testing.T) {
 		m := convertToMinimalIssueComment(&github.IssueComment{
 			ID:   github.Ptr(int64(1)),
-			Body: github.Ptr(bodyWithHiddenPayload),
+			Body: github.Ptr(sanitizedBodyWithHiddenChars),
 		})
 		assert.Equal(t, "Looks good", m.Body)
 	})
@@ -28,9 +28,9 @@ func TestConvertToMinimalIssueCommentSanitizesBody(t *testing.T) {
 	t.Run("preserves code content", func(t *testing.T) {
 		m := convertToMinimalIssueComment(&github.IssueComment{
 			ID:   github.Ptr(int64(1)),
-			Body: github.Ptr(bodyWithCode),
+			Body: github.Ptr(sanitizedBodyWithCode),
 		})
-		assert.Equal(t, bodyWithCode, m.Body)
+		assert.Equal(t, sanitizedBodyWithCode, m.Body)
 	})
 }
 
@@ -38,7 +38,7 @@ func TestConvertToMinimalPullRequestReviewSanitizesBody(t *testing.T) {
 	t.Run("strips hidden characters", func(t *testing.T) {
 		m := convertToMinimalPullRequestReview(&github.PullRequestReview{
 			ID:   github.Ptr(int64(1)),
-			Body: github.Ptr(bodyWithHiddenPayload),
+			Body: github.Ptr(sanitizedBodyWithHiddenChars),
 		})
 		assert.Equal(t, "Looks good", m.Body)
 	})
@@ -46,9 +46,9 @@ func TestConvertToMinimalPullRequestReviewSanitizesBody(t *testing.T) {
 	t.Run("preserves code content", func(t *testing.T) {
 		m := convertToMinimalPullRequestReview(&github.PullRequestReview{
 			ID:   github.Ptr(int64(1)),
-			Body: github.Ptr(bodyWithCode),
+			Body: github.Ptr(sanitizedBodyWithCode),
 		})
-		assert.Equal(t, bodyWithCode, m.Body)
+		assert.Equal(t, sanitizedBodyWithCode, m.Body)
 	})
 }
 
@@ -58,7 +58,7 @@ func TestConvertToMinimalReviewCommentSanitizesBody(t *testing.T) {
 
 	t.Run("strips hidden characters", func(t *testing.T) {
 		m := convertToMinimalReviewComment(reviewCommentNode{
-			Body: githubv4.String(bodyWithHiddenPayload),
+			Body: githubv4.String(sanitizedBodyWithHiddenChars),
 			Path: githubv4.String("main.go"),
 			URL:  githubv4.URI{URL: commentURL},
 		})
@@ -67,10 +67,10 @@ func TestConvertToMinimalReviewCommentSanitizesBody(t *testing.T) {
 
 	t.Run("preserves code content", func(t *testing.T) {
 		m := convertToMinimalReviewComment(reviewCommentNode{
-			Body: githubv4.String(bodyWithCode),
+			Body: githubv4.String(sanitizedBodyWithCode),
 			Path: githubv4.String("main.go"),
 			URL:  githubv4.URI{URL: commentURL},
 		})
-		assert.Equal(t, bodyWithCode, m.Body)
+		assert.Equal(t, sanitizedBodyWithCode, m.Body)
 	})
 }
