@@ -7,7 +7,7 @@ COPY ui/ ./ui/
 RUN mkdir -p ./pkg/github/ui_dist && \
     cd ui && npm run build
 
-FROM golang:1.25.12-alpine@sha256:56961d79ea8129efddcc0b8643fd8a5416b4e6228cfd477e3fd61deb2672c587 AS build
+FROM golang:1.25.13-alpine@sha256:1e0126852075c9c60731c8ba49088448b91f63e2aed97ca9d1a9791622a05946 AS build
 ARG VERSION="dev"
 
 # Set the working directory
@@ -35,7 +35,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -o /bin/github-mcp-server ./cmd/github-mcp-server
 
 # Make a stage to run the app
-FROM gcr.io/distroless/base-debian12@sha256:348dac1808083ccc3366399d6db835875b4eaf7c9b694783f5a3f353c4b58a28
+FROM gcr.io/distroless/base-debian12@sha256:76b3162a31477bca4a245b836c624f4c4a1a3705e99b9003907d992bec2c4bca
 
 # Add required MCP server annotation
 LABEL io.modelcontextprotocol.server.name="io.github.github/github-mcp-server"

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/modelcontextprotocol/go-sdk/auth"
@@ -19,27 +20,14 @@ const (
 	OAuthProtectedResourcePrefix = "/.well-known/oauth-protected-resource"
 )
 
-// SupportedScopes lists every OAuth scope that an MCP tool may require. It is the
-// source of truth in two places: HTTP mode advertises it as scopes_supported in
-// the protected-resource metadata, and stdio OAuth login requests it by default
-// and then filters the exposed tools to the granted scopes. A tool whose required
-// scope is absent here is therefore hidden under default OAuth even though a PAT
-// carrying that scope would expose it, so keep this list in sync with tool scope
-// requirements when scopes change.
-var SupportedScopes = []string{
-	"repo",
-	"read:org",
-	"read:user",
-	"user:email",
-	"read:packages",
-	"write:packages",
-	"read:project",
-	"project",
-	"gist",
-	"notifications",
-	"workflow",
-	"codespace",
-}
+// SupportedScopes lists every OAuth scope that an MCP tool may require. HTTP
+// protected-resource metadata advertises this full set so clients can step up
+// authorization for tools excluded from the default grant.
+var SupportedScopes = scopes.SupportedOAuthScopes()
+
+// DefaultScopes are requested by stdio OAuth unless the operator explicitly
+// supplies --oauth-scopes. High-risk scopes such as delete_repo require opt-in.
+var DefaultScopes = scopes.DefaultOAuthScopes()
 
 // Config holds the OAuth configuration for the MCP server.
 type Config struct {

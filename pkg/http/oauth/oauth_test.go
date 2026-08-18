@@ -569,6 +569,7 @@ func TestSupportedScopes(t *testing.T) {
 	// Verify all expected scopes are present
 	expectedScopes := []string{
 		"repo",
+		"delete_repo",
 		"read:org",
 		"read:user",
 		"user:email",
@@ -583,6 +584,13 @@ func TestSupportedScopes(t *testing.T) {
 	}
 
 	assert.Equal(t, expectedScopes, SupportedScopes)
+}
+
+func TestDefaultScopesRequiresExplicitDeleteRepoOptIn(t *testing.T) {
+	assert.Subset(t, SupportedScopes, DefaultScopes)
+	assert.Contains(t, SupportedScopes, "delete_repo")
+	assert.NotContains(t, DefaultScopes, "delete_repo")
+	assert.Contains(t, DefaultScopes, "repo")
 }
 
 func TestProtectedResourceResponseFormat(t *testing.T) {
@@ -691,10 +699,11 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:               "GHES with http scheme returns the correct authorization server URL",
-			host:               "http://ghe.example.com",
-			expectedURL:        "http://ghe.example.com/login/oauth",
-			expectedStatusCode: http.StatusOK,
+			name:          "GHES with http scheme is rejected to avoid cleartext credentials",
+			host:          "http://ghe.example.com",
+			expectedURL:   "",
+			expectedError: true,
+			errorContains: "host must use https",
 		},
 		{
 			name: "custom authorization server in config takes precedence",

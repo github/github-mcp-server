@@ -5,9 +5,11 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -15,8 +17,11 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+const subscriptionsListenMethod = "subscriptions/listen"
 
 type InventoryFactoryFunc func(r *http.Request) (*inventory.Inventory, error)
 
@@ -219,6 +224,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Let the SDK validate missing or mismatched method headers before the
+	// middleware rejects a well-formed request as unsupported.
+	if r.Header.Get(headers.MCPMethodHeader) == subscriptionsListenMethod {
+		ghServer.AddReceivingMiddleware(rejectSubscriptionsListen)
+	}
+
 	// Cross-origin protection is intentionally left unset: this server
 	// authenticates via bearer tokens (not cookies), so Sec-Fetch-Site CSRF
 	// checks are unnecessary and would block browser-based MCP clients. As of
@@ -231,6 +242,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 
 	mcpHandler.ServeHTTP(w, r)
+}
+
+func rejectSubscriptionsListen(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+		if method == subscriptionsListenMethod {
+			return nil, &jsonrpc.Error{
+				Code:    jsonrpc.CodeMethodNotFound,
+				Message: "method not found",
+			}
+		}
+		return next(ctx, method, req)
+	}
 }
 
 func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error) {
@@ -336,12 +359,24 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 		hostType = utils.HostTypeDotcom
 	}
 	opts := []github.ToolOption{github.WithHost(hostType)}
-
-	if !hasStaticConfig(cfg) {
-		return github.AllTools(t, opts...), github.AllResources(t), github.AllPrompts(t)
+	tools := github.AllTools(t, opts...)
+	filterUnavailable := func(tools []inventory.ServerTool) []inventory.ServerTool {
+		if !cfg.disableDeleteRepository {
+			return tools
+		}
+		return slices.DeleteFunc(tools, func(tool inventory.ServerTool) bool {
+			return tool.Tool.Name == github.DeleteRepositoryToolName
+		})
 	}
 
-	b := github.NewInventory(t, opts...).
+	if !hasStaticConfig(cfg) {
+		return filterUnavailable(tools), github.AllResources(t), github.AllPrompts(t)
+	}
+
+	b := inventory.NewBuilder().
+		SetTools(tools).
+		SetResources(github.AllResources(t)).
+		SetPrompts(github.AllPrompts(t)).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools))
 
@@ -355,13 +390,13 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 
 	inv, err := b.Build()
 	if err != nil {
-		// Fall back to all tools if there's an error (e.g. unknown tool names).
-		// The error will surface again at per-request time if relevant.
-		return github.AllTools(t, opts...), github.AllResources(t), github.AllPrompts(t)
+		// Invalid static tool names must fail closed rather than widening an
+		// explicit allowlist to every tool.
+		return nil, github.AllResources(t), github.AllPrompts(t)
 	}
 
 	ctx := context.Background()
-	return inv.AvailableTools(ctx), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx)
+	return filterUnavailable(inv.AvailableTools(ctx)), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx)
 }
 
 // InventoryFiltersForRequest applies filters to the inventory builder

@@ -3,9 +3,12 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,6 +39,40 @@ func TestLoadAppPrivateKey(t *testing.T) {
 func TestGitHubAppFlagsAreStdioOnly(t *testing.T) {
 	assert.NotNil(t, stdioCmd.Flags().Lookup("app-id"))
 	assert.Nil(t, httpCmd.Flags().Lookup("app-id"))
+}
+
+func TestWriteToolDocScopeSemantics(t *testing.T) {
+	tests := []struct {
+		name string
+		tool inventory.ServerTool
+		want string
+	}{
+		{
+			name: "legacy multi-scope tools use any-of",
+			tool: inventory.ServerTool{
+				Tool:           mcp.Tool{Name: "legacy", Annotations: &mcp.ToolAnnotations{Title: "Legacy"}},
+				RequiredScopes: []string{"repo", "read:org"},
+			},
+			want: "**Required OAuth Scopes (any of)**",
+		},
+		{
+			name: "conjunctive scope groups use all-required",
+			tool: inventory.ServerTool{
+				Tool:                mcp.Tool{Name: "conjunctive", Annotations: &mcp.ToolAnnotations{Title: "Conjunctive"}},
+				RequiredScopes:      []string{"delete_repo", "repo"},
+				RequiredScopeGroups: [][]string{{"delete_repo"}, {"repo"}},
+			},
+			want: "**Required OAuth Scopes (all required)**",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf strings.Builder
+			writeToolDoc(&buf, tt.tool)
+			assert.Contains(t, buf.String(), tt.want)
+		})
+	}
 }
 
 func TestSchemaTypeString(t *testing.T) {

@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,6 +48,7 @@ type allScopesFetcher struct{}
 func (f allScopesFetcher) FetchTokenScopes(_ context.Context, _ string) ([]string, error) {
 	return []string{
 		string(scopes.Repo),
+		string(scopes.DeleteRepo),
 		string(scopes.WriteOrg),
 		string(scopes.User),
 		string(scopes.Gist),
@@ -639,6 +642,7 @@ func TestStaticInventoryPreservesPerRequestFeatureVariants(t *testing.T) {
 		mockToolWithFeatureFlag("list_issues", "issues", true, "", github.FeatureFlagCSVOutput),
 		mockToolWithFeatureFlag("list_issues", "issues", true, github.FeatureFlagCSVOutput, ""),
 	}
+
 	cfg := &ServerConfig{Version: "test", EnabledToolsets: []string{"issues"}}
 	featureChecker := createHTTPFeatureChecker(nil, false)
 
@@ -657,6 +661,28 @@ func TestStaticInventoryPreservesPerRequestFeatureVariants(t *testing.T) {
 	require.Len(t, available, 1)
 	assert.Equal(t, "list_issues", available[0].Tool.Name)
 	assert.Equal(t, github.FeatureFlagCSVOutput, available[0].FeatureFlagEnable)
+}
+
+func TestStaticInventoryDisablesOnlyDeleteRepository(t *testing.T) {
+	cfg := &ServerConfig{disableDeleteRepository: true}
+	tools, _, _ := buildStaticInventory(cfg, translations.NullTranslationHelper)
+
+	names := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		names = append(names, tool.Tool.Name)
+	}
+	assert.NotContains(t, names, github.DeleteRepositoryToolName)
+	assert.Contains(t, names, "actions_list", "non-default toolsets must remain available for per-request selection")
+}
+
+func TestStaticInventoryFallbackKeepsDeleteRepositoryDisabled(t *testing.T) {
+	cfg := &ServerConfig{
+		EnabledTools:            []string{github.DeleteRepositoryToolName},
+		disableDeleteRepository: true,
+	}
+	tools, _, _ := buildStaticInventory(cfg, translations.NullTranslationHelper)
+
+	assert.Empty(t, tools, "an unavailable explicit allowlist must not widen to other tools")
 }
 
 // TestContentTypeHandling verifies that the MCP StreamableHTTP handler
@@ -902,6 +928,191 @@ func TestCrossOriginProtection(t *testing.T) {
 			r.ServeHTTP(rr, req)
 
 			assert.Equal(t, http.StatusOK, rr.Code, "unexpected status code; body: %s", rr.Body.String())
+		})
+	}
+}
+
+func TestHTTPToolMinimumProtocolVersion(t *testing.T) {
+	apiHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+
+	inventoryFactory := func(_ *http.Request) (*inventory.Inventory, error) {
+		return inventory.NewBuilder().
+			SetTools([]inventory.ServerTool{github.DeleteRepository(translations.NullTranslationHelper)}).
+			WithToolsets([]string{"all"}).
+			Build()
+	}
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{Version: "test"},
+		github.BaseDeps{},
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+		WithInventoryFactory(inventoryFactory),
+		WithScopeFetcher(allScopesFetcher{}),
+	)
+
+	router := chi.NewRouter()
+	handler.RegisterMiddleware(router)
+	handler.RegisterRoutes(router)
+
+	for _, tt := range []struct {
+		name                    string
+		protocolVersion         string
+		elicitationCapabilities map[string]any
+		wantDeleteRepoTool      bool
+	}{
+		{
+			name:                    "current protocol with form elicitation includes delete repository",
+			protocolVersion:         inventory.ProtocolVersionMultiRoundTrip,
+			elicitationCapabilities: map[string]any{"form": map[string]any{}},
+			wantDeleteRepoTool:      true,
+		},
+		{
+			name:                    "current protocol with URL-only elicitation hides delete repository",
+			protocolVersion:         inventory.ProtocolVersionMultiRoundTrip,
+			elicitationCapabilities: map[string]any{"url": map[string]any{}},
+		},
+		{
+			name:            "current protocol without elicitation hides delete repository",
+			protocolVersion: inventory.ProtocolVersionMultiRoundTrip,
+		},
+		{
+			name:                    "legacy protocol hides delete repository",
+			protocolVersion:         "2025-11-25",
+			elicitationCapabilities: map[string]any{"form": map[string]any{}},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			clientCapabilities := map[string]any{}
+			if tt.elicitationCapabilities != nil {
+				clientCapabilities["elicitation"] = tt.elicitationCapabilities
+			}
+			body, err := json.Marshal(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      1,
+				"method":  "tools/list",
+				"params": map[string]any{
+					"_meta": map[string]any{
+						mcp.MetaKeyProtocolVersion:    tt.protocolVersion,
+						mcp.MetaKeyClientCapabilities: clientCapabilities,
+						mcp.MetaKeyClientInfo:         map[string]any{"name": "test", "version": "v0.0.1"},
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(body)))
+			req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
+			req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+			req.Header.Set("Mcp-Protocol-Version", tt.protocolVersion)
+			req.Header.Set("Mcp-Method", "tools/list")
+			req.Header.Set(headers.AuthorizationHeader, strings.Join([]string{"ghs", "test-token"}, "_"))
+
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, req)
+			require.Equal(t, http.StatusOK, recorder.Code, "response body: %s", recorder.Body.String())
+
+			var response struct {
+				Result struct {
+					Tools []struct {
+						Name string `json:"name"`
+					} `json:"tools"`
+				} `json:"result"`
+			}
+			responseBody := recorder.Body.String()
+			for line := range strings.SplitSeq(responseBody, "\n") {
+				if data, ok := strings.CutPrefix(line, "data: "); ok {
+					responseBody = data
+					break
+				}
+			}
+			require.NoError(t, json.Unmarshal([]byte(responseBody), &response))
+
+			toolNames := make([]string, 0, len(response.Result.Tools))
+			for _, tool := range response.Result.Tools {
+				toolNames = append(toolNames, tool.Name)
+			}
+			if tt.wantDeleteRepoTool {
+				assert.Contains(t, toolNames, "delete_repository")
+			} else {
+				assert.NotContains(t, toolNames, "delete_repository")
+			}
+		})
+	}
+}
+
+func TestSubscriptionsListenIsRejected(t *testing.T) {
+	apiHost, err := utils.NewAPIHost("https://api.githubcopilot.com")
+	require.NoError(t, err)
+
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{Version: "test"},
+		nil,
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+		WithInventoryFactory(func(_ *http.Request) (*inventory.Inventory, error) {
+			return inventory.NewBuilder().Build()
+		}),
+		WithGitHubMCPServerFactory(func(_ *http.Request, _ github.ToolDependencies, _ *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+			return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+		}),
+	)
+
+	body := `{"jsonrpc":"2.0","id":1,"method":"subscriptions/listen","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1.0.0"},"io.modelcontextprotocol/clientCapabilities":{}},"notifications":{"toolsListChanged":true}}}`
+	tests := []struct {
+		name             string
+		methodHeader     string
+		expectedStatus   int
+		expectedJSONCode int
+	}{
+		{
+			name:             "matching method header",
+			methodHeader:     subscriptionsListenMethod,
+			expectedStatus:   http.StatusNotFound,
+			expectedJSONCode: jsonrpc.CodeMethodNotFound,
+		},
+		{
+			name:             "missing method header",
+			expectedStatus:   http.StatusBadRequest,
+			expectedJSONCode: mcp.CodeHeaderMismatch,
+		},
+		{
+			name:             "mismatched method header",
+			methodHeader:     "tools/list",
+			expectedStatus:   http.StatusBadRequest,
+			expectedJSONCode: mcp.CodeHeaderMismatch,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+			req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
+			req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+			req.Header.Set("MCP-Protocol-Version", "2026-07-28")
+			if tt.methodHeader != "" {
+				req.Header.Set(headers.MCPMethodHeader, tt.methodHeader)
+			}
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectedStatus, rr.Code)
+			assert.Equal(t, headers.ContentTypeJSON, rr.Header().Get(headers.ContentTypeHeader))
+
+			var response struct {
+				ID    int `json:"id"`
+				Error struct {
+					Code int `json:"code"`
+				} `json:"error"`
+			}
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+			assert.Equal(t, 1, response.ID)
+			assert.Equal(t, tt.expectedJSONCode, response.Error.Code)
 		})
 	}
 }

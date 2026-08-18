@@ -40,6 +40,7 @@ const (
 	PostReposForksByOwnerByRepo          = "POST /repos/{owner}/{repo}/forks"
 	GetReposSubscriptionByOwnerByRepo    = "GET /repos/{owner}/{repo}/subscription"
 	PutReposSubscriptionByOwnerByRepo    = "PUT /repos/{owner}/{repo}/subscription"
+	DeleteReposByOwnerByRepo             = "DELETE /repos/{owner}/{repo}"
 	DeleteReposSubscriptionByOwnerByRepo = "DELETE /repos/{owner}/{repo}/subscription"
 	ListCollaborators                    = "GET /repos/{owner}/{repo}/collaborators"
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
@@ -154,10 +155,12 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 		require.False(t, result.IsError)
 
 		textContent := getTextResult(t, result)
-		var response github.WorkflowRuns
+		var response MinimalWorkflowRunsResult
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
-		assert.NotNil(t, response.TotalCount)
+		assert.Equal(t, 1, response.TotalCount)
+		require.Len(t, response.WorkflowRuns, 1)
+		assert.Equal(t, int64(123), response.WorkflowRuns[0].ID)
 	})
 
 	t.Run("list all workflow runs without resource_id", func(t *testing.T) {
@@ -202,11 +205,45 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 		require.False(t, result.IsError)
 
 		textContent := getTextResult(t, result)
-		var response github.WorkflowRuns
+		var response MinimalWorkflowRunsResult
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
-		assert.Equal(t, 2, *response.TotalCount)
+		assert.Equal(t, 2, response.TotalCount)
+		assert.Len(t, response.WorkflowRuns, 2)
 	})
+}
+
+func Test_ActionsList_ListWorkflowJobs(t *testing.T) {
+	toolDef := ActionsList(translations.NullTranslationHelper)
+	mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposActionsRunsJobsByOwnerByRepoByRunID: mockResponse(t, http.StatusOK, &github.Jobs{
+			TotalCount: github.Ptr(1),
+			Jobs:       []*github.WorkflowJob{actionsTestWorkflowJob()},
+		}),
+	})
+
+	client := mustNewGHClient(t, mockedClient)
+	deps := BaseDeps{Client: client}
+	handler := toolDef.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":      "list_workflow_jobs",
+		"owner":       "owner",
+		"repo":        "repo",
+		"resource_id": "30433642",
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	var response struct {
+		Jobs MinimalWorkflowJobsResult `json:"jobs"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+	assert.Equal(t, 1, response.Jobs.TotalCount)
+	require.Len(t, response.Jobs.Jobs, 1)
+	assert.Equal(t, int64(399444496), response.Jobs.Jobs[0].ID)
+	assert.Len(t, response.Jobs.Jobs[0].Steps, 2)
 }
 
 func Test_ActionsGet(t *testing.T) {
@@ -271,14 +308,9 @@ func Test_ActionsGet_GetWorkflowRun(t *testing.T) {
 	toolDef := ActionsGet(translations.NullTranslationHelper)
 
 	t.Run("successful workflow run get", func(t *testing.T) {
+		run := actionsTestWorkflowRun()
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			GetReposActionsRunsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				run := &github.WorkflowRun{
-					ID:         github.Ptr(int64(12345)),
-					Name:       github.Ptr("CI"),
-					Status:     github.Ptr("completed"),
-					Conclusion: github.Ptr("success"),
-				}
 				w.WriteHeader(http.StatusOK)
 				_ = json.NewEncoder(w).Encode(run)
 			}),
@@ -302,11 +334,21 @@ func Test_ActionsGet_GetWorkflowRun(t *testing.T) {
 		require.False(t, result.IsError)
 
 		textContent := getTextResult(t, result)
-		var response github.WorkflowRun
+		var response MinimalWorkflowRun
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
-		assert.NotNil(t, response.ID)
-		assert.Equal(t, int64(12345), *response.ID)
+
+		expected := convertToMinimalWorkflowRun(run)
+		assert.Equal(t, expected, response)
+
+		var payload map[string]any
+		require.NoError(t, json.Unmarshal([]byte(textContent.Text), &payload))
+		assert.Equal(t, marshalActionsObject(t, expected), payload)
+		assert.NotContains(t, payload, "node_id")
+		assert.NotContains(t, payload, "repository")
+		assert.NotContains(t, payload, "head_repository")
+		assert.NotContains(t, payload, "url")
+		assert.NotContains(t, payload, "jobs_url")
 	})
 }
 
@@ -581,6 +623,25 @@ func Test_ActionsGetJobLogs_SingleJob(t *testing.T) {
 		assert.Contains(t, response, "logs_url")
 		assert.Equal(t, "Job logs are available for download", response["message"])
 	})
+}
+
+func TestGetJobLogData_DownloadTransportErrorReturnsNilResponse(t *testing.T) {
+	logServer := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	logURL := logServer.URL
+	logServer.Close()
+
+	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposActionsJobsLogsByOwnerByRepoByJobID: func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Location", logURL)
+			w.WriteHeader(http.StatusFound)
+		},
+	}))
+
+	_, resp, err := getJobLogData(t.Context(), client, "owner", "repo", 123, "", true, 100, 5000)
+
+	require.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Contains(t, err.Error(), "failed to download log content for job 123")
 }
 
 func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {

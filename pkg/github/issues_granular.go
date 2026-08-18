@@ -1274,6 +1274,27 @@ type IssueFieldCreateOrUpdateInput struct {
 	Suggest              *githubv4.Boolean `json:"suggest,omitempty"`
 }
 
+type setIssueFieldValueMutation struct {
+	SetIssueFieldValue struct {
+		Issue struct {
+			ID  githubv4.ID
+			URL githubv4.String
+		}
+	} `graphql:"setIssueFieldValue(input: $input)"`
+}
+
+// SetIssueFieldValues updates Issue Field values and returns the updated issue.
+func SetIssueFieldValues(ctx context.Context, gqlClient *githubv4.Client, input SetIssueFieldValueInput) (MinimalResponse, error) {
+	var mutation setIssueFieldValueMutation
+	if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
+		return MinimalResponse{}, err
+	}
+	return MinimalResponse{
+		ID:  fmt.Sprintf("%v", mutation.SetIssueFieldValue.Issue.ID),
+		URL: string(mutation.SetIssueFieldValue.Issue.URL),
+	}, nil
+}
+
 // GranularSetIssueFields creates a tool to set issue field values on an issue using GraphQL.
 func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
@@ -1497,31 +1518,6 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue", err), nil, nil
 			}
 
-			// Execute the setIssueFieldValue mutation
-			var mutation struct {
-				SetIssueFieldValue struct {
-					Issue struct {
-						ID     githubv4.ID
-						Number githubv4.Int
-						URL    githubv4.String
-					}
-					IssueFieldValues []struct {
-						TextValue struct {
-							Value string
-						} `graphql:"... on IssueFieldTextValue"`
-						SingleSelectValue struct {
-							Name string
-						} `graphql:"... on IssueFieldSingleSelectValue"`
-						DateValue struct {
-							Value string
-						} `graphql:"... on IssueFieldDateValue"`
-						NumberValue struct {
-							Value float64
-						} `graphql:"... on IssueFieldNumberValue"`
-					}
-				} `graphql:"setIssueFieldValue(input: $input)"`
-			}
-
 			mutationInput := SetIssueFieldValueInput{
 				IssueID:     issueID,
 				IssueFields: issueFields,
@@ -1530,14 +1526,12 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 			// The rationale and suggest input fields on IssueFieldCreateOrUpdateInput
 			// are gated behind the update_issue_suggestions GraphQL feature flag.
 			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "update_issue_suggestions")
-			if err := gqlClient.Mutate(ctxWithFeatures, &mutation, mutationInput, nil); err != nil {
+			response, err := SetIssueFieldValues(ctxWithFeatures, gqlClient, mutationInput)
+			if err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to set issue field values", err), nil, nil
 			}
 
-			r, err := json.Marshal(MinimalResponse{
-				ID:  fmt.Sprintf("%v", mutation.SetIssueFieldValue.Issue.ID),
-				URL: string(mutation.SetIssueFieldValue.Issue.URL),
-			})
+			r, err := json.Marshal(response)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}

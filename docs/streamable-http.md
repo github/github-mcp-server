@@ -32,6 +32,27 @@ github-mcp-server http --scope-challenge
 
 When `--scope-challenge` is enabled, requests with insufficient scopes receive a `403 Forbidden` response with a `WWW-Authenticate` header indicating the required scopes.
 
+### Repository deletion and request-state encryption
+
+The `delete_repository` tool uses multi-round-trip elicitation and carries its
+confirmed target through client-held request state. To expose this tool in HTTP
+mode, configure a stable 32-byte encryption key encoded with standard Base64:
+
+```bash
+export GITHUB_MCP_SERVER_MRTR_STATE_KEY="$(openssl rand -base64 32 | tr -d '\n')"
+github-mcp-server http
+```
+
+Use the same key on every replica that may handle a retry. Keep it secret and
+stable during deployments; changing it invalidates confirmations already in
+flight. If the variable is absent, `delete_repository` is not exposed by the
+HTTP server. If it is present but malformed, the server refuses to start.
+
+This self-hosted key is independent of keys used by the hosted remote server.
+Integrators can provide their own request-state sealer through the exported
+`github.RequestStateSealer` interface and expose it from their tool dependencies
+through `github.RequestStateSealerProvider` without changing their key format.
+
 ### With OAuth Metadata Discovery
 
 For use behind reverse proxies or with custom domains, expose OAuth metadata endpoints:

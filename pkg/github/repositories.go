@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/ifc"
@@ -702,6 +703,199 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
+}
+
+const (
+	DeleteRepositoryToolName          = "delete_repository"
+	deleteRepositoryConfirmationID    = "delete_repository_confirmation"
+	deleteRepositoryConfirmationField = "repository_name"
+	deleteRepositoryConfirmationTTL   = 10 * time.Minute
+)
+
+type deleteRepositoryState struct {
+	Owner        string `json:"owner"`
+	Repo         string `json:"repo"`
+	RepositoryID int64  `json:"repository_id"`
+	ExpiresAt    int64  `json:"expires_at"`
+}
+
+// DeleteRepository creates a tool that deletes a GitHub repository after the
+// user confirms its full name through elicitation.
+func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
+	tool := NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        DeleteRepositoryToolName,
+			Description: t("TOOL_DELETE_REPOSITORY_DESCRIPTION", "Delete a GitHub repository after the user confirms the exact owner/repository name"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_DELETE_REPOSITORY_USER_TITLE", "Delete repository"),
+				ReadOnlyHint:    false,
+				DestructiveHint: github.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+				},
+				Required: []string{"owner", "repo"},
+			},
+		},
+		[]scopes.Scope{scopes.DeleteRepo, scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			fullName := owner + "/" + repo
+			sealer := requestStateSealerFromDeps(deps)
+			if sealer == nil {
+				return utils.NewToolResultError("Repository deletion is unavailable because request-state protection is not configured."), nil, nil
+			}
+			var deletionState deleteRepositoryState
+			var responses mcp.InputResponseMap
+			if req != nil && req.Params != nil {
+				responses = req.Params.InputResponses
+			}
+			response, ok := responses[deleteRepositoryConfirmationID]
+			if !ok {
+				client, err := deps.GetClient(ctx)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				}
+				repositoryID, result := repositoryIDForDeletion(ctx, client, owner, repo)
+				if result != nil {
+					return result, nil, nil
+				}
+				state, err := json.Marshal(deleteRepositoryState{
+					Owner:        owner,
+					Repo:         repo,
+					RepositoryID: repositoryID,
+					ExpiresAt:    time.Now().Add(deleteRepositoryConfirmationTTL).Unix(),
+				})
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to marshal repository deletion state: %w", err)
+				}
+				requestState, err := sealer.Seal(ctx, state)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to seal repository deletion state: %w", err)
+				}
+				return &mcp.CallToolResult{
+					InputRequests: mcp.InputRequestMap{
+						deleteRepositoryConfirmationID: &mcp.ElicitParams{
+							Mode:    "form",
+							Message: fmt.Sprintf("Type %q to confirm permanent deletion of this repository.", fullName),
+							RequestedSchema: &jsonschema.Schema{
+								Type: "object",
+								Properties: map[string]*jsonschema.Schema{
+									deleteRepositoryConfirmationField: {
+										Type:        "string",
+										Title:       "Repository name",
+										Description: fmt.Sprintf("Enter %s exactly to confirm deletion", fullName),
+									},
+								},
+								Required: []string{deleteRepositoryConfirmationField},
+							},
+						},
+					},
+					RequestState: requestState,
+				}, nil, nil
+			}
+
+			if req.Params.RequestState == "" {
+				return utils.NewToolResultError("Repository deletion confirmation state was missing. The repository was not deleted."), nil, nil
+			}
+			stateJSON, err := sealer.Open(req.Params.RequestState)
+			if err != nil {
+				return utils.NewToolResultError("Repository deletion confirmation state was invalid. The repository was not deleted."), nil, nil
+			}
+			if err := json.Unmarshal(stateJSON, &deletionState); err != nil {
+				return utils.NewToolResultError("Repository deletion confirmation state was invalid. The repository was not deleted."), nil, nil
+			}
+			if deletionState.Owner != owner || deletionState.Repo != repo {
+				return utils.NewToolResultError("Repository deletion target changed after confirmation was requested. The repository was not deleted."), nil, nil
+			}
+			if deletionState.ExpiresAt <= time.Now().Unix() {
+				return utils.NewToolResultError("Repository deletion confirmation expired. The repository was not deleted."), nil, nil
+			}
+			if deletionState.RepositoryID == 0 {
+				return utils.NewToolResultError("Repository deletion confirmation state was invalid. The repository was not deleted."), nil, nil
+			}
+
+			confirmation, ok := response.(*mcp.ElicitResult)
+			if !ok {
+				return utils.NewToolResultError("Repository deletion confirmation was invalid. The repository was not deleted."), nil, nil
+			}
+			if confirmation.Action != "accept" {
+				return utils.NewToolResultError("Repository deletion was not confirmed. The repository was not deleted."), nil, nil
+			}
+			confirmedName, ok := confirmation.Content[deleteRepositoryConfirmationField].(string)
+			if !ok || confirmedName != fullName {
+				return utils.NewToolResultError(fmt.Sprintf("Repository name confirmation did not match %q. The repository was not deleted.", fullName)), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+			currentRepositoryID, result := repositoryIDForDeletion(ctx, client, owner, repo)
+			if result != nil {
+				return result, nil, nil
+			}
+			if currentRepositoryID != deletionState.RepositoryID {
+				return utils.NewToolResultError("Repository identity changed after confirmation was requested. The repository was not deleted."), nil, nil
+			}
+			resp, err := client.Repositories.Delete(ctx, owner, repo)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					fmt.Sprintf("failed to delete repository: %s", fullName),
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusNoContent {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to delete repository", resp, body), nil, nil
+			}
+
+			return utils.NewToolResultText(fmt.Sprintf("Repository %s was deleted.", fullName)), nil, nil
+		},
+	)
+	tool.MinimumProtocolVersion = inventory.ProtocolVersionMultiRoundTrip
+	tool.RequiredElicitationMode = inventory.ElicitationModeForm
+	tool.RequiredScopeGroups = scopes.ExpandScopeGroups(scopes.DeleteRepo, scopes.Repo)
+	return tool
+}
+
+func repositoryIDForDeletion(ctx context.Context, client *github.Client, owner, repo string) (int64, *mcp.CallToolResult) {
+	repository, resp, err := client.Repositories.Get(ctx, owner, repo)
+	if err != nil {
+		return 0, ghErrors.NewGitHubAPIErrorResponse(ctx,
+			fmt.Sprintf("failed to get repository: %s/%s", owner, repo),
+			resp,
+			err,
+		)
+	}
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+	return repository.GetID(), nil
 }
 
 // FetchRepoIsPrivate returns whether a repository is private. It is a thin

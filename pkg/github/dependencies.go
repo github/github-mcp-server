@@ -127,6 +127,9 @@ type BaseDeps struct {
 
 	// Observability exporters (includes logger)
 	Obsv observability.Exporters
+
+	// StateSealer protects state sent through multi-round-trip requests.
+	StateSealer RequestStateSealer
 }
 
 // Compile-time assertion to verify that BaseDeps implements the ToolDependencies interface.
@@ -198,6 +201,9 @@ func (d BaseDeps) Metrics(ctx context.Context) metrics.Metrics {
 	}
 	return d.Obsv.Metrics(ctx)
 }
+
+// GetRequestStateSealer implements RequestStateSealerProvider.
+func (d BaseDeps) GetRequestStateSealer() RequestStateSealer { return d.StateSealer }
 
 // IsFeatureEnabled checks if a feature flag is enabled.
 // Returns false if the feature checker is nil, flag name is empty, or an error occurs.
@@ -279,6 +285,9 @@ type RequestDeps struct {
 
 	// Observability exporters (includes logger)
 	obsv observability.Exporters
+
+	// StateSealer protects state sent through multi-round-trip requests.
+	StateSealer RequestStateSealer
 }
 
 // NewRequestDeps creates a RequestDeps with the provided clients and configuration.
@@ -333,6 +342,9 @@ func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
 	}
 	return restClient, nil
 }
+
+// GetRequestStateSealer implements RequestStateSealerProvider.
+func (d *RequestDeps) GetRequestStateSealer() RequestStateSealer { return d.StateSealer }
 
 // GetGQLClient implements ToolDependencies.
 func (d *RequestDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error) {

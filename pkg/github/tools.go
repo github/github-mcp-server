@@ -232,6 +232,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GetReleaseByTag(t),
 		CreateOrUpdateFile(t),
 		CreateRepository(t),
+		DeleteRepository(t),
 		ForkRepository(t),
 		CreateBranch(t),
 		PushFiles(t),
@@ -255,6 +256,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		SubIssueWrite(t),
 		IssueDependencyRead(t),
 		IssueDependencyWrite(t),
+		FindDuplicate(t),
 
 		// User tools
 		SearchUsers(t),
