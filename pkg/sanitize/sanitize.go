@@ -15,6 +15,15 @@ func Sanitize(input string) string {
 	return FilterHTMLTags(FilterCodeFenceMetadata(FilterInvisibleCharacters(input)))
 }
 
+// FilterBody strips the injection surface that matters for markdown bodies —
+// invisible glyphs and hidden code-fence info strings — without running the
+// HTML filter. Bodies routinely contain code (generics, JSX, shell redirects),
+// and HTML filtering silently truncates a fenced block at the first '<', which
+// would corrupt the content delivered to the model.
+func FilterBody(input string) string {
+	return FilterCodeFenceMetadata(FilterInvisibleCharacters(input))
+}
+
 // FilterInvisibleCharacters removes invisible or control characters that should not appear
 // in user-facing titles or bodies. This includes:
 // - Unicode tag characters: U+E0001, U+E0020–U+E007F

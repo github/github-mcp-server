@@ -300,3 +300,53 @@ func TestSanitizeRemovesInvisibleCodeFenceMetadata(t *testing.T) {
 	result := Sanitize(input)
 	assert.Equal(t, expected, result)
 }
+
+func TestFilterBody(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "removes unicode tag characters",
+			input:    "hello\U000E0001\U000E0068\U000E0069world",
+			expected: "helloworld",
+		},
+		{
+			name:     "removes bidi overrides",
+			input:    "safe\u202Ereversed\u202C",
+			expected: "safereversed",
+		},
+		{
+			name:     "strips hidden code fence metadata",
+			input:    "```steal secrets\nfmt.Println(42)\n```",
+			expected: "```\nfmt.Println(42)\n```",
+		},
+		{
+			name:     "preserves angle brackets in prose",
+			input:    "a < b && c > d",
+			expected: "a < b && c > d",
+		},
+		{
+			name:     "preserves code fences containing angle brackets",
+			input:    "```go\nif a<b { fmt.Println(\"x\") }\n```",
+			expected: "```go\nif a<b { fmt.Println(\"x\") }\n```",
+		},
+		{
+			name:     "preserves html-like markup",
+			input:    "use <Foo/> component",
+			expected: "use <Foo/> component",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, FilterBody(tt.input))
+		})
+	}
+}

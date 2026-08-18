@@ -4738,6 +4738,56 @@ func Test_GetSubIssues(t *testing.T) {
 	}
 }
 
+func Test_GetSubIssues_Sanitization(t *testing.T) {
+	serverTool := IssueRead(translations.NullTranslationHelper)
+
+	hiddenPayload := "Sub-issue\U000E0001\U000E0049\U000E0067\U000E006E\U000E006F\U000E0072\U000E0065"
+	bodyWithCode := "Repro:\n```go\nif a<b { fmt.Println(\"x\") }\n```"
+
+	mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, []*github.Issue{
+			{
+				Number: github.Ptr(123),
+				Title:  github.Ptr(hiddenPayload),
+				Body:   github.Ptr(hiddenPayload),
+				State:  github.Ptr("open"),
+			},
+			{
+				Number: github.Ptr(124),
+				Title:  github.Ptr("Sub-issue 2"),
+				Body:   github.Ptr(bodyWithCode),
+				State:  github.Ptr("open"),
+			},
+		}),
+	})
+
+	deps := BaseDeps{
+		Client:          mustNewGHClient(t, mockedClient),
+		GQLClient:       githubv4.NewClient(nil),
+		RepoAccessCache: stubRepoAccessCache(nil, 15*time.Minute),
+		Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"method":       "get_sub_issues",
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(42),
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+
+	var returnedSubIssues []*github.Issue
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returnedSubIssues))
+	require.Len(t, returnedSubIssues, 2)
+
+	assert.Equal(t, "Sub-issue", returnedSubIssues[0].GetTitle(), "hidden characters must be stripped from titles")
+	assert.Equal(t, "Sub-issue", returnedSubIssues[0].GetBody(), "hidden characters must be stripped from bodies")
+	assert.Equal(t, bodyWithCode, returnedSubIssues[1].GetBody(), "code content must survive sanitization")
+}
+
 func TestAddIssueComment(t *testing.T) {
 	t.Parallel()
 

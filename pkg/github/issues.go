@@ -951,7 +951,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 			subIssue.Title = github.Ptr(sanitize.Sanitize(*subIssue.Title))
 		}
 		if subIssue.Body != nil {
-			subIssue.Body = github.Ptr(sanitize.Sanitize(*subIssue.Body))
+			subIssue.Body = github.Ptr(sanitize.FilterBody(*subIssue.Body))
 		}
 	}
 
