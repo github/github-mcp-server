@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/modelcontextprotocol/go-sdk/auth"
@@ -19,45 +20,14 @@ const (
 	OAuthProtectedResourcePrefix = "/.well-known/oauth-protected-resource"
 )
 
-type scopeDefinition struct {
-	name      string
-	byDefault bool
-}
-
-var scopeDefinitions = []scopeDefinition{
-	{name: "repo", byDefault: true},
-	{name: "delete_repo"},
-	{name: "read:org", byDefault: true},
-	{name: "read:user", byDefault: true},
-	{name: "user:email", byDefault: true},
-	{name: "read:packages", byDefault: true},
-	{name: "write:packages", byDefault: true},
-	{name: "read:project", byDefault: true},
-	{name: "project", byDefault: true},
-	{name: "gist", byDefault: true},
-	{name: "notifications", byDefault: true},
-	{name: "workflow", byDefault: true},
-	{name: "codespace", byDefault: true},
-}
-
 // SupportedScopes lists every OAuth scope that an MCP tool may require. HTTP
 // protected-resource metadata advertises this full set so clients can step up
 // authorization for tools excluded from the default grant.
-var SupportedScopes = scopesFromDefinitions(false)
+var SupportedScopes = scopes.SupportedOAuthScopes()
 
 // DefaultScopes are requested by stdio OAuth unless the operator explicitly
 // supplies --oauth-scopes. High-risk scopes such as delete_repo require opt-in.
-var DefaultScopes = scopesFromDefinitions(true)
-
-func scopesFromDefinitions(defaultOnly bool) []string {
-	result := make([]string, 0, len(scopeDefinitions))
-	for _, scope := range scopeDefinitions {
-		if !defaultOnly || scope.byDefault {
-			result = append(result, scope.name)
-		}
-	}
-	return result
-}
+var DefaultScopes = scopes.DefaultOAuthScopes()
 
 // Config holds the OAuth configuration for the MCP server.
 type Config struct {

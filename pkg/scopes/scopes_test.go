@@ -120,6 +120,17 @@ func TestHasRequiredScopeGroups(t *testing.T) {
 	assert.False(t, HasRequiredScopeGroups([]string{"repo"}, groups))
 }
 
+func TestOAuthScopeCatalog(t *testing.T) {
+	supported := SupportedOAuthScopes()
+	defaults := DefaultOAuthScopes()
+
+	assert.Subset(t, supported, defaults)
+	assert.Contains(t, supported, string(DeleteRepo))
+	assert.NotContains(t, defaults, string(DeleteRepo))
+	assert.Contains(t, defaults, string(Workflow))
+	assert.Contains(t, defaults, string(Codespace))
+}
+
 func TestToStringSlice(t *testing.T) {
 	tests := []struct {
 		name     string

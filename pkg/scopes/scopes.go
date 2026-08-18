@@ -61,7 +61,54 @@ const (
 
 	// WritePackages grants write access to packages
 	WritePackages Scope = "write:packages"
+
+	// Workflow grants permission to update GitHub Actions workflow files
+	Workflow Scope = "workflow"
+
+	// Codespace grants full control of codespaces
+	Codespace Scope = "codespace"
 )
+
+type oauthScopeDefinition struct {
+	scope     Scope
+	byDefault bool
+}
+
+var oauthScopeDefinitions = []oauthScopeDefinition{
+	{scope: Repo, byDefault: true},
+	{scope: DeleteRepo},
+	{scope: ReadOrg, byDefault: true},
+	{scope: ReadUser, byDefault: true},
+	{scope: UserEmail, byDefault: true},
+	{scope: ReadPackages, byDefault: true},
+	{scope: WritePackages, byDefault: true},
+	{scope: ReadProject, byDefault: true},
+	{scope: Project, byDefault: true},
+	{scope: Gist, byDefault: true},
+	{scope: Notifications, byDefault: true},
+	{scope: Workflow, byDefault: true},
+	{scope: Codespace, byDefault: true},
+}
+
+// SupportedOAuthScopes returns every OAuth scope the server may request.
+func SupportedOAuthScopes() []string {
+	return oauthScopes(false)
+}
+
+// DefaultOAuthScopes returns the lower-risk scopes requested by default.
+func DefaultOAuthScopes() []string {
+	return oauthScopes(true)
+}
+
+func oauthScopes(defaultOnly bool) []string {
+	result := make([]string, 0, len(oauthScopeDefinitions))
+	for _, definition := range oauthScopeDefinitions {
+		if !defaultOnly || definition.byDefault {
+			result = append(result, string(definition.scope))
+		}
+	}
+	return result
+}
 
 // ScopeHierarchy defines parent-child relationships between scopes.
 // A parent scope implicitly grants access to all child scopes.
