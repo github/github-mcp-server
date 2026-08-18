@@ -166,26 +166,26 @@ func (t *ETagTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			return resp, nil
 		}
 
-		// Skip caching bodies that exceed the per-entry byte budget. When the
-		// length is known up front, avoid buffering the body at all.
 		maxEntry := t.maxEntryBytes()
-		if resp.ContentLength > int64(maxEntry) {
-			t.remove(key)
-			return resp, nil
-		}
-
-		body, readErr := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		limited := io.LimitReader(resp.Body, int64(maxEntry)+1)
+		body, readErr := io.ReadAll(limited)
 		if readErr != nil {
+			resp.Body.Close()
 			return nil, readErr
 		}
-		resp.Body = io.NopCloser(bytes.NewReader(body))
-		resp.ContentLength = int64(len(body))
 
 		if len(body) > maxEntry {
 			t.remove(key)
+			resp.Body = struct {
+				io.Reader
+				io.Closer
+			}{io.MultiReader(bytes.NewReader(body), resp.Body), resp.Body}
 			return resp, nil
 		}
+
+		resp.Body.Close()
+		resp.Body = io.NopCloser(bytes.NewReader(body))
+		resp.ContentLength = int64(len(body))
 
 		t.add(key, etagEntry{
 			etag:   etag,

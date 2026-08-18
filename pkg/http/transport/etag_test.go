@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -13,6 +14,27 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+type countingReadCloser struct {
+	reader    io.Reader
+	bytesRead int
+}
+
+func (c *countingReadCloser) Read(p []byte) (int, error) {
+	n, err := c.reader.Read(p)
+	c.bytesRead += n
+	return n, err
+}
+
+func (c *countingReadCloser) Close() error {
+	return nil
+}
 
 // TestETagTransport_ServesCachedBodyOn304 verifies the core conditional-request
 // flow: the first GET carries no If-None-Match and is cached with its ETag; the
@@ -234,6 +256,43 @@ func TestETagTransport_SkipsBodiesOverEntryByteBudget(t *testing.T) {
 	assert.Equal(t, body, do())
 	assert.Equal(t, body, do(), "oversized body is served in full each time")
 	assert.Empty(t, lastIfNoneMatch, "an oversized response must not be cached or revalidated")
+}
+
+func TestETagTransport_StreamsOversizedUnknownLengthBody(t *testing.T) {
+	t.Parallel()
+
+	const maxEntry = 16
+	body := []byte("0123456789abcdef-streamed-remainder")
+	stream := &countingReadCloser{reader: bytes.NewReader(body)}
+	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		assert.Empty(t, req.Header.Get(headers.IfNoneMatchHeader), "an oversized response must not be cached or revalidated")
+		return &http.Response{
+			StatusCode:    http.StatusOK,
+			Status:        "200 OK",
+			Header:        http.Header{headers.ETagHeader: []string{`"streamed"`}},
+			Body:          stream,
+			ContentLength: -1,
+			Request:       req,
+		}, nil
+	})
+	rt := &ETagTransport{Transport: transport, MaxEntryBytes: maxEntry}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.test/stream", nil)
+	require.NoError(t, err)
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	require.LessOrEqual(t, stream.bytesRead, maxEntry+1, "RoundTrip must not read the entire oversized body before returning")
+
+	data, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	assert.Equal(t, body, data, "caller receives the buffered prefix plus the streamed remainder")
+
+	stream = &countingReadCloser{reader: bytes.NewReader(body)}
+	resp, err = rt.RoundTrip(req)
+	require.NoError(t, err)
+	_, _ = io.Copy(io.Discard, resp.Body)
+	require.NoError(t, resp.Body.Close())
 }
 
 // TestETagTransport_EvictsByTotalByteBudget verifies that inserting a second
