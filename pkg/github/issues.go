@@ -704,7 +704,7 @@ func (q *listIssuesQueryWithLabelsAndSinceWithoutFieldValues) GetIsPrivate() boo
 	return bool(q.Repository.IsPrivate)
 }
 
-func getIssueQueryType(hasLabels bool, hasSince bool) any {
+func getIssueQueryType(hasLabels bool, hasSince bool) IssueQueryResult {
 	switch {
 	case hasLabels && hasSince:
 		return &ListIssuesQueryTypeWithLabelsWithSince{}
@@ -731,13 +731,16 @@ func getIssueQueryTypeWithoutFieldValues(hasLabels bool, hasSince bool) issueQue
 }
 
 func isUnsupportedListIssuesIssueFieldsError(err error) bool {
-	switch err.Error() {
-	case "IssueFieldValueFilter isn't a defined input type (on $issueFieldValues)",
-		"Field 'issueFieldValues' doesn't exist on type 'Issue'":
+	message := err.Error()
+	if strings.Contains(message, "IssueFieldValueFilter") {
 		return true
-	default:
+	}
+	if !strings.Contains(message, "issueFieldValues") {
 		return false
 	}
+	return strings.Contains(message, "doesn't exist on type") ||
+		strings.Contains(message, "doesn't accept argument") ||
+		(strings.Contains(message, "Argument 'filterBy'") && strings.Contains(message, "invalid value"))
 }
 
 // IssueRead creates a tool to get details of a specific issue in a GitHub repository.
@@ -3159,12 +3162,19 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// input type unconditionally, so we always opt into the feature via header. This
 			// is a no-op once the flags are globally rolled out.
 			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
-			if err := client.Query(ctxWithFeatures, issueQuery, vars); err != nil {
-				if len(fieldFilters) > 0 || !isUnsupportedListIssuesIssueFieldsError(err) {
+			issueFieldsErr := client.Query(ctxWithFeatures, issueQuery, vars)
+
+			var resp MinimalIssuesResponse
+			var isPrivate bool
+			if issueFieldsErr == nil {
+				resp = convertToMinimalIssuesResponse(issueQuery.GetIssueFragment())
+				isPrivate = issueQuery.GetIsPrivate()
+			} else {
+				if len(fieldFilters) > 0 || !isUnsupportedListIssuesIssueFieldsError(issueFieldsErr) {
 					return ghErrors.NewGitHubGraphQLErrorResponse(
 						ctx,
 						"failed to list issues",
-						err,
+						issueFieldsErr,
 					), nil, nil
 				}
 
@@ -3175,24 +3185,16 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 						varsWithoutFieldValues[name] = value
 					}
 				}
-				if err := client.Query(ctx, issueQueryWithoutFieldValues, varsWithoutFieldValues); err != nil {
+				if fallbackErr := client.Query(ctx, issueQueryWithoutFieldValues, varsWithoutFieldValues); fallbackErr != nil {
 					return ghErrors.NewGitHubGraphQLErrorResponse(
 						ctx,
 						"failed to list issues",
-						err,
+						fmt.Errorf("issue-fields query failed: %w; fallback query failed: %w", issueFieldsErr, fallbackErr),
 					), nil, nil
 				}
-				issueQuery = issueQueryWithoutFieldValues
-			}
 
-			var resp MinimalIssuesResponse
-			var isPrivate bool
-			if queryResult, ok := issueQuery.(issueQueryResultWithoutFieldValues); ok {
-				resp = convertToMinimalIssuesResponseWithoutFieldValues(queryResult.getIssueFragmentWithoutFieldValues())
-				isPrivate = queryResult.GetIsPrivate()
-			} else if queryResult, ok := issueQuery.(IssueQueryResult); ok {
-				resp = convertToMinimalIssuesResponse(queryResult.GetIssueFragment())
-				isPrivate = queryResult.GetIsPrivate()
+				resp = convertToMinimalIssuesResponseWithoutFieldValues(issueQueryWithoutFieldValues.getIssueFragmentWithoutFieldValues())
+				isPrivate = issueQueryWithoutFieldValues.GetIsPrivate()
 			}
 
 			filtered := false

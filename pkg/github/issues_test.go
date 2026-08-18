@@ -2621,6 +2621,7 @@ func Test_ListIssues_IssueFieldsSchemaCompatibility(t *testing.T) {
 		name            string
 		args            map[string]any
 		primaryError    string
+		fallbackError   string
 		wantFallback    bool
 		wantError       bool
 		wantFieldValues bool
@@ -2648,10 +2649,52 @@ func Test_ListIssues_IssueFieldsSchemaCompatibility(t *testing.T) {
 			wantFallback: true,
 		},
 		{
+			name:         "issue filters input rejects issue field values",
+			args:         map[string]any{"owner": "owner", "repo": "repo"},
+			primaryError: "InputObject 'IssueFilters' doesn't accept argument 'issueFieldValues'",
+			wantFallback: true,
+		},
+		{
+			name:         "invalid filter by issue field values falls back",
+			args:         map[string]any{"owner": "owner", "repo": "repo"},
+			primaryError: "Argument 'filterBy' on Field 'issues' has an invalid value ({issueFieldValues: $issueFieldValues}). Expected type 'IssueFilters'.",
+			wantFallback: true,
+		},
+		{
+			name: "invalid filter by since and issue field values falls back",
+			args: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"since": "2026-01-01T00:00:00Z",
+			},
+			primaryError: "Argument 'filterBy' on Field 'issues' has an invalid value ({since: $since, issueFieldValues: $issueFieldValues}). Expected type 'IssueFilters'.",
+			wantFallback: true,
+		},
+		{
 			name:         "unrelated GraphQL error is returned",
 			args:         map[string]any{"owner": "owner", "repo": "repo"},
 			primaryError: "Resource not accessible by integration",
 			wantError:    true,
+		},
+		{
+			name:         "unrelated invalid filter by error is returned",
+			args:         map[string]any{"owner": "owner", "repo": "repo"},
+			primaryError: "Argument 'filterBy' on Field 'issues' has an invalid value ({since: $since}). Expected type 'IssueFilters'.",
+			wantError:    true,
+		},
+		{
+			name:         "issue field values resolver error is returned",
+			args:         map[string]any{"owner": "owner", "repo": "repo"},
+			primaryError: "Something went wrong while resolving 'issueFieldValues'",
+			wantError:    true,
+		},
+		{
+			name:          "fallback failure preserves both errors",
+			args:          map[string]any{"owner": "owner", "repo": "repo"},
+			primaryError:  "InputObject 'IssueFilters' doesn't accept argument 'issueFieldValues'",
+			fallbackError: "Resource not accessible by integration",
+			wantFallback:  true,
+			wantError:     true,
 		},
 	}
 
@@ -2679,6 +2722,9 @@ func Test_ListIssues_IssueFieldsSchemaCompatibility(t *testing.T) {
 					if _, hasSince := tt.args["since"]; hasSince {
 						assert.Contains(t, req.Query, "filterBy: {since: $since}")
 					}
+					if tt.fallbackError != "" {
+						return http.StatusOK, errorBody(t, tt.fallbackError)
+					}
 					return http.StatusOK, responseBody(t, false)
 				})
 			}
@@ -2696,7 +2742,10 @@ func Test_ListIssues_IssueFieldsSchemaCompatibility(t *testing.T) {
 			if tt.wantError {
 				require.True(t, res.IsError)
 				assert.Contains(t, getTextResult(t, res).Text, tt.primaryError)
-				assert.Len(t, graphqlTransport.calls, 1)
+				if tt.fallbackError != "" {
+					assert.Contains(t, getTextResult(t, res).Text, tt.fallbackError)
+				}
+				assert.Len(t, graphqlTransport.calls, len(responses))
 				return
 			}
 
@@ -2736,38 +2785,58 @@ func Test_ListIssues_IssueFieldsSchemaCompatibility(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		const unsupported = "IssueFieldValueFilter isn't a defined input type (on $issueFieldValues)"
-		graphqlTransport := &sequencedGraphQLTransport{
-			t: t,
-			responses: []func(capturedGraphQLRequest) (int, string){
-				func(req capturedGraphQLRequest) (int, string) {
-					assert.Contains(t, req.Query, "issueFields")
-					return http.StatusOK, string(fieldsBody)
-				},
-				func(req capturedGraphQLRequest) (int, string) {
-					assert.Contains(t, req.Query, "IssueFieldValueFilter")
-					assert.NotEmpty(t, req.Variables["issueFieldValues"])
-					return http.StatusOK, errorBody(t, unsupported)
-				},
+		unsupportedErrors := []struct {
+			name    string
+			message string
+		}{
+			{
+				name:    "missing input type",
+				message: "IssueFieldValueFilter isn't a defined input type (on $issueFieldValues)",
+			},
+			{
+				name:    "issue filters input rejects issue field values",
+				message: "InputObject 'IssueFilters' doesn't accept argument 'issueFieldValues'",
+			},
+			{
+				name:    "invalid filter by issue field values",
+				message: "Argument 'filterBy' on Field 'issues' has an invalid value ({issueFieldValues: $issueFieldValues}). Expected type 'IssueFilters'.",
 			},
 		}
-		deps := BaseDeps{
-			GQLClient: githubv4.NewClient(&http.Client{Transport: graphqlTransport}),
+		for _, unsupported := range unsupportedErrors {
+			t.Run(unsupported.name, func(t *testing.T) {
+				graphqlTransport := &sequencedGraphQLTransport{
+					t: t,
+					responses: []func(capturedGraphQLRequest) (int, string){
+						func(req capturedGraphQLRequest) (int, string) {
+							assert.Contains(t, req.Query, "issueFields")
+							return http.StatusOK, string(fieldsBody)
+						},
+						func(req capturedGraphQLRequest) (int, string) {
+							assert.Contains(t, req.Query, "IssueFieldValueFilter")
+							assert.NotEmpty(t, req.Variables["issueFieldValues"])
+							return http.StatusOK, errorBody(t, unsupported.message)
+						},
+					},
+				}
+				deps := BaseDeps{
+					GQLClient: githubv4.NewClient(&http.Client{Transport: graphqlTransport}),
+				}
+				serverTool := ListIssues(translations.NullTranslationHelper)
+				handler := serverTool.Handler(deps)
+				req := createMCPRequest(map[string]any{
+					"owner": "owner",
+					"repo":  "repo",
+					"field_filters": []any{
+						map[string]any{"field_name": "Priority", "value": "P1"},
+					},
+				})
+				res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+				require.NoError(t, err)
+				require.True(t, res.IsError)
+				assert.Contains(t, getTextResult(t, res).Text, unsupported.message)
+				assert.Len(t, graphqlTransport.calls, 2)
+			})
 		}
-		serverTool := ListIssues(translations.NullTranslationHelper)
-		handler := serverTool.Handler(deps)
-		req := createMCPRequest(map[string]any{
-			"owner": "owner",
-			"repo":  "repo",
-			"field_filters": []any{
-				map[string]any{"field_name": "Priority", "value": "P1"},
-			},
-		})
-		res, err := handler(ContextWithDeps(context.Background(), deps), &req)
-		require.NoError(t, err)
-		require.True(t, res.IsError)
-		assert.Contains(t, getTextResult(t, res).Text, unsupported)
-		assert.Len(t, graphqlTransport.calls, 2)
 	})
 }
 
