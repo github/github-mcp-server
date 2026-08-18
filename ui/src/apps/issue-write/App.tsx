@@ -418,6 +418,7 @@ function CreateIssueApp() {
   // Issue types state
   const [availableIssueTypes, setAvailableIssueTypes] = useState<IssueTypeItem[]>([]);
   const [selectedIssueType, setSelectedIssueType] = useState<IssueTypeItem | null>(null);
+  const [issueTypeCleared, setIssueTypeCleared] = useState(false);
   const [issueTypesLoading, setIssueTypesLoading] = useState(false);
 
   // State transition state
@@ -721,7 +722,11 @@ function CreateIssueApp() {
     setSelectedLabels([]);
     setSelectedAssignees([]);
     setSelectedMilestone(null);
-    setSelectedIssueType(null);
+    const inputIssueType = toolInput?.type;
+    setSelectedIssueType(
+      typeof inputIssueType === "string" ? { id: inputIssueType, text: inputIssueType } : null
+    );
+    setIssueTypeCleared(inputIssueType === null);
     setCurrentState("open");
     setStateReason("completed");
     setDuplicateOf("");
@@ -800,7 +805,7 @@ function CreateIssueApp() {
 
             // Pre-fill issue type immediately from issue data
             const issueTypeName = issueData.type?.name || (typeof issueData.type === 'string' ? issueData.type : null);
-            if (issueTypeName && !prefillApplied.current.type) {
+            if (issueTypeName && toolInput?.type === undefined && !prefillApplied.current.type) {
               setSelectedIssueType({ id: issueTypeName, text: issueTypeName });
               prefillApplied.current.type = true;
             }
@@ -829,7 +834,7 @@ function CreateIssueApp() {
     };
 
     loadExistingIssue();
-  }, [isUpdateMode, owner, repo, issueNumber, app, callTool, existingIssueData]);
+  }, [isUpdateMode, owner, repo, issueNumber, app, callTool, existingIssueData, toolInput]);
 
   // Apply existing labels when available labels load
   useEffect(() => {
@@ -1016,6 +1021,7 @@ function CreateIssueApp() {
       delete params.state_reason;
       delete params.duplicate_of;
       delete params.issue_fields;
+      delete params.type;
 
       if (isUpdateMode && issueNumber) {
         params.issue_number = issueNumber;
@@ -1032,6 +1038,8 @@ function CreateIssueApp() {
       }
       if (selectedIssueType) {
         params.type = selectedIssueType.text;
+      } else if (issueTypeCleared) {
+        params.type = null;
       }
 
       if (requestedState) {
@@ -1115,6 +1123,7 @@ function CreateIssueApp() {
     selectedAssignees,
     selectedMilestone,
     selectedIssueType,
+    issueTypeCleared,
     isUpdateMode,
     issueNumber,
     stateReason,
@@ -1533,7 +1542,11 @@ function CreateIssueApp() {
                 <>
                   {selectedIssueType && (
                     <ActionList.Item
-                      onSelect={() => setSelectedIssueType(null)}
+                      onSelect={() => {
+                        setSelectedIssueType(null);
+                        setIssueTypeCleared(true);
+                        prefillApplied.current.type = true;
+                      }}
                     >
                       Clear selection
                     </ActionList.Item>
@@ -1542,7 +1555,11 @@ function CreateIssueApp() {
                     <ActionList.Item
                       key={type.id}
                       selected={selectedIssueType?.id === type.id}
-                      onSelect={() => setSelectedIssueType(type)}
+                      onSelect={() => {
+                        setSelectedIssueType(type);
+                        setIssueTypeCleared(false);
+                        prefillApplied.current.type = true;
+                      }}
                     >
                       {type.text}
                     </ActionList.Item>
