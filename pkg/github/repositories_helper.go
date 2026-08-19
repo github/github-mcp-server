@@ -1,9 +1,8 @@
 package github
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha1" //nolint:gosec // Git object IDs are defined using SHA-1.
+	"crypto/sha1" //nolint:gosec // Git object IDs use SHA-1 by definition.
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -97,43 +96,25 @@ func createReferenceFromDefaultBranch(ctx context.Context, client *github.Client
 }
 
 const (
-	gitSymlinkMode             = "120000"
-	gitSubmoduleMode           = "160000"
-	maxGitTreeTraversalDepth   = 64
-	dereferencedContentLabel   = "dereferenced_target"
-	unavailableSymlinkContents = "not_returned"
+	gitSymlinkMode   = "120000"
+	gitSubmoduleMode = "160000"
 )
 
-type repositorySymlink struct {
-	Path               string
-	SHA                string
-	Target             string
-	ResolvedTargetPath string
-	Explicit           bool
-}
-
-type repositoryFileInspection struct {
-	Content          []byte
-	ContentAvailable bool
-	Symlink          *repositorySymlink
-	Submodule        *repositorySubmoduleReadMetadata
-}
-
-type repositorySymlinkReadMetadata struct {
+type repositoryPathMetadata struct {
 	Type               string `json:"type"`
 	Path               string `json:"path"`
 	SHA                string `json:"sha,omitempty"`
-	Target             string `json:"target"`
+	Target             string `json:"target,omitempty"`
 	ResolvedTargetPath string `json:"resolved_path,omitempty"`
-	Content            string `json:"content"`
+	GitURL             string `json:"git_url,omitempty"`
+	Content            string `json:"content,omitempty"`
 	Note               string `json:"note,omitempty"`
 }
 
-type repositorySubmoduleReadMetadata struct {
-	Type   string `json:"type"`
-	Path   string `json:"path"`
-	SHA    string `json:"sha,omitempty"`
-	GitURL string `json:"git_url,omitempty"`
+type repositoryFileRead struct {
+	Content          []byte
+	ContentAvailable bool
+	Metadata         *repositoryPathMetadata
 }
 
 type symlinkWriteBlockedError struct {
@@ -171,160 +152,121 @@ func newSymlinkWriteBlockedResult(path, target string) *mcp.CallToolResult {
 	}
 }
 
-func inspectRepositoryFile(ctx context.Context, client *github.Client, owner, repo, treeish, path string, file *github.RepositoryContent) (*repositoryFileInspection, *github.Response, error) {
-	if file.GetType() == "symlink" {
-		content, available, err := suppliedRepositoryContent(file)
-		if err != nil {
-			return nil, nil, err
-		}
-		return &repositoryFileInspection{
-			Content:          content,
-			ContentAvailable: available,
-			Symlink:          newRepositorySymlink(path, file.GetSHA(), file.GetTarget(), true),
-		}, nil, nil
-	}
-
+func inspectRepositoryFile(ctx context.Context, client *github.Client, owner, repo, ref, path string, file *github.RepositoryContent) (*repositoryFileRead, *github.Response, error) {
 	if file.GetType() == "submodule" || file.GetSubmoduleGitURL() != "" {
-		return &repositoryFileInspection{
-			Submodule: &repositorySubmoduleReadMetadata{
-				Type:   "submodule",
-				Path:   path,
-				SHA:    file.GetSHA(),
-				GitURL: file.GetSubmoduleGitURL(),
-			},
-		}, nil, nil
+		return &repositoryFileRead{Metadata: &repositoryPathMetadata{
+			Type: "submodule", Path: path, SHA: file.GetSHA(), GitURL: file.GetSubmoduleGitURL(),
+		}}, nil, nil
 	}
 
-	content, available, err := suppliedRepositoryContent(file)
+	content, available, err := repositoryContentBytes(file)
 	if err != nil {
 		return nil, nil, err
 	}
-	if available {
-		if !looksLikeSHA(file.GetSHA()) {
-			return nil, nil, fmt.Errorf("contents API returned malformed Git blob SHA %q for path %q", file.GetSHA(), path)
-		}
-		if strings.EqualFold(gitBlobSHA1(content), file.GetSHA()) {
-			return &repositoryFileInspection{Content: content, ContentAvailable: true}, nil, nil
-		}
-
-		target, resp, err := symlinkTargetFromBlob(ctx, client, owner, repo, file.GetSHA())
-		if err != nil {
-			return nil, resp, fmt.Errorf("contents API bytes did not match the reported Git blob and the path blob was not a valid symbolic link target: %w", err)
-		}
-		return &repositoryFileInspection{
-			Content:          content,
-			ContentAvailable: true,
-			Symlink:          newRepositorySymlink(path, file.GetSHA(), target, false),
+	if file.GetType() == "symlink" {
+		return &repositoryFileRead{
+			Content: content, ContentAvailable: available,
+			Metadata: newSymlinkReadMetadata(path, file.GetSHA(), file.GetTarget()),
 		}, nil, nil
 	}
 
-	entry, resp, err := getTreeEntry(ctx, client, owner, repo, treeish, path)
-	if err != nil {
-		return nil, resp, err
-	}
-	if entry == nil {
-		return nil, nil, fmt.Errorf("path %q exists according to the Contents API but was not found in the Git tree", path)
-	}
-	if !looksLikeSHA(file.GetSHA()) || !strings.EqualFold(file.GetSHA(), entry.GetSHA()) {
-		return nil, nil, fmt.Errorf("contents API blob SHA %q does not match Git tree blob SHA %q for path %q", file.GetSHA(), entry.GetSHA(), path)
-	}
-
-	switch entry.GetMode() {
-	case gitSymlinkMode:
-		target, resp, err := symlinkTargetFromBlob(ctx, client, owner, repo, entry.GetSHA())
+	if available {
+		if !looksLikeSHA(file.GetSHA()) {
+			return nil, nil, fmt.Errorf("contents API returned malformed Git blob SHA %q", file.GetSHA())
+		}
+		if strings.EqualFold(gitBlobSHA(content), file.GetSHA()) {
+			return &repositoryFileRead{Content: content, ContentAvailable: true}, nil, nil
+		}
+		target, resp, err := getVerifiedBlob(ctx, client, owner, repo, file.GetSHA())
 		if err != nil {
 			return nil, resp, err
 		}
-		return &repositoryFileInspection{
-			Symlink: newRepositorySymlink(path, entry.GetSHA(), target, false),
-		}, nil, nil
-	case gitSubmoduleMode:
-		return &repositoryFileInspection{
-			Submodule: &repositorySubmoduleReadMetadata{
-				Type: "submodule",
-				Path: path,
-				SHA:  entry.GetSHA(),
-			},
-		}, nil, nil
-	default:
-		return &repositoryFileInspection{}, nil, nil
-	}
-}
-
-func suppliedRepositoryContent(file *github.RepositoryContent) ([]byte, bool, error) {
-	if file.Content != nil {
-		content, err := file.GetContent()
-		if err != nil {
-			return nil, false, fmt.Errorf("failed to decode file content: %w", err)
+		if !validInternalSymlinkTarget(path, target) {
+			return nil, nil, fmt.Errorf("blob %q is not a valid internal symbolic link target", file.GetSHA())
 		}
-		return []byte(content), true, nil
+		return &repositoryFileRead{
+			Content: content, ContentAvailable: true,
+			Metadata: newSymlinkReadMetadata(path, file.GetSHA(), string(target)),
+		}, nil, nil
 	}
-	if file.GetType() != "symlink" && file.GetSize() == 0 {
-		return []byte{}, true, nil
-	}
-	return nil, false, nil
-}
 
-func gitBlobSHA1(content []byte) string {
-	hasher := sha1.New() //nolint:gosec // SHA-1 is required by the Git object ID format.
-	_, _ = fmt.Fprintf(hasher, "blob %d\x00", len(content))
-	_, _ = hasher.Write(content)
-	return hex.EncodeToString(hasher.Sum(nil))
-}
-
-func symlinkTargetFromBlob(ctx context.Context, client *github.Client, owner, repo, sha string) (string, *github.Response, error) {
-	target, resp, err := gitBlobBytes(ctx, client, owner, repo, sha)
+	entry, resp, err := getTreeEntry(ctx, client, owner, repo, ref, path)
 	if err != nil {
-		return "", resp, err
+		return nil, resp, err
 	}
-	if len(target) == 0 || !utf8.Valid(target) || bytes.IndexByte(target, 0) >= 0 {
-		return "", nil, fmt.Errorf("git blob %q is not a valid symbolic link target", sha)
+	if entry == nil || !looksLikeSHA(file.GetSHA()) || !strings.EqualFold(entry.GetSHA(), file.GetSHA()) {
+		return nil, nil, fmt.Errorf("contents API metadata does not match the Git tree for path %q", path)
 	}
-	return string(target), nil, nil
+	switch entry.GetMode() {
+	case gitSymlinkMode:
+		target, resp, err := getVerifiedBlob(ctx, client, owner, repo, entry.GetSHA())
+		if err != nil {
+			return nil, resp, err
+		}
+		return &repositoryFileRead{Metadata: newSymlinkReadMetadata(path, entry.GetSHA(), string(target))}, nil, nil
+	case gitSubmoduleMode:
+		return &repositoryFileRead{Metadata: &repositoryPathMetadata{
+			Type: "submodule", Path: path, SHA: entry.GetSHA(),
+		}}, nil, nil
+	default:
+		return &repositoryFileRead{}, nil, nil
+	}
 }
 
-func gitBlobBytes(ctx context.Context, client *github.Client, owner, repo, sha string) ([]byte, *github.Response, error) {
+func repositoryContentBytes(file *github.RepositoryContent) ([]byte, bool, error) {
+	if file.Content == nil {
+		return []byte{}, file.GetType() != "symlink" && file.GetSize() == 0, nil
+	}
+	content, err := file.GetContent()
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to decode file content: %w", err)
+	}
+	return []byte(content), true, nil
+}
+
+func gitBlobSHA(content []byte) string {
+	hash := sha1.New() //nolint:gosec // Git object IDs use SHA-1 by definition.
+	_, _ = fmt.Fprintf(hash, "blob %d\x00", len(content))
+	_, _ = hash.Write(content)
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func getVerifiedBlob(ctx context.Context, client *github.Client, owner, repo, sha string) ([]byte, *github.Response, error) {
 	if !looksLikeSHA(sha) {
 		return nil, nil, fmt.Errorf("malformed Git blob SHA %q", sha)
 	}
 	content, resp, err := client.Git.GetBlobRaw(ctx, owner, repo, sha)
-	if err != nil {
-		return nil, resp, err
-	}
 	if resp != nil && resp.Body != nil {
 		_ = resp.Body.Close()
 	}
-	if !strings.EqualFold(gitBlobSHA1(content), sha) {
-		return nil, nil, fmt.Errorf("blob bytes returned by the Git Blobs API do not match SHA %q", sha)
+	if err != nil {
+		return nil, resp, err
+	}
+	if !strings.EqualFold(gitBlobSHA(content), sha) {
+		return nil, nil, fmt.Errorf("blob returned by the Git Blobs API does not match SHA %q", sha)
 	}
 	return content, nil, nil
 }
 
-func newRepositorySymlink(path, sha, target string, explicit bool) *repositorySymlink {
-	return &repositorySymlink{
-		Path:               path,
-		SHA:                sha,
-		Target:             target,
+func validInternalSymlinkTarget(path string, target []byte) bool {
+	return len(target) > 0 &&
+		utf8.Valid(target) &&
+		!strings.ContainsAny(string(target), "\x00\r\n") &&
+		resolveRepositorySymlinkTarget(path, string(target)) != ""
+}
+
+func newSymlinkReadMetadata(path, sha, target string) *repositoryPathMetadata {
+	return &repositoryPathMetadata{
+		Type: "symlink", Path: path, SHA: sha, Target: target,
 		ResolvedTargetPath: resolveRepositorySymlinkTarget(path, target),
-		Explicit:           explicit,
 	}
 }
 
-func marshalRepositorySymlinkMetadata(link *repositorySymlink, content, note string) string {
-	payload, _ := json.Marshal(repositorySymlinkReadMetadata{
-		Type:               "symlink",
-		Path:               link.Path,
-		SHA:                link.SHA,
-		Target:             link.Target,
-		ResolvedTargetPath: link.ResolvedTargetPath,
-		Content:            content,
-		Note:               strings.TrimSpace(note),
-	})
-	return string(payload)
-}
-
-func marshalRepositorySubmoduleMetadata(submodule *repositorySubmoduleReadMetadata) string {
-	payload, _ := json.Marshal(submodule)
+func marshalRepositoryPathMetadata(metadata *repositoryPathMetadata, content, note string) string {
+	result := *metadata
+	result.Content = content
+	result.Note = strings.TrimSpace(note)
+	payload, _ := json.Marshal(result)
 	return string(payload)
 }
 
@@ -340,7 +282,7 @@ func symlinkTargetAtPath(ctx context.Context, client *github.Client, owner, repo
 		return "", false, nil, nil
 	}
 
-	target, resp, err := gitBlobBytes(ctx, client, owner, repo, entry.GetSHA())
+	target, resp, err := getVerifiedBlob(ctx, client, owner, repo, entry.GetSHA())
 	if err != nil {
 		return "", false, resp, err
 	}
@@ -349,8 +291,8 @@ func symlinkTargetAtPath(ctx context.Context, client *github.Client, owner, repo
 
 func getTreeEntry(ctx context.Context, client *github.Client, owner, repo, treeish, path string) (*github.TreeEntry, *github.Response, error) {
 	segments := strings.Split(pathpkg.Clean(strings.TrimPrefix(path, "/")), "/")
-	if len(segments) > maxGitTreeTraversalDepth {
-		return nil, nil, fmt.Errorf("path %q exceeds the maximum Git tree traversal depth of %d", path, maxGitTreeTraversalDepth)
+	if len(segments) > 64 {
+		return nil, nil, fmt.Errorf("path %q exceeds Git tree traversal limit", path)
 	}
 	treeish = escapeGitTreeish(treeish)
 	for i, segment := range segments {
