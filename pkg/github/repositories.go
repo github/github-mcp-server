@@ -16,6 +16,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
+	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -2950,8 +2951,10 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 				}
 				headline = strings.TrimRight(headline, " \t\r")
 				bc := BlameCommit{
-					SHA:             sha,
-					MessageHeadline: headline,
+					SHA: sha,
+					// Sanitized after truncation so the headline is cut at the author's real
+					// first line break rather than one introduced by sanitization.
+					MessageHeadline: sanitize.Sanitize(headline),
 					CommittedDate:   r.Commit.CommittedDate.Format("2006-01-02T15:04:05Z"),
 					Author: BlameAuthor{
 						Name:  string(r.Commit.Author.Name),

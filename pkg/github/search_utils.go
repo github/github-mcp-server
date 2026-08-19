@@ -204,6 +204,12 @@ func searchHandler(
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), nil
 	}
 
+	// result.Issues are raw *github.Issue objects marshaled directly below rather than through
+	// a convertToMinimal* helper (see minimal_types.go), so Title/Body must be sanitized here.
+	for _, iss := range result.Issues {
+		sanitizeIssueTitleAndBody(iss)
+	}
+
 	filtered := false
 	var payload any = result
 	if len(cfg.fields) > 0 {

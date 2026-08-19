@@ -198,6 +198,116 @@ func TestIsFeatureEnabled_EmptyFlagName(t *testing.T) {
 	assert.False(t, result, "Expected false for empty flag name")
 }
 
+// TestRequestDepsLockdownModeIsUpperBound verifies the X-MCP-Lockdown header
+// can only enable lockdown, never disable the operator's server-side setting.
+func TestRequestDepsLockdownModeIsUpperBound(t *testing.T) {
+	t.Parallel()
+
+	resolver := newRequestDepsAPIHostResolver(t, "https://example.com")
+
+	newDeps := func(serverLockdown bool) *github.RequestDeps {
+		return github.NewRequestDeps(
+			resolver,
+			"test",
+			serverLockdown,
+			nil,
+			translations.NullTranslationHelper,
+			0,
+			nil,
+			testExporters(),
+		)
+	}
+
+	tokenCtx := func(requestLockdown bool) context.Context {
+		ctx := ghcontext.WithTokenInfo(context.Background(), &ghcontext.TokenInfo{Token: "request-token"})
+		if requestLockdown {
+			ctx = ghcontext.WithLockdownMode(ctx, true)
+		}
+		return ctx
+	}
+
+	tests := []struct {
+		name             string
+		serverLockdown   bool
+		requestLockdown  bool
+		wantLockdownMode bool
+	}{
+		{
+			name:             "neither server nor request enable lockdown",
+			serverLockdown:   false,
+			requestLockdown:  false,
+			wantLockdownMode: false,
+		},
+		{
+			name:             "server-only lockdown is enforced without a request header",
+			serverLockdown:   true,
+			requestLockdown:  false,
+			wantLockdownMode: true,
+		},
+		{
+			name:             "request-only lockdown can enable it when the server has not",
+			serverLockdown:   false,
+			requestLockdown:  true,
+			wantLockdownMode: true,
+		},
+		{
+			name:             "server and request both enabling lockdown stays enabled",
+			serverLockdown:   true,
+			requestLockdown:  true,
+			wantLockdownMode: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			deps := newDeps(tt.serverLockdown)
+			ctx := tokenCtx(tt.requestLockdown)
+
+			flags := deps.GetFlags(ctx)
+			assert.Equal(t, tt.wantLockdownMode, flags.LockdownMode, "GetFlags().LockdownMode")
+
+			cache, err := deps.GetRepoAccessCache(ctx)
+			require.NoError(t, err)
+			if tt.wantLockdownMode {
+				assert.NotNil(t, cache, "expected a repo access cache to be built when lockdown mode is effectively enabled")
+			} else {
+				assert.Nil(t, cache, "expected no repo access cache when lockdown mode is effectively disabled")
+			}
+		})
+	}
+}
+
+// TestRequestDepsLockdownModeCannotBeDisabledByOmittingHeader is a regression
+// test for #3104: omitting the X-MCP-Lockdown header must not disable
+// server-enabled lockdown mode.
+func TestRequestDepsLockdownModeCannotBeDisabledByOmittingHeader(t *testing.T) {
+	t.Parallel()
+
+	resolver := newRequestDepsAPIHostResolver(t, "https://example.com")
+	deps := github.NewRequestDeps(
+		resolver,
+		"test",
+		true, // server-enabled lockdown
+		nil,
+		translations.NullTranslationHelper,
+		0,
+		nil,
+		testExporters(),
+	)
+
+	// No X-MCP-Lockdown header sent.
+	ctx := ghcontext.WithTokenInfo(context.Background(), &ghcontext.TokenInfo{Token: "request-token"})
+
+	flags := deps.GetFlags(ctx)
+	assert.True(t, flags.LockdownMode, "server-enabled lockdown mode must remain enabled when a request omits the lockdown header")
+
+	cache, err := deps.GetRepoAccessCache(ctx)
+	require.NoError(t, err)
+	assert.NotNil(t, cache, "repo access cache must still be built so server-enabled lockdown mode can be enforced")
+}
+
 func TestIsFeatureEnabled_CheckerError(t *testing.T) {
 	t.Parallel()
 

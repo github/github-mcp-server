@@ -1619,6 +1619,8 @@ docker run -i --rm \
   ghcr.io/github/github-mcp-server
 ```
 
+In HTTP mode, this flag (or `GITHUB_LOCKDOWN_MODE`) is an upper bound: the `X-MCP-Lockdown` request header can enable lockdown mode when the operator has not, but it cannot disable lockdown mode the operator has already enabled. See the [Server Configuration Guide](docs/server-configuration.md#lockdown-mode) for details.
+
 The behavior of lockdown mode depends on the tool invoked.
 
 Following tools will return an error when the author lacks the push access:

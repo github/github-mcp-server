@@ -1539,9 +1539,6 @@ func Test_GetPullRequestCommits(t *testing.T) {
 			expectedCommits: mockCommits,
 		},
 		{
-			// Trusted bot logins (e.g. github-actions[bot], copilot) are treated as
-			// safe content sources regardless of push access, matching the
-			// intentional exception documented for lockdown mode.
 			name: "lockdown enabled - trusted bot author lacks push access",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, &github.PullRequest{
