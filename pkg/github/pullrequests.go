@@ -17,7 +17,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
-	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -183,16 +182,6 @@ func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDepende
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
-	}
-
-	// sanitize title/body on response
-	if pr != nil {
-		if pr.Title != nil {
-			pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
-		}
-		if pr.Body != nil {
-			pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
-		}
 	}
 
 	if ff.LockdownMode {
@@ -1462,19 +1451,6 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list pull requests", resp, bodyBytes), nil, nil
-			}
-
-			// sanitize title/body on each PR
-			for _, pr := range prs {
-				if pr == nil {
-					continue
-				}
-				if pr.Title != nil {
-					pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
-				}
-				if pr.Body != nil {
-					pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
-				}
 			}
 
 			minimalPRs := make([]MinimalPullRequest, 0, len(prs))
