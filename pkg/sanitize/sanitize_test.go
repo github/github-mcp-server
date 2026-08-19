@@ -118,19 +118,49 @@ func TestFilterInvisibleCharacters(t *testing.T) {
 			expected: "HelloWorld",
 		},
 		{
-			name:     "text with variation selector",
+			name:     "orphaned variation selector after ascii letter",
 			input:    "Hello\uFE0FWorld",
 			expected: "HelloWorld",
 		},
 		{
-			name:     "text with variation selector supplement",
+			name:     "ideographic variation selector after non-ideograph base",
 			input:    "Hello\U000E0100World",
 			expected: "HelloWorld",
 		},
 		{
-			name:     "emoji variation selector hidden after emoji (steganography)",
-			input:    "\U0001F600\uFE0F\U000E0101Hi",
-			expected: "\U0001F600Hi",
+			name:     "variation selector at start of input has no base",
+			input:    "\uFE0FHello",
+			expected: "Hello",
+		},
+		{
+			name:     "variation selector orphaned by removed zero width space",
+			input:    "\u2708\u200B\uFE0F",
+			expected: "\u2708",
+		},
+		{
+			name:     "smuggled selector run after emoji keeps only the presentation selector",
+			input:    "\U0001F600\uFE0F\U000E0101\U000E0102Hi",
+			expected: "\U0001F600\uFE0FHi",
+		},
+		{
+			name:     "emoji presentation sequence is preserved",
+			input:    "Book a flight \u2708\uFE0F today",
+			expected: "Book a flight \u2708\uFE0F today",
+		},
+		{
+			name:     "text presentation sequence is preserved",
+			input:    "Book a flight \u2708\uFE0E today",
+			expected: "Book a flight \u2708\uFE0E today",
+		},
+		{
+			name:     "keycap sequence is preserved",
+			input:    "Step 1\uFE0F\u20E3 first",
+			expected: "Step 1\uFE0F\u20E3 first",
+		},
+		{
+			name:     "registered cjk ideographic variation sequence is preserved",
+			input:    "\u845B\U000E0100\u57CE",
+			expected: "\u845B\U000E0100\u57CE",
 		},
 	}
 
@@ -189,19 +219,13 @@ func TestShouldRemoveRune(t *testing.T) {
 		// Additional directional mark
 		{name: "arabic letter mark", rune: 0x061C, expected: true},
 
-		// Range tests - Variation selectors: U+FE00–U+FE0F
-		{name: "variation selector range start", rune: 0xFE00, expected: true},
-		{name: "variation selector range middle", rune: 0xFE05, expected: true},
-		{name: "variation selector range end (VS16, emoji presentation)", rune: 0xFE0F, expected: true},
-		{name: "before variation selector range", rune: 0xFDFF, expected: false},
-		{name: "after variation selector range", rune: 0xFE10, expected: false},
-
-		// Range tests - Variation selectors supplement: U+E0100–U+E01EF
-		{name: "variation selector supplement range start", rune: 0xE0100, expected: true},
-		{name: "variation selector supplement range middle", rune: 0xE0150, expected: true},
-		{name: "variation selector supplement range end", rune: 0xE01EF, expected: true},
-		{name: "before variation selector supplement range", rune: 0xE00FF, expected: false},
-		{name: "after variation selector supplement range", rune: 0xE01F0, expected: false},
+		// Variation selectors are filtered contextually by
+		// FilterInvisibleCharacters, so shouldRemoveRune never removes them on
+		// its own. See TestIsValidVariationSequence for that behaviour.
+		{name: "variation selector range start", rune: 0xFE00, expected: false},
+		{name: "variation selector range end (VS16, emoji presentation)", rune: 0xFE0F, expected: false},
+		{name: "variation selector supplement range start", rune: 0xE0100, expected: false},
+		{name: "variation selector supplement range end", rune: 0xE01EF, expected: false},
 
 		// Characters that should NOT be removed
 		{name: "regular ascii letter", rune: 'A', expected: false},
@@ -359,7 +383,7 @@ func TestSanitizeFiltersInvisibleCharactersAfterEntityDecoding(t *testing.T) {
 			expected: "HelloWorld",
 		},
 		{
-			name:     "hexadecimal entity for zero width space (lowercase x, uppercase hex)",
+			name:     "hexadecimal entity for zero width space (lowercase hex digits)",
 			input:    "Hello&#x200b;World",
 			expected: "HelloWorld",
 		},
@@ -374,14 +398,19 @@ func TestSanitizeFiltersInvisibleCharactersAfterEntityDecoding(t *testing.T) {
 			expected: "HelloWorld",
 		},
 		{
-			name:     "decimal entity for variation selector",
+			name:     "decimal entity for orphaned variation selector",
 			input:    "Hello&#65039;World",
 			expected: "HelloWorld",
 		},
 		{
-			name:     "hexadecimal entity for variation selector supplement",
+			name:     "hexadecimal entity for orphaned variation selector supplement",
 			input:    "Hello&#xE0100;World",
 			expected: "HelloWorld",
+		},
+		{
+			name:     "entity encoded selector run after emoji is truncated to one selector",
+			input:    "Ship it \U0001F600&#xFE0F;&#xE0101;&#xE0102;",
+			expected: "Ship it \U0001F600\uFE0F",
 		},
 		{
 			name:     "direct invisible rune alongside entity encoded one",
@@ -403,12 +432,100 @@ func TestSanitizeFiltersInvisibleCharactersAfterEntityDecoding(t *testing.T) {
 			input:    "Hello 世界 🌍 αβγ",
 			expected: "Hello 世界 🌍 αβγ",
 		},
+		{
+			name:     "emoji presentation sequence survives the full pipeline",
+			input:    "Book a flight \u2708\uFE0F today",
+			expected: "Book a flight \u2708\uFE0F today",
+		},
+		{
+			name:     "registered cjk ideographic variation sequence survives the full pipeline",
+			input:    "\u845B\U000E0100\u57CE",
+			expected: "\u845B\U000E0100\u57CE",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := Sanitize(tt.input)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestSanitizeRemovesCodeFenceMetadataRevealedByEntityDecoding covers fences
+// that only become fences after HTML entity decoding. A leading "`&#8203;“"
+// is not a fence in the raw input, so the first FilterCodeFenceMetadata pass
+// leaves it alone; once the entity is decoded and the zero width space is
+// removed the line is a real fence, so the fence filter has to run again.
+func TestSanitizeRemovesCodeFenceMetadataRevealedByEntityDecoding(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "decimal entity hides fence delimiter",
+			input:    "`&#8203;``steal secrets\nfmt.Println(42)\n```",
+			expected: "```\nfmt.Println(42)\n```",
+		},
+		{
+			name:     "hexadecimal entity hides fence delimiter",
+			input:    "``&#x200b;`steal secrets\nfmt.Println(42)\n```",
+			expected: "```\nfmt.Println(42)\n```",
+		},
+		{
+			name:     "entity hides fence delimiter with disallowed info string",
+			input:    "`&#8203;``go;rm -rf /\ncode\n```",
+			expected: "```\ncode\n```",
+		},
+		{
+			name:     "entity encoded fence keeps a safe info string",
+			input:    "`&#8203;``go\nfmt.Println(42)\n```",
+			expected: "```go\nfmt.Println(42)\n```",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := Sanitize(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestIsValidVariationSequence(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     rune
+		selector rune
+		expected bool
+	}{
+		{name: "emoji presentation selector after symbol", base: 0x2708, selector: 0xFE0F, expected: true},
+		{name: "text presentation selector after symbol", base: 0x2708, selector: 0xFE0E, expected: true},
+		{name: "presentation selector after emoji", base: 0x1F600, selector: 0xFE0F, expected: true},
+		{name: "presentation selector after keycap digit", base: '1', selector: 0xFE0F, expected: true},
+		{name: "presentation selector after keycap hash", base: '#', selector: 0xFE0F, expected: true},
+		{name: "presentation selector after keycap asterisk", base: '*', selector: 0xFE0E, expected: true},
+		{name: "non-presentation selector after keycap digit", base: '1', selector: 0xFE00, expected: false},
+		{name: "presentation selector after ascii letter", base: 'a', selector: 0xFE0F, expected: false},
+		{name: "presentation selector after ascii punctuation", base: '.', selector: 0xFE0F, expected: false},
+		{name: "standardized selector after cjk ideograph", base: '葛', selector: 0xFE00, expected: true},
+
+		{name: "ideographic selector after cjk ideograph", base: '葛', selector: 0xE0100, expected: true},
+		{name: "ideographic selector after cjk compatibility ideograph", base: 0xF900, selector: 0xE0101, expected: true},
+		{name: "ideographic selector after emoji", base: 0x1F600, selector: 0xE0100, expected: false},
+		{name: "ideographic selector after ascii letter", base: 'a', selector: 0xE0100, expected: false},
+		{name: "ideographic selector after greek letter", base: 'α', selector: 0xE0100, expected: false},
+
+		{name: "selector after another selector", base: 0xFE0F, selector: 0xFE0F, expected: false},
+		{name: "ideographic selector after another selector", base: 0xE0100, selector: 0xE0101, expected: false},
+		{name: "selector after space", base: ' ', selector: 0xFE0F, expected: false},
+		{name: "selector after newline", base: '\n', selector: 0xFE0F, expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, isValidVariationSequence(tt.base, tt.selector))
 		})
 	}
 }
