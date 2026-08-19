@@ -3,24 +3,22 @@ package middleware
 import (
 	"errors"
 	"net/http"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// DefaultMaxRequestBodyBytes bounds the size of HTTP request bodies accepted
-// by the MCP endpoints when no explicit limit is configured.
-const DefaultMaxRequestBodyBytes int64 = 10 << 20 // 10 MiB
+// DefaultMaxRequestBodyBytes tracks the MCP SDK's own request-body limit, so
+// enforcing it earlier in the chain does not change which requests are accepted.
+const DefaultMaxRequestBodyBytes int64 = mcp.DefaultMaxRequestBodyBytes
 
-// WithMaxBodySize returns middleware that bounds the size of the request
-// body. It must be registered before any middleware that reads or buffers
-// the body (e.g. WithMCPParse, WithScopeChallenge) so that an oversized
-// payload is rejected before it is ever fully buffered in memory, rather than
-// relying on a size guard applied later by the MCP SDK or a downstream
-// handler.
+// WithMaxBodySize bounds the size of the request body. It must be registered
+// before any middleware that reads or buffers the body (WithMCPParse,
+// WithScopeChallenge), so an oversized payload is rejected before it is
+// buffered in memory rather than by a later guard in the MCP SDK.
 //
-// When Content-Length is known and already exceeds maxBytes, the request is
-// rejected immediately without touching the body. Otherwise the body is
-// wrapped with http.MaxBytesReader, so any subsequent read (including
-// chunked or unknown-length bodies) fails with a *http.MaxBytesError once
-// maxBytes have been consumed.
+// A body of unknown length (chunked, HTTP/2) cannot be rejected upfront, so
+// the limit is instead enforced on read and surfaces as a *http.MaxBytesError
+// to whichever middleware reads the body first.
 func WithMaxBodySize(maxBytes int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -38,16 +36,10 @@ func WithMaxBodySize(maxBytes int64) func(http.Handler) http.Handler {
 	}
 }
 
-// writeRequestTooLarge writes the standard "request body too large" response.
-// Every middleware that reads the request body should use this so oversized
-// requests get a consistent, clear response regardless of which layer
-// detects the overflow.
 func writeRequestTooLarge(w http.ResponseWriter) {
 	http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
 }
 
-// isMaxBytesError reports whether err resulted from a body exceeding the
-// limit applied by WithMaxBodySize, as opposed to some other read failure.
 func isMaxBytesError(err error) bool {
 	var maxBytesErr *http.MaxBytesError
 	return errors.As(err, &maxBytesErr)

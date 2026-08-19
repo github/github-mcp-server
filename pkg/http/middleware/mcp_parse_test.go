@@ -190,11 +190,8 @@ func TestWithMCPParse_BodyRestoration(t *testing.T) {
 	assert.Equal(t, originalBody, capturedBody, "body should be restored for downstream handlers")
 }
 
-// TestWithMCPParse_WithMaxBodySize composes the body-size limit with
-// WithMCPParse, mirroring the production middleware ordering where
-// WithMaxBodySize runs first. It verifies that an oversized body is rejected
-// with a clear 413 before parsing runs, while requests within the limit
-// (including exactly at the boundary) still parse and preserve the body.
+// TestWithMCPParse_WithMaxBodySize mirrors the production middleware ordering,
+// where WithMaxBodySize runs ahead of WithMCPParse.
 func TestWithMCPParse_WithMaxBodySize(t *testing.T) {
 	const limit = 128
 
@@ -203,7 +200,6 @@ func TestWithMCPParse_WithMaxBodySize(t *testing.T) {
 		if len(payload) >= size {
 			return payload
 		}
-		// Pad the JSON with a longer string value so we can hit an exact byte size.
 		pad := strings.Repeat("x", size-len(payload))
 		return strings.Replace(payload, "PADDING", "PADDING"+pad, 1)
 	}
@@ -219,11 +215,8 @@ func TestWithMCPParse_WithMaxBodySize(t *testing.T) {
 
 		handler := WithMaxBodySize(limit)(WithMCPParse()(nextHandler))
 
-		// Use an unknown-length body so WithMaxBodySize can't reject the
-		// request via its known-Content-Length fast path (already covered by
-		// body_limit_test.go). This forces the request through to
-		// WithMCPParse's own io.ReadAll call, exercising its *http.MaxBytesError
-		// handling.
+		// An unknown length skips WithMaxBodySize's Content-Length fast path,
+		// so the overflow surfaces from WithMCPParse's own read.
 		req := httptest.NewRequest(http.MethodPost, "/mcp", unknownLengthBody(body))
 		require.Equal(t, int64(-1), req.ContentLength, "test setup: Content-Length should be unknown")
 

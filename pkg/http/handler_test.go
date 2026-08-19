@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -1288,11 +1289,23 @@ func TestUIMetaStrippedWhenClientLacksCapability(t *testing.T) {
 	require.NotNil(t, unknown[0].Tool.Meta["ui"], "_meta.ui should be preserved when capability is unknown and FF is on")
 }
 
-// TestRegisterMiddleware_MaxRequestBodySize verifies that RegisterMiddleware
-// wires the body-size limit ahead of the body-consuming middleware, so an
-// oversized request never reaches the MCP server, and that requests within
-// the configured limit (including exactly at the boundary) still succeed.
-func TestRegisterMiddleware_MaxRequestBodySize(t *testing.T) {
+// TestMaxRequestBodyBytes checks the effective limit tracks the MCP SDK
+// default and honours an operator override.
+func TestMaxRequestBodyBytes(t *testing.T) {
+	t.Run("defaults to the MCP SDK limit", func(t *testing.T) {
+		h := &Handler{config: &ServerConfig{}}
+		assert.Equal(t, int64(mcp.DefaultMaxRequestBodyBytes), h.maxRequestBodyBytes())
+	})
+
+	t.Run("configured value overrides the default", func(t *testing.T) {
+		h := &Handler{config: &ServerConfig{MaxRequestBodyBytes: 1234}}
+		assert.Equal(t, int64(1234), h.maxRequestBodyBytes())
+	})
+}
+
+// TestMaxRequestBodySizeEnforcement exercises both layers the limit is applied
+// at: the early middleware, and the MCP SDK handler the request is delegated to.
+func TestMaxRequestBodySizeEnforcement(t *testing.T) {
 	const limit = 256
 
 	apiHost, err := utils.NewAPIHost("https://api.github.com")
@@ -1307,9 +1320,9 @@ func TestRegisterMiddleware_MaxRequestBodySize(t *testing.T) {
 		return strings.Replace(payload, "PADDING", "PADDING"+pad, 1)
 	}
 
-	newHandler := func(t *testing.T, mcpServerFactoryCalled *bool) http.Handler {
+	newHandler := func(t *testing.T, mcpServerFactoryCalled *bool) *Handler {
 		t.Helper()
-		handler := NewHTTPMcpHandler(
+		return NewHTTPMcpHandler(
 			context.Background(),
 			&ServerConfig{Version: "test", MaxRequestBodyBytes: limit},
 			nil,
@@ -1327,47 +1340,63 @@ func TestRegisterMiddleware_MaxRequestBodySize(t *testing.T) {
 			}),
 			WithScopeFetcher(allScopesFetcher{}),
 		)
+	}
 
+	newRouter := func(h *Handler) http.Handler {
 		r := chi.NewRouter()
-		handler.RegisterMiddleware(r)
-		handler.RegisterRoutes(r)
+		h.RegisterMiddleware(r)
+		h.RegisterRoutes(r)
 		return r
 	}
 
-	t.Run("oversized request is rejected before reaching the MCP server", func(t *testing.T) {
+	newRequest := func(body string) *http.Request {
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
+		req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+		req.Header.Set(headers.AuthorizationHeader, strings.Join([]string{"ghs", "test-token"}, "_"))
+		return req
+	}
+
+	t.Run("middleware rejects an oversized request before the MCP server is built", func(t *testing.T) {
 		var mcpServerFactoryCalled bool
-		r := newHandler(t, &mcpServerFactoryCalled)
+		r := newRouter(newHandler(t, &mcpServerFactoryCalled))
 
 		body := buildBody(limit + 1)
 		require.Greater(t, len(body), limit)
 
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
-		req.Header.Set(headers.AuthorizationHeader, strings.Join([]string{"ghs", "test-token"}, "_"))
-
 		rr := httptest.NewRecorder()
-		r.ServeHTTP(rr, req)
+		r.ServeHTTP(rr, newRequest(body))
 
 		assert.Equal(t, http.StatusRequestEntityTooLarge, rr.Code)
 		assert.Contains(t, rr.Body.String(), "request body too large")
 		assert.False(t, mcpServerFactoryCalled, "the MCP server should never be constructed for an oversized request")
 	})
 
-	t.Run("boundary-size request at the configured limit succeeds", func(t *testing.T) {
+	t.Run("request at the configured limit succeeds", func(t *testing.T) {
 		var mcpServerFactoryCalled bool
-		r := newHandler(t, &mcpServerFactoryCalled)
+		r := newRouter(newHandler(t, &mcpServerFactoryCalled))
 
 		body := buildBody(limit)
 		require.Len(t, body, limit)
 
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
-		req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
-		req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
-		req.Header.Set(headers.AuthorizationHeader, strings.Join([]string{"ghs", "test-token"}, "_"))
-
 		rr := httptest.NewRecorder()
-		r.ServeHTTP(rr, req)
+		r.ServeHTTP(rr, newRequest(body))
 
 		assert.Equal(t, http.StatusOK, rr.Code, "response body: %s", rr.Body.String())
 		assert.True(t, mcpServerFactoryCalled, "the MCP server should be constructed for an allowed request")
+	})
+
+	t.Run("SDK handler enforces the configured limit when the middleware is bypassed", func(t *testing.T) {
+		h := newHandler(t, nil)
+
+		body := buildBody(limit + 1)
+		require.Greater(t, len(body), limit)
+
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, newRequest(body))
+
+		assert.Equal(t, http.StatusRequestEntityTooLarge, rr.Code)
+		assert.Contains(t, rr.Body.String(), fmt.Sprintf("request body exceeds %d bytes", limit),
+			"the SDK should report the configured limit, not its own default")
 	})
 }

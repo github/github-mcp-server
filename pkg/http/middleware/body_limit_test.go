@@ -11,9 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// unknownLengthBody wraps a reader without exposing a Len method, so
-// httptest.NewRequest cannot infer Content-Length from it. This mirrors a
-// chunked-transfer-encoded request, where the body size is unknown upfront.
+// unknownLengthBody hides Len from httptest.NewRequest so ContentLength is -1,
+// as it is for a chunked or HTTP/2 request.
 func unknownLengthBody(s string) io.Reader {
 	return io.NopCloser(strings.NewReader(s))
 }

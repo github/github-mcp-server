@@ -132,8 +132,7 @@ func NewHTTPMcpHandler(
 
 func (h *Handler) RegisterMiddleware(r chi.Router) {
 	r.Use(
-		// Must run first: bounds the request body before any other
-		// middleware (or the MCP SDK) reads or buffers it.
+		// Must run first: bounds the body before anything downstream reads it.
 		middleware.WithMaxBodySize(h.maxRequestBodyBytes()),
 		middleware.ExtractUserToken(h.oauthCfg),
 		middleware.WithRequestConfig,
@@ -146,8 +145,8 @@ func (h *Handler) RegisterMiddleware(r chi.Router) {
 	}
 }
 
-// maxRequestBodyBytes returns the configured request-body size limit, or
-// middleware.DefaultMaxRequestBodyBytes if none was configured.
+// maxRequestBodyBytes returns the effective request-body size limit, applied
+// both by the early middleware and by the MCP SDK handler.
 func (h *Handler) maxRequestBodyBytes() int64 {
 	if h.config != nil && h.config.MaxRequestBodyBytes > 0 {
 		return h.config.MaxRequestBodyBytes
@@ -251,6 +250,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return ghServer
 	}, &mcp.StreamableHTTPOptions{
 		Stateless: true,
+		// Keep the SDK's own guard in step with the middleware, otherwise its
+		// default would silently cap a larger configured limit.
+		MaxRequestBodyBytes: h.maxRequestBodyBytes(),
 	})
 
 	mcpHandler.ServeHTTP(w, r)

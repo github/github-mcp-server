@@ -109,8 +109,7 @@ type ServerConfig struct {
 	MRTRStateKey string
 
 	// MaxRequestBodyBytes bounds the size of HTTP request bodies accepted by
-	// the MCP endpoints, enforced before any middleware reads or buffers the
-	// body. When zero, middleware.DefaultMaxRequestBodyBytes is used.
+	// the MCP endpoints. When zero, middleware.DefaultMaxRequestBodyBytes is used.
 	MaxRequestBodyBytes int64
 
 	disableDeleteRepository bool

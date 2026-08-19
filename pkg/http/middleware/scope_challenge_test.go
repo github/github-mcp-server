@@ -14,11 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestWithScopeChallenge_MaxBodySize verifies the fallback body-parsing path
-// (used when WithMCPParse has not already populated MCPMethodInfo in
-// context) respects the request-body size limit and returns a clear 413
-// instead of silently continuing, when composed with WithMaxBodySize as it
-// is in production.
+// TestWithScopeChallenge_MaxBodySize covers the fallback body-parsing path,
+// used when WithMCPParse has not already populated MCPMethodInfo in context.
 func TestWithScopeChallenge_MaxBodySize(t *testing.T) {
 	const limit = 64
 	oauthCfg := &oauth.Config{}
@@ -48,11 +45,8 @@ func TestWithScopeChallenge_MaxBodySize(t *testing.T) {
 
 		handler := WithMaxBodySize(limit)(WithScopeChallenge(oauthCfg, fetcher)(next))
 
-		// Use an unknown-length body so WithMaxBodySize can't reject the
-		// request via its known-Content-Length fast path (already covered by
-		// body_limit_test.go). This forces the request through to
-		// WithScopeChallenge's fallback io.ReadAll call, exercising its
-		// *http.MaxBytesError handling.
+		// An unknown length skips WithMaxBodySize's Content-Length fast path,
+		// so the overflow surfaces from the fallback read.
 		req := newRequestWithBody(unknownLengthBody(body))
 		require.Equal(t, int64(-1), req.ContentLength, "test setup: Content-Length should be unknown")
 
