@@ -84,16 +84,13 @@ func Test_GetFileContents(t *testing.T) {
 				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
 				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
-					// Base64 encode the content as GitHub API does
-					encodedContent := base64.StdEncoding.EncodeToString(mockRawContent)
 					fileContent := &github.RepositoryContent{
-						Name:     github.Ptr("README.md"),
-						Path:     github.Ptr("README.md"),
-						SHA:      github.Ptr("abc123"),
-						Type:     github.Ptr("file"),
-						Content:  github.Ptr(encodedContent),
-						Size:     github.Ptr(len(mockRawContent)),
-						Encoding: github.Ptr("base64"),
+						Name:    github.Ptr("README.md"),
+						Path:    github.Ptr("README.md"),
+						SHA:     github.Ptr("abc123"),
+						Type:    github.Ptr("file"),
+						Content: github.Ptr(string(mockRawContent)),
+						Size:    github.Ptr(len(mockRawContent)),
 					}
 					contentBytes, _ := json.Marshal(fileContent)
 					_, _ = w.Write(contentBytes)
@@ -144,7 +141,7 @@ func Test_GetFileContents(t *testing.T) {
 			expectError: false,
 			expectedResult: mcp.ResourceContents{
 				URI:      "repo://owner/repo/refs/heads/main/contents/test.png",
-				Blob:     []byte(base64.StdEncoding.EncodeToString([]byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"))),
+				Blob:     []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"),
 				MIMEType: "image/png",
 			},
 		},
@@ -180,7 +177,7 @@ func Test_GetFileContents(t *testing.T) {
 			expectError: false,
 			expectedResult: mcp.ResourceContents{
 				URI:      "repo://owner/repo/refs/heads/main/contents/document.pdf",
-				Blob:     []byte(base64.StdEncoding.EncodeToString([]byte("%PDF-1.4 fake pdf content"))),
+				Blob:     []byte("%PDF-1.4 fake pdf content"),
 				MIMEType: "application/pdf",
 			},
 		},
@@ -448,6 +445,37 @@ func Test_GetFileContents(t *testing.T) {
 				// Handle both text and blob resources
 				resource := getResourceResult(t, result)
 				assert.Equal(t, expected, *resource)
+
+				wireBytes, err := json.Marshal(result)
+				require.NoError(t, err)
+				var wireResult struct {
+					Content []struct {
+						Type     string `json:"type"`
+						Resource *struct {
+							MIMEType string `json:"mimeType"`
+							Text     string `json:"text"`
+							Blob     string `json:"blob"`
+						} `json:"resource"`
+					} `json:"content"`
+				}
+				require.NoError(t, json.Unmarshal(wireBytes, &wireResult))
+				require.Len(t, wireResult.Content, 2)
+				require.Equal(t, "resource", wireResult.Content[1].Type)
+				require.NotNil(t, wireResult.Content[1].Resource)
+				wireResource := wireResult.Content[1].Resource
+				require.Equal(t, expected.MIMEType, wireResource.MIMEType)
+
+				if expected.Blob != nil {
+					decodedBlob, err := base64.StdEncoding.DecodeString(wireResource.Blob)
+					require.NoError(t, err)
+					require.Equal(t, expected.Blob, decodedBlob)
+					if expected.MIMEType == "image/png" {
+						require.True(t, strings.HasPrefix(string(decodedBlob), "\x89PNG\r\n\x1a\n"))
+					}
+				} else {
+					require.Empty(t, wireResource.Blob)
+					require.Equal(t, expected.Text, wireResource.Text)
+				}
 
 				// If expectedMsg is set, verify the message text
 				if tc.expectedMsg != "" {

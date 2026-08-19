@@ -1104,11 +1104,9 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
 				}
 
-				// Binary content - encode as base64 blob
-				blobContent := base64.StdEncoding.EncodeToString(contentBytes)
 				result := &mcp.ResourceContents{
 					URI:      resourceURI,
-					Blob:     []byte(blobContent),
+					Blob:     contentBytes,
 					MIMEType: contentType,
 				}
 				return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
