@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/google/go-github/v89/github"
 	"github.com/shurcooL/githubv4"
@@ -191,6 +192,35 @@ func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 			got: func() string {
 				return minimalProjectPullRequestRefFromMap(map[string]any{
 					"title": maliciousText,
+				}).Title
+			},
+		},
+		{
+			name: "project status update body (projects_get / projects_list)",
+			got: func() string {
+				return convertToMinimalStatusUpdate(statusUpdateNode{
+					Body:      githubv4.NewString(githubv4.String(maliciousText)),
+					CreatedAt: githubv4.DateTime{Time: time.Unix(0, 0).UTC()},
+				}).Body
+			},
+		},
+		{
+			name: "issue ref title (shared constructor)",
+			got: func() string {
+				return newMinimalIssueRef(1, maliciousText, "OPEN", "https://github.com/o/r/issues/1", "o/r").Title
+			},
+		},
+		{
+			name: "pull request ref title (shared constructor)",
+			got: func() string {
+				return newMinimalPullRequestRef(1, maliciousText, "OPEN", "https://github.com/o/r/pull/1", "o/r").Title
+			},
+		},
+		{
+			name: "issue dependency ref title (issue_dependency_read / issue_dependency_write)",
+			got: func() string {
+				return issueToDependencyRef(&github.Issue{
+					Title: github.Ptr(maliciousText),
 				}).Title
 			},
 		},

@@ -616,6 +616,19 @@ type MinimalPullRequestRef struct {
 	Repository string `json:"repository,omitempty"`
 }
 
+// newMinimalPullRequestRef builds a MinimalPullRequestRef, sanitizing the user-authored
+// title. Callers should use it rather than the struct literal so every tool surfacing a
+// pull request reference strips untrusted content identically.
+func newMinimalPullRequestRef(number int, title, state, url, repository string) MinimalPullRequestRef {
+	return MinimalPullRequestRef{
+		Number:     number,
+		Title:      sanitize.Sanitize(title),
+		State:      state,
+		URL:        url,
+		Repository: repository,
+	}
+}
+
 // MinimalIssueRef is a compact reference to a related issue (e.g. a parent issue).
 // Its keys mirror the get_parent (GetIssueParent) response shape.
 type MinimalIssueRef struct {
@@ -624,6 +637,20 @@ type MinimalIssueRef struct {
 	State      string `json:"state"`
 	URL        string `json:"url"`
 	Repository string `json:"repository,omitempty"`
+}
+
+// newMinimalIssueRef builds a MinimalIssueRef, sanitizing the user-authored title. Callers
+// should use it rather than the struct literal so every tool surfacing an issue reference
+// (issue_read's parent, issue_dependency_read/write, find_duplicate) strips untrusted
+// content identically.
+func newMinimalIssueRef(number int, title, state, url, repository string) MinimalIssueRef {
+	return MinimalIssueRef{
+		Number:     number,
+		Title:      sanitize.Sanitize(title),
+		State:      state,
+		URL:        url,
+		Repository: repository,
+	}
 }
 
 // MinimalSubIssuesSummary holds the native GraphQL subIssuesSummary counts for an issue.

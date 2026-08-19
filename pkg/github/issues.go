@@ -2196,13 +2196,13 @@ func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, n
 
 		if p := n.Issue.Parent; p != nil {
 			enrichment.Parent = &issueReadParent{
-				Ref: MinimalIssueRef{
-					Number:     int(p.Number),
-					Title:      sanitize.Sanitize(string(p.Title)),
-					State:      string(p.State),
-					URL:        string(p.URL),
-					Repository: string(p.Repository.NameWithOwner),
-				},
+				Ref: newMinimalIssueRef(
+					int(p.Number),
+					string(p.Title),
+					string(p.State),
+					string(p.URL),
+					string(p.Repository.NameWithOwner),
+				),
 				AuthorLogin: string(p.Author.Login),
 			}
 		}
@@ -2210,13 +2210,13 @@ func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, n
 		closing := make([]issueReadClosingPullRequest, 0, len(n.Issue.ClosedByPullRequestsReferences.Nodes))
 		for _, pr := range n.Issue.ClosedByPullRequestsReferences.Nodes {
 			closing = append(closing, issueReadClosingPullRequest{
-				Ref: MinimalPullRequestRef{
-					Number:     int(pr.Number),
-					Title:      sanitize.Sanitize(string(pr.Title)),
-					State:      string(pr.State),
-					URL:        string(pr.URL),
-					Repository: string(pr.Repository.NameWithOwner),
-				},
+				Ref: newMinimalPullRequestRef(
+					int(pr.Number),
+					string(pr.Title),
+					string(pr.State),
+					string(pr.URL),
+					string(pr.Repository.NameWithOwner),
+				),
 				AuthorLogin: string(pr.Author.Login),
 			})
 		}
