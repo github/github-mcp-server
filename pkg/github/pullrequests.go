@@ -412,12 +412,9 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, deps ToolDe
 	return MarshalledTextResult(minimalFiles), nil
 }
 
-// GetPullRequestCommits returns the commits on a pull request. Commit messages
-// are user-authored content like the PR diff and files, so under lockdown mode
-// this applies the same PR-author check as GetPullRequestDiff/GetPullRequestFiles
-// rather than filtering individual commits: all commits on a pull request are
-// part of the same untrusted head branch, so a single check on the PR author is
-// sufficient and avoids an extra permission lookup per commit.
+// GetPullRequestCommits returns the commits on a pull request. Under lockdown
+// mode it checks the PR author once rather than per commit, since every
+// commit on the PR belongs to the same untrusted head branch.
 func GetPullRequestCommits(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
 	if restricted, err := enforcePullRequestLockdown(ctx, client, deps, owner, repo, pullNumber); restricted != nil || err != nil {
 		return restricted, err
