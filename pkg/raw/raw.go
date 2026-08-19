@@ -25,18 +25,36 @@ var errPathTraversal = errors.New(`raw: path segment ".." is not allowed`)
 func rejectPathTraversal(components ...string) error {
 	for _, component := range components {
 		for segment := range strings.SplitSeq(component, "/") {
-			if segment == "" {
-				continue
+			if err := rejectSegment(segment); err != nil {
+				return err
 			}
-			if segment == ".." {
-				return errPathTraversal
-			}
-			// Guard against percent-encoded traversal (e.g. "%2e%2e") in case
-			// the segment is later decoded before being treated as a path
-			// component.
-			if decoded, err := url.PathUnescape(segment); err == nil && decoded == ".." {
-				return errPathTraversal
-			}
+		}
+	}
+	return nil
+}
+
+// rejectSegment reports an error if segment is, or decodes to, "..". A
+// percent-encoded separator (e.g. "%2f") can appear inside a single
+// "/"-separated segment and only becomes a "/" once decoded, revealing new
+// subsegments (e.g. "%2e%2e%2fsecret.txt" decodes to "../secret.txt"). To
+// catch that, whenever decoding changes the segment, the decoded form is
+// split on "/" again and each subsegment is checked recursively, so
+// traversal segments introduced by one or more layers of percent-decoding
+// are rejected regardless of where the encoded separator falls.
+func rejectSegment(segment string) error {
+	if segment == "" {
+		return nil
+	}
+	if segment == ".." {
+		return errPathTraversal
+	}
+	decoded, err := url.PathUnescape(segment)
+	if err != nil || decoded == segment {
+		return nil
+	}
+	for subsegment := range strings.SplitSeq(decoded, "/") {
+		if err := rejectSegment(subsegment); err != nil {
+			return err
 		}
 	}
 	return nil

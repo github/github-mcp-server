@@ -254,6 +254,42 @@ func TestUrlFromOpts(t *testing.T) {
 			owner: "octocat", repo: "hello", path: "README.md",
 			wantErr: true,
 		},
+		{
+			name:  "encoded separator revealing dot-dot rejected",
+			opts:  nil,
+			owner: "octocat", repo: "hello", path: "%2e%2e%2fsecret.txt",
+			wantErr: true,
+		},
+		{
+			name:  "encoded separator revealing dot-dot mid-path rejected",
+			opts:  nil,
+			owner: "octocat", repo: "hello", path: "docs%2f..%2f..%2fsecret.txt",
+			wantErr: true,
+		},
+		{
+			name:  "encoded separator in owner rejected",
+			opts:  nil,
+			owner: "octocat%2f..", repo: "hello", path: "README.md",
+			wantErr: true,
+		},
+		{
+			name:  "double percent-encoded dot-dot rejected",
+			opts:  nil,
+			owner: "octocat", repo: "hello", path: "%252e%252e/secret.txt",
+			wantErr: true,
+		},
+		{
+			name:  "double percent-encoded separator revealing dot-dot rejected",
+			opts:  nil,
+			owner: "octocat", repo: "hello", path: "%252e%252e%252fsecret.txt",
+			wantErr: true,
+		},
+		{
+			name:  "benign percent-encoded filename allowed",
+			opts:  nil,
+			owner: "octocat", repo: "hello", path: "%2ehidden",
+			want: "https://raw.example.com/octocat/hello/HEAD/%2ehidden",
+		},
 	}
 
 	for _, tt := range tests {
