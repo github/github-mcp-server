@@ -900,7 +900,7 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 			)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to request copilot review",
+					copilotReviewErrMsg(ctx, client, "failed to request copilot review", owner, repo, pullNumber, resp),
 					resp,
 					err,
 				), nil, nil
@@ -918,6 +918,38 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 			// Return nothing on success, as there's not much value in returning the Pull Request itself
 			return utils.NewToolResultText(""), nil, nil
 		})
+}
+
+// copilotReviewErrMsg explains the opaque failures of the review request
+// endpoint used by request_copilot_review.
+//
+// Requesting a reviewer needs write access to the repository. Being the author
+// of the pull request does not grant it, which is why a fork contributor can be
+// offered a Copilot review by the web UI and still be refused by the API. See
+// https://docs.github.com/en/pull-requests/reference/pull-request-reviews#requesting-and-requiring-reviews
+//
+// The endpoint is documented to answer a caller who is not a collaborator with
+// 403 or 422, but in practice it answers with 404 Not Found, which on its own
+// is indistinguishable from a repository or pull request that does not exist.
+// Reading the repository tells the two apart, and only runs once the request
+// has already failed.
+func copilotReviewErrMsg(ctx context.Context, client *github.Client, base, owner, repo string, pullNumber int, resp *github.Response) string {
+	if resp == nil || (resp.StatusCode != http.StatusNotFound && resp.StatusCode != http.StatusForbidden) {
+		return base
+	}
+
+	repository, _, repoErr := client.Repositories.Get(ctx, owner, repo)
+	switch {
+	case repoErr != nil:
+		return fmt.Sprintf("%s. %s/%s could not be read with the current credentials, so either it does not exist or the credentials cannot reach it. "+
+			"GitHub refuses this endpoint the same way when the authenticated user has no write access to the repository.", base, owner, repo)
+	case !repository.GetPermissions().GetPush():
+		return fmt.Sprintf("%s. The authenticated user has no write access to %s/%s, and GitHub requires write access to request a reviewer even from the author of the pull request. "+
+			"Request the Copilot review from the pull request page on the GitHub website instead, or ask someone with write access to request it.", base, owner, repo)
+	default:
+		return fmt.Sprintf("%s. The authenticated user has write access to %s/%s, so check that pull request #%d exists there and that Copilot code review is available for the repository. "+
+			"Copilot code review is not available on GitHub Enterprise Server.", base, owner, repo, pullNumber)
+	}
 }
 
 func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) inventory.ServerPrompt {
