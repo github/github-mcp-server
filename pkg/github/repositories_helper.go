@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	pathpkg "path"
 	"strings"
 
@@ -96,45 +97,40 @@ const gitSymlinkMode = "120000"
 type symlinkWriteBlockedError struct {
 	Error              string `json:"error"`
 	Path               string `json:"path"`
-	SymlinkTarget      string `json:"symlink_target"`
-	ResolvedTargetPath string `json:"resolved_target_path,omitempty"`
-	Message            string `json:"message"`
+	Target             string `json:"target"`
+	ResolvedTargetPath string `json:"resolved_path,omitempty"`
 }
 
 func newSymlinkWriteBlockedResult(path, target string) *mcp.CallToolResult {
 	resolvedTargetPath := resolveRepositorySymlinkTarget(path, target)
-	message := "The exact Git path is a symbolic link. get_file_contents may have returned the linked file's content and SHA, " +
-		"but create_or_update_file would write that content into the symlink itself. "
-	if resolvedTargetPath != "" {
-		message += fmt.Sprintf("Write to %q instead, or set allow_symlink_write to true only to intentionally change the link target.", resolvedTargetPath)
-	} else {
-		message += "The link target resolves outside this repository. Set allow_symlink_write to true only to intentionally change the link target."
-	}
-
 	payload, _ := json.Marshal(symlinkWriteBlockedError{
-		Error:              "symlink_write_requires_explicit_opt_in",
+		Error:              "symlink_write_requires_opt_in",
 		Path:               path,
-		SymlinkTarget:      target,
+		Target:             target,
 		ResolvedTargetPath: resolvedTargetPath,
-		Message:            message,
 	})
-	return utils.NewToolResultError(string(payload))
+	recovery := fmt.Sprintf(
+		`Target is outside this repository. Retarget link: allow_symlink_write=true. Replace with a file: push_files path=%q.`,
+		path,
+	)
+	if resolvedTargetPath != "" {
+		recovery = fmt.Sprintf(
+			`Edit target: create_or_update_file path=%q. Retarget link: allow_symlink_write=true. Replace with a file: push_files path=%q.`,
+			resolvedTargetPath,
+			path,
+		)
+	}
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(payload)},
+			&mcp.TextContent{Text: recovery},
+		},
+		IsError: true,
+	}
 }
 
 func symlinkTargetAtPath(ctx context.Context, client *github.Client, owner, repo, treeish, path string) (string, bool, *github.Response, error) {
-	ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/heads/"+treeish)
-	if err != nil {
-		return "", false, resp, err
-	}
-	if resp != nil && resp.Body != nil {
-		_ = resp.Body.Close()
-	}
-	headSHA := ref.GetObject().GetSHA()
-	if headSHA == "" {
-		return "", false, nil, fmt.Errorf("branch %q has no commit SHA", treeish)
-	}
-
-	entry, resp, err := getTreeEntry(ctx, client, owner, repo, headSHA, path)
+	entry, resp, err := getTreeEntry(ctx, client, owner, repo, treeish, path)
 	if err != nil {
 		return "", false, resp, err
 	}
@@ -157,6 +153,7 @@ func symlinkTargetAtPath(ctx context.Context, client *github.Client, owner, repo
 
 func getTreeEntry(ctx context.Context, client *github.Client, owner, repo, treeish, path string) (*github.TreeEntry, *github.Response, error) {
 	segments := strings.Split(pathpkg.Clean(strings.TrimPrefix(path, "/")), "/")
+	treeish = escapeGitTreeish(treeish)
 	for i, segment := range segments {
 		tree, resp, err := client.Git.GetTree(ctx, owner, repo, treeish, false)
 		if err != nil {
@@ -164,6 +161,9 @@ func getTreeEntry(ctx context.Context, client *github.Client, owner, repo, treei
 		}
 		if resp != nil && resp.Body != nil {
 			_ = resp.Body.Close()
+		}
+		if tree.GetTruncated() {
+			return nil, resp, fmt.Errorf("git tree %q is truncated", treeish)
 		}
 
 		var matched *github.TreeEntry
@@ -185,6 +185,14 @@ func getTreeEntry(ctx context.Context, client *github.Client, owner, repo, treei
 		treeish = matched.GetSHA()
 	}
 	return nil, nil, nil
+}
+
+func escapeGitTreeish(treeish string) string {
+	segments := strings.Split(treeish, "/")
+	for i, segment := range segments {
+		segments[i] = url.PathEscape(segment)
+	}
+	return strings.Join(segments, "/")
 }
 
 func resolveRepositorySymlinkTarget(linkPath, target string) string {

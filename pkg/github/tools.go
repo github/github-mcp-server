@@ -38,11 +38,10 @@ var (
 		InstructionsFunc: generateContextToolsetInstructions,
 	}
 	ToolsetMetadataRepos = inventory.ToolsetMetadata{
-		ID:               "repos",
-		Description:      "GitHub Repository related tools",
-		Default:          true,
-		Icon:             "repo",
-		InstructionsFunc: generateReposToolsetInstructions,
+		ID:          "repos",
+		Description: "GitHub Repository related tools",
+		Default:     true,
+		Icon:        "repo",
 	}
 	ToolsetMetadataGit = inventory.ToolsetMetadata{
 		ID:          "git",

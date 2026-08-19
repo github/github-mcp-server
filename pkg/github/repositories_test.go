@@ -26,6 +26,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type repositoryRequestCountingTransport struct {
+	inner http.RoundTripper
+	count int
+}
+
+func (t *repositoryRequestCountingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	t.count++
+	return t.inner.RoundTrip(req)
+}
+
 func Test_GetFileContents(t *testing.T) {
 	// Verify tool definition once
 	serverTool := GetFileContents(translations.NullTranslationHelper)
@@ -1767,6 +1777,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 	assert.Contains(t, schema.Properties, "message")
 	assert.Contains(t, schema.Properties, "branch")
 	assert.Contains(t, schema.Properties, "sha")
+	assert.Contains(t, schema.Properties, "allow_symlink_write")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "path", "content", "message", "branch"})
 
 	// Setup mock file content response
@@ -1794,7 +1805,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		return func(w http.ResponseWriter, r *http.Request) {
 			var tree *github.Tree
 			switch {
-			case strings.HasSuffix(r.URL.Path, "/head-sha"):
+			case strings.HasSuffix(r.URL.Path, "/main"), strings.HasSuffix(r.URL.Path, "/release/#candidate"):
 				tree = &github.Tree{
 					Entries: []*github.TreeEntry{
 						{
@@ -1822,22 +1833,16 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			mockResponse(t, http.StatusOK, tree)(w, r)
 		}
 	}
-	mockBranchRef := mockResponse(t, http.StatusOK, &github.Reference{
-		Ref: github.Ptr("refs/heads/main"),
-		Object: &github.GitObject{
-			SHA:  github.Ptr("head-sha"),
-			Type: github.Ptr("commit"),
-		},
-	})
 
 	tests := []struct {
-		name            string
-		mockedClient    *http.Client
-		requestArgs     map[string]any
-		expectError     bool
-		expectedContent *github.RepositoryContentResponse
-		expectedErrMsg  string
-		expectedErrMsgs []string
+		name                 string
+		mockedClient         *http.Client
+		requestArgs          map[string]any
+		expectError          bool
+		expectedContent      *github.RepositoryContentResponse
+		expectedErrMsg       string
+		expectedErrMsgs      []string
+		expectedRequestCount int
 	}{
 		{
 			name: "successful file creation",
@@ -1865,13 +1870,13 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"message": "Add example file",
 				"branch":  "main",
 			},
-			expectError:     false,
-			expectedContent: mockFileResponse,
+			expectError:          false,
+			expectedContent:      mockFileResponse,
+			expectedRequestCount: 2,
 		},
 		{
 			name: "successful file update with SHA",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposGitRefByOwnerByRepoByRef:    mockBranchRef,
 				GetReposGitTreesByOwnerByRepoByTree: mockPathTree("100644"),
 				"GET /repos/owner/repo/contents/docs/example.md": mockResponse(t, http.StatusOK, &github.RepositoryContent{
 					SHA:  github.Ptr("abc123def456"),
@@ -1907,8 +1912,9 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"branch":  "main",
 				"sha":     "abc123def456",
 			},
-			expectError:     false,
-			expectedContent: mockFileResponse,
+			expectError:          false,
+			expectedContent:      mockFileResponse,
+			expectedRequestCount: 4,
 		},
 		{
 			name: "file creation fails",
@@ -1930,13 +1936,13 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"message": "Invalid request",
 				"branch":  "nonexistent-branch",
 			},
-			expectError:    true,
-			expectedErrMsg: "failed to create/update file",
+			expectError:          true,
+			expectedErrMsg:       "failed to create/update file",
+			expectedRequestCount: 2,
 		},
 		{
 			name: "sha validation - current sha matches",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposGitRefByOwnerByRepoByRef:    mockBranchRef,
 				GetReposGitTreesByOwnerByRepoByTree: mockPathTree("100644"),
 				"GET /repos/owner/repo/contents/docs/example.md": mockResponse(t, http.StatusOK, &github.RepositoryContent{
 					SHA:  github.Ptr("abc123def456"),
@@ -1972,13 +1978,13 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"branch":  "main",
 				"sha":     "abc123def456",
 			},
-			expectError:     false,
-			expectedContent: mockFileResponse,
+			expectError:          false,
+			expectedContent:      mockFileResponse,
+			expectedRequestCount: 4,
 		},
 		{
 			name: "rejects symbolic link update without explicit opt-in",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposGitRefByOwnerByRepoByRef:    mockBranchRef,
 				GetReposGitTreesByOwnerByRepoByTree: mockPathTree("120000"),
 				GetReposGitBlobsByOwnerByRepoByFileSHA: func(w http.ResponseWriter, _ *http.Request) {
 					_, _ = w.Write([]byte("other.md"))
@@ -2002,24 +2008,22 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"sha":     "abc123def456",
 			},
 			expectError:    true,
-			expectedErrMsg: `"error":"symlink_write_requires_explicit_opt_in"`,
+			expectedErrMsg: `"error":"symlink_write_requires_opt_in"`,
 			expectedErrMsgs: []string{
-				`"symlink_target":"other.md"`,
-				`"resolved_target_path":"docs/other.md"`,
+				`"target":"other.md"`,
+				`"resolved_path":"docs/other.md"`,
+				`create_or_update_file path="docs/other.md"`,
+				`allow_symlink_write=true`,
+				`push_files path="docs/example.md"`,
 			},
+			expectedRequestCount: 4,
 		},
 		{
-			name: "resolves special-character branch before inspecting symlink",
+			name: "escapes special-character branch before inspecting symlink",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposGitRefByOwnerByRepoByRef: func(w http.ResponseWriter, r *http.Request) {
-					assert.Contains(t, r.URL.EscapedPath(), "/git/ref/heads/release%23candidate")
-					mockResponse(t, http.StatusOK, &github.Reference{
-						Ref: github.Ptr("refs/heads/release#candidate"),
-						Object: &github.GitObject{
-							SHA:  github.Ptr("head-sha"),
-							Type: github.Ptr("commit"),
-						},
-					})(w, r)
+				"GET /repos/owner/repo/git/trees/release/#candidate": func(w http.ResponseWriter, r *http.Request) {
+					assert.Contains(t, r.URL.EscapedPath(), "/git/trees/release/%23candidate")
+					mockPathTree("120000")(w, r)
 				},
 				GetReposGitTreesByOwnerByRepoByTree: mockPathTree("120000"),
 				GetReposGitBlobsByOwnerByRepoByFileSHA: func(w http.ResponseWriter, _ *http.Request) {
@@ -2040,11 +2044,12 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"path":    "docs/example.md",
 				"content": "# Content returned by get_file_contents",
 				"message": "Update linked file",
-				"branch":  "release#candidate",
+				"branch":  "release/#candidate",
 				"sha":     "abc123def456",
 			},
-			expectError:    true,
-			expectedErrMsg: `"error":"symlink_write_requires_explicit_opt_in"`,
+			expectError:          true,
+			expectedErrMsg:       `"error":"symlink_write_requires_opt_in"`,
+			expectedRequestCount: 4,
 		},
 		{
 			name: "allows intentional symbolic link update with explicit opt-in",
@@ -2084,8 +2089,69 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"sha":                 "abc123def456",
 				"allow_symlink_write": true,
 			},
-			expectError:     false,
-			expectedContent: mockFileResponse,
+			expectError:          false,
+			expectedContent:      mockFileResponse,
+			expectedRequestCount: 2,
+		},
+		{
+			name: "rejects explicit symbolic link response without tree inspection",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/owner/repo/contents/docs/example.md": mockResponse(t, http.StatusOK, &github.RepositoryContent{
+					SHA:    github.Ptr("abc123def456"),
+					Type:   github.Ptr("symlink"),
+					Target: github.Ptr("../../outside"),
+				}),
+				"GET /repos/{owner}/{repo}/contents/{path:.*}": mockResponse(t, http.StatusOK, &github.RepositoryContent{
+					SHA:    github.Ptr("abc123def456"),
+					Type:   github.Ptr("symlink"),
+					Target: github.Ptr("../../outside"),
+				}),
+			}),
+			requestArgs: map[string]any{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"content": "new-target",
+				"message": "Update linked file",
+				"branch":  "main",
+				"sha":     "abc123def456",
+			},
+			expectError:    true,
+			expectedErrMsg: `"target":"../../outside"`,
+			expectedErrMsgs: []string{
+				`"error":"symlink_write_requires_opt_in"`,
+				`Target is outside this repository`,
+				`push_files path="docs/example.md"`,
+			},
+			expectedRequestCount: 1,
+		},
+		{
+			name: "fails closed when git tree is truncated",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitTreesByOwnerByRepoByTree: mockResponse(t, http.StatusOK, &github.Tree{
+					Truncated: github.Ptr(true),
+				}),
+				"GET /repos/owner/repo/contents/docs/example.md": mockResponse(t, http.StatusOK, &github.RepositoryContent{
+					SHA:  github.Ptr("abc123def456"),
+					Type: github.Ptr("file"),
+				}),
+				"GET /repos/{owner}/{repo}/contents/{path:.*}": mockResponse(t, http.StatusOK, &github.RepositoryContent{
+					SHA:  github.Ptr("abc123def456"),
+					Type: github.Ptr("file"),
+				}),
+			}),
+			requestArgs: map[string]any{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"content": "updated",
+				"message": "Update file",
+				"branch":  "main",
+				"sha":     "abc123def456",
+			},
+			expectError:          true,
+			expectedErrMsg:       "failed to verify whether file path is a symbolic link",
+			expectedRequestCount: 2,
 		},
 		{
 			name: "sha validation - stale sha detected",
@@ -2108,8 +2174,9 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"branch":  "main",
 				"sha":     "oldsha123456",
 			},
-			expectError:    true,
-			expectedErrMsg: "SHA mismatch: provided SHA oldsha123456 is stale. Current file SHA is newsha999888",
+			expectError:          true,
+			expectedErrMsg:       "SHA mismatch: provided SHA oldsha123456 is stale. Current file SHA is newsha999888",
+			expectedRequestCount: 1,
 		},
 		{
 			name: "sha validation - file doesn't exist (404), proceed with create",
@@ -2146,8 +2213,9 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"branch":  "main",
 				"sha":     "ignoredsha",
 			},
-			expectError:     false,
-			expectedContent: mockFileResponse,
+			expectError:          false,
+			expectedContent:      mockFileResponse,
+			expectedRequestCount: 2,
 		},
 		{
 			name: "no sha provided - file exists, rejects update",
@@ -2169,8 +2237,9 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"message": "Update without SHA",
 				"branch":  "main",
 			},
-			expectError:    true,
-			expectedErrMsg: "File already exists at docs/example.md",
+			expectError:          true,
+			expectedErrMsg:       "File already exists at docs/example.md",
+			expectedRequestCount: 1,
 		},
 		{
 			name: "no sha provided - file doesn't exist, no warning",
@@ -2204,15 +2273,17 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"message": "Create new file",
 				"branch":  "main",
 			},
-			expectError:     false,
-			expectedContent: mockFileResponse,
+			expectError:          false,
+			expectedContent:      mockFileResponse,
+			expectedRequestCount: 2,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := mustNewGHClient(t, tc.mockedClient)
+			requestCounter := &repositoryRequestCountingTransport{inner: tc.mockedClient.Transport}
+			client := mustNewGHClient(t, &http.Client{Transport: requestCounter})
 			deps := BaseDeps{
 				Client: client,
 			}
@@ -2223,15 +2294,24 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 
 			// Call handler
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			if tc.expectedRequestCount > 0 {
+				assert.Equal(t, tc.expectedRequestCount, requestCounter.count)
+			}
 
 			// Verify results
 			if tc.expectError {
 				require.NoError(t, err)
 				require.True(t, result.IsError)
-				errorContent := getErrorResult(t, result)
-				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				var errorText strings.Builder
+				for _, content := range result.Content {
+					textContent, ok := content.(*mcp.TextContent)
+					require.True(t, ok, "expected error content to be TextContent")
+					errorText.WriteString(textContent.Text)
+					errorText.WriteByte('\n')
+				}
+				assert.Contains(t, errorText.String(), tc.expectedErrMsg)
 				for _, expectedErrMsg := range tc.expectedErrMsgs {
-					assert.Contains(t, errorContent.Text, expectedErrMsg)
+					assert.Contains(t, errorText.String(), expectedErrMsg)
 				}
 				return
 			}

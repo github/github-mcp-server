@@ -433,7 +433,7 @@ SHA MUST be provided for existing file updates.
 					},
 					"path": {
 						Type:        "string",
-						Description: "Exact Git path to write. Writing to a symbolic link path changes the link target to the supplied content; it does not update the linked file.",
+						Description: "Path where to create/update the file",
 					},
 					"content": {
 						Type:        "string",
@@ -453,7 +453,7 @@ SHA MUST be provided for existing file updates.
 					},
 					"allow_symlink_write": {
 						Type:        "boolean",
-						Description: "Set to true only to intentionally change a symbolic link's target. The content must be the new link target path. By default, writes to existing symbolic links are rejected to prevent replacing the link target with file contents returned by get_file_contents.",
+						Description: "Set true to update a symbolic link itself; content must be its new target path.",
 						Default:     json.RawMessage("false"),
 					},
 				},
@@ -552,6 +552,9 @@ SHA MUST be provided for existing file updates.
 							sha, currentSHA, branch, path)), nil, nil
 					}
 					if !allowSymlinkWrite {
+						if existingFile.GetType() == "symlink" {
+							return newSymlinkWriteBlockedResult(path, existingFile.GetTarget()), nil, nil
+						}
 						symlinkTarget, isSymlink, respTree, err := symlinkTargetAtPath(ctx, client, owner, repo, branch, path)
 						if err != nil {
 							return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -1596,7 +1599,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 							Properties: map[string]*jsonschema.Schema{
 								"path": {
 									Type:        "string",
-									Description: "Exact Git path to write. Writing to a symbolic link path replaces the link with a regular file; use the linked file's path to update its contents.",
+									Description: "path to the file",
 								},
 								"content": {
 									Type:        "string",
