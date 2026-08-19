@@ -28,6 +28,10 @@ type RepoAccessCache struct {
 	logger           *slog.Logger
 	trustedBotLogins map[string]struct{}
 
+	// identityDigest scopes this instance's entry keys to a single request
+	// identity. Empty means entries are unscoped. See WithIdentity.
+	identityDigest string
+
 	// now returns the current time and defaults to time.Now. Tests override it
 	// to exercise bounded expiry deterministically without sleeping.
 	now func() time.Time
@@ -84,12 +88,13 @@ func WithLogger(logger *slog.Logger) RepoAccessOption {
 // WithCacheName overrides the cache table name used for storing entries.
 // Use this to isolate cache entries between tenants or in tests.
 //
-// cache2go.Cache(name) returns a process-wide singleton table keyed by name,
-// so any two RepoAccessCache instances constructed with the same name share
-// every cached trust decision. In deployments that serve multiple request
-// identities from one process (e.g. the HTTP server), callers MUST derive a
-// distinct name per identity — see CacheNameForIdentity — or one identity's
-// cached decision can be served to another.
+// cache2go.Cache(name) returns a process-wide singleton table that is created
+// on first use and never reclaimed, so the set of names a process passes here
+// must be bounded and known ahead of time. Never derive a name from
+// request-supplied data such as an auth token: the table registry would grow
+// without bound, retaining every distinct value seen for the lifetime of the
+// process. To isolate cached decisions per request identity, use WithIdentity,
+// which keeps a single table and scopes individual entries instead.
 func WithCacheName(name string) RepoAccessOption {
 	return func(c *RepoAccessCache) {
 		if name != "" {
@@ -98,22 +103,29 @@ func WithCacheName(name string) RepoAccessOption {
 	}
 }
 
-// CacheNameForIdentity derives a stable cache table name scoped to a single
-// request identity (typically an auth token). Two calls with the same
-// identity always return the same name, so repeated requests from the same
-// identity keep sharing a warm cache; two calls with different identities
-// always return different names, so their cached trust decisions cannot mix.
+// WithIdentity scopes this cache's entries to a single request identity
+// (typically an auth token), so a trust decision computed under one caller's
+// credentials is never served to another. Two instances configured with the
+// same identity share a warm cache; instances with different identities
+// cannot observe each other's entries.
 //
-// The identity is hashed so it never appears verbatim in cache-table names,
-// logs, or metrics. An empty identity returns an empty string, which
-// WithCacheName treats as a no-op (falling back to the default shared name);
-// callers that need isolation must ensure a non-empty identity is supplied.
-func CacheNameForIdentity(identity string) string {
-	if identity == "" {
-		return ""
+// Isolation is applied to the entry key rather than the cache table: entries
+// are stored in the shared table under a key prefixed with a digest of the
+// identity. This keeps storage bounded, because per-identity entries are
+// reclaimed by the same TTL cleanup as any other entry. Allocating a table
+// per identity instead would leak, since cache2go never evicts tables.
+//
+// The identity is hashed so it never appears verbatim in cache keys, logs, or
+// metrics. An empty identity is a no-op, leaving this instance's entries
+// unscoped; callers that need isolation must supply a non-empty identity.
+func WithIdentity(identity string) RepoAccessOption {
+	return func(c *RepoAccessCache) {
+		if identity == "" {
+			return
+		}
+		sum := sha256.Sum256([]byte(identity))
+		c.identityDigest = hex.EncodeToString(sum[:])
 	}
-	sum := sha256.Sum256([]byte(identity))
-	return "repo-access:" + hex.EncodeToString(sum[:])
 }
 
 // NewRepoAccessCache creates a RepoAccessCache bound to the supplied clients.
@@ -222,7 +234,7 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 		return RepoAccessInfo{}, fmt.Errorf("nil repo access cache")
 	}
 
-	key := cacheKey(owner, repo)
+	key := c.cacheKey(owner, repo)
 	userKey := strings.ToLower(username)
 
 	// Entries are immutable once added: the cache table is shared across instances,
@@ -378,6 +390,14 @@ func (c *RepoAccessCache) isTrustedBot(username string) bool {
 	return ok
 }
 
-func cacheKey(owner, repo string) string {
-	return fmt.Sprintf("%s/%s", strings.ToLower(owner), strings.ToLower(repo))
+// cacheKey returns the entry key for owner/repo, prefixed with this cache's
+// identity digest when one is configured. Instances sharing a cache table are
+// kept isolated by this prefix rather than by separate tables, so every
+// identity's entries remain subject to the table's ordinary TTL cleanup.
+func (c *RepoAccessCache) cacheKey(owner, repo string) string {
+	key := fmt.Sprintf("%s/%s", strings.ToLower(owner), strings.ToLower(repo))
+	if c.identityDigest == "" {
+		return key
+	}
+	return c.identityDigest + ":" + key
 }
