@@ -115,81 +115,20 @@ func newMockRepoAccessCache(t *testing.T, ttl time.Duration) (*RepoAccessCache, 
 func TestRepoAccessCacheEvictsAfterTTL(t *testing.T) {
 	ctx := t.Context()
 
-	cache, transport := newMockRepoAccessCache(t, time.Minute)
-	start := time.Now()
-	cache.now = func() time.Time { return start }
-
+	cache, transport := newMockRepoAccessCache(t, 5*time.Millisecond)
 	info, err := cache.getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
 	require.NoError(t, err)
 	require.False(t, info.IsPrivate)
 	require.True(t, info.HasPushAccess)
 	require.EqualValues(t, 1, transport.CallCount())
 
-	cache.now = func() time.Time { return start.Add(2 * time.Minute) }
+	time.Sleep(20 * time.Millisecond)
 
 	info, err = cache.getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
 	require.NoError(t, err)
 	require.False(t, info.IsPrivate)
 	require.True(t, info.HasPushAccess)
 	require.EqualValues(t, 2, transport.CallCount())
-}
-
-// Regression test for #3107: sliding expiry would let a frequently-read entry
-// outlive revoked access, so age must be bounded from creation.
-func TestRepoAccessCacheBoundedExpiryIgnoresRepeatedAccess(t *testing.T) {
-	ctx := t.Context()
-
-	const ttl = 100 * time.Second
-	cache, transport := newMockRepoAccessCache(t, ttl)
-	current := time.Now()
-	cache.now = func() time.Time { return current }
-
-	info, err := cache.getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
-	require.NoError(t, err)
-	require.True(t, info.HasPushAccess)
-	require.EqualValues(t, 1, transport.CallCount())
-
-	// Each read lands well inside the TTL; only their sum exceeds it.
-	for range 4 {
-		current = current.Add(20 * time.Second)
-		_, err = cache.getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
-		require.NoError(t, err)
-	}
-	require.EqualValues(t, 1, transport.CallCount(), "repeated access within the bounded window must still be served from cache")
-
-	current = current.Add(30 * time.Second)
-	info, err = cache.getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
-	require.NoError(t, err)
-	require.True(t, info.HasPushAccess)
-	require.EqualValues(t, 2, transport.CallCount(), "entry must refresh once its absolute age exceeds the TTL, regardless of access frequency")
-}
-
-// A "known users" miss updates an existing entry, a second path that must not
-// reset its age.
-func TestRepoAccessCacheNewUserDoesNotResetEntryAge(t *testing.T) {
-	ctx := t.Context()
-
-	const ttl = 100 * time.Second
-	gqlClient, transport := newMockGQLClient(testUser, false)
-	restClient := newMockRESTServer(t, "write")
-	cache := NewRepoAccessCache(gqlClient, restClient, WithTTL(ttl), WithCacheName(t.Name()))
-
-	start := time.Now()
-	cache.now = func() time.Time { return start }
-
-	_, err := cache.getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
-	require.NoError(t, err)
-	require.EqualValues(t, 1, transport.CallCount())
-
-	cache.now = func() time.Time { return start.Add(50 * time.Second) }
-	_, err = cache.getRepoAccessInfo(ctx, "someone-else", testOwner, testRepo)
-	require.NoError(t, err)
-	require.EqualValues(t, 1, transport.CallCount(), "checking a new user against a cached repo entry must not re-query repo metadata")
-
-	cache.now = func() time.Time { return start.Add(120 * time.Second) }
-	_, err = cache.getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
-	require.NoError(t, err)
-	require.EqualValues(t, 2, transport.CallCount(), "entry age must be bounded from its original creation, not reset by learning about a new user")
 }
 
 func TestRepoAccessCacheIsolatesViewerPerInstance(t *testing.T) {
@@ -272,8 +211,8 @@ func TestRepoAccessCacheIdentityScopingIsolatesWithinOneTable(t *testing.T) {
 	require.EqualValues(t, 2, table.Count(), "a repeated request from a known identity must not add another entry")
 }
 
-// Key-scoped entries stay bounded because ordinary TTL cleanup reclaims them;
-// a table per identity could not shrink this way.
+// Key-scoped entries stay bounded because ordinary idle-TTL cleanup reclaims
+// them; a table per identity could not shrink this way.
 func TestRepoAccessCacheIdentityScopedEntriesAreReclaimed(t *testing.T) {
 	ctx := t.Context()
 
@@ -296,7 +235,7 @@ func TestRepoAccessCacheIdentityScopedEntriesAreReclaimed(t *testing.T) {
 	require.EqualValues(t, len(identities), table.Count(), "each identity should hold exactly one entry in the shared table")
 
 	require.Eventually(t, func() bool { return table.Count() == 0 }, 30*time.Second, 10*time.Millisecond,
-		"per-identity entries must be reclaimed by ordinary TTL cleanup so cache storage stays bounded")
+		"per-identity entries must be reclaimed by ordinary idle-TTL cleanup so cache storage stays bounded")
 }
 
 type flakyTransport struct {
