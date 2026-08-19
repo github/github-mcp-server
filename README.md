@@ -1600,7 +1600,7 @@ docker run -i --rm \
 
 ## Lockdown Mode
 
-Lockdown mode limits the content that the server will surface from public repositories. When enabled, the server checks whether the author of each item has push access to the repository. Private repositories are unaffected, and collaborators keep full access to their own content.
+Lockdown mode limits the content that the server will surface from public repositories. When enabled, the server checks whether the author of each item has push access to the repository. Private repositories are unaffected, and collaborators keep full access to their own content. Lockdown mode is a best-effort content filter, not a security boundary.
 
 ```bash
 ./github-mcp-server --lockdown-mode
@@ -1614,6 +1614,8 @@ docker run -i --rm \
   -e GITHUB_LOCKDOWN_MODE=1 \
   ghcr.io/github/github-mcp-server
 ```
+
+In HTTP mode, this flag (or `GITHUB_LOCKDOWN_MODE`) is an upper bound: the `X-MCP-Lockdown` request header can enable lockdown mode when the operator has not, but it cannot disable lockdown mode the operator has already enabled. See the [Server Configuration Guide](docs/server-configuration.md#lockdown-mode) for details.
 
 The behavior of lockdown mode depends on the tool invoked.
 

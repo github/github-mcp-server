@@ -439,9 +439,19 @@ func (d *RequestDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 	return rawClient, nil
 }
 
+// effectiveLockdownMode reports whether lockdown mode is active for the current
+// request. Server-side configuration (d.lockdownMode) is an upper bound: once the
+// operator has enabled lockdown mode, no request can disable it. Request-scoped
+// configuration (the X-MCP-Lockdown header, surfaced via ghcontext.IsLockdownMode)
+// may only tighten restrictions by enabling lockdown when the operator has not
+// already done so; it can never be used to relax server-enforced lockdown.
+func (d *RequestDeps) effectiveLockdownMode(ctx context.Context) bool {
+	return d.lockdownMode || ghcontext.IsLockdownMode(ctx)
+}
+
 // GetRepoAccessCache implements ToolDependencies.
 func (d *RequestDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAccessCache, error) {
-	if !d.lockdownMode {
+	if !d.effectiveLockdownMode(ctx) {
 		return nil, nil
 	}
 
@@ -466,7 +476,7 @@ func (d *RequestDeps) GetT() translations.TranslationHelperFunc { return d.T }
 // GetFlags implements ToolDependencies.
 func (d *RequestDeps) GetFlags(ctx context.Context) FeatureFlags {
 	return FeatureFlags{
-		LockdownMode: d.lockdownMode && ghcontext.IsLockdownMode(ctx),
+		LockdownMode: d.effectiveLockdownMode(ctx),
 	}
 }
 
