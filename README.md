@@ -1600,7 +1600,11 @@ docker run -i --rm \
 
 ## Lockdown Mode
 
-Lockdown mode limits the content that the server will surface from public repositories. When enabled, the server checks whether the author of each item has push access to the repository. Private repositories are unaffected, and collaborators keep full access to their own content. Lockdown mode is a best-effort content filter, not a security boundary.
+Lockdown mode limits the content that the server will surface from public repositories. When enabled, the server checks whether the author of each item has push access to the repository. Private repositories are unaffected, and collaborators keep full access to their own content.
+
+Lockdown mode is a best-effort content filter intended to reduce the risk of prompt injection from untrusted repository content (issues, pull requests, comments, commits, etc.). It is **not** an authorization boundary: it does not change what the underlying GitHub credential can read or write, and content withheld from a filtered tool response may still be reachable through other tools or direct GitHub API access with the same credential.
+
+As an intentional exception, content authored by a small set of trusted bot accounts (currently `github-actions[bot]` and `copilot`) is always treated as safe, regardless of push access. This avoids filtering routine automation output (e.g. CI-generated commits or comments) that would otherwise be withheld under lockdown mode.
 
 ```bash
 ./github-mcp-server --lockdown-mode
@@ -1623,6 +1627,9 @@ Following tools will return an error when the author lacks the push access:
 
 - `issue_read:get`
 - `pull_request_read:get`
+- `pull_request_read:get_diff`
+- `pull_request_read:get_files`
+- `pull_request_read:get_commits`
 
 Following tools will filter out content from users lacking the push access:
 
