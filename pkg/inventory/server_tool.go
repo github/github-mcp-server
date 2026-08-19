@@ -1,6 +1,7 @@
 package inventory
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -209,19 +210,32 @@ func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset Too
 		// HandlerFunc ignores deps - deps are retrieved from context at call time
 		HandlerFunc: func(_ any) mcp.ToolHandler {
 			return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				rawArguments := req.Params.Arguments
+				if len(rawArguments) == 0 {
+					rawArguments = json.RawMessage(`{}`)
+				}
+
+				if bytes.Equal(bytes.TrimSpace(rawArguments), []byte("null")) {
+					return invalidArgumentsResult(fmt.Errorf("arguments must be a JSON object")), nil
+				}
+
 				var arguments In
-				if err := json.Unmarshal(req.Params.Arguments, &arguments); err != nil {
-					return &mcp.CallToolResult{
-						Content: []mcp.Content{
-							&mcp.TextContent{Text: fmt.Sprintf("invalid arguments: %s", err)},
-						},
-						IsError: true,
-					}, nil
+				if err := json.Unmarshal(rawArguments, &arguments); err != nil {
+					return invalidArgumentsResult(err), nil
 				}
 				resp, _, err := handler(ctx, req, arguments)
 				return resp, err
 			}
 		},
+	}
+}
+
+func invalidArgumentsResult(err error) *mcp.CallToolResult {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf("invalid arguments: %s", err)},
+		},
+		IsError: true,
 	}
 }
 
