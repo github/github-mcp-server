@@ -223,3 +223,29 @@ func TestToolScopeInfo_MissingScopes(t *testing.T) {
 		})
 	}
 }
+
+func TestToolScopeInfo_Resolve(t *testing.T) {
+	base := &ToolScopeInfo{
+		RequiredScopes: []string{"repo"},
+		AcceptedScopes: []string{"repo"},
+		ScopeResolver: func(arguments map[string]any) []string {
+			if arguments["workflow"] == true {
+				return []string{"workflow"}
+			}
+			return nil
+		},
+	}
+
+	resolved := base.Resolve(map[string]any{"workflow": true})
+	require.NotSame(t, base, resolved)
+	assert.Equal(t, []string{"repo", "workflow"}, resolved.RequiredScopes)
+	assert.Equal(t, [][]string{{"repo"}, {"workflow"}}, resolved.RequiredScopeGroups)
+	assert.True(t, resolved.HasAcceptedScope("repo", "workflow"))
+	assert.False(t, resolved.HasAcceptedScope("repo"))
+	assert.False(t, resolved.HasAcceptedScope("workflow"))
+	assert.Equal(t, []string{"workflow"}, resolved.MissingScopes("repo"))
+
+	assert.Equal(t, []string{"repo"}, base.RequiredScopes)
+	assert.Empty(t, base.RequiredScopeGroups)
+	assert.Same(t, base, base.Resolve(map[string]any{"workflow": false}))
+}
