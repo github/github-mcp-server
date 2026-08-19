@@ -393,15 +393,12 @@ func Test_ListIssues_AssigneesField(t *testing.T) {
 	})
 
 	t.Run("unassigned issues serialize as an empty array", func(t *testing.T) {
-		// The mock returns one assigned issue, so drive the empty case through
-		// the conversion directly: no assignees node must still yield [], never
-		// null and never an absent key.
 		issue := fragmentToMinimalIssue(IssueFragment{})
 		require.NotNil(t, issue.Assignees)
 
-		encoded, err := json.Marshal(issue)
+		filtered, err := filterFields(issue, []string{"assignees"})
 		require.NoError(t, err)
-		assert.Contains(t, string(encoded), "\"assignees\":[]")
+		assert.Equal(t, map[string]any{"assignees": []any{}}, filtered)
 	})
 }
 

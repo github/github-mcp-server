@@ -144,6 +144,10 @@ func Test_GetIssue(t *testing.T) {
 		User: &github.User{
 			Login: github.Ptr("testuser"),
 		},
+		Assignees: []*github.User{
+			{Login: github.Ptr("octocat")},
+			{Login: github.Ptr("mona")},
+		},
 		Repository: &github.Repository{
 			Name: github.Ptr("repo"),
 			Owner: &github.User{
@@ -287,6 +291,19 @@ func Test_GetIssue(t *testing.T) {
 			assert.Equal(t, tc.expectedIssue.GetState(), returnedIssue.State)
 			assert.Equal(t, tc.expectedIssue.GetHTMLURL(), returnedIssue.HTMLURL)
 			assert.Equal(t, tc.expectedIssue.GetUser().GetLogin(), returnedIssue.User.Login)
+
+			expectedAssignees := make([]string, 0, len(tc.expectedIssue.Assignees))
+			for _, assignee := range tc.expectedIssue.Assignees {
+				expectedAssignees = append(expectedAssignees, assignee.GetLogin())
+			}
+			assert.Equal(t, expectedAssignees, returnedIssue.Assignees)
+
+			var rawIssue map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal([]byte(textContent.Text), &rawIssue))
+			require.Contains(t, rawIssue, "assignees")
+			if len(expectedAssignees) == 0 {
+				assert.JSONEq(t, "[]", string(rawIssue["assignees"]))
+			}
 		})
 	}
 }
