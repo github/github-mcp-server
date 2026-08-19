@@ -112,6 +112,26 @@ func TestFilterInvisibleCharacters(t *testing.T) {
 			input:    "This is a\u200B bug report.\n\nSteps to reproduce:\u200C\n1. Do this\u200E\n2. Do that\u200F",
 			expected: "This is a bug report.\n\nSteps to reproduce:\n1. Do this\n2. Do that",
 		},
+		{
+			name:     "text with arabic letter mark",
+			input:    "Hello\u061CWorld",
+			expected: "HelloWorld",
+		},
+		{
+			name:     "text with variation selector",
+			input:    "Hello\uFE0FWorld",
+			expected: "HelloWorld",
+		},
+		{
+			name:     "text with variation selector supplement",
+			input:    "Hello\U000E0100World",
+			expected: "HelloWorld",
+		},
+		{
+			name:     "emoji variation selector hidden after emoji (steganography)",
+			input:    "\U0001F600\uFE0F\U000E0101Hi",
+			expected: "\U0001F600Hi",
+		},
 	}
 
 	for _, tt := range tests {
@@ -165,6 +185,23 @@ func TestShouldRemoveRune(t *testing.T) {
 		{name: "hidden modifier range end", rune: 0x2064, expected: true},
 		{name: "before hidden modifier range", rune: 0x205F, expected: false},
 		{name: "after hidden modifier range", rune: 0x2065, expected: false},
+
+		// Additional directional mark
+		{name: "arabic letter mark", rune: 0x061C, expected: true},
+
+		// Range tests - Variation selectors: U+FE00–U+FE0F
+		{name: "variation selector range start", rune: 0xFE00, expected: true},
+		{name: "variation selector range middle", rune: 0xFE05, expected: true},
+		{name: "variation selector range end (VS16, emoji presentation)", rune: 0xFE0F, expected: true},
+		{name: "before variation selector range", rune: 0xFDFF, expected: false},
+		{name: "after variation selector range", rune: 0xFE10, expected: false},
+
+		// Range tests - Variation selectors supplement: U+E0100–U+E01EF
+		{name: "variation selector supplement range start", rune: 0xE0100, expected: true},
+		{name: "variation selector supplement range middle", rune: 0xE0150, expected: true},
+		{name: "variation selector supplement range end", rune: 0xE01EF, expected: true},
+		{name: "before variation selector supplement range", rune: 0xE00FF, expected: false},
+		{name: "after variation selector supplement range", rune: 0xE01F0, expected: false},
 
 		// Characters that should NOT be removed
 		{name: "regular ascii letter", rune: 'A', expected: false},
@@ -299,4 +336,79 @@ func TestSanitizeRemovesInvisibleCodeFenceMetadata(t *testing.T) {
 
 	result := Sanitize(input)
 	assert.Equal(t, expected, result)
+}
+
+// TestSanitizeFiltersInvisibleCharactersAfterEntityDecoding covers the core
+// regression from issue #3101: invisible/bidi characters encoded as HTML
+// character entities are decoded by FilterHTMLTags, so the invisible-character
+// policy must also run after HTML processing, not only on the raw input.
+func TestSanitizeFiltersInvisibleCharactersAfterEntityDecoding(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "decimal entity for zero width space",
+			input:    "Hello&#8203;World",
+			expected: "HelloWorld",
+		},
+		{
+			name:     "hexadecimal entity for zero width space",
+			input:    "Hello&#x200B;World",
+			expected: "HelloWorld",
+		},
+		{
+			name:     "hexadecimal entity for zero width space (lowercase x, uppercase hex)",
+			input:    "Hello&#x200b;World",
+			expected: "HelloWorld",
+		},
+		{
+			name:     "decimal entity for right-to-left override",
+			input:    "Hello&#8238;World",
+			expected: "HelloWorld",
+		},
+		{
+			name:     "hexadecimal entity for left-to-right override",
+			input:    "Hello&#x202D;World",
+			expected: "HelloWorld",
+		},
+		{
+			name:     "decimal entity for variation selector",
+			input:    "Hello&#65039;World",
+			expected: "HelloWorld",
+		},
+		{
+			name:     "hexadecimal entity for variation selector supplement",
+			input:    "Hello&#xE0100;World",
+			expected: "HelloWorld",
+		},
+		{
+			name:     "direct invisible rune alongside entity encoded one",
+			input:    "Hello\u200B&#8206;World",
+			expected: "HelloWorld",
+		},
+		{
+			name:     "entity for ordinary ascii character is preserved",
+			input:    "Hello&#65;World",
+			expected: "HelloAWorld",
+		},
+		{
+			name:     "entity for benign unicode character is preserved",
+			input:    "Hello&#19990;World", // &#19990; is 世
+			expected: "Hello世World",
+		},
+		{
+			name:     "benign unicode text without entities is untouched",
+			input:    "Hello 世界 🌍 αβγ",
+			expected: "Hello 世界 🌍 αβγ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := Sanitize(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

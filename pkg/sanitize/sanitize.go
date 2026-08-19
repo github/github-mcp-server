@@ -12,14 +12,24 @@ var policy *bluemonday.Policy
 var policyOnce sync.Once
 
 func Sanitize(input string) string {
-	return FilterHTMLTags(FilterCodeFenceMetadata(FilterInvisibleCharacters(input)))
+	// FilterInvisibleCharacters runs both before and after HTML processing.
+	// The first pass strips raw invisible characters so they don't interfere
+	// with code-fence parsing. HTML sanitization (FilterHTMLTags) decodes
+	// character entities (e.g. "&#8203;" or "&#x200b;" become U+200B), which
+	// can introduce invisible or bidirectional characters that were not
+	// present as literal runes in the original input. The second pass
+	// filters the fully normalized output so entity-encoded characters
+	// cannot survive the policy.
+	return FilterInvisibleCharacters(FilterHTMLTags(FilterCodeFenceMetadata(FilterInvisibleCharacters(input))))
 }
 
 // FilterInvisibleCharacters removes invisible or control characters that should not appear
 // in user-facing titles or bodies. This includes:
 // - Unicode tag characters: U+E0001, U+E0020–U+E007F
 // - BiDi control characters: U+202A–U+202E, U+2066–U+2069
-// - Hidden modifier characters: U+200B, U+200C, U+200E, U+200F, U+00AD, U+FEFF, U+180E, U+2060–U+2064
+// - BiDi/directional marks: U+200E, U+200F, U+061C
+// - Hidden modifier characters: U+200B, U+200C, U+00AD, U+FEFF, U+180E, U+2060–U+2064
+// - Variation selectors: U+FE00–U+FE0F, U+E0100–U+E01EF
 func FilterInvisibleCharacters(input string) string {
 	if input == "" {
 		return input
@@ -179,6 +189,7 @@ func shouldRemoveRune(r rune) bool {
 		0x200C, // ZERO WIDTH NON-JOINER
 		0x200E, // LEFT-TO-RIGHT MARK
 		0x200F, // RIGHT-TO-LEFT MARK
+		0x061C, // ARABIC LETTER MARK
 		0x00AD, // SOFT HYPHEN
 		0xFEFF, // ZERO WIDTH NO-BREAK SPACE
 		0x180E: // MONGOLIAN VOWEL SEPARATOR
@@ -202,6 +213,14 @@ func shouldRemoveRune(r rune) bool {
 	}
 	// Hidden modifiers: U+2060–U+2064
 	if r >= 0x2060 && r <= 0x2064 {
+		return true
+	}
+	// Variation selectors: U+FE00–U+FE0F
+	if r >= 0xFE00 && r <= 0xFE0F {
+		return true
+	}
+	// Variation selectors supplement: U+E0100–U+E01EF
+	if r >= 0xE0100 && r <= 0xE01EF {
 		return true
 	}
 
