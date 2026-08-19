@@ -24,8 +24,3 @@ jobs:
         with:
           # sync with script/lint
           version: v2.9
-          # The action's config verification downloads a JSON schema from
-          # golangci-lint.run on every run, so a blip reaching that host fails
-          # the job before any linter runs. Skip it: linting must depend only
-          # on the checked-out code, and script/lint does not verify either.
-          verify: false
