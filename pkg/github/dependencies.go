@@ -439,12 +439,10 @@ func (d *RequestDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 	return rawClient, nil
 }
 
-// effectiveLockdownMode reports whether lockdown mode is active for the current
-// request. Server-side configuration (d.lockdownMode) is an upper bound: once the
-// operator has enabled lockdown mode, no request can disable it. Request-scoped
-// configuration (the X-MCP-Lockdown header, surfaced via ghcontext.IsLockdownMode)
-// may only tighten restrictions by enabling lockdown when the operator has not
-// already done so; it can never be used to relax server-enforced lockdown.
+// effectiveLockdownMode reports whether lockdown mode is active for the
+// request. d.lockdownMode is an operator-set upper bound: the per-request
+// X-MCP-Lockdown header (ghcontext.IsLockdownMode) can only enable lockdown,
+// never disable one the operator already turned on.
 func (d *RequestDeps) effectiveLockdownMode(ctx context.Context) bool {
 	return d.lockdownMode || ghcontext.IsLockdownMode(ctx)
 }

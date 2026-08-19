@@ -198,13 +198,8 @@ func TestIsFeatureEnabled_EmptyFlagName(t *testing.T) {
 	assert.False(t, result, "Expected false for empty flag name")
 }
 
-// TestRequestDepsLockdownModeIsUpperBound verifies that, in HTTP mode, the
-// server operator's --lockdown-mode / GITHUB_LOCKDOWN_MODE configuration is an
-// upper bound: request-scoped configuration (the X-MCP-Lockdown header,
-// surfaced as ghcontext.WithLockdownMode) may enable or tighten lockdown, but
-// can never disable lockdown the operator has already turned on. Lockdown mode
-// remains a best-effort content filter, not a security boundary — this test
-// only asserts the on/off decision, not any content-filtering guarantee.
+// TestRequestDepsLockdownModeIsUpperBound verifies the X-MCP-Lockdown header
+// can only enable lockdown, never disable the operator's server-side setting.
 func TestRequestDepsLockdownModeIsUpperBound(t *testing.T) {
 	t.Parallel()
 
@@ -284,13 +279,9 @@ func TestRequestDepsLockdownModeIsUpperBound(t *testing.T) {
 	}
 }
 
-// TestRequestDepsLockdownModeCannotBeDisabledByOmittingHeader is a focused
-// regression test for the specific bug in #3104: previously, server-enabled
-// lockdown mode was disabled for any request that did not also send the
-// X-MCP-Lockdown header, letting a request silently opt out of an operator's
-// security posture. A request simply omitting the header (as opposed to
-// explicitly disabling it, which the header format does not support) must not
-// relax lockdown mode below what the operator configured.
+// TestRequestDepsLockdownModeCannotBeDisabledByOmittingHeader is a regression
+// test for #3104: omitting the X-MCP-Lockdown header must not disable
+// server-enabled lockdown mode.
 func TestRequestDepsLockdownModeCannotBeDisabledByOmittingHeader(t *testing.T) {
 	t.Parallel()
 
@@ -298,7 +289,7 @@ func TestRequestDepsLockdownModeCannotBeDisabledByOmittingHeader(t *testing.T) {
 	deps := github.NewRequestDeps(
 		resolver,
 		"test",
-		true, // server operator enabled lockdown mode
+		true, // server-enabled lockdown
 		nil,
 		translations.NullTranslationHelper,
 		0,
@@ -306,8 +297,7 @@ func TestRequestDepsLockdownModeCannotBeDisabledByOmittingHeader(t *testing.T) {
 		testExporters(),
 	)
 
-	// No ghcontext.WithLockdownMode call: this is what happens when a request
-	// does not send the X-MCP-Lockdown header at all.
+	// No X-MCP-Lockdown header sent.
 	ctx := ghcontext.WithTokenInfo(context.Background(), &ghcontext.TokenInfo{Token: "request-token"})
 
 	flags := deps.GetFlags(ctx)
