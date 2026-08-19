@@ -198,6 +198,17 @@ type MinimalDiscussionComment struct {
 	ReplyTotalCount int                        `json:"replyTotalCount,omitempty"`
 }
 
+// newMinimalDiscussionComment is the single constructor for MinimalDiscussionComment,
+// ensuring the untrusted, user-authored body is sanitized consistently regardless of
+// which discussion query (with or without replies) produced it.
+func newMinimalDiscussionComment(id string, body string, isAnswer bool) MinimalDiscussionComment {
+	return MinimalDiscussionComment{
+		ID:       id,
+		Body:     sanitize.Sanitize(body),
+		IsAnswer: isAnswer,
+	}
+}
+
 // MinimalCodeSearchResult is the trimmed output type for code search results.
 type MinimalCodeSearchResult struct {
 	TotalCount        int                 `json:"total_count"`
@@ -605,6 +616,19 @@ type MinimalPullRequestRef struct {
 	Repository string `json:"repository,omitempty"`
 }
 
+// newMinimalPullRequestRef builds a MinimalPullRequestRef, sanitizing the user-authored
+// title. Callers should use it rather than the struct literal so every tool surfacing a
+// pull request reference strips untrusted content identically.
+func newMinimalPullRequestRef(number int, title, state, url, repository string) MinimalPullRequestRef {
+	return MinimalPullRequestRef{
+		Number:     number,
+		Title:      sanitize.Sanitize(title),
+		State:      state,
+		URL:        url,
+		Repository: repository,
+	}
+}
+
 // MinimalIssueRef is a compact reference to a related issue (e.g. a parent issue).
 // Its keys mirror the get_parent (GetIssueParent) response shape.
 type MinimalIssueRef struct {
@@ -613,6 +637,20 @@ type MinimalIssueRef struct {
 	State      string `json:"state"`
 	URL        string `json:"url"`
 	Repository string `json:"repository,omitempty"`
+}
+
+// newMinimalIssueRef builds a MinimalIssueRef, sanitizing the user-authored title. Callers
+// should use it rather than the struct literal so every tool surfacing an issue reference
+// (issue_read's parent, issue_dependency_read/write, find_duplicate) strips untrusted
+// content identically.
+func newMinimalIssueRef(number int, title, state, url, repository string) MinimalIssueRef {
+	return MinimalIssueRef{
+		Number:     number,
+		Title:      sanitize.Sanitize(title),
+		State:      state,
+		URL:        url,
+		Repository: repository,
+	}
 }
 
 // MinimalSubIssuesSummary holds the native GraphQL subIssuesSummary counts for an issue.
@@ -759,7 +797,7 @@ func convertToMinimalPullRequestReview(review *github.PullRequestReview) Minimal
 	m := MinimalPullRequestReview{
 		ID:                review.GetID(),
 		State:             review.GetState(),
-		Body:              review.GetBody(),
+		Body:              sanitize.Sanitize(review.GetBody()),
 		HTMLURL:           review.GetHTMLURL(),
 		User:              convertToMinimalUser(review.GetUser()),
 		CommitID:          review.GetCommitID(),
@@ -776,8 +814,8 @@ func convertToMinimalPullRequestReview(review *github.PullRequestReview) Minimal
 func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 	m := MinimalIssue{
 		Number:            issue.GetNumber(),
-		Title:             issue.GetTitle(),
-		Body:              issue.GetBody(),
+		Title:             sanitize.Sanitize(issue.GetTitle()),
+		Body:              sanitize.Sanitize(issue.GetBody()),
 		State:             issue.GetState(),
 		StateReason:       issue.GetStateReason(),
 		Draft:             issue.GetDraft(),
@@ -977,7 +1015,7 @@ func convertToMinimalIssuesResponseWithoutFieldValues(fragment issueQueryFragmen
 func convertToMinimalIssueComment(comment *github.IssueComment) MinimalIssueComment {
 	m := MinimalIssueComment{
 		ID:                comment.GetID(),
-		Body:              comment.GetBody(),
+		Body:              sanitize.Sanitize(comment.GetBody()),
 		HTMLURL:           comment.GetHTMLURL(),
 		User:              convertToMinimalUser(comment.GetUser()),
 		AuthorAssociation: comment.GetAuthorAssociation(),
@@ -1026,7 +1064,7 @@ func convertToMinimalFileContentResponse(resp *github.RepositoryContentResponse)
 
 	m.Commit = &MinimalFileCommit{
 		SHA:     resp.Commit.GetSHA(),
-		Message: resp.Commit.GetMessage(),
+		Message: sanitize.Sanitize(resp.Commit.GetMessage()),
 		HTMLURL: resp.Commit.GetHTMLURL(),
 	}
 
@@ -1046,8 +1084,8 @@ func convertToMinimalFileContentResponse(resp *github.RepositoryContentResponse)
 func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
 	m := MinimalPullRequest{
 		Number:         pr.GetNumber(),
-		Title:          pr.GetTitle(),
-		Body:           pr.GetBody(),
+		Title:          sanitize.Sanitize(pr.GetTitle()),
+		Body:           sanitize.Sanitize(pr.GetBody()),
 		State:          pr.GetState(),
 		Draft:          pr.GetDraft(),
 		Merged:         pr.GetMerged(),
@@ -1241,7 +1279,7 @@ func convertIssueToMinimalProjectItemContent(issue *github.Issue) *MinimalProjec
 		ID:          issue.GetID(),
 		NodeID:      issue.GetNodeID(),
 		Number:      issue.GetNumber(),
-		Title:       issue.GetTitle(),
+		Title:       sanitize.Sanitize(issue.GetTitle()),
 		State:       issue.GetState(),
 		StateReason: issue.GetStateReason(),
 		HTMLURL:     issue.GetHTMLURL(),
@@ -1278,7 +1316,7 @@ func convertPullRequestToMinimalProjectItemContent(pr *github.PullRequest) *Mini
 		ID:         pr.GetID(),
 		NodeID:     pr.GetNodeID(),
 		Number:     pr.GetNumber(),
-		Title:      pr.GetTitle(),
+		Title:      sanitize.Sanitize(pr.GetTitle()),
 		State:      pr.GetState(),
 		HTMLURL:    pr.GetHTMLURL(),
 		Repository: pullRequestRepositoryFullName(pr),
@@ -1315,7 +1353,7 @@ func convertDraftIssueToMinimalProjectItemContent(draftIssue *github.ProjectV2Dr
 	m := &MinimalProjectItemContent{
 		ID:        draftIssue.GetID(),
 		NodeID:    draftIssue.GetNodeID(),
-		Title:     draftIssue.GetTitle(),
+		Title:     sanitize.Sanitize(draftIssue.GetTitle()),
 		CreatedAt: formatProjectTimestamp(draftIssue.CreatedAt),
 		UpdatedAt: formatProjectTimestamp(draftIssue.UpdatedAt),
 	}
@@ -1574,7 +1612,7 @@ func minimalProjectPullRequestRefFromPullRequest(pr *github.PullRequest) minimal
 	}
 	return minimalProjectPullRequestRef{
 		Number:     pr.GetNumber(),
-		Title:      pr.GetTitle(),
+		Title:      sanitize.Sanitize(pr.GetTitle()),
 		State:      pr.GetState(),
 		HTMLURL:    pr.GetHTMLURL(),
 		Repository: pullRequestRepositoryFullName(pr),
@@ -1596,7 +1634,7 @@ func minimalProjectPullRequestRefFromMap(value map[string]any) minimalProjectPul
 
 	return minimalProjectPullRequestRef{
 		Number:     intFromAny(value["number"]),
-		Title:      stringFromMap(value, "title"),
+		Title:      sanitize.Sanitize(stringFromMap(value, "title")),
 		State:      stringFromMap(value, "state"),
 		HTMLURL:    htmlURL,
 		Repository: repository,
@@ -1756,7 +1794,7 @@ func newMinimalCommitFromCore(sha, htmlURL string, commit *github.Commit, author
 
 	if commit != nil {
 		minimalCommit.Commit = &MinimalCommitInfo{
-			Message: commit.GetMessage(),
+			Message: sanitize.Sanitize(commit.GetMessage()),
 		}
 
 		if commit.Author != nil {
@@ -1959,7 +1997,7 @@ func convertToMinimalPullRequestCommits(commits []*github.RepositoryCommit) []Mi
 		}
 
 		if commit.Commit != nil {
-			minimalCommit.Message = commit.Commit.GetMessage()
+			minimalCommit.Message = sanitize.Sanitize(commit.Commit.GetMessage())
 			minimalCommit.Author = convertToMinimalCommitAuthor(commit.Commit.Author)
 		}
 
@@ -1997,8 +2035,8 @@ func convertToMinimalRelease(release *github.RepositoryRelease) MinimalRelease {
 	m := MinimalRelease{
 		ID:         release.GetID(),
 		TagName:    release.GetTagName(),
-		Name:       release.GetName(),
-		Body:       release.GetBody(),
+		Name:       sanitize.Sanitize(release.GetName()),
+		Body:       sanitize.Sanitize(release.GetBody()),
 		HTMLURL:    release.GetHTMLURL(),
 		Prerelease: release.GetPrerelease(),
 		Draft:      release.GetDraft(),
@@ -2054,7 +2092,7 @@ func convertToMinimalWorkflowRun(workflowRun *github.WorkflowRun) MinimalWorkflo
 
 	if headCommit := workflowRun.GetHeadCommit(); headCommit != nil && headCommit.GetMessage() != "" {
 		minimalRun.HeadCommit = &MinimalWorkflowRunHeadCommit{
-			Message: headCommit.GetMessage(),
+			Message: sanitize.Sanitize(headCommit.GetMessage()),
 		}
 	}
 
@@ -2239,7 +2277,7 @@ func convertToMinimalReviewThread(thread reviewThreadNode) MinimalReviewThread {
 
 func convertToMinimalReviewComment(c reviewCommentNode) MinimalReviewComment {
 	m := MinimalReviewComment{
-		Body:    string(c.Body),
+		Body:    sanitize.Sanitize(string(c.Body)),
 		Path:    string(c.Path),
 		Author:  string(c.Author.Login),
 		HTMLURL: c.URL.String(),

@@ -120,6 +120,52 @@ func Test_FindDuplicate_RankedResults(t *testing.T) {
 	assert.False(t, candidates[1].LikelyDuplicate)
 }
 
+// Test_FindDuplicate_SanitizesIssueTitle asserts that candidate issue titles, which are
+// user-authored content from an arbitrary repository, are sanitized before being returned.
+// Without this the tool would forward hidden-instruction payloads straight to the model.
+func Test_FindDuplicate_SanitizesIssueTitle(t *testing.T) {
+	serverTool := FindDuplicate(translations.NullTranslationHelper)
+
+	rankedResults := []map[string]any{
+		{
+			"issue": map[string]any{
+				"number":   456,
+				"title":    maliciousText,
+				"state":    "open",
+				"html_url": "https://github.com/owner/repo/issues/456",
+			},
+			"score":            0.95,
+			"confidence":       "high",
+			"likely_duplicate": true,
+		},
+	}
+
+	handler := func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(MustMarshal(rankedResults))
+	}
+
+	client := mustNewGHClient(t, NewMockedHTTPClient(WithRequestMatchHandler(endpointSemanticallySimilar, http.HandlerFunc(handler))))
+	deps := BaseDeps{Client: client}
+	toolHandler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(123),
+	})
+	result, err := toolHandler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, "expected result to not be an error")
+
+	text := getTextResult(t, result)
+	var candidates []duplicateCandidate
+	require.NoError(t, json.Unmarshal([]byte(text.Text), &candidates))
+	require.Len(t, candidates, 1)
+	assert.Equal(t, sanitizedText, candidates[0].Issue.Title)
+	assert.NotContains(t, text.Text, "<script>")
+}
+
 func Test_FindDuplicate_OmitsUnsetParams(t *testing.T) {
 	serverTool := FindDuplicate(translations.NullTranslationHelper)
 

@@ -58,7 +58,7 @@ func TestBearerAuthTransport(t *testing.T) {
 			defer server.Close()
 
 			rt := &BearerAuthTransport{
-				Transport:     http.DefaultTransport,
+				Transport:     newIsolatedTransport(t),
 				Token:         tc.token,
 				TokenProvider: tc.tokenProvider,
 			}
@@ -91,7 +91,7 @@ func TestBearerAuthTransport_TokenProviderResolvedPerRequest(t *testing.T) {
 
 	current := ""
 	rt := &BearerAuthTransport{
-		Transport:     http.DefaultTransport,
+		Transport:     newIsolatedTransport(t),
 		TokenProvider: func() string { return current },
 	}
 
@@ -126,7 +126,7 @@ func TestBearerAuthTransport_PassesGraphQLFeaturesHeader(t *testing.T) {
 	defer server.Close()
 
 	rt := &BearerAuthTransport{
-		Transport: http.DefaultTransport,
+		Transport: newIsolatedTransport(t),
 		Token:     "token",
 	}
 
@@ -150,7 +150,7 @@ func TestBearerAuthTransport_DoesNotMutateOriginalRequest(t *testing.T) {
 	defer server.Close()
 
 	rt := &BearerAuthTransport{
-		Transport: http.DefaultTransport,
+		Transport: newIsolatedTransport(t),
 		Token:     "token",
 	}
 
@@ -356,7 +356,7 @@ func TestBearerAuthTransport_RedirectHostScoping(t *testing.T) {
 	require.NoError(t, err)
 
 	client := &http.Client{Transport: &BearerAuthTransport{
-		Transport:    http.DefaultTransport,
+		Transport:    newIsolatedTransport(t),
 		Token:        "secret-token",
 		AllowedHosts: []string{sourceURL.Host, allowedTargetURL.Host},
 	}}

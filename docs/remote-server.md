@@ -67,9 +67,10 @@ The Remote GitHub MCP server has optional headers equivalent to the Local server
 - `X-MCP-Readonly`: Enables only "read" tools.
     - Equivalent to `GITHUB_READ_ONLY` env var for Local server.
     - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true.
-- `X-MCP-Lockdown`: Enables lockdown mode, hiding public issue details created by users without push access.
+- `X-MCP-Lockdown`: Enables lockdown mode, hiding public issue details created by users without push access. Lockdown mode is a best-effort content filter, not a security boundary.
     - Equivalent to `GITHUB_LOCKDOWN_MODE` env var for Local server.
     - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true.
+    - Server-side lockdown configuration is an upper bound: if the operator has already enabled lockdown mode, this header cannot disable it for a request. The header can only enable (or redundantly re-enable) lockdown mode; it cannot relax lockdown mode below the operator's configuration.
 - `X-MCP-Insiders`: Enables insiders mode for early access to new features.
     - Equivalent to `GITHUB_INSIDERS` env var or `--insiders` flag for Local server.
     - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true.
