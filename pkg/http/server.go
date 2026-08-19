@@ -108,6 +108,11 @@ type ServerConfig struct {
 	// MRTRStateKey is a Base64-encoded 32-byte key used to protect multi-round-trip request state.
 	MRTRStateKey string
 
+	// MaxRequestBodyBytes bounds the size of HTTP request bodies accepted by
+	// the MCP endpoints, enforced before any middleware reads or buffers the
+	// body. When zero, middleware.DefaultMaxRequestBodyBytes is used.
+	MaxRequestBodyBytes int64
+
 	disableDeleteRepository bool
 }
 

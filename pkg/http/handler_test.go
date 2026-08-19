@@ -1287,3 +1287,87 @@ func TestUIMetaStrippedWhenClientLacksCapability(t *testing.T) {
 	require.Len(t, unknown, 1)
 	require.NotNil(t, unknown[0].Tool.Meta["ui"], "_meta.ui should be preserved when capability is unknown and FF is on")
 }
+
+// TestRegisterMiddleware_MaxRequestBodySize verifies that RegisterMiddleware
+// wires the body-size limit ahead of the body-consuming middleware, so an
+// oversized request never reaches the MCP server, and that requests within
+// the configured limit (including exactly at the boundary) still succeed.
+func TestRegisterMiddleware_MaxRequestBodySize(t *testing.T) {
+	const limit = 256
+
+	apiHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+
+	buildBody := func(size int) string {
+		payload := `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"pad":"PADDING"}}`
+		if len(payload) >= size {
+			return payload
+		}
+		pad := strings.Repeat("x", size-len(payload))
+		return strings.Replace(payload, "PADDING", "PADDING"+pad, 1)
+	}
+
+	newHandler := func(t *testing.T, mcpServerFactoryCalled *bool) http.Handler {
+		t.Helper()
+		handler := NewHTTPMcpHandler(
+			context.Background(),
+			&ServerConfig{Version: "test", MaxRequestBodyBytes: limit},
+			nil,
+			translations.NullTranslationHelper,
+			slog.Default(),
+			apiHost,
+			WithInventoryFactory(func(_ *http.Request) (*inventory.Inventory, error) {
+				return inventory.NewBuilder().Build()
+			}),
+			WithGitHubMCPServerFactory(func(_ *http.Request, _ github.ToolDependencies, _ *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+				if mcpServerFactoryCalled != nil {
+					*mcpServerFactoryCalled = true
+				}
+				return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+			}),
+			WithScopeFetcher(allScopesFetcher{}),
+		)
+
+		r := chi.NewRouter()
+		handler.RegisterMiddleware(r)
+		handler.RegisterRoutes(r)
+		return r
+	}
+
+	t.Run("oversized request is rejected before reaching the MCP server", func(t *testing.T) {
+		var mcpServerFactoryCalled bool
+		r := newHandler(t, &mcpServerFactoryCalled)
+
+		body := buildBody(limit + 1)
+		require.Greater(t, len(body), limit)
+
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		req.Header.Set(headers.AuthorizationHeader, strings.Join([]string{"ghs", "test-token"}, "_"))
+
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusRequestEntityTooLarge, rr.Code)
+		assert.Contains(t, rr.Body.String(), "request body too large")
+		assert.False(t, mcpServerFactoryCalled, "the MCP server should never be constructed for an oversized request")
+	})
+
+	t.Run("boundary-size request at the configured limit succeeds", func(t *testing.T) {
+		var mcpServerFactoryCalled bool
+		r := newHandler(t, &mcpServerFactoryCalled)
+
+		body := buildBody(limit)
+		require.Len(t, body, limit)
+
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
+		req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+		req.Header.Set(headers.AuthorizationHeader, strings.Join([]string{"ghs", "test-token"}, "_"))
+
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code, "response body: %s", rr.Body.String())
+		assert.True(t, mcpServerFactoryCalled, "the MCP server should be constructed for an allowed request")
+	})
+}
