@@ -718,7 +718,7 @@ func GranularResolveReviewThread(t translations.TranslationHelperFunc) inventory
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
 
-			result, err := ResolveReviewThread(ctx, gqlClient, threadID, resolutionReasonPtr, true)
+			result, err := ResolveReviewThreadWithReason(ctx, gqlClient, threadID, resolutionReasonPtr, true)
 			return result, nil, err
 		},
 	)
@@ -762,7 +762,7 @@ func GranularUnresolveReviewThread(t translations.TranslationHelperFunc) invento
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
 
-			result, err := ResolveReviewThread(ctx, gqlClient, threadID, nil, false)
+			result, err := ResolveReviewThread(ctx, gqlClient, threadID, false)
 			return result, nil, err
 		},
 	)

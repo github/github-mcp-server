@@ -1863,10 +1863,10 @@ Available methods:
 				result, err := DeletePendingPullRequestReview(ctx, client, params)
 				return result, nil, err
 			case "resolve_thread":
-				result, err := ResolveReviewThread(ctx, client, params.ThreadID, params.ResolutionReason, true)
+				result, err := ResolveReviewThreadWithReason(ctx, client, params.ThreadID, params.ResolutionReason, true)
 				return result, nil, err
 			case "unresolve_thread":
-				result, err := ResolveReviewThread(ctx, client, params.ThreadID, nil, false)
+				result, err := ResolveReviewThread(ctx, client, params.ThreadID, false)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
@@ -2105,7 +2105,12 @@ type resolveReviewThreadInput struct {
 }
 
 // ResolveReviewThread resolves or unresolves a PR review thread using GraphQL mutations.
-func ResolveReviewThread(ctx context.Context, client *githubv4.Client, threadID string, resolutionReason *string, resolve bool) (*mcp.CallToolResult, error) {
+func ResolveReviewThread(ctx context.Context, client *githubv4.Client, threadID string, resolve bool) (*mcp.CallToolResult, error) {
+	return ResolveReviewThreadWithReason(ctx, client, threadID, nil, resolve)
+}
+
+// ResolveReviewThreadWithReason resolves or unresolves a PR review thread with an optional resolution reason.
+func ResolveReviewThreadWithReason(ctx context.Context, client *githubv4.Client, threadID string, resolutionReason *string, resolve bool) (*mcp.CallToolResult, error) {
 	if threadID == "" {
 		return utils.NewToolResultError("threadId is required for resolve_thread and unresolve_thread methods"), nil
 	}
