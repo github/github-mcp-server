@@ -24,13 +24,17 @@ func TestWithScopeChallenge_MaxBodySize(t *testing.T) {
 	oauthCfg := &oauth.Config{}
 	fetcher := &mockScopeFetcher{scopes: []string{"repo"}}
 
-	newRequest := func(body string) *http.Request {
-		req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))
+	newRequestWithBody := func(body io.Reader) *http.Request {
+		req := httptest.NewRequest(http.MethodPost, "/mcp", body)
 		ctx := ghcontext.WithTokenInfo(req.Context(), &ghcontext.TokenInfo{
 			Token:     "******",
 			TokenType: utils.TokenTypeOAuthAccessToken,
 		})
 		return req.WithContext(ctx)
+	}
+
+	newRequest := func(body string) *http.Request {
+		return newRequestWithBody(strings.NewReader(body))
 	}
 
 	t.Run("oversized body is rejected before the fallback parse", func(t *testing.T) {
@@ -44,7 +48,14 @@ func TestWithScopeChallenge_MaxBodySize(t *testing.T) {
 
 		handler := WithMaxBodySize(limit)(WithScopeChallenge(oauthCfg, fetcher)(next))
 
-		req := newRequest(body)
+		// Use an unknown-length body so WithMaxBodySize can't reject the
+		// request via its known-Content-Length fast path (already covered by
+		// body_limit_test.go). This forces the request through to
+		// WithScopeChallenge's fallback io.ReadAll call, exercising its
+		// *http.MaxBytesError handling.
+		req := newRequestWithBody(unknownLengthBody(body))
+		require.Equal(t, int64(-1), req.ContentLength, "test setup: Content-Length should be unknown")
+
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
 

@@ -219,7 +219,14 @@ func TestWithMCPParse_WithMaxBodySize(t *testing.T) {
 
 		handler := WithMaxBodySize(limit)(WithMCPParse()(nextHandler))
 
-		req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))
+		// Use an unknown-length body so WithMaxBodySize can't reject the
+		// request via its known-Content-Length fast path (already covered by
+		// body_limit_test.go). This forces the request through to
+		// WithMCPParse's own io.ReadAll call, exercising its *http.MaxBytesError
+		// handling.
+		req := httptest.NewRequest(http.MethodPost, "/mcp", unknownLengthBody(body))
+		require.Equal(t, int64(-1), req.ContentLength, "test setup: Content-Length should be unknown")
+
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
 
