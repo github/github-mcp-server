@@ -730,7 +730,48 @@ func getIssueQueryTypeWithoutFieldValues(hasLabels bool, hasSince bool) issueQue
 	}
 }
 
+func isUnsupportedIssueFieldValuesSchemaError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	message := strings.ToLower(err.Error())
+	mentionsIssueType := strings.Contains(message, "on type 'issue'") ||
+		strings.Contains(message, `on type "issue"`) ||
+		strings.Contains(message, "on type issue")
+	if strings.Contains(message, "issuefieldvalues") &&
+		mentionsIssueType &&
+		(strings.Contains(message, "doesn't exist on type") ||
+			strings.Contains(message, "does not exist on type") ||
+			strings.Contains(message, "cannot query field") ||
+			strings.Contains(message, "is not defined on type")) {
+		return true
+	}
+
+	issueFieldTypes := [...]string{
+		"issuefielddate",
+		"issuefieldnumber",
+		"issuefieldsingleselect",
+		"issuefieldtext",
+	}
+	for _, issueFieldType := range issueFieldTypes {
+		if !strings.Contains(message, issueFieldType) {
+			continue
+		}
+		return strings.Contains(message, "unknown type") ||
+			strings.Contains(message, "isn't a defined type") ||
+			strings.Contains(message, "is not a defined type") ||
+			strings.Contains(message, "fragment cannot be spread") ||
+			strings.Contains(message, "can never be of type")
+	}
+	return false
+}
+
 func isUnsupportedListIssuesIssueFieldsError(err error) bool {
+	if isUnsupportedIssueFieldValuesSchemaError(err) {
+		return true
+	}
+
 	message := err.Error()
 	if strings.Contains(message, "IssueFieldValueFilter") {
 		return true
@@ -2177,9 +2218,9 @@ func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, n
 	return enrichment, nil
 }
 
-// searchIssuesHandler runs the REST issues search, enriches each hit (best-effort) with custom
-// field values fetched via a single follow-up GraphQL nodes() query, and applies any post-process
-// options (e.g. IFC labelling).
+// searchIssuesHandler runs the REST issues search, enriches each hit with custom field values
+// fetched via a single follow-up GraphQL nodes() query, and applies any post-process options
+// (e.g. IFC labelling).
 func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[string]any, mode searchMode, options ...searchOption) (*mcp.CallToolResult, error) {
 	const errorPrefix = "failed to search issues"
 
@@ -2206,18 +2247,21 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), nil
 	}
 
-	// The field value enrichment is best-effort: a failure here (e.g. a server whose
-	// GraphQL schema predates the issueFieldValues field) must never fail the search.
 	var fieldValuesByID map[string][]MinimalFieldValue
 	if len(result.Issues) > 0 {
 		gqlClient, err := deps.GetGQLClient(ctx)
 		if err != nil {
-			_, _ = ghErrors.NewGitHubGraphQLErrorToCtx(ctx, errorPrefix+": failed to get GitHub GraphQL client", err)
-		} else {
-			fieldValuesByID, err = fetchIssueFieldValuesByNodeID(ctx, gqlClient, result.Issues)
-			if err != nil {
-				_, _ = ghErrors.NewGitHubGraphQLErrorToCtx(ctx, errorPrefix+": failed to fetch issue field values", err)
+			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub GraphQL client", err), nil
+		}
+		fieldValuesByID, err = fetchIssueFieldValuesByNodeID(ctx, gqlClient, result.Issues)
+		if err != nil {
+			const enrichmentError = errorPrefix + ": failed to fetch issue field values"
+			if !isUnsupportedIssueFieldValuesSchemaError(err) {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, enrichmentError, err), nil
 			}
+			// Older GHES schemas can lack this optional enrichment. Preserve the REST
+			// search results while retaining the compatibility failure for observability.
+			_, _ = ghErrors.NewGitHubGraphQLErrorToCtx(ctx, enrichmentError, err)
 		}
 	}
 
