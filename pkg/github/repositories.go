@@ -1071,23 +1071,48 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				if fallbackUsed {
 					successNote = fmt.Sprintf(" Note: the provided ref '%s' does not exist, default branch '%s' was used instead.", originalRef, rawOpts.Ref)
 				}
+				const maxContentSize = 1024 * 1024 // 1MB
 
-				// Empty files (0 bytes) have no content to decode; return
-				// them directly as empty text to avoid errors from
-				// GetContent when the API returns null content with a
-				// base64 encoding field, and to avoid DetectContentType
-				// misclassifying them as binary.
-				if fileSize == 0 {
+				inspection, respInspect, err := inspectRepositoryFile(ctx, client, owner, repo, ref, path, fileContent)
+				if err != nil {
+					if respInspect != nil {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx,
+							"failed to inspect repository file",
+							respInspect,
+							err,
+						), nil, nil
+					}
+					return utils.NewToolResultError(fmt.Sprintf("failed to inspect repository file: %s", err)), nil, nil
+				}
+				if inspection.Submodule != nil {
+					return attachIFC(utils.NewToolResultText(marshalRepositorySubmoduleMetadata(inspection.Submodule))), nil, nil
+				}
+				if inspection.Symlink != nil &&
+					!inspection.ContentAvailable &&
+					(inspection.Symlink.Explicit || fileSize < maxContentSize) {
+					return attachIFC(utils.NewToolResultText(marshalRepositorySymlinkMetadata(
+						inspection.Symlink,
+						unavailableSymlinkContents,
+						successNote,
+					))), nil, nil
+				}
+
+				// Empty files are returned as empty text to avoid
+				// DetectContentType misclassifying them as binary.
+				if fileSize == 0 && inspection.ContentAvailable {
 					result := &mcp.ResourceContents{
 						URI:      resourceURI,
 						Text:     "",
 						MIMEType: "text/plain",
 					}
-					return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded empty file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
+					message := fmt.Sprintf("successfully downloaded empty file (SHA: %s)%s", fileSHA, successNote)
+					if inspection.Symlink != nil {
+						message = marshalRepositorySymlinkMetadata(inspection.Symlink, dereferencedContentLabel, successNote)
+					}
+					return attachIFC(utils.NewToolResultResource(message, result)), nil, nil
 				}
 
 				// For files >= 1MB, return a ResourceLink instead of content
-				const maxContentSize = 1024 * 1024 // 1MB
 				if fileSize >= maxContentSize {
 					size := int64(fileSize)
 					resourceLink := &mcp.ResourceLink{
@@ -1096,22 +1121,28 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						Title: fmt.Sprintf("File: %s", path),
 						Size:  &size,
 					}
+					message := fmt.Sprintf("File %s is too large to display (%d bytes). Use the download URL to fetch the content: %s (SHA: %s)%s",
+						path, fileSize, fileContent.GetDownloadURL(), fileSHA, successNote)
+					if inspection.Symlink != nil {
+						targetPath := inspection.Symlink.ResolvedTargetPath
+						if targetPath == "" {
+							targetPath = inspection.Symlink.Target
+						}
+						resourceLink.Title = fmt.Sprintf("Dereferenced target %s via symlink %s", targetPath, path)
+						message = marshalRepositorySymlinkMetadata(inspection.Symlink, dereferencedContentLabel, successNote)
+					}
 					return attachIFC(utils.NewToolResultResourceLink(
-						fmt.Sprintf("File %s is too large to display (%d bytes). Use the download URL to fetch the content: %s (SHA: %s)%s",
-							path, fileSize, fileContent.GetDownloadURL(), fileSHA, successNote),
+						message,
 						resourceLink)), nil, nil
 				}
-
-				// For files < 1MB, get content directly from Contents API
-				content, err := fileContent.GetContent()
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("failed to decode file content: %s", err)), nil, nil
+				if !inspection.ContentAvailable {
+					return utils.NewToolResultError(fmt.Sprintf("failed to inspect repository file: Contents API did not provide content for path %q", path)), nil, nil
 				}
 
 				// Detect content type from the actual content bytes,
 				// mirroring the original approach of using the Content-Type header
 				// from the raw API response.
-				contentBytes := []byte(content)
+				contentBytes := inspection.Content
 				contentType := http.DetectContentType(contentBytes)
 
 				// Determine if content is text or binary based on detected content type
@@ -1124,10 +1155,14 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				if isTextContent {
 					result := &mcp.ResourceContents{
 						URI:      resourceURI,
-						Text:     content,
+						Text:     string(contentBytes),
 						MIMEType: contentType,
 					}
-					return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
+					message := fmt.Sprintf("successfully downloaded text file (SHA: %s)%s", fileSHA, successNote)
+					if inspection.Symlink != nil {
+						message = marshalRepositorySymlinkMetadata(inspection.Symlink, dereferencedContentLabel, successNote)
+					}
+					return attachIFC(utils.NewToolResultResource(message, result)), nil, nil
 				}
 
 				result := &mcp.ResourceContents{
@@ -1135,7 +1170,11 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					Blob:     contentBytes,
 					MIMEType: contentType,
 				}
-				return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
+				message := fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote)
+				if inspection.Symlink != nil {
+					message = marshalRepositorySymlinkMetadata(inspection.Symlink, dereferencedContentLabel, successNote)
+				}
+				return attachIFC(utils.NewToolResultResource(message, result)), nil, nil
 			} else if dirContent != nil {
 				// file content or file SHA is nil which means it's a directory
 				filtered := false

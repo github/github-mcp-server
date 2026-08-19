@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -36,6 +37,16 @@ func (t *repositoryRequestCountingTransport) RoundTrip(req *http.Request) (*http
 	return t.inner.RoundTrip(req)
 }
 
+func parseRepositoryPathMetadata(t *testing.T, result *mcp.CallToolResult) map[string]any {
+	t.Helper()
+	require.NotEmpty(t, result.Content)
+	text, ok := result.Content[0].(*mcp.TextContent)
+	require.True(t, ok, "expected first result content to be TextContent")
+	var metadata map[string]any
+	require.NoError(t, json.Unmarshal([]byte(text.Text), &metadata))
+	return metadata
+}
+
 func Test_GetFileContents(t *testing.T) {
 	// Verify tool definition once
 	serverTool := GetFileContents(translations.NullTranslationHelper)
@@ -57,6 +68,9 @@ func Test_GetFileContents(t *testing.T) {
 
 	// Mock response for raw content
 	mockRawContent := []byte("# Test Repository\n\nThis is a test repository.")
+	mockPNGContent := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01")
+	mockPDFContent := []byte("%PDF-1.4 fake pdf content")
+	largeFileSHA := strings.Repeat("a", 40)
 
 	// Setup mock directory content for success case
 	mockDirContent := []*github.RepositoryContent{
@@ -97,7 +111,7 @@ func Test_GetFileContents(t *testing.T) {
 					fileContent := &github.RepositoryContent{
 						Name:    github.Ptr("README.md"),
 						Path:    github.Ptr("README.md"),
-						SHA:     github.Ptr("abc123"),
+						SHA:     github.Ptr(gitBlobSHA1(mockRawContent)),
 						Type:    github.Ptr("file"),
 						Content: github.Ptr(string(mockRawContent)),
 						Size:    github.Ptr(len(mockRawContent)),
@@ -127,15 +141,14 @@ func Test_GetFileContents(t *testing.T) {
 				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
 					// PNG magic bytes followed by some data
-					pngContent := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01")
-					encodedContent := base64.StdEncoding.EncodeToString(pngContent)
+					encodedContent := base64.StdEncoding.EncodeToString(mockPNGContent)
 					fileContent := &github.RepositoryContent{
 						Name:     github.Ptr("test.png"),
 						Path:     github.Ptr("test.png"),
-						SHA:      github.Ptr("def456"),
+						SHA:      github.Ptr(gitBlobSHA1(mockPNGContent)),
 						Type:     github.Ptr("file"),
 						Content:  github.Ptr(encodedContent),
-						Size:     github.Ptr(len(pngContent)),
+						Size:     github.Ptr(len(mockPNGContent)),
 						Encoding: github.Ptr("base64"),
 					}
 					contentBytes, _ := json.Marshal(fileContent)
@@ -163,15 +176,14 @@ func Test_GetFileContents(t *testing.T) {
 				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
 					// PDF magic bytes
-					pdfContent := []byte("%PDF-1.4 fake pdf content")
-					encodedContent := base64.StdEncoding.EncodeToString(pdfContent)
+					encodedContent := base64.StdEncoding.EncodeToString(mockPDFContent)
 					fileContent := &github.RepositoryContent{
 						Name:     github.Ptr("document.pdf"),
 						Path:     github.Ptr("document.pdf"),
-						SHA:      github.Ptr("pdf123"),
+						SHA:      github.Ptr(gitBlobSHA1(mockPDFContent)),
 						Type:     github.Ptr("file"),
 						Content:  github.Ptr(encodedContent),
-						Size:     github.Ptr(len(pdfContent)),
+						Size:     github.Ptr(len(mockPDFContent)),
 						Encoding: github.Ptr("base64"),
 					}
 					contentBytes, _ := json.Marshal(fileContent)
@@ -223,7 +235,7 @@ func Test_GetFileContents(t *testing.T) {
 					fileContent := &github.RepositoryContent{
 						Name:     github.Ptr("README.md"),
 						Path:     github.Ptr("README.md"),
-						SHA:      github.Ptr("abc123"),
+						SHA:      github.Ptr(gitBlobSHA1(mockRawContent)),
 						Type:     github.Ptr("file"),
 						Content:  github.Ptr(encodedContent),
 						Size:     github.Ptr(len(mockRawContent)),
@@ -307,7 +319,7 @@ func Test_GetFileContents(t *testing.T) {
 					fileContent := &github.RepositoryContent{
 						Name:     github.Ptr("README.md"),
 						Path:     github.Ptr("README.md"),
-						SHA:      github.Ptr("abc123"),
+						SHA:      github.Ptr(gitBlobSHA1(mockRawContent)),
 						Type:     github.Ptr("file"),
 						Content:  github.Ptr(encodedContent),
 						Size:     github.Ptr(len(mockRawContent)),
@@ -336,13 +348,21 @@ func Test_GetFileContents(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
 				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
+				"GET /repos/owner/repo/git/trees/refs/heads/main": mockResponse(t, http.StatusOK, &github.Tree{
+					Entries: []*github.TreeEntry{{
+						Path: github.Ptr("large-file.bin"),
+						Mode: github.Ptr("100644"),
+						Type: github.Ptr("blob"),
+						SHA:  github.Ptr(largeFileSHA),
+					}},
+				}),
 				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
 					// File larger than 1MB - Contents API returns metadata but no content
 					fileContent := &github.RepositoryContent{
 						Name:        github.Ptr("large-file.bin"),
 						Path:        github.Ptr("large-file.bin"),
-						SHA:         github.Ptr("largesha123"),
+						SHA:         github.Ptr(largeFileSHA),
 						Type:        github.Ptr("file"),
 						Size:        github.Ptr(2 * 1024 * 1024), // 2MB
 						DownloadURL: github.Ptr("https://raw.githubusercontent.com/owner/repo/main/large-file.bin"),
@@ -374,7 +394,7 @@ func Test_GetFileContents(t *testing.T) {
 					fileContent := &github.RepositoryContent{
 						Name:     github.Ptr(".gitkeep"),
 						Path:     github.Ptr(".gitkeep"),
-						SHA:      github.Ptr("empty123"),
+						SHA:      github.Ptr(gitBlobSHA1(nil)),
 						Type:     github.Ptr("file"),
 						Content:  nil,
 						Size:     github.Ptr(0),
@@ -522,6 +542,660 @@ func Test_GetFileContents(t *testing.T) {
 	}
 }
 
+func Test_GetFileContents_SymlinkDisclosureRequestCounts(t *testing.T) {
+	serverTool := GetFileContents(translations.NullTranslationHelper)
+	commitSHA := strings.Repeat("c", 40)
+	textTargetContent := []byte("resolved text content")
+	binaryTargetContent := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+
+	tests := []struct {
+		name                 string
+		path                 string
+		handlers             func(*testing.T) map[string]http.HandlerFunc
+		expectedRequestCount int
+		check                func(*testing.T, *mcp.CallToolResult)
+	}{
+		{
+			name: "normal small text file remains one request",
+			path: "README.md",
+			handlers: func(t *testing.T) map[string]http.HandlerFunc {
+				return map[string]http.HandlerFunc{
+					GetReposContentsByOwnerByRepoByPath: mockResponse(t, http.StatusOK, &github.RepositoryContent{
+						Name:     github.Ptr("README.md"),
+						Path:     github.Ptr("README.md"),
+						SHA:      github.Ptr(gitBlobSHA1(textTargetContent)),
+						Type:     github.Ptr("file"),
+						Content:  github.Ptr(base64.StdEncoding.EncodeToString(textTargetContent)),
+						Size:     github.Ptr(len(textTargetContent)),
+						Encoding: github.Ptr("base64"),
+					}),
+				}
+			},
+			expectedRequestCount: 1,
+			check: func(t *testing.T, result *mcp.CallToolResult) {
+				require.False(t, result.IsError)
+				assert.Equal(t, string(textTargetContent), getResourceResult(t, result).Text)
+				assert.Contains(t, result.Content[0].(*mcp.TextContent).Text, "successfully downloaded text file")
+			},
+		},
+		{
+			name: "internal text symlink adds one blob request",
+			path: "docs/link.txt",
+			handlers: func(t *testing.T) map[string]http.HandlerFunc {
+				target := "../target.txt"
+				linkSHA := gitBlobSHA1([]byte(target))
+				return map[string]http.HandlerFunc{
+					GetReposContentsByOwnerByRepoByPath: mockResponse(t, http.StatusOK, &github.RepositoryContent{
+						Name:     github.Ptr("link.txt"),
+						Path:     github.Ptr("docs/link.txt"),
+						SHA:      github.Ptr(linkSHA),
+						Type:     github.Ptr("file"),
+						Content:  github.Ptr(base64.StdEncoding.EncodeToString(textTargetContent)),
+						Size:     github.Ptr(len(textTargetContent)),
+						Encoding: github.Ptr("base64"),
+					}),
+					GetReposGitBlobsByOwnerByRepoByFileSHA: func(w http.ResponseWriter, _ *http.Request) {
+						_, _ = w.Write([]byte(target))
+					},
+				}
+			},
+			expectedRequestCount: 2,
+			check: func(t *testing.T, result *mcp.CallToolResult) {
+				require.False(t, result.IsError)
+				metadata := parseRepositoryPathMetadata(t, result)
+				assert.Equal(t, "symlink", metadata["type"])
+				assert.Equal(t, "docs/link.txt", metadata["path"])
+				assert.Equal(t, "../target.txt", metadata["target"])
+				assert.Equal(t, "target.txt", metadata["resolved_path"])
+				assert.Equal(t, dereferencedContentLabel, metadata["content"])
+				resource := getResourceResult(t, result)
+				assert.Equal(t, string(textTargetContent), resource.Text)
+				assert.Equal(t, "text/plain; charset=utf-8", resource.MIMEType)
+				assert.Contains(t, resource.URI, "/contents/docs/link.txt")
+			},
+		},
+		{
+			name: "internal binary symlink preserves blob and MIME type",
+			path: "assets/current.png",
+			handlers: func(t *testing.T) map[string]http.HandlerFunc {
+				target := "images/logo.png"
+				linkSHA := gitBlobSHA1([]byte(target))
+				return map[string]http.HandlerFunc{
+					GetReposContentsByOwnerByRepoByPath: mockResponse(t, http.StatusOK, &github.RepositoryContent{
+						Name:     github.Ptr("current.png"),
+						Path:     github.Ptr("assets/current.png"),
+						SHA:      github.Ptr(linkSHA),
+						Type:     github.Ptr("file"),
+						Content:  github.Ptr(base64.StdEncoding.EncodeToString(binaryTargetContent)),
+						Size:     github.Ptr(len(binaryTargetContent)),
+						Encoding: github.Ptr("base64"),
+					}),
+					GetReposGitBlobsByOwnerByRepoByFileSHA: func(w http.ResponseWriter, _ *http.Request) {
+						_, _ = w.Write([]byte(target))
+					},
+				}
+			},
+			expectedRequestCount: 2,
+			check: func(t *testing.T, result *mcp.CallToolResult) {
+				require.False(t, result.IsError)
+				metadata := parseRepositoryPathMetadata(t, result)
+				assert.Equal(t, "assets/images/logo.png", metadata["resolved_path"])
+				resource := getResourceResult(t, result)
+				assert.Equal(t, binaryTargetContent, resource.Blob)
+				assert.Equal(t, "image/png", resource.MIMEType)
+			},
+		},
+		{
+			name: "explicit dangling symlink discloses without fetching",
+			path: "docs/missing",
+			handlers: func(t *testing.T) map[string]http.HandlerFunc {
+				target := "missing.txt"
+				return map[string]http.HandlerFunc{
+					GetReposContentsByOwnerByRepoByPath: mockResponse(t, http.StatusOK, &github.RepositoryContent{
+						Name:   github.Ptr("missing"),
+						Path:   github.Ptr("docs/missing"),
+						SHA:    github.Ptr(gitBlobSHA1([]byte(target))),
+						Type:   github.Ptr("symlink"),
+						Target: github.Ptr(target),
+						Size:   github.Ptr(0),
+					}),
+				}
+			},
+			expectedRequestCount: 1,
+			check: func(t *testing.T, result *mcp.CallToolResult) {
+				require.False(t, result.IsError)
+				metadata := parseRepositoryPathMetadata(t, result)
+				assert.Equal(t, "symlink", metadata["type"])
+				assert.Equal(t, "docs/missing.txt", metadata["resolved_path"])
+				assert.Equal(t, unavailableSymlinkContents, metadata["content"])
+				require.Len(t, result.Content, 1)
+			},
+		},
+		{
+			name: "explicit outside symlink omits repository resolved path",
+			path: "docs/outside",
+			handlers: func(t *testing.T) map[string]http.HandlerFunc {
+				target := "../../outside"
+				return map[string]http.HandlerFunc{
+					GetReposContentsByOwnerByRepoByPath: mockResponse(t, http.StatusOK, &github.RepositoryContent{
+						Name:   github.Ptr("outside"),
+						Path:   github.Ptr("docs/outside"),
+						SHA:    github.Ptr(gitBlobSHA1([]byte(target))),
+						Type:   github.Ptr("symlink"),
+						Target: github.Ptr(target),
+						Size:   github.Ptr(0),
+					}),
+				}
+			},
+			expectedRequestCount: 1,
+			check: func(t *testing.T, result *mcp.CallToolResult) {
+				require.False(t, result.IsError)
+				metadata := parseRepositoryPathMetadata(t, result)
+				assert.Equal(t, "../../outside", metadata["target"])
+				assert.NotContains(t, metadata, "resolved_path")
+			},
+		},
+		{
+			name: "explicit symlink returns content only when supplied",
+			path: "docs/explicit",
+			handlers: func(t *testing.T) map[string]http.HandlerFunc {
+				target := "target.txt"
+				return map[string]http.HandlerFunc{
+					GetReposContentsByOwnerByRepoByPath: mockResponse(t, http.StatusOK, &github.RepositoryContent{
+						Name:     github.Ptr("explicit"),
+						Path:     github.Ptr("docs/explicit"),
+						SHA:      github.Ptr(gitBlobSHA1([]byte(target))),
+						Type:     github.Ptr("symlink"),
+						Target:   github.Ptr(target),
+						Content:  github.Ptr(base64.StdEncoding.EncodeToString(textTargetContent)),
+						Encoding: github.Ptr("base64"),
+						Size:     github.Ptr(len(textTargetContent)),
+					}),
+				}
+			},
+			expectedRequestCount: 1,
+			check: func(t *testing.T, result *mcp.CallToolResult) {
+				require.False(t, result.IsError)
+				metadata := parseRepositoryPathMetadata(t, result)
+				assert.Equal(t, dereferencedContentLabel, metadata["content"])
+				assert.Equal(t, string(textTargetContent), getResourceResult(t, result).Text)
+			},
+		},
+		{
+			name: "explicit symlink without content never fabricates a large resource",
+			path: "docs/pathological",
+			handlers: func(t *testing.T) map[string]http.HandlerFunc {
+				target := "target.txt"
+				return map[string]http.HandlerFunc{
+					GetReposContentsByOwnerByRepoByPath: mockResponse(t, http.StatusOK, &github.RepositoryContent{
+						Name:   github.Ptr("pathological"),
+						Path:   github.Ptr("docs/pathological"),
+						SHA:    github.Ptr(gitBlobSHA1([]byte(target))),
+						Type:   github.Ptr("symlink"),
+						Target: github.Ptr(target),
+						Size:   github.Ptr(2 * 1024 * 1024),
+					}),
+				}
+			},
+			expectedRequestCount: 1,
+			check: func(t *testing.T, result *mcp.CallToolResult) {
+				require.False(t, result.IsError)
+				metadata := parseRepositoryPathMetadata(t, result)
+				assert.Equal(t, unavailableSymlinkContents, metadata["content"])
+				require.Len(t, result.Content, 1)
+			},
+		},
+		{
+			name: "submodule response is not classified as symlink",
+			path: "vendor/dependency",
+			handlers: func(t *testing.T) map[string]http.HandlerFunc {
+				return map[string]http.HandlerFunc{
+					GetReposContentsByOwnerByRepoByPath: mockResponse(t, http.StatusOK, &github.RepositoryContent{
+						Name:            github.Ptr("dependency"),
+						Path:            github.Ptr("vendor/dependency"),
+						SHA:             github.Ptr(strings.Repeat("d", 40)),
+						Type:            github.Ptr("file"),
+						SubmoduleGitURL: github.Ptr("https://github.com/example/dependency.git"),
+						Size:            github.Ptr(0),
+					}),
+				}
+			},
+			expectedRequestCount: 1,
+			check: func(t *testing.T, result *mcp.CallToolResult) {
+				require.False(t, result.IsError)
+				metadata := parseRepositoryPathMetadata(t, result)
+				assert.Equal(t, "submodule", metadata["type"])
+				assert.Equal(t, "vendor/dependency", metadata["path"])
+				assert.Equal(t, "https://github.com/example/dependency.git", metadata["git_url"])
+				assert.NotContains(t, metadata, "target")
+			},
+		},
+		{
+			name: "malformed SHA fails closed without another request",
+			path: "README.md",
+			handlers: func(t *testing.T) map[string]http.HandlerFunc {
+				return map[string]http.HandlerFunc{
+					GetReposContentsByOwnerByRepoByPath: mockResponse(t, http.StatusOK, &github.RepositoryContent{
+						Name:     github.Ptr("README.md"),
+						Path:     github.Ptr("README.md"),
+						SHA:      github.Ptr("not-a-git-object-id"),
+						Type:     github.Ptr("file"),
+						Content:  github.Ptr(base64.StdEncoding.EncodeToString(textTargetContent)),
+						Size:     github.Ptr(len(textTargetContent)),
+						Encoding: github.Ptr("base64"),
+					}),
+				}
+			},
+			expectedRequestCount: 1,
+			check: func(t *testing.T, result *mcp.CallToolResult) {
+				assert.Contains(t, getErrorResult(t, result).Text, "malformed Git blob SHA")
+			},
+		},
+		{
+			name: "anomalous mismatch is not mislabeled as symlink",
+			path: "README.md",
+			handlers: func(t *testing.T) map[string]http.HandlerFunc {
+				pathBlob := []byte("invalid\x00target")
+				return map[string]http.HandlerFunc{
+					GetReposContentsByOwnerByRepoByPath: mockResponse(t, http.StatusOK, &github.RepositoryContent{
+						Name:     github.Ptr("README.md"),
+						Path:     github.Ptr("README.md"),
+						SHA:      github.Ptr(gitBlobSHA1(pathBlob)),
+						Type:     github.Ptr("file"),
+						Content:  github.Ptr(base64.StdEncoding.EncodeToString(textTargetContent)),
+						Size:     github.Ptr(len(textTargetContent)),
+						Encoding: github.Ptr("base64"),
+					}),
+					GetReposGitBlobsByOwnerByRepoByFileSHA: func(w http.ResponseWriter, _ *http.Request) {
+						_, _ = w.Write(pathBlob)
+					},
+				}
+			},
+			expectedRequestCount: 2,
+			check: func(t *testing.T, result *mcp.CallToolResult) {
+				text := getErrorResult(t, result).Text
+				assert.Contains(t, text, "not a valid symbolic link target")
+				assert.NotContains(t, text, `"type":"symlink"`)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			handlers := tc.handlers(t)
+			if contentsHandler, ok := handlers[GetReposContentsByOwnerByRepoByPath]; ok {
+				handlers["GET /repos/{owner}/{repo}/contents/{path:.*}"] = contentsHandler
+			}
+			mockedClient := MockHTTPClientWithHandlers(handlers)
+			counter := &repositoryRequestCountingTransport{inner: mockedClient.Transport}
+			client := mustNewGHClient(t, &http.Client{Transport: counter})
+			deps := BaseDeps{Client: client}
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"path":  tc.path,
+				"sha":   commitSHA,
+			})
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedRequestCount, counter.count)
+			tc.check(t, result)
+		})
+	}
+}
+
+func Test_GetFileContents_ContentlessRequestCounts(t *testing.T) {
+	serverTool := GetFileContents(translations.NullTranslationHelper)
+	commitSHA := strings.Repeat("c", 40)
+	largeFileSHA := strings.Repeat("a", 40)
+	linkTarget := "../targets/large.bin"
+	linkSHA := gitBlobSHA1([]byte(linkTarget))
+	const largeFileSize = 2 * 1024 * 1024
+
+	tests := []struct {
+		name                 string
+		path                 string
+		handlers             func(*testing.T) map[string]http.HandlerFunc
+		expectedRequestCount int
+		check                func(*testing.T, *mcp.CallToolResult)
+	}{
+		{
+			name: "normal large file uses one exact-path tree request",
+			path: "large.bin",
+			handlers: func(t *testing.T) map[string]http.HandlerFunc {
+				return map[string]http.HandlerFunc{
+					GetReposContentsByOwnerByRepoByPath: mockResponse(t, http.StatusOK, &github.RepositoryContent{
+						Name:        github.Ptr("large.bin"),
+						Path:        github.Ptr("large.bin"),
+						SHA:         github.Ptr(largeFileSHA),
+						Type:        github.Ptr("file"),
+						Size:        github.Ptr(largeFileSize),
+						DownloadURL: github.Ptr("https://raw.example.com/large.bin"),
+					}),
+					GetReposGitTreesByOwnerByRepoByTree: mockResponse(t, http.StatusOK, &github.Tree{
+						Entries: []*github.TreeEntry{{
+							Path: github.Ptr("large.bin"),
+							Mode: github.Ptr("100644"),
+							Type: github.Ptr("blob"),
+							SHA:  github.Ptr(largeFileSHA),
+						}},
+					}),
+				}
+			},
+			expectedRequestCount: 2,
+			check: func(t *testing.T, result *mcp.CallToolResult) {
+				require.False(t, result.IsError)
+				require.Len(t, result.Content, 2)
+				link, ok := result.Content[1].(*mcp.ResourceLink)
+				require.True(t, ok)
+				assert.Equal(t, "File: large.bin", link.Title)
+			},
+		},
+		{
+			name: "internal large symlink uses bounded tree descent and blob request",
+			path: "docs/current.bin",
+			handlers: func(t *testing.T) map[string]http.HandlerFunc {
+				return map[string]http.HandlerFunc{
+					GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, r *http.Request) {
+						assert.Equal(t, commitSHA, r.URL.Query().Get("ref"))
+						mockResponse(t, http.StatusOK, &github.RepositoryContent{
+							Name:        github.Ptr("current.bin"),
+							Path:        github.Ptr("docs/current.bin"),
+							SHA:         github.Ptr(linkSHA),
+							Type:        github.Ptr("file"),
+							Size:        github.Ptr(largeFileSize),
+							DownloadURL: github.Ptr("https://raw.example.com/docs/current.bin"),
+						})(w, r)
+					},
+					GetReposGitTreesByOwnerByRepoByTree: func(w http.ResponseWriter, r *http.Request) {
+						switch {
+						case strings.HasSuffix(r.URL.Path, "/"+commitSHA):
+							mockResponse(t, http.StatusOK, &github.Tree{
+								Entries: []*github.TreeEntry{{
+									Path: github.Ptr("docs"),
+									Mode: github.Ptr("040000"),
+									Type: github.Ptr("tree"),
+									SHA:  github.Ptr("docs-tree"),
+								}},
+							})(w, r)
+						case strings.HasSuffix(r.URL.Path, "/docs-tree"):
+							mockResponse(t, http.StatusOK, &github.Tree{
+								Entries: []*github.TreeEntry{{
+									Path: github.Ptr("current.bin"),
+									Mode: github.Ptr(gitSymlinkMode),
+									Type: github.Ptr("blob"),
+									SHA:  github.Ptr(linkSHA),
+								}},
+							})(w, r)
+						default:
+							require.FailNow(t, "unexpected tree request", r.URL.Path)
+						}
+					},
+					GetReposGitBlobsByOwnerByRepoByFileSHA: func(w http.ResponseWriter, _ *http.Request) {
+						_, _ = w.Write([]byte(linkTarget))
+					},
+				}
+			},
+			expectedRequestCount: 4,
+			check: func(t *testing.T, result *mcp.CallToolResult) {
+				require.False(t, result.IsError)
+				metadata := parseRepositoryPathMetadata(t, result)
+				assert.Equal(t, "symlink", metadata["type"])
+				assert.Equal(t, "targets/large.bin", metadata["resolved_path"])
+				assert.Equal(t, dereferencedContentLabel, metadata["content"])
+				require.Len(t, result.Content, 2)
+				link, ok := result.Content[1].(*mcp.ResourceLink)
+				require.True(t, ok)
+				assert.Equal(t, "Dereferenced target targets/large.bin via symlink docs/current.bin", link.Title)
+				assert.Contains(t, link.URI, "/contents/docs/current.bin")
+			},
+		},
+		{
+			name: "truncated tree fails closed",
+			path: "large.bin",
+			handlers: func(t *testing.T) map[string]http.HandlerFunc {
+				return map[string]http.HandlerFunc{
+					GetReposContentsByOwnerByRepoByPath: mockResponse(t, http.StatusOK, &github.RepositoryContent{
+						Name: github.Ptr("large.bin"),
+						Path: github.Ptr("large.bin"),
+						SHA:  github.Ptr(largeFileSHA),
+						Type: github.Ptr("file"),
+						Size: github.Ptr(largeFileSize),
+					}),
+					GetReposGitTreesByOwnerByRepoByTree: mockResponse(t, http.StatusOK, &github.Tree{
+						Truncated: github.Ptr(true),
+					}),
+				}
+			},
+			expectedRequestCount: 2,
+			check: func(t *testing.T, result *mcp.CallToolResult) {
+				assert.Contains(t, getErrorResult(t, result).Text, "is truncated")
+			},
+		},
+		{
+			name: "contentless SHA mismatch fails closed",
+			path: "large.bin",
+			handlers: func(t *testing.T) map[string]http.HandlerFunc {
+				return map[string]http.HandlerFunc{
+					GetReposContentsByOwnerByRepoByPath: mockResponse(t, http.StatusOK, &github.RepositoryContent{
+						Name: github.Ptr("large.bin"),
+						Path: github.Ptr("large.bin"),
+						SHA:  github.Ptr(largeFileSHA),
+						Type: github.Ptr("file"),
+						Size: github.Ptr(largeFileSize),
+					}),
+					GetReposGitTreesByOwnerByRepoByTree: mockResponse(t, http.StatusOK, &github.Tree{
+						Entries: []*github.TreeEntry{{
+							Path: github.Ptr("large.bin"),
+							Mode: github.Ptr("100644"),
+							Type: github.Ptr("blob"),
+							SHA:  github.Ptr(strings.Repeat("b", 40)),
+						}},
+					}),
+				}
+			},
+			expectedRequestCount: 2,
+			check: func(t *testing.T, result *mcp.CallToolResult) {
+				assert.Contains(t, getErrorResult(t, result).Text, "does not match Git tree blob SHA")
+			},
+		},
+		{
+			name: "tree-mode submodule fallback is explicit",
+			path: "vendor/dependency",
+			handlers: func(t *testing.T) map[string]http.HandlerFunc {
+				submoduleSHA := strings.Repeat("d", 40)
+				return map[string]http.HandlerFunc{
+					GetReposContentsByOwnerByRepoByPath: mockResponse(t, http.StatusOK, &github.RepositoryContent{
+						Name: github.Ptr("dependency"),
+						Path: github.Ptr("vendor/dependency"),
+						SHA:  github.Ptr(submoduleSHA),
+						Type: github.Ptr("file"),
+						Size: github.Ptr(1),
+					}),
+					GetReposGitTreesByOwnerByRepoByTree: func(w http.ResponseWriter, r *http.Request) {
+						switch {
+						case strings.HasSuffix(r.URL.Path, "/"+commitSHA):
+							mockResponse(t, http.StatusOK, &github.Tree{
+								Entries: []*github.TreeEntry{{
+									Path: github.Ptr("vendor"),
+									Mode: github.Ptr("040000"),
+									Type: github.Ptr("tree"),
+									SHA:  github.Ptr("vendor-tree"),
+								}},
+							})(w, r)
+						case strings.HasSuffix(r.URL.Path, "/vendor-tree"):
+							mockResponse(t, http.StatusOK, &github.Tree{
+								Entries: []*github.TreeEntry{{
+									Path: github.Ptr("dependency"),
+									Mode: github.Ptr(gitSubmoduleMode),
+									Type: github.Ptr("commit"),
+									SHA:  github.Ptr(submoduleSHA),
+								}},
+							})(w, r)
+						default:
+							require.FailNow(t, "unexpected tree request", r.URL.Path)
+						}
+					},
+				}
+			},
+			expectedRequestCount: 3,
+			check: func(t *testing.T, result *mcp.CallToolResult) {
+				require.False(t, result.IsError)
+				metadata := parseRepositoryPathMetadata(t, result)
+				assert.Equal(t, "submodule", metadata["type"])
+				assert.Equal(t, "vendor/dependency", metadata["path"])
+				assert.NotContains(t, metadata, "target")
+			},
+		},
+		{
+			name: "directory adds no inspection request",
+			path: "docs",
+			handlers: func(t *testing.T) map[string]http.HandlerFunc {
+				return map[string]http.HandlerFunc{
+					GetReposContentsByOwnerByRepoByPath: mockResponse(t, http.StatusOK, []*github.RepositoryContent{{
+						Name: github.Ptr("README.md"),
+						Path: github.Ptr("docs/README.md"),
+						SHA:  github.Ptr(largeFileSHA),
+						Type: github.Ptr("file"),
+					}}),
+				}
+			},
+			expectedRequestCount: 1,
+			check: func(t *testing.T, result *mcp.CallToolResult) {
+				require.False(t, result.IsError)
+				var entries []*github.RepositoryContent
+				require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &entries))
+				require.Len(t, entries, 1)
+			},
+		},
+		{
+			name: "missing path retains one recursive fallback request",
+			path: "missing.txt",
+			handlers: func(t *testing.T) map[string]http.HandlerFunc {
+				return map[string]http.HandlerFunc{
+					GetReposContentsByOwnerByRepoByPath: mockResponse(t, http.StatusNotFound, map[string]any{"message": "Not Found"}),
+					GetReposGitTreesByOwnerByRepoByTree: func(w http.ResponseWriter, r *http.Request) {
+						assert.Equal(t, "1", r.URL.Query().Get("recursive"))
+						mockResponse(t, http.StatusOK, &github.Tree{Entries: []*github.TreeEntry{}})(w, r)
+					},
+				}
+			},
+			expectedRequestCount: 2,
+			check: func(t *testing.T, result *mcp.CallToolResult) {
+				assert.Contains(t, getErrorResult(t, result).Text, "Failed to get file contents")
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			handlers := tc.handlers(t)
+			if contentsHandler, ok := handlers[GetReposContentsByOwnerByRepoByPath]; ok {
+				handlers["GET /repos/{owner}/{repo}/contents/{path:.*}"] = contentsHandler
+			}
+			mockedClient := MockHTTPClientWithHandlers(handlers)
+			counter := &repositoryRequestCountingTransport{inner: mockedClient.Transport}
+			client := mustNewGHClient(t, &http.Client{Transport: counter})
+			deps := BaseDeps{Client: client}
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"path":  tc.path,
+				"sha":   commitSHA,
+			})
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedRequestCount, counter.count)
+			tc.check(t, result)
+		})
+	}
+}
+
+func Test_GetFileContents_ContentlessTreeUsesRequestedRevision(t *testing.T) {
+	serverTool := GetFileContents(translations.NullTranslationHelper)
+	blobSHA := strings.Repeat("a", 40)
+	const fileSize = 2 * 1024 * 1024
+
+	tests := []struct {
+		name                 string
+		args                 map[string]any
+		expectedRef          string
+		treePath             string
+		refHandler           http.HandlerFunc
+		expectedRequestCount int
+	}{
+		{
+			name:                 "commit SHA",
+			args:                 map[string]any{"sha": strings.Repeat("c", 40)},
+			expectedRef:          strings.Repeat("c", 40),
+			treePath:             "/repos/owner/repo/git/trees/" + strings.Repeat("c", 40),
+			expectedRequestCount: 2,
+		},
+		{
+			name:        "fully qualified branch resolves to one commit",
+			args:        map[string]any{"ref": "refs/heads/release"},
+			expectedRef: strings.Repeat("d", 40),
+			treePath:    "/repos/owner/repo/git/trees/" + strings.Repeat("d", 40),
+			refHandler: mockResponse(t, http.StatusOK, &github.Reference{
+				Ref: github.Ptr("refs/heads/release"),
+				Object: &github.GitObject{
+					SHA: github.Ptr(strings.Repeat("d", 40)),
+				},
+			}),
+			expectedRequestCount: 3,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			handlers := map[string]http.HandlerFunc{
+				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, r *http.Request) {
+					assert.Equal(t, tc.expectedRef, r.URL.Query().Get("ref"))
+					mockResponse(t, http.StatusOK, &github.RepositoryContent{
+						Name: github.Ptr("large.bin"),
+						Path: github.Ptr("large.bin"),
+						SHA:  github.Ptr(blobSHA),
+						Type: github.Ptr("file"),
+						Size: github.Ptr(fileSize),
+					})(w, r)
+				},
+				"GET " + tc.treePath: mockResponse(t, http.StatusOK, &github.Tree{
+					Entries: []*github.TreeEntry{{
+						Path: github.Ptr("large.bin"),
+						Mode: github.Ptr("100644"),
+						Type: github.Ptr("blob"),
+						SHA:  github.Ptr(blobSHA),
+					}},
+				}),
+			}
+			if tc.refHandler != nil {
+				handlers[GetReposGitRefByOwnerByRepoByRef] = tc.refHandler
+			}
+			mockedClient := MockHTTPClientWithHandlers(handlers)
+			counter := &repositoryRequestCountingTransport{inner: mockedClient.Transport}
+			client := mustNewGHClient(t, &http.Client{Transport: counter})
+			deps := BaseDeps{Client: client}
+			handler := serverTool.Handler(deps)
+			args := map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"path":  "large.bin",
+			}
+			maps.Copy(args, tc.args)
+
+			request := createMCPRequest(args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+			assert.Equal(t, tc.expectedRequestCount, counter.count)
+		})
+	}
+}
+
 func Test_GetFileContents_DirectoryFieldFiltering(t *testing.T) {
 	mockDirContent := []*github.RepositoryContent{
 		{
@@ -657,7 +1331,7 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 				fileContent := &github.RepositoryContent{
 					Name:     github.Ptr("README.md"),
 					Path:     github.Ptr("README.md"),
-					SHA:      github.Ptr("abc123"),
+					SHA:      github.Ptr(gitBlobSHA1(mockRawContent)),
 					Type:     github.Ptr("file"),
 					Content:  github.Ptr(encodedContent),
 					Size:     github.Ptr(len(mockRawContent)),
@@ -750,7 +1424,7 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 				fileContent := &github.RepositoryContent{
 					Name:     github.Ptr("README.md"),
 					Path:     github.Ptr("README.md"),
-					SHA:      github.Ptr("abc123"),
+					SHA:      github.Ptr(gitBlobSHA1(mockRawContent)),
 					Type:     github.Ptr("file"),
 					Content:  github.Ptr(encodedContent),
 					Size:     github.Ptr(len(mockRawContent)),
@@ -775,6 +1449,56 @@ func Test_GetFileContents_IFC_InsidersMode(t *testing.T) {
 			_, hasIFC := result.Meta["ifc"]
 			assert.False(t, hasIFC, "ifc label should be omitted when visibility lookup fails")
 		}
+	})
+
+	t.Run("detected symlink preserves ifc label", func(t *testing.T) {
+		target := "target.txt"
+		targetContent := []byte("target content")
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
+			GetReposByOwnerByRepo: mockResponse(t, http.StatusOK, map[string]any{
+				"name":           "repo",
+				"default_branch": "main",
+				"private":        false,
+			}),
+			GetReposContentsByOwnerByRepoByPath: mockResponse(t, http.StatusOK, &github.RepositoryContent{
+				Name:     github.Ptr("link.txt"),
+				Path:     github.Ptr("link.txt"),
+				SHA:      github.Ptr(gitBlobSHA1([]byte(target))),
+				Type:     github.Ptr("file"),
+				Content:  github.Ptr(base64.StdEncoding.EncodeToString(targetContent)),
+				Size:     github.Ptr(len(targetContent)),
+				Encoding: github.Ptr("base64"),
+			}),
+			GetReposGitBlobsByOwnerByRepoByFileSHA: func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(target))
+			},
+		}))
+		deps := BaseDeps{
+			Client:         client,
+			featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+		}
+		handler := serverTool.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"owner": "octocat",
+			"repo":  "repo",
+			"path":  "link.txt",
+			"ref":   "refs/heads/main",
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		assert.Equal(t, "symlink", parseRepositoryPathMetadata(t, result)["type"])
+		require.NotNil(t, result.Meta)
+		ifcLabel, ok := result.Meta["ifc"]
+		require.True(t, ok)
+		ifcJSON, err := json.Marshal(ifcLabel)
+		require.NoError(t, err)
+		var ifcMap map[string]any
+		require.NoError(t, json.Unmarshal(ifcJSON, &ifcMap))
+		assert.Equal(t, "untrusted", ifcMap["integrity"])
+		assert.Equal(t, "public", ifcMap["confidentiality"])
 	})
 }
 
@@ -1801,6 +2525,8 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			HTMLURL: github.Ptr("https://github.com/owner/repo/commit/def456abc789"),
 		},
 	}
+	symlinkTarget := "other.md"
+	symlinkSHA := gitBlobSHA1([]byte(symlinkTarget))
 	mockPathTree := func(mode string) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			var tree *github.Tree
@@ -1817,13 +2543,17 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 					},
 				}
 			case strings.HasSuffix(r.URL.Path, "/docs-tree"):
+				entrySHA := strings.Repeat("e", 40)
+				if mode == gitSymlinkMode {
+					entrySHA = symlinkSHA
+				}
 				tree = &github.Tree{
 					Entries: []*github.TreeEntry{
 						{
 							Path: github.Ptr("example.md"),
 							Mode: github.Ptr(mode),
 							Type: github.Ptr("blob"),
-							SHA:  github.Ptr("example-sha"),
+							SHA:  github.Ptr(entrySHA),
 						},
 					},
 				}
@@ -1987,7 +2717,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposGitTreesByOwnerByRepoByTree: mockPathTree("120000"),
 				GetReposGitBlobsByOwnerByRepoByFileSHA: func(w http.ResponseWriter, _ *http.Request) {
-					_, _ = w.Write([]byte("other.md"))
+					_, _ = w.Write([]byte(symlinkTarget))
 				},
 				"GET /repos/owner/repo/contents/docs/example.md": mockResponse(t, http.StatusOK, &github.RepositoryContent{
 					SHA:  github.Ptr("abc123def456"),
@@ -2027,7 +2757,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				},
 				GetReposGitTreesByOwnerByRepoByTree: mockPathTree("120000"),
 				GetReposGitBlobsByOwnerByRepoByFileSHA: func(w http.ResponseWriter, _ *http.Request) {
-					_, _ = w.Write([]byte("other.md"))
+					_, _ = w.Write([]byte(symlinkTarget))
 				},
 				"GET /repos/owner/repo/contents/docs/example.md": mockResponse(t, http.StatusOK, &github.RepositoryContent{
 					SHA:  github.Ptr("abc123def456"),
