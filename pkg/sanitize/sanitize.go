@@ -22,7 +22,17 @@ func Sanitize(input string) string {
 	// original input. Those decoded characters can both survive on their own
 	// and splice previously inert text into a code fence, so the second pass
 	// re-applies both filters to the fully normalized output.
-	normalized := FilterHTMLTags(FilterCodeFenceMetadata(FilterInvisibleCharacters(input)))
+	filtered := FilterCodeFenceMetadata(FilterInvisibleCharacters(input))
+	normalized := FilterHTMLTags(filtered)
+
+	// HTML processing is the only stage that can introduce a character its input
+	// did not contain, so when it returns that input byte for byte there is
+	// nothing new for the second pass to find. Both filters are fixed points on
+	// the first pass's output, so the second pass is provably the identity here;
+	// see TestSecondSanitizePassIsRedundantWhenHTMLIsUnchanged.
+	if normalized == filtered {
+		return normalized
+	}
 	return FilterCodeFenceMetadata(FilterInvisibleCharacters(normalized))
 }
 
@@ -41,49 +51,146 @@ func Sanitize(input string) string {
 // belong to such a sequence — those at the start of the input, those following
 // a removed or non-graphic character, and runs of consecutive selectors — are
 // removed, which is the shape used to smuggle hidden payloads.
+//
+// The scan is copy-on-first-match: clean input is returned unchanged with no
+// allocation.
 func FilterInvisibleCharacters(input string) string {
-	if input == "" {
-		return input
-	}
-
-	// Filter runes
-	out := make([]rune, 0, len(input))
-	var prev rune
-	var prevKept bool
-	for _, r := range input {
-		keep := false
-		if isVariationSelector(r) {
-			keep = prevKept && isValidVariationSequence(prev, r)
-		} else {
-			keep = !shouldRemoveRune(r)
+	// Every filtered rune is non-ASCII, so a run of ASCII bytes can be skipped
+	// without decoding it and an all-ASCII string needs no further work.
+	for i := range len(input) {
+		if input[i] >= utf8.RuneSelf {
+			return filterInvisibleFrom(input, i)
 		}
-		if keep {
-			out = append(out, r)
-		}
-		prev, prevKept = r, keep
 	}
-	return string(out)
+	return input
 }
 
+// filterInvisibleFrom resumes FilterInvisibleCharacters at start, the first byte
+// that could need filtering. It buffers output only once a rune actually
+// changes, so input that turns out to be clean is still returned as-is.
+func filterInvisibleFrom(input string, start int) string {
+	var (
+		out      strings.Builder
+		prev     rune
+		prevKept bool
+		copied   int
+		changed  bool
+	)
+	if start > 0 {
+		// Everything before start is ASCII, which is never filtered, so the
+		// preceding byte is both the previous rune and known to have been kept.
+		prev, prevKept = rune(input[start-1]), true
+	}
+
+	for i := start; i < len(input); {
+		r, size := utf8.DecodeRuneInString(input[i:])
+
+		keep := true
+		if isVariationSelector(r) {
+			keep = prevKept && isValidVariationSequence(prev, r)
+		} else if shouldRemoveRune(r) {
+			keep = false
+		}
+		prev, prevKept = r, keep
+
+		// An invalid UTF-8 byte decodes to U+FFFD. The rune-wise filter this
+		// replaced re-encoded every rune it kept, turning such bytes into
+		// U+FFFD, so reproduce that instead of passing the raw byte through.
+		invalid := r == utf8.RuneError && size == 1
+		if keep && !invalid {
+			i += size
+			continue
+		}
+
+		if !changed {
+			changed = true
+			out.Grow(len(input))
+		}
+		out.WriteString(input[copied:i])
+		if keep {
+			out.WriteRune(utf8.RuneError)
+		}
+		i += size
+		copied = i
+	}
+
+	if !changed {
+		return input
+	}
+	out.WriteString(input[copied:])
+	return out.String()
+}
+
+// FilterHTMLTags applies the HTML allowlist policy to input.
 func FilterHTMLTags(input string) string {
-	if input == "" {
+	if input == "" || isHTMLInert(input) {
 		return input
 	}
 	return getPolicy().Sanitize(input)
 }
 
+// isHTMLInert reports whether input is provably a fixed point of the HTML
+// policy, letting the caller skip it. It is a sufficient condition, deliberately
+// narrow, not a description of every fixed point.
+//
+// The policy tokenizes input as HTML and re-emits text through
+// html.EscapeString, so anything it can rewrite must contain at least one of:
+//   - one of the five characters EscapeString rewrites (ampersand, apostrophe,
+//     quote, less-than, greater-than), which are also the only way to open a
+//     tag, comment, doctype or entity;
+//   - a byte the tokenizer itself rewrites: NUL becomes U+FFFD, CR folds into LF;
+//   - a byte outside ASCII, which may be part of a malformed UTF-8 sequence.
+//
+// Printable ASCII minus those five characters, plus TAB and LF, excludes all of
+// them. Every accepted byte is checked against the live policy in
+// TestHTMLInertBytesAreFixedPointsOfThePolicy.
+func isHTMLInert(input string) bool {
+	for i := range len(input) {
+		if !htmlInertBytes[input[i]] {
+			return false
+		}
+	}
+	return true
+}
+
+var htmlInertBytes = func() (table [256]bool) {
+	for c := 0x20; c <= 0x7E; c++ {
+		table[c] = true
+	}
+	table['\t'] = true
+	table['\n'] = true
+	for _, c := range []byte{'&', '\'', '"', '<', '>'} {
+		table[c] = false
+	}
+	return table
+}()
+
 // FilterCodeFenceMetadata removes hidden or suspicious info strings from fenced code blocks.
+//
+// Like FilterInvisibleCharacters this is copy-on-first-match: input whose lines
+// all survive unchanged is returned without allocating.
 func FilterCodeFenceMetadata(input string) string {
 	if input == "" {
 		return input
 	}
 
-	lines := strings.Split(input, "\n")
-	insideFence := false
-	currentFenceLen := 0
-	for i, line := range lines {
+	var (
+		out             strings.Builder
+		changed         bool
+		copied          int
+		insideFence     bool
+		currentFenceLen int
+	)
+
+	// Walks the same lines strings.Split(input, "\n") would yield, without
+	// materialising them.
+	for start := 0; start <= len(input); {
+		line := input[start:]
+		if nl := strings.IndexByte(line, '\n'); nl >= 0 {
+			line = line[:nl]
+		}
+
 		sanitized, toggled, fenceLen := sanitizeCodeFenceLine(line, insideFence, currentFenceLen)
-		lines[i] = sanitized
 		if toggled {
 			insideFence = !insideFence
 			if insideFence {
@@ -92,8 +199,24 @@ func FilterCodeFenceMetadata(input string) string {
 				currentFenceLen = 0
 			}
 		}
+		if sanitized != line {
+			if !changed {
+				changed = true
+				out.Grow(len(input))
+			}
+			out.WriteString(input[copied:start])
+			out.WriteString(sanitized)
+			copied = start + len(line)
+		}
+
+		start += len(line) + 1
 	}
-	return strings.Join(lines, "\n")
+
+	if !changed {
+		return input
+	}
+	out.WriteString(input[copied:])
+	return out.String()
 }
 
 const maxCodeFenceInfoLength = 48
@@ -145,7 +268,16 @@ func sanitizeCodeFenceLine(line string, insideFence bool, expectedFenceLen int) 
 		return line[:fenceEnd], true, fenceLen
 	}
 
+	// Reconstructing the line would allocate a copy of what is already there,
+	// so return the original when normalization is a no-op.
+	if rest == trimmed {
+		return line, true, fenceLen
+	}
+
 	if len(rest) > 0 && unicode.IsSpace(rune(rest[0])) {
+		if rest[0] == ' ' && len(rest) == len(trimmed)+1 {
+			return line, true, fenceLen
+		}
 		return line[:fenceEnd] + " " + trimmed, true, fenceLen
 	}
 
