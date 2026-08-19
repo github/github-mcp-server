@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
+	"sync"
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
@@ -120,6 +122,89 @@ func TestRequestDepsScopesTokensToConfiguredHosts(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, sourceAuth, "GraphQL request must authenticate to the configured host")
 	assert.Empty(t, foreignAuth, "GraphQL redirect must not authenticate to a foreign host")
+}
+
+// TestGetRepoAccessCacheIsolatesTrustDecisionsPerIdentity is a regression test
+// for issue #3107. It mirrors exactly how the HTTP server builds RequestDeps:
+// a single RepoAccessOpts slice is constructed once at startup (with no
+// per-identity WithCacheName) and reused across every request, and
+// GetRepoAccessCache is called fresh per request. Two different token
+// identities querying the same owner/repo/author must each perform their own
+// upstream lookups instead of one being served from the other's cached
+// decision, while repeated requests from the same identity must reuse a warm
+// cache.
+func TestGetRepoAccessCacheIsolatesTrustDecisionsPerIdentity(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var gqlCalls, restCalls int
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
+		mu.Lock()
+		defer mu.Unlock()
+		if strings.Contains(r.URL.Path, "/collaborators/") {
+			restCalls++
+			_, _ = w.Write([]byte(`{"permission":"write"}`))
+			return
+		}
+		gqlCalls++
+		_, _ = w.Write([]byte(`{"data":{"viewer":{"login":"someone"},"repository":{"isPrivate":false}}}`))
+	}))
+	defer server.Close()
+
+	callCounts := func() (int, int) {
+		mu.Lock()
+		defer mu.Unlock()
+		return gqlCalls, restCalls
+	}
+
+	// Built once, exactly as pkg/http/server.go does today: no WithCacheName.
+	deps := github.NewRequestDeps(
+		newRequestDepsAPIHostResolver(t, server.URL),
+		"test",
+		true, // lockdownMode
+		nil,  // RepoAccessOpts
+		translations.NullTranslationHelper,
+		0,
+		nil,
+		testExporters(),
+	)
+
+	ctxAlice := ghcontext.WithTokenInfo(context.Background(), &ghcontext.TokenInfo{Token: "token-for-alice"})
+	cacheAlice, err := deps.GetRepoAccessCache(ctxAlice)
+	require.NoError(t, err)
+	require.NotNil(t, cacheAlice)
+
+	_, err = cacheAlice.IsSafeContent(ctxAlice, "mallory", "owner", "repo")
+	require.NoError(t, err)
+
+	gqlN, restN := callCounts()
+	require.Equal(t, 1, gqlN)
+	require.Equal(t, 1, restN)
+
+	ctxBob := ghcontext.WithTokenInfo(context.Background(), &ghcontext.TokenInfo{Token: "token-for-bob"})
+	cacheBob, err := deps.GetRepoAccessCache(ctxBob)
+	require.NoError(t, err)
+	require.NotNil(t, cacheBob)
+
+	_, err = cacheBob.IsSafeContent(ctxBob, "mallory", "owner", "repo")
+	require.NoError(t, err)
+
+	gqlN, restN = callCounts()
+	require.Equal(t, 2, gqlN, "a different identity's request must not be served from another identity's cached trust decision")
+	require.Equal(t, 2, restN, "a different identity's request must not be served from another identity's cached trust decision")
+
+	// Repeating the same identity's token must reuse the warm per-identity
+	// cache without any additional upstream calls.
+	cacheAliceAgain, err := deps.GetRepoAccessCache(ctxAlice)
+	require.NoError(t, err)
+	_, err = cacheAliceAgain.IsSafeContent(ctxAlice, "mallory", "owner", "repo")
+	require.NoError(t, err)
+
+	gqlN, restN = callCounts()
+	require.Equal(t, 2, gqlN, "repeated requests from the same identity should reuse the warm cache")
+	require.Equal(t, 2, restN, "repeated requests from the same identity should reuse the warm cache")
 }
 
 func TestIsFeatureEnabled_WithEnabledFlag(t *testing.T) {

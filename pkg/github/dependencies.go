@@ -455,8 +455,24 @@ func (d *RequestDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAcc
 		return nil, err
 	}
 
+	// Scope the cache table to the requesting identity so a trust decision
+	// computed under one caller's credentials is never served to another.
+	// cache2go.Cache(name) returns a process-wide singleton keyed by name, so
+	// without this every request sharing d.RepoAccessOpts (built once at
+	// server startup) would hit the same default-named table regardless of
+	// which token issued the request. Deriving the name from the token keeps
+	// repeated requests from the same identity on a warm cache while
+	// isolating different identities from one another. Copy RepoAccessOpts
+	// before appending so concurrent requests never mutate the shared slice.
+	opts := d.RepoAccessOpts
+	if tokenInfo, ok := ghcontext.GetTokenInfo(ctx); ok {
+		if name := lockdown.CacheNameForIdentity(tokenInfo.Token); name != "" {
+			opts = append(append([]lockdown.RepoAccessOption{}, d.RepoAccessOpts...), lockdown.WithCacheName(name))
+		}
+	}
+
 	// Create repo access cache
-	instance := lockdown.NewRepoAccessCache(gqlClient, restClient, d.RepoAccessOpts...)
+	instance := lockdown.NewRepoAccessCache(gqlClient, restClient, opts...)
 	return instance, nil
 }
 

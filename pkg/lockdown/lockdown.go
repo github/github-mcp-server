@@ -2,6 +2,8 @@ package lockdown
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -26,6 +28,10 @@ type RepoAccessCache struct {
 	logger           *slog.Logger
 	trustedBotLogins map[string]struct{}
 
+	// now returns the current time and defaults to time.Now. Tests override it
+	// to exercise bounded expiry deterministically without sleeping.
+	now func() time.Time
+
 	viewerMu    sync.Mutex
 	viewerLogin string
 }
@@ -33,6 +39,12 @@ type RepoAccessCache struct {
 type repoAccessCacheEntry struct {
 	isPrivate  bool
 	knownUsers map[string]bool // normalized login -> has push access
+
+	// createdAt is the wall-clock time this repository's trust decision was
+	// first fetched. It is preserved across every subsequent update to the
+	// entry (e.g. learning about a newly-seen author), so an entry's maximum
+	// age is bounded from its original creation rather than reset by access.
+	createdAt time.Time
 }
 
 // RepoAccessInfo captures repository metadata needed for lockdown decisions.
@@ -49,8 +61,13 @@ const (
 // RepoAccessOption configures RepoAccessCache at construction time.
 type RepoAccessOption func(*RepoAccessCache)
 
-// WithTTL overrides the default TTL applied to cache entries. A non-positive
-// duration disables expiration.
+// WithTTL overrides the default maximum age applied to cache entries. A
+// non-positive duration disables expiration.
+//
+// The TTL is a bounded, absolute age measured from when an entry's trust
+// decision was first fetched: repeated reads never extend it. This ensures
+// an actively-read entry is still refreshed once it reaches the maximum age,
+// rather than sliding its expiration forward indefinitely.
 func WithTTL(ttl time.Duration) RepoAccessOption {
 	return func(c *RepoAccessCache) {
 		c.ttl = ttl
@@ -66,12 +83,37 @@ func WithLogger(logger *slog.Logger) RepoAccessOption {
 
 // WithCacheName overrides the cache table name used for storing entries.
 // Use this to isolate cache entries between tenants or in tests.
+//
+// cache2go.Cache(name) returns a process-wide singleton table keyed by name,
+// so any two RepoAccessCache instances constructed with the same name share
+// every cached trust decision. In deployments that serve multiple request
+// identities from one process (e.g. the HTTP server), callers MUST derive a
+// distinct name per identity — see CacheNameForIdentity — or one identity's
+// cached decision can be served to another.
 func WithCacheName(name string) RepoAccessOption {
 	return func(c *RepoAccessCache) {
 		if name != "" {
 			c.cache = cache2go.Cache(name)
 		}
 	}
+}
+
+// CacheNameForIdentity derives a stable cache table name scoped to a single
+// request identity (typically an auth token). Two calls with the same
+// identity always return the same name, so repeated requests from the same
+// identity keep sharing a warm cache; two calls with different identities
+// always return different names, so their cached trust decisions cannot mix.
+//
+// The identity is hashed so it never appears verbatim in cache-table names,
+// logs, or metrics. An empty identity returns an empty string, which
+// WithCacheName treats as a no-op (falling back to the default shared name);
+// callers that need isolation must ensure a non-empty identity is supplied.
+func CacheNameForIdentity(identity string) string {
+	if identity == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(identity))
+	return "repo-access:" + hex.EncodeToString(sum[:])
 }
 
 // NewRepoAccessCache creates a RepoAccessCache bound to the supplied clients.
@@ -187,36 +229,44 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 	// so we publish a fresh entry with a cloned knownUsers map on every miss.
 	if cacheItem, err := c.cache.Value(key); err == nil {
 		entry := cacheItem.Data().(*repoAccessCacheEntry)
-		if cachedHasPush, known := entry.knownUsers[userKey]; known {
-			c.logDebug(ctx, fmt.Sprintf("repo access cache hit for user %s to %s/%s", username, owner, repo))
+
+		if !c.entryExpired(entry) {
+			if cachedHasPush, known := entry.knownUsers[userKey]; known {
+				c.logDebug(ctx, fmt.Sprintf("repo access cache hit for user %s to %s/%s", username, owner, repo))
+				return RepoAccessInfo{
+					IsPrivate:     entry.isPrivate,
+					HasPushAccess: cachedHasPush,
+				}, nil
+			}
+
+			c.logDebug(ctx, "known users cache miss, fetching permission")
+
+			hasPush, pushErr := c.checkPushAccess(ctx, username, owner, repo)
+			if pushErr != nil {
+				return RepoAccessInfo{}, pushErr
+			}
+
+			users := make(map[string]bool, len(entry.knownUsers)+1)
+			maps.Copy(users, entry.knownUsers)
+			users[userKey] = hasPush
+			// Preserve the entry's original createdAt: learning about a newly
+			// seen author must not reset the entry's bounded maximum age.
+			c.cache.Add(key, c.ttl, &repoAccessCacheEntry{
+				isPrivate:  entry.isPrivate,
+				knownUsers: users,
+				createdAt:  entry.createdAt,
+			})
+
 			return RepoAccessInfo{
 				IsPrivate:     entry.isPrivate,
-				HasPushAccess: cachedHasPush,
+				HasPushAccess: hasPush,
 			}, nil
 		}
 
-		c.logDebug(ctx, "known users cache miss, fetching permission")
-
-		hasPush, pushErr := c.checkPushAccess(ctx, username, owner, repo)
-		if pushErr != nil {
-			return RepoAccessInfo{}, pushErr
-		}
-
-		users := make(map[string]bool, len(entry.knownUsers)+1)
-		maps.Copy(users, entry.knownUsers)
-		users[userKey] = hasPush
-		c.cache.Add(key, c.ttl, &repoAccessCacheEntry{
-			isPrivate:  entry.isPrivate,
-			knownUsers: users,
-		})
-
-		return RepoAccessInfo{
-			IsPrivate:     entry.isPrivate,
-			HasPushAccess: hasPush,
-		}, nil
+		c.logDebug(ctx, fmt.Sprintf("repo access cache entry for %s/%s exceeded max age, refreshing", owner, repo))
+	} else {
+		c.logDebug(ctx, fmt.Sprintf("repo access cache miss for user %s to %s/%s", username, owner, repo))
 	}
-
-	c.logDebug(ctx, fmt.Sprintf("repo access cache miss for user %s to %s/%s", username, owner, repo))
 
 	isPrivate, viewerLogin, queryErr := c.queryRepoAccessInfo(ctx, owner, repo)
 	if queryErr != nil {
@@ -232,12 +282,35 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 	c.cache.Add(key, c.ttl, &repoAccessCacheEntry{
 		knownUsers: map[string]bool{userKey: hasPush},
 		isPrivate:  isPrivate,
+		createdAt:  c.clock(),
 	})
 
 	return RepoAccessInfo{
 		IsPrivate:     isPrivate,
 		HasPushAccess: hasPush,
 	}, nil
+}
+
+// entryExpired reports whether entry has reached the cache's bounded maximum
+// age, measured from its original creation time rather than its last access
+// time. Unlike the underlying cache2go table's own sliding expiry (which
+// resets on every read), this check ensures a frequently-accessed entry is
+// still forced to refresh once it is old enough, so stale trust decisions
+// cannot be kept alive indefinitely by repeated reads.
+func (c *RepoAccessCache) entryExpired(entry *repoAccessCacheEntry) bool {
+	if c.ttl <= 0 {
+		return false
+	}
+	return c.clock().Sub(entry.createdAt) >= c.ttl
+}
+
+// clock returns the current time, using the injected now function if set
+// (tests use this to exercise bounded expiry deterministically).
+func (c *RepoAccessCache) clock() time.Time {
+	if c.now != nil {
+		return c.now()
+	}
+	return time.Now()
 }
 
 // queryRepoAccessInfo fetches repository visibility and the viewer login in a single GraphQL round-trip.
