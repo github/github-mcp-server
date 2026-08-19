@@ -250,8 +250,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return ghServer
 	}, &mcp.StreamableHTTPOptions{
 		Stateless: true,
-		// Keep the SDK's own guard in step with the middleware, otherwise its
-		// default would silently cap a larger configured limit.
+		// Required, not just belt-and-braces: the effective limit exceeds the
+		// SDK's own default, which would otherwise cap it.
 		MaxRequestBodyBytes: h.maxRequestBodyBytes(),
 	})
 

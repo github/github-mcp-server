@@ -3,13 +3,13 @@ package middleware
 import (
 	"errors"
 	"net/http"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// DefaultMaxRequestBodyBytes tracks the MCP SDK's own request-body limit, so
-// enforcing it earlier in the chain does not change which requests are accepted.
-const DefaultMaxRequestBodyBytes int64 = mcp.DefaultMaxRequestBodyBytes
+// DefaultMaxRequestBodyBytes bounds the total HTTP request, not just the tool
+// payload within it. It sits modestly above the MCP SDK's own default to leave
+// room for JSON-RPC and tool-call envelope overhead; because it is the larger
+// of the two, callers must also pass it to the SDK or the SDK would cap it.
+const DefaultMaxRequestBodyBytes int64 = 5 << 20 // 5 MiB
 
 // WithMaxBodySize bounds the size of the request body. It must be registered
 // before any middleware that reads or buffers the body (WithMCPParse,
