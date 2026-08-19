@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
@@ -929,9 +931,6 @@ func Test_RequestCopilotReview(t *testing.T) {
 			expectedErrMsg: "failed to request copilot review",
 		},
 		{
-			// The author of a cross-fork pull request has no write access on the
-			// upstream repository, so GitHub refuses the review request with a 404
-			// that says nothing about permissions.
 			name: "pull request author without write access",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: mockResponse(t, http.StatusNotFound, map[string]any{"message": "Not Found"}),
@@ -1006,7 +1005,6 @@ func Test_RequestCopilotReview(t *testing.T) {
 			expectedErrMsg: "owner/repo could not be read with the current credentials",
 		},
 		{
-			// A failure that carries no permission signal keeps the original message.
 			name: "server error is not explained as a permission problem",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: mockResponse(t, http.StatusInternalServerError, map[string]any{"message": "Internal Server Error"}),
@@ -1018,6 +1016,28 @@ func Test_RequestCopilotReview(t *testing.T) {
 			},
 			expectError:      true,
 			expectedErrMsg:   "failed to request copilot review",
+			unexpectedErrMsg: "write access",
+		},
+		{
+			name: "rate limited forbidden is not explained as a permission problem",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("X-RateLimit-Remaining", "0")
+					w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10))
+					w.WriteHeader(http.StatusForbidden)
+					_, _ = w.Write([]byte(`{"message": "API rate limit exceeded"}`))
+				},
+				GetReposByOwnerByRepo: func(_ http.ResponseWriter, _ *http.Request) {
+					t.Error("repository should not be read while rate limited")
+				},
+			}),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(1),
+			},
+			expectError:      true,
+			expectedErrMsg:   "rate limit exceeded",
 			unexpectedErrMsg: "write access",
 		},
 	}

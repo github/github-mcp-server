@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -900,7 +901,7 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 			)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					copilotReviewErrMsg(ctx, client, "failed to request copilot review", owner, repo, pullNumber, resp),
+					copilotReviewErrMsg(ctx, client, "failed to request copilot review", owner, repo, pullNumber, resp, err),
 					resp,
 					err,
 				), nil, nil
@@ -920,31 +921,32 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 		})
 }
 
-// copilotReviewErrMsg explains the opaque failures of the review request
-// endpoint used by request_copilot_review.
-//
-// Requesting a reviewer needs write access to the repository. Being the author
-// of the pull request does not grant it, which is why a fork contributor can be
-// offered a Copilot review by the web UI and still be refused by the API. See
+// copilotReviewErrMsg disambiguates the bare 404 this endpoint returns when the
+// caller lacks write access, which is otherwise indistinguishable from a missing
+// repository or pull request. Authoring the pull request does not grant write
+// access, so fork contributors are refused here even though the website offers
+// them a Copilot review.
 // https://docs.github.com/en/pull-requests/reference/pull-request-reviews#requesting-and-requiring-reviews
-//
-// The endpoint is documented to answer a caller who is not a collaborator with
-// 403 or 422, but in practice it answers with 404 Not Found, which on its own
-// is indistinguishable from a repository or pull request that does not exist.
-// Reading the repository tells the two apart, and only runs once the request
-// has already failed.
-func copilotReviewErrMsg(ctx context.Context, client *github.Client, base, owner, repo string, pullNumber int, resp *github.Response) string {
+func copilotReviewErrMsg(ctx context.Context, client *github.Client, base, owner, repo string, pullNumber int, resp *github.Response, err error) string {
 	if resp == nil || (resp.StatusCode != http.StatusNotFound && resp.StatusCode != http.StatusForbidden) {
+		return base
+	}
+
+	// Rate limiting is also reported as 403, and the read below would be refused
+	// for the same reason, so leave the caller with the rate limit message.
+	var rateLimitErr *github.RateLimitError
+	var abuseErr *github.AbuseRateLimitError
+	if errors.As(err, &rateLimitErr) || errors.As(err, &abuseErr) {
 		return base
 	}
 
 	repository, _, repoErr := client.Repositories.Get(ctx, owner, repo)
 	switch {
 	case repoErr != nil:
-		return fmt.Sprintf("%s. %s/%s could not be read with the current credentials, so either it does not exist or the credentials cannot reach it. "+
-			"GitHub refuses this endpoint the same way when the authenticated user has no write access to the repository.", base, owner, repo)
+		return fmt.Sprintf("%s. %s/%s could not be read with the current credentials, so it may not exist or the credentials may not reach it. "+
+			"Lacking write access is refused with the same status.", base, owner, repo)
 	case !repository.GetPermissions().GetPush():
-		return fmt.Sprintf("%s. The authenticated user has no write access to %s/%s, and GitHub requires write access to request a reviewer even from the author of the pull request. "+
+		return fmt.Sprintf("%s. The authenticated user has no write access to %s/%s, and GitHub requires write access to request a reviewer, even from the author of the pull request. "+
 			"Request the Copilot review from the pull request page on the GitHub website instead, or ask someone with write access to request it.", base, owner, repo)
 	default:
 		return fmt.Sprintf("%s. The authenticated user has write access to %s/%s, so check that pull request #%d exists there and that Copilot code review is available for the repository. "+
