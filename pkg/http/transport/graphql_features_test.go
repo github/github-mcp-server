@@ -65,7 +65,7 @@ func TestGraphQLFeaturesTransport(t *testing.T) {
 
 			// Create the transport
 			transport := &GraphQLFeaturesTransport{
-				Transport: http.DefaultTransport,
+				Transport: newIsolatedTransport(t),
 			}
 
 			// Create a request
@@ -91,9 +91,12 @@ func TestGraphQLFeaturesTransport(t *testing.T) {
 	}
 }
 
+// TestGraphQLFeaturesTransport_NilTransport asserts the documented fallback to
+// http.DefaultTransport, so it must exercise that global rather than an
+// isolated transport. It therefore runs serially: httptest.Server.Close closes
+// http.DefaultTransport's idle connections, so a parallel test shutting down
+// its own server would otherwise be able to break this request.
 func TestGraphQLFeaturesTransport_NilTransport(t *testing.T) {
-	t.Parallel()
-
 	var capturedHeader string
 
 	// Create a test server
@@ -133,7 +136,7 @@ func TestGraphQLFeaturesTransport_DoesNotMutateOriginalRequest(t *testing.T) {
 
 	// Create the transport
 	transport := &GraphQLFeaturesTransport{
-		Transport: http.DefaultTransport,
+		Transport: newIsolatedTransport(t),
 	}
 
 	// Create a request with features
