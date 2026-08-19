@@ -1738,8 +1738,9 @@ func TestGranularResolveReviewThread(t *testing.T) {
 					}
 				} `graphql:"resolveReviewThread(input: $input)"`
 			}{},
-			githubv4.ResolveReviewThreadInput{
-				ThreadID: githubv4.ID("PRRT_123"),
+			resolveReviewThreadInput{
+				ThreadID:         githubv4.ID("PRRT_123"),
+				ResolutionReason: newGQLStringlike[githubv4.String]("addressed"),
 			},
 			nil,
 			githubv4mock.DataResponse(map[string]any{
@@ -1755,7 +1756,8 @@ func TestGranularResolveReviewThread(t *testing.T) {
 	handler := serverTool.Handler(deps)
 
 	request := createMCPRequest(map[string]any{
-		"threadID": "PRRT_123",
+		"threadID":         "PRRT_123",
+		"resolutionReason": "addressed",
 	})
 	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)

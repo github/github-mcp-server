@@ -1760,14 +1760,15 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 }
 
 type PullRequestReviewWriteParams struct {
-	Method     string
-	Owner      string
-	Repo       string
-	PullNumber int32
-	Body       string
-	Event      string
-	CommitID   *string
-	ThreadID   string
+	Method           string
+	Owner            string
+	Repo             string
+	PullNumber       int32
+	Body             string
+	Event            string
+	CommitID         *string
+	ThreadID         string
+	ResolutionReason *string
 }
 
 func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -1810,6 +1811,10 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.Serv
 			"threadId": {
 				Type:        "string",
 				Description: "The node ID of the review thread (e.g., PRRT_kwDOxxx). Required for resolve_thread and unresolve_thread methods. Get thread IDs from pull_request_read with method get_review_comments.",
+			},
+			"resolutionReason": {
+				Type:        "string",
+				Description: "Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid.",
 			},
 		},
 		Required: []string{"method", "owner", "repo", "pullNumber"},
@@ -1858,10 +1863,10 @@ Available methods:
 				result, err := DeletePendingPullRequestReview(ctx, client, params)
 				return result, nil, err
 			case "resolve_thread":
-				result, err := ResolveReviewThread(ctx, client, params.ThreadID, true)
+				result, err := ResolveReviewThread(ctx, client, params.ThreadID, params.ResolutionReason, true)
 				return result, nil, err
 			case "unresolve_thread":
-				result, err := ResolveReviewThread(ctx, client, params.ThreadID, false)
+				result, err := ResolveReviewThread(ctx, client, params.ThreadID, nil, false)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
@@ -2094,8 +2099,13 @@ func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client
 	return utils.NewToolResultText("pending pull request review successfully deleted"), nil
 }
 
+type resolveReviewThreadInput struct {
+	ThreadID         githubv4.ID      `json:"threadId"`
+	ResolutionReason *githubv4.String `json:"resolutionReason,omitempty"`
+}
+
 // ResolveReviewThread resolves or unresolves a PR review thread using GraphQL mutations.
-func ResolveReviewThread(ctx context.Context, client *githubv4.Client, threadID string, resolve bool) (*mcp.CallToolResult, error) {
+func ResolveReviewThread(ctx context.Context, client *githubv4.Client, threadID string, resolutionReason *string, resolve bool) (*mcp.CallToolResult, error) {
 	if threadID == "" {
 		return utils.NewToolResultError("threadId is required for resolve_thread and unresolve_thread methods"), nil
 	}
@@ -2110,8 +2120,9 @@ func ResolveReviewThread(ctx context.Context, client *githubv4.Client, threadID 
 			} `graphql:"resolveReviewThread(input: $input)"`
 		}
 
-		input := githubv4.ResolveReviewThreadInput{
-			ThreadID: githubv4.ID(threadID),
+		input := resolveReviewThreadInput{
+			ThreadID:         githubv4.ID(threadID),
+			ResolutionReason: newGQLStringlikePtr[githubv4.String](resolutionReason),
 		}
 
 		if err := client.Mutate(ctx, &mutation, input, nil); err != nil {

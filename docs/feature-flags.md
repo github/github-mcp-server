@@ -251,6 +251,7 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **resolve_review_thread** - Resolve Review Thread
   - **Required OAuth Scopes**: `repo`
+  - `resolutionReason`: Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid. (string, optional)
   - `threadID`: The node ID of the review thread to resolve (e.g., PRRT_kwDOxxx) (string, required)
 
 - **submit_pending_pull_request_review** - Submit Pending Pull Request Review

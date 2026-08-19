@@ -690,6 +690,10 @@ func GranularResolveReviewThread(t translations.TranslationHelperFunc) inventory
 						Type:        "string",
 						Description: "The node ID of the review thread to resolve (e.g., PRRT_kwDOxxx)",
 					},
+					"resolutionReason": {
+						Type:        "string",
+						Description: "Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid.",
+					},
 				},
 				Required: []string{"threadID"},
 			},
@@ -700,13 +704,21 @@ func GranularResolveReviewThread(t translations.TranslationHelperFunc) inventory
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			resolutionReason, hasResolutionReason, err := OptionalParamOK[string](args, "resolutionReason")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			var resolutionReasonPtr *string
+			if hasResolutionReason {
+				resolutionReasonPtr = &resolutionReason
+			}
 
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
 
-			result, err := ResolveReviewThread(ctx, gqlClient, threadID, true)
+			result, err := ResolveReviewThread(ctx, gqlClient, threadID, resolutionReasonPtr, true)
 			return result, nil, err
 		},
 	)
@@ -750,7 +762,7 @@ func GranularUnresolveReviewThread(t translations.TranslationHelperFunc) invento
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 			}
 
-			result, err := ResolveReviewThread(ctx, gqlClient, threadID, false)
+			result, err := ResolveReviewThread(ctx, gqlClient, threadID, nil, false)
 			return result, nil, err
 		},
 	)
