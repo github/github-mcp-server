@@ -1092,16 +1092,14 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				// GetContent when the API returns null content with a
 				// base64 encoding field, and to avoid DetectContentType
 				// misclassifying them as binary.
-				if fileSize == 0 && read.ContentAvailable {
+				if read.ContentAvailable && len(read.Content) == 0 {
 					result := &mcp.ResourceContents{
 						URI:      resourceURI,
 						Text:     "",
 						MIMEType: "text/plain",
 					}
 					message := fmt.Sprintf("successfully downloaded empty file (SHA: %s)%s", fileSHA, successNote)
-					if read.Metadata != nil {
-						message = marshalRepositoryPathMetadata(read.Metadata, "dereferenced_target", successNote)
-					}
+					message = repositoryReadMessage(read, message, successNote)
 					return attachIFC(utils.NewToolResultResource(message, result)), nil, nil
 				}
 
@@ -1117,9 +1115,9 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					message := fmt.Sprintf("File %s is too large to display (%d bytes). Use the download URL to fetch the content: %s (SHA: %s)%s",
 						path, fileSize, fileContent.GetDownloadURL(), fileSHA, successNote)
 					if read.Metadata != nil {
-						message = marshalRepositoryPathMetadata(read.Metadata, "dereferenced_target", successNote)
 						resourceLink.Title = fmt.Sprintf("Dereferenced target %s via symlink %s", read.Metadata.ResolvedTargetPath, path)
 					}
+					message = repositoryReadMessage(read, message, successNote)
 					return attachIFC(utils.NewToolResultResourceLink(
 						message,
 						resourceLink)), nil, nil
@@ -1149,9 +1147,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						MIMEType: contentType,
 					}
 					message := fmt.Sprintf("successfully downloaded text file (SHA: %s)%s", fileSHA, successNote)
-					if read.Metadata != nil {
-						message = marshalRepositoryPathMetadata(read.Metadata, "dereferenced_target", successNote)
-					}
+					message = repositoryReadMessage(read, message, successNote)
 					return attachIFC(utils.NewToolResultResource(message, result)), nil, nil
 				}
 
@@ -1161,9 +1157,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					MIMEType: contentType,
 				}
 				message := fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote)
-				if read.Metadata != nil {
-					message = marshalRepositoryPathMetadata(read.Metadata, "dereferenced_target", successNote)
-				}
+				message = repositoryReadMessage(read, message, successNote)
 				return attachIFC(utils.NewToolResultResource(message, result)), nil, nil
 			} else if dirContent != nil {
 				// file content or file SHA is nil which means it's a directory

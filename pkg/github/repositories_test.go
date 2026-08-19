@@ -759,7 +759,7 @@ func Test_GetFileContents_ContentlessRequestCounts(t *testing.T) {
 		assert.Equal(t, 4, requests)
 		metadata := repositoryPathMetadataFromResult(t, result)
 		assert.Equal(t, "target.bin", metadata.ResolvedTargetPath)
-		assert.Equal(t, "dereferenced_target", metadata.Content)
+		assert.Equal(t, "not_returned", metadata.Content)
 	})
 
 	t.Run("truncated tree fails closed", func(t *testing.T) {

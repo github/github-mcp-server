@@ -270,6 +270,17 @@ func marshalRepositoryPathMetadata(metadata *repositoryPathMetadata, content, no
 	return string(payload)
 }
 
+func repositoryReadMessage(read *repositoryFileRead, fallback, note string) string {
+	if read.Metadata == nil {
+		return fallback
+	}
+	content := "dereferenced_target"
+	if !read.ContentAvailable {
+		content = "not_returned"
+	}
+	return marshalRepositoryPathMetadata(read.Metadata, content, note)
+}
+
 func symlinkTargetAtPath(ctx context.Context, client *github.Client, owner, repo, treeish, path string) (string, bool, *github.Response, error) {
 	entry, resp, err := getTreeEntry(ctx, client, owner, repo, treeish, path)
 	if err != nil {
