@@ -27,14 +27,8 @@ type RepoAccessCache struct {
 	ttl              time.Duration
 	logger           *slog.Logger
 	trustedBotLogins map[string]struct{}
-
-	// identityDigest scopes this instance's entry keys to a single request
-	// identity. Empty means entries are unscoped. See WithIdentity.
-	identityDigest string
-
-	// now returns the current time and defaults to time.Now. Tests override it
-	// to exercise bounded expiry deterministically without sleeping.
-	now func() time.Time
+	identityDigest   string
+	now              func() time.Time
 
 	viewerMu    sync.Mutex
 	viewerLogin string
@@ -44,10 +38,7 @@ type repoAccessCacheEntry struct {
 	isPrivate  bool
 	knownUsers map[string]bool // normalized login -> has push access
 
-	// createdAt is the wall-clock time this repository's trust decision was
-	// first fetched. It is preserved across every subsequent update to the
-	// entry (e.g. learning about a newly-seen author), so an entry's maximum
-	// age is bounded from its original creation rather than reset by access.
+	// Preserved across entry updates, so age is bounded from the first fetch.
 	createdAt time.Time
 }
 
@@ -66,12 +57,8 @@ const (
 type RepoAccessOption func(*RepoAccessCache)
 
 // WithTTL overrides the default maximum age applied to cache entries. A
-// non-positive duration disables expiration.
-//
-// The TTL is a bounded, absolute age measured from when an entry's trust
-// decision was first fetched: repeated reads never extend it. This ensures
-// an actively-read entry is still refreshed once it reaches the maximum age,
-// rather than sliding its expiration forward indefinitely.
+// non-positive duration disables expiration. The age is absolute, measured
+// from an entry's first fetch: repeated reads never extend it.
 func WithTTL(ttl time.Duration) RepoAccessOption {
 	return func(c *RepoAccessCache) {
 		c.ttl = ttl
@@ -88,13 +75,9 @@ func WithLogger(logger *slog.Logger) RepoAccessOption {
 // WithCacheName overrides the cache table name used for storing entries.
 // Use this to isolate cache entries between tenants or in tests.
 //
-// cache2go.Cache(name) returns a process-wide singleton table that is created
-// on first use and never reclaimed, so the set of names a process passes here
-// must be bounded and known ahead of time. Never derive a name from
-// request-supplied data such as an auth token: the table registry would grow
-// without bound, retaining every distinct value seen for the lifetime of the
-// process. To isolate cached decisions per request identity, use WithIdentity,
-// which keeps a single table and scopes individual entries instead.
+// cache2go never reclaims a named table, so names must come from a bounded,
+// known set; never derive one from request data. Use WithIdentity instead to
+// isolate per request identity.
 func WithCacheName(name string) RepoAccessOption {
 	return func(c *RepoAccessCache) {
 		if name != "" {
@@ -103,21 +86,14 @@ func WithCacheName(name string) RepoAccessOption {
 	}
 }
 
-// WithIdentity scopes this cache's entries to a single request identity
-// (typically an auth token), so a trust decision computed under one caller's
-// credentials is never served to another. Two instances configured with the
-// same identity share a warm cache; instances with different identities
-// cannot observe each other's entries.
+// WithIdentity scopes cache entries to a single request identity, typically an
+// auth token, so a decision computed under one caller's credentials is never
+// served to another. Equal identities share a warm cache; an empty one is a
+// no-op.
 //
-// Isolation is applied to the entry key rather than the cache table: entries
-// are stored in the shared table under a key prefixed with a digest of the
-// identity. This keeps storage bounded, because per-identity entries are
-// reclaimed by the same TTL cleanup as any other entry. Allocating a table
-// per identity instead would leak, since cache2go never evicts tables.
-//
-// The identity is hashed so it never appears verbatim in cache keys, logs, or
-// metrics. An empty identity is a no-op, leaving this instance's entries
-// unscoped; callers that need isolation must supply a non-empty identity.
+// Scoping lives in the entry key rather than the table so per-identity state
+// stays bounded and is reclaimed by ordinary TTL cleanup. The identity is
+// hashed so it never appears verbatim in a key.
 func WithIdentity(identity string) RepoAccessOption {
 	return func(c *RepoAccessCache) {
 		if identity == "" {
@@ -261,8 +237,7 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 			users := make(map[string]bool, len(entry.knownUsers)+1)
 			maps.Copy(users, entry.knownUsers)
 			users[userKey] = hasPush
-			// Preserve the entry's original createdAt: learning about a newly
-			// seen author must not reset the entry's bounded maximum age.
+			// Preserve createdAt: a new author must not reset the entry's age.
 			c.cache.Add(key, c.ttl, &repoAccessCacheEntry{
 				isPrivate:  entry.isPrivate,
 				knownUsers: users,
@@ -303,12 +278,9 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 	}, nil
 }
 
-// entryExpired reports whether entry has reached the cache's bounded maximum
-// age, measured from its original creation time rather than its last access
-// time. Unlike the underlying cache2go table's own sliding expiry (which
-// resets on every read), this check ensures a frequently-accessed entry is
-// still forced to refresh once it is old enough, so stale trust decisions
-// cannot be kept alive indefinitely by repeated reads.
+// entryExpired reports whether entry has reached the cache's maximum age,
+// measured from creation. cache2go's own expiry instead slides on every read,
+// which would let repeated reads keep a stale decision alive indefinitely.
 func (c *RepoAccessCache) entryExpired(entry *repoAccessCacheEntry) bool {
 	if c.ttl <= 0 {
 		return false
@@ -316,8 +288,6 @@ func (c *RepoAccessCache) entryExpired(entry *repoAccessCacheEntry) bool {
 	return c.clock().Sub(entry.createdAt) >= c.ttl
 }
 
-// clock returns the current time, using the injected now function if set
-// (tests use this to exercise bounded expiry deterministically).
 func (c *RepoAccessCache) clock() time.Time {
 	if c.now != nil {
 		return c.now()
@@ -390,10 +360,8 @@ func (c *RepoAccessCache) isTrustedBot(username string) bool {
 	return ok
 }
 
-// cacheKey returns the entry key for owner/repo, prefixed with this cache's
-// identity digest when one is configured. Instances sharing a cache table are
-// kept isolated by this prefix rather than by separate tables, so every
-// identity's entries remain subject to the table's ordinary TTL cleanup.
+// cacheKey scopes the owner/repo key to this cache's identity, so identities
+// sharing a table cannot observe each other's entries.
 func (c *RepoAccessCache) cacheKey(owner, repo string) string {
 	key := fmt.Sprintf("%s/%s", strings.ToLower(owner), strings.ToLower(repo))
 	if c.identityDigest == "" {

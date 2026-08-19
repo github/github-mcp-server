@@ -124,15 +124,8 @@ func TestRequestDepsScopesTokensToConfiguredHosts(t *testing.T) {
 	assert.Empty(t, foreignAuth, "GraphQL redirect must not authenticate to a foreign host")
 }
 
-// TestGetRepoAccessCacheIsolatesTrustDecisionsPerIdentity is a regression test
-// for issue #3107. It mirrors exactly how the HTTP server builds RequestDeps:
-// a single RepoAccessOpts slice is constructed once at startup (with no
-// per-identity WithCacheName) and reused across every request, and
-// GetRepoAccessCache is called fresh per request. Two different token
-// identities querying the same owner/repo/author must each perform their own
-// upstream lookups instead of one being served from the other's cached
-// decision, while repeated requests from the same identity must reuse a warm
-// cache.
+// Regression test for #3107: RequestDeps is built once at startup and shared,
+// so identity scoping has to happen per request in GetRepoAccessCache.
 func TestGetRepoAccessCacheIsolatesTrustDecisionsPerIdentity(t *testing.T) {
 	t.Parallel()
 
@@ -159,7 +152,7 @@ func TestGetRepoAccessCacheIsolatesTrustDecisionsPerIdentity(t *testing.T) {
 		return gqlCalls, restCalls
 	}
 
-	// Built once, exactly as pkg/http/server.go does today: no WithCacheName.
+	// Built as pkg/http/server.go does: no per-identity options.
 	deps := github.NewRequestDeps(
 		newRequestDepsAPIHostResolver(t, server.URL),
 		"test",
@@ -195,8 +188,6 @@ func TestGetRepoAccessCacheIsolatesTrustDecisionsPerIdentity(t *testing.T) {
 	require.Equal(t, 2, gqlN, "a different identity's request must not be served from another identity's cached trust decision")
 	require.Equal(t, 2, restN, "a different identity's request must not be served from another identity's cached trust decision")
 
-	// Repeating the same identity's token must reuse the warm per-identity
-	// cache without any additional upstream calls.
 	cacheAliceAgain, err := deps.GetRepoAccessCache(ctxAlice)
 	require.NoError(t, err)
 	_, err = cacheAliceAgain.IsSafeContent(ctxAlice, "mallory", "owner", "repo")

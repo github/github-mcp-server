@@ -455,12 +455,8 @@ func (d *RequestDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAcc
 		return nil, err
 	}
 
-	// Scope cache entries to the requesting identity so a trust decision
-	// computed under one caller's credentials is never served to another.
-	// RepoAccessOpts is built once at server startup and shared by every
-	// request, so identity scoping has to be applied per request here. Copy
-	// the slice before appending so concurrent requests never mutate the
-	// shared backing array.
+	// RepoAccessOpts is shared across requests, so copy before appending the
+	// per-request identity scope.
 	opts := d.RepoAccessOpts
 	if tokenInfo, ok := ghcontext.GetTokenInfo(ctx); ok && tokenInfo.Token != "" {
 		opts = append(append([]lockdown.RepoAccessOption{}, d.RepoAccessOpts...), lockdown.WithIdentity(tokenInfo.Token))

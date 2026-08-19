@@ -134,13 +134,8 @@ func TestRepoAccessCacheEvictsAfterTTL(t *testing.T) {
 	require.EqualValues(t, 2, transport.CallCount())
 }
 
-// TestRepoAccessCacheBoundedExpiryIgnoresRepeatedAccess is a regression test for
-// issue #3107: a sliding-expiry cache extends an entry's life on every read, so
-// a frequently-accessed entry never refreshes even once revoked access should
-// have invalidated it. With bounded expiry, an entry's maximum age is measured
-// from its original creation, not its last access, so repeated reads within
-// the TTL are served from cache but the entry is still forced to refresh once
-// its absolute age exceeds the TTL.
+// Regression test for #3107: sliding expiry would let a frequently-read entry
+// outlive revoked access, so age must be bounded from creation.
 func TestRepoAccessCacheBoundedExpiryIgnoresRepeatedAccess(t *testing.T) {
 	ctx := t.Context()
 
@@ -154,11 +149,7 @@ func TestRepoAccessCacheBoundedExpiryIgnoresRepeatedAccess(t *testing.T) {
 	require.True(t, info.HasPushAccess)
 	require.EqualValues(t, 1, transport.CallCount())
 
-	// Repeatedly access the entry well within the window. A sliding-expiry
-	// cache would extend the entry's life on every one of these reads and
-	// never refresh it; bounded expiry must keep serving it from cache
-	// without making new upstream calls, since the absolute age is still
-	// under the TTL.
+	// Each read lands well inside the TTL; only their sum exceeds it.
 	for range 4 {
 		current = current.Add(20 * time.Second)
 		_, err = cache.getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
@@ -166,8 +157,6 @@ func TestRepoAccessCacheBoundedExpiryIgnoresRepeatedAccess(t *testing.T) {
 	}
 	require.EqualValues(t, 1, transport.CallCount(), "repeated access within the bounded window must still be served from cache")
 
-	// Cross the bound: total elapsed time since creation now exceeds the TTL,
-	// even though every individual access happened well inside it.
 	current = current.Add(30 * time.Second)
 	info, err = cache.getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
 	require.NoError(t, err)
@@ -175,10 +164,8 @@ func TestRepoAccessCacheBoundedExpiryIgnoresRepeatedAccess(t *testing.T) {
 	require.EqualValues(t, 2, transport.CallCount(), "entry must refresh once its absolute age exceeds the TTL, regardless of access frequency")
 }
 
-// TestRepoAccessCacheNewUserDoesNotResetEntryAge ensures that learning about a
-// newly-seen author on an existing repo entry does not reset the entry's
-// bounded creation time, which would otherwise re-introduce sliding behavior
-// through a different code path.
+// A "known users" miss updates an existing entry, a second path that must not
+// reset its age.
 func TestRepoAccessCacheNewUserDoesNotResetEntryAge(t *testing.T) {
 	ctx := t.Context()
 
@@ -194,16 +181,11 @@ func TestRepoAccessCacheNewUserDoesNotResetEntryAge(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 1, transport.CallCount())
 
-	// A different, previously-unseen user triggers a "known users" miss but
-	// not a full entry miss, exercising the path that preserves createdAt.
 	cache.now = func() time.Time { return start.Add(50 * time.Second) }
 	_, err = cache.getRepoAccessInfo(ctx, "someone-else", testOwner, testRepo)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, transport.CallCount(), "checking a new user against a cached repo entry must not re-query repo metadata")
 
-	// Total elapsed time since the entry's original creation now exceeds the
-	// TTL. If the new-user update above had reset createdAt, this would still
-	// be considered fresh (50s < 100s from the reset point); it must not be.
 	cache.now = func() time.Time { return start.Add(120 * time.Second) }
 	_, err = cache.getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
 	require.NoError(t, err)
@@ -233,8 +215,6 @@ func TestRepoAccessCacheIsolatesViewerPerInstance(t *testing.T) {
 	require.True(t, safe)
 }
 
-// TestRepoAccessCacheIdentityScopedKeys covers the key derivation that keeps
-// identities isolated inside a single shared cache table.
 func TestRepoAccessCacheIdentityScopedKeys(t *testing.T) {
 	restClient := newMockRESTServer(t, "write")
 	gqlClient, _ := newMockGQLClient(testUser, false)
@@ -259,13 +239,8 @@ func TestRepoAccessCacheIdentityScopedKeys(t *testing.T) {
 		"identity scoping must preserve owner/repo case-insensitivity")
 }
 
-// TestRepoAccessCacheIdentityScopingIsolatesWithinOneTable is a regression
-// test for issue #3107. Isolating identities by allocating a cache2go table
-// per token grows a process-wide registry that is never reclaimed, so
-// isolation must instead come from the entry key inside a single table. This
-// asserts both halves: different identities cannot see each other's trust
-// decisions, and their entries share one table so ordinary TTL cleanup can
-// reclaim them.
+// Regression test for #3107: a table per identity leaks, so isolation must come
+// from the entry key inside one table.
 func TestRepoAccessCacheIdentityScopingIsolatesWithinOneTable(t *testing.T) {
 	ctx := t.Context()
 
@@ -291,19 +266,14 @@ func TestRepoAccessCacheIdentityScopingIsolatesWithinOneTable(t *testing.T) {
 	require.EqualValues(t, 2, table.Count(),
 		"per-identity entries must be stored in one shared table rather than a table per identity")
 
-	// Repeating the same identity must hit the warm cache and must not
-	// allocate additional storage.
 	_, err = newCache(aliceGQL, "token-alice").getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, aliceTransport.CallCount(), "repeated requests from the same identity should reuse the warm cache")
 	require.EqualValues(t, 2, table.Count(), "a repeated request from a known identity must not add another entry")
 }
 
-// TestRepoAccessCacheIdentityScopedEntriesAreReclaimed proves the storage held
-// for distinct identities is bounded: because identity scoping lives in the
-// entry key, per-identity state is removed by the cache table's ordinary TTL
-// cleanup. A table-per-identity design could not shrink this way, since
-// cache2go retains every named table for the life of the process.
+// Key-scoped entries stay bounded because ordinary TTL cleanup reclaims them;
+// a table per identity could not shrink this way.
 func TestRepoAccessCacheIdentityScopedEntriesAreReclaimed(t *testing.T) {
 	ctx := t.Context()
 
