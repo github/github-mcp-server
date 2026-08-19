@@ -34,6 +34,11 @@ func TestExpandScopes(t *testing.T) {
 			expected: []string{"public_repo", "repo"},
 		},
 		{
+			name:     "delete_repo returns just delete_repo",
+			required: []Scope{DeleteRepo},
+			expected: []string{"delete_repo"},
+		},
+		{
 			name:     "security_events also accepts repo (parent)",
 			required: []Scope{SecurityEvents},
 			expected: []string{"repo", "security_events"},
@@ -105,6 +110,27 @@ func TestExpandScopes(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestHasRequiredScopeGroups(t *testing.T) {
+	groups := ExpandScopeGroups(DeleteRepo, Repo)
+
+	assert.True(t, HasRequiredScopeGroups([]string{"delete_repo", "repo"}, groups))
+	assert.False(t, HasRequiredScopeGroups([]string{"delete_repo"}, groups))
+	assert.False(t, HasRequiredScopeGroups([]string{"repo"}, groups))
+}
+
+func TestOAuthScopeCatalog(t *testing.T) {
+	supported := SupportedOAuthScopes()
+	defaults := DefaultOAuthScopes()
+
+	assert.Subset(t, supported, defaults)
+	assert.Contains(t, supported, string(DeleteRepo))
+	assert.NotContains(t, defaults, string(DeleteRepo))
+	assert.Contains(t, supported, string(Workflow))
+	assert.NotContains(t, defaults, string(Workflow))
+	assert.Contains(t, supported, string(Codespace))
+	assert.NotContains(t, defaults, string(Codespace))
 }
 
 func TestToStringSlice(t *testing.T) {

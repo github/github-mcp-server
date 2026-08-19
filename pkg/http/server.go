@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/github/github-mcp-server/internal/requeststate"
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
@@ -26,6 +27,9 @@ import (
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 )
+
+// MRTRStateKeyEnv is the environment variable used to configure HTTP request-state encryption.
+const MRTRStateKeyEnv = "GITHUB_MCP_SERVER_MRTR_STATE_KEY"
 
 type ServerConfig struct {
 	// Version of the server
@@ -100,6 +104,15 @@ type ServerConfig struct {
 
 	// InsidersMode expands to the curated set of feature flags enabled for insiders.
 	InsidersMode bool
+
+	// MRTRStateKey is a Base64-encoded 32-byte key used to protect multi-round-trip request state.
+	MRTRStateKey string
+
+	// MaxRequestBodyBytes bounds the size of HTTP request bodies accepted by
+	// the MCP endpoints. When zero, middleware.DefaultMaxRequestBodyBytes is used.
+	MaxRequestBodyBytes int64
+
+	disableDeleteRepository bool
 }
 
 func RunHTTPServer(cfg ServerConfig) error {
@@ -125,6 +138,11 @@ func RunHTTPServer(cfg ServerConfig) error {
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "lockdownEnabled", cfg.LockdownMode, "readOnly", cfg.ReadOnly, "insidersMode", cfg.InsidersMode)
 
+	stateSealer, err := configureRequestState(&cfg, logger)
+	if err != nil {
+		return err
+	}
+
 	apiHost, err := utils.NewAPIHost(cfg.Host)
 	if err != nil {
 		return fmt.Errorf("failed to parse API host: %w", err)
@@ -142,6 +160,11 @@ func RunHTTPServer(cfg ServerConfig) error {
 	}
 
 	featureChecker := createHTTPFeatureChecker(cfg.EnabledFeatures, cfg.InsidersMode)
+	scopeFetcher := scopes.NewFetcher(apiHost, scopes.FetcherOptions{})
+	inventoryFactory, err := NewDefaultInventoryFactory(&cfg, t, featureChecker, scopeFetcher)
+	if err != nil {
+		return fmt.Errorf("failed to build inventory: %w", err)
+	}
 
 	obs, err := observability.NewExporters(logger, metrics.NewNoopMetrics())
 	if err != nil {
@@ -158,6 +181,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 		featureChecker,
 		obs,
 	)
+	deps.StateSealer = stateSealer
 
 	// Initialize the global tool scope map
 	err = initGlobalToolScopeMap(t, hostType)
@@ -172,10 +196,9 @@ func RunHTTPServer(cfg ServerConfig) error {
 		TrustProxyHeaders: cfg.TrustProxyHeaders,
 	}
 
-	serverOptions := []HandlerOption{}
-	if cfg.ScopeChallenge {
-		scopeFetcher := scopes.NewFetcher(apiHost, scopes.FetcherOptions{})
-		serverOptions = append(serverOptions, WithScopeFetcher(scopeFetcher))
+	serverOptions := []HandlerOption{
+		WithInventoryFactory(inventoryFactory),
+		WithScopeFetcher(scopeFetcher),
 	}
 
 	r := chi.NewRouter()
@@ -241,6 +264,19 @@ func resolveListenAddress(host string, port int) string {
 		return fmt.Sprintf(":%d", port)
 	}
 	return net.JoinHostPort(host, strconv.Itoa(port))
+}
+
+func configureRequestState(cfg *ServerConfig, logger *slog.Logger) (github.RequestStateSealer, error) {
+	if cfg.MRTRStateKey == "" {
+		cfg.disableDeleteRepository = true
+		logger.Warn("delete_repository disabled: request-state encryption key is not configured", "environmentVariable", MRTRStateKeyEnv)
+		return nil, nil
+	}
+	sealer, err := requeststate.New(cfg.MRTRStateKey)
+	if err != nil {
+		return nil, fmt.Errorf("invalid %s: %w", MRTRStateKeyEnv, err)
+	}
+	return sealer, nil
 }
 
 func initGlobalToolScopeMap(t translations.TranslationHelperFunc, hostType utils.HostType) error {

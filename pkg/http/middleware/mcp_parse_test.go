@@ -189,3 +189,68 @@ func TestWithMCPParse_BodyRestoration(t *testing.T) {
 
 	assert.Equal(t, originalBody, capturedBody, "body should be restored for downstream handlers")
 }
+
+// TestWithMCPParse_WithMaxBodySize mirrors the production middleware ordering,
+// where WithMaxBodySize runs ahead of WithMCPParse.
+func TestWithMCPParse_WithMaxBodySize(t *testing.T) {
+	const limit = 128
+
+	buildBody := func(size int) string {
+		payload := `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"test_tool","arguments":{"pad":"PADDING"}}}`
+		if len(payload) >= size {
+			return payload
+		}
+		pad := strings.Repeat("x", size-len(payload))
+		return strings.Replace(payload, "PADDING", "PADDING"+pad, 1)
+	}
+
+	t.Run("oversized body is rejected before parsing", func(t *testing.T) {
+		body := buildBody(limit + 1)
+		require.Greater(t, len(body), limit)
+
+		var nextCalled bool
+		nextHandler := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			nextCalled = true
+		})
+
+		handler := WithMaxBodySize(limit)(WithMCPParse()(nextHandler))
+
+		// An unknown length skips WithMaxBodySize's Content-Length fast path,
+		// so the overflow surfaces from WithMCPParse's own read.
+		req := httptest.NewRequest(http.MethodPost, "/mcp", unknownLengthBody(body))
+		require.Equal(t, int64(-1), req.ContentLength, "test setup: Content-Length should be unknown")
+
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		assert.False(t, nextCalled, "downstream handler must not run for an oversized request")
+		assert.Equal(t, http.StatusRequestEntityTooLarge, rr.Code)
+		assert.Contains(t, rr.Body.String(), "request body too large")
+	})
+
+	t.Run("boundary-size body is parsed and preserved", func(t *testing.T) {
+		body := buildBody(limit)
+		require.Len(t, body, limit)
+
+		var capturedInfo *ghcontext.MCPMethodInfo
+		var capturedBody string
+		nextHandler := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			capturedInfo, _ = ghcontext.MCPMethod(r.Context())
+			b, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			capturedBody = string(b)
+		})
+
+		handler := WithMaxBodySize(limit)(WithMCPParse()(nextHandler))
+
+		req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		require.NotNil(t, capturedInfo, "MCPMethodInfo should be parsed for an allowed request")
+		assert.Equal(t, "tools/call", capturedInfo.Method)
+		assert.Equal(t, "test_tool", capturedInfo.ItemName)
+		assert.Equal(t, body, capturedBody, "body should be preserved for downstream handlers")
+	})
+}

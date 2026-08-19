@@ -569,6 +569,7 @@ func TestSupportedScopes(t *testing.T) {
 	// Verify all expected scopes are present
 	expectedScopes := []string{
 		"repo",
+		"delete_repo",
 		"read:org",
 		"read:user",
 		"user:email",
@@ -583,6 +584,13 @@ func TestSupportedScopes(t *testing.T) {
 	}
 
 	assert.Equal(t, expectedScopes, SupportedScopes)
+}
+
+func TestDefaultScopesRequiresExplicitDeleteRepoOptIn(t *testing.T) {
+	assert.Subset(t, SupportedScopes, DefaultScopes)
+	assert.Contains(t, SupportedScopes, "delete_repo")
+	assert.NotContains(t, DefaultScopes, "delete_repo")
+	assert.Contains(t, DefaultScopes, "repo")
 }
 
 func TestProtectedResourceResponseFormat(t *testing.T) {

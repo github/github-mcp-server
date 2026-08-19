@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/github/github-mcp-server/internal/oauth"
+	"github.com/github/github-mcp-server/internal/requeststate"
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/transport"
@@ -62,30 +63,32 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
 	}
 
-	// Construct REST client. When a TokenProvider is configured, we
-	// authenticate via BearerAuthTransport and skip go-github's WithAuthToken:
-	// the latter installs its own round tripper that would pin the static token
-	// and shadow the dynamic one.
+	// allowedHosts scopes the bearer token to the configured GitHub hosts, so a
+	// response that redirects off them does not carry the token to the redirect
+	// target. See transport.BearerAuthTransport.
+	allowedHosts := []string{
+		restURL.Host,
+		uploadURL.Host,
+		graphQLURL.Host,
+		rawURL.Host,
+	}
+
+	// Construct REST client. BearerAuthTransport handles both static and
+	// provider-backed tokens so every authentication mode uses the same host
+	// restrictions.
 	restUATransport := &transport.UserAgentTransport{
 		Transport: http.DefaultTransport,
 		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
 	}
-	var restClient *gogithub.Client
-	if cfg.TokenProvider != nil {
-		restClient, err = gogithub.NewClient(
-			gogithub.WithHTTPClient(&http.Client{Transport: &transport.BearerAuthTransport{
-				Transport:     restUATransport,
-				TokenProvider: cfg.TokenProvider,
-			}}),
-			gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
-		)
-	} else {
-		restClient, err = gogithub.NewClient(
-			gogithub.WithHTTPClient(&http.Client{Transport: restUATransport}),
-			gogithub.WithAuthToken(cfg.Token),
-			gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
-		)
-	}
+	restClient, err := gogithub.NewClient(
+		gogithub.WithHTTPClient(&http.Client{Transport: &transport.BearerAuthTransport{
+			Transport:     restUATransport,
+			Token:         cfg.Token,
+			TokenProvider: cfg.TokenProvider,
+			AllowedHosts:  allowedHosts,
+		}}),
+		gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create REST client: %w", err)
 	}
@@ -99,6 +102,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 			},
 			Token:         cfg.Token,
 			TokenProvider: cfg.TokenProvider,
+			AllowedHosts:  allowedHosts,
 		},
 	}
 
@@ -169,6 +173,10 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		featureChecker,
 		obs,
 	)
+	deps.StateSealer, err = requeststate.NewRandom()
+	if err != nil {
+		return nil, fmt.Errorf("failed to configure request-state protection: %w", err)
+	}
 	// Build and register the tool/resource/prompt inventory
 	inventoryBuilder := github.NewInventory(cfg.Translator, github.WithHost(hostType)).
 		WithDeprecatedAliases(github.DeprecatedToolAliases).

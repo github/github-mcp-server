@@ -220,7 +220,9 @@ func shouldStripMCPAppsMetadata(ctx context.Context, featureFlagEnabled bool) bo
 // falsely report the flag off, even when the actual request arrived on the
 // /insiders route.
 func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
-	for _, tool := range r.ToolsForRegistration(ctx) {
+	tools := r.ToolsForRegistration(ctx)
+	addToolAvailabilityMiddleware(s, tools)
+	for _, tool := range tools {
 		tool.RegisterFunc(s, deps, middleware...)
 	}
 }

@@ -128,11 +128,11 @@ var (
 			}
 
 			// When no static token is provided, log in via OAuth using the given
-			// client. The requested scopes default to the full supported set
-			// (which filters out no tools); an explicit, narrower --oauth-scopes
-			// both narrows the grant and hides tools needing other scopes.
+			// client. The requested scopes default to the standard set; high-risk
+			// scopes such as delete_repo require explicit --oauth-scopes opt-in.
+			// The requested set also filters tools needing other scopes.
 			if token == "" && !appAuthRequested {
-				scopes := ghoauth.SupportedScopes
+				scopes := ghoauth.DefaultScopes
 				if viper.IsSet("oauth-scopes") {
 					if err := viper.UnmarshalKey("oauth-scopes", &scopes); err != nil {
 						return fmt.Errorf("failed to unmarshal oauth-scopes: %w", err)
@@ -217,6 +217,7 @@ var (
 				EnabledFeatures:      enabledFeatures,
 				InsidersMode:         viper.GetBool("insiders"),
 				TrustProxyHeaders:    viper.GetBool("trust-proxy-headers"),
+				MRTRStateKey:         os.Getenv(ghhttp.MRTRStateKeyEnv),
 			}
 
 			return ghhttp.RunHTTPServer(httpConfig)
