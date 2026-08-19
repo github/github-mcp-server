@@ -292,6 +292,10 @@ When active, this mode will disable all tools that are not read-only even if the
 
 Lockdown mode ensures the server only surfaces content in public repositories from users with push access to that repository. Private repositories are unaffected, and collaborators retain full access to their own content.
 
+Lockdown mode is a best-effort content filter meant to reduce prompt-injection risk from untrusted repository content; it is not an authorization boundary. It does not restrict what the underlying credential can otherwise read or write, and content withheld from a filtered tool response may still be reachable through other tools or direct GitHub API access with the same credential.
+
+As an intentional exception, content authored by trusted bot accounts (currently `github-actions[bot]` and `copilot`) is always treated as safe, regardless of push access, so routine automation output isn't filtered.
+
 **Example:**
 <table>
 <tr><th>Remote Server</th><th>Local Server</th></tr>
