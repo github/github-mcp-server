@@ -8,6 +8,7 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -99,7 +100,7 @@ type WithCategoryNoOrder struct {
 func fragmentToDiscussion(fragment NodeFragment) *github.Discussion {
 	return &github.Discussion{
 		Number:    github.Ptr(int(fragment.Number)),
-		Title:     github.Ptr(string(fragment.Title)),
+		Title:     github.Ptr(sanitize.Sanitize(string(fragment.Title))),
 		HTMLURL:   github.Ptr(string(fragment.URL)),
 		CreatedAt: &github.Timestamp{Time: fragment.CreatedAt.Time},
 		UpdatedAt: &github.Timestamp{Time: fragment.UpdatedAt.Time},
@@ -360,8 +361,8 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// like ListDiscussions and GetDiscussionComments).
 			response := map[string]any{
 				"number":     int(d.Number),
-				"title":      string(d.Title),
-				"body":       string(d.Body),
+				"title":      sanitize.Sanitize(string(d.Title)),
+				"body":       sanitize.Sanitize(string(d.Body)),
 				"url":        string(d.URL),
 				"closed":     bool(d.Closed),
 				"isAnswered": bool(d.IsAnswered),
@@ -522,14 +523,14 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				for _, c := range q.Repository.Discussion.Comments.Nodes {
 					comment := MinimalDiscussionComment{
 						ID:              fmt.Sprintf("%v", c.ID),
-						Body:            string(c.Body),
+						Body:            sanitize.Sanitize(string(c.Body)),
 						IsAnswer:        bool(c.IsAnswer),
 						ReplyTotalCount: c.Replies.TotalCount,
 					}
 					for _, r := range c.Replies.Nodes {
 						comment.Replies = append(comment.Replies, MinimalDiscussionComment{
 							ID:       fmt.Sprintf("%v", r.ID),
-							Body:     string(r.Body),
+							Body:     sanitize.Sanitize(string(r.Body)),
 							IsAnswer: bool(r.IsAnswer),
 						})
 					}
@@ -564,7 +565,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				for _, c := range q.Repository.Discussion.Comments.Nodes {
 					comments = append(comments, MinimalDiscussionComment{
 						ID:       fmt.Sprintf("%v", c.ID),
-						Body:     string(c.Body),
+						Body:     sanitize.Sanitize(string(c.Body)),
 						IsAnswer: bool(c.IsAnswer),
 					})
 				}

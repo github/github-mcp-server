@@ -759,7 +759,7 @@ func convertToMinimalPullRequestReview(review *github.PullRequestReview) Minimal
 	m := MinimalPullRequestReview{
 		ID:                review.GetID(),
 		State:             review.GetState(),
-		Body:              review.GetBody(),
+		Body:              sanitize.Sanitize(review.GetBody()),
 		HTMLURL:           review.GetHTMLURL(),
 		User:              convertToMinimalUser(review.GetUser()),
 		CommitID:          review.GetCommitID(),
@@ -2239,7 +2239,7 @@ func convertToMinimalReviewThread(thread reviewThreadNode) MinimalReviewThread {
 
 func convertToMinimalReviewComment(c reviewCommentNode) MinimalReviewComment {
 	m := MinimalReviewComment{
-		Body:    string(c.Body),
+		Body:    sanitize.Sanitize(string(c.Body)),
 		Path:    string(c.Path),
 		Author:  string(c.Author.Login),
 		HTMLURL: c.URL.String(),
