@@ -3,11 +3,44 @@ package raw
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 
 	gogithub "github.com/google/go-github/v89/github"
 )
+
+// errPathTraversal is returned when an owner, repo, ref/sha, or path
+// component used to build a raw content URL contains a ".." path segment,
+// either literally or via percent-decoding.
+var errPathTraversal = errors.New(`raw: path segment ".." is not allowed`)
+
+// rejectPathTraversal reports an error if any "/"-separated segment of the
+// given components is, or decodes to, "..". url.URL.JoinPath cleans the
+// joined path (resolving ".." segments) before producing the final URL, so a
+// ".." segment anywhere in owner, repo, ref/sha, or path could otherwise
+// rebind the resulting raw.githubusercontent.com URL to a different owner,
+// repository, or ref than the one requested.
+func rejectPathTraversal(components ...string) error {
+	for _, component := range components {
+		for segment := range strings.SplitSeq(component, "/") {
+			if segment == "" {
+				continue
+			}
+			if segment == ".." {
+				return errPathTraversal
+			}
+			// Guard against percent-encoded traversal (e.g. "%2e%2e") in case
+			// the segment is later decoded before being treated as a path
+			// component.
+			if decoded, err := url.PathUnescape(segment); err == nil && decoded == ".." {
+				return errPathTraversal
+			}
+		}
+	}
+	return nil
+}
 
 // GetRawClientFn is a function type that returns a RawClient instance.
 type GetRawClientFn func(context.Context) (*Client, error)
@@ -34,14 +67,17 @@ func (c *Client) newRequest(ctx context.Context, method string, urlStr string, b
 	return c.client.NewRequest(ctx, method, urlStr, body, opts...)
 }
 
-func (c *Client) refURL(owner, repo, ref, path string) string {
+func (c *Client) refURL(owner, repo, ref, path string) (string, error) {
 	if ref == "" {
-		return c.url.JoinPath(owner, repo, "HEAD", path).String()
+		ref = "HEAD"
 	}
-	return c.url.JoinPath(owner, repo, ref, path).String()
+	if err := rejectPathTraversal(owner, repo, ref, path); err != nil {
+		return "", err
+	}
+	return c.url.JoinPath(owner, repo, ref, path).String(), nil
 }
 
-func (c *Client) URLFromOpts(opts *ContentOpts, owner, repo, path string) string {
+func (c *Client) URLFromOpts(opts *ContentOpts, owner, repo, path string) (string, error) {
 	if opts == nil {
 		opts = &ContentOpts{}
 	}
@@ -52,8 +88,11 @@ func (c *Client) URLFromOpts(opts *ContentOpts, owner, repo, path string) string
 }
 
 // BlobURL returns the URL for a blob in the raw content API.
-func (c *Client) commitURL(owner, repo, sha, path string) string {
-	return c.url.JoinPath(owner, repo, sha, path).String()
+func (c *Client) commitURL(owner, repo, sha, path string) (string, error) {
+	if err := rejectPathTraversal(owner, repo, sha, path); err != nil {
+		return "", err
+	}
+	return c.url.JoinPath(owner, repo, sha, path).String(), nil
 }
 
 type ContentOpts struct {
@@ -63,8 +102,11 @@ type ContentOpts struct {
 
 // GetRawContent fetches the raw content of a file from a GitHub repository.
 func (c *Client) GetRawContent(ctx context.Context, owner, repo, path string, opts *ContentOpts) (*http.Response, error) {
-	url := c.URLFromOpts(opts, owner, repo, path)
-	req, err := c.newRequest(ctx, "GET", url, nil)
+	rawURL, err := c.URLFromOpts(opts, owner, repo, path)
+	if err != nil {
+		return nil, err
+	}
+	req, err := c.newRequest(ctx, "GET", rawURL, nil)
 	if err != nil {
 		return nil, err
 	}
