@@ -2563,7 +2563,7 @@ func Test_ListIssues_IssueFieldsSchemaCompatibility(t *testing.T) {
 
 	responseBody := func(t *testing.T, includeFieldValues bool) string {
 		t.Helper()
-		issue := map[string]any{
+		assignedIssue := map[string]any{
 			"number":     1,
 			"title":      "An issue",
 			"body":       "body",
@@ -2573,10 +2573,11 @@ func Test_ListIssues_IssueFieldsSchemaCompatibility(t *testing.T) {
 			"updatedAt":  "2026-01-01T00:00:00Z",
 			"author":     map[string]any{"login": "octocat"},
 			"labels":     map[string]any{"nodes": []any{}},
+			"assignees":  map[string]any{"nodes": []any{map[string]any{"login": "hubot"}}},
 			"comments":   map[string]any{"totalCount": 0},
 		}
 		if includeFieldValues {
-			issue["issueFieldValues"] = map[string]any{
+			assignedIssue["issueFieldValues"] = map[string]any{
 				"nodes": []any{
 					map[string]any{
 						"__typename": "IssueFieldSingleSelectValue",
@@ -2586,19 +2587,32 @@ func Test_ListIssues_IssueFieldsSchemaCompatibility(t *testing.T) {
 				},
 			}
 		}
+		unassignedIssue := map[string]any{
+			"number":     2,
+			"title":      "An unassigned issue",
+			"body":       "body",
+			"state":      "OPEN",
+			"databaseId": 2,
+			"createdAt":  "2026-01-02T00:00:00Z",
+			"updatedAt":  "2026-01-02T00:00:00Z",
+			"author":     map[string]any{"login": "octocat"},
+			"labels":     map[string]any{"nodes": []any{}},
+			"assignees":  map[string]any{"nodes": []any{}},
+			"comments":   map[string]any{"totalCount": 0},
+		}
 
 		body, err := json.Marshal(map[string]any{
 			"data": map[string]any{
 				"repository": map[string]any{
 					"issues": map[string]any{
-						"nodes": []any{issue},
+						"nodes": []any{assignedIssue, unassignedIssue},
 						"pageInfo": map[string]any{
 							"hasNextPage":     false,
 							"hasPreviousPage": false,
 							"startCursor":     "",
 							"endCursor":       "",
 						},
-						"totalCount": 1,
+						"totalCount": 2,
 					},
 					"isPrivate": false,
 				},
@@ -2606,6 +2620,20 @@ func Test_ListIssues_IssueFieldsSchemaCompatibility(t *testing.T) {
 		})
 		require.NoError(t, err)
 		return string(body)
+	}
+
+	fallbackQuery := func(hasLabels, hasSince bool) string {
+		const selection = "{nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},assignees(first: 100){nodes{login}},comments{totalCount}},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}"
+		switch {
+		case hasLabels && hasSince:
+			return "query($after:String$direction:OrderDirection!$first:Int!$labels:[String!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$since:DateTime!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since})" + selection + ",isPrivate}}"
+		case hasLabels:
+			return "query($after:String$direction:OrderDirection!$first:Int!$labels:[String!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction})" + selection + ",isPrivate}}"
+		case hasSince:
+			return "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$since:DateTime!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since})" + selection + ",isPrivate}}"
+		default:
+			return "query($after:String$direction:OrderDirection!$first:Int!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction})" + selection + ",isPrivate}}"
+		}
 	}
 
 	errorBody := func(t *testing.T, message string) string {
@@ -2646,6 +2674,12 @@ func Test_ListIssues_IssueFieldsSchemaCompatibility(t *testing.T) {
 				"since":  "2026-01-01T00:00:00Z",
 			},
 			primaryError: "Field 'issueFieldValues' doesn't exist on type 'Issue'",
+			wantFallback: true,
+		},
+		{
+			name:         "missing filter input type falls back with labels",
+			args:         map[string]any{"owner": "owner", "repo": "repo", "labels": []any{"bug"}},
+			primaryError: "IssueFieldValueFilter isn't a defined input type (on $issueFieldValues)",
 			wantFallback: true,
 		},
 		{
@@ -2713,13 +2747,17 @@ func Test_ListIssues_IssueFieldsSchemaCompatibility(t *testing.T) {
 			}
 			if tt.wantFallback {
 				responses = append(responses, func(req capturedGraphQLRequest) (int, string) {
+					_, hasLabels := tt.args["labels"]
+					_, hasSince := tt.args["since"]
+					assert.Equal(t, fallbackQuery(hasLabels, hasSince), req.Query)
+					assert.Contains(t, req.Query, "assignees(first: 100){nodes{login}}")
 					assert.NotContains(t, req.Query, "IssueFieldValueFilter")
 					assert.NotContains(t, req.Query, "issueFieldValues")
 					assert.NotContains(t, req.Variables, "issueFieldValues")
-					if _, hasLabels := tt.args["labels"]; hasLabels {
+					if hasLabels {
 						assert.Contains(t, req.Query, "labels: $labels")
 					}
-					if _, hasSince := tt.args["since"]; hasSince {
+					if hasSince {
 						assert.Contains(t, req.Query, "filterBy: {since: $since}")
 					}
 					if tt.fallbackError != "" {
@@ -2752,7 +2790,10 @@ func Test_ListIssues_IssueFieldsSchemaCompatibility(t *testing.T) {
 			require.False(t, res.IsError, getTextResult(t, res).Text)
 			var response MinimalIssuesResponse
 			require.NoError(t, json.Unmarshal([]byte(getTextResult(t, res).Text), &response))
-			require.Len(t, response.Issues, 1)
+			require.Len(t, response.Issues, 2)
+			assert.Equal(t, []string{"hubot"}, response.Issues[0].Assignees)
+			assert.NotNil(t, response.Issues[1].Assignees)
+			assert.Empty(t, response.Issues[1].Assignees)
 			if tt.wantFieldValues {
 				assert.Equal(t, []MinimalFieldValue{{Field: "Priority", Value: "P1"}}, response.Issues[0].FieldValues)
 			} else {
@@ -2761,6 +2802,72 @@ func Test_ListIssues_IssueFieldsSchemaCompatibility(t *testing.T) {
 			assert.Len(t, graphqlTransport.calls, len(responses))
 		})
 	}
+
+	t.Run("fallback applies fields filtering to assignees", func(t *testing.T) {
+		tests := []struct {
+			name           string
+			fields         []any
+			wantAssignees  bool
+			wantAssigned   []any
+			wantUnassigned []any
+		}{
+			{
+				name:           "includes assignees",
+				fields:         []any{"number", "assignees"},
+				wantAssignees:  true,
+				wantAssigned:   []any{"hubot"},
+				wantUnassigned: []any{},
+			},
+			{
+				name:   "excludes assignees",
+				fields: []any{"number"},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				graphqlTransport := &sequencedGraphQLTransport{
+					t: t,
+					responses: []func(capturedGraphQLRequest) (int, string){
+						func(_ capturedGraphQLRequest) (int, string) {
+							return http.StatusOK, errorBody(t, "IssueFieldValueFilter isn't a defined input type (on $issueFieldValues)")
+						},
+						func(req capturedGraphQLRequest) (int, string) {
+							assert.Equal(t, fallbackQuery(false, false), req.Query)
+							return http.StatusOK, responseBody(t, false)
+						},
+					},
+				}
+				deps := BaseDeps{
+					GQLClient: githubv4.NewClient(&http.Client{Transport: graphqlTransport}),
+				}
+				serverTool := ListIssues(translations.NullTranslationHelper)
+				handler := serverTool.Handler(deps)
+				req := createMCPRequest(map[string]any{
+					"owner":  "owner",
+					"repo":   "repo",
+					"fields": tt.fields,
+				})
+				res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+				require.NoError(t, err)
+				require.False(t, res.IsError, getTextResult(t, res).Text)
+
+				var response struct {
+					Issues []map[string]any `json:"issues"`
+				}
+				require.NoError(t, json.Unmarshal([]byte(getTextResult(t, res).Text), &response))
+				require.Len(t, response.Issues, 2)
+				if tt.wantAssignees {
+					assert.Equal(t, tt.wantAssigned, response.Issues[0]["assignees"])
+					assert.Equal(t, tt.wantUnassigned, response.Issues[1]["assignees"])
+				} else {
+					assert.NotContains(t, response.Issues[0], "assignees")
+					assert.NotContains(t, response.Issues[1], "assignees")
+				}
+				assert.Len(t, graphqlTransport.calls, 2)
+			})
+		}
+	})
 
 	t.Run("explicit field filters are never dropped", func(t *testing.T) {
 		fieldsBody, err := json.Marshal(map[string]any{
