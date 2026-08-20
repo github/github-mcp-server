@@ -36,7 +36,8 @@
           "pip",
           "pub",
           "rubygems",
-          "rust"
+          "rust",
+          "swift"
         ],
         "type": "string"
       },

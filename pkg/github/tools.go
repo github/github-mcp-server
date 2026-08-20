@@ -324,6 +324,9 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GetGlobalSecurityAdvisory(t),
 		ListRepositorySecurityAdvisories(t),
 		ListOrgRepositorySecurityAdvisories(t),
+		CreateRepositorySecurityAdvisory(t),
+		UpdateRepositorySecurityAdvisory(t),
+		RequestCVEForRepositorySecurityAdvisory(t),
 
 		// Gist tools
 		ListGists(t),
