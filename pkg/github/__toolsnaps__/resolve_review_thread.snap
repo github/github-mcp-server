@@ -9,6 +9,10 @@
   "description": "Resolve a review thread on a pull request. Resolving an already-resolved thread is a no-op.",
   "inputSchema": {
     "properties": {
+      "resolutionReason": {
+        "description": "Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid.",
+        "type": "string"
+      },
       "threadID": {
         "description": "The node ID of the review thread to resolve (e.g., PRRT_kwDOxxx)",
         "type": "string"
