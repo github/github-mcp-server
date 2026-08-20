@@ -157,6 +157,18 @@ At present, MCP traffic appears in standard GitHub audit logs as normal API call
 
 Until those arrive, teams can continue to monitor MCP activity through existing API log entries and OAuth/GitHub App events.
 
+## Per-Tool Controls for Agent Workflows
+
+Organization policies above govern *who* can connect to GitHub and *what credentials* they use. They do not provide per-tool rate limits or the ability to allow reads while blocking deletes.
+
+For developers connecting the GitHub MCP Server to AI agents (Claude Code, Cursor, Copilot agent mode, etc.), use server configuration and optional MCP enforcement proxies:
+
+- **Read-only mode** and **exclude-tools** to block destructive operations like `delete_file`
+- **Toolset allowlists** to reduce the agent's available surface area
+- **MCP enforcement proxies** for runtime rate limits on write operations
+
+See the [Agent Security & Rate Limiting Guide](./agent-security-guide.md) for recommended profiles and a [sample security policy template](./examples/recommended-security-policy.yaml).
+
 ## Security Best Practices
 
 ### For Organizations
