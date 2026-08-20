@@ -154,7 +154,7 @@ Possible options:
 				result, err := GetPullRequestCheckRuns(ctx, client, owner, repo, pullNumber, pagination)
 				return attachIFC(result), nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: get, get_diff, get_status, get_files, get_commits, get_review_comments, get_reviews, get_comments, get_check_runs", method)), nil, nil
 			}
 		})
 }
@@ -1841,6 +1841,10 @@ Available methods:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			if params.Method == "" {
+				return utils.NewToolResultError("missing required parameter: method. Supported methods are: create, submit_pending, delete_pending, resolve_thread, unresolve_thread"), nil, nil
+			}
+
 			// Given our owner, repo and PR number, lookup the GQL ID of the PR.
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
@@ -1864,7 +1868,7 @@ Available methods:
 				result, err := ResolveReviewThread(ctx, client, params.ThreadID, false)
 				return result, nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: create, submit_pending, delete_pending, resolve_thread, unresolve_thread", params.Method)), nil, nil
 			}
 		})
 	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}

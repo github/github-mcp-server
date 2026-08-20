@@ -397,7 +397,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 				result, payload, err := listWorkflowArtifacts(ctx, client, owner, repo, resourceIDInt, pagination)
 				return attachIFC(result), payload, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: list_workflows, list_workflow_runs, list_workflow_jobs, list_workflow_run_artifacts", method)), nil, nil
 			}
 		},
 	)
@@ -519,7 +519,7 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				result, payload, err := getWorkflowRunLogsURL(ctx, client, owner, repo, resourceIDInt)
 				return attachIFC(result), payload, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: get_workflow, get_workflow_run, get_workflow_job, download_workflow_run_artifact, get_workflow_run_usage, get_workflow_run_logs_url", method)), nil, nil
 			}
 		},
 	)
@@ -636,7 +636,7 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 			case actionsMethodDeleteWorkflowRunLogs:
 				return deleteWorkflowRunLogs(ctx, client, owner, repo, int64(runID))
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: run_workflow, rerun_workflow_run, rerun_failed_jobs, cancel_workflow_run, delete_workflow_run_logs", method)), nil, nil
 			}
 		},
 	)
