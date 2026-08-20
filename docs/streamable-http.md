@@ -117,6 +117,8 @@ The `authorization_servers` field in the protected resource metadata will then p
 
 Equivalent environment variable: `GITHUB_AUTHORIZATION_SERVER=https://mcp.example.com/oauth-proxy`.
 
+When neither the flag nor environment variable is set, the server preserves the existing behavior and derives the authorization server from `--gh-host`. The override only changes the URL advertised in OAuth protected resource metadata; it does not change token validation or the GitHub API host.
+
 ## Client Configuration
 
 ### Using OAuth Authentication

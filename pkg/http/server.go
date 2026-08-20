@@ -197,12 +197,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 	}
 
 	// Register OAuth protected resource metadata endpoints
-	oauthCfg := &oauth.Config{
-		BaseURL:             cfg.BaseURL,
-		ResourcePath:        cfg.ResourcePath,
-		TrustProxyHeaders:   cfg.TrustProxyHeaders,
-		AuthorizationServer: cfg.AuthorizationServer,
-	}
+	oauthCfg := newOAuthConfig(cfg)
 
 	serverOptions := []HandlerOption{
 		WithInventoryFactory(inventoryFactory),
@@ -262,6 +257,15 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	logger.Info("server stopped gracefully")
 	return nil
+}
+
+func newOAuthConfig(cfg ServerConfig) *oauth.Config {
+	return &oauth.Config{
+		BaseURL:             cfg.BaseURL,
+		ResourcePath:        cfg.ResourcePath,
+		TrustProxyHeaders:   cfg.TrustProxyHeaders,
+		AuthorizationServer: cfg.AuthorizationServer,
+	}
 }
 
 // resolveListenAddress returns the address string passed to http.Server.

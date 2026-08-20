@@ -1,10 +1,12 @@
 package oauth
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
@@ -17,6 +19,16 @@ import (
 var (
 	defaultAuthorizationServer = "https://github.com/login/oauth"
 )
+
+type countingAPIHostResolver struct {
+	utils.APIHostResolver
+	authorizationServerURLCalls int
+}
+
+func (r *countingAPIHostResolver) AuthorizationServerURL(ctx context.Context) (*url.URL, error) {
+	r.authorizationServerURLCalls++
+	return r.APIHostResolver.AuthorizationServerURL(ctx)
+}
 
 func TestNewAuthHandler(t *testing.T) {
 	t.Parallel()
@@ -729,6 +741,7 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+			countingAPIHost := &countingAPIHostResolver{APIHostResolver: apiHost}
 
 			config := tc.oauthConfig
 			if config == nil {
@@ -736,7 +749,7 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 			}
 			config.BaseURL = tc.host
 
-			handler, err := NewAuthHandler(config, apiHost)
+			handler, err := NewAuthHandler(config, countingAPIHost)
 			require.NoError(t, err)
 
 			router := chi.NewRouter()
@@ -767,6 +780,11 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 			require.True(t, ok)
 			require.Len(t, responseAuthServers, 1)
 			assert.Equal(t, tc.expectedURL, responseAuthServers[0])
+			if config.AuthorizationServer == "" {
+				assert.Equal(t, 1, countingAPIHost.authorizationServerURLCalls)
+			} else {
+				assert.Zero(t, countingAPIHost.authorizationServerURLCalls)
+			}
 		})
 	}
 }

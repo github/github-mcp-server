@@ -9,6 +9,7 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/stretchr/testify/assert"
@@ -40,6 +41,39 @@ func TestRunHTTPServerRejectsInvalidStaticTools(t *testing.T) {
 
 			require.ErrorIs(t, err, inventory.ErrUnknownTools)
 			assert.ErrorContains(t, err, "failed to build inventory")
+		})
+	}
+}
+
+func TestNewOAuthConfig(t *testing.T) {
+	tests := []struct {
+		name                string
+		authorizationServer string
+	}{
+		{
+			name: "unset preserves host-derived authorization server",
+		},
+		{
+			name:                "explicit override is propagated",
+			authorizationServer: "https://oauth-proxy.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := newOAuthConfig(ServerConfig{
+				BaseURL:             "https://mcp.example.com",
+				ResourcePath:        "/mcp",
+				TrustProxyHeaders:   true,
+				AuthorizationServer: tt.authorizationServer,
+			})
+
+			assert.Equal(t, &oauth.Config{
+				BaseURL:             "https://mcp.example.com",
+				ResourcePath:        "/mcp",
+				TrustProxyHeaders:   true,
+				AuthorizationServer: tt.authorizationServer,
+			}, cfg)
 		})
 	}
 }
