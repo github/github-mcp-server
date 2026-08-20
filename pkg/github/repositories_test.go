@@ -2058,6 +2058,8 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 
 	assert.Equal(t, "create_or_update_file", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.NotContains(t, tool.Description, "git rev-parse")
+	assert.Contains(t, tool.Description, "get_file_contents")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
 	assert.Contains(t, schema.Properties, "path")
@@ -2468,8 +2470,11 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"branch":  "main",
 				"sha":     "oldsha123456",
 			},
-			expectError:          true,
-			expectedErrMsg:       "SHA mismatch: provided SHA oldsha123456 is stale. Current file SHA is newsha999888",
+			expectError: true,
+			expectedErrMsgs: []string{
+				"SHA mismatch: provided SHA oldsha123456 is stale. Current file SHA is newsha999888",
+				"retry with the sha parameter set to newsha999888",
+			},
 			expectedRequestCount: 1,
 		},
 		{
@@ -2531,8 +2536,11 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"message": "Update without SHA",
 				"branch":  "main",
 			},
-			expectError:          true,
-			expectedErrMsg:       "File already exists at docs/example.md",
+			expectError: true,
+			expectedErrMsgs: []string{
+				"File already exists at docs/example.md",
+				"The current SHA is existing123; retry with the sha parameter set to that value.",
+			},
 			expectedRequestCount: 1,
 		},
 		{
@@ -2607,6 +2615,9 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				for _, expectedErrMsg := range tc.expectedErrMsgs {
 					assert.Contains(t, errorText.String(), expectedErrMsg)
 				}
+				// The caller of this tool works over the API and has no working
+				// tree, so errors must never ask it to run a local git command.
+				assert.NotContains(t, errorText.String(), "git rev-parse")
 				return
 			}
 

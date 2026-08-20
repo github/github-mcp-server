@@ -412,8 +412,7 @@ func CreateOrUpdateFile(t translations.TranslationHelperFunc) inventory.ServerTo
 			Description: t("TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION", `Create or update a single file in a GitHub repository. 
 If updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.
 
-In order to obtain the SHA of original file version before updating, use the following git command:
-git rev-parse <branch>:<path to file>
+To obtain the SHA of the current file version before updating, call the get_file_contents tool for the same path and ref; it reports the blob SHA of the file it returns.
 
 SHA MUST be provided for existing file updates.
 `),
@@ -549,8 +548,8 @@ SHA MUST be provided for existing file updates.
 					if currentSHA != sha {
 						return utils.NewToolResultError(fmt.Sprintf(
 							"SHA mismatch: provided SHA %s is stale. Current file SHA is %s. "+
-								"Pull the latest changes and use git rev-parse %s:%s to get the current SHA.",
-							sha, currentSHA, branch, path)), nil, nil
+								"Re-read the file with get_file_contents if you need its latest content, then retry with the sha parameter set to %s.",
+							sha, currentSHA, currentSHA)), nil, nil
 					}
 					if !allowSymlinkWrite {
 						if existingFile.GetType() == "symlink" {
@@ -594,8 +593,8 @@ SHA MUST be provided for existing file updates.
 					// File exists but no SHA was provided - reject to prevent blind overwrites
 					return utils.NewToolResultError(fmt.Sprintf(
 						"File already exists at %s. You must provide the current file's SHA when updating. "+
-							"Use git rev-parse %s:%s to get the blob SHA, then retry with the sha parameter.",
-						path, branch, path)), nil, nil
+							"The current SHA is %s; retry with the sha parameter set to that value.",
+						path, existingFile.GetSHA())), nil, nil
 				}
 				// If file not found, no previous SHA needed (new file creation)
 			}
