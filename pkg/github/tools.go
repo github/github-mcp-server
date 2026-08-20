@@ -266,6 +266,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 
 		// Pull request tools
 		PullRequestRead(t),
+		GetPullRequestReviewThreadsBatch(t),
 		ListPullRequests(t),
 		SearchPullRequests(t),
 		MergePullRequest(t),
