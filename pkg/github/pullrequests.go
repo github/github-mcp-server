@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/go-github/v89/github"
@@ -643,6 +644,45 @@ var pullRequestUpdateFormParams = map[string]struct{}{
 	"_ui_submitted":         {},
 }
 
+// findExistingPullRequest checks whether the Create error was GitHub's
+// "a pull request already exists" 422, and if so, looks up and returns
+// that existing PR so callers can surface a useful link instead of the
+// raw validation error.
+func findExistingPullRequest(ctx context.Context, client *github.Client, owner, repo, head, base string, createErr error) (*github.PullRequest, error) {
+	ghErr, ok := createErr.(*github.ErrorResponse)
+	if !ok {
+		return nil, fmt.Errorf("not a github.ErrorResponse")
+	}
+
+	matched := false
+	for _, e := range ghErr.Errors {
+		if e.Code == "custom" && strings.Contains(e.Message, "A pull request already exists") {
+			matched = true
+			break
+		}
+	}
+	if !matched {
+		return nil, fmt.Errorf("error is not an 'already exists' validation failure")
+	}
+
+	// head may or may not already be qualified with an owner (fork case);
+	// the List API wants "owner:branch" form.
+	headFilter := head
+	if !strings.Contains(head, ":") {
+		headFilter = fmt.Sprintf("%s:%s", owner, head)
+	}
+
+	prs, _, err := client.PullRequests.List(ctx, owner, repo, &github.PullRequestListOptions{
+		Head:  headFilter,
+		Base:  base,
+		State: "all",
+	})
+	if err != nil || len(prs) == 0 {
+		return nil, fmt.Errorf("could not find existing pull request: %w", err)
+	}
+	return prs[0], nil
+}
+
 // CreatePullRequest creates a tool to create a new pull request.
 func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
@@ -792,6 +832,25 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			}
 			pr, resp, err := client.PullRequests.Create(ctx, owner, repo, *newPR)
 			if err != nil {
+				if existingPR, findErr := findExistingPullRequest(ctx, client, owner, repo, head, base, err); findErr == nil && existingPR != nil {
+					minimalResponse := MinimalResponse{
+						ID:  fmt.Sprintf("%d", existingPR.GetID()),
+						URL: existingPR.GetHTMLURL(),
+					}
+					r, marshalErr := json.Marshal(struct {
+						MinimalResponse
+						Message string `json:"message"`
+					}{
+						MinimalResponse: minimalResponse,
+						Message: fmt.Sprintf(
+							"An open pull request already exists for %q into %q: #%d, titled %q at %s",
+							head, base, existingPR.GetNumber(), existingPR.GetTitle(), existingPR.GetHTMLURL(),
+						),
+					})
+					if marshalErr == nil {
+						return utils.NewToolResultText(string(r)), nil, nil
+					}
+				}
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to create pull request",
 					resp,
