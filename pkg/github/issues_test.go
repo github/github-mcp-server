@@ -5410,6 +5410,10 @@ func TestAddIssueCommentSchema(t *testing.T) {
 	assert.Contains(t, schema.Properties, "body")
 	assert.Contains(t, schema.Properties, "reaction")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "issue_number"})
+	assert.Empty(t, schema.AnyOf)
+	assert.Empty(t, schema.OneOf)
+	assert.Empty(t, schema.AllOf)
+	assert.Empty(t, schema.DependentSchemas)
 
 	resolved, err := schema.Resolve(nil)
 	require.NoError(t, err)
@@ -5425,62 +5429,47 @@ func TestAddIssueCommentSchema(t *testing.T) {
 		isValid bool
 	}{
 		{
-			name:    "body-only comment",
+			name:    "cross-field requirements are handler validated",
+			args:    map[string]any{},
+			isValid: true,
+		},
+		{
+			name:    "comment_id relationships are handler validated",
+			args:    map[string]any{"comment_id": 999, "body": "This is a comment"},
+			isValid: true,
+		},
+		{
+			name:    "body minLength accepts non-empty body",
 			args:    map[string]any{"body": "This is a comment"},
 			isValid: true,
 		},
 		{
-			name:    "issue or pull request reaction",
+			name:    "reaction enum accepts supported reaction",
 			args:    map[string]any{"reaction": "heart"},
 			isValid: true,
 		},
 		{
-			name:    "comment and issue or pull request reaction",
-			args:    map[string]any{"body": "This is a comment", "reaction": "heart"},
-			isValid: true,
-		},
-		{
-			name:    "existing comment reaction",
-			args:    map[string]any{"comment_id": 999, "reaction": "heart"},
-			isValid: true,
-		},
-		{
-			name:    "missing body and reaction",
-			args:    map[string]any{},
+			name:    "missing required owner",
+			args:    map[string]any{"owner": nil},
 			isValid: false,
 		},
 		{
-			name:    "empty body",
+			name:    "body minLength rejects empty body",
 			args:    map[string]any{"body": ""},
 			isValid: false,
 		},
 		{
-			name:    "comment_id without reaction",
-			args:    map[string]any{"comment_id": 999},
-			isValid: false,
-		},
-		{
-			name:    "comment_id with body",
-			args:    map[string]any{"comment_id": 999, "body": "This is a comment"},
-			isValid: false,
-		},
-		{
-			name:    "comment_id with body and reaction",
-			args:    map[string]any{"comment_id": 999, "body": "This is a comment", "reaction": "heart"},
-			isValid: false,
-		},
-		{
-			name:    "zero comment_id",
+			name:    "comment_id minimum rejects zero",
 			args:    map[string]any{"comment_id": 0, "reaction": "heart"},
 			isValid: false,
 		},
 		{
-			name:    "fractional comment_id",
+			name:    "comment_id integer rejects fraction",
 			args:    map[string]any{"comment_id": 1.5, "reaction": "heart"},
 			isValid: false,
 		},
 		{
-			name:    "invalid reaction",
+			name:    "reaction enum rejects unsupported reaction",
 			args:    map[string]any{"reaction": "party"},
 			isValid: false,
 		},
@@ -5628,6 +5617,28 @@ func TestAddIssueCommentHandler(t *testing.T) {
 			expectedToolErrMsg: "at least one of body or reaction is required",
 		},
 		{
+			name: "empty body",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"body":         "",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "body cannot be empty when provided",
+		},
+		{
+			name: "empty reaction",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"reaction":     "",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "reaction cannot be empty when provided",
+		},
+		{
 			name: "missing issue_number for reaction",
 			requestArgs: map[string]any{
 				"owner":    "owner",
@@ -5659,6 +5670,18 @@ func TestAddIssueCommentHandler(t *testing.T) {
 			expectedToolErrMsg: "comment_id can only be provided when reaction is provided",
 		},
 		{
+			name: "comment_id with body but without reaction",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(999),
+				"body":         "This is a comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "comment_id cannot be combined with body",
+		},
+		{
 			name: "zero comment_id",
 			requestArgs: map[string]any{
 				"owner":        "owner",
@@ -5681,6 +5704,30 @@ func TestAddIssueCommentHandler(t *testing.T) {
 			},
 			expectToolError:    true,
 			expectedToolErrMsg: "comment_id must be greater than 0",
+		},
+		{
+			name: "fractional comment_id",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   float64(1.5),
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "parameter comment_id is not a valid number",
+		},
+		{
+			name: "non-numeric comment_id",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"comment_id":   "not-a-number",
+				"reaction":     "heart",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "parameter comment_id is not a valid number",
 		},
 		{
 			name: "comment_id with body",

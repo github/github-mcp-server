@@ -1399,16 +1399,6 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 					},
 				},
 				Required: []string{"owner", "repo", "issue_number"},
-				AnyOf: []*jsonschema.Schema{
-					{Required: []string{"body"}},
-					{Required: []string{"reaction"}},
-				},
-				DependentSchemas: map[string]*jsonschema.Schema{
-					"comment_id": {
-						Required: []string{"reaction"},
-						Not:      &jsonschema.Schema{Required: []string{"body"}},
-					},
-				},
 			},
 		},
 		[]scopes.Scope{scopes.Repo},

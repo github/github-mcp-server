@@ -1,6 +1,7 @@
 package github
 
 import (
+	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -43,6 +44,29 @@ func TestAllToolsHaveRequiredMetadata(t *testing.T) {
 			// We can't distinguish between "not set" and "set to false" for a bool,
 			// but having Annotations non-nil confirms the developer thought about it.
 			// The ReadOnlyHint value itself is validated by ensuring Annotations exist.
+		})
+	}
+}
+
+// TestAllToolInputSchemasAvoidTopLevelCombinators keeps the complete OSS tool
+// inventory portable across provider JSON Schema subsets. Some providers reject
+// an entire tools/list payload when any input schema has a top-level combinator,
+// so cross-field constraints belong in handlers or below ordinary properties.
+func TestAllToolInputSchemasAvoidTopLevelCombinators(t *testing.T) {
+	tools := AllTools(stubTranslation)
+	require.NotEmpty(t, tools, "AllTools should return at least one tool")
+
+	for _, serverTool := range tools {
+		tool := serverTool.Tool
+		t.Run(tool.Name, func(t *testing.T) {
+			data, err := json.Marshal(tool.InputSchema)
+			require.NoError(t, err, "Tool %q InputSchema must marshal", tool.Name)
+
+			var schema map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(data, &schema), "Tool %q InputSchema must be a JSON object", tool.Name)
+			assert.NotContains(t, schema, "anyOf", "Tool %q InputSchema must not use top-level anyOf", tool.Name)
+			assert.NotContains(t, schema, "oneOf", "Tool %q InputSchema must not use top-level oneOf", tool.Name)
+			assert.NotContains(t, schema, "allOf", "Tool %q InputSchema must not use top-level allOf", tool.Name)
 		})
 	}
 }
