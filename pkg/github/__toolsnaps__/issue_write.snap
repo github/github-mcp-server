@@ -91,6 +91,11 @@
         "description": "Repository owner",
         "type": "string"
       },
+      "parent_issue_number": {
+        "description": "Issue number of the parent issue. Only used when method is 'create'. The new issue is created and attached to this parent in the same operation.",
+        "minimum": 1,
+        "type": "number"
+      },
       "repo": {
         "description": "Repository name",
         "type": "string"
