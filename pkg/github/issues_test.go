@@ -22,6 +22,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v89/github"
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -2240,6 +2241,713 @@ func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
 	})
 }
 
+func TestIssueWriteCreateWithParentAndLabelsUsesSingleMutation(t *testing.T) {
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+	schema := serverTool.Tool.InputSchema
+	issueWriteSchema := schema.(*jsonschema.Schema)
+	assert.Contains(t, issueWriteSchema.Properties, "parent_issue_number")
+	assert.Contains(t, issueWriteSchema.Properties, "parent_owner")
+	assert.Contains(t, issueWriteSchema.Properties, "parent_repo")
+	assert.NotContains(t, issueWriteSchema.Required, "parent_issue_number")
+	assert.NotContains(t, issueWriteSchema.Required, "parent_owner")
+	assert.NotContains(t, issueWriteSchema.Required, "parent_repo")
+
+	labelIDs := []githubv4.ID{"LABEL_backlog"}
+	parentID := githubv4.ID("ISSUE_parent")
+	expectedInput := CreateIssueInput{
+		RepositoryID:  githubv4.ID("REPO_1"),
+		Title:         githubv4.String("Atomic child"),
+		Body:          githubv4.NewString(githubv4.String("Created under its parent")),
+		LabelIDs:      &labelIDs,
+		ParentIssueID: &parentID,
+	}
+	createMatcher := githubv4mock.NewMutationMatcher(
+		createIssueMutation{},
+		expectedInput,
+		nil,
+		githubv4mock.DataResponse(map[string]any{
+			"createIssue": map[string]any{
+				"issue": map[string]any{
+					"fullDatabaseId": "12345",
+					"url":            "https://github.com/owner/repo/issues/2",
+				},
+			},
+		}),
+	)
+	assert.Contains(t, createMatcher.Request, "$input:CreateIssueInput!")
+
+	gqlHTTPClient, gqlCalls := countingGraphQLClient(
+		createIssueParentMatcher(1, "parent-owner", "parent-repo", "REPO_1", "ISSUE_parent"),
+		createIssueLabelMatcher("status:backlog", "LABEL_backlog"),
+		createMatcher,
+	)
+	restHTTPClient := MockHTTPClientWithHandlers(nil)
+	restCounter := &countingRoundTripper{next: restHTTPClient.Transport}
+	restHTTPClient.Transport = restCounter
+
+	deps := BaseDeps{
+		Client:    mustNewGHClient(t, restHTTPClient),
+		GQLClient: githubv4.NewClient(gqlHTTPClient),
+	}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":              "create",
+		"owner":               "owner",
+		"repo":                "repo",
+		"title":               "Atomic child",
+		"body":                "Created under its parent",
+		"labels":              []any{"status:backlog"},
+		"parent_issue_number": float64(1),
+		"parent_owner":        "parent-owner",
+		"parent_repo":         "parent-repo",
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, getTextResult(t, result).Text)
+	assert.Equal(t, 3, gqlCalls(), "metadata lookups and exactly one create mutation are expected")
+	assert.Zero(t, restCounter.count.Load(), "parent creation must not use REST create or attachment requests")
+
+	var response MinimalResponse
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+	assert.Equal(t, "12345", response.ID)
+	assert.Equal(t, "https://github.com/owner/repo/issues/2", response.URL)
+}
+
+func TestIssueWriteCreateWithParentDoesNotFallbackAfterMutationFailure(t *testing.T) {
+	gqlHTTPClient, gqlCalls := countingGraphQLClient(
+		createIssueParentMatcher(7, "owner", "repo", "REPO_1", "ISSUE_parent"),
+		githubv4mock.NewMutationMatcher(
+			createIssueMutation{},
+			CreateIssueInput{
+				RepositoryID:  githubv4.ID("REPO_1"),
+				Title:         githubv4.String("Atomic child"),
+				ParentIssueID: githubv4mock.Ptr[githubv4.ID]("ISSUE_parent"),
+			},
+			nil,
+			githubv4mock.ErrorResponse("parent cannot accept sub-issues"),
+		),
+	)
+	restHTTPClient := MockHTTPClientWithHandlers(nil)
+	restCounter := &countingRoundTripper{next: restHTTPClient.Transport}
+	restHTTPClient.Transport = restCounter
+
+	deps := BaseDeps{
+		Client:    mustNewGHClient(t, restHTTPClient),
+		GQLClient: githubv4.NewClient(gqlHTTPClient),
+	}
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"method":              "create",
+		"owner":               "owner",
+		"repo":                "repo",
+		"title":               "Atomic child",
+		"parent_issue_number": float64(7),
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(t, getTextResult(t, result).Text, "failed to create issue")
+	assert.Equal(t, 2, gqlCalls(), "a failed create mutation must not trigger an attachment mutation")
+	assert.Zero(t, restCounter.count.Load(), "a failed create mutation must not fall back to REST create or attachment requests")
+}
+
+func TestIssueWriteCreateWithParentRejectsIncompleteMutationResponse(t *testing.T) {
+	tests := []struct {
+		name string
+		data map[string]any
+	}{
+		{
+			name: "missing issue",
+			data: map[string]any{"createIssue": map[string]any{"issue": nil}},
+		},
+		{
+			name: "missing database ID",
+			data: map[string]any{
+				"createIssue": map[string]any{
+					"issue": map[string]any{"url": "https://github.com/owner/repo/issues/8"},
+				},
+			},
+		},
+		{
+			name: "missing URL",
+			data: map[string]any{
+				"createIssue": map[string]any{
+					"issue": map[string]any{"fullDatabaseId": "34567"},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gqlHTTPClient, gqlCalls := countingGraphQLClient(
+				createIssueParentMatcher(7, "owner", "repo", "REPO_1", "ISSUE_parent"),
+				githubv4mock.NewMutationMatcher(
+					createIssueMutation{},
+					CreateIssueInput{
+						RepositoryID:  githubv4.ID("REPO_1"),
+						Title:         githubv4.String("Atomic child"),
+						ParentIssueID: githubv4mock.Ptr[githubv4.ID]("ISSUE_parent"),
+					},
+					nil,
+					githubv4mock.DataResponse(test.data),
+				),
+			)
+			restHTTPClient := MockHTTPClientWithHandlers(nil)
+			restCounter := &countingRoundTripper{next: restHTTPClient.Transport}
+			restHTTPClient.Transport = restCounter
+			deps := BaseDeps{
+				Client:    mustNewGHClient(t, restHTTPClient),
+				GQLClient: githubv4.NewClient(gqlHTTPClient),
+			}
+			request := createMCPRequest(map[string]any{
+				"method":              "create",
+				"owner":               "owner",
+				"repo":                "repo",
+				"title":               "Atomic child",
+				"parent_issue_number": float64(7),
+			})
+
+			serverTool := IssueWrite(translations.NullTranslationHelper)
+			result, err := serverTool.Handler(deps)(
+				ContextWithDeps(context.Background(), deps),
+				&request,
+			)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Contains(t, getTextResult(t, result).Text, "response did not include the created issue")
+			assert.Equal(t, 2, gqlCalls())
+			assert.Zero(t, restCounter.count.Load())
+		})
+	}
+}
+
+func TestIssueWriteCreateWithParentPreservesSupportedFields(t *testing.T) {
+	labelIDs := []githubv4.ID{"LABEL_bug"}
+	assigneeIDs := []githubv4.ID{"USER_octocat"}
+	milestoneID := githubv4.ID("MILESTONE_1")
+	issueTypeID := githubv4.ID("ISSUE_TYPE_bug")
+	parentID := githubv4.ID("ISSUE_parent")
+	expectedInput := CreateIssueInput{
+		RepositoryID:  githubv4.ID("REPO_1"),
+		Title:         githubv4.String("Fully specified child"),
+		Body:          githubv4.NewString(githubv4.String("Body")),
+		AssigneeIDs:   &assigneeIDs,
+		MilestoneID:   &milestoneID,
+		LabelIDs:      &labelIDs,
+		IssueTypeID:   &issueTypeID,
+		ParentIssueID: &parentID,
+	}
+	gqlHTTPClient, gqlCalls := countingGraphQLClient(
+		createIssueParentMatcher(7, "owner", "repo", "REPO_1", "ISSUE_parent"),
+		createIssueLabelMatcher("bug", "LABEL_bug"),
+		createIssueUserMatcher("octocat", "USER_octocat"),
+		createIssueMilestoneMatcher(1, "MILESTONE_1"),
+		githubv4mock.NewMutationMatcher(
+			createIssueMutation{},
+			expectedInput,
+			nil,
+			githubv4mock.DataResponse(map[string]any{
+				"createIssue": map[string]any{
+					"issue": map[string]any{
+						"fullDatabaseId": "34567",
+						"url":            "https://github.com/owner/repo/issues/8",
+					},
+				},
+			}),
+		),
+	)
+	restHTTPClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		"GET /repos/{owner}/{repo}/issue-types": mockResponse(t, http.StatusOK, []*github.IssueType{
+			{Name: github.Ptr("Bug"), NodeID: github.Ptr("ISSUE_TYPE_bug")},
+		}),
+	})
+	restCounter := &countingRoundTripper{next: restHTTPClient.Transport}
+	restHTTPClient.Transport = restCounter
+	deps := BaseDeps{
+		Client:    mustNewGHClient(t, restHTTPClient),
+		GQLClient: githubv4.NewClient(gqlHTTPClient),
+	}
+	request := createMCPRequest(map[string]any{
+		"method":              "create",
+		"owner":               "owner",
+		"repo":                "repo",
+		"title":               "Fully specified child",
+		"body":                "Body",
+		"assignees":           []any{"octocat"},
+		"labels":              []any{"bug"},
+		"milestone":           float64(1),
+		"type":                "Bug",
+		"parent_issue_number": float64(7),
+	})
+
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+	result, err := serverTool.Handler(deps)(
+		ContextWithDeps(context.Background(), deps),
+		&request,
+	)
+	require.NoError(t, err)
+	require.False(t, result.IsError, getTextResult(t, result).Text)
+	assert.Equal(t, 5, gqlCalls(), "four metadata lookups and exactly one create mutation are expected")
+	assert.Equal(t, int64(1), restCounter.count.Load(), "issue type resolution is the only expected REST call")
+}
+
+func TestIssueWriteCreateWithParentRejectsMissingMetadata(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          map[string]any
+		gqlMatchers   []githubv4mock.Matcher
+		restHandlers  map[string]http.HandlerFunc
+		want          string
+		wantGQLCalls  int
+		wantRESTCalls int64
+	}{
+		{
+			name: "child repository",
+			gqlMatchers: []githubv4mock.Matcher{
+				createIssueMissingChildRepositoryMatcher(7),
+			},
+			want:         "failed to resolve parent issue",
+			wantGQLCalls: 1,
+		},
+		{
+			name: "parent issue",
+			gqlMatchers: []githubv4mock.Matcher{
+				createIssueMissingParentMatcher(7),
+			},
+			want:         "failed to resolve parent issue",
+			wantGQLCalls: 1,
+		},
+		{
+			name: "milestone",
+			args: map[string]any{"milestone": float64(99)},
+			gqlMatchers: []githubv4mock.Matcher{
+				createIssueParentMatcher(7, "owner", "repo", "REPO_1", "ISSUE_parent"),
+				createIssueMissingMilestoneMatcher(99),
+			},
+			want:         "failed to resolve milestone",
+			wantGQLCalls: 2,
+		},
+		{
+			name: "assignee",
+			args: map[string]any{"assignees": []any{"missing-user"}},
+			gqlMatchers: []githubv4mock.Matcher{
+				createIssueParentMatcher(7, "owner", "repo", "REPO_1", "ISSUE_parent"),
+				createIssueMissingUserMatcher("missing-user"),
+			},
+			want:         `failed to resolve assignee "missing-user"`,
+			wantGQLCalls: 2,
+		},
+		{
+			name:        "issue type",
+			args:        map[string]any{"type": "Missing"},
+			gqlMatchers: []githubv4mock.Matcher{createIssueParentMatcher(7, "owner", "repo", "REPO_1", "ISSUE_parent")},
+			restHandlers: map[string]http.HandlerFunc{
+				"GET /repos/{owner}/{repo}/issue-types": mockResponse(t, http.StatusOK, []*github.IssueType{}),
+			},
+			want:          `failed to resolve issue type "Missing"`,
+			wantGQLCalls:  1,
+			wantRESTCalls: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gqlHTTPClient, gqlCalls := countingGraphQLClient(test.gqlMatchers...)
+			restHTTPClient := MockHTTPClientWithHandlers(test.restHandlers)
+			restCounter := &countingRoundTripper{next: restHTTPClient.Transport}
+			restHTTPClient.Transport = restCounter
+			deps := BaseDeps{
+				Client:    mustNewGHClient(t, restHTTPClient),
+				GQLClient: githubv4.NewClient(gqlHTTPClient),
+			}
+			args := map[string]any{
+				"method":              "create",
+				"owner":               "owner",
+				"repo":                "repo",
+				"title":               "Atomic child",
+				"parent_issue_number": float64(7),
+			}
+			maps.Copy(args, test.args)
+			request := createMCPRequest(args)
+
+			serverTool := IssueWrite(translations.NullTranslationHelper)
+			result, err := serverTool.Handler(deps)(
+				ContextWithDeps(context.Background(), deps),
+				&request,
+			)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Contains(t, getTextResult(t, result).Text, test.want)
+			assert.Equal(t, test.wantGQLCalls, gqlCalls())
+			assert.Equal(t, test.wantRESTCalls, restCounter.count.Load())
+		})
+	}
+}
+
+func TestGranularCreateIssueWithParentUsesAtomicMutation(t *testing.T) {
+	serverTool := GranularCreateIssue(translations.NullTranslationHelper)
+	schema := serverTool.Tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "parent_issue_number")
+	assert.Contains(t, schema.Properties, "parent_owner")
+	assert.Contains(t, schema.Properties, "parent_repo")
+
+	parentID := githubv4.ID("ISSUE_parent")
+	gqlHTTPClient := githubv4mock.NewMockedHTTPClient(
+		createIssueParentMatcher(3, "owner", "repo", "REPO_1", "ISSUE_parent"),
+		githubv4mock.NewMutationMatcher(
+			createIssueMutation{},
+			CreateIssueInput{
+				RepositoryID:  githubv4.ID("REPO_1"),
+				Title:         githubv4.String("Granular child"),
+				ParentIssueID: &parentID,
+			},
+			nil,
+			githubv4mock.DataResponse(map[string]any{
+				"createIssue": map[string]any{
+					"issue": map[string]any{
+						"fullDatabaseId": "23456",
+						"url":            "https://github.com/owner/repo/issues/4",
+					},
+				},
+			}),
+		),
+	)
+	restHTTPClient := MockHTTPClientWithHandlers(nil)
+
+	deps := BaseDeps{
+		Client:    mustNewGHClient(t, restHTTPClient),
+		GQLClient: githubv4.NewClient(gqlHTTPClient),
+	}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"owner":               "owner",
+		"repo":                "repo",
+		"title":               "Granular child",
+		"parent_issue_number": float64(3),
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+}
+
+func TestCreateIssueParentRepositoryValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		handler func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error)
+		args    map[string]any
+		want    string
+	}{
+		{
+			name: "issue_write",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := IssueWrite(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"method":       "create",
+				"owner":        "owner",
+				"repo":         "repo",
+				"title":        "Child",
+				"parent_owner": "parent-owner",
+			},
+			want: "can only be used when parent_issue_number is provided",
+		},
+		{
+			name: "create_issue",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := GranularCreateIssue(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"title":       "Child",
+				"parent_repo": "parent-repo",
+			},
+			want: "can only be used when parent_issue_number is provided",
+		},
+		{
+			name: "issue_write requires parent repo with parent owner",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := IssueWrite(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"method":              "create",
+				"owner":               "owner",
+				"repo":                "repo",
+				"title":               "Child",
+				"parent_issue_number": float64(1),
+				"parent_owner":        "parent-owner",
+			},
+			want: "parent_owner and parent_repo must be provided together",
+		},
+		{
+			name: "create_issue requires parent owner with parent repo",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := GranularCreateIssue(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"owner":               "owner",
+				"repo":                "repo",
+				"title":               "Child",
+				"parent_issue_number": float64(1),
+				"parent_repo":         "parent-repo",
+			},
+			want: "parent_owner and parent_repo must be provided together",
+		},
+		{
+			name: "issue fields",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := IssueWrite(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"method":              "create",
+				"owner":               "owner",
+				"repo":                "repo",
+				"title":               "Child",
+				"parent_issue_number": float64(1),
+				"issue_fields": []any{
+					map[string]any{"field_name": "Priority", "field_option_name": "High"},
+				},
+			},
+			want: "issue_fields cannot be used with parent_issue_number",
+		},
+		{
+			name: "issue_write rejects parent during update",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := IssueWrite(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"method":              "update",
+				"owner":               "owner",
+				"repo":                "repo",
+				"issue_number":        float64(2),
+				"parent_issue_number": float64(1),
+			},
+			want: "parent_issue_number can only be used with the create method",
+		},
+		{
+			name: "issue_write rejects zero parent number",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := IssueWrite(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"method":              "create",
+				"owner":               "owner",
+				"repo":                "repo",
+				"title":               "Child",
+				"parent_issue_number": float64(0),
+			},
+			want: "parent_issue_number must be greater than 0",
+		},
+		{
+			name: "create_issue rejects zero parent number",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := GranularCreateIssue(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"owner":               "owner",
+				"repo":                "repo",
+				"title":               "Child",
+				"parent_issue_number": float64(0),
+			},
+			want: "parent_issue_number must be greater than 0",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := createMCPRequest(test.args)
+			result, err := test.handler(ContextWithDeps(context.Background(), BaseDeps{}), &request)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Contains(t, getTextResult(t, result).Text, test.want)
+		})
+	}
+}
+
+func createIssueParentMatcher(parentIssueNumber int, parentOwner, parentRepo string, repositoryID, parentIssueID githubv4.ID) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		createIssueParentMetadataQuery{},
+		map[string]any{
+			"owner":             githubv4.String("owner"),
+			"repo":              githubv4.String("repo"),
+			"parentOwner":       githubv4.String(parentOwner),
+			"parentRepo":        githubv4.String(parentRepo),
+			"parentIssueNumber": githubv4.Int(parentIssueNumber), // #nosec G115 - test issue numbers are small
+		},
+		githubv4mock.DataResponse(map[string]any{
+			"childRepository": map[string]any{
+				"id":            repositoryID,
+				"nameWithOwner": "owner/repo",
+			},
+			"parentRepository": map[string]any{
+				"issue": map[string]any{
+					"id":     parentIssueID,
+					"number": parentIssueNumber,
+				},
+			},
+		}),
+	)
+}
+
+func createIssueLabelMatcher(name string, id githubv4.ID) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		struct {
+			Repository struct {
+				Label struct {
+					ID   githubv4.ID
+					Name githubv4.String
+				} `graphql:"label(name: $name)"`
+			} `graphql:"repository(owner: $owner, name: $repo)"`
+		}{},
+		map[string]any{
+			"owner": githubv4.String("owner"),
+			"repo":  githubv4.String("repo"),
+			"name":  githubv4.String(name),
+		},
+		githubv4mock.DataResponse(map[string]any{
+			"repository": map[string]any{
+				"label": map[string]any{
+					"id":   id,
+					"name": name,
+				},
+			},
+		}),
+	)
+}
+
+func createIssueMissingChildRepositoryMatcher(parentIssueNumber int) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		createIssueParentMetadataQuery{},
+		map[string]any{
+			"owner":             githubv4.String("owner"),
+			"repo":              githubv4.String("repo"),
+			"parentOwner":       githubv4.String("owner"),
+			"parentRepo":        githubv4.String("repo"),
+			"parentIssueNumber": githubv4.Int(parentIssueNumber), // #nosec G115 - test issue numbers are small
+		},
+		githubv4mock.DataResponse(map[string]any{
+			"childRepository": nil,
+			"parentRepository": map[string]any{
+				"issue": map[string]any{
+					"id":     "ISSUE_parent",
+					"number": parentIssueNumber,
+				},
+			},
+		}),
+	)
+}
+
+func createIssueMissingParentMatcher(parentIssueNumber int) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		createIssueParentMetadataQuery{},
+		map[string]any{
+			"owner":             githubv4.String("owner"),
+			"repo":              githubv4.String("repo"),
+			"parentOwner":       githubv4.String("owner"),
+			"parentRepo":        githubv4.String("repo"),
+			"parentIssueNumber": githubv4.Int(parentIssueNumber), // #nosec G115 - test issue numbers are small
+		},
+		githubv4mock.DataResponse(map[string]any{
+			"childRepository": map[string]any{
+				"id":            "REPO_1",
+				"nameWithOwner": "owner/repo",
+			},
+			"parentRepository": map[string]any{"issue": nil},
+		}),
+	)
+}
+
+func createIssueUserMatcher(login string, id githubv4.ID) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		struct {
+			User struct {
+				ID    githubv4.ID
+				Login githubv4.String
+			} `graphql:"user(login: $login)"`
+		}{},
+		map[string]any{"login": githubv4.String(login)},
+		githubv4mock.DataResponse(map[string]any{
+			"user": map[string]any{
+				"id":    id,
+				"login": login,
+			},
+		}),
+	)
+}
+
+func createIssueMissingUserMatcher(login string) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		struct {
+			User struct {
+				ID    githubv4.ID
+				Login githubv4.String
+			} `graphql:"user(login: $login)"`
+		}{},
+		map[string]any{"login": githubv4.String(login)},
+		githubv4mock.DataResponse(map[string]any{"user": nil}),
+	)
+}
+
+func createIssueMilestoneMatcher(number int, id githubv4.ID) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		struct {
+			Repository struct {
+				Milestone struct {
+					ID     githubv4.ID
+					Number githubv4.Int
+				} `graphql:"milestone(number: $milestoneNumber)"`
+			} `graphql:"repository(owner: $owner, name: $repo)"`
+		}{},
+		map[string]any{
+			"owner":           githubv4.String("owner"),
+			"repo":            githubv4.String("repo"),
+			"milestoneNumber": githubv4.Int(number), // #nosec G115 - test milestone numbers are small
+		},
+		githubv4mock.DataResponse(map[string]any{
+			"repository": map[string]any{
+				"milestone": map[string]any{
+					"id":     id,
+					"number": number,
+				},
+			},
+		}),
+	)
+}
+
+func createIssueMissingMilestoneMatcher(number int) githubv4mock.Matcher {
+	return githubv4mock.NewQueryMatcher(
+		struct {
+			Repository struct {
+				Milestone struct {
+					ID     githubv4.ID
+					Number githubv4.Int
+				} `graphql:"milestone(number: $milestoneNumber)"`
+			} `graphql:"repository(owner: $owner, name: $repo)"`
+		}{},
+		map[string]any{
+			"owner":           githubv4.String("owner"),
+			"repo":            githubv4.String("repo"),
+			"milestoneNumber": githubv4.Int(number), // #nosec G115 - test milestone numbers are small
+		},
+		githubv4mock.DataResponse(map[string]any{
+			"repository": map[string]any{"milestone": nil},
+		}),
+	)
+}
+
 func Test_issueWriteHasNonFormParams(t *testing.T) {
 	t.Parallel()
 
@@ -2258,6 +2966,9 @@ func Test_issueWriteHasNonFormParams(t *testing.T) {
 		{name: "state present", args: map[string]any{"state": "closed"}, want: false},
 		{name: "state_reason present", args: map[string]any{"state_reason": "completed"}, want: false},
 		{name: "duplicate_of present", args: map[string]any{"duplicate_of": float64(7)}, want: false},
+		{name: "parent issue present", args: map[string]any{"parent_issue_number": float64(7)}, want: true},
+		{name: "parent owner present", args: map[string]any{"parent_owner": "octo-org"}, want: true},
+		{name: "parent repo present", args: map[string]any{"parent_repo": "parent-repo"}, want: true},
 		{name: "unknown non-schema param present", args: map[string]any{"title": "t", "not_a_real_param": "x"}, want: true},
 		{name: "nil value is ignored", args: map[string]any{"issue_fields": nil}, want: false},
 	}
@@ -2357,11 +3068,14 @@ func Test_issueWriteSchemaClassification(t *testing.T) {
 	t.Parallel()
 
 	// Schema properties the MCP App form cannot represent — their presence
-	// must trigger the safety-net bypass via hasNonFormParams. The
-	// form currently collects every schema property, so this allowlist is
-	// empty; add a property here only if it is added to the schema without
+	// must trigger the safety-net bypass via hasNonFormParams. Add a
+	// property here only if it is added to the schema without
 	// corresponding form support.
-	knownNonForm := map[string]struct{}{}
+	knownNonForm := map[string]struct{}{
+		"parent_issue_number": {},
+		"parent_owner":        {},
+		"parent_repo":         {},
+	}
 
 	cases := []struct {
 		name string
