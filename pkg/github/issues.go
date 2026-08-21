@@ -116,31 +116,36 @@ func getCloseStateReason(stateReason string) IssueClosedStateReason {
 }
 
 // issueFieldWriteMetadataNode queries only the fields needed to resolve a write: the field's
-// fullDatabaseId (BigInt scalar, returned as string) plus its name and data type for validation.
+// node ID, fullDatabaseId (BigInt scalar, returned as string), name, and data type for validation.
 // shurcooL/githubv4 cannot use interface-level fragments at union top-level, so we repeat
 // fullDatabaseId on each concrete type; all four implement IssueFieldCommon.
 type issueFieldWriteMetadataNode struct {
 	TypeName       githubv4.String `graphql:"__typename"`
 	IssueFieldText struct {
+		ID             githubv4.ID
 		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
 		Name           githubv4.String
 		DataType       githubv4.String
 	} `graphql:"... on IssueFieldText"`
 	IssueFieldNumber struct {
+		ID             githubv4.ID
 		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
 		Name           githubv4.String
 		DataType       githubv4.String
 	} `graphql:"... on IssueFieldNumber"`
 	IssueFieldDate struct {
+		ID             githubv4.ID
 		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
 		Name           githubv4.String
 		DataType       githubv4.String
 	} `graphql:"... on IssueFieldDate"`
 	IssueFieldSingleSelect struct {
+		ID             githubv4.ID
 		FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
 		Name           githubv4.String
 		DataType       githubv4.String
 		Options        []struct {
+			ID             githubv4.ID
 			FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
 			Name           githubv4.String
 		}
@@ -308,33 +313,9 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 		return nil, nil, nil
 	}
 
-	ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
-	var query issueFieldWriteMetadataQuery
-	vars := map[string]any{
-		"owner": githubv4.String(owner),
-		"repo":  githubv4.String(repo),
-	}
-	if err := gqlClient.Query(ctxWithFeatures, &query, vars); err != nil {
-		return nil, nil, fmt.Errorf("failed to query issue fields metadata: %w", err)
-	}
-
-	// Build name → node map, dispatching on concrete type to extract name.
-	fieldByName := make(map[string]issueFieldWriteMetadataNode, len(query.Repository.IssueFields.Nodes))
-	for _, node := range query.Repository.IssueFields.Nodes {
-		var name string
-		switch string(node.TypeName) {
-		case "IssueFieldText":
-			name = string(node.IssueFieldText.Name)
-		case "IssueFieldNumber":
-			name = string(node.IssueFieldNumber.Name)
-		case "IssueFieldDate":
-			name = string(node.IssueFieldDate.Name)
-		case "IssueFieldSingleSelect":
-			name = string(node.IssueFieldSingleSelect.Name)
-		default:
-			continue
-		}
-		fieldByName[strings.ToLower(strings.TrimSpace(name))] = node
+	fieldByName, err := fetchIssueFieldWriteMetadata(ctx, gqlClient, owner, repo)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	resolved := make([]*github.IssueRequestFieldValue, 0, len(issueFields))
@@ -399,6 +380,38 @@ func resolveIssueRequestFieldValues(ctx context.Context, gqlClient *githubv4.Cli
 	}
 
 	return resolved, fieldIDsToDelete, nil
+}
+
+func fetchIssueFieldWriteMetadata(ctx context.Context, gqlClient *githubv4.Client, owner, repo string) (map[string]issueFieldWriteMetadataNode, error) {
+	ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
+	var query issueFieldWriteMetadataQuery
+	vars := map[string]any{
+		"owner": githubv4.String(owner),
+		"repo":  githubv4.String(repo),
+	}
+	if err := gqlClient.Query(ctxWithFeatures, &query, vars); err != nil {
+		return nil, fmt.Errorf("failed to query issue fields metadata: %w", err)
+	}
+
+	fieldByName := make(map[string]issueFieldWriteMetadataNode, len(query.Repository.IssueFields.Nodes))
+	for _, node := range query.Repository.IssueFields.Nodes {
+		var name string
+		switch string(node.TypeName) {
+		case "IssueFieldText":
+			name = string(node.IssueFieldText.Name)
+		case "IssueFieldNumber":
+			name = string(node.IssueFieldNumber.Name)
+		case "IssueFieldDate":
+			name = string(node.IssueFieldDate.Name)
+		case "IssueFieldSingleSelect":
+			name = string(node.IssueFieldSingleSelect.Name)
+		default:
+			continue
+		}
+		fieldByName[strings.ToLower(strings.TrimSpace(name))] = node
+	}
+
+	return fieldByName, nil
 }
 
 // fetchExistingIssueFieldValues retrieves the current field values for an issue
@@ -2349,6 +2362,9 @@ var issueWriteFormParams = map[string]struct{}{
 	"_ui_submitted": {},
 }
 
+// parent_issue_number is intentionally omitted because the current form cannot
+// represent it. Calls that supply a parent bypass the form instead of dropping it.
+
 // issueWriteAwaitingFormResult builds the "awaiting form submission" stub
 // returned when issue_write hands off to the MCP App form. The body is shared
 // by IssueWrite and LegacyIssueWrite. The result is marked IsError=true so
@@ -2424,6 +2440,11 @@ Options are:
 					"issue_number": {
 						Type:        "number",
 						Description: "Issue number to update",
+					},
+					"parent_issue_number": {
+						Type:        "number",
+						Description: "Issue number of the parent issue. Only used when method is 'create'. The new issue is created and attached to this parent in the same operation.",
+						Minimum:     jsonschema.Ptr(1.0),
 					},
 					"title": {
 						Type:        "string",
@@ -2611,6 +2632,19 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			parentIssueNumber, err := OptionalIntParam(args, "parent_issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			parentValue, parentProvided := args["parent_issue_number"]
+			parentProvided = parentProvided && parentValue != nil
+			if parentProvided && parentIssueNumber < 1 {
+				return utils.NewToolResultError("parent_issue_number must be greater than 0"), nil, nil
+			}
+			if parentProvided && method != "create" {
+				return utils.NewToolResultError("parent_issue_number can only be used with the create method"), nil, nil
+			}
+
 			var issueFields []issueWriteFieldInput
 			issueFields, err = optionalIssueWriteFields(args)
 			if err != nil {
@@ -2627,23 +2661,34 @@ Options are:
 				return utils.NewToolResultErrorFromErr("failed to get GraphQL client", err), nil, nil
 			}
 
-			var issueFieldValues []*github.IssueRequestFieldValue
-			var fieldIDsToDelete []int64
-			if len(issueFields) > 0 {
-				issueFieldValues, fieldIDsToDelete, err = resolveIssueRequestFieldValues(ctx, gqlClient, owner, repo, issueFields)
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("failed to resolve issue_fields: %v", err)), nil, nil
-				}
-			}
-
 			switch method {
 			case "create":
+				if parentProvided {
+					result, err := createIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, assignees, labels, milestoneNum, issueType, issueFields, parentIssueNumber)
+					return result, nil, err
+				}
+
+				var issueFieldValues []*github.IssueRequestFieldValue
+				if len(issueFields) > 0 {
+					issueFieldValues, _, err = resolveIssueRequestFieldValues(ctx, gqlClient, owner, repo, issueFields)
+					if err != nil {
+						return utils.NewToolResultError(fmt.Sprintf("failed to resolve issue_fields: %v", err)), nil, nil
+					}
+				}
 				result, err := CreateIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues)
 				return result, nil, err
 			case "update":
 				issueNumber, err := RequiredInt(args, "issue_number")
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				var issueFieldValues []*github.IssueRequestFieldValue
+				var fieldIDsToDelete []int64
+				if len(issueFields) > 0 {
+					issueFieldValues, fieldIDsToDelete, err = resolveIssueRequestFieldValues(ctx, gqlClient, owner, repo, issueFields)
+					if err != nil {
+						return utils.NewToolResultError(fmt.Sprintf("failed to resolve issue_fields: %v", err)), nil, nil
+					}
 				}
 				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, UpdateIssueOptions{
 					AssigneesProvided: assigneesProvided,

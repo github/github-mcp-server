@@ -937,6 +937,7 @@ The following sets of tools are available:
      (string, required)
   - `milestone`: Milestone number (number, optional)
   - `owner`: Repository owner (string, required)
+  - `parent_issue_number`: Issue number of the parent issue. Only used when method is 'create'. The new issue is created and attached to this parent in the same operation. (number, optional)
   - `repo`: Repository name (string, required)
   - `state`: New state (string, optional)
   - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)

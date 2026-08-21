@@ -144,6 +144,11 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 						Type:        "string",
 						Description: "Issue body content (optional)",
 					},
+					"parent_issue_number": {
+						Type:        "number",
+						Description: "Issue number of the parent issue. The new issue is created and attached to this parent in the same operation.",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
 				},
 				Required: []string{"owner", "repo", "title"},
 			},
@@ -163,6 +168,15 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			body, _ := OptionalParam[string](args, "body")
+			parentIssueNumber, err := OptionalIntParam(args, "parent_issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			parentValue, parentProvided := args["parent_issue_number"]
+			parentProvided = parentProvided && parentValue != nil
+			if parentProvided && parentIssueNumber < 1 {
+				return utils.NewToolResultError("parent_issue_number must be greater than 0"), nil, nil
+			}
 
 			issueReq := github.CreateIssueRequest{
 				Title: title,
@@ -174,6 +188,15 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			if parentProvided {
+				gqlClient, err := deps.GetGQLClient(ctx)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
+				}
+				result, err := createIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, nil, nil, 0, "", nil, parentIssueNumber)
+				return result, nil, err
 			}
 
 			issue, resp, err := client.Issues.Create(ctx, owner, repo, issueReq)

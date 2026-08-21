@@ -2258,6 +2258,7 @@ func Test_issueWriteHasNonFormParams(t *testing.T) {
 		{name: "state present", args: map[string]any{"state": "closed"}, want: false},
 		{name: "state_reason present", args: map[string]any{"state_reason": "completed"}, want: false},
 		{name: "duplicate_of present", args: map[string]any{"duplicate_of": float64(7)}, want: false},
+		{name: "parent issue present", args: map[string]any{"parent_issue_number": float64(7)}, want: true},
 		{name: "unknown non-schema param present", args: map[string]any{"title": "t", "not_a_real_param": "x"}, want: true},
 		{name: "nil value is ignored", args: map[string]any{"issue_fields": nil}, want: false},
 	}
@@ -2358,10 +2359,11 @@ func Test_issueWriteSchemaClassification(t *testing.T) {
 
 	// Schema properties the MCP App form cannot represent — their presence
 	// must trigger the safety-net bypass via hasNonFormParams. The
-	// form currently collects every schema property, so this allowlist is
-	// empty; add a property here only if it is added to the schema without
+	// Add a property here only if it is added to the schema without
 	// corresponding form support.
-	knownNonForm := map[string]struct{}{}
+	knownNonForm := map[string]struct{}{
+		"parent_issue_number": {},
+	}
 
 	cases := []struct {
 		name string

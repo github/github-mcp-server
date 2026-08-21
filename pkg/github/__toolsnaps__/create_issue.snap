@@ -17,6 +17,11 @@
         "description": "Repository owner (username or organization)",
         "type": "string"
       },
+      "parent_issue_number": {
+        "description": "Issue number of the parent issue. The new issue is created and attached to this parent in the same operation.",
+        "minimum": 1,
+        "type": "number"
+      },
       "repo": {
         "description": "Repository name",
         "type": "string"
