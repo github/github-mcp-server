@@ -29,6 +29,10 @@ func TestAllToolsRoutingParamsGetHeaders(t *testing.T) {
 		if !ok || schema == nil {
 			continue
 		}
+		if pathSchema := schema.Properties["path"]; pathSchema != nil {
+			require.NotContainsf(t, pathSchema.Extra, "x-mcp-header",
+				"tool %q path must remain in MCP arguments", tool.Name)
+		}
 		for prop, header := range inventory.HeaderParams {
 			ps, ok := schema.Properties[prop]
 			if !ok || ps == nil {

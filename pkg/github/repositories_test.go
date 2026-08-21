@@ -3599,8 +3599,7 @@ func Test_DeleteRepository(t *testing.T) {
 	assert.True(t, *tool.Annotations.DestructiveHint)
 	assert.Equal(t, inventory.ProtocolVersionMultiRoundTrip, serverTool.MinimumProtocolVersion)
 	assert.Equal(t, inventory.ElicitationModeForm, serverTool.RequiredElicitationMode)
-	assert.ElementsMatch(t, []string{string(scopes.DeleteRepo), string(scopes.Repo)}, serverTool.RequiredScopes)
-	assert.Len(t, serverTool.RequiredScopeGroups, 2)
+	assert.Equal(t, scopes.AllOfScopePolicy(scopes.DeleteRepo, scopes.Repo), serverTool.ScopePolicy)
 
 	t.Run("requests exact repository name through elicitation", func(t *testing.T) {
 		client := NewMockedHTTPClient(

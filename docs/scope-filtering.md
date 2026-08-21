@@ -22,6 +22,19 @@ When the server starts with a classic PAT, it makes a lightweight HTTP HEAD requ
 
 With OAuth, the remote server can dynamically request additional scopes as needed. With PATs, scopes are fixed at token creation, so the server proactively hides tools you can't use.
 
+## Scope Policies
+
+Tool scopes are modeled as authorization paths rather than a flat list:
+
+- A tool may support multiple paths, and satisfying any path is sufficient.
+- Every independent requirement within the selected path must be satisfied.
+- A requirement may accept multiple alternative scopes, including broader scopes from the hierarchy.
+- Argument-dependent tools resolve the exact path at call time before an OAuth challenge is issued.
+
+For example, repository deletion requires `repo` **and** `delete_repo`, while listing issue fields requires `repo` for a repository request or `read:org` for an organization request. Updating an ordinary file requires `repo`; updating a workflow file requires both `repo` and `workflow`.
+
+PAT filtering runs before call arguments are known, so it keeps a tool when any supported path is usable. OAuth challenges resolve the actual arguments and request only the preferred missing scopes for that call.
+
 ## OAuth Scope Challenges (Remote Server)
 
 When using the [remote MCP server](./remote-server.md) with OAuth authentication, the server uses a different approach called **scope challenges**. Instead of hiding tools upfront, all tools are available, and the server requests additional scopes on-demand when you try to use a tool that requires them.
@@ -58,7 +71,7 @@ Some scopes implicitly include others:
 
 This means if your token has `repo`, tools requiring `security_events` will also be available.
 
-Each tool in the [README](../README.md#tools) lists its required and accepted OAuth scopes.
+Each tool in the [README](../README.md#tools) lists its OAuth scope policy and preferred challenge scopes.
 
 ## Public Repository Access
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
@@ -26,8 +27,7 @@ func Test_ListIssueFields(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner"})
-	assert.ElementsMatch(t, serverTool.RequiredScopes, []string{"repo", "read:org"})
-	assert.ElementsMatch(t, serverTool.AcceptedScopes, []string{"repo", "read:org", "write:org", "admin:org"})
+	assert.Equal(t, scopes.AnyOfScopePolicy(scopes.Repo, scopes.ReadOrg), serverTool.ScopePolicy)
 
 	queryStruct := issueFieldsRepoQuery{}
 	defaultVars := map[string]any{

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -17,11 +18,11 @@ import (
 
 // ToolScopeInfo contains scope information for a single tool.
 type ToolScopeInfo struct {
-	Name           string   `json:"name"`
-	Toolset        string   `json:"toolset"`
-	ReadOnly       bool     `json:"read_only"`
-	RequiredScopes []string `json:"required_scopes"`
-	AcceptedScopes []string `json:"accepted_scopes,omitempty"`
+	Name            string                `json:"name"`
+	Toolset         string                `json:"toolset"`
+	ReadOnly        bool                  `json:"read_only"`
+	ScopePolicy     inventory.ScopePolicy `json:"scope_policy"`
+	ChallengeScopes []string              `json:"challenge_scopes,omitempty"`
 }
 
 // ScopesOutput is the full output structure for the list-scopes command.
@@ -36,12 +37,12 @@ type ScopesOutput struct {
 
 var listScopesCmd = &cobra.Command{
 	Use:   "list-scopes",
-	Short: "List required OAuth scopes for enabled tools",
-	Long: `List the required OAuth scopes for all enabled tools.
+	Short: "List OAuth scope policies for enabled tools",
+	Long: `List the OAuth scope policies for all enabled tools.
 
 This command creates an inventory based on the same flags as the stdio command
-and outputs the required OAuth scopes for each enabled tool. This is useful for
-determining what scopes a token needs to use specific tools.
+and outputs the authorization paths and preferred challenge scopes for each
+enabled tool.
 
 The output format can be controlled with the --output flag:
   - text (default): Human-readable text output
@@ -153,30 +154,28 @@ func collectToolScopes(inv *inventory.Inventory, readOnly bool) ScopesOutput {
 	for _, serverTool := range availableTools {
 		tool := serverTool.Tool
 
-		// Get scope information directly from ServerTool
-		requiredScopes := serverTool.RequiredScopes
-		acceptedScopes := serverTool.AcceptedScopes
+		challengeScopes := allChallengeScopes(serverTool.ScopePolicy)
 
 		// Determine if tool is read-only
 		isReadOnly := serverTool.IsReadOnly()
 
 		toolInfo := ToolScopeInfo{
-			Name:           tool.Name,
-			Toolset:        string(serverTool.Toolset.ID),
-			ReadOnly:       isReadOnly,
-			RequiredScopes: requiredScopes,
-			AcceptedScopes: acceptedScopes,
+			Name:            tool.Name,
+			Toolset:         string(serverTool.Toolset.ID),
+			ReadOnly:        isReadOnly,
+			ScopePolicy:     serverTool.ScopePolicy,
+			ChallengeScopes: challengeScopes,
 		}
 		tools = append(tools, toolInfo)
 
 		// Track unique scopes
-		for _, s := range requiredScopes {
+		for _, s := range challengeScopes {
 			scopeSet[s] = true
 			toolsByScope[s] = append(toolsByScope[s], tool.Name)
 		}
 
 		// Track scopes by tool
-		scopesByTool[tool.Name] = requiredScopes
+		scopesByTool[tool.Name] = challengeScopes
 	}
 
 	// Sort tools by name
@@ -225,7 +224,7 @@ func outputSummary(output ScopesOutput) error {
 		return nil
 	}
 
-	fmt.Println("Required OAuth scopes for enabled tools:")
+	fmt.Println("OAuth scope policies for enabled tools:")
 	fmt.Println()
 	for _, scope := range output.UniqueScopes {
 		fmt.Printf("  %s\n", formatScopeDisplay(scope))
@@ -235,8 +234,8 @@ func outputSummary(output ScopesOutput) error {
 }
 
 func outputText(output ScopesOutput) error {
-	fmt.Printf("OAuth Scopes for Enabled Tools\n")
-	fmt.Printf("==============================\n\n")
+	fmt.Printf("OAuth Scope Policies for Enabled Tools\n")
+	fmt.Printf("======================================\n\n")
 
 	fmt.Printf("Enabled Toolsets: %s\n", strings.Join(output.EnabledToolsets, ", "))
 	fmt.Printf("Read-Only Mode: %v\n\n", output.ReadOnly)
@@ -265,8 +264,8 @@ func outputText(output ScopesOutput) error {
 			}
 
 			scopeStr := "(no scope required)"
-			if len(tool.RequiredScopes) > 0 {
-				scopeStr = strings.Join(tool.RequiredScopes, ", ")
+			if policy := formatScopePolicy(tool.ScopePolicy); policy != "" {
+				scopeStr = policy
 			}
 
 			fmt.Printf("  %s %s: %s\n", rwIndicator, tool.Name, scopeStr)
@@ -278,9 +277,9 @@ func outputText(output ScopesOutput) error {
 	fmt.Println("## Summary")
 	fmt.Println()
 	if len(output.UniqueScopes) == 0 {
-		fmt.Println("No OAuth scopes required for enabled tools.")
+		fmt.Println("No OAuth scopes are used by enabled tools.")
 	} else {
-		fmt.Println("Unique scopes required:")
+		fmt.Println("Unique preferred challenge scopes:")
 		for _, scope := range output.UniqueScopes {
 			fmt.Printf("  • %s\n", formatScopeDisplay(scope))
 		}
@@ -291,4 +290,16 @@ func outputText(output ScopesOutput) error {
 	fmt.Println("\nLegend: 👁 = read-only, 📝 = read-write")
 
 	return nil
+}
+
+func allChallengeScopes(policy inventory.ScopePolicy) []string {
+	var result []string
+	for _, path := range policy.AnyOf {
+		for _, requirement := range path.AllOf {
+			if requirement.ChallengeScope != "" && !slices.Contains(result, requirement.ChallengeScope) {
+				result = append(result, requirement.ChallengeScope)
+			}
+		}
+	}
+	return result
 }

@@ -4,6 +4,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -112,14 +113,6 @@ func TestExpandScopes(t *testing.T) {
 	}
 }
 
-func TestHasRequiredScopeGroups(t *testing.T) {
-	groups := ExpandScopeGroups(DeleteRepo, Repo)
-
-	assert.True(t, HasRequiredScopeGroups([]string{"delete_repo", "repo"}, groups))
-	assert.False(t, HasRequiredScopeGroups([]string{"delete_repo"}, groups))
-	assert.False(t, HasRequiredScopeGroups([]string{"repo"}, groups))
-}
-
 func TestOAuthScopeCatalog(t *testing.T) {
 	supported := SupportedOAuthScopes()
 	defaults := DefaultOAuthScopes()
@@ -133,35 +126,66 @@ func TestOAuthScopeCatalog(t *testing.T) {
 	assert.NotContains(t, defaults, string(Codespace))
 }
 
-func TestToStringSlice(t *testing.T) {
-	tests := []struct {
-		name     string
-		scopes   []Scope
-		expected []string
-	}{
-		{
-			name:     "empty returns empty",
-			scopes:   []Scope{},
-			expected: []string{},
-		},
-		{
-			name:     "single scope",
-			scopes:   []Scope{Repo},
-			expected: []string{"repo"},
-		},
-		{
-			name:     "multiple scopes",
-			scopes:   []Scope{Repo, Gist, ReadOrg},
-			expected: []string{"repo", "gist", "read:org"},
-		},
-	}
+func TestScopePolicy(t *testing.T) {
+	t.Run("any authorization path is sufficient", func(t *testing.T) {
+		policy := AnyOfScopePolicy(Repo, ReadOrg)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := ToStringSlice(tt.scopes...)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
+		assert.True(t, ScopePolicySatisfied([]string{"repo"}, policy))
+		assert.True(t, ScopePolicySatisfied([]string{"admin:org"}, policy))
+		assert.Nil(t, ChallengeScopesForPolicy([]string{"admin:org"}, policy))
+		assert.False(t, ScopePolicySatisfied([]string{"gist"}, policy))
+		assert.Equal(t, []string{"repo"}, ChallengeScopesForPolicy([]string{"gist"}, policy))
+	})
+
+	t.Run("every requirement in a path must be satisfied", func(t *testing.T) {
+		policy := AllOfScopePolicy(Repo, Workflow)
+
+		assert.True(t, ScopePolicySatisfied([]string{"repo", "workflow"}, policy))
+		assert.False(t, ScopePolicySatisfied([]string{"repo"}, policy))
+		assert.Equal(t, []string{"workflow"}, ChallengeScopesForPolicy([]string{"repo"}, policy))
+	})
+
+	t.Run("challenge uses declared path preference", func(t *testing.T) {
+		policy := inventory.ScopePolicy{
+			AnyOf: []inventory.ScopePath{
+				{AllOf: []inventory.ScopeRequirement{
+					NewScopeRequirement(Repo),
+					NewScopeRequirement(Workflow),
+				}},
+				{AllOf: []inventory.ScopeRequirement{NewScopeRequirement(ReadOrg)}},
+			},
+		}
+
+		assert.Equal(t, []string{"repo", "workflow"}, ChallengeScopesForPolicy([]string{"gist"}, policy))
+	})
+
+	t.Run("canonical challenge scope always satisfies its requirement", func(t *testing.T) {
+		policy := inventory.ScopePolicy{
+			AnyOf: []inventory.ScopePath{{
+				AllOf: []inventory.ScopeRequirement{{
+					ChallengeScope: "narrow",
+					AnyOf:          []string{"broad"},
+				}},
+			}},
+		}
+
+		assert.True(t, ScopePolicySatisfied([]string{"narrow"}, policy))
+	})
+
+	t.Run("accepted alternatives apply to one requirement only", func(t *testing.T) {
+		policy := inventory.ScopePolicy{
+			AnyOf: []inventory.ScopePath{{
+				AllOf: []inventory.ScopeRequirement{
+					NewScopeRequirement(PublicRepo),
+					NewScopeRequirement(Workflow),
+				},
+			}},
+		}
+
+		assert.True(t, ScopePolicySatisfied([]string{"repo", "workflow"}, policy))
+		assert.False(t, ScopePolicySatisfied([]string{"repo"}, policy))
+		assert.Equal(t, []string{"workflow"}, ChallengeScopesForPolicy([]string{"repo"}, policy))
+	})
 }
 
 func TestScopeHierarchy(t *testing.T) {
@@ -245,113 +269,6 @@ func TestExpandScopeSet(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := expandScopeSet(tt.scopes)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestHasRequiredScopes(t *testing.T) {
-	tests := []struct {
-		name           string
-		tokenScopes    []string
-		acceptedScopes []string
-		expected       bool
-	}{
-		{
-			name:           "no accepted scopes - always allowed",
-			tokenScopes:    []string{},
-			acceptedScopes: []string{},
-			expected:       true,
-		},
-		{
-			name:           "nil accepted scopes - always allowed",
-			tokenScopes:    []string{"repo"},
-			acceptedScopes: nil,
-			expected:       true,
-		},
-		{
-			name:           "token has exact required scope",
-			tokenScopes:    []string{"repo"},
-			acceptedScopes: []string{"repo"},
-			expected:       true,
-		},
-		{
-			name:           "token has parent scope that grants access",
-			tokenScopes:    []string{"repo"},
-			acceptedScopes: []string{"public_repo"},
-			expected:       true,
-		},
-		{
-			name:           "token has parent scope for security_events",
-			tokenScopes:    []string{"repo"},
-			acceptedScopes: []string{"security_events"},
-			expected:       true,
-		},
-		{
-			name:           "token has admin:org which grants read:org",
-			tokenScopes:    []string{"admin:org"},
-			acceptedScopes: []string{"read:org"},
-			expected:       true,
-		},
-		{
-			name:           "token has write:org which grants read:org",
-			tokenScopes:    []string{"write:org"},
-			acceptedScopes: []string{"read:org"},
-			expected:       true,
-		},
-		{
-			name:           "token missing required scope",
-			tokenScopes:    []string{"gist"},
-			acceptedScopes: []string{"repo"},
-			expected:       false,
-		},
-		{
-			name:           "token has child but not parent - fails",
-			tokenScopes:    []string{"public_repo"},
-			acceptedScopes: []string{"repo"},
-			expected:       false,
-		},
-		{
-			name:           "multiple token scopes - one matches",
-			tokenScopes:    []string{"gist", "repo"},
-			acceptedScopes: []string{"public_repo"},
-			expected:       true,
-		},
-		{
-			name:           "multiple accepted scopes - token has one",
-			tokenScopes:    []string{"repo"},
-			acceptedScopes: []string{"repo", "admin:org"},
-			expected:       true,
-		},
-		{
-			name:           "empty token scopes - fails when scopes required",
-			tokenScopes:    []string{},
-			acceptedScopes: []string{"repo"},
-			expected:       false,
-		},
-		{
-			name:           "user scope grants read:user",
-			tokenScopes:    []string{"user"},
-			acceptedScopes: []string{"read:user"},
-			expected:       true,
-		},
-		{
-			name:           "user scope grants user:email",
-			tokenScopes:    []string{"user"},
-			acceptedScopes: []string{"user:email"},
-			expected:       true,
-		},
-		{
-			name:           "write:packages grants read:packages",
-			tokenScopes:    []string{"write:packages"},
-			acceptedScopes: []string{"read:packages"},
-			expected:       true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := HasRequiredScopes(tt.tokenScopes, tt.acceptedScopes)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

@@ -19,6 +19,30 @@ import (
 // should define their own typed dependencies struct and type-assert as needed.
 type HandlerFunc func(deps any) mcp.ToolHandler
 
+// ScopeRequirement is one independently required OAuth capability. Any scope
+// in AnyOf satisfies it; ChallengeScope is advertised when the requirement is
+// not satisfied.
+type ScopeRequirement struct {
+	ChallengeScope string   `json:"challenge"`
+	AnyOf          []string `json:"any_of"`
+}
+
+// ScopePath is one complete way to authorize an operation. Every
+// requirement in AllOf must be satisfied.
+type ScopePath struct {
+	AllOf []ScopeRequirement `json:"all_of"`
+}
+
+// ScopePolicy describes all supported ways to authorize an operation. Any
+// path is sufficient. The first path is the preferred path for
+// an OAuth challenge when call-time resolution leaves multiple choices.
+type ScopePolicy struct {
+	AnyOf []ScopePath `json:"any_of"`
+}
+
+// ScopeResolver returns the complete OAuth scope policy for a specific call.
+type ScopeResolver func(arguments map[string]any) ScopePolicy
+
 // ToolHandlerMiddleware wraps an MCP tool handler. Middleware is applied from
 // right to left, so the first middleware passed to RegisterFunc executes first.
 type ToolHandlerMiddleware func(next mcp.ToolHandler) mcp.ToolHandler
@@ -90,18 +114,12 @@ type ServerTool struct {
 	// list or call this tool. Empty means the tool does not require elicitation.
 	RequiredElicitationMode ElicitationMode
 
-	// RequiredScopes specifies the minimum OAuth scopes required for this tool.
-	// These are the scopes that must be present for the tool to function.
-	RequiredScopes []string
+	// ScopePolicy describes every scope combination that can authorize this tool.
+	// It is used for argument-free availability checks.
+	ScopePolicy ScopePolicy
 
-	// AcceptedScopes specifies all OAuth scopes that can be used with this tool.
-	// This includes the required scopes plus any higher-level scopes that provide
-	// the necessary permissions due to scope hierarchy.
-	AcceptedScopes []string
-
-	// RequiredScopeGroups contains one group of accepted alternatives for each
-	// independently required OAuth scope. Every group must be satisfied.
-	RequiredScopeGroups [][]string
+	// ScopeResolver returns the exact policy for a call based on its arguments.
+	ScopeResolver ScopeResolver
 }
 
 // IsReadOnly returns true if this tool is marked as read-only via annotations.
@@ -139,21 +157,20 @@ func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any, middleware ...ToolHa
 	if len(toolCopy.Icons) == 0 {
 		toolCopy.Icons = st.Toolset.Icons()
 	}
-	// Project routing-relevant params to standard MCP-Param-* headers (SEP-2243)
-	// so a remote proxy can read owner/repo from headers instead of re-parsing the
-	// JSON-RPC body. No-op for tools without these params.
+	// Project owner/repo routing params to standard MCP-Param-* headers (SEP-2243)
+	// so a remote proxy can route requests without re-parsing the JSON-RPC body.
+	// No-op for tools without these params.
 	AnnotateHeaderParams(&toolCopy)
 	s.AddTool(&toolCopy, handler)
 }
 
-// HeaderParams maps tool input properties to the MCP-Param-* header name a
-// header-aware proxy reads, avoiding a second parse of the request body. New
-// routing-relevant params should be added here so projection stays automatic
-// for every tool; the enforcement test in pkg/github guards full coverage.
+// HeaderParams maps owner/repo input properties to the MCP-Param-* headers a
+// header-aware proxy reads for repository routing. The enforcement test in
+// pkg/github guards full coverage.
 var HeaderParams = map[string]string{"owner": "owner", "repo": "repo"}
 
-// AnnotateHeaderParams returns a copy of tool whose routing-relevant input
-// properties (per HeaderParams) carry an "x-mcp-header" annotation, which the
+// AnnotateHeaderParams returns a copy of tool whose owner/repo input properties
+// carry an "x-mcp-header" annotation, which the
 // SDK projects onto Mcp-Param-{name} request headers. It never mutates the
 // input tool's schema or any map shared with the original tool definition:
 // callers shallow-copy ServerTool.Tool, so the *jsonschema.Schema (and its

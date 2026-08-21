@@ -219,21 +219,10 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 	// Tool name (no icon - section header already has the toolset icon)
 	fmt.Fprintf(buf, "- **%s** - %s\n", tool.Tool.Name, tool.Tool.Annotations.Title)
 
-	// OAuth scopes if present
-	if len(tool.RequiredScopes) > 0 {
-		scopeList := "`" + strings.Join(tool.RequiredScopes, "`, `") + "`"
-		switch {
-		case len(tool.RequiredScopeGroups) > 1:
-			fmt.Fprintf(buf, "  - **Required OAuth Scopes (all required)**: %s\n", scopeList)
-		case len(tool.RequiredScopes) > 1:
-			fmt.Fprintf(buf, "  - **Required OAuth Scopes (any of)**: %s\n", scopeList)
-		default:
-			fmt.Fprintf(buf, "  - **Required OAuth Scopes**: %s\n", scopeList)
-		}
-
-		// Only show accepted scopes if they differ from required scopes
-		if len(tool.AcceptedScopes) > 0 && !scopesEqual(tool.RequiredScopes, tool.AcceptedScopes) {
-			fmt.Fprintf(buf, "  - **Accepted OAuth Scopes**: `%s`\n", strings.Join(tool.AcceptedScopes, "`, `"))
+	if policy := formatScopePolicy(tool.ScopePolicy); policy != "" {
+		fmt.Fprintf(buf, "  - **OAuth Scope Policy**: %s\n", policy)
+		if challenge := preferredChallengeScopes(tool.ScopePolicy); scopePolicyNeedsChallengeDetail(tool.ScopePolicy) && len(challenge) > 0 {
+			fmt.Fprintf(buf, "  - **Preferred OAuth Challenge**: `%s`\n", strings.Join(challenge, "`, `"))
 		}
 	}
 
@@ -322,26 +311,57 @@ func schemaTypeString(schema *jsonschema.Schema) string {
 	return strings.Join(types, " | ")
 }
 
-// scopesEqual checks if two scope slices contain the same elements (order-independent)
-func scopesEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	// Create a map for quick lookup
-	aMap := make(map[string]bool, len(a))
-	for _, scope := range a {
-		aMap[scope] = true
-	}
-
-	// Check if all elements in b are in a
-	for _, scope := range b {
-		if !aMap[scope] {
-			return false
+func formatScopePolicy(policy inventory.ScopePolicy) string {
+	paths := make([]string, 0, len(policy.AnyOf))
+	for _, path := range policy.AnyOf {
+		requirements := make([]string, 0, len(path.AllOf))
+		for _, requirement := range path.AllOf {
+			alternatives := requirement.AnyOf
+			if len(alternatives) == 0 && requirement.ChallengeScope != "" {
+				alternatives = []string{requirement.ChallengeScope}
+			}
+			quoted := make([]string, len(alternatives))
+			for i, scope := range alternatives {
+				quoted[i] = "`" + scope + "`"
+			}
+			if len(quoted) > 1 {
+				requirements = append(requirements, "("+strings.Join(quoted, " OR ")+")")
+			} else if len(quoted) == 1 {
+				requirements = append(requirements, quoted[0])
+			}
+		}
+		if len(requirements) > 0 {
+			paths = append(paths, strings.Join(requirements, " AND "))
 		}
 	}
+	return strings.Join(paths, " OR ")
+}
 
-	return true
+func preferredChallengeScopes(policy inventory.ScopePolicy) []string {
+	if len(policy.AnyOf) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(policy.AnyOf[0].AllOf))
+	for _, requirement := range policy.AnyOf[0].AllOf {
+		if requirement.ChallengeScope != "" && !slices.Contains(result, requirement.ChallengeScope) {
+			result = append(result, requirement.ChallengeScope)
+		}
+	}
+	return result
+}
+
+func scopePolicyNeedsChallengeDetail(policy inventory.ScopePolicy) bool {
+	if len(policy.AnyOf) > 1 {
+		return true
+	}
+	for _, path := range policy.AnyOf {
+		for _, requirement := range path.AllOf {
+			if len(requirement.AnyOf) != 1 || requirement.AnyOf[0] != requirement.ChallengeScope {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // indentMultilineDescription adds the specified indent to all lines after the first line.

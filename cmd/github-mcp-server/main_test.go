@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/viper"
@@ -63,21 +64,20 @@ func TestWriteToolDocScopeSemantics(t *testing.T) {
 		want string
 	}{
 		{
-			name: "legacy multi-scope tools use any-of",
+			name: "alternative scope paths",
 			tool: inventory.ServerTool{
-				Tool:           mcp.Tool{Name: "legacy", Annotations: &mcp.ToolAnnotations{Title: "Legacy"}},
-				RequiredScopes: []string{"repo", "read:org"},
+				Tool:        mcp.Tool{Name: "alternative", Annotations: &mcp.ToolAnnotations{Title: "Alternative"}},
+				ScopePolicy: scopes.AnyOfScopePolicy(scopes.Repo, scopes.ReadOrg),
 			},
-			want: "**Required OAuth Scopes (any of)**",
+			want: "`repo` OR (`admin:org` OR `read:org` OR `write:org`)",
 		},
 		{
-			name: "conjunctive scope groups use all-required",
+			name: "conjunctive requirements",
 			tool: inventory.ServerTool{
-				Tool:                mcp.Tool{Name: "conjunctive", Annotations: &mcp.ToolAnnotations{Title: "Conjunctive"}},
-				RequiredScopes:      []string{"delete_repo", "repo"},
-				RequiredScopeGroups: [][]string{{"delete_repo"}, {"repo"}},
+				Tool:        mcp.Tool{Name: "conjunctive", Annotations: &mcp.ToolAnnotations{Title: "Conjunctive"}},
+				ScopePolicy: scopes.AllOfScopePolicy(scopes.DeleteRepo, scopes.Repo),
 			},
-			want: "**Required OAuth Scopes (all required)**",
+			want: "`delete_repo` AND `repo`",
 		},
 	}
 
