@@ -174,7 +174,7 @@ func TestGranularCreateIssueWithParentUsesAtomicMutation(t *testing.T) {
 	assert.False(t, result.IsError)
 }
 
-func TestCreateIssueParentRepositoryRequiresParentIssueNumber(t *testing.T) {
+func TestCreateIssueParentRepositoryValidation(t *testing.T) {
 	tests := []struct {
 		name    string
 		handler func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error)
@@ -209,6 +209,37 @@ func TestCreateIssueParentRepositoryRequiresParentIssueNumber(t *testing.T) {
 				"parent_repo": "parent-repo",
 			},
 			want: "can only be used when parent_issue_number is provided",
+		},
+		{
+			name: "issue_write requires parent repo with parent owner",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := IssueWrite(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"method":              "create",
+				"owner":               "owner",
+				"repo":                "repo",
+				"title":               "Child",
+				"parent_issue_number": float64(1),
+				"parent_owner":        "parent-owner",
+			},
+			want: "parent_owner and parent_repo must be provided together",
+		},
+		{
+			name: "create_issue requires parent owner with parent repo",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := GranularCreateIssue(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"owner":               "owner",
+				"repo":                "repo",
+				"title":               "Child",
+				"parent_issue_number": float64(1),
+				"parent_repo":         "parent-repo",
+			},
+			want: "parent_owner and parent_repo must be provided together",
 		},
 		{
 			name: "issue fields",
