@@ -92,9 +92,17 @@
         "type": "string"
       },
       "parent_issue_number": {
-        "description": "Issue number of the parent issue. Only used when method is 'create'. The new issue is created and attached to this parent in the same operation.",
+        "description": "Issue number of the parent issue. Only used when method is 'create' and cannot be combined with issue_fields. The new issue is created and attached to this parent in the same operation.",
         "minimum": 1,
         "type": "number"
+      },
+      "parent_owner": {
+        "description": "Repository owner of the parent issue. Defaults to the value of owner. Only used when method is 'create' and parent_issue_number is provided.",
+        "type": "string"
+      },
+      "parent_repo": {
+        "description": "Repository name of the parent issue. Defaults to the value of repo. Only used when method is 'create' and parent_issue_number is provided.",
+        "type": "string"
       },
       "repo": {
         "description": "Repository name",

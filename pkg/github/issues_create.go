@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v89/github"
@@ -19,13 +17,12 @@ type CreateIssueInput struct {
 	RepositoryID githubv4.ID     `json:"repositoryId"`
 	Title        githubv4.String `json:"title"`
 
-	Body          *githubv4.String                 `json:"body,omitempty"`
-	AssigneeIDs   *[]githubv4.ID                   `json:"assigneeIds,omitempty"`
-	MilestoneID   *githubv4.ID                     `json:"milestoneId,omitempty"`
-	LabelIDs      *[]githubv4.ID                   `json:"labelIds,omitempty"`
-	IssueTypeID   *githubv4.ID                     `json:"issueTypeId,omitempty"`
-	ParentIssueID *githubv4.ID                     `json:"parentIssueId,omitempty"`
-	IssueFields   *[]IssueFieldCreateOrUpdateInput `json:"issueFields,omitempty"`
+	Body          *githubv4.String `json:"body,omitempty"`
+	AssigneeIDs   *[]githubv4.ID   `json:"assigneeIds,omitempty"`
+	MilestoneID   *githubv4.ID     `json:"milestoneId,omitempty"`
+	LabelIDs      *[]githubv4.ID   `json:"labelIds,omitempty"`
+	IssueTypeID   *githubv4.ID     `json:"issueTypeId,omitempty"`
+	ParentIssueID *githubv4.ID     `json:"parentIssueId,omitempty"`
 }
 
 type createIssueMutation struct {
@@ -38,12 +35,14 @@ type createIssueMutation struct {
 }
 
 type createIssueParentMetadataQuery struct {
-	Repository struct {
-		ID    githubv4.ID
+	ChildRepository struct {
+		ID githubv4.ID
+	} `graphql:"childRepository: repository(owner: $owner, name: $repo)"`
+	ParentRepository struct {
 		Issue struct {
 			ID githubv4.ID
 		} `graphql:"issue(number: $parentIssueNumber)"`
-	} `graphql:"repository(owner: $owner, name: $repo)"`
+	} `graphql:"parentRepository: repository(owner: $parentOwner, name: $parentRepo)"`
 }
 
 func createIssueWithParent(
@@ -58,8 +57,9 @@ func createIssueWithParent(
 	labels []string,
 	milestoneNumber int,
 	issueType string,
-	issueFields []issueWriteFieldInput,
 	parentIssueNumber int,
+	parentOwner string,
+	parentRepo string,
 ) (*mcp.CallToolResult, error) {
 	if title == "" {
 		return utils.NewToolResultError("missing required parameter: title"), nil
@@ -68,7 +68,8 @@ func createIssueWithParent(
 		return utils.NewToolResultError("parent_issue_number must be greater than 0"), nil
 	}
 
-	repositoryID, parentIssueID, err := resolveCreateIssueParent(ctx, gqlClient, owner, repo, parentIssueNumber)
+	parentOwner, parentRepo = parentRepository(owner, repo, parentOwner, parentRepo)
+	repositoryID, parentIssueID, err := resolveCreateIssueParent(ctx, gqlClient, owner, repo, parentOwner, parentRepo, parentIssueNumber)
 	if err != nil {
 		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to resolve parent issue", err), nil
 	}
@@ -122,22 +123,8 @@ func createIssueWithParent(
 		input.IssueTypeID = &issueTypeID
 	}
 
-	if len(issueFields) > 0 {
-		resolvedIssueFields, err := resolveIssueFieldCreateInputs(ctx, gqlClient, owner, repo, issueFields)
-		if err != nil {
-			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to resolve issue_fields", err), nil
-		}
-		if len(resolvedIssueFields) > 0 {
-			input.IssueFields = &resolvedIssueFields
-		}
-	}
-
 	var mutation createIssueMutation
-	mutationContext := ctx
-	if input.IssueFields != nil {
-		mutationContext = ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
-	}
-	if err := gqlClient.Mutate(mutationContext, &mutation, input, nil); err != nil {
+	if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
 		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to create issue", err), nil
 	}
 
@@ -152,23 +139,35 @@ func createIssueWithParent(
 	return utils.NewToolResultText(string(encoded)), nil
 }
 
-func resolveCreateIssueParent(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, parentIssueNumber int) (githubv4.ID, githubv4.ID, error) {
+func parentRepository(owner, repo, parentOwner, parentRepo string) (string, string) {
+	if parentOwner == "" {
+		parentOwner = owner
+	}
+	if parentRepo == "" {
+		parentRepo = repo
+	}
+	return parentOwner, parentRepo
+}
+
+func resolveCreateIssueParent(ctx context.Context, gqlClient *githubv4.Client, owner, repo, parentOwner, parentRepo string, parentIssueNumber int) (githubv4.ID, githubv4.ID, error) {
 	var query createIssueParentMetadataQuery
 	variables := map[string]any{
 		"owner":             githubv4.String(owner),
 		"repo":              githubv4.String(repo),
+		"parentOwner":       githubv4.String(parentOwner),
+		"parentRepo":        githubv4.String(parentRepo),
 		"parentIssueNumber": githubv4.Int(parentIssueNumber), // #nosec G115 - issue numbers are small positive integers
 	}
 	if err := gqlClient.Query(ctx, &query, variables); err != nil {
 		return "", "", err
 	}
-	if query.Repository.ID == "" {
+	if query.ChildRepository.ID == "" {
 		return "", "", fmt.Errorf("repository %s/%s was not found", owner, repo)
 	}
-	if query.Repository.Issue.ID == "" {
-		return "", "", fmt.Errorf("parent issue #%d was not found in %s/%s", parentIssueNumber, owner, repo)
+	if query.ParentRepository.Issue.ID == "" {
+		return "", "", fmt.Errorf("parent issue #%d was not found in %s/%s", parentIssueNumber, parentOwner, parentRepo)
 	}
-	return query.Repository.ID, query.Repository.Issue.ID, nil
+	return query.ChildRepository.ID, query.ParentRepository.Issue.ID, nil
 }
 
 func resolveUserID(ctx context.Context, gqlClient *githubv4.Client, login string) (githubv4.ID, error) {
@@ -232,131 +231,4 @@ func resolveIssueTypeID(ctx context.Context, client *github.Client, owner, repo,
 		}
 	}
 	return "", resp, fmt.Errorf("issue type %q was not found in %s/%s", issueTypeName, owner, repo)
-}
-
-func resolveIssueFieldCreateInputs(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueFields []issueWriteFieldInput) ([]IssueFieldCreateOrUpdateInput, error) {
-	fieldByName, err := fetchIssueFieldWriteMetadata(ctx, gqlClient, owner, repo)
-	if err != nil {
-		return nil, err
-	}
-
-	resolved := make([]IssueFieldCreateOrUpdateInput, 0, len(issueFields))
-	for _, fieldInput := range issueFields {
-		if fieldInput.Delete {
-			continue
-		}
-
-		node, ok := fieldByName[strings.ToLower(strings.TrimSpace(fieldInput.FieldName))]
-		if !ok {
-			return nil, fmt.Errorf("issue field %q was not found in %s/%s", fieldInput.FieldName, owner, repo)
-		}
-
-		input, err := issueFieldCreateInput(node, fieldInput)
-		if err != nil {
-			return nil, err
-		}
-		resolved = append(resolved, input)
-	}
-	return resolved, nil
-}
-
-func issueFieldCreateInput(node issueFieldWriteMetadataNode, fieldInput issueWriteFieldInput) (IssueFieldCreateOrUpdateInput, error) {
-	input := IssueFieldCreateOrUpdateInput{}
-	var dataType string
-
-	switch string(node.TypeName) {
-	case "IssueFieldText":
-		input.FieldID = node.IssueFieldText.ID
-		dataType = string(node.IssueFieldText.DataType)
-	case "IssueFieldNumber":
-		input.FieldID = node.IssueFieldNumber.ID
-		dataType = string(node.IssueFieldNumber.DataType)
-	case "IssueFieldDate":
-		input.FieldID = node.IssueFieldDate.ID
-		dataType = string(node.IssueFieldDate.DataType)
-	case "IssueFieldSingleSelect":
-		input.FieldID = node.IssueFieldSingleSelect.ID
-		dataType = string(node.IssueFieldSingleSelect.DataType)
-	default:
-		return input, fmt.Errorf("issue field %q has unsupported type %q", fieldInput.FieldName, node.TypeName)
-	}
-	if input.FieldID == "" {
-		return input, fmt.Errorf("issue field %q is missing a node ID", fieldInput.FieldName)
-	}
-
-	switch strings.ToLower(dataType) {
-	case "text":
-		value := fmt.Sprint(fieldInput.Value)
-		input.TextValue = githubv4.NewString(githubv4.String(value))
-	case "number":
-		value, err := issueFieldNumberValue(fieldInput.Value)
-		if err != nil {
-			return input, fmt.Errorf("issue field %q: %w", fieldInput.FieldName, err)
-		}
-		input.NumberValue = &value
-	case "date":
-		value, ok := fieldInput.Value.(string)
-		if !ok {
-			return input, fmt.Errorf("issue field %q requires a date string", fieldInput.FieldName)
-		}
-		input.DateValue = githubv4.NewString(githubv4.String(value))
-	case "single_select":
-		optionName := fieldInput.FieldOptionName
-		if optionName == "" {
-			var ok bool
-			optionName, ok = fieldInput.Value.(string)
-			if !ok {
-				return input, fmt.Errorf("issue field %q requires a single-select option name", fieldInput.FieldName)
-			}
-		}
-		for _, option := range node.IssueFieldSingleSelect.Options {
-			if strings.EqualFold(strings.TrimSpace(string(option.Name)), strings.TrimSpace(optionName)) {
-				if option.ID == "" {
-					return input, fmt.Errorf("issue field option %q for field %q is missing a node ID", optionName, fieldInput.FieldName)
-				}
-				optionID := option.ID
-				input.SingleSelectOptionID = &optionID
-				return input, nil
-			}
-		}
-		return input, fmt.Errorf("issue field option %q was not found for field %q", optionName, fieldInput.FieldName)
-	default:
-		return input, fmt.Errorf("issue field %q has unsupported data type %q", fieldInput.FieldName, dataType)
-	}
-
-	return input, nil
-}
-
-func issueFieldNumberValue(value any) (githubv4.Float, error) {
-	switch value := value.(type) {
-	case float64:
-		return githubv4.Float(value), nil
-	case float32:
-		return githubv4.Float(value), nil
-	case int:
-		return githubv4.Float(value), nil
-	case int8:
-		return githubv4.Float(value), nil
-	case int16:
-		return githubv4.Float(value), nil
-	case int32:
-		return githubv4.Float(value), nil
-	case int64:
-		return githubv4.Float(value), nil
-	case uint:
-		return githubv4.Float(value), nil
-	case uint8:
-		return githubv4.Float(value), nil
-	case uint16:
-		return githubv4.Float(value), nil
-	case uint32:
-		return githubv4.Float(value), nil
-	case uint64:
-		return githubv4.Float(value), nil
-	case json.Number:
-		number, err := strconv.ParseFloat(string(value), 64)
-		return githubv4.Float(number), err
-	default:
-		return 0, fmt.Errorf("requires a numeric value")
-	}
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,11 @@ func TestIssueWriteCreateWithParentAndLabelsUsesSingleMutation(t *testing.T) {
 	schema := serverTool.Tool.InputSchema
 	issueWriteSchema := schema.(*jsonschema.Schema)
 	assert.Contains(t, issueWriteSchema.Properties, "parent_issue_number")
+	assert.Contains(t, issueWriteSchema.Properties, "parent_owner")
+	assert.Contains(t, issueWriteSchema.Properties, "parent_repo")
 	assert.NotContains(t, issueWriteSchema.Required, "parent_issue_number")
+	assert.NotContains(t, issueWriteSchema.Required, "parent_owner")
+	assert.NotContains(t, issueWriteSchema.Required, "parent_repo")
 
 	labelIDs := []githubv4.ID{"LABEL_backlog"}
 	parentID := githubv4.ID("ISSUE_parent")
@@ -45,7 +50,7 @@ func TestIssueWriteCreateWithParentAndLabelsUsesSingleMutation(t *testing.T) {
 	assert.Contains(t, createMatcher.Request, "$input:CreateIssueInput!")
 
 	gqlHTTPClient, gqlCalls := countingGraphQLClient(
-		createIssueParentMatcher(1, "REPO_1", "ISSUE_parent"),
+		createIssueParentMatcher(1, "parent-owner", "parent-repo", "REPO_1", "ISSUE_parent"),
 		createIssueLabelMatcher("status:backlog", "LABEL_backlog"),
 		createMatcher,
 	)
@@ -66,6 +71,8 @@ func TestIssueWriteCreateWithParentAndLabelsUsesSingleMutation(t *testing.T) {
 		"body":                "Created under its parent",
 		"labels":              []any{"status:backlog"},
 		"parent_issue_number": float64(1),
+		"parent_owner":        "parent-owner",
+		"parent_repo":         "parent-repo",
 	})
 
 	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
@@ -82,7 +89,7 @@ func TestIssueWriteCreateWithParentAndLabelsUsesSingleMutation(t *testing.T) {
 
 func TestIssueWriteCreateWithParentDoesNotFallbackAfterMutationFailure(t *testing.T) {
 	gqlHTTPClient, gqlCalls := countingGraphQLClient(
-		createIssueParentMatcher(7, "REPO_1", "ISSUE_parent"),
+		createIssueParentMatcher(7, "owner", "repo", "REPO_1", "ISSUE_parent"),
 		githubv4mock.NewMutationMatcher(
 			createIssueMutation{},
 			CreateIssueInput{
@@ -124,10 +131,12 @@ func TestGranularCreateIssueWithParentUsesAtomicMutation(t *testing.T) {
 	serverTool := GranularCreateIssue(translations.NullTranslationHelper)
 	schema := serverTool.Tool.InputSchema.(*jsonschema.Schema)
 	assert.Contains(t, schema.Properties, "parent_issue_number")
+	assert.Contains(t, schema.Properties, "parent_owner")
+	assert.Contains(t, schema.Properties, "parent_repo")
 
 	parentID := githubv4.ID("ISSUE_parent")
 	gqlHTTPClient := githubv4mock.NewMockedHTTPClient(
-		createIssueParentMatcher(3, "REPO_1", "ISSUE_parent"),
+		createIssueParentMatcher(3, "owner", "repo", "REPO_1", "ISSUE_parent"),
 		githubv4mock.NewMutationMatcher(
 			createIssueMutation{},
 			CreateIssueInput{
@@ -165,17 +174,88 @@ func TestGranularCreateIssueWithParentUsesAtomicMutation(t *testing.T) {
 	assert.False(t, result.IsError)
 }
 
-func createIssueParentMatcher(parentIssueNumber int, repositoryID, parentIssueID githubv4.ID) githubv4mock.Matcher {
+func TestCreateIssueParentRepositoryRequiresParentIssueNumber(t *testing.T) {
+	tests := []struct {
+		name    string
+		handler func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error)
+		args    map[string]any
+		want    string
+	}{
+		{
+			name: "issue_write",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := IssueWrite(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"method":       "create",
+				"owner":        "owner",
+				"repo":         "repo",
+				"title":        "Child",
+				"parent_owner": "parent-owner",
+			},
+			want: "can only be used when parent_issue_number is provided",
+		},
+		{
+			name: "create_issue",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := GranularCreateIssue(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"title":       "Child",
+				"parent_repo": "parent-repo",
+			},
+			want: "can only be used when parent_issue_number is provided",
+		},
+		{
+			name: "issue fields",
+			handler: func(ctx context.Context, request *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				serverTool := IssueWrite(translations.NullTranslationHelper)
+				return serverTool.Handler(BaseDeps{})(ctx, request)
+			},
+			args: map[string]any{
+				"method":              "create",
+				"owner":               "owner",
+				"repo":                "repo",
+				"title":               "Child",
+				"parent_issue_number": float64(1),
+				"issue_fields": []any{
+					map[string]any{"field_name": "Priority", "field_option_name": "High"},
+				},
+			},
+			want: "issue_fields cannot be used with parent_issue_number",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := createMCPRequest(test.args)
+			result, err := test.handler(ContextWithDeps(context.Background(), BaseDeps{}), &request)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Contains(t, getTextResult(t, result).Text, test.want)
+		})
+	}
+}
+
+func createIssueParentMatcher(parentIssueNumber int, parentOwner, parentRepo string, repositoryID, parentIssueID githubv4.ID) githubv4mock.Matcher {
 	return githubv4mock.NewQueryMatcher(
 		createIssueParentMetadataQuery{},
 		map[string]any{
 			"owner":             githubv4.String("owner"),
 			"repo":              githubv4.String("repo"),
+			"parentOwner":       githubv4.String(parentOwner),
+			"parentRepo":        githubv4.String(parentRepo),
 			"parentIssueNumber": githubv4.Int(parentIssueNumber), // #nosec G115 - test issue numbers are small
 		},
 		githubv4mock.DataResponse(map[string]any{
-			"repository": map[string]any{
+			"childRepository": map[string]any{
 				"id": repositoryID,
+			},
+			"parentRepository": map[string]any{
 				"issue": map[string]any{
 					"id": parentIssueID,
 				},
