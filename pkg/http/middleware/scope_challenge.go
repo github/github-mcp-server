@@ -54,6 +54,10 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 				// Fallback: parse the request body directly
 				body, err := io.ReadAll(r.Body)
 				if err != nil {
+					if isMaxBytesError(err) {
+						writeRequestTooLarge(w)
+						return
+					}
 					next.ServeHTTP(w, r)
 					return
 				}

@@ -1,6 +1,7 @@
 package inventory
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -81,6 +82,14 @@ type ServerTool struct {
 	// Returns (enabled, error). On error, the tool should be treated as disabled.
 	Enabled func(ctx context.Context) (bool, error)
 
+	// MinimumProtocolVersion is the oldest MCP protocol version that may list or
+	// call this tool. Empty means the tool is available on every version.
+	MinimumProtocolVersion string
+
+	// RequiredElicitationMode is the elicitation mode the client must support to
+	// list or call this tool. Empty means the tool does not require elicitation.
+	RequiredElicitationMode ElicitationMode
+
 	// RequiredScopes specifies the minimum OAuth scopes required for this tool.
 	// These are the scopes that must be present for the tool to function.
 	RequiredScopes []string
@@ -89,6 +98,10 @@ type ServerTool struct {
 	// This includes the required scopes plus any higher-level scopes that provide
 	// the necessary permissions due to scope hierarchy.
 	AcceptedScopes []string
+
+	// RequiredScopeGroups contains one group of accepted alternatives for each
+	// independently required OAuth scope. Every group must be satisfied.
+	RequiredScopeGroups [][]string
 }
 
 // IsReadOnly returns true if this tool is marked as read-only via annotations.
@@ -119,6 +132,7 @@ func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any, middleware ...ToolHa
 	for i := len(middleware) - 1; i >= 0; i-- {
 		handler = middleware[i](handler)
 	}
+	handler = st.wrapAvailabilityCheck(handler)
 	// Make a shallow copy of the tool to avoid mutating the original
 	toolCopy := st.Tool
 	// Apply icons from toolset metadata if tool doesn't have icons set
@@ -196,19 +210,32 @@ func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset Too
 		// HandlerFunc ignores deps - deps are retrieved from context at call time
 		HandlerFunc: func(_ any) mcp.ToolHandler {
 			return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				rawArguments := req.Params.Arguments
+				if len(rawArguments) == 0 {
+					rawArguments = json.RawMessage(`{}`)
+				}
+
+				if bytes.Equal(bytes.TrimSpace(rawArguments), []byte("null")) {
+					return invalidArgumentsResult(fmt.Errorf("arguments must be a JSON object")), nil
+				}
+
 				var arguments In
-				if err := json.Unmarshal(req.Params.Arguments, &arguments); err != nil {
-					return &mcp.CallToolResult{
-						Content: []mcp.Content{
-							&mcp.TextContent{Text: fmt.Sprintf("invalid arguments: %s", err)},
-						},
-						IsError: true,
-					}, nil
+				if err := json.Unmarshal(rawArguments, &arguments); err != nil {
+					return invalidArgumentsResult(err), nil
 				}
 				resp, _, err := handler(ctx, req, arguments)
 				return resp, err
 			}
 		},
+	}
+}
+
+func invalidArgumentsResult(err error) *mcp.CallToolResult {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf("invalid arguments: %s", err)},
+		},
+		IsError: true,
 	}
 }
 

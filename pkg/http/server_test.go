@@ -2,13 +2,118 @@ package http
 
 import (
 	"context"
+	"encoding/base64"
+	"io"
+	"log/slog"
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/http/oauth"
+	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestRunHTTPServerRejectsInvalidStaticTools(t *testing.T) {
+	tests := []struct {
+		name         string
+		enabledTools []string
+	}{
+		{
+			name:         "mixed valid and invalid tools",
+			enabledTools: []string{"get_file_contents", "nonexistent_tool"},
+		},
+		{
+			name:         "all invalid tools",
+			enabledTools: []string{"nonexistent_tool", "another_nonexistent_tool"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := RunHTTPServer(ServerConfig{
+				Version:      "test",
+				Host:         "https://github.com",
+				EnabledTools: tt.enabledTools,
+			})
+
+			require.ErrorIs(t, err, inventory.ErrUnknownTools)
+			assert.ErrorContains(t, err, "failed to build inventory")
+		})
+	}
+}
+
+func TestNewOAuthConfig(t *testing.T) {
+	tests := []struct {
+		name                string
+		authorizationServer string
+	}{
+		{
+			name: "unset preserves host-derived authorization server",
+		},
+		{
+			name:                "explicit override is propagated",
+			authorizationServer: "https://oauth-proxy.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := newOAuthConfig(ServerConfig{
+				BaseURL:             "https://mcp.example.com",
+				ResourcePath:        "/mcp",
+				TrustProxyHeaders:   true,
+				AuthorizationServer: tt.authorizationServer,
+			})
+
+			assert.Equal(t, &oauth.Config{
+				BaseURL:             "https://mcp.example.com",
+				ResourcePath:        "/mcp",
+				TrustProxyHeaders:   true,
+				AuthorizationServer: tt.authorizationServer,
+			}, cfg)
+		})
+	}
+}
+
+func TestInitGlobalToolScopeMapUsesHost(t *testing.T) {
+	tests := []struct {
+		name     string
+		hostType utils.HostType
+		want     string
+	}{
+		{
+			name:     "dotcom uses semantic search",
+			hostType: utils.HostTypeDotcom,
+			want:     "Search issues using natural-language semantic matching. Best for conceptual or paraphrased queries (e.g. \"login fails after password reset\"). Already scoped to is:issue.",
+		},
+		{
+			name:     "GHES uses lexical search",
+			hostType: utils.HostTypeGHES,
+			want:     "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			translations := make(map[string]string)
+			translator := func(key, defaultValue string) string {
+				if value, ok := translations[key]; ok {
+					return value
+				}
+				translations[key] = defaultValue
+				return defaultValue
+			}
+
+			require.NoError(t, initGlobalToolScopeMap(translator, tt.hostType))
+
+			tool := github.SearchIssues(translator, github.WithHost(tt.hostType))
+			assert.Equal(t, tt.want, tool.Tool.Description)
+		})
+	}
+}
 
 func TestCreateHTTPFeatureChecker(t *testing.T) {
 	tests := []struct {
@@ -176,6 +281,40 @@ func TestResolveListenAddress(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestConfigureRequestState(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	t.Run("missing key disables delete repository", func(t *testing.T) {
+		cfg := &ServerConfig{}
+		sealer, err := configureRequestState(cfg, logger)
+		require.NoError(t, err)
+		assert.Nil(t, sealer)
+		assert.True(t, cfg.disableDeleteRepository)
+	})
+
+	t.Run("valid key configures sealer", func(t *testing.T) {
+		cfg := &ServerConfig{
+			MRTRStateKey: base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")),
+		}
+		sealer, err := configureRequestState(cfg, logger)
+		require.NoError(t, err)
+		require.NotNil(t, sealer)
+		assert.False(t, cfg.disableDeleteRepository)
+
+		token, err := sealer.Seal(context.Background(), []byte("state"))
+		require.NoError(t, err)
+		opened, err := sealer.Open(token)
+		require.NoError(t, err)
+		assert.Equal(t, []byte("state"), opened)
+	})
+
+	t.Run("malformed key fails", func(t *testing.T) {
+		cfg := &ServerConfig{MRTRStateKey: "invalid"}
+		_, err := configureRequestState(cfg, logger)
+		require.ErrorContains(t, err, "invalid "+MRTRStateKeyEnv)
+	})
 }
 
 func TestHeaderAllowedFeatureFlagsMatchesAllowed(t *testing.T) {

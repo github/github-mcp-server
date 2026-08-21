@@ -74,17 +74,27 @@ func withFieldsFiltering(deps ToolDependencies, tool string, fields []string) se
 	}
 }
 
+// searchMode selects the engine used to run a search. It maps to the endpoint's
+// search_type parameter.
+type searchMode int
+
+const (
+	// searchModeLexical is the API default, so search_type can be omitted.
+	searchModeLexical searchMode = iota
+	searchModeSemantic
+)
+
 // prepareSearchArgs resolves the search query string and REST search options from the tool args,
 // applying the standard is:<type> / repo:<owner>/<repo> munging shared by search_issues and
 // search_pull_requests.
-func prepareSearchArgs(args map[string]any, searchType string) (string, *github.SearchOptions, error) {
+func prepareSearchArgs(args map[string]any, targetType string, mode searchMode) (string, *github.SearchOptions, error) {
 	query, err := RequiredParam[string](args, "query")
 	if err != nil {
 		return "", nil, err
 	}
 
-	if !hasSpecificFilter(query, "is", searchType) {
-		query = fmt.Sprintf("is:%s %s", searchType, query)
+	if !hasSpecificFilter(query, "is", targetType) {
+		query = fmt.Sprintf("is:%s %s", targetType, query)
 	}
 
 	owner, err := OptionalParam[string](args, "owner")
@@ -128,14 +138,42 @@ func prepareSearchArgs(args map[string]any, searchType string) (string, *github.
 		opts.AdvancedSearch = github.Ptr(true)
 	}
 
+	// Lexical is the API default, so it leaves search_type unset.
+	if mode == searchModeSemantic {
+		query = applySemanticSearch(query, opts)
+	}
+
 	return query, opts, nil
+}
+
+// qualifierQuotePattern matches a quoted qualifier value, e.g. label:"needs
+// triage". The quotes there are meaningful — they delimit a value containing
+// spaces — so they must survive stripFreeTextQuotes.
+var qualifierQuotePattern = regexp.MustCompile(`([-\w.]+:)"([^"]*)"`)
+
+// stripFreeTextQuotes removes quotes around free text while preserving them
+// around qualifier values — since these delimit a value containing spaces.
+func stripFreeTextQuotes(query string) string {
+	const sentinel = "\x00"
+
+	// Hide qualifier quotes behind a sentinel that cannot appear in a query,
+	// strip what remains, then restore them.
+	protected := qualifierQuotePattern.ReplaceAllString(query, "${1}"+sentinel+"${2}"+sentinel)
+	stripped := strings.ReplaceAll(protected, `"`, "")
+	return strings.ReplaceAll(stripped, sentinel, `"`)
+}
+
+// applySemanticSearch switches the request to the semantic index.
+func applySemanticSearch(query string, opts *github.SearchOptions) string {
+	opts.SearchType = "semantic"
+	return stripFreeTextQuotes(query)
 }
 
 func searchHandler(
 	ctx context.Context,
 	getClient GetClientFn,
 	args map[string]any,
-	searchType string,
+	targetType string,
 	errorPrefix string,
 	options ...searchOption,
 ) (*mcp.CallToolResult, error) {
@@ -143,7 +181,7 @@ func searchHandler(
 	for _, opt := range options {
 		opt(&cfg)
 	}
-	query, opts, err := prepareSearchArgs(args, searchType)
+	query, opts, err := prepareSearchArgs(args, targetType, searchModeLexical)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil
 	}
@@ -164,6 +202,12 @@ func searchHandler(
 			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to read response body", err), nil
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), nil
+	}
+
+	// result.Issues are raw *github.Issue objects marshaled directly below rather than through
+	// a convertToMinimal* helper (see minimal_types.go), so Title/Body must be sanitized here.
+	for _, iss := range result.Issues {
+		sanitizeIssueTitleAndBody(iss)
 	}
 
 	filtered := false

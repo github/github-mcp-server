@@ -12,6 +12,10 @@ type ToolScopeInfo struct {
 
 	// AcceptedScopes contains all scopes that satisfy the requirements (including parent scopes).
 	AcceptedScopes []string
+
+	// RequiredScopeGroups contains accepted alternatives for each independently
+	// required scope. Every group must be satisfied.
+	RequiredScopeGroups [][]string
 }
 
 // globalToolScopeMap is populated from inventory when SetToolScopeMapFromInventory is called
@@ -59,8 +63,9 @@ func GetToolScopeMapFromInventory(inv *inventory.Inventory) ToolScopeMap {
 		tool := &allTools[i]
 		if len(tool.RequiredScopes) > 0 || len(tool.AcceptedScopes) > 0 {
 			result[tool.Tool.Name] = &ToolScopeInfo{
-				RequiredScopes: tool.RequiredScopes,
-				AcceptedScopes: tool.AcceptedScopes,
+				RequiredScopes:      tool.RequiredScopes,
+				AcceptedScopes:      tool.AcceptedScopes,
+				RequiredScopeGroups: tool.RequiredScopeGroups,
 			}
 		}
 	}
@@ -70,6 +75,9 @@ func GetToolScopeMapFromInventory(inv *inventory.Inventory) ToolScopeMap {
 
 // HasAcceptedScope checks if any of the provided user scopes satisfy the tool's requirements.
 func (t *ToolScopeInfo) HasAcceptedScope(userScopes ...string) bool {
+	if t != nil && len(t.RequiredScopeGroups) > 0 {
+		return HasRequiredScopeGroups(userScopes, t.RequiredScopeGroups)
+	}
 	if t == nil || len(t.AcceptedScopes) == 0 {
 		return true // No scopes required
 	}
@@ -97,6 +105,24 @@ func (t *ToolScopeInfo) MissingScopes(userScopes ...string) []string {
 	userScopeSet := make(map[string]bool, len(userScopes))
 	for _, s := range userScopes {
 		userScopeSet[s] = true
+	}
+
+	if len(t.RequiredScopeGroups) > 0 {
+		userScopeSet := expandScopeSet(userScopes)
+		var missing []string
+		for i, group := range t.RequiredScopeGroups {
+			satisfied := false
+			for _, scope := range group {
+				if userScopeSet[scope] {
+					satisfied = true
+					break
+				}
+			}
+			if !satisfied && i < len(t.RequiredScopes) {
+				missing = append(missing, t.RequiredScopes[i])
+			}
+		}
+		return missing
 	}
 
 	// Check if any accepted scope is present

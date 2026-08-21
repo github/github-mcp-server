@@ -127,6 +127,9 @@ type BaseDeps struct {
 
 	// Observability exporters (includes logger)
 	Obsv observability.Exporters
+
+	// StateSealer protects state sent through multi-round-trip requests.
+	StateSealer RequestStateSealer
 }
 
 // Compile-time assertion to verify that BaseDeps implements the ToolDependencies interface.
@@ -198,6 +201,9 @@ func (d BaseDeps) Metrics(ctx context.Context) metrics.Metrics {
 	}
 	return d.Obsv.Metrics(ctx)
 }
+
+// GetRequestStateSealer implements RequestStateSealerProvider.
+func (d BaseDeps) GetRequestStateSealer() RequestStateSealer { return d.StateSealer }
 
 // IsFeatureEnabled checks if a feature flag is enabled.
 // Returns false if the feature checker is nil, flag name is empty, or an error occurs.
@@ -279,6 +285,9 @@ type RequestDeps struct {
 
 	// Observability exporters (includes logger)
 	obsv observability.Exporters
+
+	// StateSealer protects state sent through multi-round-trip requests.
+	StateSealer RequestStateSealer
 }
 
 // NewRequestDeps creates a RequestDeps with the provided clients and configuration.
@@ -321,10 +330,29 @@ func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get upload URL: %w", err)
 	}
+	graphqlURL, err := d.apiHosts.GraphqlURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get GraphQL URL: %w", err)
+	}
+	rawURL, err := d.apiHosts.RawURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
+	}
+
+	allowedHosts := []string{
+		baseRestURL.Host,
+		uploadURL.Host,
+		graphqlURL.Host,
+		rawURL.Host,
+	}
 
 	// Construct REST client
 	restClient, err := gogithub.NewClient(
-		gogithub.WithAuthToken(token),
+		gogithub.WithHTTPClient(&http.Client{Transport: &transport.BearerAuthTransport{
+			Transport:    http.DefaultTransport,
+			Token:        token,
+			AllowedHosts: allowedHosts,
+		}}),
 		gogithub.WithUserAgent(fmt.Sprintf("github-mcp-server/%s", d.version)),
 		gogithub.WithEnterpriseURLs(baseRestURL.String(), uploadURL.String()),
 	)
@@ -333,6 +361,9 @@ func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
 	}
 	return restClient, nil
 }
+
+// GetRequestStateSealer implements RequestStateSealerProvider.
+func (d *RequestDeps) GetRequestStateSealer() RequestStateSealer { return d.StateSealer }
 
 // GetGQLClient implements ToolDependencies.
 func (d *RequestDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error) {
@@ -343,6 +374,33 @@ func (d *RequestDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error
 	}
 	token := tokenInfo.Token
 
+	baseRestURL, err := d.apiHosts.BaseRESTURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get base REST URL: %w", err)
+	}
+	uploadURL, err := d.apiHosts.UploadURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get upload URL: %w", err)
+	}
+	graphqlURL, err := d.apiHosts.GraphqlURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get GraphQL URL: %w", err)
+	}
+	rawURL, err := d.apiHosts.RawURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
+	}
+
+	// allowedHosts scopes the bearer token to the configured GitHub hosts, so a
+	// response that redirects off them does not carry the token to the redirect
+	// target. See transport.BearerAuthTransport.
+	allowedHosts := []string{
+		baseRestURL.Host,
+		uploadURL.Host,
+		graphqlURL.Host,
+		rawURL.Host,
+	}
+
 	// Construct GraphQL client
 	// We use NewEnterpriseClient unconditionally since we already parsed the API host
 	// Wrap transport with GraphQLFeaturesTransport to inject feature flags from context,
@@ -352,13 +410,9 @@ func (d *RequestDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error
 			Transport: &transport.GraphQLFeaturesTransport{
 				Transport: http.DefaultTransport,
 			},
-			Token: token,
+			Token:        token,
+			AllowedHosts: allowedHosts,
 		},
-	}
-
-	graphqlURL, err := d.apiHosts.GraphqlURL(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get GraphQL URL: %w", err)
 	}
 
 	gqlClient := githubv4.NewEnterpriseClient(graphqlURL.String(), gqlHTTPClient)
@@ -385,9 +439,17 @@ func (d *RequestDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 	return rawClient, nil
 }
 
+// effectiveLockdownMode reports whether lockdown mode is active for the
+// request. d.lockdownMode is an operator-set upper bound: the per-request
+// X-MCP-Lockdown header (ghcontext.IsLockdownMode) can only enable lockdown,
+// never disable one the operator already turned on.
+func (d *RequestDeps) effectiveLockdownMode(ctx context.Context) bool {
+	return d.lockdownMode || ghcontext.IsLockdownMode(ctx)
+}
+
 // GetRepoAccessCache implements ToolDependencies.
 func (d *RequestDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAccessCache, error) {
-	if !d.lockdownMode {
+	if !d.effectiveLockdownMode(ctx) {
 		return nil, nil
 	}
 
@@ -401,8 +463,15 @@ func (d *RequestDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAcc
 		return nil, err
 	}
 
+	// RepoAccessOpts is shared across requests, so copy before appending the
+	// per-request identity scope.
+	opts := d.RepoAccessOpts
+	if tokenInfo, ok := ghcontext.GetTokenInfo(ctx); ok && tokenInfo.Token != "" {
+		opts = append(append([]lockdown.RepoAccessOption{}, d.RepoAccessOpts...), lockdown.WithIdentity(tokenInfo.Token))
+	}
+
 	// Create repo access cache
-	instance := lockdown.NewRepoAccessCache(gqlClient, restClient, d.RepoAccessOpts...)
+	instance := lockdown.NewRepoAccessCache(gqlClient, restClient, opts...)
 	return instance, nil
 }
 
@@ -412,7 +481,7 @@ func (d *RequestDeps) GetT() translations.TranslationHelperFunc { return d.T }
 // GetFlags implements ToolDependencies.
 func (d *RequestDeps) GetFlags(ctx context.Context) FeatureFlags {
 	return FeatureFlags{
-		LockdownMode: d.lockdownMode && ghcontext.IsLockdownMode(ctx),
+		LockdownMode: d.effectiveLockdownMode(ctx),
 	}
 }
 

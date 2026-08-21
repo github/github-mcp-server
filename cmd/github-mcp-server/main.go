@@ -28,7 +28,7 @@ var date = "date"
 
 var (
 	rootCmd = &cobra.Command{
-		Use:     "server",
+		Use:     "github-mcp-server",
 		Short:   "GitHub MCP Server",
 		Long:    `A GitHub MCP server that handles various tools and resources.`,
 		Version: fmt.Sprintf("Version: %s\nCommit: %s\nBuild Date: %s", version, commit, date),
@@ -128,11 +128,11 @@ var (
 			}
 
 			// When no static token is provided, log in via OAuth using the given
-			// client. The requested scopes default to the full supported set
-			// (which filters out no tools); an explicit, narrower --oauth-scopes
-			// both narrows the grant and hides tools needing other scopes.
+			// client. The requested scopes default to the standard set; high-risk
+			// scopes such as delete_repo require explicit --oauth-scopes opt-in.
+			// The requested set also filters tools needing other scopes.
 			if token == "" && !appAuthRequested {
-				scopes := ghoauth.SupportedScopes
+				scopes := ghoauth.DefaultScopes
 				if viper.IsSet("oauth-scopes") {
 					if err := viper.UnmarshalKey("oauth-scopes", &scopes); err != nil {
 						return fmt.Errorf("failed to unmarshal oauth-scopes: %w", err)
@@ -203,6 +203,7 @@ var (
 				ListenHost:           viper.GetString("listen-host"),
 				BaseURL:              viper.GetString("base-url"),
 				ResourcePath:         viper.GetString("base-path"),
+				AuthorizationServer:  viper.GetString("authorization-server"),
 				ExportTranslations:   viper.GetBool("export-translations"),
 				EnableCommandLogging: viper.GetBool("enable-command-logging"),
 				LogFilePath:          viper.GetString("log-file"),
@@ -217,6 +218,7 @@ var (
 				EnabledFeatures:      enabledFeatures,
 				InsidersMode:         viper.GetBool("insiders"),
 				TrustProxyHeaders:    viper.GetBool("trust-proxy-headers"),
+				MRTRStateKey:         os.Getenv(ghhttp.MRTRStateKeyEnv),
 			}
 
 			return ghhttp.RunHTTPServer(httpConfig)
@@ -263,6 +265,7 @@ func init() {
 	httpCmd.Flags().String("listen-host", "", "Host the HTTP server binds to (e.g. 127.0.0.1). Empty binds to all interfaces.")
 	httpCmd.Flags().String("base-url", "", "Base URL where this server is publicly accessible (for OAuth resource metadata)")
 	httpCmd.Flags().String("base-path", "", "Externally visible base path for the HTTP server (for OAuth resource metadata)")
+	httpCmd.Flags().String("authorization-server", "", "Override the authorization server URL in OAuth resource metadata. Useful when deploying behind an OAuth proxy (e.g. for GHES). Env: GITHUB_AUTHORIZATION_SERVER")
 	httpCmd.Flags().Bool("scope-challenge", false, "Enable OAuth scope challenge responses")
 	httpCmd.Flags().Bool("trust-proxy-headers", false, "Honor X-Forwarded-Host and X-Forwarded-Proto when constructing OAuth resource metadata URLs. Only enable when the server is deployed behind a trusted proxy that sets these headers. Ignored when --base-url is set.")
 
@@ -291,6 +294,7 @@ func init() {
 	_ = viper.BindPFlag("listen-host", httpCmd.Flags().Lookup("listen-host"))
 	_ = viper.BindPFlag("base-url", httpCmd.Flags().Lookup("base-url"))
 	_ = viper.BindPFlag("base-path", httpCmd.Flags().Lookup("base-path"))
+	_ = viper.BindPFlag("authorization-server", httpCmd.Flags().Lookup("authorization-server"))
 	_ = viper.BindPFlag("scope-challenge", httpCmd.Flags().Lookup("scope-challenge"))
 	_ = viper.BindPFlag("trust-proxy-headers", httpCmd.Flags().Lookup("trust-proxy-headers"))
 	// Add subcommands

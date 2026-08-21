@@ -265,7 +265,10 @@ func optionalIssueWriteFields(args map[string]any) ([]issueWriteFieldInput, erro
 			return nil, err
 		}
 
-		deleteField, _ := OptionalParam[bool](itemMap, "delete")
+		deleteField, err := OptionalParam[bool](itemMap, "delete")
+		if err != nil {
+			return nil, err
+		}
 		value, hasValue := itemMap["value"]
 		if hasValue && value == nil {
 			return nil, fmt.Errorf("value cannot be null for field %q", fieldName)
@@ -499,6 +502,12 @@ type IssueFragment struct {
 			Description githubv4.String
 		}
 	} `graphql:"labels(first: 100)"`
+	// GitHub caps issue assignees at 10, so first: 100 cannot truncate.
+	Assignees struct {
+		Nodes []struct {
+			Login githubv4.String
+		}
+	} `graphql:"assignees(first: 100)"`
 	Comments struct {
 		TotalCount githubv4.Int
 	} `graphql:"comments"`
@@ -507,14 +516,59 @@ type IssueFragment struct {
 	} `graphql:"issueFieldValues(first: 25)"`
 }
 
+type issueFragmentWithoutFieldValues struct {
+	Number     githubv4.Int
+	Title      githubv4.String
+	Body       githubv4.String
+	State      githubv4.String
+	DatabaseID int64
+
+	Author struct {
+		Login githubv4.String
+	}
+	CreatedAt githubv4.DateTime
+	UpdatedAt githubv4.DateTime
+	Labels    struct {
+		Nodes []struct {
+			Name        githubv4.String
+			ID          githubv4.String
+			Description githubv4.String
+		}
+	} `graphql:"labels(first: 100)"`
+	Assignees struct {
+		Nodes []struct {
+			Login githubv4.String
+		}
+	} `graphql:"assignees(first: 100)"`
+	Comments struct {
+		TotalCount githubv4.Int
+	} `graphql:"comments"`
+}
+
 // Common interface for all issue query types
 type IssueQueryResult interface {
 	GetIssueFragment() IssueQueryFragment
 	GetIsPrivate() bool
 }
 
+type issueQueryResultWithoutFieldValues interface {
+	getIssueFragmentWithoutFieldValues() issueQueryFragmentWithoutFieldValues
+	GetIsPrivate() bool
+}
+
 type IssueQueryFragment struct {
 	Nodes    []IssueFragment `graphql:"nodes"`
+	PageInfo struct {
+		HasNextPage     githubv4.Boolean
+		HasPreviousPage githubv4.Boolean
+		StartCursor     githubv4.String
+		EndCursor       githubv4.String
+	}
+	TotalCount int
+}
+
+type issueQueryFragmentWithoutFieldValues struct {
+	Nodes    []issueFragmentWithoutFieldValues `graphql:"nodes"`
 	PageInfo struct {
 		HasNextPage     githubv4.Boolean
 		HasPreviousPage githubv4.Boolean
@@ -556,6 +610,34 @@ type ListIssuesQueryTypeWithLabelsWithSince struct {
 	} `graphql:"repository(owner: $owner, name: $repo)"`
 }
 
+type listIssuesQueryWithoutFieldValues struct {
+	Repository struct {
+		Issues    issueQueryFragmentWithoutFieldValues `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction})"`
+		IsPrivate githubv4.Boolean
+	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
+type listIssuesQueryWithLabelsWithoutFieldValues struct {
+	Repository struct {
+		Issues    issueQueryFragmentWithoutFieldValues `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction})"`
+		IsPrivate githubv4.Boolean
+	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
+type listIssuesQueryWithSinceWithoutFieldValues struct {
+	Repository struct {
+		Issues    issueQueryFragmentWithoutFieldValues `graphql:"issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since})"`
+		IsPrivate githubv4.Boolean
+	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
+type listIssuesQueryWithLabelsAndSinceWithoutFieldValues struct {
+	Repository struct {
+		Issues    issueQueryFragmentWithoutFieldValues `graphql:"issues(first: $first, after: $after, labels: $labels, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {since: $since})"`
+		IsPrivate githubv4.Boolean
+	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
 // IssueFieldValueFilter mirrors the GraphQL IssueFieldValueFilter input. Exactly one typed value
 // field should be set per filter (the monolith resolver rejects multiple).
 type IssueFieldValueFilter struct {
@@ -593,7 +675,39 @@ func (q *ListIssuesQueryTypeWithLabelsWithSince) GetIsPrivate() bool {
 	return bool(q.Repository.IsPrivate)
 }
 
-func getIssueQueryType(hasLabels bool, hasSince bool) any {
+func (q *listIssuesQueryWithoutFieldValues) getIssueFragmentWithoutFieldValues() issueQueryFragmentWithoutFieldValues {
+	return q.Repository.Issues
+}
+
+func (q *listIssuesQueryWithoutFieldValues) GetIsPrivate() bool {
+	return bool(q.Repository.IsPrivate)
+}
+
+func (q *listIssuesQueryWithLabelsWithoutFieldValues) getIssueFragmentWithoutFieldValues() issueQueryFragmentWithoutFieldValues {
+	return q.Repository.Issues
+}
+
+func (q *listIssuesQueryWithLabelsWithoutFieldValues) GetIsPrivate() bool {
+	return bool(q.Repository.IsPrivate)
+}
+
+func (q *listIssuesQueryWithSinceWithoutFieldValues) getIssueFragmentWithoutFieldValues() issueQueryFragmentWithoutFieldValues {
+	return q.Repository.Issues
+}
+
+func (q *listIssuesQueryWithSinceWithoutFieldValues) GetIsPrivate() bool {
+	return bool(q.Repository.IsPrivate)
+}
+
+func (q *listIssuesQueryWithLabelsAndSinceWithoutFieldValues) getIssueFragmentWithoutFieldValues() issueQueryFragmentWithoutFieldValues {
+	return q.Repository.Issues
+}
+
+func (q *listIssuesQueryWithLabelsAndSinceWithoutFieldValues) GetIsPrivate() bool {
+	return bool(q.Repository.IsPrivate)
+}
+
+func getIssueQueryType(hasLabels bool, hasSince bool) IssueQueryResult {
 	switch {
 	case hasLabels && hasSince:
 		return &ListIssuesQueryTypeWithLabelsWithSince{}
@@ -606,6 +720,73 @@ func getIssueQueryType(hasLabels bool, hasSince bool) any {
 	}
 }
 
+func getIssueQueryTypeWithoutFieldValues(hasLabels bool, hasSince bool) issueQueryResultWithoutFieldValues {
+	switch {
+	case hasLabels && hasSince:
+		return &listIssuesQueryWithLabelsAndSinceWithoutFieldValues{}
+	case hasLabels:
+		return &listIssuesQueryWithLabelsWithoutFieldValues{}
+	case hasSince:
+		return &listIssuesQueryWithSinceWithoutFieldValues{}
+	default:
+		return &listIssuesQueryWithoutFieldValues{}
+	}
+}
+
+func isUnsupportedIssueFieldValuesSchemaError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	message := strings.ToLower(err.Error())
+	mentionsIssueType := strings.Contains(message, "on type 'issue'") ||
+		strings.Contains(message, `on type "issue"`) ||
+		strings.Contains(message, "on type issue")
+	if strings.Contains(message, "issuefieldvalues") &&
+		mentionsIssueType &&
+		(strings.Contains(message, "doesn't exist on type") ||
+			strings.Contains(message, "does not exist on type") ||
+			strings.Contains(message, "cannot query field") ||
+			strings.Contains(message, "is not defined on type")) {
+		return true
+	}
+
+	issueFieldTypes := [...]string{
+		"issuefielddate",
+		"issuefieldnumber",
+		"issuefieldsingleselect",
+		"issuefieldtext",
+	}
+	for _, issueFieldType := range issueFieldTypes {
+		if !strings.Contains(message, issueFieldType) {
+			continue
+		}
+		return strings.Contains(message, "unknown type") ||
+			strings.Contains(message, "isn't a defined type") ||
+			strings.Contains(message, "is not a defined type") ||
+			strings.Contains(message, "fragment cannot be spread") ||
+			strings.Contains(message, "can never be of type")
+	}
+	return false
+}
+
+func isUnsupportedListIssuesIssueFieldsError(err error) bool {
+	if isUnsupportedIssueFieldValuesSchemaError(err) {
+		return true
+	}
+
+	message := err.Error()
+	if strings.Contains(message, "IssueFieldValueFilter") {
+		return true
+	}
+	if !strings.Contains(message, "issueFieldValues") {
+		return false
+	}
+	return strings.Contains(message, "doesn't exist on type") ||
+		strings.Contains(message, "doesn't accept argument") ||
+		(strings.Contains(message, "Argument 'filterBy'") && strings.Contains(message, "invalid value"))
+}
+
 // IssueRead creates a tool to get details of a specific issue in a GitHub repository.
 func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
@@ -615,7 +796,7 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Type: "string",
 				Description: "The read operation to perform on a single issue.\n" +
 					"Options are:\n" +
-					"1. get - Get issue details. Also returns best-effort hierarchy flags (`has_parent`, `has_children`); `parent` and `sub_issues_summary` are optional relationship summaries.\n" +
+					"1. get - Get issue details. Also returns best-effort hierarchy flags (`has_parent`, `has_children`); `parent` and `sub_issues_summary` are optional relationship summaries, and `closed_by_pull_requests` summarizes the pull requests configured to close the issue as `total_count` plus up to 5 `references`.\n" +
 					"2. get_comments - Get issue comments.\n" +
 					"3. get_sub_issues - Get sub-issues (children) of the issue.\n" +
 					"4. get_parent - Get the parent issue, if this issue is a sub-issue of another.\n" +
@@ -739,16 +920,6 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 		}
 	}
 
-	// Sanitize title/body on response
-	if issue != nil {
-		if issue.Title != nil {
-			issue.Title = github.Ptr(sanitize.Sanitize(*issue.Title))
-		}
-		if issue.Body != nil {
-			issue.Body = github.Ptr(sanitize.Sanitize(*issue.Body))
-		}
-	}
-
 	minimalIssue := convertToMinimalIssue(issue)
 
 	// Always drop the verbose REST IssueFieldValues; enrich with the GraphQL
@@ -768,9 +939,9 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 }
 
 // applyIssueReadEnrichment populates the hierarchy relationship signals (has_parent/has_children,
-// parent, sub_issues_summary) and field_values onto the minimal issue. In lockdown mode the parent
-// reference is omitted unless the parent content can be verified as safe; has_parent and the numeric
-// counts are structural routing signals and are always safe to surface.
+// parent, sub_issues_summary), the closing pull request references, and field_values onto the
+// minimal issue. In lockdown mode references whose content cannot be verified as safe are omitted;
+// has_parent and the numeric counts are structural routing signals and are always safe to surface.
 func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, enrichment *issueReadEnrichment, cache *lockdown.RepoAccessCache, lockdownMode bool) {
 	if enrichment == nil {
 		return
@@ -785,11 +956,26 @@ func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, e
 		// unverified (possibly cross-repo) parent is omitted entirely, mirroring how unsafe
 		// comments and sub-issues are filtered out. has_parent still routes an agent to
 		// get_parent if it needs to follow up.
-		if !lockdownMode || isSafeParentContent(ctx, cache, parent) {
+		if !lockdownMode || isSafeRefContent(ctx, cache, parent.Ref.Repository, parent.AuthorLogin) {
 			ref := parent.Ref
 			minimalIssue.Parent = &ref
 		}
 	}
+
+	// A zero total is meaningful here: it tells an agent that nothing is currently set up to close
+	// the issue, so it does not need to fall back to scanning pull requests. Only a few references
+	// are embedded, so total_count is what distinguishes a complete list from a truncated one.
+	closing := MinimalClosingPullRequests{
+		TotalCount: enrichment.ClosedByPullRequestsTotal,
+		References: make([]MinimalPullRequestRef, 0, len(enrichment.ClosedByPullRequests)),
+	}
+	for _, pr := range enrichment.ClosedByPullRequests {
+		if lockdownMode && !isSafeRefContent(ctx, cache, pr.Ref.Repository, pr.AuthorLogin) {
+			continue
+		}
+		closing.References = append(closing.References, pr.Ref)
+	}
+	minimalIssue.ClosedByPullRequests = &closing
 
 	if enrichment.SubIssuesSummary.Total > 0 {
 		summary := enrichment.SubIssuesSummary
@@ -797,18 +983,18 @@ func applyIssueReadEnrichment(ctx context.Context, minimalIssue *MinimalIssue, e
 	}
 }
 
-// isSafeParentContent reports whether the parent issue reference can be exposed under lockdown mode.
-// It fails closed: any inability to positively verify safe content (missing cache, missing author,
-// unparseable repository, or a lookup error) results in the parent reference being omitted.
-func isSafeParentContent(ctx context.Context, cache *lockdown.RepoAccessCache, parent *issueReadParent) bool {
-	if cache == nil || parent.AuthorLogin == "" {
+// isSafeRefContent reports whether a related issue or pull request reference can be exposed under
+// lockdown mode. It fails closed: any inability to positively verify safe content (missing cache,
+// missing author, unparseable repository, or a lookup error) results in the reference being omitted.
+func isSafeRefContent(ctx context.Context, cache *lockdown.RepoAccessCache, repository, authorLogin string) bool {
+	if cache == nil || authorLogin == "" {
 		return false
 	}
-	owner, repo, ok := strings.Cut(parent.Ref.Repository, "/")
+	owner, repo, ok := strings.Cut(repository, "/")
 	if !ok || owner == "" || repo == "" {
 		return false
 	}
-	safe, err := cache.IsSafeContent(ctx, parent.AuthorLogin, owner, repo)
+	safe, err := cache.IsSafeContent(ctx, authorLogin, owner, repo)
 	if err != nil {
 		return false
 	}
@@ -1197,13 +1383,14 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 						Description: "Issue or pull request number to comment on or react to.",
 					},
 					"comment_id": {
-						Type:        "number",
+						Type:        "integer",
 						Description: "The numeric ID of the issue or pull request comment to react to. Use this for reactions to comments; omit it to react to the issue or pull request itself. Cannot be combined with body.",
 						Minimum:     jsonschema.Ptr(1.0),
 					},
 					"body": {
 						Type:        "string",
 						Description: "Comment content. Required unless reaction is provided.",
+						MinLength:   jsonschema.Ptr(1),
 					},
 					"reaction": {
 						Type:        "string",
@@ -1230,10 +1417,10 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 			var commentID int64
 			hasCommentID := false
-			if _, ok := args["comment_id"]; ok {
-				commentID, err = RequiredBigInt(args, "comment_id")
+			if value, ok := args["comment_id"]; ok {
+				commentID, err = toInt64(value)
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return utils.NewToolResultError(fmt.Sprintf("parameter comment_id is not a valid number: %v", err)), nil, nil
 				}
 				if commentID < 1 {
 					return utils.NewToolResultError("comment_id must be greater than 0"), nil, nil
@@ -1262,6 +1449,9 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 			if hasReaction && reactionContent == "" {
 				return utils.NewToolResultError("reaction cannot be empty when provided"), nil, nil
+			}
+			if hasReaction && !isValidIssueReaction(reactionContent) {
+				return utils.NewToolResultError("reaction must be one of +1, -1, laugh, confused, heart, hooray, rocket, eyes"), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -1355,6 +1545,15 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
+}
+
+func isValidIssueReaction(reaction string) bool {
+	switch reaction {
+	case "+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes":
+		return true
+	default:
+		return false
+	}
 }
 
 func issueNumberFromIssueURL(issueURL string) (int, error) {
@@ -1595,14 +1794,43 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 	return utils.NewToolResultText(string(r)), nil
 }
 
+// The two search engines want opposite things from a caller, so steering advice
+// for one is counterproductive for the other: semantic rewards paraphrased
+// natural language and degrades on boolean operators, while lexical needs the
+// caller's literal keywords and handles OR fine. The description has to describe
+// the engine the host will actually use.
+const (
+	searchIssuesSemanticDescription = "Search issues using natural-language semantic matching. Best for conceptual or paraphrased queries (e.g. \"login fails after password reset\"). Already scoped to is:issue."
+	searchIssuesLexicalDescription  = "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue"
+
+	searchIssuesSemanticQueryDescription = "The search query, as natural language. When the user gives alternative wordings, include them as plain words rather than joining them with OR."
+	searchIssuesLexicalQueryDescription  = "Search query using GitHub issues search syntax"
+)
+
 // SearchIssues creates a tool to search for issues.
-func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
+func SearchIssues(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
+	cfg := newToolConfig(opts)
+
+	// Semantic is the default; however as it is not available on GHES, we fall back to
+	// lexical search for that host type.
+	mode := searchModeSemantic
+	if cfg.hostType == utils.HostTypeGHES {
+		mode = searchModeLexical
+	}
+
+	toolDescription := searchIssuesSemanticDescription
+	queryDescription := searchIssuesSemanticQueryDescription
+	if mode == searchModeLexical {
+		toolDescription = searchIssuesLexicalDescription
+		queryDescription = searchIssuesLexicalQueryDescription
+	}
+
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
 			"query": {
 				Type:        "string",
-				Description: "Search query using GitHub issues search syntax",
+				Description: queryDescription,
 			},
 			"owner": {
 				Type:        "string",
@@ -1647,7 +1875,7 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "search_issues",
-			Description: t("TOOL_SEARCH_ISSUES_DESCRIPTION", "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue"),
+			Description: t("TOOL_SEARCH_ISSUES_DESCRIPTION", toolDescription),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_SEARCH_ISSUES_USER_TITLE", "Search issues"),
 				ReadOnlyHint: true,
@@ -1662,7 +1890,7 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			options = append(options, withFieldsFiltering(deps, "search_issues", fields))
-			result, err := searchIssuesHandler(ctx, deps, args, options...)
+			result, err := searchIssuesHandler(ctx, deps, args, mode, options...)
 			return result, nil, err
 		})
 }
@@ -1755,9 +1983,31 @@ type SearchIssueResult struct {
 	FieldValues []MinimalFieldValue `json:"field_values,omitempty"`
 }
 
+// sanitizeIssueTitleAndBody mutates issue.Title and issue.Body in place, applying the shared
+// untrusted-content sanitization policy (pkg/sanitize). It exists for the handful of response
+// paths — search_issues and search_pull_requests — that marshal a raw *github.Issue directly
+// instead of routing through one of the convertToMinimal* helpers in minimal_types.go, which
+// sanitize on their own. It is a no-op for a nil issue or unset fields.
+func sanitizeIssueTitleAndBody(issue *github.Issue) {
+	if issue == nil {
+		return
+	}
+	if issue.Title != nil {
+		issue.Title = github.Ptr(sanitize.Sanitize(*issue.Title))
+	}
+	if issue.Body != nil {
+		issue.Body = github.Ptr(sanitize.Sanitize(*issue.Body))
+	}
+}
+
 // MarshalJSON serializes SearchIssueResult, suppressing the raw issue_field_values from the
 // embedded REST response in favour of the normalized field_values populated via GraphQL enrichment.
+// It also sanitizes the embedded issue's Title and Body in place: search_issues is one of the few
+// response paths that marshals a raw *github.Issue directly rather than routing through a
+// convertToMinimal* helper (see minimal_types.go), so sanitization must happen here instead.
 func (r SearchIssueResult) MarshalJSON() ([]byte, error) {
+	sanitizeIssueTitleAndBody(r.Issue)
+
 	issueBytes, err := json.Marshal(r.Issue)
 	if err != nil {
 		return nil, err
@@ -1836,8 +2086,14 @@ func fetchIssueFieldValuesByNodeID(ctx context.Context, gqlClient *githubv4.Clie
 }
 
 // issueReadEnrichmentQuery fetches, in a single GraphQL round-trip, the custom field values,
-// parent reference, and sub-issue summary counts for the issues identified by their node IDs.
-// It powers the issue_read `get` relationship signals without adding extra round-trips.
+// parent reference, closing pull request references, and sub-issue summary counts for the issues
+// identified by their node IDs. It powers the issue_read `get` relationship signals without adding
+// extra round-trips.
+//
+// closedByPullRequestsReferences needs includeClosedPrs so that a merged or closed pull request
+// still explains why an issue was closed, and orderByState so that open pull requests come first.
+// Only a handful of references are embedded because this enrichment runs on every issue_read `get`;
+// totalCount is selected so that a truncated list is never mistaken for the complete set.
 type issueReadEnrichmentQuery struct {
 	Nodes []struct {
 		Issue struct {
@@ -1857,6 +2113,21 @@ type issueReadEnrichmentQuery struct {
 					NameWithOwner githubv4.String
 				}
 			}
+			ClosedByPullRequestsReferences struct {
+				TotalCount githubv4.Int
+				Nodes      []struct {
+					Number githubv4.Int
+					Title  githubv4.String
+					State  githubv4.String
+					URL    githubv4.String
+					Author struct {
+						Login githubv4.String
+					}
+					Repository struct {
+						NameWithOwner githubv4.String
+					}
+				}
+			} `graphql:"closedByPullRequestsReferences(first: 5, includeClosedPrs: true, orderByState: true)"`
 			SubIssuesSummary struct {
 				Total            githubv4.Int
 				Completed        githubv4.Int
@@ -1873,16 +2144,25 @@ type issueReadParent struct {
 	AuthorLogin string
 }
 
+// issueReadClosingPullRequest is a closing pull request reference plus the metadata needed to make
+// a lockdown safe-content decision about it.
+type issueReadClosingPullRequest struct {
+	Ref         MinimalPullRequestRef
+	AuthorLogin string
+}
+
 // issueReadEnrichment is the flattened result of the issue_read `get` enrichment query.
 type issueReadEnrichment struct {
-	FieldValues      []MinimalFieldValue
-	Parent           *issueReadParent
-	SubIssuesSummary MinimalSubIssuesSummary
+	FieldValues               []MinimalFieldValue
+	Parent                    *issueReadParent
+	ClosedByPullRequests      []issueReadClosingPullRequest
+	ClosedByPullRequestsTotal int
+	SubIssuesSummary          MinimalSubIssuesSummary
 }
 
 // fetchIssueReadEnrichment runs one GraphQL nodes() query for the given issue node ID and returns
-// its field values, parent reference, and sub-issue summary counts. The parent title is sanitized
-// here because it may originate from a different repository.
+// its field values, parent reference, closing pull requests, and sub-issue summary counts. Titles
+// are sanitized here because they may originate from a different repository.
 func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, nodeID string) (*issueReadEnrichment, error) {
 	var q issueReadEnrichmentQuery
 	if err := gqlClient.Query(ctx, &q, map[string]any{"ids": []githubv4.ID{githubv4.ID(nodeID)}}); err != nil {
@@ -1906,16 +2186,32 @@ func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, n
 
 		if p := n.Issue.Parent; p != nil {
 			enrichment.Parent = &issueReadParent{
-				Ref: MinimalIssueRef{
-					Number:     int(p.Number),
-					Title:      sanitize.Sanitize(string(p.Title)),
-					State:      string(p.State),
-					URL:        string(p.URL),
-					Repository: string(p.Repository.NameWithOwner),
-				},
+				Ref: newMinimalIssueRef(
+					int(p.Number),
+					string(p.Title),
+					string(p.State),
+					string(p.URL),
+					string(p.Repository.NameWithOwner),
+				),
 				AuthorLogin: string(p.Author.Login),
 			}
 		}
+
+		closing := make([]issueReadClosingPullRequest, 0, len(n.Issue.ClosedByPullRequestsReferences.Nodes))
+		for _, pr := range n.Issue.ClosedByPullRequestsReferences.Nodes {
+			closing = append(closing, issueReadClosingPullRequest{
+				Ref: newMinimalPullRequestRef(
+					int(pr.Number),
+					string(pr.Title),
+					string(pr.State),
+					string(pr.URL),
+					string(pr.Repository.NameWithOwner),
+				),
+				AuthorLogin: string(pr.Author.Login),
+			})
+		}
+		enrichment.ClosedByPullRequests = closing
+		enrichment.ClosedByPullRequestsTotal = int(n.Issue.ClosedByPullRequestsReferences.TotalCount)
 
 		enrichment.SubIssuesSummary = MinimalSubIssuesSummary{
 			Total:            int(n.Issue.SubIssuesSummary.Total),
@@ -1930,10 +2226,10 @@ func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, n
 // searchIssuesHandler runs the REST issues search, enriches each hit with custom field values
 // fetched via a single follow-up GraphQL nodes() query, and applies any post-process options
 // (e.g. IFC labelling).
-func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[string]any, options ...searchOption) (*mcp.CallToolResult, error) {
+func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[string]any, mode searchMode, options ...searchOption) (*mcp.CallToolResult, error) {
 	const errorPrefix = "failed to search issues"
 
-	query, opts, err := prepareSearchArgs(args, "issue")
+	query, opts, err := prepareSearchArgs(args, "issue", mode)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil
 	}
@@ -1964,7 +2260,13 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 		}
 		fieldValuesByID, err = fetchIssueFieldValuesByNodeID(ctx, gqlClient, result.Issues)
 		if err != nil {
-			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, errorPrefix+": failed to fetch issue field values", err), nil
+			const enrichmentError = errorPrefix + ": failed to fetch issue field values"
+			if !isUnsupportedIssueFieldValuesSchemaError(err) {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, enrichmentError, err), nil
+			}
+			// Older GHES schemas can lack this optional enrichment. Preserve the REST
+			// search results while retaining the compatibility failure for observability.
+			_, _ = ghErrors.NewGitHubGraphQLErrorToCtx(ctx, enrichmentError, err)
 		}
 	}
 
@@ -2150,8 +2452,11 @@ Options are:
 						Description: "Milestone number",
 					},
 					"type": {
-						Type:        "string",
-						Description: "Type of this issue. Only use if issue types are enabled for this repository. Use list_issue_types tool to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter.",
+						AnyOf: []*jsonschema.Schema{
+							{Type: "string", MinLength: jsonschema.Ptr(1)},
+							{Type: "null"},
+						},
+						Description: "Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter.",
 					},
 					"state": {
 						Type:        "string",
@@ -2165,7 +2470,7 @@ Options are:
 					},
 					"duplicate_of": {
 						Type:        "number",
-						Description: "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
+						Description: "Issue number that this issue is a duplicate of. Required when state_reason is 'duplicate'.",
 					},
 					"issue_fields": {
 						Type:        "array",
@@ -2184,19 +2489,19 @@ Options are:
 									Description: "Value to set. Use for text, number, and date fields " +
 										"(date as YYYY-MM-DD). For single-select fields, prefer " +
 										"'field_option_name' so the option is validated before the API " +
-										"call. Cannot be combined with 'field_option_name' or 'delete'.",
+										"call. Cannot be combined with 'field_option_name' or 'delete: true'.",
 								},
 								"field_option_name": {
 									Type: "string",
 									Description: "Option name for single-select fields. Validated against " +
 										"the field's options before the API call. Cannot be combined with " +
-										"'value' or 'delete'.",
+										"'value' or 'delete: true'.",
 								},
 								"delete": {
 									Type: "boolean",
-									Enum: []any{true},
 									Description: "Set to true to clear this field's current value on the " +
-										"issue. Cannot be combined with 'value' or 'field_option_name'.",
+										"issue. When false or omitted, this property is ignored. Cannot " +
+										"be true when 'value' or 'field_option_name' is provided.",
 								},
 							},
 							Required: []string{"field_name"},
@@ -2275,9 +2580,13 @@ Options are:
 			}
 
 			// Get optional type
-			issueType, err := OptionalParam[string](args, "type")
+			issueTypeParam, issueTypeProvided, err := OptionalNullableStringParam(args, "type")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueType := ""
+			if issueTypeParam != nil {
+				issueType = *issueTypeParam
 			}
 
 			// Handle state, state_reason and duplicateOf parameters
@@ -2297,6 +2606,9 @@ Options are:
 			}
 			if duplicateOf != 0 && stateReason != "duplicate" {
 				return utils.NewToolResultError("duplicate_of can only be used when state_reason is 'duplicate'"), nil, nil
+			}
+			if err := validateDuplicateState(state, stateReason, duplicateOf); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			var issueFields []issueWriteFieldInput
@@ -2336,6 +2648,7 @@ Options are:
 				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues, fieldIDsToDelete, state, stateReason, duplicateOf, UpdateIssueOptions{
 					AssigneesProvided: assigneesProvided,
 					LabelsProvided:    labelsProvided,
+					IssueTypeProvided: issueTypeProvided,
 				})
 				return result, nil, err
 			default:
@@ -2406,9 +2719,16 @@ type UpdateIssueOptions struct {
 	AssigneesProvided bool
 	// LabelsProvided sends the labels field even when the slice is empty.
 	LabelsProvided bool
+	// IssueTypeProvided sends the type field, including an explicit clear.
+	IssueTypeProvided bool
 }
 
 func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue, fieldIDsToDelete []int64, state string, stateReason string, duplicateOf int, opts ...UpdateIssueOptions) (*mcp.CallToolResult, error) {
+	// UpdateIssue is exported and may be called without the tool handler.
+	if err := validateDuplicateState(state, stateReason, duplicateOf); err != nil {
+		return utils.NewToolResultError(err.Error()), nil
+	}
+
 	updateOptions := UpdateIssueOptions{
 		AssigneesProvided: len(assignees) > 0,
 		LabelsProvided:    len(labels) > 0,
@@ -2416,6 +2736,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	for _, opt := range opts {
 		updateOptions.AssigneesProvided = updateOptions.AssigneesProvided || opt.AssigneesProvided
 		updateOptions.LabelsProvided = updateOptions.LabelsProvided || opt.LabelsProvided
+		updateOptions.IssueTypeProvided = updateOptions.IssueTypeProvided || opt.IssueTypeProvided
 	}
 
 	// Create the issue request with only provided fields
@@ -2489,7 +2810,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		}
 	}
 
-	updatedIssue, resp, err := client.Issues.Update(ctx, owner, repo, issueNumber, issueRequest)
+	updatedIssue, resp, err := patchIssue(ctx, client, owner, repo, issueNumber, issueRequest, issueType, updateOptions.IssueTypeProvided)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
 			"failed to update issue",
@@ -2546,11 +2867,6 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 
 	// Use GraphQL API for state updates
 	if state != "" {
-		// Mandate specifying duplicateOf when trying to close as duplicate
-		if state == "closed" && stateReason == "duplicate" && duplicateOf == 0 {
-			return utils.NewToolResultError("duplicate_of must be provided when state_reason is 'duplicate'"), nil
-		}
-
 		// Get target issue ID (and duplicate issue ID if needed)
 		issueID, duplicateIssueID, err := fetchIssueIDs(ctx, gqlClient, owner, repo, issueNumber, duplicateOf)
 		if err != nil {
@@ -2620,6 +2936,35 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	}
 
 	return utils.NewToolResultText(string(r)), nil
+}
+
+func validateDuplicateState(state, stateReason string, duplicateOf int) error {
+	if state == "closed" && stateReason == "duplicate" && duplicateOf == 0 {
+		return fmt.Errorf("duplicate_of must be provided when state_reason is 'duplicate'")
+	}
+	return nil
+}
+
+type updateIssueRequestWithNullableType struct {
+	github.UpdateIssueRequest
+	Type *string `json:"type"`
+}
+
+func patchIssue(ctx context.Context, client *github.Client, owner, repo string, issueNumber int, issueRequest github.UpdateIssueRequest, issueType string, issueTypeProvided bool) (*github.Issue, *github.Response, error) {
+	if !issueTypeProvided || issueType != "" {
+		return client.Issues.Update(ctx, owner, repo, issueNumber, issueRequest)
+	}
+
+	apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
+	body := &updateIssueRequestWithNullableType{UpdateIssueRequest: issueRequest}
+	req, err := client.NewRequest(ctx, http.MethodPatch, apiURL, body)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	issue := &github.Issue{}
+	resp, err := client.Do(req, issue)
+	return issue, resp, err
 }
 
 // ListIssues creates a tool to list issues in a GitHub repository.
@@ -2869,19 +3214,39 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// input type unconditionally, so we always opt into the feature via header. This
 			// is a no-op once the flags are globally rolled out.
 			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issue_fields", "repo_issue_fields")
-			if err := client.Query(ctxWithFeatures, issueQuery, vars); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(
-					ctx,
-					"failed to list issues",
-					err,
-				), nil, nil
-			}
+			issueFieldsErr := client.Query(ctxWithFeatures, issueQuery, vars)
 
 			var resp MinimalIssuesResponse
 			var isPrivate bool
-			if queryResult, ok := issueQuery.(IssueQueryResult); ok {
-				resp = convertToMinimalIssuesResponse(queryResult.GetIssueFragment())
-				isPrivate = queryResult.GetIsPrivate()
+			if issueFieldsErr == nil {
+				resp = convertToMinimalIssuesResponse(issueQuery.GetIssueFragment())
+				isPrivate = issueQuery.GetIsPrivate()
+			} else {
+				if len(fieldFilters) > 0 || !isUnsupportedListIssuesIssueFieldsError(issueFieldsErr) {
+					return ghErrors.NewGitHubGraphQLErrorResponse(
+						ctx,
+						"failed to list issues",
+						issueFieldsErr,
+					), nil, nil
+				}
+
+				issueQueryWithoutFieldValues := getIssueQueryTypeWithoutFieldValues(hasLabels, hasSince)
+				varsWithoutFieldValues := make(map[string]any, len(vars)-1)
+				for name, value := range vars {
+					if name != "issueFieldValues" {
+						varsWithoutFieldValues[name] = value
+					}
+				}
+				if fallbackErr := client.Query(ctx, issueQueryWithoutFieldValues, varsWithoutFieldValues); fallbackErr != nil {
+					return ghErrors.NewGitHubGraphQLErrorResponse(
+						ctx,
+						"failed to list issues",
+						fmt.Errorf("issue-fields query failed: %w; fallback query failed: %w", issueFieldsErr, fallbackErr),
+					), nil, nil
+				}
+
+				resp = convertToMinimalIssuesResponseWithoutFieldValues(issueQueryWithoutFieldValues.getIssueFragmentWithoutFieldValues())
+				isPrivate = issueQueryWithoutFieldValues.GetIsPrivate()
 			}
 
 			filtered := false

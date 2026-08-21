@@ -1,10 +1,12 @@
 package oauth
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
@@ -17,6 +19,16 @@ import (
 var (
 	defaultAuthorizationServer = "https://github.com/login/oauth"
 )
+
+type countingAPIHostResolver struct {
+	utils.APIHostResolver
+	authorizationServerURLCalls int
+}
+
+func (r *countingAPIHostResolver) AuthorizationServerURL(ctx context.Context) (*url.URL, error) {
+	r.authorizationServerURLCalls++
+	return r.APIHostResolver.AuthorizationServerURL(ctx)
+}
 
 func TestNewAuthHandler(t *testing.T) {
 	t.Parallel()
@@ -569,6 +581,7 @@ func TestSupportedScopes(t *testing.T) {
 	// Verify all expected scopes are present
 	expectedScopes := []string{
 		"repo",
+		"delete_repo",
 		"read:org",
 		"read:user",
 		"user:email",
@@ -583,6 +596,13 @@ func TestSupportedScopes(t *testing.T) {
 	}
 
 	assert.Equal(t, expectedScopes, SupportedScopes)
+}
+
+func TestDefaultScopesRequiresExplicitDeleteRepoOptIn(t *testing.T) {
+	assert.Subset(t, SupportedScopes, DefaultScopes)
+	assert.Contains(t, SupportedScopes, "delete_repo")
+	assert.NotContains(t, DefaultScopes, "delete_repo")
+	assert.Contains(t, DefaultScopes, "repo")
 }
 
 func TestProtectedResourceResponseFormat(t *testing.T) {
@@ -691,10 +711,11 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:               "GHES with http scheme returns the correct authorization server URL",
-			host:               "http://ghe.example.com",
-			expectedURL:        "http://ghe.example.com/login/oauth",
-			expectedStatusCode: http.StatusOK,
+			name:          "GHES with http scheme is rejected to avoid cleartext credentials",
+			host:          "http://ghe.example.com",
+			expectedURL:   "",
+			expectedError: true,
+			errorContains: "host must use https",
 		},
 		{
 			name: "custom authorization server in config takes precedence",
@@ -720,6 +741,7 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+			countingAPIHost := &countingAPIHostResolver{APIHostResolver: apiHost}
 
 			config := tc.oauthConfig
 			if config == nil {
@@ -727,7 +749,7 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 			}
 			config.BaseURL = tc.host
 
-			handler, err := NewAuthHandler(config, apiHost)
+			handler, err := NewAuthHandler(config, countingAPIHost)
 			require.NoError(t, err)
 
 			router := chi.NewRouter()
@@ -758,6 +780,11 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 			require.True(t, ok)
 			require.Len(t, responseAuthServers, 1)
 			assert.Equal(t, tc.expectedURL, responseAuthServers[0])
+			if config.AuthorizationServer == "" {
+				assert.Equal(t, 1, countingAPIHost.authorizationServerURLCalls)
+			} else {
+				assert.Zero(t, countingAPIHost.authorizationServerURLCalls)
+			}
 		})
 	}
 }

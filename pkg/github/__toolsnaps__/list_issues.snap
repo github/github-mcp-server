@@ -50,6 +50,7 @@
             "state",
             "user",
             "labels",
+            "assignees",
             "comments",
             "created_at",
             "updated_at",

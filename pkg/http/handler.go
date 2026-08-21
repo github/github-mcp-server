@@ -5,9 +5,11 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -15,8 +17,11 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+const subscriptionsListenMethod = "subscriptions/listen"
 
 type InventoryFactoryFunc func(r *http.Request) (*inventory.Inventory, error)
 
@@ -127,6 +132,8 @@ func NewHTTPMcpHandler(
 
 func (h *Handler) RegisterMiddleware(r chi.Router) {
 	r.Use(
+		// Must run first: bounds the body before anything downstream reads it.
+		middleware.WithMaxBodySize(h.maxRequestBodyBytes()),
 		middleware.ExtractUserToken(h.oauthCfg),
 		middleware.WithRequestConfig,
 		middleware.WithMCPParse(),
@@ -136,6 +143,15 @@ func (h *Handler) RegisterMiddleware(r chi.Router) {
 	if h.config.ScopeChallenge {
 		r.Use(middleware.WithScopeChallenge(h.oauthCfg, h.scopeFetcher))
 	}
+}
+
+// maxRequestBodyBytes returns the effective request-body size limit, applied
+// both by the early middleware and by the MCP SDK handler.
+func (h *Handler) maxRequestBodyBytes() int64 {
+	if h.config != nil && h.config.MaxRequestBodyBytes > 0 {
+		return h.config.MaxRequestBodyBytes
+	}
+	return middleware.DefaultMaxRequestBodyBytes
 }
 
 // RegisterRoutes registers the routes for the MCP server
@@ -219,6 +235,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Let the SDK validate missing or mismatched method headers before the
+	// middleware rejects a well-formed request as unsupported.
+	if r.Header.Get(headers.MCPMethodHeader) == subscriptionsListenMethod {
+		ghServer.AddReceivingMiddleware(rejectSubscriptionsListen)
+	}
+
 	// Cross-origin protection is intentionally left unset: this server
 	// authenticates via bearer tokens (not cookies), so Sec-Fetch-Site CSRF
 	// checks are unnecessary and would block browser-based MCP clients. As of
@@ -228,9 +250,24 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return ghServer
 	}, &mcp.StreamableHTTPOptions{
 		Stateless: true,
+		// Required, not just belt-and-braces: the effective limit exceeds the
+		// SDK's own default, which would otherwise cap it.
+		MaxRequestBodyBytes: h.maxRequestBodyBytes(),
 	})
 
 	mcpHandler.ServeHTTP(w, r)
+}
+
+func rejectSubscriptionsListen(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+		if method == subscriptionsListenMethod {
+			return nil, &jsonrpc.Error{
+				Code:    jsonrpc.CodeMethodNotFound,
+				Message: "method not found",
+			}
+		}
+		return next(ctx, method, req)
+	}
 }
 
 func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error) {
@@ -242,9 +279,24 @@ func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies
 // a static inventory is built once at factory creation to pre-filter the tool
 // universe. Per-request headers can only narrow within these bounds.
 func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelperFunc, featureChecker inventory.FeatureFlagChecker, scopeFetcher scopes.FetcherInterface) InventoryFactoryFunc {
+	factory, err := NewDefaultInventoryFactory(cfg, t, featureChecker, scopeFetcher)
+	if err != nil {
+		return func(_ *http.Request) (*inventory.Inventory, error) {
+			return nil, err
+		}
+	}
+	return factory
+}
+
+// NewDefaultInventoryFactory creates the default HTTP inventory factory and
+// validates static tool configuration before returning it.
+func NewDefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelperFunc, featureChecker inventory.FeatureFlagChecker, scopeFetcher scopes.FetcherInterface) (InventoryFactoryFunc, error) {
 	// Build the static tool/resource/prompt universe from CLI flags.
 	// This is done once at startup and captured in the closure.
-	staticTools, staticResources, staticPrompts := buildStaticInventory(cfg, t)
+	staticTools, staticResources, staticPrompts, err := buildStaticInventory(cfg, t)
+	if err != nil {
+		return nil, err
+	}
 	hasStaticFilters := hasStaticConfig(cfg)
 
 	// Pre-compute valid tool names for filtering per-request tool headers.
@@ -288,7 +340,7 @@ func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelper
 		b.WithServerInstructions()
 
 		return b.Build()
-	}
+	}, nil
 }
 
 // filterRequestTools returns a shallow copy of the request with any per-request
@@ -327,12 +379,33 @@ func hasStaticConfig(cfg *ServerConfig) bool {
 // non-granular siblings — must be carried through to the per-request
 // inventory, which then installs a checker and resolves the flag before
 // registering tools with the MCP server.
-func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFunc) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt) {
-	if !hasStaticConfig(cfg) {
-		return github.AllTools(t), github.AllResources(t), github.AllPrompts(t)
+func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFunc) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt, error) {
+	// Tools with host-specific capabilities need to know the deployment they
+	// will talk to. An unparseable host is not fatal here: NewAPIHost rejects
+	// it later with a clearer error, so fall back to the dotcom default.
+	hostType, err := utils.ParseHostType(cfg.Host)
+	if err != nil {
+		hostType = utils.HostTypeDotcom
+	}
+	opts := []github.ToolOption{github.WithHost(hostType)}
+	tools := github.AllTools(t, opts...)
+	filterUnavailable := func(tools []inventory.ServerTool) []inventory.ServerTool {
+		if !cfg.disableDeleteRepository {
+			return tools
+		}
+		return slices.DeleteFunc(tools, func(tool inventory.ServerTool) bool {
+			return tool.Tool.Name == github.DeleteRepositoryToolName
+		})
 	}
 
-	b := github.NewInventory(t).
+	if !hasStaticConfig(cfg) {
+		return filterUnavailable(tools), github.AllResources(t), github.AllPrompts(t), nil
+	}
+
+	b := inventory.NewBuilder().
+		SetTools(tools).
+		SetResources(github.AllResources(t)).
+		SetPrompts(github.AllPrompts(t)).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools))
 
@@ -346,13 +419,11 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 
 	inv, err := b.Build()
 	if err != nil {
-		// Fall back to all tools if there's an error (e.g. unknown tool names).
-		// The error will surface again at per-request time if relevant.
-		return github.AllTools(t), github.AllResources(t), github.AllPrompts(t)
+		return nil, nil, nil, err
 	}
 
 	ctx := context.Background()
-	return inv.AvailableTools(ctx), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx)
+	return filterUnavailable(inv.AvailableTools(ctx)), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx), nil
 }
 
 // InventoryFiltersForRequest applies filters to the inventory builder

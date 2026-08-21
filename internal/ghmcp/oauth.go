@@ -103,14 +103,6 @@ type oauthAuthenticator interface {
 // delayed response from an older prompt from affecting a newer flow.
 const oauthElicitIDPrefix = "github_authorization:"
 
-// protocolVersionNoServerElicitation is the first MCP protocol version that
-// forbids server-initiated JSON-RPC requests (SEP-2322): from this version on
-// the server may not send elicitation/create while serving a request and must
-// instead return an InputRequests map from the tool call (multi round-trip
-// requests). It mirrors the go-sdk's internal constant of the same value, which
-// the SDK does not export.
-const protocolVersionNoServerElicitation = "2026-07-28"
-
 // serverMayInitiateElicitation reports whether the server is permitted to send
 // elicitation requests to the client itself, which the spec allows only before
 // protocol version 2026-07-28. A nil or un-negotiated session (only reached in
@@ -120,7 +112,7 @@ func serverMayInitiateElicitation(ss *mcp.ServerSession) bool {
 		return true
 	}
 	params := ss.InitializeParams()
-	return params == nil || params.ProtocolVersion < protocolVersionNoServerElicitation
+	return params == nil || params.ProtocolVersion < inventory.ProtocolVersionMultiRoundTrip
 }
 
 // createOAuthToolMiddleware returns tool-handler middleware that authorizes the

@@ -7,12 +7,12 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/oauth"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/headers"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -21,6 +21,108 @@ import (
 
 func discardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+func TestCreateGitHubClientsScopesRESTAndRawTokens(t *testing.T) {
+	t.Parallel()
+
+	var foreignAuth string
+	foreign := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		foreignAuth = r.Header.Get(headers.AuthorizationHeader)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer foreign.Close()
+
+	var sourceAuth string
+	source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sourceAuth = r.Header.Get(headers.AuthorizationHeader)
+		http.Redirect(w, r, foreign.URL, http.StatusFound)
+	}))
+	defer source.Close()
+
+	tests := []struct {
+		name string
+		cfg  github.MCPServerConfig
+	}{
+		{
+			name: "static token",
+			cfg: github.MCPServerConfig{
+				Version: "test",
+				Token:   "static-token",
+			},
+		},
+		{
+			name: "token provider",
+			cfg: github.MCPServerConfig{
+				Version:       "test",
+				TokenProvider: func() string { return "provider-token" },
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			apiHost := newStaticAPIHostResolver(t, source.URL)
+			clients, err := createGitHubClients(tt.cfg, apiHost)
+			require.NoError(t, err)
+
+			sourceAuth = ""
+			foreignAuth = ""
+			resp, err := clients.rest.Client().Get(source.URL + "/rest")
+			require.NoError(t, err)
+			resp.Body.Close()
+			assert.NotEmpty(t, sourceAuth, "REST request must authenticate to the configured host")
+			assert.Empty(t, foreignAuth, "REST redirect must not authenticate to a foreign host")
+
+			sourceAuth = ""
+			foreignAuth = ""
+			resp, err = clients.raw.GetRawContent(context.Background(), "owner", "repo", "file", nil)
+			require.NoError(t, err)
+			resp.Body.Close()
+			assert.NotEmpty(t, sourceAuth, "raw request must authenticate to the configured host")
+			assert.Empty(t, foreignAuth, "raw redirect must not authenticate to a foreign host")
+		})
+	}
+}
+
+type staticAPIHostResolver struct {
+	restURL    *url.URL
+	graphQLURL *url.URL
+	uploadURL  *url.URL
+	rawURL     *url.URL
+}
+
+func newStaticAPIHostResolver(t *testing.T, endpoint string) staticAPIHostResolver {
+	t.Helper()
+
+	u, err := url.Parse(endpoint)
+	require.NoError(t, err)
+	return staticAPIHostResolver{
+		restURL:    u,
+		graphQLURL: u,
+		uploadURL:  u,
+		rawURL:     u,
+	}
+}
+
+func (r staticAPIHostResolver) BaseRESTURL(context.Context) (*url.URL, error) {
+	return r.restURL, nil
+}
+
+func (r staticAPIHostResolver) GraphqlURL(context.Context) (*url.URL, error) {
+	return r.graphQLURL, nil
+}
+
+func (r staticAPIHostResolver) UploadURL(context.Context) (*url.URL, error) {
+	return r.uploadURL, nil
+}
+
+func (r staticAPIHostResolver) RawURL(context.Context) (*url.URL, error) {
+	return r.rawURL, nil
+}
+
+func (r staticAPIHostResolver) AuthorizationServerURL(context.Context) (*url.URL, error) {
+	return r.restURL, nil
 }
 
 // probeToolName is the name of the throwaway tool the harness registers; its
@@ -583,8 +685,7 @@ func TestCreateGitHubClientsTokenProvider(t *testing.T) {
 	defer server.Close()
 
 	current := ""
-	apiHost, err := utils.NewAPIHost(server.URL)
-	require.NoError(t, err)
+	apiHost := newStaticAPIHostResolver(t, server.URL)
 
 	clients, err := createGitHubClients(github.MCPServerConfig{
 		Version:       "test",
