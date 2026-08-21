@@ -72,8 +72,32 @@ func Test_RepoSkillEntry(t *testing.T) {
 		require.Len(t, entry.Resources, 2)
 		assert.Equal(t, entry.URI, entry.Resources[0].URI)
 		assert.Equal(t, skills.Digest([]byte(repoSkillMD)), entry.Resources[0].Digest)
+		assert.Equal(t, int64(len(repoSkillMD)), entry.Resources[0].Size)
 		assert.Equal(t, "skill://octocat/hello-world/my-skill/references/GUIDE.md", entry.Resources[1].URI)
 		assert.Equal(t, skills.Digest([]byte(repoGuideMD)), entry.Resources[1].Digest)
+		assert.Equal(t, int64(len(repoGuideMD)), entry.Resources[1].Size)
+	})
+
+	t.Run("-32602 for a skill over the size limit, without fetching blobs", func(t *testing.T) {
+		handlers := repoSkillHandlers(repoSkillMD)
+		handlers[GetReposGitTreesByOwnerByRepoByTree] = func(w http.ResponseWriter, _ *http.Request) {
+			tree := &gogithub.Tree{Entries: []*gogithub.TreeEntry{
+				{Path: gogithub.Ptr("skills/my-skill/SKILL.md"), Type: gogithub.Ptr("blob"), SHA: gogithub.Ptr("sha-skill"), Size: gogithub.Ptr(skills.MaxSkillBytes + 1)},
+			}}
+			data, _ := json.Marshal(tree)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write(data)
+		}
+		handlers[getReposGitBlobsBySHA] = func(w http.ResponseWriter, _ *http.Request) {
+			t.Fatal("blob fetched for a skill that fails the limit pre-check")
+		}
+		ctx := dynamicTestContext(t, handlers)
+		_, err := RepoSkillEntry(ctx, "skill://octocat/hello-world/my-skill/SKILL.md")
+		require.Error(t, err)
+		var jsonrpcErr *jsonrpc.Error
+		require.ErrorAs(t, err, &jsonrpcErr)
+		assert.EqualValues(t, jsonrpc.CodeInvalidParams, jsonrpcErr.Code)
+		assert.Contains(t, jsonrpcErr.Message, "limit")
 	})
 
 	t.Run("nil for URIs that are not a SKILL.md", func(t *testing.T) {

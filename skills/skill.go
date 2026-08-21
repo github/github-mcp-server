@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"mime"
 	"path"
@@ -36,6 +37,12 @@ const (
 	// DirectoryMIMEType marks directory resources in
 	// resources/directory/read listings.
 	DirectoryMIMEType = "inode/directory"
+
+	// MaxFilesPerSkill and MaxSkillBytes are the SEP-2640 per-skill limits:
+	// conforming hosts must accept skills up to these bounds, and servers
+	// should not serve skills beyond them.
+	MaxFilesPerSkill = 512
+	MaxSkillBytes    = 16 * 1024 * 1024
 )
 
 // File is a single file of a skill, addressed relative to the skill directory.
@@ -80,29 +87,84 @@ func (s *Skill) RootURI() string { return "skill://" + s.Path }
 // FileURI returns the resource URI of a file within the skill directory.
 func (s *Skill) FileURI(relPath string) string { return "skill://" + s.Path + "/" + relPath }
 
-// EntryResource is one {uri, digest} pair of a skill entry's resources set.
+// EntryResource is one {uri, digest, size} triple of a skill entry's
+// resources set.
 type EntryResource struct {
 	URI    string `json:"uri"`
 	Digest string `json:"digest"`
+	// Size is the length in bytes of the file's raw content — the same
+	// bytes the digest covers.
+	Size int64 `json:"size"`
 }
 
 // Entry is a skill entry as carried by skills/list and skills/get results.
+// The wire `resources` field is required and is either the Resources array
+// or the literal string "dynamic" (when Dynamic is set); an entry with
+// neither is invalid and hosts will not load it.
 type Entry struct {
 	// URI is the resource URI of the skill's SKILL.md.
 	URI string `json:"uri"`
 	// Frontmatter is the SKILL.md YAML frontmatter rendered verbatim as JSON.
 	Frontmatter map[string]any `json:"frontmatter"`
-	// Resources enumerates every file of the skill with its digest — the unit
-	// of content a host verifies and binds approval to. Omitted only for
-	// dynamically generated skills that cannot publish stable digests.
-	Resources []EntryResource `json:"resources,omitempty"`
+	// Resources enumerates every file of the skill with its digest and size —
+	// the unit of content a host verifies and binds approval to.
+	Resources []EntryResource `json:"resources"`
+	// Dynamic marks a skill whose content is generated on demand and cannot
+	// publish stable digests. When set, `resources` serializes as the string
+	// "dynamic" and Resources is ignored.
+	Dynamic bool `json:"-"`
+}
+
+// entryWire is Entry's JSON shape; resources holds an array or "dynamic".
+type entryWire struct {
+	URI         string          `json:"uri"`
+	Frontmatter map[string]any  `json:"frontmatter"`
+	Resources   json.RawMessage `json:"resources"`
+}
+
+func (e Entry) MarshalJSON() ([]byte, error) {
+	w := entryWire{URI: e.URI, Frontmatter: e.Frontmatter}
+	if e.Dynamic {
+		w.Resources = json.RawMessage(`"dynamic"`)
+	} else {
+		resources := e.Resources
+		if resources == nil {
+			resources = []EntryResource{}
+		}
+		b, err := json.Marshal(resources)
+		if err != nil {
+			return nil, err
+		}
+		w.Resources = b
+	}
+	return json.Marshal(w)
+}
+
+func (e *Entry) UnmarshalJSON(data []byte) error {
+	var w entryWire
+	if err := json.Unmarshal(data, &w); err != nil {
+		return err
+	}
+	*e = Entry{URI: w.URI, Frontmatter: w.Frontmatter}
+	if len(w.Resources) == 0 {
+		return nil
+	}
+	if bytes.Equal(bytes.TrimSpace(w.Resources), []byte(`"dynamic"`)) {
+		e.Dynamic = true
+		return nil
+	}
+	return json.Unmarshal(w.Resources, &e.Resources)
 }
 
 // Entry returns the skill's wire entry.
 func (s *Skill) Entry() Entry {
 	resources := make([]EntryResource, 0, len(s.Files))
 	for _, f := range s.Files {
-		resources = append(resources, EntryResource{URI: s.FileURI(f.Path), Digest: f.Digest})
+		resources = append(resources, EntryResource{
+			URI:    s.FileURI(f.Path),
+			Digest: f.Digest,
+			Size:   int64(len(f.Content)),
+		})
 	}
 	return Entry{URI: s.URI(), Frontmatter: s.Frontmatter, Resources: resources}
 }
@@ -149,6 +211,17 @@ func New(skillPath string, files []File) (*Skill, error) {
 	}
 	slices.SortFunc(sorted, func(a, b File) int { return strings.Compare(a.Path, b.Path) })
 	ordered := append([]File{*skillMD}, sorted...)
+
+	if len(ordered) > MaxFilesPerSkill {
+		return nil, fmt.Errorf("skill %q: %d files exceeds the SEP-2640 limit of %d", skillPath, len(ordered), MaxFilesPerSkill)
+	}
+	var totalBytes int64
+	for _, f := range ordered {
+		totalBytes += int64(len(f.Content))
+	}
+	if totalBytes > MaxSkillBytes {
+		return nil, fmt.Errorf("skill %q: %d bytes exceeds the SEP-2640 limit of %d", skillPath, totalBytes, MaxSkillBytes)
+	}
 
 	fm, err := ParseFrontmatter(skillMD.Content)
 	if err != nil {

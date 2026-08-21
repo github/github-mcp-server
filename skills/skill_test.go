@@ -1,6 +1,8 @@
 package skills_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -113,6 +115,59 @@ func TestSkillEntryOrdering(t *testing.T) {
 	for _, r := range entry.Resources {
 		assert.Regexp(t, `^sha256:[0-9a-f]{64}$`, r.Digest)
 	}
+	assert.Equal(t, int64(len(minimalSkillMD)), entry.Resources[0].Size)
+	assert.Equal(t, int64(len("guide")), entry.Resources[1].Size)
+}
+
+func TestEntryResourcesWire(t *testing.T) {
+	t.Run("array of uri-digest-size triples", func(t *testing.T) {
+		s, err := skills.New("demo", []skills.File{{Path: "SKILL.md", Content: []byte(minimalSkillMD)}})
+		require.NoError(t, err)
+
+		out, err := json.Marshal(s.Entry())
+		require.NoError(t, err)
+		var wire map[string]any
+		require.NoError(t, json.Unmarshal(out, &wire))
+		resources, ok := wire["resources"].([]any)
+		require.True(t, ok, "resources must be an array for digestable skills")
+		entry, ok := resources[0].(map[string]any)
+		require.True(t, ok)
+		assert.Contains(t, entry, "uri")
+		assert.Contains(t, entry, "digest")
+		assert.Contains(t, entry, "size")
+	})
+
+	t.Run("dynamic marker", func(t *testing.T) {
+		out, err := json.Marshal(skills.Entry{URI: "skill://dyn/SKILL.md", Dynamic: true})
+		require.NoError(t, err)
+		var wire map[string]any
+		require.NoError(t, json.Unmarshal(out, &wire))
+		assert.Equal(t, "dynamic", wire["resources"])
+
+		var back skills.Entry
+		require.NoError(t, json.Unmarshal(out, &back))
+		assert.True(t, back.Dynamic)
+		assert.Empty(t, back.Resources)
+	})
+}
+
+func TestNewEnforcesLimits(t *testing.T) {
+	skillMD := skills.File{Path: "SKILL.md", Content: []byte(minimalSkillMD)}
+
+	t.Run("file count", func(t *testing.T) {
+		files := []skills.File{skillMD}
+		for i := 0; i < skills.MaxFilesPerSkill; i++ {
+			files = append(files, skills.File{Path: fmt.Sprintf("references/%d.md", i), Content: []byte("x")})
+		}
+		_, err := skills.New("demo", files)
+		assert.ErrorContains(t, err, "limit")
+	})
+
+	t.Run("total size", func(t *testing.T) {
+		big := skills.File{Path: "assets/blob.bin", Content: make([]byte, skills.MaxSkillBytes)}
+		_, err := skills.New("demo", []skills.File{skillMD, big})
+		assert.ErrorContains(t, err, "limit")
+	})
 }
 
 func TestFileMIMEType(t *testing.T) {

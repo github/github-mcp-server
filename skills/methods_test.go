@@ -78,6 +78,7 @@ func TestSkillsListOverProtocol(t *testing.T) {
 	assert.Empty(t, res.NextCursor, "an entry is atomic and the catalog fits one page")
 	assert.Positive(t, res.TTLMs)
 	assert.Equal(t, "public", res.CacheScope)
+	assert.Equal(t, "complete", res.ResultType)
 
 	// Each SKILL.md listed is readable via plain resources/read, and its
 	// content matches the advertised digest.
@@ -87,6 +88,7 @@ func TestSkillsListOverProtocol(t *testing.T) {
 		require.Len(t, rr.Contents, 1)
 		sum := sha256.Sum256([]byte(rr.Contents[0].Text))
 		assert.Equal(t, entry.Resources[0].Digest, "sha256:"+hex.EncodeToString(sum[:]))
+		assert.Equal(t, int64(len(rr.Contents[0].Text)), entry.Resources[0].Size)
 
 		// Frontmatter identity requirement: a host parsing the fetched
 		// SKILL.md must find frontmatter identical to the entry's.
@@ -108,6 +110,7 @@ func TestSkillsGetOverProtocol(t *testing.T) {
 		assert.Equal(t, "skill://acme/pdf-processing/SKILL.md", res.Skill.URI)
 		assert.Equal(t, "pdf-processing", res.Skill.Frontmatter["name"])
 		assert.Len(t, res.Skill.Resources, 6)
+		assert.Equal(t, "complete", res.ResultType)
 	})
 
 	t.Run("unknown skill is -32602", func(t *testing.T) {
@@ -134,6 +137,7 @@ func TestDirectoryReadOverProtocol(t *testing.T) {
 			&skills.DirectoryReadParams{URI: "skill://acme/pdf-processing/templates"})
 		require.NoError(t, err)
 		require.Len(t, res.Resources, 3)
+		assert.Equal(t, "complete", res.ResultType)
 		assert.Equal(t, "regional", res.Resources[2].Name)
 		assert.Equal(t, skills.DirectoryMIMEType, res.Resources[2].MIMEType)
 
@@ -183,7 +187,9 @@ func TestDynamicHooks(t *testing.T) {
 	dynamicEntry := skills.Entry{
 		URI:         "skill://dyn/generated/SKILL.md",
 		Frontmatter: map[string]any{"name": "generated", "description": "made on demand"},
-		// No resources: dynamically generated content cannot be pre-digested.
+		// Dynamically generated content cannot be pre-digested; the entry's
+		// resources field serializes as the string "dynamic".
+		Dynamic: true,
 	}
 	cs := connect(t, testFS, "acme", func(p *skills.Publisher) {
 		p.DynamicGet = func(_ context.Context, uri string) (*skills.Entry, error) {
@@ -206,6 +212,8 @@ func TestDynamicHooks(t *testing.T) {
 			ctx, cs, skills.MethodSkillsGet, &skills.GetSkillParams{URI: dynamicEntry.URI})
 		require.NoError(t, err)
 		assert.Equal(t, dynamicEntry.URI, res.Skill.URI)
+		// The "dynamic" marker survives the wire roundtrip.
+		assert.True(t, res.Skill.Dynamic)
 		assert.Empty(t, res.Skill.Resources)
 	})
 

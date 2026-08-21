@@ -47,6 +47,25 @@ func RepoSkillEntry(ctx context.Context, uri string) (*skills.Entry, error) {
 		return nil, nil // skill not found in the repository
 	}
 
+	// Enforce the SEP-2640 per-skill limits from the tree metadata before
+	// fetching a single blob, so an oversized skill costs one tree call,
+	// not one fetch per file.
+	var fileCount int
+	var totalBytes int64
+	for _, entry := range entries {
+		if entry.GetType() != "blob" || !strings.HasPrefix(entry.GetPath(), dir+"/") {
+			continue
+		}
+		fileCount++
+		totalBytes += int64(entry.GetSize())
+	}
+	if fileCount > skills.MaxFilesPerSkill || totalBytes > skills.MaxSkillBytes {
+		return nil, &jsonrpc.Error{
+			Code:    jsonrpc.CodeInvalidParams,
+			Message: fmt.Sprintf("skill %q exceeds the SEP-2640 per-skill limits (%d files, %d bytes)", skillName, fileCount, totalBytes),
+		}
+	}
+
 	// Fetch every file in the skill directory and digest its raw bytes.
 	// Skills are small by design (a SKILL.md plus a handful of supporting
 	// files), so one blob fetch per file is acceptable for skills/get,
@@ -135,7 +154,9 @@ func RepoSkillDirectory(ctx context.Context, uri string) ([]*mcp.Resource, error
 		target = dir + "/" + subPath
 	}
 
-	var children []*mcp.Resource
+	// Non-nil so an empty directory answers with an empty resources array
+	// rather than reading as "not a directory this server serves".
+	children := []*mcp.Resource{}
 	targetExists := subPath == "" // the skill root exists by discovery
 	for _, entry := range entries {
 		entryPath := entry.GetPath()

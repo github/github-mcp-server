@@ -25,6 +25,27 @@ const (
 // property — digest verification governs content regardless.
 const listTTLMs = 3_600_000
 
+// resultTypeComplete is the base protocol's multi-round-trip result marker
+// (SEP-2322): results on 2026-07-28+ sessions declare themselves "complete".
+// The SDK stamps its own result types automatically but not custom methods',
+// so the extension's handlers set it themselves.
+const (
+	resultTypeComplete      = "complete"
+	protocolVersion20260728 = "2026-07-28"
+)
+
+// completeResultType returns the resultType value for a session: "complete"
+// when the session negotiated 2026-07-28 or later, empty (omitted) for older
+// clients, for which the field does not exist.
+func completeResultType(ss *mcp.ServerSession) string {
+	if ss != nil {
+		if p := ss.InitializeParams(); p != nil && p.ProtocolVersion < protocolVersion20260728 {
+			return ""
+		}
+	}
+	return resultTypeComplete
+}
+
 // ListSkillsParams is the skills/list request payload.
 type ListSkillsParams struct {
 	mcp.ParamsBase
@@ -36,7 +57,10 @@ type ListSkillsParams struct {
 type ListSkillsResult struct {
 	mcp.ResultBase
 	mcp.Cacheable
-	Skills []Entry `json:"skills"`
+	// ResultType is the base protocol's completion marker on 2026-07-28+
+	// sessions; see completeResultType.
+	ResultType string  `json:"resultType,omitempty"`
+	Skills     []Entry `json:"skills"`
 	// NextCursor, when present, indicates more entries are available.
 	NextCursor string `json:"nextCursor,omitempty"`
 }
@@ -52,7 +76,8 @@ type GetSkillParams struct {
 // shape and meaning to an entry of skills/list.
 type GetSkillResult struct {
 	mcp.ResultBase
-	Skill Entry `json:"skill"`
+	ResultType string `json:"resultType,omitempty"`
+	Skill      Entry  `json:"skill"`
 }
 
 // DirectoryReadParams is the resources/directory/read request payload.
@@ -70,7 +95,8 @@ type DirectoryReadParams struct {
 // mimeType "inode/directory".
 type DirectoryReadResult struct {
 	mcp.ResultBase
-	Resources []*mcp.Resource `json:"resources"`
+	ResultType string          `json:"resultType,omitempty"`
+	Resources  []*mcp.Resource `json:"resources"`
 	// NextCursor, when present, indicates more children are available.
 	NextCursor string `json:"nextCursor,omitempty"`
 }
@@ -138,8 +164,8 @@ func serveFile(uri string, f File) mcp.ResourceHandler {
 // so it always fits one page: any cursor is accepted and the full listing
 // returned with no nextCursor, which terminates every conforming pagination
 // loop.
-func (p *Publisher) listSkills(_ context.Context, _ *mcp.ServerSession, _ *ListSkillsParams) (*ListSkillsResult, error) {
-	res := &ListSkillsResult{Skills: p.Registry.Entries()}
+func (p *Publisher) listSkills(_ context.Context, ss *mcp.ServerSession, _ *ListSkillsParams) (*ListSkillsResult, error) {
+	res := &ListSkillsResult{Skills: p.Registry.Entries(), ResultType: completeResultType(ss)}
 	res.TTLMs = listTTLMs
 	res.CacheScope = "public"
 	return res, nil
@@ -148,12 +174,12 @@ func (p *Publisher) listSkills(_ context.Context, _ *mcp.ServerSession, _ *ListS
 // getSkill implements skills/get. Per the SEP it answers for every skill the
 // server serves — listed or not — and returns -32602 (the same code
 // resources/read uses for unknown resources) otherwise.
-func (p *Publisher) getSkill(ctx context.Context, _ *mcp.ServerSession, params *GetSkillParams) (*GetSkillResult, error) {
+func (p *Publisher) getSkill(ctx context.Context, ss *mcp.ServerSession, params *GetSkillParams) (*GetSkillResult, error) {
 	if params == nil || params.URI == "" {
 		return nil, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: "missing required parameter: uri"}
 	}
 	if s, ok := p.Registry.Get(params.URI); ok {
-		return &GetSkillResult{Skill: s.Entry()}, nil
+		return &GetSkillResult{Skill: s.Entry(), ResultType: completeResultType(ss)}, nil
 	}
 	if p.DynamicGet != nil {
 		entry, err := p.DynamicGet(ctx, params.URI)
@@ -161,7 +187,7 @@ func (p *Publisher) getSkill(ctx context.Context, _ *mcp.ServerSession, params *
 			return nil, err
 		}
 		if entry != nil {
-			return &GetSkillResult{Skill: *entry}, nil
+			return &GetSkillResult{Skill: *entry, ResultType: completeResultType(ss)}, nil
 		}
 	}
 	return nil, mcp.ResourceNotFoundError(params.URI)
@@ -169,13 +195,13 @@ func (p *Publisher) getSkill(ctx context.Context, _ *mcp.ServerSession, params *
 
 // readDirectory implements resources/directory/read. Like listSkills, bundled
 // directories are small enough to always fit one page.
-func (p *Publisher) readDirectory(ctx context.Context, _ *mcp.ServerSession, params *DirectoryReadParams) (*DirectoryReadResult, error) {
+func (p *Publisher) readDirectory(ctx context.Context, ss *mcp.ServerSession, params *DirectoryReadParams) (*DirectoryReadResult, error) {
 	if params == nil || params.URI == "" {
 		return nil, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: "missing required parameter: uri"}
 	}
 	uri := strings.TrimSuffix(params.URI, "/")
 	if children, ok := p.Registry.Directory(uri); ok {
-		return &DirectoryReadResult{Resources: children}, nil
+		return &DirectoryReadResult{Resources: children, ResultType: completeResultType(ss)}, nil
 	}
 	if p.DynamicDirectoryRead != nil {
 		children, err := p.DynamicDirectoryRead(ctx, uri)
@@ -183,7 +209,7 @@ func (p *Publisher) readDirectory(ctx context.Context, _ *mcp.ServerSession, par
 			return nil, err
 		}
 		if children != nil {
-			return &DirectoryReadResult{Resources: children}, nil
+			return &DirectoryReadResult{Resources: children, ResultType: completeResultType(ss)}, nil
 		}
 	}
 	return nil, mcp.ResourceNotFoundError(params.URI)
