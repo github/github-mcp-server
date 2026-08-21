@@ -41,7 +41,7 @@ func HelloWorldTool(t translations.TranslationHelperFunc) inventory.ServerTool {
 				ReadOnlyHint: true,
 			},
 		},
-		[]scopes.Scope{},
+		scopes.NoScopes(),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
 
 			// Check feature flag to determine greeting style

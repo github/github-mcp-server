@@ -62,7 +62,7 @@ func prUpdateTool(
 				Required:   required,
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -195,7 +195,7 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 				Required: []string{"owner", "repo", "pullNumber", "draft"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -304,7 +304,7 @@ func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) i
 				Required: []string{"owner", "repo", "pullNumber", "reviewers"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -397,7 +397,7 @@ func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inven
 				Required: []string{"owner", "repo", "pullNumber"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -465,7 +465,7 @@ func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc
 				Required: []string{"owner", "repo", "pullNumber", "event"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -527,7 +527,7 @@ func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc
 				Required: []string{"owner", "repo", "pullNumber"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -589,7 +589,7 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 				Required: []string{"owner", "repo", "pullNumber", "path", "body", "subjectType"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -694,7 +694,7 @@ func GranularResolveReviewThread(t translations.TranslationHelperFunc) inventory
 				Required: []string{"threadID"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			threadID, err := RequiredParam[string](args, "threadID")
 			if err != nil {
@@ -738,7 +738,7 @@ func GranularUnresolveReviewThread(t translations.TranslationHelperFunc) invento
 				Required: []string{"threadID"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			threadID, err := RequiredParam[string](args, "threadID")
 			if err != nil {
@@ -796,7 +796,7 @@ func GranularAddPullRequestReviewCommentReaction(t translations.TranslationHelpe
 				Required: []string{"owner", "repo", "comment_id", "content"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

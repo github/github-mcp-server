@@ -15,7 +15,6 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v89/github"
@@ -3599,8 +3598,9 @@ func Test_DeleteRepository(t *testing.T) {
 	assert.True(t, *tool.Annotations.DestructiveHint)
 	assert.Equal(t, inventory.ProtocolVersionMultiRoundTrip, serverTool.MinimumProtocolVersion)
 	assert.Equal(t, inventory.ElicitationModeForm, serverTool.RequiredElicitationMode)
-	assert.ElementsMatch(t, []string{string(scopes.DeleteRepo), string(scopes.Repo)}, serverTool.RequiredScopes)
-	assert.Len(t, serverTool.RequiredScopeGroups, 2)
+	assert.Equal(t, []string{"delete_repo", "repo"}, serverTool.ScopeAccess.Scopes)
+	assert.NotNil(t, serverTool.ScopeAccess.Visible)
+	assert.NotNil(t, serverTool.ScopeAccess.Challenge)
 
 	t.Run("requests exact repository name through elicitation", func(t *testing.T) {
 		client := NewMockedHTTPClient(

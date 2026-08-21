@@ -26,7 +26,9 @@ func Test_FindDuplicate(t *testing.T) {
 	assert.Equal(t, "find_duplicate", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.True(t, tool.Annotations.ReadOnlyHint)
-	assert.ElementsMatch(t, serverTool.RequiredScopes, []string{"repo"})
+	assert.Equal(t, []string{"repo"}, serverTool.ScopeAccess.Scopes)
+	assert.NotNil(t, serverTool.ScopeAccess.Visible)
+	assert.NotNil(t, serverTool.ScopeAccess.Challenge)
 
 	schema := tool.InputSchema.(*jsonschema.Schema)
 	assert.Contains(t, schema.Properties, "owner")

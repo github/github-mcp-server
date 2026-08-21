@@ -1,8 +1,7 @@
 package scopes
 
 import (
-	"slices"
-	"sort"
+	"github.com/github/github-mcp-server/pkg/inventory"
 )
 
 // Scope represents a GitHub OAuth scope.
@@ -122,93 +121,61 @@ var ScopeHierarchy = map[Scope][]Scope{
 	User:          {ReadUser, UserEmail},
 }
 
-// ScopeSet represents a set of OAuth scopes.
-type ScopeSet map[Scope]bool
-
-// NewScopeSet creates a new ScopeSet from the given scopes.
-func NewScopeSet(scopes ...Scope) ScopeSet {
-	set := make(ScopeSet)
-	for _, scope := range scopes {
-		set[scope] = true
+// RequireAll creates scope checks for a tool that always needs the given scopes.
+func RequireAll(required ...Scope) inventory.ScopeAccess {
+	scopes := scopeStrings(required)
+	return inventory.ScopeAccess{
+		Scopes: scopes,
+		Visible: func(activeScopes []string) bool {
+			return HasAll(activeScopes, required...)
+		},
+		Challenge: func(_ map[string]any, activeScopes []string) []string {
+			if HasAll(activeScopes, required...) {
+				return nil
+			}
+			return append([]string(nil), scopes...)
+		},
 	}
-	return set
 }
 
-// ToSlice converts a ScopeSet to a slice of Scope values.
-func (s ScopeSet) ToSlice() []Scope {
-	scopes := make([]Scope, 0, len(s))
-	for scope := range s {
-		scopes = append(scopes, scope)
-	}
-	// Sort for deterministic output
-	slices.Sort(scopes)
-	return scopes
+// PublicRead creates checks for a read-only operation that may target public data.
+func PublicRead(required ...Scope) inventory.ScopeAccess {
+	access := RequireAll(required...)
+	access.Visible = func([]string) bool { return true }
+	return access
 }
 
-// ToStringSlice converts a ScopeSet to a slice of string values.
-// The returned slice is sorted for deterministic output.
-func (s ScopeSet) ToStringSlice() []string {
-	scopes := make([]string, 0, len(s))
-	for scope := range s {
-		scopes = append(scopes, string(scope))
-	}
-	sort.Strings(scopes)
-	return scopes
+// NoScopes creates scope checks for a tool that does not need OAuth scopes.
+func NoScopes() inventory.ScopeAccess {
+	return inventory.ScopeAccess{}
 }
 
-// ToStringSlice converts a slice of Scopes to a slice of strings.
-func ToStringSlice(scopes ...Scope) []string {
+// HasAll reports whether a token grants every requested scope.
+func HasAll(activeScopes []string, required ...Scope) bool {
+	granted := expandScopeSet(activeScopes)
+	for _, scope := range required {
+		if !granted[string(scope)] {
+			return false
+		}
+	}
+	return true
+}
+
+// ChallengeAll returns the complete scope set for an operation, or nil when
+// the active token already grants every scope.
+func ChallengeAll(activeScopes []string, required ...Scope) []string {
+	if HasAll(activeScopes, required...) {
+		return nil
+	}
+	return scopeStrings(required)
+}
+
+func scopeStrings(scopes []Scope) []string {
 	result := make([]string, len(scopes))
 	for i, scope := range scopes {
 		result[i] = string(scope)
 	}
 	return result
-}
-
-// ExpandScopes takes a list of required scopes and returns all accepted scopes
-// including parent scopes from the hierarchy.
-// For example, if "public_repo" is required, "repo" is also accepted since
-// having the "repo" scope grants access to "public_repo".
-// The returned slice is sorted for deterministic output.
-func ExpandScopes(required ...Scope) []string {
-	if len(required) == 0 {
-		return nil
-	}
-
-	accepted := make(map[string]bool)
-
-	// Add required scopes
-	for _, scope := range required {
-		accepted[string(scope)] = true
-	}
-
-	// Add parent scopes that grant access to required scopes
-	for parent, children := range ScopeHierarchy {
-		for _, child := range children {
-			if accepted[string(child)] {
-				accepted[string(parent)] = true
-			}
-		}
-	}
-
-	// Convert to slice and sort for deterministic output
-	result := make([]string, 0, len(accepted))
-	for scope := range accepted {
-		result = append(result, scope)
-	}
-	sort.Strings(result)
-	return result
-}
-
-// ExpandScopeGroups returns one accepted-scope group for each independently
-// required scope. A token must satisfy every group, while any scope within a
-// group is sufficient because parent scopes grant the same permission.
-func ExpandScopeGroups(required ...Scope) [][]string {
-	groups := make([][]string, 0, len(required))
-	for _, scope := range required {
-		groups = append(groups, ExpandScopes(scope))
-	}
-	return groups
 }
 
 // expandScopeSet returns a set of all scopes granted by the given scopes,
@@ -217,62 +184,19 @@ func ExpandScopeGroups(required ...Scope) [][]string {
 // and "security_events" since "repo" grants access to those child scopes.
 func expandScopeSet(scopes []string) map[string]bool {
 	expanded := make(map[string]bool, len(scopes))
-	for _, scope := range scopes {
+	queue := append([]string(nil), scopes...)
+	for len(queue) > 0 {
+		scope := queue[0]
+		queue = queue[1:]
+		if expanded[scope] {
+			continue
+		}
 		expanded[scope] = true
-		// Add child scopes granted by this scope
-		if children, ok := ScopeHierarchy[Scope(scope)]; ok {
-			for _, child := range children {
-				expanded[string(child)] = true
+		for _, child := range ScopeHierarchy[Scope(scope)] {
+			if !expanded[string(child)] {
+				queue = append(queue, string(child))
 			}
 		}
 	}
 	return expanded
-}
-
-// HasRequiredScopes checks if tokenScopes satisfy the acceptedScopes requirement.
-// A tool's acceptedScopes includes both the required scopes AND parent scopes
-// that implicitly grant the required permissions (via ExpandScopes).
-//
-// For PAT filtering: if ANY of the acceptedScopes are granted by the token
-// (directly or via scope hierarchy), the tool should be visible.
-//
-// Returns true if the tool should be visible to the token holder.
-func HasRequiredScopes(tokenScopes []string, acceptedScopes []string) bool {
-	// No scopes required = always allowed
-	if len(acceptedScopes) == 0 {
-		return true
-	}
-
-	// Expand token scopes to include child scopes they grant
-	grantedScopes := expandScopeSet(tokenScopes)
-
-	// Check if any accepted scope is granted by the token
-	for _, accepted := range acceptedScopes {
-		if grantedScopes[accepted] {
-			return true
-		}
-	}
-	return false
-}
-
-// HasRequiredScopeGroups reports whether the token satisfies every independent
-// required-scope group.
-func HasRequiredScopeGroups(tokenScopes []string, groups [][]string) bool {
-	if len(groups) == 0 {
-		return true
-	}
-	grantedScopes := expandScopeSet(tokenScopes)
-	for _, group := range groups {
-		satisfied := false
-		for _, accepted := range group {
-			if grantedScopes[accepted] {
-				satisfied = true
-				break
-			}
-		}
-		if !satisfied {
-			return false
-		}
-	}
-	return true
 }
