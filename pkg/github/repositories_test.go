@@ -2138,6 +2138,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		expectedContent      *github.RepositoryContentResponse
 		expectedErrMsg       string
 		expectedErrMsgs      []string
+		unexpectedErrMsgs    []string
 		expectedRequestCount int
 	}{
 		{
@@ -2473,7 +2474,8 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			expectError: true,
 			expectedErrMsgs: []string{
 				"SHA mismatch: provided SHA oldsha123456 is stale. Current file SHA is newsha999888",
-				"retry with the sha parameter set to newsha999888",
+				"re-read it with get_file_contents",
+				"retry with the sha parameter set to the SHA that call reports",
 			},
 			expectedRequestCount: 1,
 		},
@@ -2539,8 +2541,12 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			expectError: true,
 			expectedErrMsgs: []string{
 				"File already exists at docs/example.md",
-				"The current SHA is existing123; retry with the sha parameter set to that value.",
+				"Call get_file_contents for this path and ref",
+				"retry with the sha parameter set to the blob SHA that call reports",
 			},
+			// A caller that never supplied a SHA has not read this file, so the
+			// error must not hand it one to overwrite with.
+			unexpectedErrMsgs:    []string{"existing123"},
 			expectedRequestCount: 1,
 		},
 		{
@@ -2614,6 +2620,9 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				assert.Contains(t, errorText.String(), tc.expectedErrMsg)
 				for _, expectedErrMsg := range tc.expectedErrMsgs {
 					assert.Contains(t, errorText.String(), expectedErrMsg)
+				}
+				for _, unexpectedErrMsg := range tc.unexpectedErrMsgs {
+					assert.NotContains(t, errorText.String(), unexpectedErrMsg)
 				}
 				// The caller of this tool works over the API and has no working
 				// tree, so errors must never ask it to run a local git command.

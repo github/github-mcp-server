@@ -548,8 +548,9 @@ SHA MUST be provided for existing file updates.
 					if currentSHA != sha {
 						return utils.NewToolResultError(fmt.Sprintf(
 							"SHA mismatch: provided SHA %s is stale. Current file SHA is %s. "+
-								"Re-read the file with get_file_contents if you need its latest content, then retry with the sha parameter set to %s.",
-							sha, currentSHA, currentSHA)), nil, nil
+								"The file changed since you read it, so re-read it with get_file_contents for this path and ref, "+
+								"rebuild your content against what it returns, and retry with the sha parameter set to the SHA that call reports.",
+							sha, currentSHA)), nil, nil
 					}
 					if !allowSymlinkWrite {
 						if existingFile.GetType() == "symlink" {
@@ -593,8 +594,9 @@ SHA MUST be provided for existing file updates.
 					// File exists but no SHA was provided - reject to prevent blind overwrites
 					return utils.NewToolResultError(fmt.Sprintf(
 						"File already exists at %s. You must provide the current file's SHA when updating. "+
-							"The current SHA is %s; retry with the sha parameter set to that value.",
-						path, existingFile.GetSHA())), nil, nil
+							"Call get_file_contents for this path and ref to read the file you are about to overwrite, "+
+							"then retry with the sha parameter set to the blob SHA that call reports.",
+						path)), nil, nil
 				}
 				// If file not found, no previous SHA needed (new file creation)
 			}
