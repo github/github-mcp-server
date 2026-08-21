@@ -2326,11 +2326,9 @@ const IssueWriteUIResourceURI = "ui://github-mcp-server/issue-write"
 
 // issueWriteFormParams are the parameters the issue_write MCP App form collects
 // and re-sends on submit. Any other parameter present on a call cannot be
-// represented by the form. The form collects (and prefills) every parameter in
-// the tool's current input schema, so hasNonFormParams against this set is a
-// forward-compatibility safety net: a parameter added to the schema in the
-// future but not yet wired into the form trips the check and bypasses the form
-// so the supplied value isn't silently dropped.
+// represented by the form, so hasNonFormParams bypasses the form rather than
+// silently dropping it. Parent issue parameters are intentionally omitted
+// because the current form cannot represent them.
 var issueWriteFormParams = map[string]struct{}{
 	"method":        {},
 	"owner":         {},
@@ -2348,9 +2346,6 @@ var issueWriteFormParams = map[string]struct{}{
 	"duplicate_of":  {},
 	"_ui_submitted": {},
 }
-
-// Parent issue parameters are intentionally omitted because the current form cannot
-// represent them. Calls that supply a parent bypass the form instead of dropping them.
 
 // issueWriteAwaitingFormResult builds the "awaiting form submission" stub
 // returned when issue_write hands off to the MCP App form. The body is shared
@@ -2435,11 +2430,11 @@ Options are:
 					},
 					"parent_owner": {
 						Type:        "string",
-						Description: "Repository owner of the parent issue. Defaults to the value of owner. Only used when method is 'create' and parent_issue_number is provided.",
+						Description: "Repository owner of the parent issue. Must be provided with parent_repo. Omit both to use owner and repo. Only used when method is 'create' and parent_issue_number is provided.",
 					},
 					"parent_repo": {
 						Type:        "string",
-						Description: "Repository name of the parent issue. Defaults to the value of repo. Only used when method is 'create' and parent_issue_number is provided.",
+						Description: "Repository name of the parent issue. Must be provided with parent_owner. Omit both to use owner and repo. Only used when method is 'create' and parent_issue_number is provided.",
 					},
 					"title": {
 						Type:        "string",
@@ -2647,8 +2642,8 @@ Options are:
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			if !parentProvided && (parentOwner != "" || parentRepo != "") {
-				return utils.NewToolResultError("parent_owner and parent_repo can only be used when parent_issue_number is provided"), nil, nil
+			if err := validateParentRepository(parentProvided, parentOwner, parentRepo); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			var issueFields []issueWriteFieldInput

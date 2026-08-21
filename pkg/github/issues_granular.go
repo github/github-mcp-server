@@ -151,11 +151,11 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 					},
 					"parent_owner": {
 						Type:        "string",
-						Description: "Repository owner of the parent issue. Defaults to the value of owner. Only used when parent_issue_number is provided.",
+						Description: "Repository owner of the parent issue. Must be provided with parent_repo. Omit both to use owner and repo. Only used when parent_issue_number is provided.",
 					},
 					"parent_repo": {
 						Type:        "string",
-						Description: "Repository name of the parent issue. Defaults to the value of repo. Only used when parent_issue_number is provided.",
+						Description: "Repository name of the parent issue. Must be provided with parent_owner. Omit both to use owner and repo. Only used when parent_issue_number is provided.",
 					},
 				},
 				Required: []string{"owner", "repo", "title"},
@@ -193,8 +193,8 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			if !parentProvided && (parentOwner != "" || parentRepo != "") {
-				return utils.NewToolResultError("parent_owner and parent_repo can only be used when parent_issue_number is provided"), nil, nil
+			if err := validateParentRepository(parentProvided, parentOwner, parentRepo); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			issueReq := github.CreateIssueRequest{

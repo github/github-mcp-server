@@ -97,11 +97,11 @@
         "type": "number"
       },
       "parent_owner": {
-        "description": "Repository owner of the parent issue. Defaults to the value of owner. Only used when method is 'create' and parent_issue_number is provided.",
+        "description": "Repository owner of the parent issue. Must be provided with parent_repo. Omit both to use owner and repo. Only used when method is 'create' and parent_issue_number is provided.",
         "type": "string"
       },
       "parent_repo": {
-        "description": "Repository name of the parent issue. Defaults to the value of repo. Only used when method is 'create' and parent_issue_number is provided.",
+        "description": "Repository name of the parent issue. Must be provided with parent_owner. Omit both to use owner and repo. Only used when method is 'create' and parent_issue_number is provided.",
         "type": "string"
       },
       "repo": {

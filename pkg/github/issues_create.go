@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -140,13 +141,23 @@ func createIssueWithParent(
 }
 
 func parentRepository(owner, repo, parentOwner, parentRepo string) (string, string) {
-	if parentOwner == "" {
-		parentOwner = owner
-	}
-	if parentRepo == "" {
-		parentRepo = repo
+	if parentOwner == "" && parentRepo == "" {
+		return owner, repo
 	}
 	return parentOwner, parentRepo
+}
+
+func validateParentRepository(parentProvided bool, parentOwner, parentRepo string) error {
+	if !parentProvided {
+		if parentOwner != "" || parentRepo != "" {
+			return errors.New("parent_owner and parent_repo can only be used when parent_issue_number is provided")
+		}
+		return nil
+	}
+	if (parentOwner == "") != (parentRepo == "") {
+		return errors.New("parent_owner and parent_repo must be provided together")
+	}
+	return nil
 }
 
 func resolveCreateIssueParent(ctx context.Context, gqlClient *githubv4.Client, owner, repo, parentOwner, parentRepo string, parentIssueNumber int) (githubv4.ID, githubv4.ID, error) {
