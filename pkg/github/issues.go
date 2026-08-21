@@ -2726,11 +2726,13 @@ type createIssueMutation struct {
 
 type createIssueParentMetadataQuery struct {
 	ChildRepository struct {
-		ID githubv4.ID
+		ID            githubv4.ID
+		NameWithOwner githubv4.String
 	} `graphql:"childRepository: repository(owner: $owner, name: $repo)"`
 	ParentRepository struct {
 		Issue struct {
-			ID githubv4.ID
+			ID     githubv4.ID
+			Number githubv4.Int
 		} `graphql:"issue(number: $parentIssueNumber)"`
 	} `graphql:"parentRepository: repository(owner: $parentOwner, name: $parentRepo)"`
 }
@@ -2817,6 +2819,9 @@ func createIssueWithParent(
 	if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
 		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to create issue", err), nil
 	}
+	if mutation.CreateIssue.Issue.FullDatabaseID == "" || mutation.CreateIssue.Issue.URL.URL == nil {
+		return utils.NewToolResultError("failed to create issue: response did not include the created issue"), nil
+	}
 
 	response := MinimalResponse{
 		ID:  string(mutation.CreateIssue.Issue.FullDatabaseID),
@@ -2861,10 +2866,10 @@ func resolveCreateIssueParent(ctx context.Context, gqlClient *githubv4.Client, o
 	if err := gqlClient.Query(ctx, &query, variables); err != nil {
 		return "", "", err
 	}
-	if query.ChildRepository.ID == "" {
+	if query.ChildRepository.NameWithOwner == "" {
 		return "", "", fmt.Errorf("repository %s/%s was not found", owner, repo)
 	}
-	if query.ParentRepository.Issue.ID == "" {
+	if query.ParentRepository.Issue.Number == 0 {
 		return "", "", fmt.Errorf("parent issue #%d was not found in %s/%s", parentIssueNumber, parentOwner, parentRepo)
 	}
 	return query.ChildRepository.ID, query.ParentRepository.Issue.ID, nil
@@ -2880,7 +2885,7 @@ func resolveUserID(ctx context.Context, gqlClient *githubv4.Client, login string
 	if err := gqlClient.Query(ctx, &query, map[string]any{"login": githubv4.String(login)}); err != nil {
 		return "", err
 	}
-	if query.User.ID == "" {
+	if query.User.Login == "" {
 		return "", fmt.Errorf("user %q was not found", login)
 	}
 	return query.User.ID, nil
@@ -2890,7 +2895,8 @@ func resolveMilestoneID(ctx context.Context, gqlClient *githubv4.Client, owner, 
 	var query struct {
 		Repository struct {
 			Milestone struct {
-				ID githubv4.ID
+				ID     githubv4.ID
+				Number githubv4.Int
 			} `graphql:"milestone(number: $milestoneNumber)"`
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
@@ -2902,7 +2908,7 @@ func resolveMilestoneID(ctx context.Context, gqlClient *githubv4.Client, owner, 
 	if err := gqlClient.Query(ctx, &query, variables); err != nil {
 		return "", err
 	}
-	if query.Repository.Milestone.ID == "" {
+	if query.Repository.Milestone.Number == 0 {
 		return "", fmt.Errorf("milestone #%d was not found in %s/%s", milestoneNumber, owner, repo)
 	}
 	return query.Repository.Milestone.ID, nil
