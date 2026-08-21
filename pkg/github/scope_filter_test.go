@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -12,20 +13,18 @@ import (
 )
 
 func TestCreateToolScopeFilter(t *testing.T) {
-	// Create test tools with various scope requirements
 	toolNoScopes := &inventory.ServerTool{
-		Tool:           mcp.Tool{Name: "no_scopes_tool"},
-		AcceptedScopes: nil,
+		Tool: mcp.Tool{Name: "no_scopes_tool"},
 	}
 
 	toolEmptyScopes := &inventory.ServerTool{
-		Tool:           mcp.Tool{Name: "empty_scopes_tool"},
-		AcceptedScopes: []string{},
+		Tool:        mcp.Tool{Name: "empty_scopes_tool"},
+		ScopePolicy: scopes.UnscopedScopePolicy(),
 	}
 
 	toolRepoScope := &inventory.ServerTool{
-		Tool:           mcp.Tool{Name: "repo_tool"},
-		AcceptedScopes: []string{"repo"},
+		Tool:        mcp.Tool{Name: "repo_tool"},
+		ScopePolicy: scopes.AnyOfScopePolicy(scopes.Repo),
 	}
 
 	toolRepoScopeReadOnly := &inventory.ServerTool{
@@ -33,12 +32,12 @@ func TestCreateToolScopeFilter(t *testing.T) {
 			Name:        "repo_tool_readonly",
 			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		},
-		AcceptedScopes: []string{"repo"},
+		ScopePolicy: scopes.AnyOfScopePolicy(scopes.Repo),
 	}
 
 	toolPublicRepoScope := &inventory.ServerTool{
-		Tool:           mcp.Tool{Name: "public_repo_tool"},
-		AcceptedScopes: []string{"public_repo", "repo"}, // repo is parent, also accepted
+		Tool:        mcp.Tool{Name: "public_repo_tool"},
+		ScopePolicy: scopes.AnyOfScopePolicy(scopes.PublicRepo),
 	}
 
 	toolPublicRepoScopeReadOnly := &inventory.ServerTool{
@@ -46,23 +45,22 @@ func TestCreateToolScopeFilter(t *testing.T) {
 			Name:        "public_repo_tool_readonly",
 			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		},
-		AcceptedScopes: []string{"public_repo", "repo"},
+		ScopePolicy: scopes.AnyOfScopePolicy(scopes.PublicRepo),
 	}
 
 	toolGistScope := &inventory.ServerTool{
-		Tool:           mcp.Tool{Name: "gist_tool"},
-		AcceptedScopes: []string{"gist"},
+		Tool:        mcp.Tool{Name: "gist_tool"},
+		ScopePolicy: scopes.AnyOfScopePolicy(scopes.Gist),
 	}
 
 	toolMultiScope := &inventory.ServerTool{
-		Tool:           mcp.Tool{Name: "multi_scope_tool"},
-		AcceptedScopes: []string{"repo", "admin:org"},
+		Tool:        mcp.Tool{Name: "multi_scope_tool"},
+		ScopePolicy: scopes.AnyOfScopePolicy(scopes.Repo, scopes.AdminOrg),
 	}
 
 	toolConjunctiveScopes := &inventory.ServerTool{
-		Tool:                mcp.Tool{Name: "conjunctive_scope_tool"},
-		AcceptedScopes:      []string{"delete_repo", "repo"},
-		RequiredScopeGroups: [][]string{{"delete_repo"}, {"repo"}},
+		Tool:        mcp.Tool{Name: "conjunctive_scope_tool"},
+		ScopePolicy: scopes.AllOfScopePolicy(scopes.DeleteRepo, scopes.Repo),
 	}
 
 	tests := []struct {
@@ -166,19 +164,19 @@ func TestCreateToolScopeFilter_Integration(t *testing.T) {
 	// Test integration with inventory builder
 	tools := []inventory.ServerTool{
 		{
-			Tool:           mcp.Tool{Name: "public_tool"},
-			Toolset:        inventory.ToolsetMetadata{ID: "test"},
-			AcceptedScopes: nil, // No scopes required
+			Tool:        mcp.Tool{Name: "public_tool"},
+			Toolset:     inventory.ToolsetMetadata{ID: "test"},
+			ScopePolicy: scopes.UnscopedScopePolicy(),
 		},
 		{
-			Tool:           mcp.Tool{Name: "repo_tool"},
-			Toolset:        inventory.ToolsetMetadata{ID: "test"},
-			AcceptedScopes: []string{"repo"},
+			Tool:        mcp.Tool{Name: "repo_tool"},
+			Toolset:     inventory.ToolsetMetadata{ID: "test"},
+			ScopePolicy: scopes.AnyOfScopePolicy(scopes.Repo),
 		},
 		{
-			Tool:           mcp.Tool{Name: "gist_tool"},
-			Toolset:        inventory.ToolsetMetadata{ID: "test"},
-			AcceptedScopes: []string{"gist"},
+			Tool:        mcp.Tool{Name: "gist_tool"},
+			Toolset:     inventory.ToolsetMetadata{ID: "test"},
+			ScopePolicy: scopes.AnyOfScopePolicy(scopes.Gist),
 		},
 	}
 
@@ -209,8 +207,9 @@ func TestCreateToolScopeFilter_Integration(t *testing.T) {
 	assert.NotContains(t, toolNames, "gist_tool")
 }
 
-func TestCreateToolScopeFilterPreservesExistingMultiScopeSemantics(t *testing.T) {
+func TestCreateToolScopeFilterSupportsAlternativePaths(t *testing.T) {
 	filter := CreateToolScopeFilter([]string{"repo"})
+	unscopedFilter := CreateToolScopeFilter(nil)
 	tools := []inventory.ServerTool{
 		ListIssueFields(translations.NullTranslationHelper),
 		ListIssueTypes(translations.NullTranslationHelper),
@@ -220,7 +219,10 @@ func TestCreateToolScopeFilterPreservesExistingMultiScopeSemantics(t *testing.T)
 	for i := range tools {
 		allowed, err := filter(context.Background(), &tools[i])
 		require.NoError(t, err)
-		assert.True(t, allowed, "%s should remain visible with a repo-only token", tools[i].Tool.Name)
-		assert.Empty(t, tools[i].RequiredScopeGroups, "%s should retain legacy any-of scope semantics", tools[i].Tool.Name)
+		assert.True(t, allowed, "%s should be visible with a repo-only token", tools[i].Tool.Name)
+
+		allowed, err = unscopedFilter(context.Background(), &tools[i])
+		require.NoError(t, err)
+		assert.True(t, allowed, "%s should remain visible when a public-repository path is plausible", tools[i].Tool.Name)
 	}
 }

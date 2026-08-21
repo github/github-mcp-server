@@ -1,21 +1,19 @@
 package scopes
 
-import "github.com/github/github-mcp-server/pkg/inventory"
+import (
+	"github.com/github/github-mcp-server/pkg/inventory"
+)
 
 // ToolScopeMap maps tool names to their scope requirements.
 type ToolScopeMap map[string]*ToolScopeInfo
 
 // ToolScopeInfo contains scope information for a single tool.
 type ToolScopeInfo struct {
-	// RequiredScopes contains the scopes that are directly required by this tool.
-	RequiredScopes []string
+	// Policy describes every supported authorization path for the tool.
+	ScopePolicy inventory.ScopePolicy
 
-	// AcceptedScopes contains all scopes that satisfy the requirements (including parent scopes).
-	AcceptedScopes []string
-
-	// RequiredScopeGroups contains accepted alternatives for each independently
-	// required scope. Every group must be satisfied.
-	RequiredScopeGroups [][]string
+	// ScopeResolver returns the exact policy for a call.
+	ScopeResolver inventory.ScopeResolver
 }
 
 // globalToolScopeMap is populated from inventory when SetToolScopeMapFromInventory is called
@@ -52,7 +50,6 @@ func GetToolScopeInfo(toolName string) (*ToolScopeInfo, error) {
 }
 
 // GetToolScopeMapFromInventory builds a tool scope map from an inventory.
-// This extracts scope information from ServerTool.RequiredScopes and ServerTool.AcceptedScopes.
 func GetToolScopeMapFromInventory(inv *inventory.Inventory) ToolScopeMap {
 	result := make(ToolScopeMap)
 
@@ -61,11 +58,10 @@ func GetToolScopeMapFromInventory(inv *inventory.Inventory) ToolScopeMap {
 	allTools := inv.AllTools()
 	for i := range allTools {
 		tool := &allTools[i]
-		if len(tool.RequiredScopes) > 0 || len(tool.AcceptedScopes) > 0 {
+		if len(tool.ScopePolicy.AnyOf) > 0 || tool.ScopeResolver != nil {
 			result[tool.Tool.Name] = &ToolScopeInfo{
-				RequiredScopes:      tool.RequiredScopes,
-				AcceptedScopes:      tool.AcceptedScopes,
-				RequiredScopeGroups: tool.RequiredScopeGroups,
+				ScopePolicy:   tool.ScopePolicy,
+				ScopeResolver: tool.ScopeResolver,
 			}
 		}
 	}
@@ -73,83 +69,29 @@ func GetToolScopeMapFromInventory(inv *inventory.Inventory) ToolScopeMap {
 	return result
 }
 
-// HasAcceptedScope checks if any of the provided user scopes satisfy the tool's requirements.
-func (t *ToolScopeInfo) HasAcceptedScope(userScopes ...string) bool {
-	if t != nil && len(t.RequiredScopeGroups) > 0 {
-		return HasRequiredScopeGroups(userScopes, t.RequiredScopeGroups)
+// Resolve returns the scope requirements for a specific call.
+func (t *ToolScopeInfo) Resolve(arguments map[string]any) *ToolScopeInfo {
+	if t == nil || t.ScopeResolver == nil {
+		return t
 	}
-	if t == nil || len(t.AcceptedScopes) == 0 {
-		return true // No scopes required
-	}
-
-	userScopeSet := make(map[string]bool)
-	for _, scope := range userScopes {
-		userScopeSet[scope] = true
-	}
-
-	for _, scope := range t.AcceptedScopes {
-		if userScopeSet[scope] {
-			return true
-		}
-	}
-	return false
+	resolved := *t
+	resolved.ScopePolicy = t.ScopeResolver(arguments)
+	return &resolved
 }
 
-// MissingScopes returns the required scopes that are not present in the user's scopes.
-func (t *ToolScopeInfo) MissingScopes(userScopes ...string) []string {
-	if t == nil || len(t.RequiredScopes) == 0 {
-		return nil
+// Satisfies checks whether the provided scopes satisfy the tool policy.
+func (t *ToolScopeInfo) Satisfies(userScopes ...string) bool {
+	if t == nil {
+		return true
 	}
-
-	// Create a set of user scopes for O(1) lookup
-	userScopeSet := make(map[string]bool, len(userScopes))
-	for _, s := range userScopes {
-		userScopeSet[s] = true
-	}
-
-	if len(t.RequiredScopeGroups) > 0 {
-		userScopeSet := expandScopeSet(userScopes)
-		var missing []string
-		for i, group := range t.RequiredScopeGroups {
-			satisfied := false
-			for _, scope := range group {
-				if userScopeSet[scope] {
-					satisfied = true
-					break
-				}
-			}
-			if !satisfied && i < len(t.RequiredScopes) {
-				missing = append(missing, t.RequiredScopes[i])
-			}
-		}
-		return missing
-	}
-
-	// Check if any accepted scope is present
-	hasAccepted := false
-	for _, scope := range t.AcceptedScopes {
-		if userScopeSet[scope] {
-			hasAccepted = true
-			break
-		}
-	}
-
-	if hasAccepted {
-		return nil // User has sufficient scopes
-	}
-
-	// Return required scopes as the minimum needed
-	missing := make([]string, len(t.RequiredScopes))
-	copy(missing, t.RequiredScopes)
-	return missing
+	return ScopePolicySatisfied(userScopes, t.ScopePolicy)
 }
 
-// GetRequiredScopesSlice returns the required scopes as a slice of strings.
-func (t *ToolScopeInfo) GetRequiredScopesSlice() []string {
+// ChallengeScopes returns the preferred scopes needed for the first declared
+// authorization alternative.
+func (t *ToolScopeInfo) ChallengeScopes(userScopes ...string) []string {
 	if t == nil {
 		return nil
 	}
-	scopes := make([]string, len(t.RequiredScopes))
-	copy(scopes, t.RequiredScopes)
-	return scopes
+	return ChallengeScopesForPolicy(userScopes, t.ScopePolicy)
 }

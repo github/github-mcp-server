@@ -68,7 +68,7 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"method", "owner"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo, scopes.ReadOrg},
+		scopes.AnyOfScopePolicy(scopes.Repo, scopes.ReadOrg),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -100,6 +100,7 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 		})
 	st.FeatureFlagEnable = MCPAppsFeatureFlag
+	st.ScopeResolver = uiGetScopePolicy
 	return st
 }
 

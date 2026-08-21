@@ -1,8 +1,9 @@
 package scopes
 
 import (
-	"slices"
 	"sort"
+
+	"github.com/github/github-mcp-server/pkg/inventory"
 )
 
 // Scope represents a GitHub OAuth scope.
@@ -122,49 +123,6 @@ var ScopeHierarchy = map[Scope][]Scope{
 	User:          {ReadUser, UserEmail},
 }
 
-// ScopeSet represents a set of OAuth scopes.
-type ScopeSet map[Scope]bool
-
-// NewScopeSet creates a new ScopeSet from the given scopes.
-func NewScopeSet(scopes ...Scope) ScopeSet {
-	set := make(ScopeSet)
-	for _, scope := range scopes {
-		set[scope] = true
-	}
-	return set
-}
-
-// ToSlice converts a ScopeSet to a slice of Scope values.
-func (s ScopeSet) ToSlice() []Scope {
-	scopes := make([]Scope, 0, len(s))
-	for scope := range s {
-		scopes = append(scopes, scope)
-	}
-	// Sort for deterministic output
-	slices.Sort(scopes)
-	return scopes
-}
-
-// ToStringSlice converts a ScopeSet to a slice of string values.
-// The returned slice is sorted for deterministic output.
-func (s ScopeSet) ToStringSlice() []string {
-	scopes := make([]string, 0, len(s))
-	for scope := range s {
-		scopes = append(scopes, string(scope))
-	}
-	sort.Strings(scopes)
-	return scopes
-}
-
-// ToStringSlice converts a slice of Scopes to a slice of strings.
-func ToStringSlice(scopes ...Scope) []string {
-	result := make([]string, len(scopes))
-	for i, scope := range scopes {
-		result[i] = string(scope)
-	}
-	return result
-}
-
 // ExpandScopes takes a list of required scopes and returns all accepted scopes
 // including parent scopes from the hierarchy.
 // For example, if "public_repo" is required, "repo" is also accepted since
@@ -182,11 +140,16 @@ func ExpandScopes(required ...Scope) []string {
 		accepted[string(scope)] = true
 	}
 
-	// Add parent scopes that grant access to required scopes
-	for parent, children := range ScopeHierarchy {
-		for _, child := range children {
-			if accepted[string(child)] {
-				accepted[string(parent)] = true
+	// Add every ancestor scope that grants access to a required scope. Iterate
+	// to a fixed point so provider hierarchies can be arbitrary DAGs.
+	for changed := true; changed; {
+		changed = false
+		for parent, children := range ScopeHierarchy {
+			for _, child := range children {
+				if accepted[string(child)] && !accepted[string(parent)] {
+					accepted[string(parent)] = true
+					changed = true
+				}
 			}
 		}
 	}
@@ -200,15 +163,49 @@ func ExpandScopes(required ...Scope) []string {
 	return result
 }
 
-// ExpandScopeGroups returns one accepted-scope group for each independently
-// required scope. A token must satisfy every group, while any scope within a
-// group is sufficient because parent scopes grant the same permission.
-func ExpandScopeGroups(required ...Scope) [][]string {
-	groups := make([][]string, 0, len(required))
-	for _, scope := range required {
-		groups = append(groups, ExpandScopes(scope))
+// NewScopeRequirement creates one capability requirement. The challenge scope
+// and each explicitly accepted alternative are expanded to include ancestors.
+func NewScopeRequirement(challenge Scope, alternatives ...Scope) inventory.ScopeRequirement {
+	alternatives = append([]Scope{challenge}, alternatives...)
+	return inventory.ScopeRequirement{
+		ChallengeScope: string(challenge),
+		AnyOf:          ExpandScopes(alternatives...),
 	}
-	return groups
+}
+
+// AnyOfScopePolicy creates a policy where any one supplied scope is sufficient.
+func AnyOfScopePolicy(required ...Scope) inventory.ScopePolicy {
+	if len(required) == 0 {
+		return UnscopedScopePolicy()
+	}
+	paths := make([]inventory.ScopePath, 0, len(required))
+	for _, scope := range required {
+		paths = append(paths, inventory.ScopePath{
+			AllOf: []inventory.ScopeRequirement{NewScopeRequirement(scope)},
+		})
+	}
+	return inventory.ScopePolicy{AnyOf: paths}
+}
+
+// AllOfScopePolicy creates a policy where every supplied scope is required.
+func AllOfScopePolicy(required ...Scope) inventory.ScopePolicy {
+	requirements := make([]inventory.ScopeRequirement, 0, len(required))
+	for _, scope := range required {
+		requirements = append(requirements, NewScopeRequirement(scope))
+	}
+	if len(requirements) == 0 {
+		return UnscopedScopePolicy()
+	}
+	return inventory.ScopePolicy{
+		AnyOf: []inventory.ScopePath{{AllOf: requirements}},
+	}
+}
+
+// UnscopedScopePolicy creates an explicit policy that requires no OAuth scope.
+func UnscopedScopePolicy() inventory.ScopePolicy {
+	return inventory.ScopePolicy{
+		AnyOf: []inventory.ScopePath{{}},
+	}
 }
 
 // expandScopeSet returns a set of all scopes granted by the given scopes,
@@ -217,62 +214,83 @@ func ExpandScopeGroups(required ...Scope) [][]string {
 // and "security_events" since "repo" grants access to those child scopes.
 func expandScopeSet(scopes []string) map[string]bool {
 	expanded := make(map[string]bool, len(scopes))
-	for _, scope := range scopes {
+	queue := append([]string(nil), scopes...)
+	for len(queue) > 0 {
+		scope := queue[0]
+		queue = queue[1:]
+		if expanded[scope] {
+			continue
+		}
 		expanded[scope] = true
-		// Add child scopes granted by this scope
-		if children, ok := ScopeHierarchy[Scope(scope)]; ok {
-			for _, child := range children {
-				expanded[string(child)] = true
+		for _, child := range ScopeHierarchy[Scope(scope)] {
+			if !expanded[string(child)] {
+				queue = append(queue, string(child))
 			}
 		}
 	}
 	return expanded
 }
 
-// HasRequiredScopes checks if tokenScopes satisfy the acceptedScopes requirement.
-// A tool's acceptedScopes includes both the required scopes AND parent scopes
-// that implicitly grant the required permissions (via ExpandScopes).
-//
-// For PAT filtering: if ANY of the acceptedScopes are granted by the token
-// (directly or via scope hierarchy), the tool should be visible.
-//
-// Returns true if the tool should be visible to the token holder.
-func HasRequiredScopes(tokenScopes []string, acceptedScopes []string) bool {
-	// No scopes required = always allowed
-	if len(acceptedScopes) == 0 {
+// ScopePolicySatisfied reports whether the token satisfies at least one
+// complete authorization alternative.
+func ScopePolicySatisfied(tokenScopes []string, policy inventory.ScopePolicy) bool {
+	if len(policy.AnyOf) == 0 {
 		return true
 	}
-
-	// Expand token scopes to include child scopes they grant
-	grantedScopes := expandScopeSet(tokenScopes)
-
-	// Check if any accepted scope is granted by the token
-	for _, accepted := range acceptedScopes {
-		if grantedScopes[accepted] {
+	granted := expandScopeSet(tokenScopes)
+	for _, path := range policy.AnyOf {
+		satisfied := true
+		for _, requirement := range path.AllOf {
+			if !scopeRequirementSatisfied(granted, requirement) {
+				satisfied = false
+				break
+			}
+		}
+		if satisfied {
 			return true
 		}
 	}
 	return false
 }
 
-// HasRequiredScopeGroups reports whether the token satisfies every independent
-// required-scope group.
-func HasRequiredScopeGroups(tokenScopes []string, groups [][]string) bool {
-	if len(groups) == 0 {
+// ChallengeScopesForPolicy returns the preferred challenge scopes for the first
+// declared authorization alternative. Alternative order is policy, not an
+// inferred least-privilege ranking.
+func ChallengeScopesForPolicy(tokenScopes []string, policy inventory.ScopePolicy) []string {
+	if len(policy.AnyOf) == 0 {
+		return nil
+	}
+	if ScopePolicySatisfied(tokenScopes, policy) {
+		return nil
+	}
+	granted := expandScopeSet(tokenScopes)
+	path := policy.AnyOf[0]
+	missing := make([]string, 0, len(path.AllOf))
+	seen := make(map[string]bool)
+	for _, requirement := range path.AllOf {
+		if scopeRequirementSatisfied(granted, requirement) || requirement.ChallengeScope == "" || seen[requirement.ChallengeScope] {
+			continue
+		}
+		seen[requirement.ChallengeScope] = true
+		missing = append(missing, requirement.ChallengeScope)
+	}
+	return missing
+}
+
+func scopeRequirementSatisfied(granted map[string]bool, requirement inventory.ScopeRequirement) bool {
+	if requirement.ChallengeScope == "" {
 		return true
 	}
-	grantedScopes := expandScopeSet(tokenScopes)
-	for _, group := range groups {
-		satisfied := false
-		for _, accepted := range group {
-			if grantedScopes[accepted] {
-				satisfied = true
-				break
-			}
-		}
-		if !satisfied {
-			return false
+	if granted[requirement.ChallengeScope] {
+		return true
+	}
+	if len(requirement.AnyOf) == 0 {
+		return false
+	}
+	for _, scope := range requirement.AnyOf {
+		if granted[scope] {
+			return true
 		}
 	}
-	return true
+	return false
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +27,7 @@ func Test_FindDuplicate(t *testing.T) {
 	assert.Equal(t, "find_duplicate", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.True(t, tool.Annotations.ReadOnlyHint)
-	assert.ElementsMatch(t, serverTool.RequiredScopes, []string{"repo"})
+	assert.Equal(t, scopes.AnyOfScopePolicy(scopes.Repo), serverTool.ScopePolicy)
 
 	schema := tool.InputSchema.(*jsonschema.Schema)
 	assert.Contains(t, schema.Properties, "owner")

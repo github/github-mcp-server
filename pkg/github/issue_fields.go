@@ -129,7 +129,7 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo, scopes.ReadOrg},
+		scopes.AnyOfScopePolicy(scopes.Repo, scopes.ReadOrg),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -167,6 +167,7 @@ func ListIssueFields(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 			return result, nil, nil
 		})
+	st.ScopeResolver = repositoryOrOrganizationScopePolicy
 	return st
 }
 
