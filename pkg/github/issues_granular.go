@@ -149,6 +149,14 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 						Description: "Issue number of the parent issue. The new issue is created and attached to this parent in the same operation.",
 						Minimum:     jsonschema.Ptr(1.0),
 					},
+					"parent_owner": {
+						Type:        "string",
+						Description: "Repository owner of the parent issue. Defaults to the value of owner. Only used when parent_issue_number is provided.",
+					},
+					"parent_repo": {
+						Type:        "string",
+						Description: "Repository name of the parent issue. Defaults to the value of repo. Only used when parent_issue_number is provided.",
+					},
 				},
 				Required: []string{"owner", "repo", "title"},
 			},
@@ -177,6 +185,17 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			if parentProvided && parentIssueNumber < 1 {
 				return utils.NewToolResultError("parent_issue_number must be greater than 0"), nil, nil
 			}
+			parentOwner, err := OptionalParam[string](args, "parent_owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			parentRepo, err := OptionalParam[string](args, "parent_repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if !parentProvided && (parentOwner != "" || parentRepo != "") {
+				return utils.NewToolResultError("parent_owner and parent_repo can only be used when parent_issue_number is provided"), nil, nil
+			}
 
 			issueReq := github.CreateIssueRequest{
 				Title: title,
@@ -195,7 +214,7 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 				}
-				result, err := createIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, nil, nil, 0, "", nil, parentIssueNumber)
+				result, err := createIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, nil, nil, 0, "", parentIssueNumber, parentOwner, parentRepo)
 				return result, nil, err
 			}
 

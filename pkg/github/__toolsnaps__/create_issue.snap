@@ -22,6 +22,14 @@
         "minimum": 1,
         "type": "number"
       },
+      "parent_owner": {
+        "description": "Repository owner of the parent issue. Defaults to the value of owner. Only used when parent_issue_number is provided.",
+        "type": "string"
+      },
+      "parent_repo": {
+        "description": "Repository name of the parent issue. Defaults to the value of repo. Only used when parent_issue_number is provided.",
+        "type": "string"
+      },
       "repo": {
         "description": "Repository name",
         "type": "string"
