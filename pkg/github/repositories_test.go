@@ -2058,6 +2058,8 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 
 	assert.Equal(t, "create_or_update_file", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.NotContains(t, tool.Description, "git rev-parse")
+	assert.Contains(t, tool.Description, "get_file_contents")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
 	assert.Contains(t, schema.Properties, "path")
@@ -2136,6 +2138,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		expectedContent      *github.RepositoryContentResponse
 		expectedErrMsg       string
 		expectedErrMsgs      []string
+		unexpectedErrMsgs    []string
 		expectedRequestCount int
 	}{
 		{
@@ -2468,8 +2471,12 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"branch":  "main",
 				"sha":     "oldsha123456",
 			},
-			expectError:          true,
-			expectedErrMsg:       "SHA mismatch: provided SHA oldsha123456 is stale. Current file SHA is newsha999888",
+			expectError: true,
+			expectedErrMsgs: []string{
+				"SHA mismatch: provided SHA oldsha123456 is stale. Current file SHA is newsha999888",
+				"re-read it with get_file_contents",
+				"retry with the sha parameter set to the SHA that call reports",
+			},
 			expectedRequestCount: 1,
 		},
 		{
@@ -2531,8 +2538,15 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"message": "Update without SHA",
 				"branch":  "main",
 			},
-			expectError:          true,
-			expectedErrMsg:       "File already exists at docs/example.md",
+			expectError: true,
+			expectedErrMsgs: []string{
+				"File already exists at docs/example.md",
+				"Call get_file_contents for this path and ref",
+				"retry with the sha parameter set to the blob SHA that call reports",
+			},
+			// A caller that never supplied a SHA has not read this file, so the
+			// error must not hand it one to overwrite with.
+			unexpectedErrMsgs:    []string{"existing123"},
 			expectedRequestCount: 1,
 		},
 		{
@@ -2607,6 +2621,12 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				for _, expectedErrMsg := range tc.expectedErrMsgs {
 					assert.Contains(t, errorText.String(), expectedErrMsg)
 				}
+				for _, unexpectedErrMsg := range tc.unexpectedErrMsgs {
+					assert.NotContains(t, errorText.String(), unexpectedErrMsg)
+				}
+				// The caller of this tool works over the API and has no working
+				// tree, so errors must never ask it to run a local git command.
+				assert.NotContains(t, errorText.String(), "git rev-parse")
 				return
 			}
 
