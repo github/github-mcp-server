@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/github/github-mcp-server/internal/oauth"
+	"github.com/github/github-mcp-server/internal/requeststate"
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/transport"
@@ -62,30 +63,32 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
 	}
 
-	// Construct REST client. When a TokenProvider is configured (OAuth), we
-	// authenticate via BearerAuthTransport and skip go-github's WithAuthToken:
-	// the latter installs its own round tripper that would pin the static token
-	// and shadow the dynamic one.
+	// allowedHosts scopes the bearer token to the configured GitHub hosts, so a
+	// response that redirects off them does not carry the token to the redirect
+	// target. See transport.BearerAuthTransport.
+	allowedHosts := []string{
+		restURL.Host,
+		uploadURL.Host,
+		graphQLURL.Host,
+		rawURL.Host,
+	}
+
+	// Construct REST client. BearerAuthTransport handles both static and
+	// provider-backed tokens so every authentication mode uses the same host
+	// restrictions.
 	restUATransport := &transport.UserAgentTransport{
 		Transport: http.DefaultTransport,
 		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
 	}
-	var restClient *gogithub.Client
-	if cfg.TokenProvider != nil {
-		restClient, err = gogithub.NewClient(
-			gogithub.WithHTTPClient(&http.Client{Transport: &transport.BearerAuthTransport{
-				Transport:     restUATransport,
-				TokenProvider: cfg.TokenProvider,
-			}}),
-			gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
-		)
-	} else {
-		restClient, err = gogithub.NewClient(
-			gogithub.WithHTTPClient(&http.Client{Transport: restUATransport}),
-			gogithub.WithAuthToken(cfg.Token),
-			gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
-		)
-	}
+	restClient, err := gogithub.NewClient(
+		gogithub.WithHTTPClient(&http.Client{Transport: &transport.BearerAuthTransport{
+			Transport:     restUATransport,
+			Token:         cfg.Token,
+			TokenProvider: cfg.TokenProvider,
+			AllowedHosts:  allowedHosts,
+		}}),
+		gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create REST client: %w", err)
 	}
@@ -99,6 +102,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 			},
 			Token:         cfg.Token,
 			TokenProvider: cfg.TokenProvider,
+			AllowedHosts:  allowedHosts,
 		},
 	}
 
@@ -138,6 +142,11 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
 	}
 
+	hostType, err := utils.ParseHostType(cfg.Host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to classify API host: %w", err)
+	}
+
 	clients, err := createGitHubClients(cfg, apiHost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
@@ -164,8 +173,12 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		featureChecker,
 		obs,
 	)
+	deps.StateSealer, err = requeststate.NewRandom()
+	if err != nil {
+		return nil, fmt.Errorf("failed to configure request-state protection: %w", err)
+	}
 	// Build and register the tool/resource/prompt inventory
-	inventoryBuilder := github.NewInventory(cfg.Translator).
+	inventoryBuilder := github.NewInventory(cfg.Translator, github.WithHost(hostType)).
 		WithDeprecatedAliases(github.DeprecatedToolAliases).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools)).
@@ -257,15 +270,21 @@ type StdioServerConfig struct {
 	// are hidden. The default set is the full supported list, which hides
 	// nothing; an explicit, narrower list filters accordingly.
 	OAuthScopes []string
+
+	// TokenProvider supplies a token for each GitHub API request.
+	TokenProvider func() string
 }
 
 // RunStdioServer is not concurrent safe.
 func RunStdioServer(cfg StdioServerConfig) error {
-	// OAuth login and a static token are mutually exclusive: they would
-	// disagree on how the token is sourced (lazy provider vs. static) and on
-	// scope filtering, so reject the ambiguous combination up front.
-	if cfg.OAuthManager != nil && cfg.Token != "" {
-		return fmt.Errorf("OAuthManager and a static Token are mutually exclusive: provide one or the other")
+	authModes := 0
+	for _, on := range []bool{cfg.Token != "", cfg.OAuthManager != nil, cfg.TokenProvider != nil} {
+		if on {
+			authModes++
+		}
+	}
+	if authModes > 1 {
+		return fmt.Errorf("choose exactly one authentication mode: a static Token, OAuthManager, or TokenProvider")
 	}
 
 	// Create app context
@@ -311,9 +330,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		logger.Debug("skipping scope filtering for non-PAT token")
 	}
 
-	// For OAuth, the token is resolved lazily: empty until the user authorizes
-	// on the first tool call, then refreshed for the rest of the session.
-	var tokenProvider func() string
+	tokenProvider := cfg.TokenProvider
 	var toolHandlerMiddleware []inventory.ToolHandlerMiddleware
 	if cfg.OAuthManager != nil {
 		tokenProvider = cfg.OAuthManager.AccessToken

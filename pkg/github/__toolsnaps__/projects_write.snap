@@ -5,7 +5,7 @@
     "readOnlyHint": false,
     "title": "Manage GitHub Projects"
   },
-  "description": "Create and manage GitHub Projects: create projects, add/update/delete items, create status updates, and add iteration fields.",
+  "description": "Create and manage GitHub Projects: create projects, add/update/delete items, bulk-update many items at once, manage views, create status updates, and add iteration fields.",
   "inputSchema": {
     "properties": {
       "body": {
@@ -15,6 +15,17 @@
       "field_name": {
         "description": "The name of the iteration field (e.g. 'Sprint'). Required for 'create_iteration_field' method.",
         "type": "string"
+      },
+      "filter": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Saved view filter; omit on update to preserve it, or pass null to clear it."
       },
       "issue_number": {
         "description": "The issue number. Required for 'add_project_item' when item_type is 'issue'. Also accepted by 'update_project_item' to resolve the item by issue number (combine with item_owner and item_repo).",
@@ -39,6 +50,64 @@
           "pull_request"
         ],
         "type": "string"
+      },
+      "items": {
+        "description": "The items to update with the top-level 'updated_field'. Required for 'update_project_items'; prefer it over calling 'update_project_item' in a loop. Each entry must match exactly one reference variant: 'node_id', numeric 'item_id', or 'item_owner' + 'item_repo' + 'issue_number'. Limit: 50 items per call.",
+        "items": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "node_id": {
+                  "description": "The project item's GraphQL node ID, as returned by 'list_project_items' or 'add_project_item'.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "node_id"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "item_id": {
+                  "description": "The numeric project item ID.",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "item_id"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "issue_number": {
+                  "description": "Issue number used to resolve the project item.",
+                  "type": "integer"
+                },
+                "item_owner": {
+                  "description": "Owner of the repository containing the issue.",
+                  "type": "string"
+                },
+                "item_repo": {
+                  "description": "Repository containing the issue.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "item_owner",
+                "item_repo",
+                "issue_number"
+              ],
+              "type": "object"
+            }
+          ],
+          "type": "object"
+        },
+        "type": "array"
       },
       "iteration_duration": {
         "description": "Duration in days for iterations of the field (e.g. 7 for weekly, 14 for bi-weekly). Required for 'create_iteration_field' method.",
@@ -71,16 +140,33 @@
         },
         "type": "array"
       },
+      "layout": {
+        "description": "View layout; required when creating a view.",
+        "enum": [
+          "table",
+          "board",
+          "roadmap"
+        ],
+        "type": "string"
+      },
       "method": {
         "description": "The method to execute",
         "enum": [
           "add_project_item",
           "update_project_item",
+          "update_project_items",
           "delete_project_item",
           "create_project_status_update",
+          "create_project_view",
+          "update_project_view",
+          "delete_project_view",
           "create_project",
           "create_iteration_field"
         ],
+        "type": "string"
+      },
+      "name": {
+        "description": "View name; required when creating a view.",
         "type": "string"
       },
       "owner": {
@@ -127,8 +213,62 @@
         "type": "string"
       },
       "updated_field": {
-        "description": "Object describing the field to update and its new value. Required for 'update_project_item'. Two shapes are accepted: (1) by ID — {\"id\": 123456, \"value\": \"...\"}; (2) by name — {\"name\": \"Status\", \"value\": \"In Progress\"}. For single-select fields, option-name resolution requires the by-name shape; on the by-ID shape, pass the option ID. Set value to null to clear the field.",
+        "description": "The field/value to apply, using {\"id\": 123, \"value\": ...} or {\"name\": \"Status\", \"value\": ...}; null clears the field. Required for 'update_project_item' and 'update_project_items', where one top-level field/value applies to every item in a batch. For 'update_project_item' SINGLE_SELECT fields, the name form accepts option names; the ID form expects an option ID.",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "description": "The numeric project field ID.",
+                "type": "integer"
+              },
+              "value": {
+                "description": "The value to apply. Any JSON value is accepted; use null to clear the field."
+              }
+            },
+            "required": [
+              "id",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "description": "The project field name. Matching is case-insensitive.",
+                "type": "string"
+              },
+              "value": {
+                "description": "The value to apply. Any JSON value is accepted; use null to clear the field."
+              }
+            },
+            "required": [
+              "name",
+              "value"
+            ],
+            "type": "object"
+          }
+        ],
         "type": "object"
+      },
+      "view_id": {
+        "description": "Project view node ID for update or delete; must belong to owner/project_number.",
+        "type": "string"
+      },
+      "visible_field_names": {
+        "description": "Ordered project field names to show on create or replace on update; omit on update to preserve, or pass [] to reset. Mutually exclusive with visible_fields. Roadmap accepts only [].",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "visible_fields": {
+        "description": "Ordered project field database IDs to show on create or replace on update; omit on update to preserve, or pass [] to reset. Mutually exclusive with visible_field_names. Roadmap accepts only [].",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
       }
     },
     "required": [

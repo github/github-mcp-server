@@ -5,12 +5,14 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	gogithub "github.com/google/go-github/v89/github"
+	"github.com/muesli/cache2go"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/require"
 )
@@ -150,6 +152,90 @@ func TestRepoAccessCacheIsolatesViewerPerInstance(t *testing.T) {
 	safe, err = victimCache.IsSafeContent(ctx, "victim", testOwner, testRepo)
 	require.NoError(t, err)
 	require.True(t, safe)
+}
+
+func TestRepoAccessCacheIdentityScopedKeys(t *testing.T) {
+	restClient := newMockRESTServer(t, "write")
+	gqlClient, _ := newMockGQLClient(testUser, false)
+
+	newCache := func(opts ...RepoAccessOption) *RepoAccessCache {
+		return NewRepoAccessCache(gqlClient, restClient, opts...)
+	}
+
+	unscoped := newCache().cacheKey(testOwner, testRepo)
+	alice := newCache(WithIdentity("token-alice")).cacheKey(testOwner, testRepo)
+	aliceAgain := newCache(WithIdentity("token-alice")).cacheKey(testOwner, testRepo)
+	bob := newCache(WithIdentity("token-bob")).cacheKey(testOwner, testRepo)
+
+	require.Equal(t, alice, aliceAgain, "the same identity must map to the same key so it keeps a warm cache")
+	require.NotEqual(t, alice, bob, "different identities must map to different keys")
+	require.NotEqual(t, alice, unscoped, "a scoped identity must not collide with unscoped entries")
+	require.NotContains(t, alice, "token-alice", "the raw identity must never appear in a cache key")
+
+	require.Equal(t, unscoped, newCache(WithIdentity("")).cacheKey(testOwner, testRepo),
+		"an empty identity must leave entries unscoped")
+	require.Equal(t, alice, newCache(WithIdentity("token-alice")).cacheKey(strings.ToUpper(testOwner), strings.ToUpper(testRepo)),
+		"identity scoping must preserve owner/repo case-insensitivity")
+}
+
+// Regression test for #3107: a table per identity leaks, so isolation must come
+// from the entry key inside one table.
+func TestRepoAccessCacheIdentityScopingIsolatesWithinOneTable(t *testing.T) {
+	ctx := t.Context()
+
+	restClient := newMockRESTServer(t, "write")
+	table := cache2go.Cache(t.Name())
+	t.Cleanup(table.Flush)
+
+	newCache := func(gqlClient *githubv4.Client, identity string) *RepoAccessCache {
+		return NewRepoAccessCache(gqlClient, restClient, WithCacheName(t.Name()), WithIdentity(identity))
+	}
+
+	aliceGQL, aliceTransport := newMockGQLClient("alice", true)
+	_, err := newCache(aliceGQL, "token-alice").getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, aliceTransport.CallCount())
+
+	bobGQL, bobTransport := newMockGQLClient("bob", true)
+	_, err = newCache(bobGQL, "token-bob").getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, bobTransport.CallCount(),
+		"a different identity must fetch its own trust decision, not reuse another identity's cached entry")
+
+	require.EqualValues(t, 2, table.Count(),
+		"per-identity entries must be stored in one shared table rather than a table per identity")
+
+	_, err = newCache(aliceGQL, "token-alice").getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, aliceTransport.CallCount(), "repeated requests from the same identity should reuse the warm cache")
+	require.EqualValues(t, 2, table.Count(), "a repeated request from a known identity must not add another entry")
+}
+
+// Key-scoped entries stay bounded because ordinary idle-TTL cleanup reclaims
+// them; a table per identity could not shrink this way.
+func TestRepoAccessCacheIdentityScopedEntriesAreReclaimed(t *testing.T) {
+	ctx := t.Context()
+
+	restClient := newMockRESTServer(t, "write")
+	table := cache2go.Cache(t.Name())
+	t.Cleanup(table.Flush)
+
+	identities := []string{"token-a", "token-b", "token-c"}
+	for _, identity := range identities {
+		gqlClient, _ := newMockGQLClient(testUser, false)
+		cache := NewRepoAccessCache(gqlClient, restClient,
+			WithCacheName(t.Name()),
+			WithIdentity(identity),
+			WithTTL(500*time.Millisecond),
+		)
+		_, err := cache.getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
+		require.NoError(t, err)
+	}
+
+	require.EqualValues(t, len(identities), table.Count(), "each identity should hold exactly one entry in the shared table")
+
+	require.Eventually(t, func() bool { return table.Count() == 0 }, 30*time.Second, 10*time.Millisecond,
+		"per-identity entries must be reclaimed by ordinary idle-TTL cleanup so cache storage stays bounded")
 }
 
 type flakyTransport struct {

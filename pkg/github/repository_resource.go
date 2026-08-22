@@ -1,9 +1,7 @@
 package github
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -225,22 +223,12 @@ func RepositoryResourceContentsHandler(resourceURITemplate *uritemplate.Template
 					},
 				}, nil
 			default:
-				var buf bytes.Buffer
-				base64Encoder := base64.NewEncoder(base64.StdEncoding, &buf)
-				_, err := base64Encoder.Write(content)
-				if err != nil {
-					return nil, fmt.Errorf("failed to base64 encode content: %w", err)
-				}
-				if err := base64Encoder.Close(); err != nil {
-					return nil, fmt.Errorf("failed to close base64 encoder: %w", err)
-				}
-
 				return &mcp.ReadResourceResult{
 					Contents: []*mcp.ResourceContents{
 						{
 							URI:      request.Params.URI,
 							MIMEType: mimeType,
-							Blob:     buf.Bytes(),
+							Blob:     content,
 						},
 					},
 				}, nil

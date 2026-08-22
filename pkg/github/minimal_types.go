@@ -33,9 +33,10 @@ var fileContentFieldEnum = []any{"type", "name", "path", "size", "sha", "url", "
 // REST conversion sets (for example html_url, reactions, issue_field_values) are
 // never emitted here and are intentionally omitted. The body and field_values
 // fields are the heaviest, so omitting them is the main lever for shrinking large
-// result sets.
+// result sets. Note that user is the issue author; assignees is who it is
+// assigned to, and is always present (empty when unassigned).
 var listIssuesItemFieldEnum = []any{
-	"number", "title", "body", "state", "user", "labels",
+	"number", "title", "body", "state", "user", "labels", "assignees",
 	"comments", "created_at", "updated_at", "field_values",
 }
 
@@ -197,6 +198,17 @@ type MinimalDiscussionComment struct {
 	ReplyTotalCount int                        `json:"replyTotalCount,omitempty"`
 }
 
+// newMinimalDiscussionComment is the single constructor for MinimalDiscussionComment,
+// ensuring the untrusted, user-authored body is sanitized consistently regardless of
+// which discussion query (with or without replies) produced it.
+func newMinimalDiscussionComment(id string, body string, isAnswer bool) MinimalDiscussionComment {
+	return MinimalDiscussionComment{
+		ID:       id,
+		Body:     sanitize.Sanitize(body),
+		IsAnswer: isAnswer,
+	}
+}
+
 // MinimalCodeSearchResult is the trimmed output type for code search results.
 type MinimalCodeSearchResult struct {
 	TotalCount        int                 `json:"total_count"`
@@ -318,6 +330,88 @@ type MinimalTag struct {
 	SHA  string `json:"sha"`
 }
 
+// MinimalWorkflowRunHeadCommit is the trimmed commit context for a workflow run.
+type MinimalWorkflowRunHeadCommit struct {
+	Message string `json:"message"`
+}
+
+// MinimalReferencedWorkflow identifies a reusable workflow invoked by a workflow run.
+type MinimalReferencedWorkflow struct {
+	Path string `json:"path,omitempty"`
+	SHA  string `json:"sha,omitempty"`
+	Ref  string `json:"ref,omitempty"`
+}
+
+// MinimalWorkflowRun is the trimmed output type for GitHub Actions workflow runs.
+type MinimalWorkflowRun struct {
+	ID                  int64                         `json:"id"`
+	Name                string                        `json:"name"`
+	DisplayTitle        string                        `json:"display_title,omitempty"`
+	WorkflowID          int64                         `json:"workflow_id"`
+	RunNumber           int                           `json:"run_number"`
+	RunAttempt          int                           `json:"run_attempt"`
+	Event               string                        `json:"event,omitempty"`
+	Status              string                        `json:"status"`
+	Conclusion          string                        `json:"conclusion,omitempty"`
+	HeadBranch          string                        `json:"head_branch,omitempty"`
+	HeadSHA             string                        `json:"head_sha,omitempty"`
+	HeadCommit          *MinimalWorkflowRunHeadCommit `json:"head_commit,omitempty"`
+	Path                string                        `json:"path,omitempty"`
+	HTMLURL             string                        `json:"html_url,omitempty"`
+	PullRequests        []int                         `json:"pull_requests,omitempty"`
+	Actor               *MinimalUser                  `json:"actor,omitempty"`
+	TriggeringActor     *MinimalUser                  `json:"triggering_actor,omitempty"`
+	ReferencedWorkflows []MinimalReferencedWorkflow   `json:"referenced_workflows,omitempty"`
+	CreatedAt           string                        `json:"created_at,omitempty"`
+	UpdatedAt           string                        `json:"updated_at,omitempty"`
+	RunStartedAt        string                        `json:"run_started_at,omitempty"`
+}
+
+// MinimalWorkflowRunsResult is the trimmed output type for workflow run list results.
+type MinimalWorkflowRunsResult struct {
+	TotalCount   int                  `json:"total_count"`
+	WorkflowRuns []MinimalWorkflowRun `json:"workflow_runs"`
+}
+
+// MinimalWorkflowJobStep is the trimmed output type for workflow job steps.
+type MinimalWorkflowJobStep struct {
+	Name        string `json:"name"`
+	Status      string `json:"status"`
+	Conclusion  string `json:"conclusion,omitempty"`
+	Number      int64  `json:"number"`
+	StartedAt   string `json:"started_at,omitempty"`
+	CompletedAt string `json:"completed_at,omitempty"`
+}
+
+// MinimalWorkflowJob is the trimmed output type for GitHub Actions workflow jobs.
+type MinimalWorkflowJob struct {
+	ID              int64                    `json:"id"`
+	RunID           int64                    `json:"run_id"`
+	Name            string                   `json:"name"`
+	WorkflowName    string                   `json:"workflow_name,omitempty"`
+	Status          string                   `json:"status"`
+	Conclusion      string                   `json:"conclusion,omitempty"`
+	HeadBranch      string                   `json:"head_branch,omitempty"`
+	HeadSHA         string                   `json:"head_sha,omitempty"`
+	HTMLURL         string                   `json:"html_url,omitempty"`
+	RunAttempt      int64                    `json:"run_attempt,omitempty"`
+	RunnerID        int64                    `json:"runner_id,omitempty"`
+	RunnerName      string                   `json:"runner_name,omitempty"`
+	RunnerGroupID   int64                    `json:"runner_group_id,omitempty"`
+	RunnerGroupName string                   `json:"runner_group_name,omitempty"`
+	Labels          []string                 `json:"labels,omitempty"`
+	Steps           []MinimalWorkflowJobStep `json:"steps,omitempty"`
+	CreatedAt       string                   `json:"created_at,omitempty"`
+	StartedAt       string                   `json:"started_at,omitempty"`
+	CompletedAt     string                   `json:"completed_at,omitempty"`
+}
+
+// MinimalWorkflowJobsResult is the trimmed output type for workflow job list results.
+type MinimalWorkflowJobsResult struct {
+	TotalCount int                  `json:"total_count"`
+	Jobs       []MinimalWorkflowJob `json:"jobs"`
+}
+
 // MinimalResponse represents a minimal response for all CRUD operations.
 // Success is implicit in the HTTP response status, and all other information
 // can be derived from the URL or fetched separately if needed.
@@ -349,6 +443,15 @@ type MinimalProject struct {
 	ShortDescription *string           `json:"short_description,omitempty"`
 	DeletedBy        *MinimalUser      `json:"deleted_by,omitempty"`
 	OwnerType        string            `json:"owner_type,omitempty"`
+}
+
+type MinimalProjectView struct {
+	ID            string  `json:"id"`
+	Number        int     `json:"number"`
+	Name          string  `json:"name"`
+	Layout        string  `json:"layout"`
+	Filter        string  `json:"filter"`
+	VisibleFields []int64 `json:"visible_fields"`
 }
 
 type MinimalProjectItem struct {
@@ -452,6 +555,10 @@ type MinimalFieldValue struct {
 }
 
 // MinimalIssue is the trimmed output type for issue objects to reduce verbosity.
+//
+// Assignees is deliberately not omitempty: both conversions below populate it
+// non-nil, so an empty list is a definitive "nobody is assigned" answer rather
+// than an absent key. Callers filtering for unassigned issues depend on that.
 type MinimalIssue struct {
 	Number            int                      `json:"number"`
 	Title             string                   `json:"title"`
@@ -464,7 +571,7 @@ type MinimalIssue struct {
 	User              *MinimalUser             `json:"user,omitempty"`
 	AuthorAssociation string                   `json:"author_association,omitempty"`
 	Labels            []string                 `json:"labels,omitempty"`
-	Assignees         []string                 `json:"assignees,omitempty"`
+	Assignees         []string                 `json:"assignees"`
 	Milestone         string                   `json:"milestone,omitempty"`
 	Comments          int                      `json:"comments,omitempty"`
 	Reactions         *MinimalReactions        `json:"reactions,omitempty"`
@@ -484,6 +591,42 @@ type MinimalIssue struct {
 	HasChildren      *bool                    `json:"has_children,omitempty"`
 	Parent           *MinimalIssueRef         `json:"parent,omitempty"`
 	SubIssuesSummary *MinimalSubIssuesSummary `json:"sub_issues_summary,omitempty"`
+
+	// ClosedByPullRequests summarizes the pull requests configured to close this issue. It is a
+	// pointer so that an enriched issue with no such pull requests still serializes a definitive
+	// "nothing will close this issue" answer, while issues returned by paths that never run the
+	// enrichment omit the key entirely.
+	ClosedByPullRequests *MinimalClosingPullRequests `json:"closed_by_pull_requests,omitempty"`
+}
+
+// MinimalClosingPullRequests summarizes the pull requests configured to close an issue.
+// References is capped, so TotalCount is authoritative: when it exceeds the number of
+// references the list is a truncated view rather than the complete set.
+type MinimalClosingPullRequests struct {
+	TotalCount int                     `json:"total_count"`
+	References []MinimalPullRequestRef `json:"references"`
+}
+
+// MinimalPullRequestRef is a compact reference to a related pull request.
+type MinimalPullRequestRef struct {
+	Number     int    `json:"number"`
+	Title      string `json:"title"`
+	State      string `json:"state"`
+	URL        string `json:"url"`
+	Repository string `json:"repository,omitempty"`
+}
+
+// newMinimalPullRequestRef builds a MinimalPullRequestRef, sanitizing the user-authored
+// title. Callers should use it rather than the struct literal so every tool surfacing a
+// pull request reference strips untrusted content identically.
+func newMinimalPullRequestRef(number int, title, state, url, repository string) MinimalPullRequestRef {
+	return MinimalPullRequestRef{
+		Number:     number,
+		Title:      sanitize.Sanitize(title),
+		State:      state,
+		URL:        url,
+		Repository: repository,
+	}
 }
 
 // MinimalIssueRef is a compact reference to a related issue (e.g. a parent issue).
@@ -494,6 +637,20 @@ type MinimalIssueRef struct {
 	State      string `json:"state"`
 	URL        string `json:"url"`
 	Repository string `json:"repository,omitempty"`
+}
+
+// newMinimalIssueRef builds a MinimalIssueRef, sanitizing the user-authored title. Callers
+// should use it rather than the struct literal so every tool surfacing an issue reference
+// (issue_read's parent, issue_dependency_read/write, find_duplicate) strips untrusted
+// content identically.
+func newMinimalIssueRef(number int, title, state, url, repository string) MinimalIssueRef {
+	return MinimalIssueRef{
+		Number:     number,
+		Title:      sanitize.Sanitize(title),
+		State:      state,
+		URL:        url,
+		Repository: repository,
+	}
 }
 
 // MinimalSubIssuesSummary holds the native GraphQL subIssuesSummary counts for an issue.
@@ -594,6 +751,24 @@ type MinimalPRBranchRepo struct {
 	Description string `json:"description,omitempty"`
 }
 
+// MinimalRepoStatus is the trimmed output type for an individual commit status.
+type MinimalRepoStatus struct {
+	State       string `json:"state"`
+	Context     string `json:"context"`
+	Description string `json:"description,omitempty"`
+	TargetURL   string `json:"target_url,omitempty"`
+	CreatedAt   string `json:"created_at,omitempty"`
+	UpdatedAt   string `json:"updated_at,omitempty"`
+}
+
+// MinimalCombinedStatus is the trimmed output type for a combined commit status.
+type MinimalCombinedStatus struct {
+	State      string              `json:"state"`
+	SHA        string              `json:"sha"`
+	TotalCount int                 `json:"total_count"`
+	Statuses   []MinimalRepoStatus `json:"statuses"`
+}
+
 type MinimalProjectStatusUpdate struct {
 	ID         string       `json:"id"`
 	Body       string       `json:"body,omitempty"`
@@ -622,7 +797,7 @@ func convertToMinimalPullRequestReview(review *github.PullRequestReview) Minimal
 	m := MinimalPullRequestReview{
 		ID:                review.GetID(),
 		State:             review.GetState(),
-		Body:              review.GetBody(),
+		Body:              sanitize.Sanitize(review.GetBody()),
 		HTMLURL:           review.GetHTMLURL(),
 		User:              convertToMinimalUser(review.GetUser()),
 		CommitID:          review.GetCommitID(),
@@ -639,8 +814,8 @@ func convertToMinimalPullRequestReview(review *github.PullRequestReview) Minimal
 func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 	m := MinimalIssue{
 		Number:            issue.GetNumber(),
-		Title:             issue.GetTitle(),
-		Body:              issue.GetBody(),
+		Title:             sanitize.Sanitize(issue.GetTitle()),
+		Body:              sanitize.Sanitize(issue.GetBody()),
 		State:             issue.GetState(),
 		StateReason:       issue.GetStateReason(),
 		Draft:             issue.GetDraft(),
@@ -667,6 +842,7 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 		}
 	}
 
+	m.Assignees = make([]string, 0, len(issue.Assignees))
 	for _, assignee := range issue.Assignees {
 		if assignee != nil {
 			m.Assignees = append(m.Assignees, assignee.GetLogin())
@@ -723,6 +899,30 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 }
 
 func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
+	m := fragmentWithoutFieldValuesToMinimalIssue(issueFragmentWithoutFieldValues{
+		Number:     fragment.Number,
+		Title:      fragment.Title,
+		Body:       fragment.Body,
+		State:      fragment.State,
+		DatabaseID: fragment.DatabaseID,
+		Author:     fragment.Author,
+		CreatedAt:  fragment.CreatedAt,
+		UpdatedAt:  fragment.UpdatedAt,
+		Labels:     fragment.Labels,
+		Assignees:  fragment.Assignees,
+		Comments:   fragment.Comments,
+	})
+
+	for _, fv := range fragment.IssueFieldValues.Nodes {
+		if mfv, ok := fragmentToMinimalFieldValue(fv); ok {
+			m.FieldValues = append(m.FieldValues, mfv)
+		}
+	}
+
+	return m
+}
+
+func fragmentWithoutFieldValuesToMinimalIssue(fragment issueFragmentWithoutFieldValues) MinimalIssue {
 	m := MinimalIssue{
 		Number:    int(fragment.Number),
 		Title:     sanitize.Sanitize(string(fragment.Title)),
@@ -740,10 +940,9 @@ func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 		m.Labels = append(m.Labels, string(label.Name))
 	}
 
-	for _, fv := range fragment.IssueFieldValues.Nodes {
-		if mfv, ok := fragmentToMinimalFieldValue(fv); ok {
-			m.FieldValues = append(m.FieldValues, mfv)
-		}
+	m.Assignees = make([]string, 0, len(fragment.Assignees.Nodes))
+	for _, assignee := range fragment.Assignees.Nodes {
+		m.Assignees = append(m.Assignees, string(assignee.Login))
 	}
 
 	return m
@@ -795,10 +994,28 @@ func convertToMinimalIssuesResponse(fragment IssueQueryFragment) MinimalIssuesRe
 	}
 }
 
+func convertToMinimalIssuesResponseWithoutFieldValues(fragment issueQueryFragmentWithoutFieldValues) MinimalIssuesResponse {
+	minimalIssues := make([]MinimalIssue, 0, len(fragment.Nodes))
+	for _, issue := range fragment.Nodes {
+		minimalIssues = append(minimalIssues, fragmentWithoutFieldValuesToMinimalIssue(issue))
+	}
+
+	return MinimalIssuesResponse{
+		Issues:     minimalIssues,
+		TotalCount: fragment.TotalCount,
+		PageInfo: MinimalPageInfo{
+			HasNextPage:     bool(fragment.PageInfo.HasNextPage),
+			HasPreviousPage: bool(fragment.PageInfo.HasPreviousPage),
+			StartCursor:     string(fragment.PageInfo.StartCursor),
+			EndCursor:       string(fragment.PageInfo.EndCursor),
+		},
+	}
+}
+
 func convertToMinimalIssueComment(comment *github.IssueComment) MinimalIssueComment {
 	m := MinimalIssueComment{
 		ID:                comment.GetID(),
-		Body:              comment.GetBody(),
+		Body:              sanitize.Sanitize(comment.GetBody()),
 		HTMLURL:           comment.GetHTMLURL(),
 		User:              convertToMinimalUser(comment.GetUser()),
 		AuthorAssociation: comment.GetAuthorAssociation(),
@@ -847,7 +1064,7 @@ func convertToMinimalFileContentResponse(resp *github.RepositoryContentResponse)
 
 	m.Commit = &MinimalFileCommit{
 		SHA:     resp.Commit.GetSHA(),
-		Message: resp.Commit.GetMessage(),
+		Message: sanitize.Sanitize(resp.Commit.GetMessage()),
 		HTMLURL: resp.Commit.GetHTMLURL(),
 	}
 
@@ -867,8 +1084,8 @@ func convertToMinimalFileContentResponse(resp *github.RepositoryContentResponse)
 func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
 	m := MinimalPullRequest{
 		Number:         pr.GetNumber(),
-		Title:          pr.GetTitle(),
-		Body:           pr.GetBody(),
+		Title:          sanitize.Sanitize(pr.GetTitle()),
+		Body:           sanitize.Sanitize(pr.GetBody()),
 		State:          pr.GetState(),
 		Draft:          pr.GetDraft(),
 		Merged:         pr.GetMerged(),
@@ -952,6 +1169,42 @@ func convertToMinimalPRBranch(branch *github.PullRequestBranch) *MinimalPRBranch
 	return b
 }
 
+func convertToMinimalCombinedStatus(status *github.CombinedStatus) MinimalCombinedStatus {
+	minimalStatus := MinimalCombinedStatus{
+		Statuses: make([]MinimalRepoStatus, 0),
+	}
+	if status == nil {
+		return minimalStatus
+	}
+
+	minimalStatus.State = status.GetState()
+	minimalStatus.SHA = status.GetSHA()
+	minimalStatus.TotalCount = status.GetTotalCount()
+	minimalStatus.Statuses = make([]MinimalRepoStatus, 0, len(status.GetStatuses()))
+	for _, repoStatus := range status.GetStatuses() {
+		if repoStatus != nil {
+			minimalStatus.Statuses = append(minimalStatus.Statuses, convertToMinimalRepoStatus(repoStatus))
+		}
+	}
+
+	return minimalStatus
+}
+
+func convertToMinimalRepoStatus(status *github.RepoStatus) MinimalRepoStatus {
+	if status == nil {
+		return MinimalRepoStatus{}
+	}
+
+	return MinimalRepoStatus{
+		State:       status.GetState(),
+		Context:     status.GetContext(),
+		Description: status.GetDescription(),
+		TargetURL:   status.GetTargetURL(),
+		CreatedAt:   formatMinimalTimestamp(status.CreatedAt),
+		UpdatedAt:   formatMinimalTimestamp(status.UpdatedAt),
+	}
+}
+
 func convertToMinimalProject(fullProject *github.ProjectV2) *MinimalProject {
 	if fullProject == nil {
 		return nil
@@ -1026,7 +1279,7 @@ func convertIssueToMinimalProjectItemContent(issue *github.Issue) *MinimalProjec
 		ID:          issue.GetID(),
 		NodeID:      issue.GetNodeID(),
 		Number:      issue.GetNumber(),
-		Title:       issue.GetTitle(),
+		Title:       sanitize.Sanitize(issue.GetTitle()),
 		State:       issue.GetState(),
 		StateReason: issue.GetStateReason(),
 		HTMLURL:     issue.GetHTMLURL(),
@@ -1063,7 +1316,7 @@ func convertPullRequestToMinimalProjectItemContent(pr *github.PullRequest) *Mini
 		ID:         pr.GetID(),
 		NodeID:     pr.GetNodeID(),
 		Number:     pr.GetNumber(),
-		Title:      pr.GetTitle(),
+		Title:      sanitize.Sanitize(pr.GetTitle()),
 		State:      pr.GetState(),
 		HTMLURL:    pr.GetHTMLURL(),
 		Repository: pullRequestRepositoryFullName(pr),
@@ -1100,7 +1353,7 @@ func convertDraftIssueToMinimalProjectItemContent(draftIssue *github.ProjectV2Dr
 	m := &MinimalProjectItemContent{
 		ID:        draftIssue.GetID(),
 		NodeID:    draftIssue.GetNodeID(),
-		Title:     draftIssue.GetTitle(),
+		Title:     sanitize.Sanitize(draftIssue.GetTitle()),
 		CreatedAt: formatProjectTimestamp(draftIssue.CreatedAt),
 		UpdatedAt: formatProjectTimestamp(draftIssue.UpdatedAt),
 	}
@@ -1359,7 +1612,7 @@ func minimalProjectPullRequestRefFromPullRequest(pr *github.PullRequest) minimal
 	}
 	return minimalProjectPullRequestRef{
 		Number:     pr.GetNumber(),
-		Title:      pr.GetTitle(),
+		Title:      sanitize.Sanitize(pr.GetTitle()),
 		State:      pr.GetState(),
 		HTMLURL:    pr.GetHTMLURL(),
 		Repository: pullRequestRepositoryFullName(pr),
@@ -1381,7 +1634,7 @@ func minimalProjectPullRequestRefFromMap(value map[string]any) minimalProjectPul
 
 	return minimalProjectPullRequestRef{
 		Number:     intFromAny(value["number"]),
-		Title:      stringFromMap(value, "title"),
+		Title:      sanitize.Sanitize(stringFromMap(value, "title")),
 		State:      stringFromMap(value, "state"),
 		HTMLURL:    htmlURL,
 		Repository: repository,
@@ -1541,7 +1794,7 @@ func newMinimalCommitFromCore(sha, htmlURL string, commit *github.Commit, author
 
 	if commit != nil {
 		minimalCommit.Commit = &MinimalCommitInfo{
-			Message: commit.GetMessage(),
+			Message: sanitize.Sanitize(commit.GetMessage()),
 		}
 
 		if commit.Author != nil {
@@ -1744,7 +1997,7 @@ func convertToMinimalPullRequestCommits(commits []*github.RepositoryCommit) []Mi
 		}
 
 		if commit.Commit != nil {
-			minimalCommit.Message = commit.Commit.GetMessage()
+			minimalCommit.Message = sanitize.Sanitize(commit.Commit.GetMessage())
 			minimalCommit.Author = convertToMinimalCommitAuthor(commit.Commit.Author)
 		}
 
@@ -1782,8 +2035,8 @@ func convertToMinimalRelease(release *github.RepositoryRelease) MinimalRelease {
 	m := MinimalRelease{
 		ID:         release.GetID(),
 		TagName:    release.GetTagName(),
-		Name:       release.GetName(),
-		Body:       release.GetBody(),
+		Name:       sanitize.Sanitize(release.GetName()),
+		Body:       sanitize.Sanitize(release.GetBody()),
 		HTMLURL:    release.GetHTMLURL(),
 		Prerelease: release.GetPrerelease(),
 		Draft:      release.GetDraft(),
@@ -1807,6 +2060,144 @@ func convertToMinimalTag(tag *github.RepositoryTag) MinimalTag {
 	}
 
 	return m
+}
+
+func convertToMinimalWorkflowRun(workflowRun *github.WorkflowRun) MinimalWorkflowRun {
+	minimalRun := MinimalWorkflowRun{
+		ID:              workflowRun.GetID(),
+		Name:            workflowRun.GetName(),
+		DisplayTitle:    workflowRun.GetDisplayTitle(),
+		WorkflowID:      workflowRun.GetWorkflowID(),
+		RunNumber:       workflowRun.GetRunNumber(),
+		RunAttempt:      workflowRun.GetRunAttempt(),
+		Event:           workflowRun.GetEvent(),
+		Status:          workflowRun.GetStatus(),
+		Conclusion:      workflowRun.GetConclusion(),
+		HeadBranch:      workflowRun.GetHeadBranch(),
+		HeadSHA:         workflowRun.GetHeadSHA(),
+		Path:            workflowRun.GetPath(),
+		HTMLURL:         workflowRun.GetHTMLURL(),
+		Actor:           convertToMinimalUser(workflowRun.GetActor()),
+		TriggeringActor: convertToMinimalUser(workflowRun.GetTriggeringActor()),
+		CreatedAt:       formatMinimalTimestamp(workflowRun.CreatedAt),
+		UpdatedAt:       formatMinimalTimestamp(workflowRun.UpdatedAt),
+		RunStartedAt:    formatMinimalTimestamp(workflowRun.RunStartedAt),
+	}
+
+	for _, pullRequest := range workflowRun.GetPullRequests() {
+		if pullRequest != nil && pullRequest.GetNumber() != 0 {
+			minimalRun.PullRequests = append(minimalRun.PullRequests, pullRequest.GetNumber())
+		}
+	}
+
+	if headCommit := workflowRun.GetHeadCommit(); headCommit != nil && headCommit.GetMessage() != "" {
+		minimalRun.HeadCommit = &MinimalWorkflowRunHeadCommit{
+			Message: sanitize.Sanitize(headCommit.GetMessage()),
+		}
+	}
+
+	if len(workflowRun.GetReferencedWorkflows()) > 0 {
+		minimalRun.ReferencedWorkflows = make([]MinimalReferencedWorkflow, 0, len(workflowRun.ReferencedWorkflows))
+		for _, workflow := range workflowRun.GetReferencedWorkflows() {
+			if workflow != nil {
+				minimalRun.ReferencedWorkflows = append(minimalRun.ReferencedWorkflows, MinimalReferencedWorkflow{
+					Path: workflow.GetPath(),
+					SHA:  workflow.GetSHA(),
+					Ref:  workflow.GetRef(),
+				})
+			}
+		}
+	}
+
+	return minimalRun
+}
+
+func convertToMinimalWorkflowRuns(workflowRuns *github.WorkflowRuns) MinimalWorkflowRunsResult {
+	result := MinimalWorkflowRunsResult{
+		WorkflowRuns: make([]MinimalWorkflowRun, 0),
+	}
+	if workflowRuns == nil {
+		return result
+	}
+
+	result.TotalCount = workflowRuns.GetTotalCount()
+	result.WorkflowRuns = make([]MinimalWorkflowRun, 0, len(workflowRuns.WorkflowRuns))
+	for _, workflowRun := range workflowRuns.WorkflowRuns {
+		if workflowRun != nil {
+			result.WorkflowRuns = append(result.WorkflowRuns, convertToMinimalWorkflowRun(workflowRun))
+		}
+	}
+	return result
+}
+
+func convertToMinimalWorkflowJobStep(step *github.TaskStep) MinimalWorkflowJobStep {
+	return MinimalWorkflowJobStep{
+		Name:        step.GetName(),
+		Status:      step.GetStatus(),
+		Conclusion:  step.GetConclusion(),
+		Number:      step.GetNumber(),
+		StartedAt:   formatMinimalTimestamp(step.StartedAt),
+		CompletedAt: formatMinimalTimestamp(step.CompletedAt),
+	}
+}
+
+func convertToMinimalWorkflowJob(job *github.WorkflowJob) MinimalWorkflowJob {
+	minimalJob := MinimalWorkflowJob{
+		ID:              job.GetID(),
+		RunID:           job.GetRunID(),
+		Name:            job.GetName(),
+		WorkflowName:    job.GetWorkflowName(),
+		Status:          job.GetStatus(),
+		Conclusion:      job.GetConclusion(),
+		HeadBranch:      job.GetHeadBranch(),
+		HeadSHA:         job.GetHeadSHA(),
+		HTMLURL:         job.GetHTMLURL(),
+		RunAttempt:      job.GetRunAttempt(),
+		RunnerID:        job.GetRunnerID(),
+		RunnerName:      job.GetRunnerName(),
+		RunnerGroupID:   job.GetRunnerGroupID(),
+		RunnerGroupName: job.GetRunnerGroupName(),
+		Labels:          append([]string(nil), job.GetLabels()...),
+		CreatedAt:       formatMinimalTimestamp(job.CreatedAt),
+		StartedAt:       formatMinimalTimestamp(job.StartedAt),
+		CompletedAt:     formatMinimalTimestamp(job.CompletedAt),
+	}
+
+	if len(job.GetSteps()) > 0 {
+		minimalJob.Steps = make([]MinimalWorkflowJobStep, 0, len(job.Steps))
+		for _, step := range job.GetSteps() {
+			if step != nil {
+				minimalJob.Steps = append(minimalJob.Steps, convertToMinimalWorkflowJobStep(step))
+			}
+		}
+	}
+
+	return minimalJob
+}
+
+func convertToMinimalWorkflowJobs(workflowJobs *github.Jobs) MinimalWorkflowJobsResult {
+	result := MinimalWorkflowJobsResult{
+		Jobs: make([]MinimalWorkflowJob, 0),
+	}
+	if workflowJobs == nil {
+		return result
+	}
+
+	result.TotalCount = workflowJobs.GetTotalCount()
+	result.Jobs = make([]MinimalWorkflowJob, 0, len(workflowJobs.Jobs))
+	for _, job := range workflowJobs.Jobs {
+		if job != nil {
+			result.Jobs = append(result.Jobs, convertToMinimalWorkflowJob(job))
+		}
+	}
+	return result
+}
+
+func formatMinimalTimestamp(timestamp *github.Timestamp) string {
+	if timestamp == nil || timestamp.IsZero() {
+		return ""
+	}
+	return timestamp.Format(time.RFC3339)
 }
 
 // MinimalCheckRun is the trimmed output type for check run objects.
@@ -1886,7 +2277,7 @@ func convertToMinimalReviewThread(thread reviewThreadNode) MinimalReviewThread {
 
 func convertToMinimalReviewComment(c reviewCommentNode) MinimalReviewComment {
 	m := MinimalReviewComment{
-		Body:    string(c.Body),
+		Body:    sanitize.Sanitize(string(c.Body)),
 		Path:    string(c.Path),
 		Author:  string(c.Author.Login),
 		HTMLURL: c.URL.String(),

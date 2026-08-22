@@ -615,11 +615,7 @@ func Test_ListPullRequests(t *testing.T) {
 	// Verify tool definition once
 	serverTool := ListPullRequests(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	// ListPullRequests is the FeatureFlagFieldsParam-enabled variant; it owns
-	// the _ff_<flag> snapshot. The canonical list_pull_requests.snap is owned by
-	// LegacyListPullRequests (see Test_LegacyListPullRequests_Definition).
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
-	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_pull_requests", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -866,11 +862,7 @@ func Test_MergePullRequest(t *testing.T) {
 func Test_SearchPullRequests(t *testing.T) {
 	serverTool := SearchPullRequests(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	// SearchPullRequests is the FeatureFlagFieldsParam-enabled variant; it owns
-	// the _ff_<flag> snapshot. The canonical search_pull_requests.snap is owned
-	// by LegacySearchPullRequests (see Test_LegacySearchPullRequests_Definition).
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagFieldsParam, tool))
-	require.Equal(t, FeatureFlagFieldsParam, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_pull_requests", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -1442,6 +1434,8 @@ func Test_GetPullRequestCommits(t *testing.T) {
 		expectError     bool
 		expectedCommits []*github.RepositoryCommit
 		expectedErrMsg  string
+		lockdownEnabled bool
+		restPermission  string
 	}{
 		{
 			name: "successful commits fetch",
@@ -1505,16 +1499,100 @@ func Test_GetPullRequestCommits(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to get pull request commits",
 		},
+		{
+			name: "lockdown enabled - author lacks push access",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, &github.PullRequest{
+					Number: github.Ptr(42),
+					User:   &github.User{Login: github.Ptr("reader")},
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_commits",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			lockdownEnabled: true,
+			restPermission:  "read",
+			expectError:     true,
+			expectedErrMsg:  "access to pull request is restricted by lockdown mode",
+		},
+		{
+			name: "lockdown enabled - author has push access",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, &github.PullRequest{
+					Number: github.Ptr(42),
+					User:   &github.User{Login: github.Ptr("writer")},
+				}),
+				GetReposPullsCommitsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockCommits),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_commits",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			lockdownEnabled: true,
+			restPermission:  "write",
+			expectError:     false,
+			expectedCommits: mockCommits,
+		},
+		{
+			name: "lockdown enabled - trusted bot author lacks push access",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, &github.PullRequest{
+					Number: github.Ptr(42),
+					User:   &github.User{Login: github.Ptr("github-actions[bot]")},
+				}),
+				GetReposPullsCommitsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockCommits),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_commits",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			lockdownEnabled: true,
+			restPermission:  "read",
+			expectError:     false,
+			expectedCommits: mockCommits,
+		},
+		{
+			name: "lockdown enabled - pull request fetch fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_commits",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(999),
+			},
+			lockdownEnabled: true,
+			restPermission:  "read",
+			expectError:     true,
+			expectedErrMsg:  "failed to get pull request",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := mustNewGHClient(t, tc.mockedClient)
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
+
+			var restClient *github.Client
+			if tc.lockdownEnabled {
+				restClient = mockRESTPermissionServer(t, tc.restPermission, nil)
+			}
+
 			deps := BaseDeps{
 				Client:          client,
-				RepoAccessCache: stubRepoAccessCache(nil, 5*time.Minute),
-				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+				RepoAccessCache: stubRepoAccessCache(restClient, 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled}),
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
@@ -1583,16 +1661,32 @@ func Test_GetPullRequestStatus(t *testing.T) {
 		},
 	}
 
-	// Setup mock status for success case
+	statusCreatedAt := &github.Timestamp{Time: time.Date(2026, time.August, 11, 9, 30, 0, 0, time.UTC)}
+	statusUpdatedAt := &github.Timestamp{Time: time.Date(2026, time.August, 11, 9, 35, 0, 0, time.UTC)}
 	mockStatus := &github.CombinedStatus{
+		Name:       github.Ptr("abcd1234"),
 		State:      github.Ptr("success"),
-		TotalCount: github.Ptr(3),
+		SHA:        github.Ptr("abcd1234"),
+		TotalCount: github.Ptr(2),
+		CommitURL:  github.Ptr("https://api.github.com/repos/owner/repo/commits/abcd1234"),
+		RepositoryURL: github.Ptr(
+			"https://api.github.com/repos/owner/repo",
+		),
 		Statuses: []*github.RepoStatus{
 			{
+				ID:          github.Ptr(int64(101)),
+				NodeID:      github.Ptr("SC_kwDOStatus101"),
+				URL:         github.Ptr("https://api.github.com/repos/owner/repo/statuses/abcd1234"),
 				State:       github.Ptr("success"),
 				Context:     github.Ptr("continuous-integration/travis-ci"),
 				Description: github.Ptr("Build succeeded"),
 				TargetURL:   github.Ptr("https://travis-ci.org/owner/repo/builds/123"),
+				AvatarURL:   github.Ptr("https://avatars.githubusercontent.com/in/123"),
+				Creator: &github.User{
+					Login: github.Ptr("ci-bot"),
+				},
+				CreatedAt: statusCreatedAt,
+				UpdatedAt: statusUpdatedAt,
 			},
 			{
 				State:       github.Ptr("success"),
@@ -1600,13 +1694,13 @@ func Test_GetPullRequestStatus(t *testing.T) {
 				Description: github.Ptr("Coverage increased"),
 				TargetURL:   github.Ptr("https://codecov.io/gh/owner/repo/pull/42"),
 			},
-			{
-				State:       github.Ptr("success"),
-				Context:     github.Ptr("lint/golangci-lint"),
-				Description: github.Ptr("No issues found"),
-				TargetURL:   github.Ptr("https://golangci.com/r/owner/repo/pull/42"),
-			},
 		},
+	}
+	emptyStatus := &github.CombinedStatus{
+		State:      github.Ptr("pending"),
+		SHA:        github.Ptr("abcd1234"),
+		TotalCount: github.Ptr(0),
+		Statuses:   []*github.RepoStatus{nil},
 	}
 
 	tests := []struct {
@@ -1614,11 +1708,11 @@ func Test_GetPullRequestStatus(t *testing.T) {
 		mockedClient   *http.Client
 		requestArgs    map[string]any
 		expectError    bool
-		expectedStatus *github.CombinedStatus
+		expectedStatus *MinimalCombinedStatus
 		expectedErrMsg string
 	}{
 		{
-			name: "successful status fetch",
+			name: "successful status fetch with multiple statuses",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposPullsByOwnerByRepoByPullNumber:  mockResponse(t, http.StatusOK, mockPR),
 				GetReposCommitsStatusByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockStatus),
@@ -1629,8 +1723,46 @@ func Test_GetPullRequestStatus(t *testing.T) {
 				"repo":       "repo",
 				"pullNumber": float64(42),
 			},
-			expectError:    false,
-			expectedStatus: mockStatus,
+			expectedStatus: &MinimalCombinedStatus{
+				State:      "success",
+				SHA:        "abcd1234",
+				TotalCount: 2,
+				Statuses: []MinimalRepoStatus{
+					{
+						State:       "success",
+						Context:     "continuous-integration/travis-ci",
+						Description: "Build succeeded",
+						TargetURL:   "https://travis-ci.org/owner/repo/builds/123",
+						CreatedAt:   "2026-08-11T09:30:00Z",
+						UpdatedAt:   "2026-08-11T09:35:00Z",
+					},
+					{
+						State:       "success",
+						Context:     "codecov/patch",
+						Description: "Coverage increased",
+						TargetURL:   "https://codecov.io/gh/owner/repo/pull/42",
+					},
+				},
+			},
+		},
+		{
+			name: "successful status fetch with no statuses",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber:  mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsStatusByOwnerByRepoByRef: mockResponse(t, http.StatusOK, emptyStatus),
+			}),
+			requestArgs: map[string]any{
+				"method":     "get_status",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectedStatus: &MinimalCombinedStatus{
+				State:      "pending",
+				SHA:        "abcd1234",
+				TotalCount: 0,
+				Statuses:   []MinimalRepoStatus{},
+			},
 		},
 		{
 			name: "PR fetch fails",
@@ -1699,20 +1831,33 @@ func Test_GetPullRequestStatus(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedStatus github.CombinedStatus
+			var returnedStatus MinimalCombinedStatus
 			err = json.Unmarshal([]byte(textContent.Text), &returnedStatus)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedStatus.State, *returnedStatus.State)
-			assert.Equal(t, *tc.expectedStatus.TotalCount, *returnedStatus.TotalCount)
-			assert.Len(t, returnedStatus.Statuses, len(tc.expectedStatus.Statuses))
-			for i, status := range returnedStatus.Statuses {
-				assert.Equal(t, *tc.expectedStatus.Statuses[i].State, *status.State)
-				assert.Equal(t, *tc.expectedStatus.Statuses[i].Context, *status.Context)
-				assert.Equal(t, *tc.expectedStatus.Statuses[i].Description, *status.Description)
+			assert.Equal(t, *tc.expectedStatus, returnedStatus)
+
+			expectedJSON, err := json.Marshal(tc.expectedStatus)
+			require.NoError(t, err)
+			assert.JSONEq(t, string(expectedJSON), textContent.Text)
+
+			var payload map[string]any
+			require.NoError(t, json.Unmarshal([]byte(textContent.Text), &payload))
+			assert.NotContains(t, payload, "name")
+			assert.NotContains(t, payload, "commit_url")
+			assert.NotContains(t, payload, "repository_url")
+
+			statuses, ok := payload["statuses"].([]any)
+			require.True(t, ok)
+			for _, status := range statuses {
+				statusPayload, ok := status.(map[string]any)
+				require.True(t, ok)
+				assert.NotContains(t, statusPayload, "id")
+				assert.NotContains(t, statusPayload, "node_id")
+				assert.NotContains(t, statusPayload, "url")
+				assert.NotContains(t, statusPayload, "avatar_url")
+				assert.NotContains(t, statusPayload, "creator")
 			}
 		})
 	}
@@ -4153,6 +4298,13 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 	}
 	replyCreatedAfterReactionFailure := &atomic.Bool{}
 
+	assertMinimalResponse := func(t *testing.T, response map[string]any, expectedID, expectedURL string) {
+		t.Helper()
+		assert.Len(t, response, 2)
+		assert.Equal(t, expectedID, response["id"])
+		assert.Equal(t, expectedURL, response["url"])
+	}
+
 	tests := []struct {
 		name               string
 		mockedClient       *http.Client
@@ -4362,14 +4514,29 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 				return
 			}
 
-			// Parse the result and verify it's not an error
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
-			if _, ok := tc.requestArgs["body"]; ok {
-				assert.Contains(t, textContent.Text, "This is a reply to the comment")
-			}
-			if _, ok := tc.requestArgs["reaction"]; ok {
-				assert.Contains(t, textContent.Text, "789")
+
+			var response map[string]any
+			require.NoError(t, json.Unmarshal([]byte(textContent.Text), &response))
+
+			_, hasBody := tc.requestArgs["body"]
+			_, hasReaction := tc.requestArgs["reaction"]
+			reactionURL := client.BaseURL() + "repos/owner/repo/pulls/comments/123/reactions/789"
+
+			switch {
+			case hasBody && hasReaction:
+				assert.Len(t, response, 2)
+				commentResponse, ok := response["comment"].(map[string]any)
+				require.True(t, ok)
+				assertMinimalResponse(t, commentResponse, "456", "https://github.com/owner/repo/pull/42#discussion_r456")
+				reactionResponse, ok := response["reaction"].(map[string]any)
+				require.True(t, ok)
+				assertMinimalResponse(t, reactionResponse, "789", reactionURL)
+			case hasBody:
+				assertMinimalResponse(t, response, "456", "https://github.com/owner/repo/pull/42#discussion_r456")
+			default:
+				assertMinimalResponse(t, response, "789", reactionURL)
 			}
 		})
 	}

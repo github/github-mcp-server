@@ -17,7 +17,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
-	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -132,7 +131,7 @@ Possible options:
 				result, err := GetPullRequestFiles(ctx, client, deps, owner, repo, pullNumber, pagination)
 				return attachIFC(result), nil, err
 			case "get_commits":
-				result, err := GetPullRequestCommits(ctx, client, owner, repo, pullNumber, pagination)
+				result, err := GetPullRequestCommits(ctx, client, deps, owner, repo, pullNumber, pagination)
 				return attachIFC(result), nil, err
 			case "get_review_comments":
 				gqlClient, err := deps.GetGQLClient(ctx)
@@ -183,16 +182,6 @@ func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDepende
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
-	}
-
-	// sanitize title/body on response
-	if pr != nil {
-		if pr.Title != nil {
-			pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
-		}
-		if pr.Body != nil {
-			pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
-		}
 	}
 
 	if ff.LockdownMode {
@@ -307,7 +296,7 @@ func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, rep
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get combined status", resp, body), nil
 	}
 
-	r, err := json.Marshal(status)
+	r, err := json.Marshal(convertToMinimalCombinedStatus(status))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
@@ -412,7 +401,14 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, deps ToolDe
 	return MarshalledTextResult(minimalFiles), nil
 }
 
-func GetPullRequestCommits(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+// GetPullRequestCommits returns the commits on a pull request. Under lockdown
+// mode it checks the PR author once rather than per commit, since every
+// commit on the PR belongs to the same untrusted head branch.
+func GetPullRequestCommits(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	if restricted, err := enforcePullRequestLockdown(ctx, client, deps, owner, repo, pullNumber); restricted != nil || err != nil {
+		return restricted, err
+	}
+
 	opts := &github.ListOptions{
 		PerPage: pagination.PerPage,
 		Page:    pagination.Page,
@@ -777,10 +773,10 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			newPR := &github.NewPullRequest{
+			newPR := &github.CreatePullRequest{
 				Title: github.Ptr(title),
-				Head:  github.Ptr(head),
-				Base:  github.Ptr(base),
+				Head:  head,
+				Base:  base,
 			}
 
 			if body != "" {
@@ -794,7 +790,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
-			pr, resp, err := client.PullRequests.Create(ctx, owner, repo, newPR)
+			pr, resp, err := client.PullRequests.Create(ctx, owner, repo, *newPR)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to create pull request",
@@ -1281,10 +1277,9 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 				}
 			}
 
-			var comment *github.PullRequestComment
+			var commentResponse *MinimalResponse
 			if hasBody {
-				var resp *github.Response
-				comment, resp, err = client.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, pullNumber, body, commentID)
+				comment, resp, err := client.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, pullNumber, body, commentID)
 				if err != nil {
 					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reply to pull request comment", resp, err), nil, nil
 				}
@@ -1297,19 +1292,24 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 					}
 					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add reply to pull request comment", resp, bodyBytes), nil, nil
 				}
+
+				commentResponse = &MinimalResponse{
+					ID:  fmt.Sprintf("%d", comment.GetID()),
+					URL: comment.GetHTMLURL(),
+				}
 			}
 
 			var result any
 			switch {
 			case hasBody && hasReaction:
-				result = map[string]any{
-					"comment":  comment,
-					"reaction": reactionResponse,
+				result = map[string]MinimalResponse{
+					"comment":  *commentResponse,
+					"reaction": *reactionResponse,
 				}
 			case hasReaction:
 				result = reactionResponse
 			default:
-				result = comment
+				result = commentResponse
 			}
 
 			r, err := json.Marshal(result)
@@ -1322,34 +1322,7 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 }
 
 // ListPullRequests creates a tool to list pull requests in a GitHub repository.
-// It is the FeatureFlagFieldsParam-enabled variant: it advertises the optional
-// `fields` parameter and filters each pull request to the requested subset. Both
-// this and LegacyListPullRequests register under the tool name
-// "list_pull_requests"; exactly one is active for any given request thanks to
-// mutually exclusive FeatureFlagEnable / FeatureFlagDisable annotations.
 func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := listPullRequestsTool(t, true)
-	st.FeatureFlagEnable = FeatureFlagFieldsParam
-	return st
-}
-
-// LegacyListPullRequests is the FeatureFlagFieldsParam-disabled variant of
-// list_pull_requests. It exposes the original schema (no `fields` parameter) and
-// never filters results, so it acts as the kill switch when the flag is off. It
-// owns the canonical list_pull_requests.snap; the flag-enabled variant owns
-// list_pull_requests_ff_<flag>.snap. Delete this function when the flag is
-// removed.
-func LegacyListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := listPullRequestsTool(t, false)
-	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
-	return st
-}
-
-// listPullRequestsTool builds the list_pull_requests tool. When includeFields is
-// true the tool advertises the optional `fields` parameter, filters each pull
-// request to the requested subset, and emits fields telemetry. When false it is
-// the original tool with no fields parameter and no filtering.
-func listPullRequestsTool(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1387,12 +1360,10 @@ func listPullRequestsTool(t translations.TranslationHelperFunc, includeFields bo
 		},
 		Required: []string{"owner", "repo"},
 	}
-	if includeFields {
-		schema.Properties["fields"] = fieldsSchemaProperty(
-			"Subset of fields to return for each pull request. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' in particular drops the largest per-result data.",
-			listPullRequestsItemFieldEnum,
-		)
-	}
+	schema.Properties["fields"] = fieldsSchemaProperty(
+		"Subset of fields to return for each pull request. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' in particular drops the largest per-result data.",
+		listPullRequestsItemFieldEnum,
+	)
 	WithPagination(schema)
 
 	return NewTool(
@@ -1436,12 +1407,9 @@ func listPullRequestsTool(t translations.TranslationHelperFunc, includeFields bo
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			var fields []string
-			if includeFields {
-				fields, err = OptionalStringArrayParam(args, "fields")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
+			fields, err := OptionalStringArrayParam(args, "fields")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
@@ -1482,19 +1450,6 @@ func listPullRequestsTool(t translations.TranslationHelperFunc, includeFields bo
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list pull requests", resp, bodyBytes), nil, nil
 			}
 
-			// sanitize title/body on each PR
-			for _, pr := range prs {
-				if pr == nil {
-					continue
-				}
-				if pr.Title != nil {
-					pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
-				}
-				if pr.Body != nil {
-					pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
-				}
-			}
-
 			minimalPRs := make([]MinimalPullRequest, 0, len(prs))
 			for _, pr := range prs {
 				if pr != nil {
@@ -1504,7 +1459,7 @@ func listPullRequestsTool(t translations.TranslationHelperFunc, includeFields bo
 
 			filtered := false
 			var payload any = minimalPRs
-			if includeFields && len(fields) > 0 {
+			if len(fields) > 0 {
 				filteredPRs, err := filterEachField(minimalPRs, fields)
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to filter pull requests", err), nil, nil
@@ -1518,9 +1473,7 @@ func listPullRequestsTool(t translations.TranslationHelperFunc, includeFields bo
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			if includeFields {
-				recordFieldsUsageFor(ctx, deps, "list_pull_requests", minimalPRs, filtered, len(r))
-			}
+			recordFieldsUsageFor(ctx, deps, "list_pull_requests", minimalPRs, filtered, len(r))
 
 			result := utils.NewToolResultText(string(r))
 			// Pull request titles/bodies are user-authored (untrusted);
@@ -1639,35 +1592,8 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 		})
 }
 
-// SearchPullRequests creates a tool to search for pull requests. It is the
-// FeatureFlagFieldsParam-enabled variant: it advertises the optional `fields`
-// parameter and filters each result to the requested subset. Both this and
-// LegacySearchPullRequests register under the tool name "search_pull_requests";
-// exactly one is active for any given request thanks to mutually exclusive
-// FeatureFlagEnable / FeatureFlagDisable annotations.
+// SearchPullRequests creates a tool to search for pull requests.
 func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := searchPullRequestsTool(t, true)
-	st.FeatureFlagEnable = FeatureFlagFieldsParam
-	return st
-}
-
-// LegacySearchPullRequests is the FeatureFlagFieldsParam-disabled variant of
-// search_pull_requests. It exposes the original schema (no `fields` parameter)
-// and never filters results, so it acts as the kill switch when the flag is off.
-// It owns the canonical search_pull_requests.snap; the flag-enabled variant owns
-// search_pull_requests_ff_<flag>.snap. Delete this function when the flag is
-// removed.
-func LegacySearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := searchPullRequestsTool(t, false)
-	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
-	return st
-}
-
-// searchPullRequestsTool builds the search_pull_requests tool. When
-// includeFields is true the tool advertises the optional `fields` parameter,
-// filters each result to the requested subset, and emits fields telemetry. When
-// false it is the original tool with no fields parameter and no filtering.
-func searchPullRequestsTool(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1708,12 +1634,10 @@ func searchPullRequestsTool(t translations.TranslationHelperFunc, includeFields 
 		},
 		Required: []string{"query"},
 	}
-	if includeFields {
-		schema.Properties["fields"] = fieldsSchemaProperty(
-			"Subset of fields to return for each pull request result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data.",
-			searchPullRequestsItemFieldEnum,
-		)
-	}
+	schema.Properties["fields"] = fieldsSchemaProperty(
+		"Subset of fields to return for each pull request result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data.",
+		searchPullRequestsItemFieldEnum,
+	)
 	WithPagination(schema)
 
 	return NewTool(
@@ -1730,13 +1654,11 @@ func searchPullRequestsTool(t translations.TranslationHelperFunc, includeFields 
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			options := []searchOption{ifcSearchPostProcessOption(ctx, deps)}
-			if includeFields {
-				fields, err := OptionalStringArrayParam(args, "fields")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				options = append(options, withFieldsFiltering(deps, "search_pull_requests", fields))
+			fields, err := OptionalStringArrayParam(args, "fields")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			options = append(options, withFieldsFiltering(deps, "search_pull_requests", fields))
 			result, err := searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests", options...)
 			return result, nil, err
 		})

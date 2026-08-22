@@ -10,11 +10,13 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
+	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -133,33 +135,8 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 }
 
 // ListCommits creates a tool to get the list of commits of a branch in a GitHub
-// repository. It is the FeatureFlagFieldsParam-enabled variant: it advertises
-// the optional `fields` parameter and filters each commit to the requested
-// subset. Both this and LegacyListCommits register under the tool name
-// "list_commits"; exactly one is active for any given request thanks to mutually
-// exclusive FeatureFlagEnable / FeatureFlagDisable annotations.
+// repository.
 func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := listCommitsTool(t, true)
-	st.FeatureFlagEnable = FeatureFlagFieldsParam
-	return st
-}
-
-// LegacyListCommits is the FeatureFlagFieldsParam-disabled variant of
-// list_commits. It exposes the original schema (no `fields` parameter) and never
-// filters results, so it acts as the kill switch when the flag is off. It owns
-// the canonical list_commits.snap; the flag-enabled variant owns
-// list_commits_ff_<flag>.snap. Delete this function when the flag is removed.
-func LegacyListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := listCommitsTool(t, false)
-	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
-	return st
-}
-
-// listCommitsTool builds the list_commits tool. When includeFields is true the
-// tool advertises the optional `fields` parameter, filters each commit to the
-// requested subset, and emits fields telemetry. When false it is the original
-// tool with no fields parameter and no filtering.
-func listCommitsTool(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -194,12 +171,10 @@ func listCommitsTool(t translations.TranslationHelperFunc, includeFields bool) i
 		},
 		Required: []string{"owner", "repo"},
 	}
-	if includeFields {
-		schema.Properties["fields"] = fieldsSchemaProperty(
-			"Subset of fields to return for each commit. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields, e.g. just 'sha' and 'html_url'.",
-			listCommitsItemFieldEnum,
-		)
-	}
+	schema.Properties["fields"] = fieldsSchemaProperty(
+		"Subset of fields to return for each commit. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields, e.g. just 'sha' and 'html_url'.",
+		listCommitsItemFieldEnum,
+	)
 	WithPagination(schema)
 
 	return NewTool(
@@ -235,12 +210,9 @@ func listCommitsTool(t translations.TranslationHelperFunc, includeFields bool) i
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			var fields []string
-			if includeFields {
-				fields, err = OptionalStringArrayParam(args, "fields")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
+			fields, err := OptionalStringArrayParam(args, "fields")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			sinceStr, err := OptionalParam[string](args, "since")
 			if err != nil {
@@ -313,7 +285,7 @@ func listCommitsTool(t translations.TranslationHelperFunc, includeFields bool) i
 
 			filtered := false
 			var payload any = minimalCommits
-			if includeFields && len(fields) > 0 {
+			if len(fields) > 0 {
 				filteredCommits, err := filterEachField(minimalCommits, fields)
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to filter commits", err), nil, nil
@@ -327,9 +299,7 @@ func listCommitsTool(t translations.TranslationHelperFunc, includeFields bool) i
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			if includeFields {
-				recordFieldsUsageFor(ctx, deps, "list_commits", minimalCommits, filtered, len(r))
-			}
+			recordFieldsUsageFor(ctx, deps, "list_commits", minimalCommits, filtered, len(r))
 
 			result := utils.NewToolResultText(string(r))
 			// Commit content is reachable from the repo's history; integrity
@@ -468,7 +438,7 @@ SHA MUST be provided for existing file updates.
 					},
 					"content": {
 						Type:        "string",
-						Description: "Content of the file",
+						Description: "Content of the file, exactly as it should appear once written. Do not base64-encode it; this server does that before calling the REST API.",
 					},
 					"message": {
 						Type:        "string",
@@ -481,6 +451,11 @@ SHA MUST be provided for existing file updates.
 					"sha": {
 						Type:        "string",
 						Description: "The blob SHA of the file being replaced. Required if the file already exists.",
+					},
+					"allow_symlink_write": {
+						Type:        "boolean",
+						Description: "Set true to update a symbolic link itself; content must be its new target path.",
+						Default:     json.RawMessage("false"),
 					},
 				},
 				Required: []string{"owner", "repo", "path", "content", "message", "branch"},
@@ -532,6 +507,11 @@ SHA MUST be provided for existing file updates.
 				opts.SHA = github.Ptr(sha)
 			}
 
+			allowSymlinkWrite, err := OptionalParam[bool](args, "allow_symlink_write")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
 			// Create or update the file
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -571,6 +551,22 @@ SHA MUST be provided for existing file updates.
 							"SHA mismatch: provided SHA %s is stale. Current file SHA is %s. "+
 								"Pull the latest changes and use git rev-parse %s:%s to get the current SHA.",
 							sha, currentSHA, branch, path)), nil, nil
+					}
+					if !allowSymlinkWrite {
+						if existingFile.GetType() == "symlink" {
+							return newSymlinkWriteBlockedResult(path, existingFile.GetTarget()), nil, nil
+						}
+						symlinkTarget, isSymlink, respTree, err := symlinkTargetAtPath(ctx, client, owner, repo, branch, path)
+						if err != nil {
+							return ghErrors.NewGitHubAPIErrorResponse(ctx,
+								"failed to verify whether file path is a symbolic link",
+								respTree,
+								err,
+							), nil, nil
+						}
+						if isSymlink {
+							return newSymlinkWriteBlockedResult(path, symlinkTarget), nil, nil
+						}
 					}
 				}
 			} else {
@@ -736,6 +732,199 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 	)
 }
 
+const (
+	DeleteRepositoryToolName          = "delete_repository"
+	deleteRepositoryConfirmationID    = "delete_repository_confirmation"
+	deleteRepositoryConfirmationField = "repository_name"
+	deleteRepositoryConfirmationTTL   = 10 * time.Minute
+)
+
+type deleteRepositoryState struct {
+	Owner        string `json:"owner"`
+	Repo         string `json:"repo"`
+	RepositoryID int64  `json:"repository_id"`
+	ExpiresAt    int64  `json:"expires_at"`
+}
+
+// DeleteRepository creates a tool that deletes a GitHub repository after the
+// user confirms its full name through elicitation.
+func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
+	tool := NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        DeleteRepositoryToolName,
+			Description: t("TOOL_DELETE_REPOSITORY_DESCRIPTION", "Delete a GitHub repository after the user confirms the exact owner/repository name"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_DELETE_REPOSITORY_USER_TITLE", "Delete repository"),
+				ReadOnlyHint:    false,
+				DestructiveHint: github.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+				},
+				Required: []string{"owner", "repo"},
+			},
+		},
+		[]scopes.Scope{scopes.DeleteRepo, scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			fullName := owner + "/" + repo
+			sealer := requestStateSealerFromDeps(deps)
+			if sealer == nil {
+				return utils.NewToolResultError("Repository deletion is unavailable because request-state protection is not configured."), nil, nil
+			}
+			var deletionState deleteRepositoryState
+			var responses mcp.InputResponseMap
+			if req != nil && req.Params != nil {
+				responses = req.Params.InputResponses
+			}
+			response, ok := responses[deleteRepositoryConfirmationID]
+			if !ok {
+				client, err := deps.GetClient(ctx)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				}
+				repositoryID, result := repositoryIDForDeletion(ctx, client, owner, repo)
+				if result != nil {
+					return result, nil, nil
+				}
+				state, err := json.Marshal(deleteRepositoryState{
+					Owner:        owner,
+					Repo:         repo,
+					RepositoryID: repositoryID,
+					ExpiresAt:    time.Now().Add(deleteRepositoryConfirmationTTL).Unix(),
+				})
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to marshal repository deletion state: %w", err)
+				}
+				requestState, err := sealer.Seal(ctx, state)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to seal repository deletion state: %w", err)
+				}
+				return &mcp.CallToolResult{
+					InputRequests: mcp.InputRequestMap{
+						deleteRepositoryConfirmationID: &mcp.ElicitParams{
+							Mode:    "form",
+							Message: fmt.Sprintf("Type %q to confirm permanent deletion of this repository.", fullName),
+							RequestedSchema: &jsonschema.Schema{
+								Type: "object",
+								Properties: map[string]*jsonschema.Schema{
+									deleteRepositoryConfirmationField: {
+										Type:        "string",
+										Title:       "Repository name",
+										Description: fmt.Sprintf("Enter %s exactly to confirm deletion", fullName),
+									},
+								},
+								Required: []string{deleteRepositoryConfirmationField},
+							},
+						},
+					},
+					RequestState: requestState,
+				}, nil, nil
+			}
+
+			if req.Params.RequestState == "" {
+				return utils.NewToolResultError("Repository deletion confirmation state was missing. The repository was not deleted."), nil, nil
+			}
+			stateJSON, err := sealer.Open(req.Params.RequestState)
+			if err != nil {
+				return utils.NewToolResultError("Repository deletion confirmation state was invalid. The repository was not deleted."), nil, nil
+			}
+			if err := json.Unmarshal(stateJSON, &deletionState); err != nil {
+				return utils.NewToolResultError("Repository deletion confirmation state was invalid. The repository was not deleted."), nil, nil
+			}
+			if deletionState.Owner != owner || deletionState.Repo != repo {
+				return utils.NewToolResultError("Repository deletion target changed after confirmation was requested. The repository was not deleted."), nil, nil
+			}
+			if deletionState.ExpiresAt <= time.Now().Unix() {
+				return utils.NewToolResultError("Repository deletion confirmation expired. The repository was not deleted."), nil, nil
+			}
+			if deletionState.RepositoryID == 0 {
+				return utils.NewToolResultError("Repository deletion confirmation state was invalid. The repository was not deleted."), nil, nil
+			}
+
+			confirmation, ok := response.(*mcp.ElicitResult)
+			if !ok {
+				return utils.NewToolResultError("Repository deletion confirmation was invalid. The repository was not deleted."), nil, nil
+			}
+			if confirmation.Action != "accept" {
+				return utils.NewToolResultError("Repository deletion was not confirmed. The repository was not deleted."), nil, nil
+			}
+			confirmedName, ok := confirmation.Content[deleteRepositoryConfirmationField].(string)
+			if !ok || confirmedName != fullName {
+				return utils.NewToolResultError(fmt.Sprintf("Repository name confirmation did not match %q. The repository was not deleted.", fullName)), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+			currentRepositoryID, result := repositoryIDForDeletion(ctx, client, owner, repo)
+			if result != nil {
+				return result, nil, nil
+			}
+			if currentRepositoryID != deletionState.RepositoryID {
+				return utils.NewToolResultError("Repository identity changed after confirmation was requested. The repository was not deleted."), nil, nil
+			}
+			resp, err := client.Repositories.Delete(ctx, owner, repo)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					fmt.Sprintf("failed to delete repository: %s", fullName),
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusNoContent {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to delete repository", resp, body), nil, nil
+			}
+
+			return utils.NewToolResultText(fmt.Sprintf("Repository %s was deleted.", fullName)), nil, nil
+		},
+	)
+	tool.MinimumProtocolVersion = inventory.ProtocolVersionMultiRoundTrip
+	tool.RequiredElicitationMode = inventory.ElicitationModeForm
+	tool.RequiredScopeGroups = scopes.ExpandScopeGroups(scopes.DeleteRepo, scopes.Repo)
+	return tool
+}
+
+func repositoryIDForDeletion(ctx context.Context, client *github.Client, owner, repo string) (int64, *mcp.CallToolResult) {
+	repository, resp, err := client.Repositories.Get(ctx, owner, repo)
+	if err != nil {
+		return 0, ghErrors.NewGitHubAPIErrorResponse(ctx,
+			fmt.Sprintf("failed to get repository: %s/%s", owner, repo),
+			resp,
+			err,
+		)
+	}
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+	return repository.GetID(), nil
+}
+
 // FetchRepoIsPrivate returns whether a repository is private. It is a thin
 // wrapper around the GitHub Repositories.Get endpoint provided as a shared
 // helper for IFC label computation across tools.
@@ -751,34 +940,8 @@ func FetchRepoIsPrivate(ctx context.Context, client *github.Client, owner, repo 
 }
 
 // GetFileContents creates a tool to get the contents of a file or directory from
-// a GitHub repository. It is the FeatureFlagFieldsParam-enabled variant: it
-// advertises the optional `fields` parameter and filters directory listings to
-// the requested subset. Both this and LegacyGetFileContents register under the
-// tool name "get_file_contents"; exactly one is active for any given request
-// thanks to mutually exclusive FeatureFlagEnable / FeatureFlagDisable annotations.
+// a GitHub repository.
 func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := getFileContentsTool(t, true)
-	st.FeatureFlagEnable = FeatureFlagFieldsParam
-	return st
-}
-
-// LegacyGetFileContents is the FeatureFlagFieldsParam-disabled variant of
-// get_file_contents. It exposes the original schema (no `fields` parameter) and
-// never filters directory listings, so it acts as the kill switch when the flag
-// is off. It owns the canonical get_file_contents.snap; the flag-enabled variant
-// owns get_file_contents_ff_<flag>.snap. Delete this function when the flag is
-// removed.
-func LegacyGetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := getFileContentsTool(t, false)
-	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
-	return st
-}
-
-// getFileContentsTool builds the get_file_contents tool. When includeFields is
-// true the tool advertises the optional `fields` parameter, filters directory
-// listings to the requested subset, and emits fields telemetry. When false it is
-// the original tool with no fields parameter and no filtering.
-func getFileContentsTool(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -806,12 +969,10 @@ func getFileContentsTool(t translations.TranslationHelperFunc, includeFields boo
 		},
 		Required: []string{"owner", "repo"},
 	}
-	if includeFields {
-		schema.Properties["fields"] = fieldsSchemaProperty(
-			"Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'.",
-			fileContentFieldEnum,
-		)
-	}
+	schema.Properties["fields"] = fieldsSchemaProperty(
+		"Subset of fields to return for each entry when the path is a directory. If omitted, all fields are returned. Ignored when the path is a single file. Use this to reduce response size when listing directories and you only need specific fields, e.g. just 'name' and 'type'.",
+		fileContentFieldEnum,
+	)
 
 	return NewTool(
 		ToolsetMetadataRepos,
@@ -852,12 +1013,9 @@ func getFileContentsTool(t translations.TranslationHelperFunc, includeFields boo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			var fields []string
-			if includeFields {
-				fields, err = OptionalStringArrayParam(args, "fields")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
+			fields, err := OptionalStringArrayParam(args, "fields")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -914,23 +1072,39 @@ func getFileContentsTool(t translations.TranslationHelperFunc, includeFields boo
 				if fallbackUsed {
 					successNote = fmt.Sprintf(" Note: the provided ref '%s' does not exist, default branch '%s' was used instead.", originalRef, rawOpts.Ref)
 				}
+				const maxContentSize = 1024 * 1024 // 1MB
+
+				read, respInspect, err := inspectRepositoryFile(ctx, client, owner, repo, ref, path, fileContent)
+				if err != nil {
+					if respInspect != nil {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to inspect repository file", respInspect, err), nil, nil
+					}
+					return utils.NewToolResultError(fmt.Sprintf("failed to inspect repository file: %s", err)), nil, nil
+				}
+				if read.Metadata != nil && read.Metadata.Type == "submodule" {
+					return attachIFC(utils.NewToolResultText(marshalRepositoryPathMetadata(read.Metadata, "", successNote))), nil, nil
+				}
+				if read.Metadata != nil && fileContent.GetType() == "symlink" && !read.ContentAvailable {
+					return attachIFC(utils.NewToolResultText(marshalRepositoryPathMetadata(read.Metadata, "not_returned", successNote))), nil, nil
+				}
 
 				// Empty files (0 bytes) have no content to decode; return
 				// them directly as empty text to avoid errors from
 				// GetContent when the API returns null content with a
 				// base64 encoding field, and to avoid DetectContentType
 				// misclassifying them as binary.
-				if fileSize == 0 {
+				if read.ContentAvailable && len(read.Content) == 0 {
 					result := &mcp.ResourceContents{
 						URI:      resourceURI,
 						Text:     "",
 						MIMEType: "text/plain",
 					}
-					return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded empty file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
+					message := fmt.Sprintf("successfully downloaded empty file (SHA: %s)%s", fileSHA, successNote)
+					message = repositoryReadMessage(read, message, successNote)
+					return attachIFC(utils.NewToolResultResource(message, result)), nil, nil
 				}
 
 				// For files >= 1MB, return a ResourceLink instead of content
-				const maxContentSize = 1024 * 1024 // 1MB
 				if fileSize >= maxContentSize {
 					size := int64(fileSize)
 					resourceLink := &mcp.ResourceLink{
@@ -939,22 +1113,25 @@ func getFileContentsTool(t translations.TranslationHelperFunc, includeFields boo
 						Title: fmt.Sprintf("File: %s", path),
 						Size:  &size,
 					}
+					message := fmt.Sprintf("File %s is too large to display (%d bytes). Use the download URL to fetch the content: %s (SHA: %s)%s",
+						path, fileSize, fileContent.GetDownloadURL(), fileSHA, successNote)
+					if read.Metadata != nil {
+						resourceLink.Title = fmt.Sprintf("Dereferenced target %s via symlink %s", read.Metadata.ResolvedTargetPath, path)
+					}
+					message = repositoryReadMessage(read, message, successNote)
 					return attachIFC(utils.NewToolResultResourceLink(
-						fmt.Sprintf("File %s is too large to display (%d bytes). Use the download URL to fetch the content: %s (SHA: %s)%s",
-							path, fileSize, fileContent.GetDownloadURL(), fileSHA, successNote),
+						message,
 						resourceLink)), nil, nil
 				}
 
-				// For files < 1MB, get content directly from Contents API
-				content, err := fileContent.GetContent()
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("failed to decode file content: %s", err)), nil, nil
+				if !read.ContentAvailable {
+					return utils.NewToolResultError("failed to inspect repository file: content unavailable"), nil, nil
 				}
 
 				// Detect content type from the actual content bytes,
 				// mirroring the original approach of using the Content-Type header
 				// from the raw API response.
-				contentBytes := []byte(content)
+				contentBytes := read.Content
 				contentType := http.DetectContentType(contentBytes)
 
 				// Determine if content is text or binary based on detected content type
@@ -967,25 +1144,27 @@ func getFileContentsTool(t translations.TranslationHelperFunc, includeFields boo
 				if isTextContent {
 					result := &mcp.ResourceContents{
 						URI:      resourceURI,
-						Text:     content,
+						Text:     string(contentBytes),
 						MIMEType: contentType,
 					}
-					return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
+					message := fmt.Sprintf("successfully downloaded text file (SHA: %s)%s", fileSHA, successNote)
+					message = repositoryReadMessage(read, message, successNote)
+					return attachIFC(utils.NewToolResultResource(message, result)), nil, nil
 				}
 
-				// Binary content - encode as base64 blob
-				blobContent := base64.StdEncoding.EncodeToString(contentBytes)
 				result := &mcp.ResourceContents{
 					URI:      resourceURI,
-					Blob:     []byte(blobContent),
+					Blob:     contentBytes,
 					MIMEType: contentType,
 				}
-				return attachIFC(utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote), result)), nil, nil
+				message := fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote)
+				message = repositoryReadMessage(read, message, successNote)
+				return attachIFC(utils.NewToolResultResource(message, result)), nil, nil
 			} else if dirContent != nil {
 				// file content or file SHA is nil which means it's a directory
 				filtered := false
 				var payload any = dirContent
-				if includeFields && len(fields) > 0 {
+				if len(fields) > 0 {
 					filteredEntries, err := filterEachField(dirContent, fields)
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to filter directory contents", err), nil, nil
@@ -997,9 +1176,7 @@ func getFileContentsTool(t translations.TranslationHelperFunc, includeFields boo
 				if err != nil {
 					return utils.NewToolResultError("failed to marshal response"), nil, nil
 				}
-				if includeFields {
-					recordDirContentsFieldsUsage(ctx, deps, dirContent, filtered, len(r))
-				}
+				recordDirContentsFieldsUsage(ctx, deps, dirContent, filtered, len(r))
 				return attachIFC(utils.NewToolResultText(string(r))), nil, nil
 			}
 
@@ -1850,34 +2027,8 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-// ListReleases creates a tool to list releases in a GitHub repository. It is the
-// FeatureFlagFieldsParam-enabled variant: it advertises the optional `fields`
-// parameter and filters each release to the requested subset. Both this and
-// LegacyListReleases register under the tool name "list_releases"; exactly one is
-// active for any given request thanks to mutually exclusive FeatureFlagEnable /
-// FeatureFlagDisable annotations.
+// ListReleases creates a tool to list releases in a GitHub repository.
 func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := listReleasesTool(t, true)
-	st.FeatureFlagEnable = FeatureFlagFieldsParam
-	return st
-}
-
-// LegacyListReleases is the FeatureFlagFieldsParam-disabled variant of
-// list_releases. It exposes the original schema (no `fields` parameter) and never
-// filters results, so it acts as the kill switch when the flag is off. It owns
-// the canonical list_releases.snap; the flag-enabled variant owns
-// list_releases_ff_<flag>.snap. Delete this function when the flag is removed.
-func LegacyListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
-	st := listReleasesTool(t, false)
-	st.FeatureFlagDisable = []string{FeatureFlagFieldsParam}
-	return st
-}
-
-// listReleasesTool builds the list_releases tool. When includeFields is true the
-// tool advertises the optional `fields` parameter, filters each release to the
-// requested subset, and emits fields telemetry. When false it is the original
-// tool with no fields parameter and no filtering.
-func listReleasesTool(t translations.TranslationHelperFunc, includeFields bool) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1892,12 +2043,10 @@ func listReleasesTool(t translations.TranslationHelperFunc, includeFields bool) 
 		},
 		Required: []string{"owner", "repo"},
 	}
-	if includeFields {
-		schema.Properties["fields"] = fieldsSchemaProperty(
-			"Subset of fields to return for each release. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' in particular drops the largest per-release data.",
-			listReleasesItemFieldEnum,
-		)
-	}
+	schema.Properties["fields"] = fieldsSchemaProperty(
+		"Subset of fields to return for each release. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body' in particular drops the largest per-release data.",
+		listReleasesItemFieldEnum,
+	)
 	WithPagination(schema)
 
 	return NewTool(
@@ -1921,12 +2070,9 @@ func listReleasesTool(t translations.TranslationHelperFunc, includeFields bool) 
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			var fields []string
-			if includeFields {
-				fields, err = OptionalStringArrayParam(args, "fields")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
+			fields, err := OptionalStringArrayParam(args, "fields")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
@@ -1966,7 +2112,7 @@ func listReleasesTool(t translations.TranslationHelperFunc, includeFields bool) 
 
 			filtered := false
 			var payload any = minimalReleases
-			if includeFields && len(fields) > 0 {
+			if len(fields) > 0 {
 				filteredReleases, err := filterEachField(minimalReleases, fields)
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to filter releases", err), nil, nil
@@ -1980,9 +2126,7 @@ func listReleasesTool(t translations.TranslationHelperFunc, includeFields bool) 
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			if includeFields {
-				recordFieldsUsageFor(ctx, deps, "list_releases", minimalReleases, filtered, len(r))
-			}
+			recordFieldsUsageFor(ctx, deps, "list_releases", minimalReleases, filtered, len(r))
 
 			result := utils.NewToolResultText(string(r))
 			// Releases are published by collaborators with push access, so
@@ -2807,8 +2951,10 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 				}
 				headline = strings.TrimRight(headline, " \t\r")
 				bc := BlameCommit{
-					SHA:             sha,
-					MessageHeadline: headline,
+					SHA: sha,
+					// Sanitized after truncation so the headline is cut at the author's real
+					// first line break rather than one introduced by sanitization.
+					MessageHeadline: sanitize.Sanitize(headline),
 					CommittedDate:   r.Commit.CommittedDate.Format("2006-01-02T15:04:05Z"),
 					Author: BlameAuthor{
 						Name:  string(r.Commit.Author.Name),

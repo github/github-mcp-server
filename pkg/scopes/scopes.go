@@ -20,6 +20,9 @@ const (
 	// PublicRepo grants access to public repositories
 	PublicRepo Scope = "public_repo"
 
+	// DeleteRepo grants permission to delete repositories
+	DeleteRepo Scope = "delete_repo"
+
 	// ReadOrg grants read-only access to organization membership, teams, and projects
 	ReadOrg Scope = "read:org"
 
@@ -58,7 +61,54 @@ const (
 
 	// WritePackages grants write access to packages
 	WritePackages Scope = "write:packages"
+
+	// Workflow grants permission to update GitHub Actions workflow files
+	Workflow Scope = "workflow"
+
+	// Codespace grants full control of codespaces
+	Codespace Scope = "codespace"
 )
+
+type oauthScopeDefinition struct {
+	scope     Scope
+	byDefault bool
+}
+
+var oauthScopeDefinitions = []oauthScopeDefinition{
+	{scope: Repo, byDefault: true},
+	{scope: DeleteRepo},
+	{scope: ReadOrg, byDefault: true},
+	{scope: ReadUser, byDefault: true},
+	{scope: UserEmail, byDefault: true},
+	{scope: ReadPackages, byDefault: true},
+	{scope: WritePackages, byDefault: true},
+	{scope: ReadProject, byDefault: true},
+	{scope: Project, byDefault: true},
+	{scope: Gist, byDefault: true},
+	{scope: Notifications, byDefault: true},
+	{scope: Workflow},
+	{scope: Codespace},
+}
+
+// SupportedOAuthScopes returns every OAuth scope the server may request.
+func SupportedOAuthScopes() []string {
+	return oauthScopes(false)
+}
+
+// DefaultOAuthScopes returns the lower-risk scopes requested by default.
+func DefaultOAuthScopes() []string {
+	return oauthScopes(true)
+}
+
+func oauthScopes(defaultOnly bool) []string {
+	result := make([]string, 0, len(oauthScopeDefinitions))
+	for _, definition := range oauthScopeDefinitions {
+		if !defaultOnly || definition.byDefault {
+			result = append(result, string(definition.scope))
+		}
+	}
+	return result
+}
 
 // ScopeHierarchy defines parent-child relationships between scopes.
 // A parent scope implicitly grants access to all child scopes.
@@ -150,6 +200,17 @@ func ExpandScopes(required ...Scope) []string {
 	return result
 }
 
+// ExpandScopeGroups returns one accepted-scope group for each independently
+// required scope. A token must satisfy every group, while any scope within a
+// group is sufficient because parent scopes grant the same permission.
+func ExpandScopeGroups(required ...Scope) [][]string {
+	groups := make([][]string, 0, len(required))
+	for _, scope := range required {
+		groups = append(groups, ExpandScopes(scope))
+	}
+	return groups
+}
+
 // expandScopeSet returns a set of all scopes granted by the given scopes,
 // including child scopes from the hierarchy.
 // For example, if "repo" is provided, the result includes "repo", "public_repo",
@@ -192,4 +253,26 @@ func HasRequiredScopes(tokenScopes []string, acceptedScopes []string) bool {
 		}
 	}
 	return false
+}
+
+// HasRequiredScopeGroups reports whether the token satisfies every independent
+// required-scope group.
+func HasRequiredScopeGroups(tokenScopes []string, groups [][]string) bool {
+	if len(groups) == 0 {
+		return true
+	}
+	grantedScopes := expandScopeSet(tokenScopes)
+	for _, group := range groups {
+		satisfied := false
+		for _, accepted := range group {
+			if grantedScopes[accepted] {
+				satisfied = true
+				break
+			}
+		}
+		if !satisfied {
+			return false
+		}
+	}
+	return true
 }

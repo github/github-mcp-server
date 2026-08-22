@@ -54,6 +54,10 @@ func WithMCPParse() func(http.Handler) http.Handler {
 			// Read the request body
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
+				if isMaxBytesError(err) {
+					writeRequestTooLarge(w)
+					return
+				}
 				// Log but continue - don't block requests on parse errors
 				next.ServeHTTP(w, r)
 				return

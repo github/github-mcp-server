@@ -221,13 +221,13 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 
 	// OAuth scopes if present
 	if len(tool.RequiredScopes) > 0 {
-		// Scope filtering uses "any of" semantics (see scopes.HasRequiredScopes),
-		// so when multiple required scopes are listed, render them as alternatives
-		// rather than implying all are required.
 		scopeList := "`" + strings.Join(tool.RequiredScopes, "`, `") + "`"
-		if len(tool.RequiredScopes) > 1 {
+		switch {
+		case len(tool.RequiredScopeGroups) > 1:
+			fmt.Fprintf(buf, "  - **Required OAuth Scopes (all required)**: %s\n", scopeList)
+		case len(tool.RequiredScopes) > 1:
 			fmt.Fprintf(buf, "  - **Required OAuth Scopes (any of)**: %s\n", scopeList)
-		} else {
+		default:
 			fmt.Fprintf(buf, "  - **Required OAuth Scopes**: %s\n", scopeList)
 		}
 
@@ -273,19 +273,7 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 				requiredStr = "required"
 			}
 
-			var typeStr string
-
-			// Get the type and description
-			switch prop.Type {
-			case "array":
-				if prop.Items != nil {
-					typeStr = prop.Items.Type + "[]"
-				} else {
-					typeStr = "array"
-				}
-			default:
-				typeStr = prop.Type
-			}
+			typeStr := schemaTypeString(prop)
 
 			// Indent any continuation lines in the description to maintain markdown formatting
 			description := indentMultilineDescription(prop.Description, "    ")
@@ -298,6 +286,40 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 	} else {
 		buf.WriteString("  - No parameters required")
 	}
+}
+
+func schemaTypeString(schema *jsonschema.Schema) string {
+	switch {
+	case schema.Type == "array":
+		if schema.Items != nil {
+			return schema.Items.Type + "[]"
+		}
+		return "array"
+	case schema.Type != "":
+		return schema.Type
+	case len(schema.Types) > 0:
+		return strings.Join(schema.Types, " | ")
+	}
+
+	var union []*jsonschema.Schema
+	switch {
+	case len(schema.AnyOf) > 0:
+		union = schema.AnyOf
+	case len(schema.OneOf) > 0:
+		union = schema.OneOf
+	default:
+		// A schema without type constraints accepts any value.
+		return "any"
+	}
+
+	types := make([]string, 0, len(union))
+	for _, member := range union {
+		memberType := schemaTypeString(member)
+		if !slices.Contains(types, memberType) {
+			types = append(types, memberType)
+		}
+	}
+	return strings.Join(types, " | ")
 }
 
 // scopesEqual checks if two scope slices contain the same elements (order-independent)

@@ -7,29 +7,15 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
-	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v89/github"
-	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // --- list_commits ---------------------------------------------------------
-
-func Test_LegacyListCommits_Definition(t *testing.T) {
-	serverTool := LegacyListCommits(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Equal(t, []string{FeatureFlagFieldsParam}, serverTool.FeatureFlagDisable)
-
-	assert.Equal(t, "list_commits", tool.Name)
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.NotContains(t, schema.Properties, "fields")
-}
 
 func mockListCommits() []*github.RepositoryCommit {
 	return []*github.RepositoryCommit{
@@ -88,18 +74,6 @@ func Test_ListCommits_FieldsTelemetry(t *testing.T) {
 
 // --- list_releases --------------------------------------------------------
 
-func Test_LegacyListReleases_Definition(t *testing.T) {
-	serverTool := LegacyListReleases(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Equal(t, []string{FeatureFlagFieldsParam}, serverTool.FeatureFlagDisable)
-
-	assert.Equal(t, "list_releases", tool.Name)
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.NotContains(t, schema.Properties, "fields")
-}
-
 func mockListReleases() []*github.RepositoryRelease {
 	return []*github.RepositoryRelease{
 		{
@@ -152,18 +126,6 @@ func Test_ListReleases_FieldsTelemetry(t *testing.T) {
 }
 
 // --- list_pull_requests ---------------------------------------------------
-
-func Test_LegacyListPullRequests_Definition(t *testing.T) {
-	serverTool := LegacyListPullRequests(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Equal(t, []string{FeatureFlagFieldsParam}, serverTool.FeatureFlagDisable)
-
-	assert.Equal(t, "list_pull_requests", tool.Name)
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.NotContains(t, schema.Properties, "fields")
-}
 
 func mockListPullRequests() []*github.PullRequest {
 	return []*github.PullRequest{
@@ -219,18 +181,6 @@ func Test_ListPullRequests_FieldsTelemetry(t *testing.T) {
 
 // --- search_pull_requests -------------------------------------------------
 
-func Test_LegacySearchPullRequests_Definition(t *testing.T) {
-	serverTool := LegacySearchPullRequests(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Equal(t, []string{FeatureFlagFieldsParam}, serverTool.FeatureFlagDisable)
-
-	assert.Equal(t, "search_pull_requests", tool.Name)
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.NotContains(t, schema.Properties, "fields")
-}
-
 // mockIssueSearchResult returns a single-item issues search result. It is used
 // for both search_pull_requests and search_issues since both hit the REST
 // issues search endpoint. Issues intentionally omit NodeID so search_issues
@@ -285,18 +235,6 @@ func Test_SearchPullRequests_FieldsTelemetry(t *testing.T) {
 
 // --- search_issues --------------------------------------------------------
 
-func Test_LegacySearchIssues_Definition(t *testing.T) {
-	serverTool := LegacySearchIssues(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Equal(t, []string{FeatureFlagFieldsParam}, serverTool.FeatureFlagDisable)
-
-	assert.Equal(t, "search_issues", tool.Name)
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.NotContains(t, schema.Properties, "fields")
-}
-
 func Test_SearchIssues_FieldFiltering(t *testing.T) {
 	serverTool := SearchIssues(translations.NullTranslationHelper)
 	client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
@@ -330,25 +268,13 @@ func Test_SearchIssues_FieldsTelemetry(t *testing.T) {
 
 // --- list_issues (GraphQL) ------------------------------------------------
 
-func Test_LegacyListIssues_Definition(t *testing.T) {
-	serverTool := LegacyListIssues(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Equal(t, []string{FeatureFlagFieldsParam}, serverTool.FeatureFlagDisable)
-
-	assert.Equal(t, "list_issues", tool.Name)
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-	assert.NotContains(t, schema.Properties, "fields")
-}
-
 // listIssuesFieldsQuery and listIssuesFieldsVars mirror the exact GraphQL query
 // and variables list_issues issues for owner/repo with default parameters (no
 // labels, no since). They must stay in sync with the query built in
 // getIssueQueryType; see Test_ListIssues for the canonical copies.
 const listIssuesFieldsFieldValuesSelection = "issueFieldValues(first: 25){nodes{__typename,... on IssueFieldDateValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldNumberValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},valueNumber: value},... on IssueFieldSingleSelectValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value},... on IssueFieldTextValue{field{... on IssueFieldDate{name,fullDatabaseId},... on IssueFieldNumber{name,fullDatabaseId},... on IssueFieldSingleSelect{name,fullDatabaseId},... on IssueFieldText{name,fullDatabaseId}},value}}}"
 
-const listIssuesFieldsQuery = "query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},comments{totalCount}," + listIssuesFieldsFieldValuesSelection + "},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
+const listIssuesFieldsQuery = "query($after:String$direction:OrderDirection!$first:Int!$issueFieldValues:[IssueFieldValueFilter!]!$orderBy:IssueOrderField!$owner:String!$repo:String!$states:[IssueState!]!){repository(owner: $owner, name: $repo){issues(first: $first, after: $after, states: $states, orderBy: {field: $orderBy, direction: $direction}, filterBy: {issueFieldValues: $issueFieldValues}){nodes{number,title,body,state,databaseId,author{login},createdAt,updatedAt,labels(first: 100){nodes{name,id,description}},assignees(first: 100){nodes{login}},comments{totalCount}," + listIssuesFieldsFieldValuesSelection + "},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount},isPrivate}}"
 
 func listIssuesFieldsMockClient() *http.Client {
 	vars := map[string]any{
@@ -375,6 +301,7 @@ func listIssuesFieldsMockClient() *http.Client {
 						"updatedAt":        "2023-01-01T00:00:00Z",
 						"author":           map[string]any{"login": "user1"},
 						"labels":           map[string]any{"nodes": []map[string]any{}},
+						"assignees":        map[string]any{"nodes": []map[string]any{{"login": "octocat"}}},
 						"comments":         map[string]any{"totalCount": 1},
 						"issueFieldValues": map[string]any{"nodes": []map[string]any{}},
 					},
@@ -425,6 +352,54 @@ func Test_ListIssues_FieldFiltering(t *testing.T) {
 	assert.Contains(t, returned.Issues[0], "number")
 	assert.Contains(t, returned.Issues[0], "title")
 	assert.NotContains(t, textContent.Text, "\"body\"")
+}
+
+// Test_ListIssues_AssigneesField covers the assignees field end to end: it is
+// selectable via fields, it is dropped when not requested, and it is always
+// present in an unfiltered response so that "unassigned" reads as [] rather
+// than an absent key.
+func Test_ListIssues_AssigneesField(t *testing.T) {
+	serverTool := ListIssues(translations.NullTranslationHelper)
+
+	callWithFields := func(t *testing.T, fields []any) string {
+		t.Helper()
+		deps := BaseDeps{GQLClient: githubv4.NewClient(listIssuesFieldsMockClient())}
+		handler := serverTool.Handler(deps)
+
+		args := map[string]any{"owner": "owner", "repo": "repo"}
+		if fields != nil {
+			args["fields"] = fields
+		}
+		request := createMCPRequest(args)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		return getTextResult(t, result).Text
+	}
+
+	t.Run("selectable via fields", func(t *testing.T) {
+		var returned struct {
+			Issues []map[string]any `json:"issues"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(callWithFields(t, []any{"number", "assignees"})), &returned))
+		require.Len(t, returned.Issues, 1)
+		require.Len(t, returned.Issues[0], 2, "only the two requested fields should be present")
+		assert.Equal(t, []any{"octocat"}, returned.Issues[0]["assignees"])
+	})
+
+	t.Run("omitted when not requested", func(t *testing.T) {
+		text := callWithFields(t, []any{"number", "title"})
+		assert.NotContains(t, text, "\"assignees\"")
+	})
+
+	t.Run("unassigned issues serialize as an empty array", func(t *testing.T) {
+		issue := fragmentToMinimalIssue(IssueFragment{})
+		require.NotNil(t, issue.Assignees)
+
+		filtered, err := filterFields(issue, []string{"assignees"})
+		require.NoError(t, err)
+		assert.Equal(t, map[string]any{"assignees": []any{}}, filtered)
+	})
 }
 
 func Test_ListIssues_FieldsTelemetry(t *testing.T) {

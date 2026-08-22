@@ -59,6 +59,9 @@ func CreateToolScopeFilter(tokenScopes []string) inventory.ToolFilter {
 		if tool.Tool.Annotations != nil && tool.Tool.Annotations.ReadOnlyHint && onlyRequiresRepoScopes(tool.AcceptedScopes) {
 			return true, nil
 		}
+		if len(tool.RequiredScopeGroups) > 0 {
+			return scopes.HasRequiredScopeGroups(tokenScopes, tool.RequiredScopeGroups), nil
+		}
 		return scopes.HasRequiredScopes(tokenScopes, tool.AcceptedScopes), nil
 	}
 }

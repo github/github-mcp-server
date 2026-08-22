@@ -31,6 +31,8 @@ const (
 
 	// MCP-specific headers.
 
+	// MCPMethodHeader mirrors the JSON-RPC method for request routing.
+	MCPMethodHeader = "Mcp-Method"
 	// MCPReadOnlyHeader indicates whether the MCP is in read-only mode.
 	MCPReadOnlyHeader = "X-MCP-Readonly"
 	// MCPToolsetsHeader is a comma-separated list of MCP toolsets that the request is for.
