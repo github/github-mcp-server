@@ -35,7 +35,7 @@ runtime behavior (such as output formatting) won't appear here.
 ### `remote_mcp_ui_apps`
 
 - **create_pull_request** - Open new pull request
-  - **OAuth Challenge Scopes**: `repo`
+  - **OAuth Challenge Scopes**: `public_repo`
   - **MCP App UI**: `ui://github-mcp-server/pr-write`
   - `base`: Branch to merge into (string, required)
   - `body`: PR description (string, optional)
@@ -52,7 +52,7 @@ runtime behavior (such as output formatting) won't appear here.
   - No parameters required
 
 - **issue_write** - Create or update issue/pull request
-  - **OAuth Challenge Scopes**: `repo`
+  - **OAuth Challenge Scopes**: `public_repo`
   - **MCP App UI**: `ui://github-mcp-server/issue-write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
@@ -357,7 +357,7 @@ runtime behavior (such as output formatting) won't appear here.
 ### `thread_resolution_reason`
 
 - **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews
-  - **Required OAuth Scopes**: `repo`
+  - **OAuth Challenge Scopes**: `repo`
   - `body`: Review comment text (string, optional)
   - `commitID`: SHA of commit to review (string, optional)
   - `event`: Review action to perform. (string, optional)

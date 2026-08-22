@@ -11,6 +11,8 @@ func TestOAuthScopeCatalog(t *testing.T) {
 	defaults := DefaultOAuthScopes()
 
 	assert.Subset(t, supported, defaults)
+	assert.Contains(t, supported, string(PublicRepo))
+	assert.NotContains(t, defaults, string(PublicRepo))
 	assert.Contains(t, supported, string(DeleteRepo))
 	assert.NotContains(t, defaults, string(DeleteRepo))
 	assert.Contains(t, supported, string(Workflow))
@@ -21,6 +23,7 @@ func TestOAuthScopeCatalog(t *testing.T) {
 
 func TestScopeChecks(t *testing.T) {
 	assert.True(t, HasAll([]string{"repo", "workflow"}, Repo, Workflow))
+	assert.True(t, HasAll([]string{"repo"}, PublicRepo))
 	assert.False(t, HasAll([]string{"repo"}, Repo, Workflow))
 	assert.True(t, HasAll([]string{"admin:org"}, ReadOrg))
 	assert.True(t, HasAllScopeNames([]string{"admin:org"}, []string{"read:org"}))
