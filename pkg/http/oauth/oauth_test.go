@@ -581,6 +581,7 @@ func TestSupportedScopes(t *testing.T) {
 	// Verify all expected scopes are present
 	expectedScopes := []string{
 		"repo",
+		"public_repo",
 		"delete_repo",
 		"read:org",
 		"read:user",
