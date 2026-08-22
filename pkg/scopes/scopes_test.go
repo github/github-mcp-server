@@ -125,6 +125,8 @@ func TestOAuthScopeCatalog(t *testing.T) {
 	defaults := DefaultOAuthScopes()
 
 	assert.Subset(t, supported, defaults)
+	assert.Contains(t, supported, string(PublicRepo))
+	assert.NotContains(t, defaults, string(PublicRepo))
 	assert.Contains(t, supported, string(DeleteRepo))
 	assert.NotContains(t, defaults, string(DeleteRepo))
 	assert.Contains(t, supported, string(Workflow))

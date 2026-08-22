@@ -76,6 +76,7 @@ type oauthScopeDefinition struct {
 
 var oauthScopeDefinitions = []oauthScopeDefinition{
 	{scope: Repo, byDefault: true},
+	{scope: PublicRepo},
 	{scope: DeleteRepo},
 	{scope: ReadOrg, byDefault: true},
 	{scope: ReadUser, byDefault: true},
