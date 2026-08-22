@@ -642,7 +642,7 @@ The following sets of tools are available:
   - `method`: The action to perform (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (default: 1) (number, optional)
-  - `per_page`: Results per page for pagination (default: 30, max: 100) (number, optional)
+  - `perPage`: Results per page for pagination (default: 30, max: 100) (number, optional)
   - `repo`: Repository name (string, required)
   - `resource_id`: The unique identifier of the resource. This will vary based on the "method" provided, so ensure you provide the correct ID:
     - Do not provide any resource ID for 'list_workflows' method.
