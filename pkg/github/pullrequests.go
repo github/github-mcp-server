@@ -154,7 +154,7 @@ Possible options:
 				result, err := GetPullRequestCheckRuns(ctx, client, owner, repo, pullNumber, pagination)
 				return attachIFC(result), nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return unknownMethodError(method, "get", "get_diff", "get_status", "get_files", "get_commits", "get_review_comments", "get_reviews", "get_comments", "get_check_runs"), nil, nil
 			}
 		})
 }
@@ -1836,10 +1836,16 @@ Available methods:
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			method, err := RequiredParam[string](args, "method")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
 			var params PullRequestReviewWriteParams
 			if err := mapstructure.WeakDecode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			params.Method = method
 
 			// Given our owner, repo and PR number, lookup the GQL ID of the PR.
 			client, err := deps.GetGQLClient(ctx)
@@ -1864,7 +1870,7 @@ Available methods:
 				result, err := ResolveReviewThread(ctx, client, params.ThreadID, false)
 				return result, nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
+				return unknownMethodError(params.Method, "create", "submit_pending", "delete_pending", "resolve_thread", "unresolve_thread"), nil, nil
 			}
 		})
 	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
