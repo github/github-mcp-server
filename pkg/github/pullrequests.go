@@ -706,7 +706,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"owner", "repo", "title", "head", "base"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		[]scopes.Scope{scopes.PublicRepo},
 		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

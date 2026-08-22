@@ -1401,7 +1401,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner", "repo", "issue_number"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		[]scopes.Scope{scopes.PublicRepo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -2511,7 +2511,7 @@ Options are:
 				Required: []string{"method", "owner", "repo"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		[]scopes.Scope{scopes.PublicRepo},
 		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
