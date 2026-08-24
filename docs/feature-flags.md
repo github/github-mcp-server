@@ -13,8 +13,14 @@ section in the Insiders docs](./insiders-features.md#how-feature-flags-are-resol
 | Method | Remote Server | Local Server |
 |--------|---------------|--------------|
 | Header | `X-MCP-Features: <flag>,<flag>` | N/A |
+| URL query parameter | `?features=<flag>,<flag>` on the server URL | N/A |
 | CLI flag | N/A | `--features=<flag>,<flag>` |
 | Environment variable | N/A | `GITHUB_FEATURES=<flag>,<flag>` |
+
+The URL query parameter exists for clients that compose the server URL on the
+user's behalf (hosted IDEs, agent platforms) and cannot set custom headers.
+When both the query parameter and the header are present, the query parameter
+wins — the two channels are never combined.
 
 Only flags listed in
 [`AllowedFeatureFlags`](../pkg/github/feature_flags.go) can be enabled by

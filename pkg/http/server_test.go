@@ -259,6 +259,40 @@ func TestOAuthChallengeMetadataRouteContracts(t *testing.T) {
 		})
 	}
 
+	// Query-bearing MCP server URLs must round-trip: the challenge's
+	// resource_metadata URL and the served metadata document's "resource"
+	// must both carry the exact same query as the URL the client connects to,
+	// because go-sdk validates metadata.resource with exact string equality.
+	queryPath := "/x/repos?features=issue_dependencies"
+	t.Run(queryPath, func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, queryPath, nil)
+		req.Header.Set("Origin", "https://confer.to")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusUnauthorized, rec.Code)
+		challenge := rec.Header().Get("WWW-Authenticate")
+		require.True(t, strings.HasPrefix(challenge, `Bearer resource_metadata="`))
+		metadataURL := strings.TrimSuffix(
+			strings.TrimPrefix(challenge, `Bearer resource_metadata="`),
+			`"`,
+		)
+		assert.Equal(t,
+			baseURL+"/.well-known/oauth-protected-resource/mcp/x/repos?features=issue_dependencies",
+			metadataURL,
+		)
+
+		req = httptest.NewRequest(http.MethodGet, strings.TrimPrefix(metadataURL, baseURL), nil)
+		req.Header.Set("Origin", "https://confer.to")
+		rec = httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		var metadata map[string]any
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &metadata))
+		assert.Equal(t, baseURL+"/mcp"+queryPath, metadata["resource"])
+	})
+
 	req := httptest.NewRequest(
 		http.MethodGet,
 		oauth.OAuthProtectedResourcePrefix+"/mcp/unknown",

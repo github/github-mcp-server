@@ -362,6 +362,28 @@ func TestBuildResourceMetadataURL(t *testing.T) {
 			resourcePath: "",
 			expectedURL:  "http://api.example.com/.well-known/oauth-protected-resource",
 		},
+		{
+			name: "query string is preserved on base URL config",
+			cfg: &Config{
+				BaseURL: "https://custom.example.com",
+			},
+			setupRequest: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet, "/mcp/x/issues?features=issue_dependencies", nil)
+			},
+			resourcePath: "/mcp/x/issues",
+			expectedURL:  "https://custom.example.com/.well-known/oauth-protected-resource/mcp/x/issues?features=issue_dependencies",
+		},
+		{
+			name: "query string is preserved without base URL config",
+			cfg:  &Config{},
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/mcp?features=a,b", nil)
+				req.Host = "api.example.com"
+				return req
+			},
+			resourcePath: "/mcp",
+			expectedURL:  "http://api.example.com/.well-known/oauth-protected-resource/mcp?features=a,b",
+		},
 	}
 
 	for _, tc := range tests {
