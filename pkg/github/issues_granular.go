@@ -706,6 +706,216 @@ func GranularUpdateIssueMilestone(t translations.TranslationHelperFunc) inventor
 	)
 }
 
+// batchLabelOperation is one per-issue add/remove entry inside a
+// batch_update_issue_labels call.
+type batchLabelOperation struct {
+	IssueNumber int      `json:"issue_number"`
+	Add         []string `json:"add,omitempty"`
+	Remove      []string `json:"remove,omitempty"`
+}
+
+// GranularBatchUpdateIssueLabels creates a tool to apply label changes to
+// several issues in a single call, avoiding N sequential update_issue_labels
+// round-trips for bulk triage workflows.
+func GranularBatchUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "batch_update_issue_labels",
+			Description: t("TOOL_BATCH_UPDATE_ISSUE_LABELS_DESCRIPTION", "Apply label changes to multiple issues in one call. Each entry in operations targets one issue and can add labels, remove labels, or both. Labels not named in the operation are left untouched. Invalid input fails the whole call before any change is applied; per-issue API errors are reported individually."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_BATCH_UPDATE_ISSUE_LABELS_USER_TITLE", "Batch Update Issue Labels"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"operations": {
+						Type:        "array",
+						Description: "One entry per issue, in any order. Each entry requires issue_number plus at least one non-empty of add or remove (arrays of label names). Duplicate issue numbers are rejected.",
+						MinItems:    jsonschema.Ptr(1),
+						Items: &jsonschema.Schema{
+							Type:                 "object",
+							AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+							Properties: map[string]*jsonschema.Schema{
+								"issue_number": {
+									Type:        "number",
+									Description: "The issue number to update",
+									Minimum:     jsonschema.Ptr(1.0),
+								},
+								"add": {
+									Type:        "array",
+									Description: "Label names to add to this issue (GitHub creates missing labels implicitly)",
+									Items:       &jsonschema.Schema{Type: "string", MinLength: jsonschema.Ptr(1)},
+								},
+								"remove": {
+									Type:        "array",
+									Description: "Label names to remove from this issue",
+									Items:       &jsonschema.Schema{Type: "string", MinLength: jsonschema.Ptr(1)},
+								},
+							},
+							Required: []string{"issue_number"},
+						},
+					},
+				},
+				Required: []string{"owner", "repo", "operations"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			opsRaw, ok := args["operations"]
+			if !ok {
+				return utils.NewToolResultError("missing required parameter: operations"), nil, nil
+			}
+			opsSlice, ok := opsRaw.([]any)
+			if !ok {
+				return utils.NewToolResultError("parameter operations must be an array"), nil, nil
+			}
+			if len(opsSlice) == 0 {
+				return utils.NewToolResultError("operations must contain at least one entry"), nil, nil
+			}
+
+			// Validate every operation up front so an invalid entry fails the
+			// whole call before any mutation is attempted.
+			planned := make([]batchLabelOperation, 0, len(opsSlice))
+			seenIssues := make(map[int]bool, len(opsSlice))
+			for i, item := range opsSlice {
+				opObj, ok := item.(map[string]any)
+				if !ok {
+					return utils.NewToolResultError(fmt.Sprintf("operations[%d]: each operation must be an object with issue_number and at least one of add or remove", i)), nil, nil
+				}
+				issueNumber, err := RequiredInt(opObj, "issue_number")
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("operations[%d]: %s", i, err.Error())), nil, nil
+				}
+				if seenIssues[issueNumber] {
+					return utils.NewToolResultError(fmt.Sprintf("operations[%d]: duplicate issue_number %d; merge the label changes into a single operation", i, issueNumber)), nil, nil
+				}
+				seenIssues[issueNumber] = true
+
+				op := batchLabelOperation{IssueNumber: issueNumber}
+				if addRaw, hasAdd := opObj["add"]; hasAdd && addRaw != nil {
+					op.Add, err = OptionalStringArrayParam(opObj, "add")
+					if err != nil {
+						return utils.NewToolResultError(fmt.Sprintf("operations[%d]: %s", i, err.Error())), nil, nil
+					}
+				}
+				if removeRaw, hasRemove := opObj["remove"]; hasRemove && removeRaw != nil {
+					op.Remove, err = OptionalStringArrayParam(opObj, "remove")
+					if err != nil {
+						return utils.NewToolResultError(fmt.Sprintf("operations[%d]: %s", i, err.Error())), nil, nil
+					}
+				}
+				if len(op.Add) == 0 && len(op.Remove) == 0 {
+					return utils.NewToolResultError(fmt.Sprintf("operations[%d]: at least one non-empty of add or remove is required", i)), nil, nil
+				}
+				for _, l := range op.Add {
+					if strings.TrimSpace(l) == "" {
+						return utils.NewToolResultError(fmt.Sprintf("operations[%d]: add contains an empty label name", i)), nil, nil
+					}
+				}
+				for _, l := range op.Remove {
+					if strings.TrimSpace(l) == "" {
+						return utils.NewToolResultError(fmt.Sprintf("operations[%d]: remove contains an empty label name", i)), nil, nil
+					}
+				}
+				planned = append(planned, op)
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			type opOutcome struct {
+				IssueNumber int      `json:"issue_number"`
+				Applied     bool     `json:"applied"`
+				Error       string   `json:"error,omitempty"`
+				Labels      []string `json:"labels,omitempty"`
+			}
+			outcomes := make([]opOutcome, 0, len(planned))
+			hadFailure := false
+			for _, op := range planned {
+				outcome := opOutcome{IssueNumber: op.IssueNumber, Applied: true}
+
+				// Add phase: POST .../issues/{n}/labels adds without touching
+				// existing labels and returns the full resulting label set.
+				if len(op.Add) > 0 {
+					labels, resp, err := client.Issues.AddLabelsToIssue(ctx, owner, repo, op.IssueNumber, op.Add)
+					if resp != nil {
+						_ = resp.Body.Close()
+					}
+					if err != nil {
+						outcome.Applied = false
+						outcome.Error = fmt.Sprintf("add failed: %v", err)
+						hadFailure = true
+						outcomes = append(outcomes, outcome)
+						continue
+					}
+					outcome.Labels = make([]string, 0, len(labels))
+					for _, l := range labels {
+						outcome.Labels = append(outcome.Labels, l.GetName())
+					}
+				}
+
+				// Remove phase.
+				failed := false
+				for _, label := range op.Remove {
+					resp, err := client.Issues.RemoveLabelForIssue(ctx, owner, repo, op.IssueNumber, label)
+					if resp != nil {
+						_ = resp.Body.Close()
+					}
+					if err != nil {
+						outcome.Error = fmt.Sprintf("remove %q failed: %v", label, err)
+						outcome.Applied = false
+						hadFailure = true
+						failed = true
+						break
+					}
+				}
+				if failed {
+					outcomes = append(outcomes, outcome)
+					continue
+				}
+
+				outcomes = append(outcomes, outcome)
+			}
+
+			response := struct {
+				Results []opOutcome `json:"results"`
+			}{Results: outcomes}
+			r, err := json.Marshal(response)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+			result := utils.NewToolResultText(string(r))
+			result.IsError = hadFailure
+			return result, nil, nil
+		},
+	)
+	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	return st
+}
+
 // issueTypeWithIntent represents the object form of the issue type field,
 // allowing a rationale, confidence level, and/or suggest flag to be sent alongside the type name.
 type issueTypeWithIntent struct {

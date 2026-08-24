@@ -353,6 +353,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularUpdateIssueBody(t),
 		GranularUpdateIssueAssignees(t),
 		GranularUpdateIssueLabels(t),
+		GranularBatchUpdateIssueLabels(t),
 		GranularUpdateIssueMilestone(t),
 		GranularUpdateIssueType(t),
 		GranularUpdateIssueState(t),
