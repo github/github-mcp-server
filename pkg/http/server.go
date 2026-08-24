@@ -211,9 +211,15 @@ func RunHTTPServer(cfg ServerConfig) error {
 		return fmt.Errorf("failed to create OAuth handler: %w", err)
 	}
 
-	r.Group(func(r chi.Router) {
-		r.Use(middleware.SetCorsHeaders)
+	// CORS headers are applied at the top level so that every response —
+	// including the OAuth protected resource metadata endpoints and the
+	// router's 404 fallback — is readable by browser-based clients. Without
+	// this, browsers mask the real error (e.g. a 401 auth challenge or 404)
+	// behind an opaque "missing CORS headers" failure, which made hosted
+	// servers appear unreachable from web clients (see issue #3095).
+	r.Use(middleware.SetCorsHeaders)
 
+	r.Group(func(r chi.Router) {
 		// Register Middleware First, needs to be before route registration
 		handler.RegisterMiddleware(r)
 
