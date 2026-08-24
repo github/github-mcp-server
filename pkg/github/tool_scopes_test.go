@@ -105,7 +105,7 @@ func TestDynamicToolScopeMetadataIsExhaustive(t *testing.T) {
 	}{
 		{tool: CreateOrUpdateFile(translations.NullTranslationHelper), maxScopes: []string{"repo", "workflow"}},
 		{tool: DeleteFile(translations.NullTranslationHelper), maxScopes: []string{"repo", "workflow"}},
-		{tool: PushFiles(translations.NullTranslationHelper), maxScopes: []string{"repo", "workflow"}},
+		{tool: PushFiles(translations.NullTranslationHelper), maxScopes: []string{"public_repo", "workflow"}},
 		{tool: ListIssueFields(translations.NullTranslationHelper), maxScopes: []string{"repo", "read:org"}},
 		{tool: ListIssueTypes(translations.NullTranslationHelper), maxScopes: []string{"repo", "read:org"}},
 		{tool: UIGet(translations.NullTranslationHelper), maxScopes: []string{"repo", "read:org"}},

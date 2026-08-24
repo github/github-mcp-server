@@ -76,7 +76,7 @@ func workflowScopeChallengeForFiles(arguments map[string]any, activeScopes []str
 		}
 	}
 	if containsWorkflow {
-		return scopes.ChallengeAll(activeScopes, scopes.Repo, scopes.Workflow)
+		return scopes.ChallengeAll(activeScopes, scopes.PublicRepo, scopes.Workflow)
 	}
-	return scopes.ChallengeAll(activeScopes, scopes.Repo)
+	return scopes.ChallengeAll(activeScopes, scopes.PublicRepo)
 }
