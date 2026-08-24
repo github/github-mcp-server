@@ -166,7 +166,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}),
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *ListDiscussionsOutput, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -246,7 +246,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 
 			// Extract and convert all discussion nodes using the common interface
-			var discussions []*github.Discussion
+			discussions := make([]*github.Discussion, 0)
 			var pageInfo PageInfoFragment
 			var totalCount githubv4.Int
 			if queryResult, ok := discussionQuery.(DiscussionQueryResult); ok {
@@ -258,27 +258,21 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 				totalCount = fragment.TotalCount
 			}
 
-			// Create response with pagination info
-			response := map[string]any{
-				"discussions": discussions,
-				"pageInfo": map[string]any{
-					"hasNextPage":     pageInfo.HasNextPage,
-					"hasPreviousPage": pageInfo.HasPreviousPage,
-					"startCursor":     string(pageInfo.StartCursor),
-					"endCursor":       string(pageInfo.EndCursor),
+			output := &ListDiscussionsOutput{
+				Discussions: convertPointerListOutput(discussions, convertDiscussionListItemOutput),
+				PageInfo: DiscussionPageInfoOutput{
+					HasNextPage:     pageInfo.HasNextPage,
+					HasPreviousPage: pageInfo.HasPreviousPage,
+					StartCursor:     string(pageInfo.StartCursor),
+					EndCursor:       string(pageInfo.EndCursor),
 				},
-				"totalCount": totalCount,
+				TotalCount: int(totalCount),
 			}
-
-			out, err := json.Marshal(response)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal discussions: %w", err)
-			}
-			result := utils.NewToolResultText(string(out))
+			result := MarshalledTextResult(output)
 			// Discussion content is user-authored (untrusted); confidentiality
 			// follows repo visibility.
 			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoUserContent)
-			return result, nil, nil
+			return result, output, nil
 		},
 	)
 }
@@ -313,7 +307,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *DiscussionDetailOutput, error) {
 			// Decode params
 			var params struct {
 				Owner            string
@@ -355,38 +349,22 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 			d := q.Repository.Discussion
 
-			// Build response as map to include fields not present in go-github's Discussion struct.
-			// The go-github library's Discussion type lacks isAnswered and answerChosenAt fields,
-			// so we use map[string]interface{} for the response (consistent with other functions
-			// like ListDiscussions and GetDiscussionComments).
-			response := map[string]any{
-				"number":     int(d.Number),
-				"title":      sanitize.PlainText(string(d.Title)),
-				"body":       sanitize.Content(string(d.Body)),
-				"url":        string(d.URL),
-				"closed":     bool(d.Closed),
-				"isAnswered": bool(d.IsAnswered),
-				"createdAt":  d.CreatedAt.Time,
-				"category": map[string]any{
-					"name": string(d.Category.Name),
-				},
-			}
-
-			// Add optional timestamp fields if present
-			if d.AnswerChosenAt != nil {
-				response["answerChosenAt"] = d.AnswerChosenAt.Time
-			}
-
-			out, err := json.Marshal(response)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal discussion: %w", err)
-			}
-
-			result := utils.NewToolResultText(string(out))
+			output := newDiscussionDetailOutput(
+				d.Number,
+				d.Title,
+				d.Body,
+				d.URL,
+				d.Closed,
+				d.IsAnswered,
+				d.CreatedAt,
+				d.Category.Name,
+				d.AnswerChosenAt,
+			)
+			result := MarshalledTextResult(output)
 			// Discussion content is user-authored (untrusted); confidentiality
 			// follows repo visibility.
 			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, params.Owner, params.Repo, result, ifc.LabelRepoUserContent)
-			return result, nil, nil
+			return result, output, nil
 		},
 	)
 }
@@ -425,7 +403,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 			}),
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *DiscussionCommentsOutput, error) {
 			// Decode params
 			var params struct {
 				Owner            string
@@ -479,7 +457,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				vars["after"] = (*githubv4.String)(nil)
 			}
 
-			var comments []MinimalDiscussionComment
+			comments := make([]MinimalDiscussionComment, 0)
 			var pageInfo struct {
 				HasNextPage     githubv4.Boolean
 				HasPreviousPage githubv4.Boolean
@@ -561,28 +539,17 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				totalCount = q.Repository.Discussion.Comments.TotalCount
 			}
 
-			// Create response with pagination info
-			response := map[string]any{
-				"comments": comments,
-				"pageInfo": map[string]any{
-					"hasNextPage":     pageInfo.HasNextPage,
-					"hasPreviousPage": pageInfo.HasPreviousPage,
-					"startCursor":     string(pageInfo.StartCursor),
-					"endCursor":       string(pageInfo.EndCursor),
-				},
-				"totalCount": totalCount,
-			}
-
-			out, err := json.Marshal(response)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal comments: %w", err)
-			}
-
-			result := utils.NewToolResultText(string(out))
+			output := newDiscussionCommentsOutput(comments, includeReplies, DiscussionPageInfoOutput{
+				HasNextPage:     bool(pageInfo.HasNextPage),
+				HasPreviousPage: bool(pageInfo.HasPreviousPage),
+				StartCursor:     string(pageInfo.StartCursor),
+				EndCursor:       string(pageInfo.EndCursor),
+			}, totalCount)
+			result := MarshalledTextResult(output)
 			// Discussion comments are user-authored (untrusted); confidentiality
 			// follows repo visibility.
 			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, params.Owner, params.Repo, result, ifc.LabelRepoUserContent)
-			return result, nil, nil
+			return result, output, nil
 		},
 	)
 }
@@ -1016,7 +983,7 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 			},
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *DiscussionCategoriesOutput, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -1062,35 +1029,29 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			var categories []map[string]string
+			categories := make([]DiscussionCategoryOutput, 0, len(q.Repository.DiscussionCategories.Nodes))
 			for _, c := range q.Repository.DiscussionCategories.Nodes {
-				categories = append(categories, map[string]string{
-					"id":   fmt.Sprint(c.ID),
-					"name": string(c.Name),
+				categories = append(categories, DiscussionCategoryOutput{
+					ID:   fmt.Sprint(c.ID),
+					Name: string(c.Name),
 				})
 			}
 
-			// Create response with pagination info
-			response := map[string]any{
-				"categories": categories,
-				"pageInfo": map[string]any{
-					"hasNextPage":     q.Repository.DiscussionCategories.PageInfo.HasNextPage,
-					"hasPreviousPage": q.Repository.DiscussionCategories.PageInfo.HasPreviousPage,
-					"startCursor":     string(q.Repository.DiscussionCategories.PageInfo.StartCursor),
-					"endCursor":       string(q.Repository.DiscussionCategories.PageInfo.EndCursor),
+			output := &DiscussionCategoriesOutput{
+				Categories: categories,
+				PageInfo: DiscussionPageInfoOutput{
+					HasNextPage:     bool(q.Repository.DiscussionCategories.PageInfo.HasNextPage),
+					HasPreviousPage: bool(q.Repository.DiscussionCategories.PageInfo.HasPreviousPage),
+					StartCursor:     string(q.Repository.DiscussionCategories.PageInfo.StartCursor),
+					EndCursor:       string(q.Repository.DiscussionCategories.PageInfo.EndCursor),
 				},
-				"totalCount": q.Repository.DiscussionCategories.TotalCount,
+				TotalCount: q.Repository.DiscussionCategories.TotalCount,
 			}
-
-			out, err := json.Marshal(response)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal discussion categories: %w", err)
-			}
-			result := utils.NewToolResultText(string(out))
+			result := MarshalledTextResult(output)
 			// Discussion categories are repo-defined structural metadata
 			// (trusted); confidentiality follows repo visibility.
 			result = attachRepoVisibilityIFCLabelLazy(ctx, deps, owner, repo, result, ifc.LabelRepoMetadata)
-			return result, nil, nil
+			return result, output, nil
 		},
 	)
 }
