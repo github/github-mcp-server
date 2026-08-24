@@ -47,7 +47,7 @@ func GetCodeScanningAlert(t translations.TranslationHelperFunc) inventory.Server
 			},
 		},
 		scopes.RequireAll(scopes.SecurityEvents),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, *CodeScanningAlertOutput, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -84,17 +84,13 @@ func GetCodeScanningAlert(t translations.TranslationHelperFunc) inventory.Server
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get alert", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(alert)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal alert", err), nil, nil
-			}
-
-			result := utils.NewToolResultText(string(r))
+			output := convertCodeScanningAlertOutput(alert)
+			result := MarshalledTextResult(output)
 			// Code scanning alerts are access-restricted regardless of repo
 			// visibility and embed attacker-influenceable code snippets, so the
 			// label is always private-untrusted.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
-			return result, nil, nil
+			return result, output, nil
 		},
 	)
 }
@@ -147,7 +143,7 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 			InputSchema: schema,
 		},
 		scopes.RequireAll(scopes.SecurityEvents),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, []*CodeScanningAlertOutput, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -209,17 +205,13 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(alerts)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal alerts", err), nil, nil
-			}
-
-			result := utils.NewToolResultText(string(r))
+			output := convertPointerListOutput(alerts, convertCodeScanningAlertOutput)
+			result := MarshalledTextResult(output)
 			// Code scanning alerts are access-restricted regardless of repo
 			// visibility and embed attacker-influenceable code snippets, so the
 			// label is always private-untrusted.
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelSecurityAlert())
-			return result, nil, nil
+			return result, output, nil
 		},
 	)
 }

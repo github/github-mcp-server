@@ -255,7 +255,7 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 			},
 		},
 		scopes.RequireAll(scopes.SecurityEvents),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, []*RepositorySecurityAdvisoryOutput, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -308,12 +308,8 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list repository advisories", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(advisories)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
-			}
-
-			result := utils.NewToolResultText(string(r))
+			output := convertPointerListOutput(advisories, convertRepositorySecurityAdvisoryOutput)
+			result := MarshalledTextResult(output)
 			// Repository advisories carry externally authored prose (untrusted).
 			// Confidentiality follows repo visibility, but draft/triage/closed
 			// advisories are not world-readable even on a public repo, so the
@@ -323,7 +319,7 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 				func(isPrivate bool) ifc.SecurityLabel {
 					return ifc.LabelRepositorySecurityAdvisory(isPrivate, allPublished)
 				})
-			return result, nil, nil
+			return result, output, nil
 		},
 	)
 }
@@ -426,7 +422,7 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 			},
 		},
 		scopes.RequireAll(scopes.SecurityEvents),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, []*RepositorySecurityAdvisoryOutput, error) {
 			org, err := RequiredParam[string](args, "org")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -474,18 +470,14 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list organization repository advisories", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(advisories)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
-			}
-
-			result := utils.NewToolResultText(string(r))
+			output := convertPointerListOutput(advisories, convertRepositorySecurityAdvisoryOutput)
+			result := MarshalledTextResult(output)
 			// Org-wide advisory listings span the organization's repositories
 			// (including private ones) and are restricted to org members, so
 			// they are conservatively labeled private-untrusted (isPrivate=true,
 			// which forces private regardless of publication state).
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepositorySecurityAdvisory(true, false))
-			return result, nil, nil
+			return result, output, nil
 		},
 	)
 }

@@ -295,16 +295,25 @@ func TestToolsetMetadataConsistency(t *testing.T) {
 
 func TestStructuredOutputSchemaCoverage(t *testing.T) {
 	expected := map[string]bool{
-		"get_me":               true,
-		"get_team_members":     true,
-		"get_teams":            true,
-		"list_branches":        true,
-		"list_issues":          true,
-		"list_pull_requests":   true,
-		"list_tags":            true,
-		"search_code":          true,
-		"search_issues":        true,
-		"search_pull_requests": true,
+		"get_code_quality_finding":                true,
+		"get_code_scanning_alert":                 true,
+		"get_dependabot_alert":                    true,
+		"get_me":                                  true,
+		"get_secret_scanning_alert":               true,
+		"get_team_members":                        true,
+		"get_teams":                               true,
+		"list_branches":                           true,
+		"list_code_scanning_alerts":               true,
+		"list_dependabot_alerts":                  true,
+		"list_issues":                             true,
+		"list_org_repository_security_advisories": true,
+		"list_pull_requests":                      true,
+		"list_repository_security_advisories":     true,
+		"list_secret_scanning_alerts":             true,
+		"list_tags":                               true,
+		"search_code":                             true,
+		"search_issues":                           true,
+		"search_pull_requests":                    true,
 	}
 	actual := make(map[string]bool)
 
