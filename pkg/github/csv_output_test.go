@@ -14,6 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type csvStructuredRow struct {
+	Number int `json:"number"`
+}
+
 func TestCSVOutputAppliedToDefaultListTools(t *testing.T) {
 	listTool := testCSVOutputTool("list_things", `[{"number":1}]`)
 	getTool := testCSVOutputTool("get_thing", `{"number":1}`)
@@ -124,6 +128,72 @@ func TestCSVOutputPreservesOriginalJSONWhenFlagOff(t *testing.T) {
 	text, ok := result.Content[0].(*mcp.TextContent)
 	require.True(t, ok)
 	assert.JSONEq(t, jsonResponse, text.Text)
+}
+
+func TestCSVOutputPreservesStructuredContent(t *testing.T) {
+	structured := []any{map[string]any{"number": float64(1)}}
+	result := &mcp.CallToolResult{
+		Content:           []mcp.Content{&mcp.TextContent{Text: `[{"number":1}]`}},
+		StructuredContent: structured,
+	}
+
+	converted := convertJSONTextResultToCSV(result)
+
+	assert.Same(t, result, converted)
+	assert.Equal(t, structured, converted.StructuredContent)
+	assert.Equal(t, "number\n1\n", textResult(t, converted))
+}
+
+func TestCSVOutputTypedRegistrationKeepsStructuredJSON(t *testing.T) {
+	serverTool := inventory.NewServerToolWithContextHandler(
+		mcp.Tool{
+			Name:        "list_things",
+			InputSchema: &jsonschema.Schema{Type: "object", Properties: map[string]*jsonschema.Schema{}},
+			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
+		},
+		ToolsetMetadataRepos,
+		func(context.Context, *mcp.CallToolRequest, map[string]any) (*mcp.CallToolResult, []csvStructuredRow, error) {
+			output := []csvStructuredRow{{Number: 1}}
+			return MarshalledTextResult(output), output, nil
+		},
+	)
+	serverTool = withCSVOutput([]inventory.ServerTool{serverTool})[0]
+	deps := newCSVOutputTestDeps(true)
+
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	serverTool.RegisterFunc(server, deps)
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = serverSession.Close() })
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clientSession.Close() })
+
+	result, err := clientSession.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "list_things",
+		Arguments: map[string]any{},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	require.Len(t, result.Content, 2)
+	csvContent, ok := result.Content[0].(*mcp.TextContent)
+	require.True(t, ok)
+	assert.Equal(t, "number\n1\n", csvContent.Text)
+	assert.Equal(t, []any{map[string]any{"number": float64(1)}}, result.StructuredContent)
+
+	jsonFallback, ok := result.Content[1].(*mcp.TextContent)
+	require.True(t, ok)
+	var fallbackValue any
+	require.NoError(t, json.Unmarshal([]byte(jsonFallback.Text), &fallbackValue))
+	assert.Equal(t, result.StructuredContent, fallbackValue)
+
+	schema := serverTool.Tool.OutputSchema.(*jsonschema.Schema)
+	resolved, err := schema.Resolve(nil)
+	require.NoError(t, err)
+	require.NoError(t, resolved.Validate(result.StructuredContent))
 }
 
 func TestCSVOutputVariantMovesMetadataToPreamble(t *testing.T) {

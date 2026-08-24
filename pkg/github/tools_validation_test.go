@@ -6,6 +6,7 @@ import (
 	"go/parser"
 	"go/token"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -290,6 +291,70 @@ func TestToolsetMetadataConsistency(t *testing.T) {
 			toolsetDescriptions[id] = desc
 		}
 	}
+}
+
+func TestStructuredOutputSchemaCoverage(t *testing.T) {
+	expected := map[string]bool{
+		"get_me":           true,
+		"get_team_members": true,
+		"get_teams":        true,
+		"list_branches":    true,
+		"list_tags":        true,
+	}
+	actual := make(map[string]bool)
+
+	for _, tool := range AllTools(stubTranslation) {
+		if tool.Tool.OutputSchema == nil {
+			continue
+		}
+
+		actual[tool.Tool.Name] = true
+		require.NotNil(t, tool.TypedRegisterFunc, "tool %q declares outputSchema without typed registration", tool.Tool.Name)
+
+		data, err := json.Marshal(tool.Tool.OutputSchema)
+		require.NoError(t, err)
+		var schema any
+		require.NoError(t, json.Unmarshal(data, &schema))
+		assertNoBlanketObjectSchemas(t, schema, tool.Tool.Name)
+	}
+
+	assert.Equal(t, expected, actual)
+}
+
+func assertNoBlanketObjectSchemas(t *testing.T, value any, path string) {
+	t.Helper()
+
+	switch value := value.(type) {
+	case map[string]any:
+		if schemaIncludesType(value["type"], "object") {
+			properties, _ := value["properties"].(map[string]any)
+			additionalProperties, constrainsAdditionalProperties := value["additionalProperties"]
+			assert.NotEqual(t, true, additionalProperties, "%s: object schema must not permit arbitrary properties", path)
+			require.True(t, len(properties) > 0 || constrainsAdditionalProperties,
+				"%s: object schema must declare properties or constrain additional properties", path)
+		}
+		for key, child := range value {
+			assertNoBlanketObjectSchemas(t, child, path+"."+key)
+		}
+	case []any:
+		for i, child := range value {
+			assertNoBlanketObjectSchemas(t, child, path+"["+strconv.Itoa(i)+"]")
+		}
+	}
+}
+
+func schemaIncludesType(value any, schemaType string) bool {
+	switch value := value.(type) {
+	case string:
+		return value == schemaType
+	case []any:
+		for _, item := range value {
+			if item == schemaType {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func TestGitHubPackageDoesNotReadInsidersMode(t *testing.T) {

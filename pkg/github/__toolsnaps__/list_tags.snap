@@ -33,5 +33,27 @@
     ],
     "type": "object"
   },
-  "name": "list_tags"
+  "name": "list_tags",
+  "outputSchema": {
+    "items": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "sha"
+      ],
+      "type": "object"
+    },
+    "type": [
+      "null",
+      "array"
+    ]
+  }
 }
