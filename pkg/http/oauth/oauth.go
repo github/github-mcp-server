@@ -100,6 +100,7 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 			r.Handle(path, h.metadataHandler())
 		}
 	}
+	r.Handle(OAuthProtectedResourcePrefix+"/*", http.NotFoundHandler())
 }
 
 func (h *AuthHandler) metadataHandler() http.Handler {

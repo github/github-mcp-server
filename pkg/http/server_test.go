@@ -258,6 +258,18 @@ func TestOAuthChallengeMetadataRouteContracts(t *testing.T) {
 			assert.Equal(t, baseURL+expectedResourcePath, metadata["resource"])
 		})
 	}
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		oauth.OAuthProtectedResourcePrefix+"/mcp/unknown",
+		nil,
+	)
+	req.Header.Set("Origin", "https://confer.to")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+	assert.Empty(t, rec.Header().Get("WWW-Authenticate"))
 }
 
 func TestInitGlobalToolScopeMapUsesHost(t *testing.T) {

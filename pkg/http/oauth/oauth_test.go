@@ -573,6 +573,11 @@ func TestRegisterRoutes(t *testing.T) {
 			}
 		}
 	}
+
+	req := httptest.NewRequest(http.MethodGet, OAuthProtectedResourcePrefix+"/mcp/unknown", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
 func TestSupportedScopes(t *testing.T) {
