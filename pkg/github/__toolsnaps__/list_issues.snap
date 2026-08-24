@@ -109,5 +109,167 @@
     ],
     "type": "object"
   },
-  "name": "list_issues"
+  "name": "list_issues",
+  "outputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "issues": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "assignees": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "null",
+                "array"
+              ]
+            },
+            "body": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "comments": {
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "created_at": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "field_values": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "field": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  },
+                  "values": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "null",
+                      "array"
+                    ]
+                  }
+                },
+                "required": [
+                  "field"
+                ],
+                "type": "object"
+              },
+              "type": [
+                "null",
+                "array"
+              ]
+            },
+            "labels": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "null",
+                "array"
+              ]
+            },
+            "number": {
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "state": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "title": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "updated_at": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "user": {
+              "additionalProperties": false,
+              "properties": {
+                "avatar_url": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "login": {
+                  "type": "string"
+                },
+                "profile_url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "login"
+              ],
+              "type": [
+                "null",
+                "object"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "type": [
+          "null",
+          "array"
+        ]
+      },
+      "pageInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "endCursor": {
+            "type": "string"
+          },
+          "hasNextPage": {
+            "type": "boolean"
+          },
+          "hasPreviousPage": {
+            "type": "boolean"
+          },
+          "startCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hasNextPage",
+          "hasPreviousPage"
+        ],
+        "type": "object"
+      },
+      "totalCount": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "issues",
+      "totalCount",
+      "pageInfo"
+    ],
+    "type": "object"
+  }
 }

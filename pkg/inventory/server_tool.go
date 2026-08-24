@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -257,6 +258,21 @@ func toTypedHandler[In, Out any](handler mcp.ToolHandlerFor[In, Out], middleware
 			return result, err
 		}
 		result, err = applyToolHandlerMiddleware(rawHandler, middleware...)(ctx, req)
+		if err == nil && result != nil && result.IsError {
+			err = result.GetError()
+			if err == nil {
+				for _, content := range result.Content {
+					if text, ok := content.(*mcp.TextContent); ok {
+						err = errors.New(text.Text)
+						break
+					}
+				}
+			}
+			if err == nil {
+				err = errors.New("tool execution failed")
+			}
+			return nil, output, err
+		}
 		removeRedundantArrayTextContent[Out](result)
 		return result, output, err
 	}

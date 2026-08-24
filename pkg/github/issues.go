@@ -1982,15 +1982,14 @@ func SearchIssues(t translations.TranslationHelperFunc, opts ...ToolOption) inve
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, ProjectedSearchIssuesResponse, error) {
 			options := []searchOption{ifcSearchPostProcessOption(ctx, deps)}
 			fields, err := OptionalStringArrayParam(args, "fields")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), ProjectedSearchIssuesResponse{}, nil
 			}
 			options = append(options, withFieldsFiltering(deps, "search_issues", fields))
-			result, err := searchIssuesHandler(ctx, deps, args, mode, options...)
-			return result, nil, err
+			return searchIssuesHandler(ctx, deps, args, mode, options...)
 		})
 }
 
@@ -2076,29 +2075,6 @@ func parseRepositoryURL(repoURL string) (string, string, bool) {
 	return parts[0], parts[1], true
 }
 
-// SearchIssueResult wraps a REST search hit with its custom issue field values, fetched in a follow-up GraphQL nodes() query.
-type SearchIssueResult struct {
-	*github.Issue
-	FieldValues []MinimalFieldValue `json:"field_values,omitempty"`
-}
-
-// sanitizeIssueTitleAndBody mutates issue.Title and issue.Body in place, applying the shared
-// untrusted-content sanitization policy (pkg/sanitize). It exists for the handful of response
-// paths — search_issues and search_pull_requests — that marshal a raw *github.Issue directly
-// instead of routing through one of the convertToMinimal* helpers in minimal_types.go, which
-// sanitize on their own. It is a no-op for a nil issue or unset fields.
-func sanitizeIssueTitleAndBody(issue *github.Issue) {
-	if issue == nil {
-		return
-	}
-	if issue.Title != nil {
-		issue.Title = github.Ptr(sanitize.PlainText(*issue.Title))
-	}
-	if issue.Body != nil {
-		issue.Body = github.Ptr(sanitize.Content(*issue.Body))
-	}
-}
-
 func sanitizeSubIssueTitleAndBody(issue *github.SubIssue) {
 	if issue == nil {
 		return
@@ -2109,41 +2085,6 @@ func sanitizeSubIssueTitleAndBody(issue *github.SubIssue) {
 	if issue.Body != nil {
 		issue.Body = github.Ptr(sanitize.Content(*issue.Body))
 	}
-}
-
-// MarshalJSON serializes SearchIssueResult, suppressing the raw issue_field_values from the
-// embedded REST response in favour of the normalized field_values populated via GraphQL enrichment.
-// It also sanitizes the embedded issue's Title and Body in place: search_issues is one of the few
-// response paths that marshals a raw *github.Issue directly rather than routing through a
-// convertToMinimal* helper (see minimal_types.go), so sanitization must happen here instead.
-func (r SearchIssueResult) MarshalJSON() ([]byte, error) {
-	sanitizeIssueTitleAndBody(r.Issue)
-
-	issueBytes, err := json.Marshal(r.Issue)
-	if err != nil {
-		return nil, err
-	}
-	var m map[string]json.RawMessage
-	if err := json.Unmarshal(issueBytes, &m); err != nil {
-		return nil, err
-	}
-	delete(m, "issue_field_values")
-	if r.FieldValues != nil {
-		fv, err := json.Marshal(r.FieldValues)
-		if err != nil {
-			return nil, err
-		}
-		m["field_values"] = fv
-	}
-	return json.Marshal(m)
-}
-
-// SearchIssuesResponse mirrors the REST IssuesSearchResult JSON shape and adds field_values
-// per item, sourced from a single GraphQL nodes() round-trip.
-type SearchIssuesResponse struct {
-	Total             *int                `json:"total_count,omitempty"`
-	IncompleteResults *bool               `json:"incomplete_results,omitempty"`
-	Items             []SearchIssueResult `json:"items"`
 }
 
 // searchIssuesNodesQuery batches a nodes(ids:) lookup over the REST search results to retrieve
@@ -2337,43 +2278,43 @@ func fetchIssueReadEnrichment(ctx context.Context, gqlClient *githubv4.Client, n
 // searchIssuesHandler runs the REST issues search, enriches each hit with custom field values
 // fetched via a single follow-up GraphQL nodes() query, and applies any post-process options
 // (e.g. IFC labelling).
-func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[string]any, mode searchMode, options ...searchOption) (*mcp.CallToolResult, error) {
+func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[string]any, mode searchMode, options ...searchOption) (*mcp.CallToolResult, ProjectedSearchIssuesResponse, error) {
 	const errorPrefix = "failed to search issues"
 
 	query, opts, err := prepareSearchArgs(args, "issue", mode)
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return utils.NewToolResultError(err.Error()), ProjectedSearchIssuesResponse{}, nil
 	}
 
 	client, err := deps.GetClient(ctx)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub client", err), nil
+		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub client", err), ProjectedSearchIssuesResponse{}, nil
 	}
 	result, resp, err := client.Search.Issues(ctx, query, opts)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr(errorPrefix, err), nil
+		return utils.NewToolResultErrorFromErr(errorPrefix, err), ProjectedSearchIssuesResponse{}, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to read response body", err), nil
+			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to read response body", err), ProjectedSearchIssuesResponse{}, nil
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), ProjectedSearchIssuesResponse{}, nil
 	}
 
 	var fieldValuesByID map[string][]MinimalFieldValue
 	if len(result.Issues) > 0 {
 		gqlClient, err := deps.GetGQLClient(ctx)
 		if err != nil {
-			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub GraphQL client", err), nil
+			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub GraphQL client", err), ProjectedSearchIssuesResponse{}, nil
 		}
 		fieldValuesByID, err = fetchIssueFieldValuesByNodeID(ctx, gqlClient, result.Issues)
 		if err != nil {
 			const enrichmentError = errorPrefix + ": failed to fetch issue field values"
 			if !isUnsupportedIssueFieldValuesSchemaError(err) {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, enrichmentError, err), nil
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, enrichmentError, err), ProjectedSearchIssuesResponse{}, nil
 			}
 			// Older GHES schemas can lack this optional enrichment. Preserve the REST
 			// search results while retaining the compatibility failure for observability.
@@ -2381,17 +2322,20 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 		}
 	}
 
-	items := make([]SearchIssueResult, 0, len(result.Issues))
+	items := make([]ProjectedSearchIssue, 0, len(result.Issues))
 	for _, iss := range result.Issues {
-		hit := SearchIssueResult{Issue: iss}
-		if iss != nil && iss.NodeID != nil {
-			hit.FieldValues = fieldValuesByID[*iss.NodeID]
+		if iss == nil {
+			continue
 		}
-		items = append(items, hit)
+		var fieldValues []MinimalFieldValue
+		if iss.NodeID != nil {
+			fieldValues = fieldValuesByID[*iss.NodeID]
+		}
+		items = append(items, convertToProjectedSearchIssue(iss, fieldValues))
 	}
 
-	response := SearchIssuesResponse{
-		Total:             result.Total,
+	fullResponse := ProjectedSearchIssuesResponse{
+		TotalCount:        result.Total,
 		IncompleteResults: result.IncompleteResults,
 		Items:             items,
 	}
@@ -2401,35 +2345,27 @@ func searchIssuesHandler(ctx context.Context, deps ToolDependencies, args map[st
 		opt(&cfg)
 	}
 
-	filtered := false
-	var payload any = response
-	if len(cfg.fields) > 0 {
-		filteredItems, err := filterEachField(response.Items, cfg.fields)
-		if err != nil {
-			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to filter results", err), nil
-		}
-		payload = map[string]any{
-			"total_count":        response.Total,
-			"incomplete_results": response.IncompleteResults,
-			"items":              filteredItems,
-		}
-		filtered = true
-	}
-
-	r, err := json.Marshal(payload)
+	items, err = projectEachField(items, cfg.fields)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), nil
+		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to filter results", err), ProjectedSearchIssuesResponse{}, nil
+	}
+	response := fullResponse
+	response.Items = items
+
+	r, err := json.Marshal(response)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), ProjectedSearchIssuesResponse{}, nil
 	}
 
 	if cfg.fieldsTool != "" {
-		recordFieldsUsageFor(ctx, cfg.fieldsDeps, cfg.fieldsTool, response, filtered, len(r))
+		recordFieldsUsageFor(ctx, cfg.fieldsDeps, cfg.fieldsTool, fullResponse, len(cfg.fields) > 0, len(r))
 	}
 
 	callResult := utils.NewToolResultText(string(r))
 	if cfg.postProcess != nil {
 		cfg.postProcess(ctx, result, callResult)
 	}
-	return callResult, nil
+	return callResult, response, nil
 }
 
 // IssueWriteUIResourceURI is the URI for the issue_write tool's MCP App UI resource.
@@ -3492,25 +3428,26 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			InputSchema: schema,
 		},
 		scopes.PublicRead(scopes.Repo),
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, ProjectedIssuesResponse, error) {
+			var output ProjectedIssuesResponse
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), output, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), output, nil
 			}
 
 			fields, err := OptionalStringArrayParam(args, "fields")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), output, nil
 			}
 
 			// Set optional parameters if provided
 			state, err := OptionalParam[string](args, "state")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), output, nil
 			}
 
 			// Normalize and filter by state
@@ -3527,17 +3464,17 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// Get labels
 			labels, err := OptionalStringArrayParam(args, "labels")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), output, nil
 			}
 
 			orderBy, err := OptionalParam[string](args, "orderBy")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), output, nil
 			}
 
 			direction, err := OptionalParam[string](args, "direction")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), output, nil
 			}
 
 			// Normalize and validate orderBy
@@ -3560,7 +3497,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			since, err := OptionalParam[string](args, "since")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), output, nil
 			}
 
 			// There are two optional parameters: since and labels.
@@ -3569,7 +3506,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if since != "" {
 				sinceTime, err = parseISOTimestamp(since)
 				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("failed to list issues: %s", err.Error())), nil, nil
+					return utils.NewToolResultError(fmt.Sprintf("failed to list issues: %s", err.Error())), output, nil
 				}
 				hasSince = true
 			}
@@ -3577,18 +3514,18 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			rawFilters, err := parseRawFieldFilters(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return utils.NewToolResultError(err.Error()), output, nil
 			}
 
 			// Get pagination parameters and convert to GraphQL format
 			pagination, err := OptionalCursorPaginationParams(args)
 			if err != nil {
-				return nil, nil, err
+				return nil, output, err
 			}
 
 			// Check if someone tried to use page-based pagination instead of cursor-based
 			if _, pageProvided := args["page"]; pageProvided {
-				return utils.NewToolResultError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), nil, nil
+				return utils.NewToolResultError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), output, nil
 			}
 
 			// Check if pagination parameters were explicitly provided
@@ -3597,7 +3534,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			paginationParams, err := pagination.ToGraphQLParams()
 			if err != nil {
-				return nil, nil, err
+				return nil, output, err
 			}
 
 			// Use default of 30 if pagination was not explicitly provided
@@ -3608,7 +3545,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), output, nil
 			}
 
 			// Resolve field filters by looking up the repo's issue fields so we can
@@ -3617,11 +3554,11 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if len(rawFilters) > 0 {
 				fields, err := fetchIssueFields(ctx, client, owner, repo)
 				if err != nil {
-					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to look up issue fields for field_filters", err), nil, nil
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to look up issue fields for field_filters", err), output, nil
 				}
 				fieldFilters, err = resolveFieldFilters(rawFilters, fields)
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return utils.NewToolResultError(err.Error()), output, nil
 				}
 			}
 
@@ -3674,7 +3611,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 						ctx,
 						"failed to list issues",
 						issueFieldsErr,
-					), nil, nil
+					), output, nil
 				}
 
 				issueQueryWithoutFieldValues := getIssueQueryTypeWithoutFieldValues(hasLabels, hasSince)
@@ -3689,38 +3626,37 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 						ctx,
 						"failed to list issues",
 						fmt.Errorf("issue-fields query failed: %w; fallback query failed: %w", issueFieldsErr, fallbackErr),
-					), nil, nil
+					), output, nil
 				}
 
 				resp = convertToMinimalIssuesResponseWithoutFieldValues(issueQueryWithoutFieldValues.getIssueFragmentWithoutFieldValues())
 				isPrivate = issueQueryWithoutFieldValues.GetIsPrivate()
 			}
 
-			filtered := false
-			var payload any = resp
-			if len(fields) > 0 {
-				filteredIssues, err := filterEachField(resp.Issues, fields)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to filter issues", err), nil, nil
-				}
-				payload = map[string]any{
-					"issues":     filteredIssues,
-					"totalCount": resp.TotalCount,
-					"pageInfo":   resp.PageInfo,
-				}
-				filtered = true
+			projectedIssues := make([]ProjectedListIssue, 0, len(resp.Issues))
+			for _, issue := range resp.Issues {
+				projectedIssues = append(projectedIssues, convertToProjectedListIssue(issue))
 			}
-
-			r, err := json.Marshal(payload)
+			projectedIssues, err = projectEachField(projectedIssues, fields)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				return utils.NewToolResultErrorFromErr("failed to filter issues", err), output, nil
+			}
+			output = ProjectedIssuesResponse{
+				Issues:     projectedIssues,
+				TotalCount: resp.TotalCount,
+				PageInfo:   resp.PageInfo,
 			}
 
-			recordFieldsUsageFor(ctx, deps, "list_issues", resp, filtered, len(r))
+			r, err := json.Marshal(output)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), output, nil
+			}
+
+			recordFieldsUsageFor(ctx, deps, "list_issues", resp, len(fields) > 0, len(r))
 
 			result := utils.NewToolResultText(string(r))
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelListIssues(isPrivate))
-			return result, nil, nil
+			return result, output, nil
 		})
 	return st
 }
