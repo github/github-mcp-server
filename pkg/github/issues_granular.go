@@ -214,7 +214,7 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 				}
-				result, err := createIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, nil, nil, 0, "", parentIssueNumber, parentOwner, parentRepo)
+				result, err := CreateIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, nil, nil, 0, "", parentIssueNumber, parentOwner, parentRepo)
 				return result, nil, err
 			}
 

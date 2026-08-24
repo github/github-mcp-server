@@ -2678,7 +2678,7 @@ Options are:
 			switch method {
 			case "create":
 				if parentProvided {
-					result, err := createIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, assignees, labels, milestoneNum, issueType, parentIssueNumber, parentOwner, parentRepo)
+					result, err := CreateIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, assignees, labels, milestoneNum, issueType, parentIssueNumber, parentOwner, parentRepo)
 					return result, nil, err
 				}
 
@@ -2737,7 +2737,8 @@ type createIssueParentMetadataQuery struct {
 	} `graphql:"parentRepository: repository(owner: $parentOwner, name: $parentRepo)"`
 }
 
-func createIssueWithParent(
+// CreateIssueWithParent creates an issue and attaches it to its parent in one GraphQL mutation.
+func CreateIssueWithParent(
 	ctx context.Context,
 	client *github.Client,
 	gqlClient *githubv4.Client,
