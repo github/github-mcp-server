@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/github/github-mcp-server/skills"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -108,6 +110,22 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 		o(serverOpts)
 	}
 
+	// Declare the io.modelcontextprotocol/skills extension (SEP-2640) for the
+	// bundled Agent Skills. Must happen before NewServer since capabilities
+	// are captured at construction.
+	skillsPublisher := &skills.Publisher{Registry: skills.Bundled()}
+	skillsPublisher.DeclareCapability(serverOpts)
+
+	// When the `skills` toolset is enabled, skills/get and
+	// resources/directory/read additionally answer for repo-hosted skills —
+	// the SEP's unenumerable-catalog case, reachable by URI only.
+	if slices.ContainsFunc(inv.EnabledToolsets(), func(ts inventory.ToolsetMetadata) bool {
+		return ts.ID == ToolsetMetadataSkills.ID
+	}) {
+		skillsPublisher.DynamicGet = RepoSkillEntry
+		skillsPublisher.DynamicDirectoryRead = RepoSkillDirectory
+	}
+
 	ghServer := NewServer(cfg.Version, cfg.Translator("SERVER_NAME", "github-mcp-server"), cfg.Translator("SERVER_TITLE", "GitHub MCP Server"), serverOpts)
 
 	// Add middlewares. Order matters - for example, the error context middleware should be applied last so that it runs FIRST (closest to the handler) to ensure all errors are captured,
@@ -122,6 +140,15 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 
 	// Register GitHub tools/resources/prompts from the inventory.
 	inv.RegisterAll(ctx, ghServer, deps, cfg.ToolHandlerMiddleware...)
+
+	// Register the bundled Agent Skills: each skill file as a skill://
+	// resource, plus the extension's skills/list, skills/get, and
+	// resources/directory/read methods. Lives here — not in the stdio
+	// bootstrap — so the HTTP transport, which builds an mcp.Server per
+	// request through this same constructor, serves them too.
+	if err := skillsPublisher.Install(ghServer); err != nil {
+		return nil, fmt.Errorf("failed to install bundled skills: %w", err)
+	}
 
 	// Register MCP App UI resources whenever the embedded UI assets are
 	// available. The resources are static HTML and are only referenced by
@@ -198,6 +225,9 @@ func CompletionsHandler(getClient GetClientFn) func(ctx context.Context, req *mc
 		case "ref/resource":
 			if strings.HasPrefix(req.Params.Ref.URI, "repo://") {
 				return RepositoryResourceCompletionHandler(getClient)(ctx, req)
+			}
+			if strings.HasPrefix(req.Params.Ref.URI, "skill://") {
+				return SkillResourceCompletionHandler(getClient)(ctx, req)
 			}
 			return nil, fmt.Errorf("unsupported resource URI: %s", req.Params.Ref.URI)
 		case "ref/prompt":

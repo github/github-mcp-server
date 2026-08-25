@@ -606,6 +606,7 @@ The following sets of tools are available:
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/repo-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/repo-light.png"><img src="pkg/octicons/icons/repo-light.png" width="20" height="20" alt="repo"></picture> | `repos` | GitHub Repository related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/shield-lock-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/shield-lock-light.png"><img src="pkg/octicons/icons/shield-lock-light.png" width="20" height="20" alt="shield-lock"></picture> | `secret_protection` | Secret protection related tools, such as GitHub Secret Scanning |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/shield-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/shield-light.png"><img src="pkg/octicons/icons/shield-light.png" width="20" height="20" alt="shield"></picture> | `security_advisories` | Security advisories related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/beaker-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/beaker-light.png"><img src="pkg/octicons/icons/beaker-light.png" width="20" height="20" alt="beaker"></picture> | `skills` | Agent Skills discovery via skill:// resources from arbitrary GitHub repositories (experimental, see agentskills.io) |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/star-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/star-light.png"><img src="pkg/octicons/icons/star-light.png" width="20" height="20" alt="star"></picture> | `stargazers` | GitHub Stargazers related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/people-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/people-light.png"><img src="pkg/octicons/icons/people-light.png" width="20" height="20" alt="people"></picture> | `users` | GitHub User related tools |
 <!-- END AUTOMATED TOOLSETS -->
@@ -1501,6 +1502,17 @@ The following sets of tools are available:
   - `repo`: The name of the repository. (string, required)
   - `sort`: Sort field. (string, optional)
   - `state`: Filter by advisory state. (string, optional)
+
+</details>
+
+<details>
+
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/beaker-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/beaker-light.png"><img src="pkg/octicons/icons/beaker-light.png" width="20" height="20" alt="beaker"></picture> Skills</summary>
+
+- **list_repo_skills** - List Agent Skills in a repository
+  - **Required OAuth Scopes**: `repo`
+  - `owner`: Repository owner (username or organization name). (string, required)
+  - `repo`: Repository name. (string, required)
 
 </details>
 
