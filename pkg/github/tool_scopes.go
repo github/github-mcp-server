@@ -46,7 +46,10 @@ func uiGetScopeAccess() inventory.ScopeAccess {
 				return scopes.ChallengeAll(activeScopes, scopes.ReadOrg)
 			}
 			if method == "reviewers" {
-				return scopes.ChallengeAll(activeScopes, scopes.Repo, scopes.ReadOrg)
+				if repo, ok := arguments["repo"].(string); ok && repo != "" {
+					return scopes.ChallengeAll(activeScopes, scopes.Repo, scopes.ReadOrg)
+				}
+				return nil
 			}
 			switch method {
 			case "labels", "assignees", "milestones", "branches", "issue_fields":

@@ -66,6 +66,20 @@ func TestConditionalToolScopeChecks(t *testing.T) {
 			allowed:    []string{"repo", "read:org"},
 			disallowed: []string{"repo"},
 		},
+		{
+			name:       "ui reviewers method without repository defers to validation",
+			tool:       UIGet(translations.NullTranslationHelper),
+			arguments:  map[string]any{"method": "reviewers", "owner": "octo"},
+			allowed:    nil,
+			disallowed: nil,
+		},
+		{
+			name:       "ui reviewers method with malformed repository defers to validation",
+			tool:       UIGet(translations.NullTranslationHelper),
+			arguments:  map[string]any{"method": "reviewers", "owner": "octo", "repo": 123},
+			allowed:    nil,
+			disallowed: nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -74,7 +88,11 @@ func TestConditionalToolScopeChecks(t *testing.T) {
 			assert.True(t, tt.tool.ScopeAccess.Dynamic)
 			assert.Equal(t, []string{"repo", "read:org"}, tt.tool.ScopeAccess.Scopes)
 			assert.Empty(t, tt.tool.ScopeAccess.Challenge(tt.arguments, tt.allowed))
-			assert.NotEmpty(t, tt.tool.ScopeAccess.Challenge(tt.arguments, tt.disallowed))
+			if tt.disallowed == nil {
+				assert.Empty(t, tt.tool.ScopeAccess.Challenge(tt.arguments, nil))
+			} else {
+				assert.NotEmpty(t, tt.tool.ScopeAccess.Challenge(tt.arguments, tt.disallowed))
+			}
 			assert.True(t, tt.tool.ScopeAccess.Visible(nil))
 		})
 	}
