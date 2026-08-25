@@ -71,9 +71,33 @@ func TestConditionalToolScopeChecks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.NotNil(t, tt.tool.ScopeAccess.Challenge)
+			assert.True(t, tt.tool.ScopeAccess.Dynamic)
+			assert.Equal(t, []string{"repo", "read:org"}, tt.tool.ScopeAccess.Scopes)
 			assert.Empty(t, tt.tool.ScopeAccess.Challenge(tt.arguments, tt.allowed))
 			assert.NotEmpty(t, tt.tool.ScopeAccess.Challenge(tt.arguments, tt.disallowed))
 			assert.True(t, tt.tool.ScopeAccess.Visible(nil))
+		})
+	}
+}
+
+func TestDynamicToolScopeMetadataIsExhaustive(t *testing.T) {
+	tests := []struct {
+		tool      inventory.ServerTool
+		maxScopes []string
+	}{
+		{tool: CreateOrUpdateFile(translations.NullTranslationHelper), maxScopes: []string{"repo", "workflow"}},
+		{tool: DeleteFile(translations.NullTranslationHelper), maxScopes: []string{"repo", "workflow"}},
+		{tool: PushFiles(translations.NullTranslationHelper), maxScopes: []string{"repo", "workflow"}},
+		{tool: ListIssueFields(translations.NullTranslationHelper), maxScopes: []string{"repo", "read:org"}},
+		{tool: ListIssueTypes(translations.NullTranslationHelper), maxScopes: []string{"repo", "read:org"}},
+		{tool: UIGet(translations.NullTranslationHelper), maxScopes: []string{"repo", "read:org"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.tool.Tool.Name, func(t *testing.T) {
+			assert.True(t, tt.tool.ScopeAccess.Dynamic)
+			assert.Equal(t, tt.maxScopes, tt.tool.ScopeAccess.Scopes)
+			assert.NotNil(t, tt.tool.ScopeAccess.Challenge)
 		})
 	}
 }

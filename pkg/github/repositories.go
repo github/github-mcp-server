@@ -625,8 +625,11 @@ SHA MUST be provided for existing file updates.
 			return MarshalledTextResult(minimalResponse), nil, nil
 		},
 	)
-	tool.ScopeAccess.Challenge = workflowScopeChallengeForPath
-	tool.ScopeAccess.Scopes = []string{string(scopes.Repo), string(scopes.Workflow)}
+	tool.ScopeAccess = scopes.DynamicChallenge(
+		[]scopes.Scope{scopes.Repo, scopes.Workflow},
+		tool.ScopeAccess.Visible,
+		workflowScopeChallengeForPath,
+	)
 	return tool
 }
 
@@ -1481,8 +1484,11 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.ScopeAccess.Challenge = workflowScopeChallengeForPath
-	tool.ScopeAccess.Scopes = []string{string(scopes.Repo), string(scopes.Workflow)}
+	tool.ScopeAccess = scopes.DynamicChallenge(
+		[]scopes.Scope{scopes.Repo, scopes.Workflow},
+		tool.ScopeAccess.Visible,
+		workflowScopeChallengeForPath,
+	)
 	return tool
 }
 
@@ -1833,8 +1839,11 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.ScopeAccess.Challenge = workflowScopeChallengeForFiles
-	tool.ScopeAccess.Scopes = []string{string(scopes.Repo), string(scopes.Workflow)}
+	tool.ScopeAccess = scopes.DynamicChallenge(
+		[]scopes.Scope{scopes.Repo, scopes.Workflow},
+		tool.ScopeAccess.Visible,
+		workflowScopeChallengeForFiles,
+	)
 	return tool
 }
 

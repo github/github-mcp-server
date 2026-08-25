@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -40,18 +39,15 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 				return
 			}
 
-			// Try to use pre-parsed MCP method info first (performance optimization)
-			// This avoids re-parsing the JSON body if WithMCPParse middleware ran earlier
-			var toolName string
-			var arguments map[string]any
-			if methodInfo, ok := ghcontext.MCPMethod(ctx); ok && methodInfo != nil {
+			// Use pre-parsed envelope information when WithMCPParse ran earlier.
+			var methodInfo *ghcontext.MCPMethodInfo
+			if parsedMethodInfo, ok := ghcontext.MCPMethod(ctx); ok && parsedMethodInfo != nil {
 				// Only check tools/call requests
-				if methodInfo.Method != "tools/call" {
+				if parsedMethodInfo.Method != "tools/call" {
 					next.ServeHTTP(w, r)
 					return
 				}
-				toolName = methodInfo.ItemName
-				arguments = methodInfo.Arguments
+				methodInfo = parsedMethodInfo
 			} else {
 				// Fallback: parse the request body directly
 				body, err := io.ReadAll(r.Body)
@@ -65,32 +61,20 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 				}
 				r.Body = io.NopCloser(bytes.NewReader(body))
 
-				var mcpRequest struct {
-					JSONRPC string `json:"jsonrpc"`
-					Method  string `json:"method"`
-					Params  struct {
-						Name      string         `json:"name,omitempty"`
-						Arguments map[string]any `json:"arguments,omitempty"`
-					} `json:"params"`
-				}
-
-				err = json.Unmarshal(body, &mcpRequest)
-				if err != nil {
+				methodInfo, err = parseMCPMethodInfo(body)
+				if err != nil || methodInfo == nil {
 					next.ServeHTTP(w, r)
 					return
 				}
 
 				// Only check tools/call requests
-				if mcpRequest.Method != "tools/call" {
+				if methodInfo.Method != "tools/call" {
 					next.ServeHTTP(w, r)
 					return
 				}
-
-				toolName = mcpRequest.Params.Name
-				arguments = mcpRequest.Params.Arguments
 			}
-			checkScopes := scopes.GetToolScopeChallenge(toolName)
-			if checkScopes == nil {
+			scopeAccess, ok := scopes.GetToolScopeAccess(methodInfo.ItemName)
+			if !ok {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -111,7 +95,20 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 			ctx = ghcontext.WithTokenScopes(ctx, activeScopes)
 			r = r.WithContext(ctx)
 
-			challengeScopes := checkScopes(arguments, activeScopes)
+			// Most calls already have sufficient scopes. Compare against the
+			// exhaustive upper bound before materializing tool arguments.
+			if scopeAccess.MaximumScopesSatisfied(activeScopes) {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			arguments, err := methodInfo.DecodeArguments()
+			if err != nil {
+				// Preserve normal MCP handler validation for invalid arguments.
+				next.ServeHTTP(w, r)
+				return
+			}
+			challengeScopes := scopeAccess.ResolveChallenge(arguments, activeScopes)
 			if len(challengeScopes) == 0 {
 				next.ServeHTTP(w, r)
 				return

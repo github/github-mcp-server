@@ -3,6 +3,7 @@ package middleware
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/stretchr/testify/assert"
@@ -127,11 +129,13 @@ func TestWithScopeChallengeResolvesScopesFromParsedArguments(t *testing.T) {
 
 			request := httptest.NewRequest(http.MethodPost, "/mcp", nil)
 			assert.Empty(t, request.Header.Get("Mcp-Param-path"))
+			rawArguments, err := json.Marshal(tt.arguments)
+			require.NoError(t, err)
 			ctx := scopeChallengeContext(request.Context())
 			ctx = ghcontext.WithMCPMethodInfo(ctx, &ghcontext.MCPMethodInfo{
-				Method:    "tools/call",
-				ItemName:  "write_file",
-				Arguments: tt.arguments,
+				Method:       "tools/call",
+				ItemName:     "write_file",
+				RawArguments: rawArguments,
 			})
 			request = request.WithContext(ctx)
 
@@ -171,10 +175,162 @@ func TestWithScopeChallengeResolvesScopesFromFallbackBody(t *testing.T) {
 	assert.Contains(t, response.Header().Get("WWW-Authenticate"), "Additional scopes required: repo, workflow")
 }
 
+func TestWithScopeChallengeSkipsArgumentDecodeWhenMaximumScopesGranted(t *testing.T) {
+	callbackCalls := 0
+	setScopeTestMap(t, scopes.DynamicChallenge(
+		[]scopes.Scope{scopes.Repo, scopes.Workflow},
+		func([]string) bool { return true },
+		func(map[string]any, []string) []string {
+			callbackCalls++
+			return []string{"unexpected"}
+		},
+	))
+
+	tests := []struct {
+		name      string
+		arguments string
+		validate  func(*testing.T, *ghcontext.MCPMethodInfo)
+	}{
+		{
+			name:      "invalid argument shape reaches downstream validation",
+			arguments: `["not","an","object"]`,
+			validate: func(t *testing.T, info *ghcontext.MCPMethodInfo) {
+				_, err := info.DecodeArguments()
+				assert.Error(t, err)
+			},
+		},
+		{
+			name:      "large nested arguments remain raw",
+			arguments: `{"nested":[{"payload":"` + strings.Repeat("x", 32*1024) + `"},[1,2,3]]}`,
+			validate: func(t *testing.T, info *ghcontext.MCPMethodInfo) {
+				assert.Greater(t, len(info.RawArguments), 32*1024)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			callbackCalls = 0
+			body := `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"write_file","arguments":` + tt.arguments + `}}`
+			nextCalled := false
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				nextCalled = true
+				info, ok := ghcontext.MCPMethod(r.Context())
+				require.True(t, ok)
+				require.NotNil(t, info)
+				tt.validate(t, info)
+				receivedBody, err := io.ReadAll(r.Body)
+				require.NoError(t, err)
+				assert.Equal(t, body, string(receivedBody))
+				w.WriteHeader(http.StatusUnprocessableEntity)
+			})
+			handler := WithMCPParse()(WithScopeChallenge(&oauth.Config{}, &mockScopeFetcher{})(next))
+
+			request := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))
+			request = request.WithContext(scopeChallengeContextWithScopes(request.Context(), []string{"repo", "workflow"}))
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+
+			assert.True(t, nextCalled)
+			assert.Equal(t, http.StatusUnprocessableEntity, response.Code)
+			assert.Zero(t, callbackCalls)
+		})
+	}
+}
+
+func TestWithScopeChallengeMaximumScopeHierarchyFastPath(t *testing.T) {
+	callbackCalls := 0
+	setScopeTestMap(t, scopes.DynamicChallenge(
+		[]scopes.Scope{scopes.ReadOrg},
+		func([]string) bool { return true },
+		func(map[string]any, []string) []string {
+			callbackCalls++
+			return []string{"unexpected"}
+		},
+	))
+
+	nextCalled := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		nextCalled = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+	body := `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"write_file","arguments":["invalid","shape"]}}`
+	request := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))
+	request = request.WithContext(scopeChallengeContextWithScopes(request.Context(), []string{"admin:org"}))
+	response := httptest.NewRecorder()
+
+	WithMCPParse()(WithScopeChallenge(&oauth.Config{}, &mockScopeFetcher{})(next)).ServeHTTP(response, request)
+
+	assert.True(t, nextCalled)
+	assert.Equal(t, http.StatusNoContent, response.Code)
+	assert.Zero(t, callbackCalls)
+}
+
+func TestWithScopeChallengeFallbackFastPathPreservesBody(t *testing.T) {
+	callbackCalls := 0
+	setScopeTestMap(t, scopes.DynamicChallenge(
+		[]scopes.Scope{scopes.Repo, scopes.Workflow},
+		func([]string) bool { return true },
+		func(map[string]any, []string) []string {
+			callbackCalls++
+			return []string{"unexpected"}
+		},
+	))
+
+	body := `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"write_file","arguments":["invalid","shape"]}}`
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedBody, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		assert.Equal(t, body, string(receivedBody))
+		w.WriteHeader(http.StatusNoContent)
+	})
+	request := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))
+	request = request.WithContext(scopeChallengeContextWithScopes(request.Context(), []string{"repo", "workflow"}))
+	response := httptest.NewRecorder()
+
+	WithScopeChallenge(&oauth.Config{}, &mockScopeFetcher{})(next).ServeHTTP(response, request)
+
+	assert.Equal(t, http.StatusNoContent, response.Code)
+	assert.Zero(t, callbackCalls)
+}
+
+func TestWithScopeChallengeUnderScopedInvalidArgumentsReachHandler(t *testing.T) {
+	callbackCalls := 0
+	setScopeTestMap(t, scopes.DynamicChallenge(
+		[]scopes.Scope{scopes.Repo, scopes.Workflow},
+		func([]string) bool { return true },
+		func(map[string]any, []string) []string {
+			callbackCalls++
+			return []string{"unexpected"}
+		},
+	))
+
+	body := `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"write_file","arguments":["invalid","shape"]}}`
+	nextCalled := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextCalled = true
+		receivedBody, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		assert.Equal(t, body, string(receivedBody))
+		w.WriteHeader(http.StatusUnprocessableEntity)
+	})
+	request := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))
+	request = request.WithContext(scopeChallengeContext(request.Context()))
+	response := httptest.NewRecorder()
+
+	WithMCPParse()(WithScopeChallenge(&oauth.Config{}, &mockScopeFetcher{})(next)).ServeHTTP(response, request)
+
+	assert.True(t, nextCalled)
+	assert.Equal(t, http.StatusUnprocessableEntity, response.Code)
+	assert.Zero(t, callbackCalls)
+}
+
 func setDynamicScopeTestMap(t *testing.T) {
 	t.Helper()
-	scopes.SetGlobalToolScopeMap(scopes.ToolScopeMap{
-		"write_file": func(arguments map[string]any, activeScopes []string) []string {
+	setScopeTestMap(t, scopes.DynamicChallenge(
+		[]scopes.Scope{scopes.Repo, scopes.Workflow},
+		func([]string) bool { return true },
+		func(arguments map[string]any, activeScopes []string) []string {
 			if path, _ := arguments["path"].(string); strings.HasPrefix(path, ".github/workflows/") {
 				return scopes.ChallengeAll(activeScopes, scopes.Repo, scopes.Workflow)
 			}
@@ -187,17 +343,81 @@ func setDynamicScopeTestMap(t *testing.T) {
 			}
 			return scopes.ChallengeAll(activeScopes, scopes.Repo)
 		},
-	})
+	))
+}
+
+func setScopeTestMap(t *testing.T, access inventory.ScopeAccess) {
+	t.Helper()
+	scopes.SetGlobalToolScopeMap(scopes.ToolScopeMap{"write_file": access})
 	t.Cleanup(func() {
 		scopes.SetGlobalToolScopeMap(nil)
 	})
 }
 
 func scopeChallengeContext(ctx context.Context) context.Context {
+	return scopeChallengeContextWithScopes(ctx, []string{"repo"})
+}
+
+func scopeChallengeContextWithScopes(ctx context.Context, activeScopes []string) context.Context {
 	ctx = ghcontext.WithTokenInfo(ctx, &ghcontext.TokenInfo{
 		Token:     "oauth-token",
 		TokenType: utils.TokenTypeOAuthAccessToken,
 	})
-	ctx = ghcontext.WithTokenScopes(ctx, []string{"repo"})
+	ctx = ghcontext.WithTokenScopes(ctx, activeScopes)
 	return ctx
+}
+
+func BenchmarkWithScopeChallengeDynamicPolicy(b *testing.B) {
+	scopes.SetGlobalToolScopeMap(scopes.ToolScopeMap{
+		"write_file": scopes.DynamicChallenge(
+			[]scopes.Scope{scopes.Repo, scopes.Workflow},
+			func([]string) bool { return true },
+			func(arguments map[string]any, activeScopes []string) []string {
+				if path, _ := arguments["path"].(string); strings.HasPrefix(path, ".github/workflows/") {
+					return scopes.ChallengeAll(activeScopes, scopes.Repo, scopes.Workflow)
+				}
+				return scopes.ChallengeAll(activeScopes, scopes.Repo)
+			},
+		),
+	})
+	b.Cleanup(func() { scopes.SetGlobalToolScopeMap(nil) })
+
+	for _, payload := range []struct {
+		name string
+		size int
+	}{
+		{name: "small_arguments", size: 256},
+		{name: "large_arguments", size: 32 * 1024},
+	} {
+		body := `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"write_file","arguments":{"path":"README.md","nested":[{"payload":"` +
+			strings.Repeat("x", payload.size) + `"},[1,2,3]]}}}`
+		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var downstreamRequest mcpJSONRPCRequest
+			_ = json.NewDecoder(r.Body).Decode(&downstreamRequest)
+			var arguments map[string]any
+			_ = json.Unmarshal(downstreamRequest.Params.Arguments, &arguments)
+			w.WriteHeader(http.StatusNoContent)
+		})
+		handler := WithMCPParse()(WithScopeChallenge(&oauth.Config{}, &mockScopeFetcher{})(next))
+
+		b.Run(payload.name, func(b *testing.B) {
+			for _, benchmark := range []struct {
+				name         string
+				activeScopes []string
+			}{
+				{name: "maximum_scopes_fast_path", activeScopes: []string{"repo", "workflow"}},
+				{name: "call_specific_decode", activeScopes: []string{"repo"}},
+			} {
+				b.Run(benchmark.name, func(b *testing.B) {
+					b.ReportAllocs()
+					b.SetBytes(int64(len(body)))
+					for b.Loop() {
+						request := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))
+						request = request.WithContext(scopeChallengeContextWithScopes(request.Context(), benchmark.activeScopes))
+						handler.ServeHTTP(httptest.NewRecorder(), request)
+					}
+				})
+			}
+		})
+	}
 }

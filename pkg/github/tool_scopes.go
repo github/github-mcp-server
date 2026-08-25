@@ -6,13 +6,13 @@ import (
 )
 
 func repositoryOrOrganizationScopeAccess() inventory.ScopeAccess {
-	return inventory.ScopeAccess{
-		Scopes: []string{string(scopes.Repo), string(scopes.ReadOrg)},
-		Visible: func([]string) bool {
+	return scopes.DynamicChallenge(
+		[]scopes.Scope{scopes.Repo, scopes.ReadOrg},
+		func([]string) bool {
 			// Repository reads may target public repositories.
 			return true
 		},
-		Challenge: func(arguments map[string]any, activeScopes []string) []string {
+		func(arguments map[string]any, activeScopes []string) []string {
 			if owner, ok := arguments["owner"].(string); !ok || owner == "" {
 				return nil
 			}
@@ -25,16 +25,16 @@ func repositoryOrOrganizationScopeAccess() inventory.ScopeAccess {
 			}
 			return scopes.ChallengeAll(activeScopes, scopes.Repo)
 		},
-	}
+	)
 }
 
 func uiGetScopeAccess() inventory.ScopeAccess {
-	return inventory.ScopeAccess{
-		Scopes: []string{string(scopes.Repo), string(scopes.ReadOrg)},
-		Visible: func([]string) bool {
+	return scopes.DynamicChallenge(
+		[]scopes.Scope{scopes.Repo, scopes.ReadOrg},
+		func([]string) bool {
 			return true
 		},
-		Challenge: func(arguments map[string]any, activeScopes []string) []string {
+		func(arguments map[string]any, activeScopes []string) []string {
 			if owner, ok := arguments["owner"].(string); !ok || owner == "" {
 				return nil
 			}
@@ -56,5 +56,5 @@ func uiGetScopeAccess() inventory.ScopeAccess {
 			}
 			return nil
 		},
-	}
+	)
 }

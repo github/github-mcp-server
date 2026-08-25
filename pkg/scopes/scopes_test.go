@@ -23,8 +23,27 @@ func TestScopeChecks(t *testing.T) {
 	assert.True(t, HasAll([]string{"repo", "workflow"}, Repo, Workflow))
 	assert.False(t, HasAll([]string{"repo"}, Repo, Workflow))
 	assert.True(t, HasAll([]string{"admin:org"}, ReadOrg))
+	assert.True(t, HasAllScopeNames([]string{"admin:org"}, []string{"read:org"}))
+	assert.False(t, HasAllScopeNames([]string{"repo"}, []string{"repo", "workflow"}))
 	assert.Nil(t, ChallengeAll([]string{"repo", "workflow"}, Repo, Workflow))
 	assert.Equal(t, []string{"repo", "workflow"}, ChallengeAll([]string{"repo"}, Repo, Workflow))
+}
+
+func TestDynamicChallenge(t *testing.T) {
+	visible := func([]string) bool { return true }
+	challenge := func(map[string]any, []string) []string { return nil }
+	access := DynamicChallenge([]Scope{Repo, Workflow}, visible, challenge)
+
+	assert.Equal(t, []string{"repo", "workflow"}, access.Scopes)
+	assert.True(t, access.Dynamic)
+	assert.NotNil(t, access.Challenge)
+	assert.True(t, access.Visible(nil))
+	assert.Panics(t, func() {
+		DynamicChallenge(nil, visible, challenge)
+	})
+	assert.Panics(t, func() {
+		DynamicChallenge([]Scope{Repo}, visible, nil)
+	})
 }
 
 func TestScopeHierarchy(t *testing.T) {
@@ -38,77 +57,4 @@ func TestScopeHierarchy(t *testing.T) {
 	assert.Contains(t, ScopeHierarchy[WritePackages], ReadPackages)
 	assert.Contains(t, ScopeHierarchy[User], ReadUser)
 	assert.Contains(t, ScopeHierarchy[User], UserEmail)
-}
-
-func TestExpandScopeSet(t *testing.T) {
-	tests := []struct {
-		name     string
-		scopes   []string
-		expected map[string]bool
-	}{
-		{
-			name:     "empty scopes",
-			scopes:   []string{},
-			expected: map[string]bool{},
-		},
-		{
-			name:   "repo expands to include public_repo and security_events",
-			scopes: []string{"repo"},
-			expected: map[string]bool{
-				"repo":            true,
-				"public_repo":     true,
-				"security_events": true,
-			},
-		},
-		{
-			name:   "admin:org expands to include write:org and read:org",
-			scopes: []string{"admin:org"},
-			expected: map[string]bool{
-				"admin:org": true,
-				"write:org": true,
-				"read:org":  true,
-			},
-		},
-		{
-			name:   "write:org expands to include read:org",
-			scopes: []string{"write:org"},
-			expected: map[string]bool{
-				"write:org": true,
-				"read:org":  true,
-			},
-		},
-		{
-			name:   "user expands to include read:user and user:email",
-			scopes: []string{"user"},
-			expected: map[string]bool{
-				"user":       true,
-				"read:user":  true,
-				"user:email": true,
-			},
-		},
-		{
-			name:   "scope without children stays as-is",
-			scopes: []string{"gist"},
-			expected: map[string]bool{
-				"gist": true,
-			},
-		},
-		{
-			name:   "multiple scopes combine correctly",
-			scopes: []string{"repo", "gist"},
-			expected: map[string]bool{
-				"repo":            true,
-				"public_repo":     true,
-				"security_events": true,
-				"gist":            true,
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := expandScopeSet(tt.scopes)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
 }

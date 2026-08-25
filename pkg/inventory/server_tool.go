@@ -28,8 +28,9 @@ type ScopeChallenge func(arguments map[string]any, activeScopes []string) []stri
 
 // ScopeAccess contains scope metadata and the two checks used by the server.
 type ScopeAccess struct {
-	// Scopes lists every scope this tool may request. It is used for
-	// documentation and the list-scopes command.
+	// Scopes is the exhaustive upper bound of every scope this tool may request.
+	// It is used for documentation, the list-scopes command, and bypassing
+	// call-specific challenge evaluation when a token already grants them all.
 	Scopes []string
 
 	// Visible is used when filtering tools for a fixed-scope token.
@@ -39,6 +40,10 @@ type ScopeAccess struct {
 	// Challenge evaluates one call before its handler runs.
 	// Nil means the call does not use OAuth scope challenges.
 	Challenge ScopeChallenge
+
+	// Dynamic reports whether Challenge depends on tool arguments. Dynamic
+	// policies must declare their exhaustive upper bound in Scopes.
+	Dynamic bool
 }
 
 // ToolHandlerMiddleware wraps an MCP tool handler. Middleware is applied from

@@ -123,9 +123,10 @@ var ScopeHierarchy = map[Scope][]Scope{
 
 // RequireAll creates scope checks for a tool that always needs the given scopes.
 func RequireAll(required ...Scope) inventory.ScopeAccess {
-	scopes := scopeStrings(required)
+	required = append([]Scope(nil), required...)
+	requiredScopes := scopeStrings(required)
 	return inventory.ScopeAccess{
-		Scopes: scopes,
+		Scopes: append([]string(nil), requiredScopes...),
 		Visible: func(activeScopes []string) bool {
 			return HasAll(activeScopes, required...)
 		},
@@ -133,7 +134,7 @@ func RequireAll(required ...Scope) inventory.ScopeAccess {
 			if HasAll(activeScopes, required...) {
 				return nil
 			}
-			return append([]string(nil), scopes...)
+			return append([]string(nil), requiredScopes...)
 		},
 	}
 }
@@ -150,15 +151,67 @@ func NoScopes() inventory.ScopeAccess {
 	return inventory.ScopeAccess{}
 }
 
+// DynamicChallenge creates an argument-dependent scope policy. maxScopes must
+// exhaustively list every scope challenge can return, allowing middleware to
+// skip argument decoding and challenge evaluation when they are already granted.
+func DynamicChallenge(maxScopes []Scope, visible inventory.ScopeVisibility, challenge inventory.ScopeChallenge) inventory.ScopeAccess {
+	if len(maxScopes) == 0 {
+		panic("dynamic scope challenge requires exhaustive maximum scopes")
+	}
+	if challenge == nil {
+		panic("dynamic scope challenge requires a callback")
+	}
+	return inventory.ScopeAccess{
+		Scopes:    scopeStrings(maxScopes),
+		Visible:   visible,
+		Challenge: challenge,
+		Dynamic:   true,
+	}
+}
+
 // HasAll reports whether a token grants every requested scope.
 func HasAll(activeScopes []string, required ...Scope) bool {
-	granted := expandScopeSet(activeScopes)
-	for _, scope := range required {
-		if !granted[string(scope)] {
+	for _, requiredScope := range required {
+		if !hasScope(activeScopes, requiredScope) {
 			return false
 		}
 	}
 	return true
+}
+
+// HasAllScopeNames reports whether a token grants every requested scope name.
+// It avoids materializing an expanded scope set on the request hot path.
+func HasAllScopeNames(activeScopes, requiredScopes []string) bool {
+	for _, requiredScope := range requiredScopes {
+		if !hasScope(activeScopes, Scope(requiredScope)) {
+			return false
+		}
+	}
+	return true
+}
+
+func hasScope(activeScopes []string, required Scope) bool {
+	for _, activeScope := range activeScopes {
+		if scopeImplies(Scope(activeScope), required, len(ScopeHierarchy)+1) {
+			return true
+		}
+	}
+	return false
+}
+
+func scopeImplies(granted, required Scope, remaining int) bool {
+	if granted == required {
+		return true
+	}
+	if remaining == 0 {
+		return false
+	}
+	for _, child := range ScopeHierarchy[granted] {
+		if scopeImplies(child, required, remaining-1) {
+			return true
+		}
+	}
+	return false
 }
 
 // ChallengeAll returns the complete scope set for an operation, or nil when
@@ -176,27 +229,4 @@ func scopeStrings(scopes []Scope) []string {
 		result[i] = string(scope)
 	}
 	return result
-}
-
-// expandScopeSet returns a set of all scopes granted by the given scopes,
-// including child scopes from the hierarchy.
-// For example, if "repo" is provided, the result includes "repo", "public_repo",
-// and "security_events" since "repo" grants access to those child scopes.
-func expandScopeSet(scopes []string) map[string]bool {
-	expanded := make(map[string]bool, len(scopes))
-	queue := append([]string(nil), scopes...)
-	for len(queue) > 0 {
-		scope := queue[0]
-		queue = queue[1:]
-		if expanded[scope] {
-			continue
-		}
-		expanded[scope] = true
-		for _, child := range ScopeHierarchy[Scope(scope)] {
-			if !expanded[string(child)] {
-				queue = append(queue, string(child))
-			}
-		}
-	}
-	return expanded
 }
