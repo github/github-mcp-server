@@ -3,11 +3,62 @@ package raw
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 
 	gogithub "github.com/google/go-github/v89/github"
 )
+
+// errPathTraversal is returned when an owner, repo, ref/sha, or path
+// component used to build a raw content URL contains a ".." path segment,
+// either literally or via percent-decoding.
+var errPathTraversal = errors.New(`raw: path segment ".." is not allowed`)
+
+// rejectPathTraversal reports an error if any "/"-separated segment of the
+// given components is, or decodes to, "..". url.URL.JoinPath cleans the
+// joined path (resolving ".." segments) before producing the final URL, so a
+// ".." segment anywhere in owner, repo, ref/sha, or path could otherwise
+// rebind the resulting raw.githubusercontent.com URL to a different owner,
+// repository, or ref than the one requested.
+func rejectPathTraversal(components ...string) error {
+	for _, component := range components {
+		for segment := range strings.SplitSeq(component, "/") {
+			if err := rejectSegment(segment); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// rejectSegment reports an error if segment is, or decodes to, "..". A
+// percent-encoded separator (e.g. "%2f") can appear inside a single
+// "/"-separated segment and only becomes a "/" once decoded, revealing new
+// subsegments (e.g. "%2e%2e%2fsecret.txt" decodes to "../secret.txt"). To
+// catch that, whenever decoding changes the segment, the decoded form is
+// split on "/" again and each subsegment is checked recursively, so
+// traversal segments introduced by one or more layers of percent-decoding
+// are rejected regardless of where the encoded separator falls.
+func rejectSegment(segment string) error {
+	if segment == "" {
+		return nil
+	}
+	if segment == ".." {
+		return errPathTraversal
+	}
+	decoded, err := url.PathUnescape(segment)
+	if err != nil || decoded == segment {
+		return nil
+	}
+	for subsegment := range strings.SplitSeq(decoded, "/") {
+		if err := rejectSegment(subsegment); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // GetRawClientFn is a function type that returns a RawClient instance.
 type GetRawClientFn func(context.Context) (*Client, error)
@@ -34,14 +85,17 @@ func (c *Client) newRequest(ctx context.Context, method string, urlStr string, b
 	return c.client.NewRequest(ctx, method, urlStr, body, opts...)
 }
 
-func (c *Client) refURL(owner, repo, ref, path string) string {
+func (c *Client) refURL(owner, repo, ref, path string) (string, error) {
 	if ref == "" {
-		return c.url.JoinPath(owner, repo, "HEAD", path).String()
+		ref = "HEAD"
 	}
-	return c.url.JoinPath(owner, repo, ref, path).String()
+	if err := rejectPathTraversal(owner, repo, ref, path); err != nil {
+		return "", err
+	}
+	return c.url.JoinPath(owner, repo, ref, path).String(), nil
 }
 
-func (c *Client) URLFromOpts(opts *ContentOpts, owner, repo, path string) string {
+func (c *Client) URLFromOpts(opts *ContentOpts, owner, repo, path string) (string, error) {
 	if opts == nil {
 		opts = &ContentOpts{}
 	}
@@ -52,8 +106,11 @@ func (c *Client) URLFromOpts(opts *ContentOpts, owner, repo, path string) string
 }
 
 // BlobURL returns the URL for a blob in the raw content API.
-func (c *Client) commitURL(owner, repo, sha, path string) string {
-	return c.url.JoinPath(owner, repo, sha, path).String()
+func (c *Client) commitURL(owner, repo, sha, path string) (string, error) {
+	if err := rejectPathTraversal(owner, repo, sha, path); err != nil {
+		return "", err
+	}
+	return c.url.JoinPath(owner, repo, sha, path).String(), nil
 }
 
 type ContentOpts struct {
@@ -63,8 +120,11 @@ type ContentOpts struct {
 
 // GetRawContent fetches the raw content of a file from a GitHub repository.
 func (c *Client) GetRawContent(ctx context.Context, owner, repo, path string, opts *ContentOpts) (*http.Response, error) {
-	url := c.URLFromOpts(opts, owner, repo, path)
-	req, err := c.newRequest(ctx, "GET", url, nil)
+	rawURL, err := c.URLFromOpts(opts, owner, repo, path)
+	if err != nil {
+		return nil, err
+	}
+	req, err := c.newRequest(ctx, "GET", rawURL, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -7,8 +7,8 @@ import (
 	"github.com/github/github-mcp-server/pkg/utils"
 )
 
-// APIVersionTransport sets the GitHub REST API version on requests to
-// GitHub.com and GitHub Enterprise Cloud.
+// APIVersionTransport sets the host-compatible GitHub REST API version on
+// requests to GitHub.com, GitHub Enterprise Cloud, and GitHub Enterprise Server.
 type APIVersionTransport struct {
 	Transport http.RoundTripper
 }

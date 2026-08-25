@@ -12,73 +12,108 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewServerToolWithContextHandler_InvalidArguments_ReturnsIsError(t *testing.T) {
-	type expectedArgs struct {
-		Query string `json:"query"`
-		Limit int    `json:"limit"`
+func TestNewServerToolWithContextHandler_Arguments(t *testing.T) {
+	tests := []struct {
+		name              string
+		arguments         json.RawMessage
+		requireQuery      bool
+		wantHandlerCalled bool
+		wantIsError       bool
+		wantText          string
+	}{
+		{
+			name:              "omitted arguments",
+			arguments:         nil,
+			wantHandlerCalled: true,
+			wantText:          "success",
+		},
+		{
+			name:              "empty argument bytes",
+			arguments:         json.RawMessage{},
+			wantHandlerCalled: true,
+			wantText:          "success",
+		},
+		{
+			name:              "explicit empty object",
+			arguments:         json.RawMessage(`{}`),
+			wantHandlerCalled: true,
+			wantText:          "success",
+		},
+		{
+			name:        "explicit null",
+			arguments:   json.RawMessage(`null`),
+			wantIsError: true,
+			wantText:    "arguments must be a JSON object",
+		},
+		{
+			name:        "malformed JSON",
+			arguments:   json.RawMessage(`{not valid json`),
+			wantIsError: true,
+			wantText:    "invalid arguments",
+		},
+		{
+			name:              "omitted arguments reach required parameter validation",
+			arguments:         nil,
+			requireQuery:      true,
+			wantHandlerCalled: true,
+			wantIsError:       true,
+			wantText:          "missing required parameter: query",
+		},
+		{
+			name:              "required parameter is decoded",
+			arguments:         json.RawMessage(`{"query":"is:open"}`),
+			requireQuery:      true,
+			wantHandlerCalled: true,
+			wantText:          "success: is:open",
+		},
 	}
 
-	tool := NewServerToolWithContextHandler(
-		mcp.Tool{Name: "test_context_tool"},
-		testToolsetMetadata("test"),
-		func(_ context.Context, _ *mcp.CallToolRequest, _ expectedArgs) (*mcp.CallToolResult, any, error) {
-			t.Fatal("handler should not be called with invalid arguments")
-			return nil, nil, nil
-		},
-	)
-
-	handler := tool.HandlerFunc(nil)
-
-	result, err := handler(context.Background(), &mcp.CallToolRequest{
-		Params: &mcp.CallToolParamsRaw{
-			Name:      "test_context_tool",
-			Arguments: json.RawMessage(`{not valid json`),
-		},
-	})
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.True(t, result.IsError)
-	assert.Len(t, result.Content, 1)
-	textContent, ok := result.Content[0].(*mcp.TextContent)
-	require.True(t, ok)
-	assert.Contains(t, textContent.Text, "invalid arguments")
-}
-
-func TestNewServerToolWithContextHandler_ValidArguments_Succeeds(t *testing.T) {
-	type expectedArgs struct {
-		Owner string `json:"owner"`
-		Repo  string `json:"repo"`
-	}
-
-	tool := NewServerToolWithContextHandler(
-		mcp.Tool{Name: "test_tool"},
-		testToolsetMetadata("test"),
-		func(_ context.Context, _ *mcp.CallToolRequest, args expectedArgs) (*mcp.CallToolResult, any, error) {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{
-					&mcp.TextContent{Text: "success: " + args.Owner + "/" + args.Repo},
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			handlerCalled := false
+			tool := NewServerToolWithContextHandler(
+				mcp.Tool{Name: "test_context_tool"},
+				testToolsetMetadata("test"),
+				func(_ context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+					handlerCalled = true
+					query, _ := args["query"].(string)
+					if tc.requireQuery && query == "" {
+						return &mcp.CallToolResult{
+							Content: []mcp.Content{
+								&mcp.TextContent{Text: "missing required parameter: query"},
+							},
+							IsError: true,
+						}, nil, nil
+					}
+					text := "success"
+					if query != "" {
+						text += ": " + query
+					}
+					return &mcp.CallToolResult{
+						Content: []mcp.Content{
+							&mcp.TextContent{Text: text},
+						},
+					}, nil, nil
 				},
-			}, nil, nil
-		},
-	)
+			)
 
-	handler := tool.HandlerFunc(nil)
+			result, err := tool.HandlerFunc(nil)(context.Background(), &mcp.CallToolRequest{
+				Params: &mcp.CallToolParamsRaw{
+					Name:      "test_context_tool",
+					Arguments: tc.arguments,
+				},
+			})
 
-	goodArgs, _ := json.Marshal(map[string]any{"owner": "octocat", "repo": "hello-world"})
-	result, err := handler(context.Background(), &mcp.CallToolRequest{
-		Params: &mcp.CallToolParamsRaw{
-			Name:      "test_tool",
-			Arguments: goodArgs,
-		},
-	})
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.False(t, result.IsError)
-	textContent, ok := result.Content[0].(*mcp.TextContent)
-	require.True(t, ok)
-	assert.Equal(t, "success: octocat/hello-world", textContent.Text)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tc.wantHandlerCalled, handlerCalled)
+			assert.Equal(t, tc.wantIsError, result.IsError)
+			require.Len(t, result.Content, 1)
+			textContent, ok := result.Content[0].(*mcp.TextContent)
+			require.True(t, ok)
+			assert.Contains(t, textContent.Text, tc.wantText)
+		})
+	}
 }
 
 func TestServerToolRegisterFuncAppliesMiddleware(t *testing.T) {

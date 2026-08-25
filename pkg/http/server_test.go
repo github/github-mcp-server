@@ -2,14 +2,275 @@ package http
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/http/middleware"
+	"github.com/github/github-mcp-server/pkg/http/oauth"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestRunHTTPServerRejectsInvalidStaticTools(t *testing.T) {
+	tests := []struct {
+		name         string
+		enabledTools []string
+	}{
+		{
+			name:         "mixed valid and invalid tools",
+			enabledTools: []string{"get_file_contents", "nonexistent_tool"},
+		},
+		{
+			name:         "all invalid tools",
+			enabledTools: []string{"nonexistent_tool", "another_nonexistent_tool"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := RunHTTPServer(ServerConfig{
+				Version:      "test",
+				Host:         "https://github.com",
+				EnabledTools: tt.enabledTools,
+			})
+
+			require.ErrorIs(t, err, inventory.ErrUnknownTools)
+			assert.ErrorContains(t, err, "failed to build inventory")
+		})
+	}
+}
+
+func TestNewOAuthConfig(t *testing.T) {
+	tests := []struct {
+		name                string
+		authorizationServer string
+	}{
+		{
+			name: "unset preserves host-derived authorization server",
+		},
+		{
+			name:                "explicit override is propagated",
+			authorizationServer: "https://oauth-proxy.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := newOAuthConfig(ServerConfig{
+				BaseURL:             "https://mcp.example.com",
+				ResourcePath:        "/mcp",
+				TrustProxyHeaders:   true,
+				AuthorizationServer: tt.authorizationServer,
+			})
+
+			assert.Equal(t, &oauth.Config{
+				BaseURL:             "https://mcp.example.com",
+				ResourcePath:        "/mcp",
+				TrustProxyHeaders:   true,
+				AuthorizationServer: tt.authorizationServer,
+			}, cfg)
+		})
+	}
+}
+
+func TestHTTPRouterCORSContract(t *testing.T) {
+	router := newHTTPRouter(
+		func(r chi.Router) {
+			r.Use(middleware.ExtractUserToken(&oauth.Config{
+				BaseURL:      "https://mcp.example.com",
+				ResourcePath: "/mcp",
+			}))
+			r.Post("/", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			})
+		},
+		func(r chi.Router) {
+			r.Get("/metadata", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			})
+			r.Get("/metadata-error", func(w http.ResponseWriter, _ *http.Request) {
+				http.Error(w, "metadata unavailable", http.StatusInternalServerError)
+			})
+		},
+	)
+
+	tests := []struct {
+		name              string
+		method            string
+		path              string
+		expectedStatus    int
+		expectChallenge   bool
+		expectAllowHeader bool
+	}{
+		{
+			name:              "MCP preflight",
+			method:            http.MethodOptions,
+			path:              "/",
+			expectedStatus:    http.StatusOK,
+			expectAllowHeader: true,
+		},
+		{
+			name:              "metadata preflight",
+			method:            http.MethodOptions,
+			path:              "/metadata",
+			expectedStatus:    http.StatusOK,
+			expectAllowHeader: true,
+		},
+		{
+			name:            "authentication challenge",
+			method:          http.MethodPost,
+			path:            "/",
+			expectedStatus:  http.StatusUnauthorized,
+			expectChallenge: true,
+		},
+		{
+			name:           "metadata success",
+			method:         http.MethodGet,
+			path:           "/metadata",
+			expectedStatus: http.StatusNoContent,
+		},
+		{
+			name:           "metadata error",
+			method:         http.MethodGet,
+			path:           "/metadata-error",
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			name:           "method not allowed",
+			method:         http.MethodPost,
+			path:           "/metadata",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+		{
+			name:           "not found",
+			method:         http.MethodGet,
+			path:           "/not-found",
+			expectedStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			req.Header.Set("Origin", "https://confer.to")
+			if tt.method == http.MethodOptions {
+				req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+				req.Header.Set("Access-Control-Request-Headers", "content-type")
+			}
+
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			assert.Equal(t, tt.expectedStatus, rec.Code)
+			assert.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+			assert.Empty(t, rec.Header().Get("Access-Control-Allow-Credentials"))
+			assert.Contains(t, rec.Header().Get("Access-Control-Expose-Headers"), "Mcp-Session-Id")
+			assert.Contains(t, rec.Header().Get("Access-Control-Expose-Headers"), "WWW-Authenticate")
+			if tt.expectAllowHeader {
+				assert.Contains(t, rec.Header().Get("Access-Control-Allow-Headers"), "Content-Type")
+			}
+			if tt.expectChallenge {
+				assert.Equal(t,
+					`Bearer resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource/mcp"`,
+					rec.Header().Get("WWW-Authenticate"),
+				)
+			}
+		})
+	}
+}
+
+func TestOAuthChallengeMetadataRouteContracts(t *testing.T) {
+	const baseURL = "https://mcp.example.com"
+	oauthCfg := &oauth.Config{
+		BaseURL:      baseURL,
+		ResourcePath: "/mcp",
+	}
+	apiHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+	oauthHandler, err := oauth.NewAuthHandler(oauthCfg, apiHost)
+	require.NoError(t, err)
+
+	resourcePaths := []string{
+		"/",
+		"/readonly",
+		"/insiders",
+		"/readonly/insiders",
+		"/x/repos",
+		"/x/repos/readonly",
+		"/x/repos/insiders",
+		"/x/repos/readonly/insiders",
+	}
+
+	router := newHTTPRouter(
+		func(r chi.Router) {
+			r.Use(middleware.ExtractUserToken(oauthCfg))
+			for _, path := range resourcePaths {
+				r.Post(path, func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNoContent)
+				})
+			}
+		},
+		oauthHandler.RegisterRoutes,
+	)
+
+	for _, path := range resourcePaths {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, path, nil)
+			req.Header.Set("Origin", "https://confer.to")
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusUnauthorized, rec.Code)
+			assert.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+			challenge := rec.Header().Get("WWW-Authenticate")
+			require.True(t, strings.HasPrefix(challenge, `Bearer resource_metadata="`))
+			metadataURL := strings.TrimSuffix(
+				strings.TrimPrefix(challenge, `Bearer resource_metadata="`),
+				`"`,
+			)
+			metadataPath := strings.TrimPrefix(metadataURL, baseURL)
+
+			req = httptest.NewRequest(http.MethodGet, metadataPath, nil)
+			req.Header.Set("Origin", "https://confer.to")
+			rec = httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			assert.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+
+			var metadata map[string]any
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &metadata))
+			expectedResourcePath := "/mcp"
+			if path != "/" {
+				expectedResourcePath += path
+			}
+			assert.Equal(t, baseURL+expectedResourcePath, metadata["resource"])
+		})
+	}
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		oauth.OAuthProtectedResourcePrefix+"/mcp/unknown",
+		nil,
+	)
+	req.Header.Set("Origin", "https://confer.to")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+	assert.Empty(t, rec.Header().Get("WWW-Authenticate"))
+}
 
 func TestInitGlobalToolScopeMapUsesHost(t *testing.T) {
 	tests := []struct {
@@ -214,6 +475,40 @@ func TestResolveListenAddress(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestConfigureRequestState(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	t.Run("missing key disables delete repository", func(t *testing.T) {
+		cfg := &ServerConfig{}
+		sealer, err := configureRequestState(cfg, logger)
+		require.NoError(t, err)
+		assert.Nil(t, sealer)
+		assert.True(t, cfg.disableDeleteRepository)
+	})
+
+	t.Run("valid key configures sealer", func(t *testing.T) {
+		cfg := &ServerConfig{
+			MRTRStateKey: base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")),
+		}
+		sealer, err := configureRequestState(cfg, logger)
+		require.NoError(t, err)
+		require.NotNil(t, sealer)
+		assert.False(t, cfg.disableDeleteRepository)
+
+		token, err := sealer.Seal(context.Background(), []byte("state"))
+		require.NoError(t, err)
+		opened, err := sealer.Open(token)
+		require.NoError(t, err)
+		assert.Equal(t, []byte("state"), opened)
+	})
+
+	t.Run("malformed key fails", func(t *testing.T) {
+		cfg := &ServerConfig{MRTRStateKey: "invalid"}
+		_, err := configureRequestState(cfg, logger)
+		require.ErrorContains(t, err, "invalid "+MRTRStateKeyEnv)
+	})
 }
 
 func TestHeaderAllowedFeatureFlagsMatchesAllowed(t *testing.T) {

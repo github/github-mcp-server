@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -900,7 +901,7 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 			)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to request copilot review",
+					copilotReviewErrMsg(ctx, client, "failed to request copilot review", owner, repo, pullNumber, resp, err),
 					resp,
 					err,
 				), nil, nil
@@ -918,6 +919,39 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 			// Return nothing on success, as there's not much value in returning the Pull Request itself
 			return utils.NewToolResultText(""), nil, nil
 		})
+}
+
+// copilotReviewErrMsg disambiguates the bare 404 this endpoint returns when the
+// caller lacks write access, which is otherwise indistinguishable from a missing
+// repository or pull request. Authoring the pull request does not grant write
+// access, so fork contributors are refused here even though the website offers
+// them a Copilot review.
+// https://docs.github.com/en/pull-requests/reference/pull-request-reviews#requesting-and-requiring-reviews
+func copilotReviewErrMsg(ctx context.Context, client *github.Client, base, owner, repo string, pullNumber int, resp *github.Response, err error) string {
+	if resp == nil || (resp.StatusCode != http.StatusNotFound && resp.StatusCode != http.StatusForbidden) {
+		return base
+	}
+
+	// Rate limiting is also reported as 403, and the read below would be refused
+	// for the same reason, so leave the caller with the rate limit message.
+	var rateLimitErr *github.RateLimitError
+	var abuseErr *github.AbuseRateLimitError
+	if errors.As(err, &rateLimitErr) || errors.As(err, &abuseErr) {
+		return base
+	}
+
+	repository, _, repoErr := client.Repositories.Get(ctx, owner, repo)
+	switch {
+	case repoErr != nil:
+		return fmt.Sprintf("%s. %s/%s could not be read with the current credentials, so it may not exist or the credentials may not reach it. "+
+			"Lacking write access is refused with the same status.", base, owner, repo)
+	case !repository.GetPermissions().GetPush():
+		return fmt.Sprintf("%s. The authenticated user has no write access to %s/%s, and GitHub requires write access to request a reviewer, even from the author of the pull request. "+
+			"Request the Copilot review from the pull request page on the GitHub website instead, or ask someone with write access to request it.", base, owner, repo)
+	default:
+		return fmt.Sprintf("%s. The authenticated user has write access to %s/%s, so check that pull request #%d exists there and that Copilot code review is available for the repository. "+
+			"Copilot code review is not available on GitHub Enterprise Server.", base, owner, repo, pullNumber)
+	}
 }
 
 func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) inventory.ServerPrompt {

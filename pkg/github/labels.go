@@ -17,6 +17,11 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// labelOrderFieldIssueCount orders labels by the number of issues they are assigned to.
+// It is not part of the githubv4.LabelOrderField constants shipped with the client library
+// (or GitHub's public GraphQL schema docs), but the API accepts it, so we define it locally.
+const labelOrderFieldIssueCount githubv4.LabelOrderField = "ISSUE_COUNT"
+
 // GetLabel retrieves a specific label by name from a GitHub repository
 func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
@@ -129,9 +134,9 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 		ToolsetLabels,
 		mcp.Tool{
 			Name:        "list_label",
-			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository"),
+			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository, ordered by issue count (descending) so the most-used labels are returned first"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository"),
+				Title:        t("TOOL_LIST_LABEL_TITLE", "List labels from a repository"),
 				ReadOnlyHint: true,
 			},
 			InputSchema: &jsonschema.Schema{
@@ -176,13 +181,16 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 							Description githubv4.String
 						}
 						TotalCount githubv4.Int
-					} `graphql:"labels(first: 100)"`
+					} `graphql:"labels(first: 100, orderBy: {field: $orderByField, direction: $orderByDirection})"`
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
 
 			vars := map[string]any{
 				"owner": githubv4.String(owner),
 				"repo":  githubv4.String(repo),
+				// Order labels by issue count (descending) so the most-used labels are returned first.
+				"orderByField":     labelOrderFieldIssueCount,
+				"orderByDirection": githubv4.OrderDirectionDesc,
 			}
 
 			if err := client.Query(ctx, &query, vars); err != nil {

@@ -29,6 +29,8 @@ Note: **read-only** mode acts as a strict security filter that takes precedence 
 
 Note: **excluded tools** takes precedence over toolsets and individual tools — listed tools are always excluded, even if their toolset is enabled or they are explicitly added via `--tools` / `X-MCP-Tools`.
 
+Note: server-side **lockdown mode** (`--lockdown-mode` / `GITHUB_LOCKDOWN_MODE`) is an upper bound in HTTP mode — once an operator enables it, the `X-MCP-Lockdown` header can no longer disable it for a given request. A request may still use the header to enable lockdown mode for itself when the operator has not already enabled it server-wide, but it can never relax lockdown mode below what the operator configured. Lockdown mode remains a best-effort content filter, not a security boundary.
+
 ---
 
 ## Configuration Examples
@@ -291,6 +293,12 @@ When active, this mode will disable all tools that are not read-only even if the
 **Best for:** Public repositories where you want to limit content from users without push access.
 
 Lockdown mode ensures the server only surfaces content in public repositories from users with push access to that repository. Private repositories are unaffected, and collaborators retain full access to their own content.
+
+> In HTTP mode, server-side lockdown mode (`--lockdown-mode` / `GITHUB_LOCKDOWN_MODE`) is an upper bound: the `X-MCP-Lockdown` header can enable lockdown mode for a request when the operator has not enabled it server-wide, but it cannot disable lockdown mode the operator has already enabled.
+
+Lockdown mode is a best-effort content filter meant to reduce prompt-injection risk from untrusted repository content; it is not an authorization boundary. It does not restrict what the underlying credential can otherwise read or write, and content withheld from a filtered tool response may still be reachable through other tools or direct GitHub API access with the same credential.
+
+As an intentional exception, content authored by trusted bot accounts (currently `github-actions[bot]` and `copilot`) is always treated as safe, regardless of push access, so routine automation output isn't filtered.
 
 **Example:**
 <table>

@@ -152,12 +152,15 @@ func FindDuplicate(t translations.TranslationHelperFunc) inventory.ServerTool {
 					return utils.NewToolResultError("ranked duplicate detection is unavailable: the semantic-similarity endpoint returned issues without ranking metadata (the server-side duplicate-ranking feature is not enabled for this caller or repository)"), nil, nil
 				}
 				candidates = append(candidates, duplicateCandidate{
-					Issue: MinimalIssueRef{
-						Number: res.Issue.Number,
-						Title:  res.Issue.Title,
-						State:  res.Issue.State,
-						URL:    res.Issue.HTMLURL,
-					},
+					// Candidates are always scoped to the requested repository, so the
+					// ref's repository field is left empty as it was before.
+					Issue: newMinimalIssueRef(
+						res.Issue.Number,
+						res.Issue.Title,
+						res.Issue.State,
+						res.Issue.HTMLURL,
+						"",
+					),
 					Score:           res.Score,
 					Confidence:      res.Confidence,
 					LikelyDuplicate: res.LikelyDuplicate,

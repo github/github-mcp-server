@@ -34,6 +34,12 @@ type projectFieldsTestQuery struct {
 						Name       githubv4.String
 						DataType   githubv4.String
 					} `graphql:"... on ProjectV2IterationField"`
+					ProjectV2MultiSelectField struct {
+						ID         githubv4.ID
+						DatabaseID githubv4.Int `graphql:"databaseId"`
+						Name       githubv4.String
+						DataType   githubv4.String
+					} `graphql:"... on ProjectV2MultiSelectField"`
 					ProjectV2SingleSelectField struct {
 						ID         githubv4.ID
 						DatabaseID githubv4.Int `graphql:"databaseId"`
@@ -91,6 +97,15 @@ func genericFieldNode(nodeID string, databaseID int, name, dataType string) map[
 		"databaseId": databaseID,
 		"name":       name,
 		"dataType":   dataType,
+	}
+}
+
+func multiSelectFieldNode(nodeID string, databaseID int, name string) map[string]any {
+	return map[string]any{
+		"id":         nodeID,
+		"databaseId": databaseID,
+		"name":       name,
+		"dataType":   "MULTI_SELECT",
 	}
 }
 
@@ -236,7 +251,7 @@ func Test_ResolveFieldNamesToIDs_QueryRemainsIssueFieldUngated(t *testing.T) {
 	capture := &headerCaptureTransport{inner: mocked.Transport}
 	gql := githubv4.NewClient(&http.Client{Transport: &transportpkg.GraphQLFeaturesTransport{Transport: capture}})
 
-	ids, err := resolveFieldNamesToIDs(context.Background(), gql, "octo-org", "org", 1, []string{"Customer"})
+	ids, err := resolveFieldNamesToIDs(context.Background(), gql, "octo-org", "org", 1, []string{"Customer"}, "fields")
 	require.NoError(t, err)
 	assert.Equal(t, []int64{101}, ids)
 	assert.Empty(t, capture.captured.Get(headers.GraphQLFeaturesHeader))
@@ -264,6 +279,7 @@ func Test_ResolveProjectFieldByName_NodeIDsForAllVariants(t *testing.T) {
 					{"id": "OPT_a", "name": "Todo"},
 				}),
 				iterationFieldNode("PVTIF_iteration1", 222, "Sprint"),
+				multiSelectFieldNode("PVTMSSF_multi1", 444, "Teams"),
 				genericFieldNode("PVTF_text1", 333, "Notes", "TEXT"),
 			})),
 		),
@@ -277,6 +293,7 @@ func Test_ResolveProjectFieldByName_NodeIDsForAllVariants(t *testing.T) {
 	}{
 		{"Status", "SINGLE_SELECT", "PVTSSF_single1"},
 		{"Sprint", "ITERATION", "PVTIF_iteration1"},
+		{"Teams", "MULTI_SELECT", "PVTMSSF_multi1"},
 		{"Notes", "TEXT", "PVTF_text1"},
 	}
 	for _, v := range variants {
@@ -734,7 +751,7 @@ func Test_ResolveFieldNamesToIDs_Success(t *testing.T) {
 	)
 	gql := githubv4.NewClient(mocked)
 
-	ids, err := resolveFieldNamesToIDs(context.Background(), gql, "octo-org", "org", 1, []string{"Status", "Priority"})
+	ids, err := resolveFieldNamesToIDs(context.Background(), gql, "octo-org", "org", 1, []string{"Status", "Priority"}, "fields")
 	require.NoError(t, err)
 	assert.Equal(t, []int64{100, 200}, ids)
 }
@@ -781,9 +798,57 @@ func Test_ResolveFieldNamesToIDs_CaseInsensitive(t *testing.T) {
 	)
 	gql := githubv4.NewClient(mocked)
 
-	ids, err := resolveFieldNamesToIDs(context.Background(), gql, "octo-org", "org", 1, []string{"status", "PRIORITY"})
+	ids, err := resolveFieldNamesToIDs(context.Background(), gql, "octo-org", "org", 1, []string{"status", "PRIORITY"}, "fields")
 	require.NoError(t, err)
 	assert.Equal(t, []int64{100, 200}, ids)
+}
+
+func Test_ResolveFieldNamesToIDs_IDParameterErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		fields      []ResolvedField
+		idParameter string
+		want        string
+	}{
+		{
+			name: "normal project item fields",
+			fields: []ResolvedField{
+				{ID: "100", Name: "Status"},
+				{ID: "200", Name: "Status"},
+			},
+			idParameter: "fields",
+			want:        "'fields'",
+		},
+		{
+			name: "project view visible fields",
+			fields: []ResolvedField{
+				{ID: "100", Name: "Status"},
+				{ID: "200", Name: "Status"},
+			},
+			idParameter: "visible_fields",
+			want:        "'visible_fields'",
+		},
+		{
+			name:        "nonnumeric project item field ID",
+			fields:      []ResolvedField{{ID: "not-numeric", Name: "Status"}},
+			idParameter: "fields",
+			want:        "'fields'",
+		},
+		{
+			name:        "nonnumeric project view field ID",
+			fields:      []ResolvedField{{ID: "not-numeric", Name: "Status"}},
+			idParameter: "visible_fields",
+			want:        "'visible_fields'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := resolveFieldNamesToIDsFromFields(tt.fields, []string{"Status"}, "octo-org", 1, tt.idParameter)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
 }
 
 // Test_ProjectsWrite_UpdateProjectItem_ByName is the acceptance test for the

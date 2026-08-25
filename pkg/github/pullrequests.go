@@ -17,7 +17,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
-	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -132,7 +131,7 @@ Possible options:
 				result, err := GetPullRequestFiles(ctx, client, deps, owner, repo, pullNumber, pagination)
 				return attachIFC(result), nil, err
 			case "get_commits":
-				result, err := GetPullRequestCommits(ctx, client, owner, repo, pullNumber, pagination)
+				result, err := GetPullRequestCommits(ctx, client, deps, owner, repo, pullNumber, pagination)
 				return attachIFC(result), nil, err
 			case "get_review_comments":
 				gqlClient, err := deps.GetGQLClient(ctx)
@@ -183,16 +182,6 @@ func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDepende
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
-	}
-
-	// sanitize title/body on response
-	if pr != nil {
-		if pr.Title != nil {
-			pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
-		}
-		if pr.Body != nil {
-			pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
-		}
 	}
 
 	if ff.LockdownMode {
@@ -307,7 +296,7 @@ func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, rep
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get combined status", resp, body), nil
 	}
 
-	r, err := json.Marshal(status)
+	r, err := json.Marshal(convertToMinimalCombinedStatus(status))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
@@ -412,7 +401,14 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, deps ToolDe
 	return MarshalledTextResult(minimalFiles), nil
 }
 
-func GetPullRequestCommits(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+// GetPullRequestCommits returns the commits on a pull request. Under lockdown
+// mode it checks the PR author once rather than per commit, since every
+// commit on the PR belongs to the same untrusted head branch.
+func GetPullRequestCommits(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	if restricted, err := enforcePullRequestLockdown(ctx, client, deps, owner, repo, pullNumber); restricted != nil || err != nil {
+		return restricted, err
+	}
+
 	opts := &github.ListOptions{
 		PerPage: pagination.PerPage,
 		Page:    pagination.Page,
@@ -1281,10 +1277,9 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 				}
 			}
 
-			var comment *github.PullRequestComment
+			var commentResponse *MinimalResponse
 			if hasBody {
-				var resp *github.Response
-				comment, resp, err = client.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, pullNumber, body, commentID)
+				comment, resp, err := client.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, pullNumber, body, commentID)
 				if err != nil {
 					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reply to pull request comment", resp, err), nil, nil
 				}
@@ -1297,19 +1292,24 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 					}
 					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add reply to pull request comment", resp, bodyBytes), nil, nil
 				}
+
+				commentResponse = &MinimalResponse{
+					ID:  fmt.Sprintf("%d", comment.GetID()),
+					URL: comment.GetHTMLURL(),
+				}
 			}
 
 			var result any
 			switch {
 			case hasBody && hasReaction:
-				result = map[string]any{
-					"comment":  comment,
-					"reaction": reactionResponse,
+				result = map[string]MinimalResponse{
+					"comment":  *commentResponse,
+					"reaction": *reactionResponse,
 				}
 			case hasReaction:
 				result = reactionResponse
 			default:
-				result = comment
+				result = commentResponse
 			}
 
 			r, err := json.Marshal(result)
@@ -1448,19 +1448,6 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list pull requests", resp, bodyBytes), nil, nil
-			}
-
-			// sanitize title/body on each PR
-			for _, pr := range prs {
-				if pr == nil {
-					continue
-				}
-				if pr.Title != nil {
-					pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
-				}
-				if pr.Body != nil {
-					pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
-				}
 			}
 
 			minimalPRs := make([]MinimalPullRequest, 0, len(prs))

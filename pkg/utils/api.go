@@ -145,12 +145,20 @@ func newGHESHost(hostname string) (APIHost, error) {
 		return APIHost{}, fmt.Errorf("failed to parse GHES URL: %w", err)
 	}
 
-	restURL, err := url.Parse(fmt.Sprintf("%s://%s/api/v3/", u.Scheme, u.Hostname()))
+	// Preserve the full authority (host, port, and IPv6 brackets) for the
+	// base-host URLs. u.Hostname() drops the port and strips IPv6 brackets,
+	// which would silently retarget a loopback dev server to port 80 and produce
+	// an unusable URL for [::1]. The subdomain-isolation URLs below still derive
+	// from the bare hostname, since a label cannot be prepended to a host:port or
+	// an IP literal.
+	authority := u.Host
+
+	restURL, err := url.Parse(fmt.Sprintf("%s://%s/api/v3/", u.Scheme, authority))
 	if err != nil {
 		return APIHost{}, fmt.Errorf("failed to parse GHES REST URL: %w", err)
 	}
 
-	gqlURL, err := url.Parse(fmt.Sprintf("%s://%s/api/graphql", u.Scheme, u.Hostname()))
+	gqlURL, err := url.Parse(fmt.Sprintf("%s://%s/api/graphql", u.Scheme, authority))
 	if err != nil {
 		return APIHost{}, fmt.Errorf("failed to parse GHES GraphQL URL: %w", err)
 	}
@@ -165,7 +173,7 @@ func newGHESHost(hostname string) (APIHost, error) {
 		uploadURL, err = url.Parse(fmt.Sprintf("%s://uploads.%s/", u.Scheme, u.Hostname()))
 	} else {
 		// Without subdomain isolation: https://hostname/api/uploads/
-		uploadURL, err = url.Parse(fmt.Sprintf("%s://%s/api/uploads/", u.Scheme, u.Hostname()))
+		uploadURL, err = url.Parse(fmt.Sprintf("%s://%s/api/uploads/", u.Scheme, authority))
 	}
 	if err != nil {
 		return APIHost{}, fmt.Errorf("failed to parse GHES Upload URL: %w", err)
@@ -177,13 +185,13 @@ func newGHESHost(hostname string) (APIHost, error) {
 		rawURL, err = url.Parse(fmt.Sprintf("%s://raw.%s/", u.Scheme, u.Hostname()))
 	} else {
 		// Without subdomain isolation: https://hostname/raw/
-		rawURL, err = url.Parse(fmt.Sprintf("%s://%s/raw/", u.Scheme, u.Hostname()))
+		rawURL, err = url.Parse(fmt.Sprintf("%s://%s/raw/", u.Scheme, authority))
 	}
 	if err != nil {
 		return APIHost{}, fmt.Errorf("failed to parse GHES Raw URL: %w", err)
 	}
 
-	authorizationServerURL, err := url.Parse(fmt.Sprintf("%s://%s/login/oauth", u.Scheme, u.Hostname()))
+	authorizationServerURL, err := url.Parse(fmt.Sprintf("%s://%s/login/oauth", u.Scheme, authority))
 	if err != nil {
 		return APIHost{}, fmt.Errorf("failed to parse GHES Authorization Server URL: %w", err)
 	}
@@ -235,6 +243,13 @@ func parseAPIHost(s string) (APIHost, error) {
 		return APIHost{}, fmt.Errorf("host must have a scheme (http or https): %s", s)
 	}
 
+	// Enforce HTTPS centrally so no deployment (GHES in particular) can build
+	// authenticated REST/GraphQL/upload/raw URLs over cleartext http, which
+	// would leak the bearer token/PAT to anyone on the network.
+	if err := requireSecureScheme(u); err != nil {
+		return APIHost{}, err
+	}
+
 	switch classifyHost(u) {
 	case HostTypeDotcom:
 		return newDotcomHost()
@@ -242,6 +257,36 @@ func parseAPIHost(s string) (APIHost, error) {
 		return newGHECHost(s)
 	default:
 		return newGHESHost(s)
+	}
+}
+
+// requireSecureScheme rejects hosts that would carry credentials over cleartext.
+// Every REST/GraphQL/upload/raw/authorization URL is derived from this host and
+// used for authenticated requests, so an http scheme would expose the bearer
+// token/PAT to network interception and replay. http is permitted only for
+// loopback hosts so that local development against a dev server still works.
+func requireSecureScheme(u *url.URL) error {
+	if u.Scheme == "https" {
+		return nil
+	}
+	if u.Scheme == "http" && isLoopbackHost(u.Hostname()) {
+		return nil
+	}
+	return fmt.Errorf(
+		"host must use https to avoid sending credentials over cleartext: %s (http is only permitted for loopback hosts such as localhost, 127.0.0.1, or ::1)",
+		u.Scheme+"://"+u.Hostname(),
+	)
+}
+
+// isLoopbackHost reports whether hostname is a loopback address. Only exact
+// loopback names/addresses qualify, so credentials are never sent in cleartext
+// to a remote host.
+func isLoopbackHost(hostname string) bool {
+	switch strings.ToLower(hostname) {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	default:
+		return false
 	}
 }
 

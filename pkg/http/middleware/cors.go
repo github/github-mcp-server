@@ -31,7 +31,7 @@ func SetCorsHeaders(h http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Max-Age", "86400")
-		w.Header().Set("Access-Control-Expose-Headers", "Mcp-Session-Id, WWW-Authenticate")
+		w.Header().Add("Access-Control-Expose-Headers", "Mcp-Session-Id, WWW-Authenticate")
 		w.Header().Set("Access-Control-Allow-Headers", allowHeaders)
 
 		if r.Method == http.MethodOptions {
