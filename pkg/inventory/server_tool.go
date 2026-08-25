@@ -71,13 +71,17 @@ type ServerTool struct {
 	// to be available. If set and the flag is not enabled, the tool is omitted.
 	FeatureFlagEnable string
 
+	// FeatureFlagEnableAll specifies additional feature flags that must all be enabled
+	// for this tool to be available.
+	FeatureFlagEnableAll []string
+
 	// FeatureFlagDisable specifies feature flags that, when any is enabled, cause this
 	// tool to be omitted. Used to disable tools when a feature flag is on.
 	FeatureFlagDisable []string
 
 	// Enabled is an optional function called at build/filter time to determine
 	// if this tool should be available. If nil, the tool is considered enabled
-	// (subject to FeatureFlagEnable/FeatureFlagDisable checks).
+	// (subject to feature flag checks).
 	// The context carries request-scoped information for the consumer to use.
 	// Returns (enabled, error). On error, the tool should be treated as disabled.
 	Enabled func(ctx context.Context) (bool, error)

@@ -1772,6 +1772,15 @@ type PullRequestReviewWriteParams struct {
 }
 
 func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return pullRequestReviewWrite(t, false)
+}
+
+// PullRequestReviewWriteWithResolutionReason creates the feature-gated review write variant with resolution reasons.
+func PullRequestReviewWriteWithResolutionReason(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return pullRequestReviewWrite(t, true)
+}
+
+func pullRequestReviewWrite(t translations.TranslationHelperFunc, withResolutionReason bool) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1812,12 +1821,14 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.Serv
 				Type:        "string",
 				Description: "The node ID of the review thread (e.g., PRRT_kwDOxxx). Required for resolve_thread and unresolve_thread methods. Get thread IDs from pull_request_read with method get_review_comments.",
 			},
-			"resolutionReason": {
-				Type:        "string",
-				Description: "Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid.",
-			},
 		},
 		Required: []string{"method", "owner", "repo", "pullNumber"},
+	}
+	if withResolutionReason {
+		schema.Properties["resolutionReason"] = &jsonschema.Schema{
+			Type:        "string",
+			Description: "Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid.",
+		}
 	}
 
 	st := NewTool(
@@ -1863,6 +1874,10 @@ Available methods:
 				result, err := DeletePendingPullRequestReview(ctx, client, params)
 				return result, nil, err
 			case "resolve_thread":
+				if !withResolutionReason {
+					result, err := ResolveReviewThread(ctx, client, params.ThreadID, true)
+					return result, nil, err
+				}
 				result, err := ResolveReviewThreadWithReason(ctx, client, params.ThreadID, params.ResolutionReason, true)
 				return result, nil, err
 			case "unresolve_thread":
@@ -1872,7 +1887,12 @@ Available methods:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
 			}
 		})
-	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
+	if withResolutionReason {
+		st.FeatureFlagEnable = FeatureFlagThreadResolutionReason
+		st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
+	} else {
+		st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular, FeatureFlagThreadResolutionReason}
+	}
 	return st
 }
 

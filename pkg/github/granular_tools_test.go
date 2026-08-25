@@ -23,7 +23,7 @@ import (
 func granularToolsForToolset(toolsetID inventory.ToolsetID, featureFlag string) []inventory.ServerTool {
 	var result []inventory.ServerTool
 	for _, tool := range AllTools(translations.NullTranslationHelper) {
-		if tool.Toolset.ID == toolsetID && tool.FeatureFlagEnable == featureFlag {
+		if tool.Toolset.ID == toolsetID && tool.FeatureFlagEnable == featureFlag && len(tool.FeatureFlagEnableAll) == 0 {
 			result = append(result, tool)
 		}
 	}
@@ -1729,10 +1729,18 @@ func TestGranularAddPullRequestReviewComment(t *testing.T) {
 
 func TestGranularResolveReviewThread(t *testing.T) {
 	tests := []struct {
-		name             string
-		resolutionReason *string
+		name                 string
+		withResolutionReason bool
+		resolutionReason     *string
+		expectedReason       *string
 	}{
-		{name: "with resolution reason", resolutionReason: gogithub.Ptr("addressed")},
+		{
+			name:                 "enabled variant forwards resolution reason",
+			withResolutionReason: true,
+			resolutionReason:     gogithub.Ptr("addressed"),
+			expectedReason:       gogithub.Ptr("addressed"),
+		},
+		{name: "default variant omits resolution reason", resolutionReason: gogithub.Ptr("addressed")},
 		{name: "without resolution reason"},
 	}
 
@@ -1750,7 +1758,7 @@ func TestGranularResolveReviewThread(t *testing.T) {
 					}{},
 					resolveReviewThreadInput{
 						ThreadID:         githubv4.ID("PRRT_123"),
-						ResolutionReason: newGQLStringlikePtr[githubv4.String](tc.resolutionReason),
+						ResolutionReason: newGQLStringlikePtr[githubv4.String](tc.expectedReason),
 					},
 					nil,
 					githubv4mock.DataResponse(map[string]any{
@@ -1763,6 +1771,9 @@ func TestGranularResolveReviewThread(t *testing.T) {
 			gqlClient := githubv4.NewClient(mockedClient)
 			deps := BaseDeps{GQLClient: gqlClient}
 			serverTool := GranularResolveReviewThread(translations.NullTranslationHelper)
+			if tc.withResolutionReason {
+				serverTool = GranularResolveReviewThreadWithResolutionReason(translations.NullTranslationHelper)
+			}
 			handler := serverTool.Handler(deps)
 
 			args := map[string]any{"threadID": "PRRT_123"}

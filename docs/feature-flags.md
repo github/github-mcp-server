@@ -251,7 +251,6 @@ runtime behavior (such as output formatting) won't appear here.
 
 - **resolve_review_thread** - Resolve Review Thread
   - **Required OAuth Scopes**: `repo`
-  - `resolutionReason`: Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid. (string, optional)
   - `threadID`: The node ID of the review thread to resolve (e.g., PRRT_kwDOxxx) (string, required)
 
 - **submit_pending_pull_request_review** - Submit Pending Pull Request Review
@@ -349,5 +348,19 @@ runtime behavior (such as output formatting) won't appear here.
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: The name of the repository (string, required)
+
+### `thread_resolution_reason`
+
+- **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews
+  - **Required OAuth Scopes**: `repo`
+  - `body`: Review comment text (string, optional)
+  - `commitID`: SHA of commit to review (string, optional)
+  - `event`: Review action to perform. (string, optional)
+  - `method`: The write operation to perform on pull request review. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+  - `resolutionReason`: Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid. (string, optional)
+  - `threadId`: The node ID of the review thread (e.g., PRRT_kwDOxxx). Required for resolve_thread and unresolve_thread methods. Get thread IDs from pull_request_read with method get_review_comments. (string, optional)
 
 <!-- END AUTOMATED FEATURE FLAG TOOLS -->

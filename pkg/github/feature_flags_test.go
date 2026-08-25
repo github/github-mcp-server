@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -201,6 +202,11 @@ func TestResolveFeatureFlags(t *testing.T) {
 			expectedFlags:   []string{FeatureFlagIssuesGranular},
 		},
 		{
+			name:            "thread resolution reason can be directly enabled",
+			enabledFeatures: []string{FeatureFlagThreadResolutionReason},
+			expectedFlags:   []string{FeatureFlagThreadResolutionReason},
+		},
+		{
 			name:            "insiders does not enable user-only allowed flags",
 			enabledFeatures: nil,
 			insidersMode:    true,
@@ -224,6 +230,58 @@ func TestResolveFeatureFlags(t *testing.T) {
 			for _, flag := range tt.unexpectedFlags {
 				assert.False(t, result[flag], "expected flag %q to not be enabled", flag)
 			}
+		})
+	}
+}
+
+func TestThreadResolutionReasonToolVariants(t *testing.T) {
+	tests := []struct {
+		name      string
+		flags     []string
+		toolName  string
+		hasReason bool
+	}{
+		{
+			name:     "consolidated flag off",
+			toolName: "pull_request_review_write",
+		},
+		{
+			name:      "consolidated flag on",
+			flags:     []string{FeatureFlagThreadResolutionReason},
+			toolName:  "pull_request_review_write",
+			hasReason: true,
+		},
+		{
+			name:     "granular flag off",
+			flags:    []string{FeatureFlagPullRequestsGranular},
+			toolName: "resolve_review_thread",
+		},
+		{
+			name:      "granular flag on",
+			flags:     []string{FeatureFlagPullRequestsGranular, FeatureFlagThreadResolutionReason},
+			toolName:  "resolve_review_thread",
+			hasReason: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inv, err := NewInventory(translations.NullTranslationHelper).
+				WithToolsets([]string{"all"}).
+				WithFeatureChecker(featureCheckerFor(tt.flags...)).
+				Build()
+			require.NoError(t, err)
+
+			var matches []inventory.ServerTool
+			for _, tool := range inv.AvailableTools(context.Background()) {
+				if tool.Tool.Name == tt.toolName {
+					matches = append(matches, tool)
+				}
+			}
+			require.Len(t, matches, 1)
+			schema := matches[0].Tool.InputSchema.(*jsonschema.Schema)
+			_, hasReason := schema.Properties["resolutionReason"]
+			assert.Equal(t, tt.hasReason, hasReason)
 		})
 	}
 }
