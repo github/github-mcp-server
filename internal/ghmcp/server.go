@@ -77,7 +77,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	// provider-backed tokens so every authentication mode uses the same host
 	// restrictions.
 	restUATransport := &transport.UserAgentTransport{
-		Transport: http.DefaultTransport,
+		Transport: &transport.APIVersionTransport{Transport: http.DefaultTransport},
 		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
 	}
 	restClient, err := gogithub.NewClient(

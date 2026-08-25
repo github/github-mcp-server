@@ -76,7 +76,7 @@ var listReleasesItemFieldEnum = []any{
 // the main lever for shrinking large result sets.
 var searchIssuesItemFieldEnum = []any{
 	"number", "title", "body", "state", "state_reason", "draft", "locked",
-	"html_url", "user", "author_association", "labels", "assignee", "assignees",
+	"html_url", "user", "author_association", "labels", "assignees",
 	"milestone", "comments", "reactions", "created_at", "updated_at", "closed_at",
 	"closed_by", "type", "repository_url", "pull_request", "field_values",
 }
@@ -88,7 +88,7 @@ var searchIssuesItemFieldEnum = []any{
 // the main lever for shrinking large result sets.
 var searchPullRequestsItemFieldEnum = []any{
 	"number", "title", "body", "state", "state_reason", "draft", "locked",
-	"html_url", "user", "author_association", "labels", "assignee", "assignees",
+	"html_url", "user", "author_association", "labels", "assignees",
 	"milestone", "comments", "reactions", "created_at", "updated_at", "closed_at",
 	"closed_by", "pull_request", "repository_url",
 }

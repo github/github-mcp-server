@@ -124,6 +124,39 @@ func TestRequestDepsScopesTokensToConfiguredHosts(t *testing.T) {
 	assert.Empty(t, foreignAuth, "GraphQL redirect must not authenticate to a foreign host")
 }
 
+func TestRequestDepsGetClientPreservesGHESAPIVersion(t *testing.T) {
+	t.Parallel()
+
+	var gotVersion string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotVersion = r.Header.Get(headers.GitHubAPIVersionHeader)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	deps := github.NewRequestDeps(
+		newRequestDepsAPIHostResolver(t, server.URL),
+		"test",
+		false,
+		nil,
+		translations.NullTranslationHelper,
+		0,
+		nil,
+		testExporters(),
+	)
+	ctx := ghcontext.WithTokenInfo(context.Background(), &ghcontext.TokenInfo{Token: "test-token"})
+	client, err := deps.GetClient(ctx)
+	require.NoError(t, err)
+
+	req, err := client.NewRequest(ctx, http.MethodGet, "rate_limit", nil)
+	require.NoError(t, err)
+	resp, err := client.Do(req, nil)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, headers.GitHubEnterpriseServerAPIVersion, gotVersion)
+}
+
 // Regression test for #3107: RequestDeps is built once at startup and shared,
 // so identity scoping has to happen per request in GetRepoAccessCache.
 func TestGetRepoAccessCacheIsolatesTrustDecisionsPerIdentity(t *testing.T) {
