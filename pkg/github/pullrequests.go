@@ -1771,16 +1771,19 @@ type PullRequestReviewWriteParams struct {
 	ResolutionReason *string
 }
 
-func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return pullRequestReviewWrite(t, false)
+func PullRequestReviewWrite(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
+	return pullRequestReviewWrite(t, false, newToolConfig(opts))
 }
 
 // PullRequestReviewWriteWithResolutionReason creates the feature-gated review write variant with resolution reasons.
-func PullRequestReviewWriteWithResolutionReason(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return pullRequestReviewWrite(t, true)
+func PullRequestReviewWriteWithResolutionReason(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
+	return pullRequestReviewWrite(t, true, newToolConfig(opts))
 }
 
-func pullRequestReviewWrite(t translations.TranslationHelperFunc, withResolutionReason bool) inventory.ServerTool {
+func pullRequestReviewWrite(t translations.TranslationHelperFunc, withResolutionReason bool, cfg toolConfig) inventory.ServerTool {
+	available := !withResolutionReason || cfg.hostType != utils.HostTypeGHES
+	withResolutionReason = withResolutionReason && available
+
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1891,7 +1894,13 @@ Available methods:
 		st.FeatureFlagEnable = FeatureFlagThreadResolutionReason
 		st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
 	} else {
-		st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular, FeatureFlagThreadResolutionReason}
+		st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
+		if cfg.hostType != utils.HostTypeGHES {
+			st.FeatureFlagDisable = append(st.FeatureFlagDisable, FeatureFlagThreadResolutionReason)
+		}
+	}
+	if !available {
+		st.Enabled = func(context.Context) (bool, error) { return false, nil }
 	}
 	return st
 }
@@ -2119,7 +2128,8 @@ func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client
 	return utils.NewToolResultText("pending pull request review successfully deleted"), nil
 }
 
-type resolveReviewThreadInput struct {
+// ResolveReviewThreadInput is the GraphQL input for resolving a review thread.
+type ResolveReviewThreadInput struct {
 	ThreadID         githubv4.ID      `json:"threadId"`
 	ResolutionReason *githubv4.String `json:"resolutionReason,omitempty"`
 }
@@ -2145,7 +2155,7 @@ func ResolveReviewThreadWithReason(ctx context.Context, client *githubv4.Client,
 			} `graphql:"resolveReviewThread(input: $input)"`
 		}
 
-		input := resolveReviewThreadInput{
+		input := ResolveReviewThreadInput{
 			ThreadID:         githubv4.ID(threadID),
 			ResolutionReason: newGQLStringlikePtr[githubv4.String](resolutionReason),
 		}

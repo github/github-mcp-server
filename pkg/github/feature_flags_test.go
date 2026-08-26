@@ -238,6 +238,7 @@ func TestThreadResolutionReasonToolVariants(t *testing.T) {
 	tests := []struct {
 		name      string
 		flags     []string
+		host      utils.HostType
 		toolName  string
 		hasReason bool
 	}{
@@ -262,11 +263,23 @@ func TestThreadResolutionReasonToolVariants(t *testing.T) {
 			toolName:  "resolve_review_thread",
 			hasReason: true,
 		},
+		{
+			name:     "consolidated flag on GHES",
+			flags:    []string{FeatureFlagThreadResolutionReason},
+			host:     utils.HostTypeGHES,
+			toolName: "pull_request_review_write",
+		},
+		{
+			name:     "granular flag on GHES",
+			flags:    []string{FeatureFlagPullRequestsGranular, FeatureFlagThreadResolutionReason},
+			host:     utils.HostTypeGHES,
+			toolName: "resolve_review_thread",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			inv, err := NewInventory(translations.NullTranslationHelper).
+			inv, err := NewInventory(translations.NullTranslationHelper, WithHost(tt.host)).
 				WithToolsets([]string{"all"}).
 				WithFeatureChecker(featureCheckerFor(tt.flags...)).
 				Build()

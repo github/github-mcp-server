@@ -56,7 +56,9 @@ func TestGranularToolSnaps(t *testing.T) {
 		GranularSubmitPendingPullRequestReview,
 		GranularDeletePendingPullRequestReview,
 		GranularAddPullRequestReviewComment,
-		GranularResolveReviewThread,
+		func(t translations.TranslationHelperFunc) inventory.ServerTool {
+			return GranularResolveReviewThread(t)
+		},
 		GranularUnresolveReviewThread,
 		GranularAddPullRequestReviewCommentReaction,
 	}
@@ -1756,7 +1758,7 @@ func TestGranularResolveReviewThread(t *testing.T) {
 							}
 						} `graphql:"resolveReviewThread(input: $input)"`
 					}{},
-					resolveReviewThreadInput{
+					ResolveReviewThreadInput{
 						ThreadID:         githubv4.ID("PRRT_123"),
 						ResolutionReason: newGQLStringlikePtr[githubv4.String](tc.expectedReason),
 					},

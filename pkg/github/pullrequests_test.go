@@ -4573,7 +4573,7 @@ func TestResolveReviewThread(t *testing.T) {
 							}
 						} `graphql:"resolveReviewThread(input: $input)"`
 					}{},
-					resolveReviewThreadInput{
+					ResolveReviewThreadInput{
 						ThreadID: githubv4.ID("PRRT_kwDOTest123"),
 					},
 					nil,
@@ -4610,7 +4610,7 @@ func TestResolveReviewThread(t *testing.T) {
 							}
 						} `graphql:"resolveReviewThread(input: $input)"`
 					}{},
-					resolveReviewThreadInput{
+					ResolveReviewThreadInput{
 						ThreadID:         githubv4.ID("PRRT_kwDOTest123"),
 						ResolutionReason: newGQLStringlike[githubv4.String]("wont-fix"),
 					},
@@ -4647,7 +4647,7 @@ func TestResolveReviewThread(t *testing.T) {
 							}
 						} `graphql:"resolveReviewThread(input: $input)"`
 					}{},
-					resolveReviewThreadInput{
+					ResolveReviewThreadInput{
 						ThreadID: githubv4.ID("PRRT_kwDOTest123"),
 					},
 					nil,
@@ -4767,7 +4767,7 @@ func TestResolveReviewThread(t *testing.T) {
 							}
 						} `graphql:"resolveReviewThread(input: $input)"`
 					}{},
-					resolveReviewThreadInput{
+					ResolveReviewThreadInput{
 						ThreadID: githubv4.ID("PRRT_invalid"),
 					},
 					nil,

@@ -272,8 +272,8 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		UpdatePullRequestBranch(t),
 		CreatePullRequest(t),
 		UpdatePullRequest(t),
-		PullRequestReviewWrite(t),
-		PullRequestReviewWriteWithResolutionReason(t),
+		PullRequestReviewWrite(t, opts...),
+		PullRequestReviewWriteWithResolutionReason(t, opts...),
 		AddCommentToPendingReview(t),
 		AddReplyToPullRequestComment(t),
 
@@ -372,8 +372,8 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularSubmitPendingPullRequestReview(t),
 		GranularDeletePendingPullRequestReview(t),
 		GranularAddPullRequestReviewComment(t),
-		GranularResolveReviewThread(t),
-		GranularResolveReviewThreadWithResolutionReason(t),
+		GranularResolveReviewThread(t, opts...),
+		GranularResolveReviewThreadWithResolutionReason(t, opts...),
 		GranularUnresolveReviewThread(t),
 		GranularAddPullRequestReviewCommentReaction(t),
 	})
