@@ -3,7 +3,6 @@ module github.com/github/github-mcp-server
 go 1.25.12
 
 require (
-	github.com/fatih/color v1.18.0
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/google/go-github/v89 v89.0.1-0.20260728185857-34349a88bac3
@@ -29,8 +28,6 @@ require (
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect

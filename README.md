@@ -421,17 +421,6 @@ If you don't have Docker, you can use `go build` to build the binary in the
 }
 ```
 
-### CLI utilities
-
-The `github-mcp-server` binary includes a few CLI subcommands that are helpful for debugging and exploring the server.
-
-- `github-mcp-server tool-search "<query>"` searches tools by name, description, and input parameter names. Use `--max-results` to return more matches.
-Example (color output requires a TTY; use `docker run -t` (or `-it`) when running in Docker):
-```bash
-docker run -it --rm ghcr.io/github/github-mcp-server tool-search "issue" --max-results 5
-github-mcp-server tool-search "issue" --max-results 5
-```
-
 ## Tool Configuration
 
 The GitHub MCP Server supports enabling or disabling specific groups of functionalities via the `--toolsets` flag. This allows you to control which GitHub API capabilities are available to your AI tools. Enabling only the toolsets that you need can help the LLM with tool choice and reduce the context size.
