@@ -210,6 +210,7 @@ func newToolConfig(opts []ToolOption) toolConfig {
 // AllTools returns all tools with their embedded toolset metadata.
 // Tool functions return ServerTool directly with toolset info.
 func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []inventory.ServerTool {
+	cfg := newToolConfig(opts)
 	return withCSVOutput([]inventory.ServerTool{
 		// Context tools
 		GetMe(t),
@@ -272,7 +273,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		UpdatePullRequestBranch(t),
 		CreatePullRequest(t),
 		UpdatePullRequest(t),
-		PullRequestReviewWrite(t, opts...),
+		pullRequestReviewWrite(t, false, cfg),
 		PullRequestReviewWriteWithResolutionReason(t, opts...),
 		AddCommentToPendingReview(t),
 		AddReplyToPullRequestComment(t),
@@ -372,7 +373,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularSubmitPendingPullRequestReview(t),
 		GranularDeletePendingPullRequestReview(t),
 		GranularAddPullRequestReviewComment(t),
-		GranularResolveReviewThread(t, opts...),
+		granularResolveReviewThread(t, false, cfg),
 		GranularResolveReviewThreadWithResolutionReason(t, opts...),
 		GranularUnresolveReviewThread(t),
 		GranularAddPullRequestReviewCommentReaction(t),

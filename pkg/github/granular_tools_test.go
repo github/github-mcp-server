@@ -56,9 +56,7 @@ func TestGranularToolSnaps(t *testing.T) {
 		GranularSubmitPendingPullRequestReview,
 		GranularDeletePendingPullRequestReview,
 		GranularAddPullRequestReviewComment,
-		func(t translations.TranslationHelperFunc) inventory.ServerTool {
-			return GranularResolveReviewThread(t)
-		},
+		GranularResolveReviewThread,
 		GranularUnresolveReviewThread,
 		GranularAddPullRequestReviewCommentReaction,
 	}

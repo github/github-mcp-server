@@ -671,18 +671,22 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 }
 
 // GranularResolveReviewThread creates a tool to resolve a review thread.
-func GranularResolveReviewThread(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
-	return granularResolveReviewThread(t, false, newToolConfig(opts))
+func GranularResolveReviewThread(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return granularResolveReviewThread(t, false, toolConfig{})
 }
 
 // GranularResolveReviewThreadWithResolutionReason creates the feature-gated variant with resolution reasons.
 func GranularResolveReviewThreadWithResolutionReason(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
-	return granularResolveReviewThread(t, true, newToolConfig(opts))
+	cfg := newToolConfig(opts)
+	st := granularResolveReviewThread(t, true, cfg)
+	if cfg.hostType == utils.HostTypeGHES {
+		st.Enabled = func(context.Context) (bool, error) { return false, nil }
+	}
+	return st
 }
 
 func granularResolveReviewThread(t translations.TranslationHelperFunc, withResolutionReason bool, cfg toolConfig) inventory.ServerTool {
-	available := !withResolutionReason || cfg.hostType != utils.HostTypeGHES
-	withResolutionReason = withResolutionReason && available
+	withResolutionReason = withResolutionReason && cfg.hostType != utils.HostTypeGHES
 
 	properties := map[string]*jsonschema.Schema{
 		"threadID": {
@@ -749,9 +753,6 @@ func granularResolveReviewThread(t translations.TranslationHelperFunc, withResol
 		st.FeatureFlagEnableAll = []string{FeatureFlagThreadResolutionReason}
 	} else if cfg.hostType != utils.HostTypeGHES {
 		st.FeatureFlagDisable = []string{FeatureFlagThreadResolutionReason}
-	}
-	if !available {
-		st.Enabled = func(context.Context) (bool, error) { return false, nil }
 	}
 	return st
 }

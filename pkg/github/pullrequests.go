@@ -1771,18 +1771,22 @@ type PullRequestReviewWriteParams struct {
 	ResolutionReason *string
 }
 
-func PullRequestReviewWrite(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
-	return pullRequestReviewWrite(t, false, newToolConfig(opts))
+func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return pullRequestReviewWrite(t, false, toolConfig{})
 }
 
 // PullRequestReviewWriteWithResolutionReason creates the feature-gated review write variant with resolution reasons.
 func PullRequestReviewWriteWithResolutionReason(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
-	return pullRequestReviewWrite(t, true, newToolConfig(opts))
+	cfg := newToolConfig(opts)
+	st := pullRequestReviewWrite(t, true, cfg)
+	if cfg.hostType == utils.HostTypeGHES {
+		st.Enabled = func(context.Context) (bool, error) { return false, nil }
+	}
+	return st
 }
 
 func pullRequestReviewWrite(t translations.TranslationHelperFunc, withResolutionReason bool, cfg toolConfig) inventory.ServerTool {
-	available := !withResolutionReason || cfg.hostType != utils.HostTypeGHES
-	withResolutionReason = withResolutionReason && available
+	withResolutionReason = withResolutionReason && cfg.hostType != utils.HostTypeGHES
 
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -1898,9 +1902,6 @@ Available methods:
 		if cfg.hostType != utils.HostTypeGHES {
 			st.FeatureFlagDisable = append(st.FeatureFlagDisable, FeatureFlagThreadResolutionReason)
 		}
-	}
-	if !available {
-		st.Enabled = func(context.Context) (bool, error) { return false, nil }
 	}
 	return st
 }
