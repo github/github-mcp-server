@@ -586,7 +586,7 @@ The following sets of tools are available:
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/comment-discussion-light.png"><img src="pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture> | `discussions` | GitHub Discussions related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/logo-gist-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/logo-gist-light.png"><img src="pkg/octicons/icons/logo-gist-light.png" width="20" height="20" alt="logo-gist"></picture> | `gists` | GitHub Gist related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-branch-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-branch-light.png"><img src="pkg/octicons/icons/git-branch-light.png" width="20" height="20" alt="git-branch"></picture> | `git` | GitHub Git API related tools for low-level Git operations |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/law-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/law-light.png"><img src="pkg/octicons/icons/law-light.png" width="20" height="20" alt="law"></picture> | `governance` | Repository governance tools for managing rulesets at the repository, organization, and enterprise levels |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/law-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/law-light.png"><img src="pkg/octicons/icons/law-light.png" width="20" height="20" alt="law"></picture> | `governance` | Repository governance tools for managing rulesets and custom properties at the repository, organization, and enterprise levels |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/issue-opened-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/issue-opened-light.png"><img src="pkg/octicons/icons/issue-opened-light.png" width="20" height="20" alt="issue-opened"></picture> | `issues` | GitHub Issues related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/tag-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/tag-light.png"><img src="pkg/octicons/icons/tag-light.png" width="20" height="20" alt="tag"></picture> | `labels` | GitHub Labels related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/bell-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/bell-light.png"><img src="pkg/octicons/icons/bell-light.png" width="20" height="20" alt="bell"></picture> | `notifications` | GitHub Notifications related tools |
@@ -891,6 +891,29 @@ The following sets of tools are available:
   - `repo`: Repository name. Required when level is 'repository'. (string, optional)
   - `rules`: An array of rules within the ruleset. Each rule is an object with a 'type' (e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks') and, for rules that need configuration, a 'parameters' object (object[], required)
   - `target`: The target of the ruleset. Defaults to 'branch'. 'repository' is only valid for 'organization' and 'enterprise' level rulesets. (string, optional)
+
+- **custom_properties_read** - Read custom properties
+  - **OAuth Challenge Scopes**: `repo`, `read:org`, `read:enterprise`
+  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. (string, optional)
+  - `level`: The level at which custom properties are managed:
+    - 'repository': The custom property VALUES assigned to a repository (requires 'owner' and 'repo').
+    - 'organization': The custom property DEFINITIONS (schema) for an organization (requires 'org').
+    - 'enterprise': The custom property DEFINITIONS (schema) for an enterprise (requires 'enterprise'). (string, required)
+  - `org`: Organization name. Required when level is 'organization'. (string, optional)
+  - `owner`: Repository owner. Required when level is 'repository'. (string, optional)
+  - `repo`: Repository name. Required when level is 'repository'. (string, optional)
+
+- **custom_properties_write** - Set custom properties
+  - **OAuth Challenge Scopes**: `repo`, `admin:org`, `admin:enterprise`
+  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. (string, optional)
+  - `level`: The level at which custom properties are managed:
+    - 'repository': The custom property VALUES assigned to a repository (requires 'owner' and 'repo').
+    - 'organization': The custom property DEFINITIONS (schema) for an organization (requires 'org').
+    - 'enterprise': The custom property DEFINITIONS (schema) for an enterprise (requires 'enterprise'). (string, required)
+  - `org`: Organization name. Required when level is 'organization'. (string, optional)
+  - `owner`: Repository owner. Required when level is 'repository'. (string, optional)
+  - `properties`: The custom properties to create or update. At the repository level each item assigns a value ('property_name' and 'value'); at the organization and enterprise levels each item defines the schema ('property_name' and 'value_type', plus optional definition fields). (object[], required)
+  - `repo`: Repository name. Required when level is 'repository'. (string, optional)
 
 - **repository_ruleset_read** - Read repository rulesets
   - **OAuth Challenge Scopes**: `repo`, `read:org`, `read:enterprise`

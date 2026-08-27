@@ -1,0 +1,99 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Set custom properties"
+  },
+  "description": "Create or update custom properties at the repository, organization, or enterprise level. At the repository level this sets the property values on a repository (the properties must already be defined for the organization); at the organization and enterprise levels it creates or updates the property definitions (schema). Select the level with the 'level' parameter.",
+  "inputSchema": {
+    "properties": {
+      "enterprise": {
+        "description": "Enterprise slug. Required when level is 'enterprise'.",
+        "type": "string"
+      },
+      "level": {
+        "description": "The level at which custom properties are managed:\n- 'repository': The custom property VALUES assigned to a repository (requires 'owner' and 'repo').\n- 'organization': The custom property DEFINITIONS (schema) for an organization (requires 'org').\n- 'enterprise': The custom property DEFINITIONS (schema) for an enterprise (requires 'enterprise').",
+        "enum": [
+          "repository",
+          "organization",
+          "enterprise"
+        ],
+        "type": "string"
+      },
+      "org": {
+        "description": "Organization name. Required when level is 'organization'.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner. Required when level is 'repository'.",
+        "type": "string"
+      },
+      "properties": {
+        "description": "The custom properties to create or update. At the repository level each item assigns a value ('property_name' and 'value'); at the organization and enterprise levels each item defines the schema ('property_name' and 'value_type', plus optional definition fields).",
+        "items": {
+          "properties": {
+            "allowed_values": {
+              "description": "Organization and enterprise levels only: the ordered list of allowed values for single_select and multi_select properties.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "default_value": {
+              "description": "Organization and enterprise levels only: the value applied when a repository does not set the property. A string or an array of strings."
+            },
+            "description": {
+              "description": "Organization and enterprise levels only: a short description of the property.",
+              "type": "string"
+            },
+            "property_name": {
+              "description": "The name of the custom property.",
+              "type": "string"
+            },
+            "required": {
+              "description": "Organization and enterprise levels only: whether the property must be set on every repository.",
+              "type": "boolean"
+            },
+            "value": {
+              "description": "Repository level only: the value to assign. A string, an array of strings, or null to clear the value."
+            },
+            "value_type": {
+              "description": "Organization and enterprise levels only: the data type of the property. Required when defining a property.",
+              "enum": [
+                "string",
+                "single_select",
+                "multi_select",
+                "true_false",
+                "url"
+              ],
+              "type": "string"
+            },
+            "values_editable_by": {
+              "description": "Organization and enterprise levels only: who can edit the values of the property.",
+              "enum": [
+                "org_actors",
+                "org_and_repo_actors"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "property_name"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "repo": {
+        "description": "Repository name. Required when level is 'repository'.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "level",
+      "properties"
+    ],
+    "type": "object"
+  },
+  "name": "custom_properties_write"
+}
