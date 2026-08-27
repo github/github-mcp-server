@@ -106,26 +106,29 @@ func TestHTTPRouterCORSContract(t *testing.T) {
 	)
 
 	tests := []struct {
-		name              string
-		method            string
-		path              string
-		expectedStatus    int
-		expectChallenge   bool
-		expectAllowHeader bool
+		name            string
+		method          string
+		path            string
+		requestHeaders  string
+		expectedStatus  int
+		expectChallenge bool
+		expectedAllow   []string
 	}{
 		{
-			name:              "MCP preflight",
-			method:            http.MethodOptions,
-			path:              "/",
-			expectedStatus:    http.StatusOK,
-			expectAllowHeader: true,
+			name:           "MCP preflight",
+			method:         http.MethodOptions,
+			path:           "/",
+			requestHeaders: "content-type, mcp-method, mcp-name, mcp-param-owner, mcp-param-region",
+			expectedStatus: http.StatusOK,
+			expectedAllow:  []string{"Content-Type", "Mcp-Method", "Mcp-Name", "Mcp-Param-owner", "Mcp-Param-Region"},
 		},
 		{
-			name:              "metadata preflight",
-			method:            http.MethodOptions,
-			path:              "/metadata",
-			expectedStatus:    http.StatusOK,
-			expectAllowHeader: true,
+			name:           "metadata preflight",
+			method:         http.MethodOptions,
+			path:           "/metadata",
+			requestHeaders: "content-type",
+			expectedStatus: http.StatusOK,
+			expectedAllow:  []string{"Content-Type"},
 		},
 		{
 			name:            "authentication challenge",
@@ -166,7 +169,7 @@ func TestHTTPRouterCORSContract(t *testing.T) {
 			req.Header.Set("Origin", "https://confer.to")
 			if tt.method == http.MethodOptions {
 				req.Header.Set("Access-Control-Request-Method", http.MethodPost)
-				req.Header.Set("Access-Control-Request-Headers", "content-type")
+				req.Header.Set("Access-Control-Request-Headers", tt.requestHeaders)
 			}
 
 			rec := httptest.NewRecorder()
@@ -177,8 +180,8 @@ func TestHTTPRouterCORSContract(t *testing.T) {
 			assert.Empty(t, rec.Header().Get("Access-Control-Allow-Credentials"))
 			assert.Contains(t, rec.Header().Get("Access-Control-Expose-Headers"), "Mcp-Session-Id")
 			assert.Contains(t, rec.Header().Get("Access-Control-Expose-Headers"), "WWW-Authenticate")
-			if tt.expectAllowHeader {
-				assert.Contains(t, rec.Header().Get("Access-Control-Allow-Headers"), "Content-Type")
+			for _, header := range tt.expectedAllow {
+				assert.Contains(t, rec.Header().Get("Access-Control-Allow-Headers"), header)
 			}
 			if tt.expectChallenge {
 				assert.Equal(t,
