@@ -318,7 +318,7 @@ func createHTTPFeatureChecker(enabledFeatures []string, insidersMode bool) inven
 		features = append(features, enabledFeatures...)
 		features = append(features, requestFeatures...)
 
-		effective := github.ResolveFeatureFlags(github.FeatureFlagsFromStrings(features), insidersMode || ghcontext.IsInsidersMode(ctx))
-		return effective[flag], nil
+		effective := github.ResolveFeatureFlags(features, insidersMode || ghcontext.IsInsidersMode(ctx))
+		return effective[string(flag)], nil
 	}
 }

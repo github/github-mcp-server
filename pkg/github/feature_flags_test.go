@@ -140,26 +140,26 @@ func TestResolveFeatureFlags(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		enabledFeatures []inventory.FeatureFlag
+		enabledFeatures []string
 		insidersMode    bool
-		expectedFlags   []inventory.FeatureFlag
-		unexpectedFlags []inventory.FeatureFlag
+		expectedFlags   []string
+		unexpectedFlags []string
 	}{
 		{
 			name:            "no features, no insiders",
 			enabledFeatures: nil,
 			expectedFlags:   nil,
-			unexpectedFlags: []inventory.FeatureFlag{MCPAppsFeatureFlag},
+			unexpectedFlags: []string{MCPAppsFeatureFlag},
 		},
 		{
 			name:            "explicit feature enabled",
-			enabledFeatures: []inventory.FeatureFlag{MCPAppsFeatureFlag},
-			expectedFlags:   []inventory.FeatureFlag{MCPAppsFeatureFlag},
+			enabledFeatures: []string{MCPAppsFeatureFlag},
+			expectedFlags:   []string{MCPAppsFeatureFlag},
 		},
 		{
 			name:            "MCP Apps form deferral can be disabled directly",
-			enabledFeatures: []inventory.FeatureFlag{MCPAppsDisableFormDeferralFeatureFlag},
-			expectedFlags:   []inventory.FeatureFlag{MCPAppsDisableFormDeferralFeatureFlag},
+			enabledFeatures: []string{MCPAppsDisableFormDeferralFeatureFlag},
+			expectedFlags:   []string{MCPAppsDisableFormDeferralFeatureFlag},
 		},
 		{
 			name:            "insiders mode enables insiders flags",
@@ -171,50 +171,50 @@ func TestResolveFeatureFlags(t *testing.T) {
 			name:            "insiders mode does not auto-enable ifc labels",
 			enabledFeatures: nil,
 			insidersMode:    true,
-			unexpectedFlags: []inventory.FeatureFlag{FeatureFlagIFCLabels},
+			unexpectedFlags: []string{FeatureFlagIFCLabels},
 		},
 		{
 			name:            "insiders mode does not disable MCP Apps form deferral",
 			enabledFeatures: nil,
 			insidersMode:    true,
-			unexpectedFlags: []inventory.FeatureFlag{MCPAppsDisableFormDeferralFeatureFlag},
+			unexpectedFlags: []string{MCPAppsDisableFormDeferralFeatureFlag},
 		},
 		{
 			name:            "ifc_labels can be directly enabled",
-			enabledFeatures: []inventory.FeatureFlag{FeatureFlagIFCLabels},
-			expectedFlags:   []inventory.FeatureFlag{FeatureFlagIFCLabels},
+			enabledFeatures: []string{FeatureFlagIFCLabels},
+			expectedFlags:   []string{FeatureFlagIFCLabels},
 		},
 		{
 			name:            "unknown flags are filtered out",
-			enabledFeatures: []inventory.FeatureFlag{"unknown_flag", "another_unknown"},
-			unexpectedFlags: []inventory.FeatureFlag{"unknown_flag", "another_unknown"},
+			enabledFeatures: []string{"unknown_flag", "another_unknown"},
+			unexpectedFlags: []string{"unknown_flag", "another_unknown"},
 		},
 		{
 			name:            "mix of known and unknown flags",
-			enabledFeatures: []inventory.FeatureFlag{MCPAppsFeatureFlag, "unknown_flag"},
-			expectedFlags:   []inventory.FeatureFlag{MCPAppsFeatureFlag},
-			unexpectedFlags: []inventory.FeatureFlag{"unknown_flag"},
+			enabledFeatures: []string{MCPAppsFeatureFlag, "unknown_flag"},
+			expectedFlags:   []string{MCPAppsFeatureFlag},
+			unexpectedFlags: []string{"unknown_flag"},
 		},
 		{
 			name:            "user-only flags can be enabled but are not turned on by insiders",
-			enabledFeatures: []inventory.FeatureFlag{FeatureFlagIssuesGranular},
+			enabledFeatures: []string{FeatureFlagIssuesGranular},
 			insidersMode:    false,
-			expectedFlags:   []inventory.FeatureFlag{FeatureFlagIssuesGranular},
+			expectedFlags:   []string{FeatureFlagIssuesGranular},
 		},
 		{
 			name:            "thread resolution reason can be directly enabled",
-			enabledFeatures: []inventory.FeatureFlag{FeatureFlagThreadResolutionReason},
-			expectedFlags:   []inventory.FeatureFlag{FeatureFlagThreadResolutionReason},
+			enabledFeatures: []string{FeatureFlagThreadResolutionReason},
+			expectedFlags:   []string{FeatureFlagThreadResolutionReason},
 		},
 		{
 			name:            "insiders does not enable user-only allowed flags",
 			enabledFeatures: nil,
 			insidersMode:    true,
-			unexpectedFlags: []inventory.FeatureFlag{FeatureFlagIssuesGranular, FeatureFlagPullRequestsGranular},
+			unexpectedFlags: []string{FeatureFlagIssuesGranular, FeatureFlagPullRequestsGranular},
 		},
 		{
 			name:            "explicit plus insiders deduplicates",
-			enabledFeatures: []inventory.FeatureFlag{MCPAppsFeatureFlag},
+			enabledFeatures: []string{MCPAppsFeatureFlag},
 			insidersMode:    true,
 			expectedFlags:   InsidersFeatureFlags,
 		},
@@ -254,12 +254,12 @@ func TestThreadResolutionReasonToolVariants(t *testing.T) {
 		},
 		{
 			name:     "granular flag off",
-			flags:    []inventory.FeatureFlag{FeatureFlagPullRequestsGranular},
+			flags:    []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular)},
 			toolName: "resolve_review_thread",
 		},
 		{
 			name:      "granular flag on",
-			flags:     []inventory.FeatureFlag{FeatureFlagPullRequestsGranular, FeatureFlagThreadResolutionReason},
+			flags:     []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular), FeatureFlagThreadResolutionReason},
 			toolName:  "resolve_review_thread",
 			hasReason: true,
 		},
@@ -271,7 +271,7 @@ func TestThreadResolutionReasonToolVariants(t *testing.T) {
 		},
 		{
 			name:     "granular flag on GHES",
-			flags:    []inventory.FeatureFlag{FeatureFlagPullRequestsGranular, FeatureFlagThreadResolutionReason},
+			flags:    []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular), FeatureFlagThreadResolutionReason},
 			host:     utils.HostTypeGHES,
 			toolName: "resolve_review_thread",
 		},

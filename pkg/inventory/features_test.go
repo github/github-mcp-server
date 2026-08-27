@@ -47,6 +47,17 @@ func TestFeatureRuleFailsClosedForUndeclaredFeature(t *testing.T) {
 	assert.False(t, rule.Enabled(func(FeatureFlag) bool { return true }))
 }
 
+func TestFeatureRuleFailsClosedForEmptyFeature(t *testing.T) {
+	rule := NewFeatureRule(
+		[]FeatureFlag{"declared"},
+		func(featureAsBool FeatureResolver) bool {
+			return !featureAsBool("")
+		},
+	)
+
+	assert.False(t, rule.Enabled(func(FeatureFlag) bool { return true }))
+}
+
 func TestResolvedFeaturesDeduplicateAndCacheChecks(t *testing.T) {
 	calls := make(map[FeatureFlag]int)
 	checker := func(_ context.Context, flag FeatureFlag) (bool, error) {

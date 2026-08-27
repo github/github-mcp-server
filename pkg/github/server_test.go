@@ -194,6 +194,27 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 	// is already tested in pkg/github/*_test.go.
 }
 
+func TestFeatureStateMiddlewareCachesHandlerChecks(t *testing.T) {
+	var calls int
+	checker := func(_ context.Context, flag inventory.FeatureFlag) (bool, error) {
+		calls++
+		return flag == "enabled", nil
+	}
+	inv, err := NewInventory(translations.NullTranslationHelper).
+		WithFeatureChecker(checker).
+		Build()
+	require.NoError(t, err)
+
+	next := func(ctx context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
+		assert.True(t, inventory.ResolveFeature(ctx, nil, "enabled"))
+		assert.True(t, inventory.ResolveFeature(ctx, nil, "enabled"))
+		return nil, nil
+	}
+	_, err = injectFeatureStateMiddleware(inv)(next)(context.Background(), "tools/call", nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls)
+}
+
 // advertisedServerCapabilities connects an in-memory client to the given server
 // and returns the capabilities the server advertised during initialization.
 func advertisedServerCapabilities(t *testing.T, server *mcp.Server) *mcp.ServerCapabilities {

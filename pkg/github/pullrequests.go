@@ -1908,10 +1908,10 @@ Available methods:
 		})
 	if withResolutionReason {
 		st.FeatureRule = inventory.NewFeatureRule(
-			[]inventory.FeatureFlag{FeatureFlagThreadResolutionReason, FeatureFlagPullRequestsGranular},
+			[]inventory.FeatureFlag{FeatureFlagThreadResolutionReason, inventory.FeatureFlag(FeatureFlagPullRequestsGranular)},
 			func(featureAsBool inventory.FeatureResolver) bool {
 				return featureAsBool(FeatureFlagThreadResolutionReason) &&
-					!featureAsBool(FeatureFlagPullRequestsGranular)
+					!featureAsBool(inventory.FeatureFlag(FeatureFlagPullRequestsGranular))
 			},
 		)
 	} else {
@@ -1919,10 +1919,10 @@ Available methods:
 			st.FeatureRule = pullRequestsConsolidatedRule
 		} else {
 			st.FeatureRule = inventory.NewFeatureRule(
-				[]inventory.FeatureFlag{FeatureFlagThreadResolutionReason, FeatureFlagPullRequestsGranular},
+				[]inventory.FeatureFlag{FeatureFlagThreadResolutionReason, inventory.FeatureFlag(FeatureFlagPullRequestsGranular)},
 				func(featureAsBool inventory.FeatureResolver) bool {
 					return !featureAsBool(FeatureFlagThreadResolutionReason) &&
-						!featureAsBool(FeatureFlagPullRequestsGranular)
+						!featureAsBool(inventory.FeatureFlag(FeatureFlagPullRequestsGranular))
 				},
 			)
 		}

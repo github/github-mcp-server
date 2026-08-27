@@ -199,7 +199,7 @@ func TestNoDuplicateToolNames(t *testing.T) {
 func TestMCPAppsFeatureFlagMatchesInventory(t *testing.T) {
 	inv, err := NewInventory(stubTranslation).Build()
 	require.NoError(t, err)
-	assert.Contains(t, inv.RequiredFeatures(), MCPAppsFeatureFlag)
+	assert.Contains(t, inv.RequiredFeatures(), inventory.FeatureFlag(MCPAppsFeatureFlag))
 }
 
 // TestNoDuplicateResourceNames ensures all resources have unique names

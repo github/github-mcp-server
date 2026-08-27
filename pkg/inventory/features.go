@@ -71,14 +71,16 @@ func (r FeatureRule) Enabled(featureAsBool FeatureResolver) bool {
 	}
 
 	var undeclared FeatureFlag
+	usedUndeclared := false
 	enabled := r.predicate(func(feature FeatureFlag) bool {
 		if _, ok := r.featureSet[feature]; !ok {
 			undeclared = feature
+			usedUndeclared = true
 			return false
 		}
 		return featureAsBool(feature)
 	})
-	if undeclared != "" {
+	if usedUndeclared {
 		fmt.Fprintf(os.Stderr, "Feature rule used undeclared feature %q\n", undeclared)
 		return false
 	}

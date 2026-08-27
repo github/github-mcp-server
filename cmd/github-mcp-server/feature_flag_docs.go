@@ -33,7 +33,7 @@ func generateFeatureFlagsDocs(docsPath string) error {
 // whose registration or definition differs from the default user experience.
 // Each affected tool is printed with its full schema using the same writer
 // used by the README so the output style stays consistent.
-func generateFlaggedToolsDoc(flags []inventory.FeatureFlag, emptyMessage string) string {
+func generateFlaggedToolsDoc(flags []string, emptyMessage string) string {
 	t, _ := translations.TranslationHelper()
 	defaultTools := indexToolsByName(buildInventoryWithFlags(t, nil).ToolsForRegistration(context.Background()))
 
@@ -73,8 +73,8 @@ func generateFlaggedToolsDoc(flags []inventory.FeatureFlag, emptyMessage string)
 // differs from the default-flagged inventory when only the given flag is on,
 // plus tools that exist only in the flag-on inventory. Results are sorted by
 // tool name.
-func flaggedToolDiff(t translations.TranslationHelperFunc, flag inventory.FeatureFlag, defaultTools map[string]inventory.ServerTool) []inventory.ServerTool {
-	flagTools := buildInventoryWithFlags(t, map[inventory.FeatureFlag]bool{flag: true}).ToolsForRegistration(context.Background())
+func flaggedToolDiff(t translations.TranslationHelperFunc, flag string, defaultTools map[string]inventory.ServerTool) []inventory.ServerTool {
+	flagTools := buildInventoryWithFlags(t, map[string]bool{flag: true}).ToolsForRegistration(context.Background())
 
 	out := make([]inventory.ServerTool, 0)
 	seen := make(map[string]struct{}, len(flagTools))
@@ -99,9 +99,9 @@ func flaggedToolDiff(t translations.TranslationHelperFunc, flag inventory.Featur
 // buildInventoryWithFlags constructs an inventory whose feature checker treats
 // the given flags as enabled and every other flag as disabled. Passing nil
 // produces the default-flagged inventory.
-func buildInventoryWithFlags(t translations.TranslationHelperFunc, enabled map[inventory.FeatureFlag]bool) *inventory.Inventory {
+func buildInventoryWithFlags(t translations.TranslationHelperFunc, enabled map[string]bool) *inventory.Inventory {
 	checker := func(_ context.Context, flag inventory.FeatureFlag) (bool, error) {
-		return enabled[flag], nil
+		return enabled[string(flag)], nil
 	}
 	inv, _ := github.NewInventory(t).
 		WithToolsets([]string{"all"}).

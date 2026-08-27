@@ -242,6 +242,18 @@ func (r *Inventory) RequiredFeatures() []FeatureFlag {
 	return result
 }
 
+// WithFeatureState installs request-owned feature state without resolving any
+// flags up front. Handler-only checks are resolved lazily and cached.
+func (r *Inventory) WithFeatureState(ctx context.Context) context.Context {
+	return WithResolvedFeatures(ctx, r.featureChecker, nil)
+}
+
+// WithResolvedFeatures installs request-owned feature state and resolves every
+// feature required by the current inventory through its own checker.
+func (r *Inventory) WithResolvedFeatures(ctx context.Context) context.Context {
+	return WithResolvedFeatures(ctx, r.featureChecker, r.RequiredFeatures())
+}
+
 func (r *Inventory) usesMCPAppsMetadata() bool {
 	for i := range r.tools {
 		for _, key := range mcpAppsMetaKeys {

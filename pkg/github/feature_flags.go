@@ -7,46 +7,46 @@ import (
 )
 
 // MCPAppsFeatureFlag is the feature flag name for MCP Apps (interactive UI forms).
-const MCPAppsFeatureFlag inventory.FeatureFlag = "remote_mcp_ui_apps"
+const MCPAppsFeatureFlag = "remote_mcp_ui_apps"
 
 // MCPAppsDisableFormDeferralFeatureFlag disables handing write-tool calls off
 // to MCP App forms while preserving MCP Apps UI metadata and result views.
-const MCPAppsDisableFormDeferralFeatureFlag inventory.FeatureFlag = "mcp_apps_disable_form_deferral"
+const MCPAppsDisableFormDeferralFeatureFlag = "mcp_apps_disable_form_deferral"
 
 // FeatureFlagCSVOutput is the feature flag name for CSV output on list tools.
-const FeatureFlagCSVOutput inventory.FeatureFlag = "csv_output"
+const FeatureFlagCSVOutput = "csv_output"
 
 // FeatureFlagIFCLabels is the feature flag name for IFC security labels in tool results.
-const FeatureFlagIFCLabels inventory.FeatureFlag = "ifc_labels"
+const FeatureFlagIFCLabels = "ifc_labels"
 
 // FeatureFlagFileBlame is the feature flag name for the get_file_blame tool,
 // which exposes git blame information for a file. It is gated so the extra tool
 // is not advertised by default, keeping the tool surface small unless opted in.
-const FeatureFlagFileBlame inventory.FeatureFlag = "file_blame"
+const FeatureFlagFileBlame = "file_blame"
 
 // FeatureFlagIssueDependencies is the feature flag name for the issue dependency
 // tools (issue_dependency_read / issue_dependency_write), which read and edit an
 // issue's blocked-by / blocking relationships. It is gated so these tools are not
 // advertised in the default surface, keeping the fixed tool-schema cost small
 // unless explicitly opted in.
-const FeatureFlagIssueDependencies inventory.FeatureFlag = "issue_dependencies"
+const FeatureFlagIssueDependencies = "issue_dependencies"
 
 // FeatureFlagDuplicateDetection is the feature flag name for the find_duplicate
 // tool, which returns ranked duplicate candidates for an existing issue. It is
 // gated so the extra tool is not advertised by default, and is deliberately
 // excluded from insiders mode so duplicate detection is only ever an explicit
 // opt-in.
-const FeatureFlagDuplicateDetection inventory.FeatureFlag = "duplicate_detection"
+const FeatureFlagDuplicateDetection = "duplicate_detection"
 
 // FeatureFlagThreadResolutionReason exposes resolution reasons for Copilot review threads.
-const FeatureFlagThreadResolutionReason inventory.FeatureFlag = "thread_resolution_reason"
+const FeatureFlagThreadResolutionReason = "thread_resolution_reason"
 
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
 // by users via --features CLI flag, X-MCP-Features HTTP header, or the
 // features URL query parameter.
 // Only flags in this list are accepted; unknown flags are silently ignored.
 // This is the single source of truth for which flags are user-controllable.
-var AllowedFeatureFlags = []inventory.FeatureFlag{
+var AllowedFeatureFlags = []string{
 	MCPAppsFeatureFlag,
 	MCPAppsDisableFormDeferralFeatureFlag,
 	FeatureFlagCSVOutput,
@@ -63,7 +63,7 @@ var AllowedFeatureFlags = []inventory.FeatureFlag{
 // When insiders mode is active, all flags in this list are treated as enabled.
 // This is the single source of truth for what "insiders" means in terms of
 // feature flag expansion.
-var InsidersFeatureFlags = []inventory.FeatureFlag{
+var InsidersFeatureFlags = []string{
 	MCPAppsFeatureFlag,
 	FeatureFlagCSVOutput,
 	FeatureFlagFileBlame,
@@ -75,20 +75,22 @@ type FeatureFlags struct {
 	LockdownMode bool
 }
 
-func featureEnabledRule(feature inventory.FeatureFlag) inventory.FeatureRule {
+func featureEnabledRule(feature string) inventory.FeatureRule {
+	flag := inventory.FeatureFlag(feature)
 	return inventory.NewFeatureRule(
-		[]inventory.FeatureFlag{feature},
+		[]inventory.FeatureFlag{flag},
 		func(featureAsBool inventory.FeatureResolver) bool {
-			return featureAsBool(feature)
+			return featureAsBool(flag)
 		},
 	)
 }
 
-func featureDisabledRule(feature inventory.FeatureFlag) inventory.FeatureRule {
+func featureDisabledRule(feature string) inventory.FeatureRule {
+	flag := inventory.FeatureFlag(feature)
 	return inventory.NewFeatureRule(
-		[]inventory.FeatureFlag{feature},
+		[]inventory.FeatureFlag{flag},
 		func(featureAsBool inventory.FeatureResolver) bool {
-			return !featureAsBool(feature)
+			return !featureAsBool(flag)
 		},
 	)
 }
@@ -99,15 +101,6 @@ var (
 	pullRequestsGranularFeatureRule = featureEnabledRule(FeatureFlagPullRequestsGranular)
 	pullRequestsConsolidatedRule    = featureDisabledRule(FeatureFlagPullRequestsGranular)
 )
-
-// FeatureFlagsFromStrings converts feature names from transport or CLI input.
-func FeatureFlagsFromStrings(features []string) []inventory.FeatureFlag {
-	result := make([]inventory.FeatureFlag, len(features))
-	for i, feature := range features {
-		result[i] = inventory.FeatureFlag(feature)
-	}
-	return result
-}
 
 // ResolveFeatureFlags computes the effective set of enabled feature flags by:
 //  1. Taking the user-supplied flags (from --features or HTTP request
@@ -125,8 +118,8 @@ func FeatureFlagsFromStrings(features []string) []inventory.FeatureFlag {
 //     only through insiders mode and cannot be enabled by user input.
 //
 // Returns a set (map) for O(1) lookup by the feature checker.
-func ResolveFeatureFlags(enabledFeatures []inventory.FeatureFlag, insidersMode bool) map[inventory.FeatureFlag]bool {
-	effective := make(map[inventory.FeatureFlag]bool)
+func ResolveFeatureFlags(enabledFeatures []string, insidersMode bool) map[string]bool {
+	effective := make(map[string]bool)
 	for _, feature := range enabledFeatures {
 		if slices.Contains(AllowedFeatureFlags, feature) {
 			effective[feature] = true

@@ -751,9 +751,9 @@ func granularResolveReviewThread(t translations.TranslationHelperFunc, withResol
 	switch {
 	case withResolutionReason:
 		st.FeatureRule = inventory.NewFeatureRule(
-			[]inventory.FeatureFlag{FeatureFlagPullRequestsGranular, FeatureFlagThreadResolutionReason},
+			[]inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular), FeatureFlagThreadResolutionReason},
 			func(featureAsBool inventory.FeatureResolver) bool {
-				return featureAsBool(FeatureFlagPullRequestsGranular) &&
+				return featureAsBool(inventory.FeatureFlag(FeatureFlagPullRequestsGranular)) &&
 					featureAsBool(FeatureFlagThreadResolutionReason)
 			},
 		)
@@ -761,9 +761,9 @@ func granularResolveReviewThread(t translations.TranslationHelperFunc, withResol
 		st.FeatureRule = pullRequestsGranularFeatureRule
 	default:
 		st.FeatureRule = inventory.NewFeatureRule(
-			[]inventory.FeatureFlag{FeatureFlagPullRequestsGranular, FeatureFlagThreadResolutionReason},
+			[]inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular), FeatureFlagThreadResolutionReason},
 			func(featureAsBool inventory.FeatureResolver) bool {
-				return featureAsBool(FeatureFlagPullRequestsGranular) &&
+				return featureAsBool(inventory.FeatureFlag(FeatureFlagPullRequestsGranular)) &&
 					!featureAsBool(FeatureFlagThreadResolutionReason)
 			},
 		)
