@@ -5971,7 +5971,7 @@ func Test_GetFileBlame(t *testing.T) {
 
 	// get_file_blame is gated so it is not advertised unless the feature flag
 	// (or insiders mode) opts it in.
-	assert.Equal(t, FeatureFlagFileBlame, serverTool.FeatureFlagEnable, "get_file_blame must be gated behind the file_blame feature flag")
+	assert.Equal(t, []inventory.FeatureFlag{FeatureFlagFileBlame}, serverTool.FeatureRule.Features())
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")

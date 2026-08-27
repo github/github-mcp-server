@@ -4,14 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"slices"
 	"sort"
 )
-
-// FeatureFlagChecker is a function that checks if a feature flag is enabled.
-// The context can be used to extract actor/user information for flag evaluation.
-// Returns (enabled, error). If error occurs, the caller should log and treat as false.
-type FeatureFlagChecker func(ctx context.Context, flagName string) (bool, error)
 
 // isToolsetEnabled checks if a toolset is enabled based on current filters.
 func (r *Inventory) isToolsetEnabled(toolsetID ToolsetID) bool {
@@ -24,74 +18,18 @@ func (r *Inventory) isToolsetEnabled(toolsetID ToolsetID) bool {
 
 // checkFeatureFlag checks a feature flag using the feature checker.
 // Returns false if checker is nil or returns an error (errors are logged).
-func (r *Inventory) checkFeatureFlag(ctx context.Context, flagName string) bool {
-	if r.featureChecker == nil || flagName == "" {
-		return false
-	}
-	enabled, err := r.featureChecker(ctx, flagName)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", flagName, err)
-		return false
-	}
-	return enabled
-}
-
-// featureFlagAllowed reports whether an item with the given enable/disable
-// flag pair is permitted under the supplied checker. The checker must be
-// non-nil — callers that don't want feature filtering should not call this at
-// all (this is also the contract for createFeatureFlagFilter, which is only
-// installed when WithFeatureChecker received a non-nil checker).
-//
-//   - If FeatureFlagEnable is set, the item is only allowed if the flag is enabled.
-//   - Every FeatureFlagEnableAll entry must also be enabled.
-//   - If FeatureFlagDisable is non-empty, the item is excluded if any listed flag is enabled.
-func featureFlagAllowed(ctx context.Context, checker FeatureFlagChecker, enableFlag string, disableFlags []string) bool {
-	// Error semantics match the previous checkFeatureFlag helper: a checker
-	// error is logged and treated as "flag not enabled". So an enable-flag
-	// check on error excludes the tool, but a disable-flag check on error
-	// keeps it (the disable condition wasn't met).
-	check := func(flag string) bool {
-		enabled, err := checker(ctx, flag)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", flag, err)
-			return false
-		}
-		return enabled
-	}
-	if enableFlag != "" && !check(enableFlag) {
-		return false
-	}
-	return !slices.ContainsFunc(disableFlags, check)
-}
-
-// createFeatureFlagFilter returns a ToolFilter that gates tools on their
-// FeatureFlagEnable / FeatureFlagEnableAll / FeatureFlagDisable annotations using the given checker.
-// Builder.Build() installs this filter exactly once when WithFeatureChecker
-// has been called with a non-nil checker, so "no feature filtering" is
-// expressed structurally — by the absence of the filter — rather than by a
-// runtime nil check inside the filter itself.
-func createFeatureFlagFilter(checker FeatureFlagChecker) ToolFilter {
-	return func(ctx context.Context, tool *ServerTool) (bool, error) {
-		if !featureFlagAllowed(ctx, checker, tool.FeatureFlagEnable, tool.FeatureFlagDisable) {
-			return false, nil
-		}
-		for _, flag := range tool.FeatureFlagEnableAll {
-			if !featureFlagAllowed(ctx, checker, flag, nil) {
-				return false, nil
-			}
-		}
-		return true, nil
-	}
+func (r *Inventory) checkFeatureFlag(ctx context.Context, flagName FeatureFlag) bool {
+	return ResolveFeature(ctx, r.featureChecker, flagName)
 }
 
 // isToolEnabled checks if a specific tool is enabled based on current filters.
 // Filter evaluation order:
 //  1. Tool.Enabled (tool self-filtering)
-//  2. Read-only filter
-//  3. Builder filters (via WithFilter; the feature-flag filter, when
-//     installed via WithFeatureChecker, runs as part of this step)
-//  4. Toolset/additional tools
-func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
+//  2. Functional feature rule
+//  3. Read-only filter
+//  4. Builder filters (via WithFilter)
+//  5. Toolset/additional tools
+func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool, featureAsBool FeatureResolver) bool {
 	// 1. Check tool's own Enabled function first
 	if tool.Enabled != nil {
 		enabled, err := tool.Enabled(ctx)
@@ -103,11 +41,15 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
 			return false
 		}
 	}
-	// 2. Check read-only filter (applies to all tools)
+	// 2. Check feature availability.
+	if r.featureChecker != nil && !tool.FeatureRule.Enabled(featureAsBool) {
+		return false
+	}
+	// 3. Check read-only filter (applies to all tools)
 	if r.readOnly && !tool.IsReadOnly() {
 		return false
 	}
-	// 3. Apply builder filters (includes the feature-flag filter when set)
+	// 4. Apply builder filters.
 	for _, filter := range r.filters {
 		allowed, err := filter(ctx, tool)
 		if err != nil {
@@ -118,11 +60,11 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
 			return false
 		}
 	}
-	// 4. Check if tool is in additionalTools (bypasses toolset filter)
+	// 5. Check if tool is in additionalTools (bypasses toolset filter)
 	if r.additionalTools != nil && r.additionalTools[tool.Tool.Name] {
 		return true
 	}
-	// 4. Check toolset filter
+	// 6. Check toolset filter
 	if !r.isToolsetEnabled(tool.Toolset.ID) {
 		return false
 	}
@@ -154,10 +96,12 @@ func sortTools(tools []ServerTool) {
 // sorted deterministically by toolset ID, then tool name.
 // The context is used for feature flag evaluation.
 func (r *Inventory) AvailableTools(ctx context.Context) []ServerTool {
+	ctx = WithResolvedFeatures(ctx, r.featureChecker, r.requiredToolFeatures())
+	featureAsBool := featureResolver(ctx, r.featureChecker)
 	var result []ServerTool
 	for i := range r.tools {
 		tool := &r.tools[i]
-		if r.isToolEnabled(ctx, tool) {
+		if r.isToolEnabled(ctx, tool, featureAsBool) {
 			result = append(result, *tool)
 		}
 	}
@@ -179,14 +123,12 @@ func sortResourceTemplates(resourceTemplates []ServerResourceTemplate) {
 // sorted deterministically by toolset ID, then template name.
 // The context is used for feature flag evaluation.
 func (r *Inventory) AvailableResourceTemplates(ctx context.Context) []ServerResourceTemplate {
+	ctx = WithResolvedFeatures(ctx, r.featureChecker, r.requiredResourceFeatures())
+	featureAsBool := featureResolver(ctx, r.featureChecker)
 	var result []ServerResourceTemplate
 	for i := range r.resourceTemplates {
 		res := &r.resourceTemplates[i]
-		// Resources have no filter pipeline, so feature gating runs inline.
-		// The featureChecker != nil guard mirrors the structural "no checker
-		// = no filtering" contract used for tools (where the absence of a
-		// pipeline step expresses the same thing).
-		if r.featureChecker != nil && !featureFlagAllowed(ctx, r.featureChecker, res.FeatureFlagEnable, res.FeatureFlagDisable) {
+		if r.featureChecker != nil && !res.FeatureRule.Enabled(featureAsBool) {
 			continue
 		}
 		if r.isToolsetEnabled(res.Toolset.ID) {
@@ -211,12 +153,12 @@ func sortPrompts(prompts []ServerPrompt) {
 // sorted deterministically by toolset ID, then prompt name.
 // The context is used for feature flag evaluation.
 func (r *Inventory) AvailablePrompts(ctx context.Context) []ServerPrompt {
+	ctx = WithResolvedFeatures(ctx, r.featureChecker, r.requiredPromptFeatures())
+	featureAsBool := featureResolver(ctx, r.featureChecker)
 	var result []ServerPrompt
 	for i := range r.prompts {
 		prompt := &r.prompts[i]
-		// Prompts have no filter pipeline; see AvailableResourceTemplates for
-		// the rationale behind the explicit nil guard.
-		if r.featureChecker != nil && !featureFlagAllowed(ctx, r.featureChecker, prompt.FeatureFlagEnable, prompt.FeatureFlagDisable) {
+		if r.featureChecker != nil && !prompt.FeatureRule.Enabled(featureAsBool) {
 			continue
 		}
 		if r.isToolsetEnabled(prompt.Toolset.ID) {

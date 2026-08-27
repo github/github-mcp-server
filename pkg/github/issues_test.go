@@ -1833,7 +1833,7 @@ func Test_CreateIssue(t *testing.T) {
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Empty(t, serverTool.FeatureFlagEnable)
+	require.Equal(t, []inventory.FeatureFlag{FeatureFlagIssuesGranular}, serverTool.FeatureRule.Features())
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)

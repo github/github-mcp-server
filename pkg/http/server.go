@@ -312,13 +312,13 @@ func initGlobalToolScopeMap(t translations.TranslationHelperFunc, hostType utils
 // createHTTPFeatureChecker creates a feature checker that resolves static CLI
 // features plus per-request features and insiders mode.
 func createHTTPFeatureChecker(enabledFeatures []string, insidersMode bool) inventory.FeatureFlagChecker {
-	return func(ctx context.Context, flag string) (bool, error) {
+	return func(ctx context.Context, flag inventory.FeatureFlag) (bool, error) {
 		requestFeatures := ghcontext.GetHeaderFeatures(ctx)
 		features := make([]string, 0, len(enabledFeatures)+len(requestFeatures))
 		features = append(features, enabledFeatures...)
 		features = append(features, requestFeatures...)
 
-		effective := github.ResolveFeatureFlags(features, insidersMode || ghcontext.IsInsidersMode(ctx))
+		effective := github.ResolveFeatureFlags(github.FeatureFlagsFromStrings(features), insidersMode || ghcontext.IsInsidersMode(ctx))
 		return effective[flag], nil
 	}
 }

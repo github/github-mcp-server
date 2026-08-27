@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
@@ -20,8 +21,8 @@ func Test_FindDuplicate(t *testing.T) {
 	// Verify tool definition once (flag-gated variant snap).
 	serverTool := FindDuplicate(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagDuplicateDetection, tool))
-	require.Equal(t, FeatureFlagDuplicateDetection, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+string(FeatureFlagDuplicateDetection), tool))
+	require.Equal(t, []inventory.FeatureFlag{FeatureFlagDuplicateDetection}, serverTool.FeatureRule.Features())
 
 	assert.Equal(t, "find_duplicate", tool.Name)
 	assert.NotEmpty(t, tool.Description)

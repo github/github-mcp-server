@@ -40,6 +40,7 @@ type Handler struct {
 	inventoryFactoryFunc   InventoryFactoryFunc
 	oauthCfg               *oauth.Config
 	scopeFetcher           scopes.FetcherInterface
+	featureChecker         inventory.FeatureFlagChecker
 	schemaCache            *mcp.SchemaCache
 }
 
@@ -126,6 +127,7 @@ func NewHTTPMcpHandler(
 		inventoryFactoryFunc:   inventoryFactory,
 		oauthCfg:               opts.OAuthConfig,
 		scopeFetcher:           scopeFetcher,
+		featureChecker:         opts.FeatureChecker,
 		schemaCache:            schemaCache,
 	}
 }
@@ -214,6 +216,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if methodInfo, ok := ghcontext.MCPMethod(r.Context()); ok && methodInfo != nil {
 		invToUse = inv.ForMCPRequest(methodInfo.Method, methodInfo.ItemName)
 	}
+	r = r.WithContext(inventory.WithResolvedFeatures(r.Context(), h.featureChecker, invToUse.RequiredFeatures()))
 
 	ghServer, err := h.githubMcpServerFactory(r, h.deps, invToUse, &github.MCPServerConfig{
 		Version:           h.config.Version,

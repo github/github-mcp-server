@@ -62,10 +62,12 @@ func (s stubDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 func (s stubDeps) GetRepoAccessCache(_ context.Context) (*lockdown.RepoAccessCache, error) {
 	return s.repoAccessCache, nil
 }
-func (s stubDeps) GetT() translations.TranslationHelperFunc          { return s.t }
-func (s stubDeps) GetFlags(_ context.Context) FeatureFlags           { return s.flags }
-func (s stubDeps) GetContentWindowSize() int                         { return s.contentWindowSize }
-func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool { return false }
+func (s stubDeps) GetT() translations.TranslationHelperFunc { return s.t }
+func (s stubDeps) GetFlags(_ context.Context) FeatureFlags  { return s.flags }
+func (s stubDeps) GetContentWindowSize() int                { return s.contentWindowSize }
+func (s stubDeps) IsFeatureEnabled(_ context.Context, _ inventory.FeatureFlag) bool {
+	return false
+}
 func (s stubDeps) Logger(_ context.Context) *slog.Logger {
 	return s.obsv.Logger()
 }

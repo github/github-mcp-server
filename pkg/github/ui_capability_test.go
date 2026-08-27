@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -95,17 +96,17 @@ func Test_shouldDeferToForm_featureFlags(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		enabledFlags []string
+		enabledFlags []inventory.FeatureFlag
 		want         bool
 	}{
 		{
 			name:         "MCP Apps enabled defers to form",
-			enabledFlags: []string{MCPAppsFeatureFlag},
+			enabledFlags: []inventory.FeatureFlag{MCPAppsFeatureFlag},
 			want:         true,
 		},
 		{
 			name: "form deferral disabled executes directly",
-			enabledFlags: []string{
+			enabledFlags: []inventory.FeatureFlag{
 				MCPAppsFeatureFlag,
 				MCPAppsDisableFormDeferralFeatureFlag,
 			},
@@ -113,7 +114,7 @@ func Test_shouldDeferToForm_featureFlags(t *testing.T) {
 		},
 		{
 			name:         "form deferral opt-out does not enable MCP Apps",
-			enabledFlags: []string{MCPAppsDisableFormDeferralFeatureFlag},
+			enabledFlags: []inventory.FeatureFlag{MCPAppsDisableFormDeferralFeatureFlag},
 			want:         false,
 		},
 		{

@@ -3030,7 +3030,7 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultText(string(payload)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagFileBlame
+	st.FeatureRule = featureEnabledRule(FeatureFlagFileBlame)
 	return st
 }
 

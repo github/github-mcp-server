@@ -155,15 +155,19 @@ var (
 
 	// Feature flag names for granular tool variants.
 	// When active, consolidated tools are replaced by single-purpose granular tools.
-	FeatureFlagIssuesGranular       = "issues_granular"
-	FeatureFlagPullRequestsGranular = "pull_requests_granular"
+	FeatureFlagIssuesGranular       inventory.FeatureFlag = "issues_granular"
+	FeatureFlagPullRequestsGranular inventory.FeatureFlag = "pull_requests_granular"
 )
 
 // HeaderAllowedFeatureFlags returns the feature flags that clients may enable
 // through the X-MCP-Features header or features URL query parameter. It
 // delegates to AllowedFeatureFlags as the single source of truth.
 func HeaderAllowedFeatureFlags() []string {
-	return slices.Clone(AllowedFeatureFlags)
+	flags := make([]string, len(AllowedFeatureFlags))
+	for i, flag := range AllowedFeatureFlags {
+		flags[i] = string(flag)
+	}
+	return flags
 }
 
 var (

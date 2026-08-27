@@ -180,7 +180,7 @@ func TestNoDuplicateToolNames(t *testing.T) {
 
 	// First pass: identify tools that have feature flags (mutually exclusive at runtime)
 	for _, tool := range tools {
-		if tool.FeatureFlagEnable != "" || len(tool.FeatureFlagDisable) > 0 {
+		if !tool.FeatureRule.IsZero() {
 			featureFlagged[tool.Tool.Name] = true
 		}
 	}
@@ -194,6 +194,12 @@ func TestNoDuplicateToolNames(t *testing.T) {
 		}
 		seen[name] = true
 	}
+}
+
+func TestMCPAppsFeatureFlagMatchesInventory(t *testing.T) {
+	inv, err := NewInventory(stubTranslation).Build()
+	require.NoError(t, err)
+	assert.Contains(t, inv.RequiredFeatures(), MCPAppsFeatureFlag)
 }
 
 // TestNoDuplicateResourceNames ensures all resources have unique names

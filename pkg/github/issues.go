@@ -1679,7 +1679,7 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		})
-	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}
+	st.FeatureRule = issuesConsolidatedFeatureRule
 	return st
 }
 
@@ -2700,7 +2700,7 @@ Options are:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
 			}
 		})
-	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}
+	st.FeatureRule = issuesConsolidatedFeatureRule
 	return st
 }
 

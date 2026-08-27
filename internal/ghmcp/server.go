@@ -256,7 +256,7 @@ type StdioServerConfig struct {
 	EnabledTools []string
 
 	// EnabledFeatures is a list of feature flags that are enabled
-	// Items with FeatureFlagEnable matching an entry in this list will be available
+	// Tool feature rules evaluate entries in this list.
 	EnabledFeatures []string
 
 	// ReadOnly indicates if we should only register read-only tools
@@ -435,8 +435,8 @@ func RunStdioServer(cfg StdioServerConfig) error {
 // using the centralized ResolveFeatureFlags function. For the local server,
 // features are resolved once at startup from --features CLI flag and insiders mode.
 func createFeatureChecker(enabledFeatures []string, insidersMode bool) inventory.FeatureFlagChecker {
-	featureSet := github.ResolveFeatureFlags(enabledFeatures, insidersMode)
-	return func(_ context.Context, flagName string) (bool, error) {
+	featureSet := github.ResolveFeatureFlags(github.FeatureFlagsFromStrings(enabledFeatures), insidersMode)
+	return func(_ context.Context, flagName inventory.FeatureFlag) (bool, error) {
 		return featureSet[flagName], nil
 	}
 }

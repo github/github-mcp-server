@@ -17,7 +17,7 @@ var (
 // mcpAppsFeatureFlag is the feature flag name that controls MCP Apps UI metadata.
 // This is defined here to avoid importing pkg/github (which imports pkg/inventory).
 // The value must match github.MCPAppsFeatureFlag.
-const mcpAppsFeatureFlag = "remote_mcp_ui_apps"
+const mcpAppsFeatureFlag FeatureFlag = "remote_mcp_ui_apps"
 
 // ToolFilter is a function that determines if a tool should be included.
 // Returns true if the tool should be included, false to exclude it.
@@ -125,15 +125,10 @@ func (b *Builder) WithTools(toolNames []string) *Builder {
 	return b
 }
 
-// WithFeatureChecker sets the feature flag checker function.
-// The checker receives a context (for actor extraction) and feature flag name,
-// and returns (enabled, error). Errors are logged and treated as "not enabled".
-//
-// When the checker is non-nil, Build() installs a feature-flag ToolFilter
-// at the head of the filter pipeline so that tools annotated with
-// FeatureFlagEnable / FeatureFlagDisable are gated accordingly. Resources
-// and prompts use the same checker via an explicit guard at their iteration
-// site.
+// WithFeatureChecker sets the feature flag checker function. Inventory items
+// declare their feature dependencies and functional availability rules through
+// FeatureRule. Checks are deduplicated into request-owned resolution state;
+// errors are logged and treated as disabled.
 //
 // When the checker is nil, no feature-flag filter is installed; tools,
 // resources, and prompts pass through feature-flag gating unchanged. The
@@ -212,15 +207,7 @@ func cleanTools(tools []string) []string {
 func (b *Builder) Build() (*Inventory, error) {
 	tools := b.tools
 
-	// Install the feature-flag filter at the head of the pipeline so that
-	// flag-gated tools are excluded before any user-supplied WithFilter sees
-	// them. Doing this in Build() (rather than inside WithFeatureChecker)
-	// keeps the install idempotent — repeated WithFeatureChecker calls
-	// replace the checker without stacking duplicate filters.
 	filters := b.filters
-	if b.featureChecker != nil {
-		filters = append([]ToolFilter{createFeatureFlagFilter(b.featureChecker)}, filters...)
-	}
 
 	r := &Inventory{
 		tools:             tools,

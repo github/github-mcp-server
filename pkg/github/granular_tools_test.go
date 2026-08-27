@@ -20,10 +20,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func granularToolsForToolset(toolsetID inventory.ToolsetID, featureFlag string) []inventory.ServerTool {
+func granularToolsForToolset(toolsetID inventory.ToolsetID, featureFlag inventory.FeatureFlag) []inventory.ServerTool {
 	var result []inventory.ServerTool
 	for _, tool := range AllTools(translations.NullTranslationHelper) {
-		if tool.Toolset.ID == toolsetID && tool.FeatureFlagEnable == featureFlag && len(tool.FeatureFlagEnableAll) == 0 {
+		features := tool.FeatureRule.Features()
+		usesFeature := false
+		for _, feature := range features {
+			usesFeature = usesFeature || feature == featureFlag
+		}
+		if tool.Toolset.ID == toolsetID && usesFeature &&
+			tool.FeatureRule.Enabled(func(flag inventory.FeatureFlag) bool { return flag == featureFlag }) {
 			result = append(result, tool)
 		}
 	}
@@ -102,7 +108,7 @@ func TestIssuesGranularToolset(t *testing.T) {
 
 	t.Run("all granular tools have correct feature flag", func(t *testing.T) {
 		for _, tool := range granularToolsForToolset(ToolsetMetadataIssues.ID, FeatureFlagIssuesGranular) {
-			assert.Equal(t, FeatureFlagIssuesGranular, tool.FeatureFlagEnable, "tool %s", tool.Tool.Name)
+			assert.Equal(t, []inventory.FeatureFlag{FeatureFlagIssuesGranular}, tool.FeatureRule.Features(), "tool %s", tool.Tool.Name)
 		}
 	})
 }
@@ -138,7 +144,7 @@ func TestPullRequestsGranularToolset(t *testing.T) {
 
 	t.Run("all granular tools have correct feature flag", func(t *testing.T) {
 		for _, tool := range granularToolsForToolset(ToolsetMetadataPullRequests.ID, FeatureFlagPullRequestsGranular) {
-			assert.Equal(t, FeatureFlagPullRequestsGranular, tool.FeatureFlagEnable, "tool %s", tool.Tool.Name)
+			assert.Contains(t, tool.FeatureRule.Features(), FeatureFlagPullRequestsGranular, "tool %s", tool.Tool.Name)
 		}
 	})
 }

@@ -355,41 +355,41 @@ func TestInitGlobalToolScopeMapUsesHost(t *testing.T) {
 func TestCreateHTTPFeatureChecker(t *testing.T) {
 	tests := []struct {
 		name           string
-		staticFeatures []string
+		staticFeatures []inventory.FeatureFlag
 		staticInsiders bool
-		flagName       string
-		headerFeatures []string
+		flagName       inventory.FeatureFlag
+		headerFeatures []inventory.FeatureFlag
 		insidersMode   bool
 		wantEnabled    bool
 	}{
 		{
 			name:           "allowed issues_granular flag accepted from header",
 			flagName:       github.FeatureFlagIssuesGranular,
-			headerFeatures: []string{github.FeatureFlagIssuesGranular},
+			headerFeatures: []inventory.FeatureFlag{github.FeatureFlagIssuesGranular},
 			wantEnabled:    true,
 		},
 		{
 			name:           "allowed pull_requests_granular flag accepted from header",
 			flagName:       github.FeatureFlagPullRequestsGranular,
-			headerFeatures: []string{github.FeatureFlagPullRequestsGranular},
+			headerFeatures: []inventory.FeatureFlag{github.FeatureFlagPullRequestsGranular},
 			wantEnabled:    true,
 		},
 		{
 			name:           "MCP Apps flag accepted from header",
 			flagName:       github.MCPAppsFeatureFlag,
-			headerFeatures: []string{github.MCPAppsFeatureFlag},
+			headerFeatures: []inventory.FeatureFlag{github.MCPAppsFeatureFlag},
 			wantEnabled:    true,
 		},
 		{
 			name:           "MCP Apps form deferral opt-out accepted from header",
 			flagName:       github.MCPAppsDisableFormDeferralFeatureFlag,
-			headerFeatures: []string{github.MCPAppsDisableFormDeferralFeatureFlag},
+			headerFeatures: []inventory.FeatureFlag{github.MCPAppsDisableFormDeferralFeatureFlag},
 			wantEnabled:    true,
 		},
 		{
 			name:           "unknown flag in header is ignored",
 			flagName:       "unknown_flag",
-			headerFeatures: []string{"unknown_flag"},
+			headerFeatures: []inventory.FeatureFlag{"unknown_flag"},
 			wantEnabled:    false,
 		},
 		{
@@ -401,19 +401,19 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 		{
 			name:           "allowed flag with different flag in header returns false",
 			flagName:       github.FeatureFlagIssuesGranular,
-			headerFeatures: []string{github.FeatureFlagPullRequestsGranular},
+			headerFeatures: []inventory.FeatureFlag{github.FeatureFlagPullRequestsGranular},
 			wantEnabled:    false,
 		},
 		{
 			name:           "multiple allowed flags in header",
 			flagName:       github.FeatureFlagIssuesGranular,
-			headerFeatures: []string{github.FeatureFlagIssuesGranular, github.FeatureFlagPullRequestsGranular},
+			headerFeatures: []inventory.FeatureFlag{github.FeatureFlagIssuesGranular, github.FeatureFlagPullRequestsGranular},
 			wantEnabled:    true,
 		},
 		{
 			name:           "empty header features",
 			flagName:       github.FeatureFlagIssuesGranular,
-			headerFeatures: []string{},
+			headerFeatures: []inventory.FeatureFlag{},
 			wantEnabled:    false,
 		},
 		{
@@ -430,15 +430,15 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 		},
 		{
 			name:           "static feature is enabled without header",
-			staticFeatures: []string{github.FeatureFlagCSVOutput},
+			staticFeatures: []inventory.FeatureFlag{github.FeatureFlagCSVOutput},
 			flagName:       github.FeatureFlagCSVOutput,
 			wantEnabled:    true,
 		},
 		{
 			name:           "static features combine with header features",
-			staticFeatures: []string{github.FeatureFlagCSVOutput},
+			staticFeatures: []inventory.FeatureFlag{github.FeatureFlagCSVOutput},
 			flagName:       github.FeatureFlagIssuesGranular,
-			headerFeatures: []string{github.FeatureFlagIssuesGranular},
+			headerFeatures: []inventory.FeatureFlag{github.FeatureFlagIssuesGranular},
 			wantEnabled:    true,
 		},
 		{
@@ -463,10 +463,10 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			checker := createHTTPFeatureChecker(tt.staticFeatures, tt.staticInsiders)
+			checker := createHTTPFeatureChecker(featureFlagStrings(tt.staticFeatures), tt.staticInsiders)
 			ctx := context.Background()
 			if len(tt.headerFeatures) > 0 {
-				ctx = ghcontext.WithHeaderFeatures(ctx, tt.headerFeatures)
+				ctx = ghcontext.WithHeaderFeatures(ctx, featureFlagStrings(tt.headerFeatures))
 			}
 			if tt.insidersMode {
 				ctx = ghcontext.WithInsidersMode(ctx, true)
@@ -557,7 +557,15 @@ func TestConfigureRequestState(t *testing.T) {
 func TestHeaderAllowedFeatureFlagsMatchesAllowed(t *testing.T) {
 	// Ensure HeaderAllowedFeatureFlags delegates to AllowedFeatureFlags
 	allowed := github.HeaderAllowedFeatureFlags()
-	assert.Equal(t, github.AllowedFeatureFlags, allowed,
+	assert.Equal(t, featureFlagStrings(github.AllowedFeatureFlags), allowed,
 		"HeaderAllowedFeatureFlags() should match AllowedFeatureFlags")
 	assert.NotEmpty(t, allowed, "AllowedFeatureFlags should not be empty")
+}
+
+func featureFlagStrings(flags []inventory.FeatureFlag) []string {
+	result := make([]string, len(flags))
+	for i, flag := range flags {
+		result[i] = string(flag)
+	}
+	return result
 }

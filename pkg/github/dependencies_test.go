@@ -14,6 +14,7 @@ import (
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/observability"
 	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -202,7 +203,7 @@ func TestIsFeatureEnabled_WithEnabledFlag(t *testing.T) {
 	t.Parallel()
 
 	// Create a feature checker that returns true for "test_flag"
-	checker := func(_ context.Context, flagName string) (bool, error) {
+	checker := func(_ context.Context, flagName inventory.FeatureFlag) (bool, error) {
 		return flagName == "test_flag", nil
 	}
 
@@ -253,7 +254,7 @@ func TestIsFeatureEnabled_EmptyFlagName(t *testing.T) {
 	t.Parallel()
 
 	// Create a feature checker
-	checker := func(_ context.Context, _ string) (bool, error) {
+	checker := func(_ context.Context, _ inventory.FeatureFlag) (bool, error) {
 		return true, nil
 	}
 
@@ -388,7 +389,7 @@ func TestIsFeatureEnabled_CheckerError(t *testing.T) {
 	t.Parallel()
 
 	// Create a feature checker that returns an error
-	checker := func(_ context.Context, _ string) (bool, error) {
+	checker := func(_ context.Context, _ inventory.FeatureFlag) (bool, error) {
 		return false, errors.New("checker error")
 	}
 

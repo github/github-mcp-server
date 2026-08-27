@@ -108,7 +108,7 @@ func issueUpdateTool(
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -234,7 +234,7 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -460,7 +460,7 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -678,7 +678,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -866,7 +866,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -1064,7 +1064,7 @@ func GranularUpdateIssueState(t translations.TranslationHelperFunc) inventory.Se
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -1138,7 +1138,7 @@ func GranularAddSubIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -1207,7 +1207,7 @@ func GranularRemoveSubIssue(t translations.TranslationHelperFunc) inventory.Serv
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -1292,7 +1292,7 @@ func GranularReprioritizeSubIssue(t translations.TranslationHelperFunc) inventor
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -1580,7 +1580,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -1662,7 +1662,7 @@ func GranularAddIssueReaction(t translations.TranslationHelperFunc) inventory.Se
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }
 
@@ -1744,6 +1744,6 @@ func GranularAddIssueCommentReaction(t translations.TranslationHelperFunc) inven
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagIssuesGranular
+	st.FeatureRule = issuesGranularFeatureRule
 	return st
 }

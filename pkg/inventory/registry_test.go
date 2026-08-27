@@ -1044,13 +1044,20 @@ func TestMCPMethodConstants(t *testing.T) {
 	}
 }
 
-// mockToolWithFlags creates a ServerTool with feature flags for testing
+// mockToolWithFlags creates a ServerTool with a functional feature rule for testing.
 func mockToolWithFlags(name string, toolsetID string, readOnly bool, enableFlag, disableFlag string) ServerTool {
 	tool := mockTool(name, toolsetID, readOnly)
-	tool.FeatureFlagEnable = enableFlag
-	if disableFlag != "" {
-		tool.FeatureFlagDisable = []string{disableFlag}
+	features := make([]FeatureFlag, 0, 2)
+	if enableFlag != "" {
+		features = append(features, FeatureFlag(enableFlag))
 	}
+	if disableFlag != "" {
+		features = append(features, FeatureFlag(disableFlag))
+	}
+	tool.FeatureRule = NewFeatureRule(features, func(featureAsBool FeatureResolver) bool {
+		return (enableFlag == "" || featureAsBool(FeatureFlag(enableFlag))) &&
+			(disableFlag == "" || !featureAsBool(FeatureFlag(disableFlag)))
+	})
 	return tool
 }
 
@@ -1067,8 +1074,8 @@ func TestFeatureFlagEnable(t *testing.T) {
 		t.Fatalf("Expected 2 tools without feature checker (filtering skipped), got %d", len(available))
 	}
 
-	// With feature checker returning false, FeatureFlagEnable tool is excluded
-	checkerFalse := func(_ context.Context, _ string) (bool, error) { return false, nil }
+	// With feature checker returning false, the feature-gated tool is excluded.
+	checkerFalse := func(_ context.Context, _ FeatureFlag) (bool, error) { return false, nil }
 	regFalse := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerFalse))
 	availableFalse := regFalse.AvailableTools(context.Background())
 	if len(availableFalse) != 1 {
@@ -1079,7 +1086,7 @@ func TestFeatureFlagEnable(t *testing.T) {
 	}
 
 	// With feature checker returning true for "my_feature", tool should be included
-	checkerTrue := func(_ context.Context, flag string) (bool, error) {
+	checkerTrue := func(_ context.Context, flag FeatureFlag) (bool, error) {
 		return flag == "my_feature", nil
 	}
 	regTrue := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerTrue))
@@ -1095,7 +1102,7 @@ func TestFeatureFlagDisable(t *testing.T) {
 		mockToolWithFlags("disabled_by_flag", "toolset1", true, "", "kill_switch"),
 	}
 
-	// Without feature checker, tool with FeatureFlagDisable should be included (flag is false)
+	// Without feature checker, feature filtering is skipped.
 	reg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}))
 	available := reg.AvailableTools(context.Background())
 	if len(available) != 2 {
@@ -1103,7 +1110,7 @@ func TestFeatureFlagDisable(t *testing.T) {
 	}
 
 	// With feature checker returning true for "kill_switch", tool should be excluded
-	checkerTrue := func(_ context.Context, flag string) (bool, error) {
+	checkerTrue := func(_ context.Context, flag FeatureFlag) (bool, error) {
 		return flag == "kill_switch", nil
 	}
 	regFiltered := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerTrue))
@@ -1123,21 +1130,21 @@ func TestFeatureFlagBoth(t *testing.T) {
 	}
 
 	// Enable flag not set -> excluded
-	checker1 := func(_ context.Context, _ string) (bool, error) { return false, nil }
+	checker1 := func(_ context.Context, _ FeatureFlag) (bool, error) { return false, nil }
 	reg1 := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checker1))
 	if len(reg1.AvailableTools(context.Background())) != 0 {
 		t.Error("Tool should be excluded when enable flag is false")
 	}
 
 	// Enable flag set, disable flag not set -> included
-	checker2 := func(_ context.Context, flag string) (bool, error) { return flag == "new_feature", nil }
+	checker2 := func(_ context.Context, flag FeatureFlag) (bool, error) { return flag == "new_feature", nil }
 	reg2 := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checker2))
 	if len(reg2.AvailableTools(context.Background())) != 1 {
 		t.Error("Tool should be included when enable flag is true and disable flag is false")
 	}
 
 	// Enable flag set, disable flag also set -> excluded (disable wins)
-	checker3 := func(_ context.Context, _ string) (bool, error) { return true, nil }
+	checker3 := func(_ context.Context, _ FeatureFlag) (bool, error) { return true, nil }
 	reg3 := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checker3))
 	if len(reg3.AvailableTools(context.Background())) != 0 {
 		t.Error("Tool should be excluded when both flags are true (disable wins)")
@@ -1150,7 +1157,7 @@ func TestFeatureFlagError(t *testing.T) {
 	}
 
 	// Checker that returns error should treat as false (tool excluded)
-	checkerError := func(_ context.Context, _ string) (bool, error) {
+	checkerError := func(_ context.Context, _ FeatureFlag) (bool, error) {
 		return false, fmt.Errorf("simulated error")
 	}
 	reg := mustBuild(t, NewBuilder().SetTools(tools).WithFeatureChecker(checkerError))
@@ -1164,9 +1171,11 @@ func TestFeatureFlagResources(t *testing.T) {
 	resources := []ServerResourceTemplate{
 		mockResource("always_available", "toolset1", "uri1"),
 		{
-			Template:          mcp.ResourceTemplate{Name: "needs_flag", URITemplate: "uri2"},
-			Toolset:           testToolsetMetadata("toolset1"),
-			FeatureFlagEnable: "my_feature",
+			Template: mcp.ResourceTemplate{Name: "needs_flag", URITemplate: "uri2"},
+			Toolset:  testToolsetMetadata("toolset1"),
+			FeatureRule: NewFeatureRule([]FeatureFlag{"my_feature"}, func(featureAsBool FeatureResolver) bool {
+				return featureAsBool("my_feature")
+			}),
 		},
 	}
 
@@ -1178,7 +1187,7 @@ func TestFeatureFlagResources(t *testing.T) {
 	}
 
 	// With checker returning true, both should be included
-	checker := func(_ context.Context, _ string) (bool, error) { return true, nil }
+	checker := func(_ context.Context, _ FeatureFlag) (bool, error) { return true, nil }
 	regWithChecker := mustBuild(t, NewBuilder().SetResources(resources).WithToolsets([]string{"all"}).WithFeatureChecker(checker))
 	if len(regWithChecker.AvailableResourceTemplates(context.Background())) != 2 {
 		t.Errorf("Expected 2 resources with checker, got %d", len(regWithChecker.AvailableResourceTemplates(context.Background())))
@@ -1189,9 +1198,11 @@ func TestFeatureFlagPrompts(t *testing.T) {
 	prompts := []ServerPrompt{
 		mockPrompt("always_available", "toolset1"),
 		{
-			Prompt:            mcp.Prompt{Name: "needs_flag"},
-			Toolset:           testToolsetMetadata("toolset1"),
-			FeatureFlagEnable: "my_feature",
+			Prompt:  mcp.Prompt{Name: "needs_flag"},
+			Toolset: testToolsetMetadata("toolset1"),
+			FeatureRule: NewFeatureRule([]FeatureFlag{"my_feature"}, func(featureAsBool FeatureResolver) bool {
+				return featureAsBool("my_feature")
+			}),
 		},
 	}
 
@@ -1203,7 +1214,7 @@ func TestFeatureFlagPrompts(t *testing.T) {
 	}
 
 	// With checker returning true, both should be included
-	checker := func(_ context.Context, _ string) (bool, error) { return true, nil }
+	checker := func(_ context.Context, _ FeatureFlag) (bool, error) { return true, nil }
 	regWithChecker := mustBuild(t, NewBuilder().SetPrompts(prompts).WithToolsets([]string{"all"}).WithFeatureChecker(checker))
 	if len(regWithChecker.AvailablePrompts(context.Background())) != 2 {
 		t.Errorf("Expected 2 prompts with checker, got %d", len(regWithChecker.AvailablePrompts(context.Background())))
@@ -1485,7 +1496,7 @@ func TestEnabledAndFeatureFlagInteraction(t *testing.T) {
 	}
 
 	// Feature flag not enabled - tool should be excluded despite Enabled returning true
-	checkerOff := func(_ context.Context, _ string) (bool, error) { return false, nil }
+	checkerOff := func(_ context.Context, _ FeatureFlag) (bool, error) { return false, nil }
 	reg1 := mustBuild(t, NewBuilder().
 		SetTools([]ServerTool{tool}).
 		WithToolsets([]string{"all"}).
@@ -1496,7 +1507,7 @@ func TestEnabledAndFeatureFlagInteraction(t *testing.T) {
 	}
 
 	// Feature flag enabled - tool should be included
-	checker := func(_ context.Context, flag string) (bool, error) {
+	checker := func(_ context.Context, flag FeatureFlag) (bool, error) {
 		return flag == "my_feature", nil
 	}
 	reg2 := mustBuild(t, NewBuilder().
@@ -1555,7 +1566,7 @@ func TestAllFiltersInteraction(t *testing.T) {
 		return true, nil
 	}
 
-	checker := func(_ context.Context, flag string) (bool, error) {
+	checker := func(_ context.Context, flag FeatureFlag) (bool, error) {
 		return flag == "my_feature", nil
 	}
 
@@ -1655,10 +1666,10 @@ func TestFilteredToolsMatchesAvailableTools(t *testing.T) {
 func TestFilteringOrder(t *testing.T) {
 	// Test that filters are applied in the correct order:
 	// 1. Tool.Enabled
-	// 2. Read-only
-	// 3. Builder filters (feature-flag filter is at the head of this list
-	//    when WithFeatureChecker is set)
-	// 4. Toolset/additional tools
+	// 2. Feature rule
+	// 3. Read-only
+	// 4. Builder filters
+	// 5. Toolset/additional tools
 
 	callOrder := []string{}
 
@@ -1673,7 +1684,7 @@ func TestFilteringOrder(t *testing.T) {
 		return true, nil
 	}
 
-	checker := func(_ context.Context, _ string) (bool, error) {
+	checker := func(_ context.Context, _ FeatureFlag) (bool, error) {
 		callOrder = append(callOrder, "FeatureFlag")
 		return true, nil
 	}
@@ -1685,15 +1696,13 @@ func TestFilteringOrder(t *testing.T) {
 		WithFeatureChecker(checker).
 		WithFilter(filter))
 
-	// Reset call order — Build() may call the checker for MCP Apps metadata.
 	// We're testing the AvailableTools filter order here.
 	callOrder = callOrder[:0]
 
 	_ = reg.AvailableTools(context.Background())
 
-	// Expected order: Enabled, then Read-only stops (write tool, read-only mode);
-	// neither the feature-flag filter nor the user filter is reached.
-	expectedOrder := []string{"Enabled"}
+	// Declared features resolve first, then Enabled runs before read-only stops.
+	expectedOrder := []string{"FeatureFlag", "Enabled"}
 	if len(callOrder) != len(expectedOrder) {
 		t.Errorf("Expected %d checks, got %d: %v", len(expectedOrder), len(callOrder), callOrder)
 	}
@@ -1707,8 +1716,8 @@ func TestFilteringOrder(t *testing.T) {
 
 func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 	// Simulate the get_job_logs scenario: two tools with the same name but different feature flags
-	// - "get_job_logs" with FeatureFlagDisable (available when flag is OFF)
-	// - "get_job_logs" with FeatureFlagEnable (available when flag is ON)
+	// - one "get_job_logs" variant available when the flag is off
+	// - one "get_job_logs" variant available when the flag is on
 	tools := []ServerTool{
 		mockToolWithFlags("get_job_logs", "actions", true, "", "consolidated_flag"), // disabled when flag is ON
 		mockToolWithFlags("get_job_logs", "actions", true, "consolidated_flag", ""), // enabled when flag is ON
@@ -1716,7 +1725,7 @@ func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 	}
 
 	// Test 1: Flag is OFF - first tool variant should be available
-	checkerOff := func(_ context.Context, _ string) (bool, error) { return false, nil }
+	checkerOff := func(_ context.Context, _ FeatureFlag) (bool, error) { return false, nil }
 	regFlagOff := mustBuild(t, NewBuilder().
 		SetTools(tools).
 		WithToolsets([]string{"all"}).
@@ -1726,13 +1735,12 @@ func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 	if len(availableOff) != 1 {
 		t.Fatalf("Flag OFF: Expected 1 tool, got %d", len(availableOff))
 	}
-	if len(availableOff[0].FeatureFlagDisable) != 1 || availableOff[0].FeatureFlagDisable[0] != "consolidated_flag" {
-		t.Errorf("Flag OFF: Expected tool with FeatureFlagDisable, got FeatureFlagEnable=%q, FeatureFlagDisable=%v",
-			availableOff[0].FeatureFlagEnable, availableOff[0].FeatureFlagDisable)
+	if !availableOff[0].FeatureRule.Enabled(func(FeatureFlag) bool { return false }) {
+		t.Error("Flag OFF: expected the flag-off feature rule")
 	}
 
 	// Test 2: Flag is ON - second tool variant should be available
-	checker := func(_ context.Context, flag string) (bool, error) {
+	checker := func(_ context.Context, flag FeatureFlag) (bool, error) {
 		return flag == "consolidated_flag", nil
 	}
 	regFlagOn := mustBuild(t, NewBuilder().
@@ -1744,16 +1752,15 @@ func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 	if len(availableOn) != 1 {
 		t.Fatalf("Flag ON: Expected 1 tool, got %d", len(availableOn))
 	}
-	if availableOn[0].FeatureFlagEnable != "consolidated_flag" {
-		t.Errorf("Flag ON: Expected tool with FeatureFlagEnable, got FeatureFlagEnable=%q, FeatureFlagDisable=%v",
-			availableOn[0].FeatureFlagEnable, availableOn[0].FeatureFlagDisable)
+	if !availableOn[0].FeatureRule.Enabled(func(FeatureFlag) bool { return true }) {
+		t.Error("Flag ON: expected the flag-on feature rule")
 	}
 }
 
 // TestWithTools_DeprecatedAliasAndFeatureFlag tests that deprecated aliases work correctly
 // when the old tool is controlled by a feature flag. This covers the scenario where:
-// - Old tool "old_tool" has FeatureFlagDisable="my_flag" (available when flag is OFF)
-// - New tool "new_tool" has FeatureFlagEnable="my_flag" (available when flag is ON)
+// - Old tool "old_tool" is available when the flag is off
+// - New tool "new_tool" is available when the flag is on
 // - Deprecated alias maps "old_tool" -> "new_tool"
 // - User specifies --tools=old_tool
 // Expected behavior:
@@ -1770,7 +1777,7 @@ func TestWithTools_DeprecatedAliasAndFeatureFlag(t *testing.T) {
 
 	// Test 1: Flag OFF - old_tool should be available via direct name match
 	// (not via alias resolution to new_tool, since old_tool still exists)
-	checkerOff := func(_ context.Context, _ string) (bool, error) { return false, nil }
+	checkerOff := func(_ context.Context, _ FeatureFlag) (bool, error) { return false, nil }
 	regFlagOff := mustBuild(t, NewBuilder().
 		SetTools(tools).
 		WithDeprecatedAliases(deprecatedAliases).
@@ -1786,7 +1793,7 @@ func TestWithTools_DeprecatedAliasAndFeatureFlag(t *testing.T) {
 	}
 
 	// Test 2: Flag ON - new_tool should be available via alias resolution
-	checker := func(_ context.Context, flag string) (bool, error) {
+	checker := func(_ context.Context, flag FeatureFlag) (bool, error) {
 		return flag == "my_flag", nil
 	}
 	regFlagOn := mustBuild(t, NewBuilder().
@@ -1849,7 +1856,7 @@ func TestWithMCPApps_EnabledPreservesUIMetadata(t *testing.T) {
 	})
 
 	// Feature checker enables MCP Apps - UI meta should be preserved
-	mcpAppsChecker := func(_ context.Context, flag string) (bool, error) {
+	mcpAppsChecker := func(_ context.Context, flag FeatureFlag) (bool, error) {
 		return flag == mcpAppsFeatureFlag, nil
 	}
 	reg := mustBuild(t, NewBuilder().

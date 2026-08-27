@@ -35,7 +35,7 @@ type MCPServerConfig struct {
 	EnabledTools []string
 
 	// EnabledFeatures is a list of feature flags that are enabled
-	// Items with FeatureFlagEnable matching an entry in this list will be available
+	// Tool feature rules evaluate entries in this list.
 	EnabledFeatures []string
 
 	// ReadOnly indicates if we should only offer read-only tools

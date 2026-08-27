@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/http/transport"
@@ -95,7 +94,7 @@ type ToolDependencies interface {
 	GetContentWindowSize() int
 
 	// IsFeatureEnabled checks if a feature flag is enabled.
-	IsFeatureEnabled(ctx context.Context, flagName string) bool
+	IsFeatureEnabled(ctx context.Context, flag inventory.FeatureFlag) bool
 
 	// Logger returns the structured logger, optionally enriched with
 	// request-scoped data from ctx. Integrators provide their own slog.Handler
@@ -207,19 +206,8 @@ func (d BaseDeps) GetRequestStateSealer() RequestStateSealer { return d.StateSea
 // IsFeatureEnabled checks if a feature flag is enabled.
 // Returns false if the feature checker is nil, flag name is empty, or an error occurs.
 // This allows tools to conditionally change behavior based on feature flags.
-func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flagName string) bool {
-	if d.featureChecker == nil || flagName == "" {
-		return false
-	}
-
-	enabled, err := d.featureChecker(ctx, flagName)
-	if err != nil {
-		// Log error but don't fail the tool - treat as disabled
-		fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", flagName, err)
-		return false
-	}
-
-	return enabled
+func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flag inventory.FeatureFlag) bool {
+	return inventory.ResolveFeature(ctx, d.featureChecker, flag)
 }
 
 // NewTool creates a ServerTool that retrieves ToolDependencies from context at call time.
@@ -496,17 +484,6 @@ func (d *RequestDeps) Metrics(ctx context.Context) metrics.Metrics {
 }
 
 // IsFeatureEnabled checks if a feature flag is enabled.
-func (d *RequestDeps) IsFeatureEnabled(ctx context.Context, flagName string) bool {
-	if d.featureChecker == nil || flagName == "" {
-		return false
-	}
-
-	enabled, err := d.featureChecker(ctx, flagName)
-	if err != nil {
-		// Log error but don't fail the tool - treat as disabled
-		fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", flagName, err)
-		return false
-	}
-
-	return enabled
+func (d *RequestDeps) IsFeatureEnabled(ctx context.Context, flag inventory.FeatureFlag) bool {
+	return inventory.ResolveFeature(ctx, d.featureChecker, flag)
 }
