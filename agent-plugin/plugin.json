@@ -1,6 +1,6 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "github-mcp-server",
+  "name": "github",
   "description": "Work with GitHub repositories, issues, pull requests, reviews, and code search through MCP.",
   "author": {
     "name": "GitHub",
