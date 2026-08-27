@@ -73,6 +73,11 @@ var (
 		Description: "GitHub Organization related tools",
 		Icon:        "organization",
 	}
+	ToolsetMetadataGovernance = inventory.ToolsetMetadata{
+		ID:          "governance",
+		Description: "Repository governance tools for managing rulesets at the repository, organization, and enterprise levels",
+		Icon:        "law",
+	}
 	ToolsetMetadataActions = inventory.ToolsetMetadata{
 		ID:          "actions",
 		Description: "GitHub Actions workflows and CI/CD operations",
@@ -264,6 +269,10 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 
 		// Organization tools
 		SearchOrgs(t),
+
+		// Governance tools (rulesets)
+		RepositoryRulesetRead(t),
+		CreateRepositoryRuleset(t),
 
 		// Pull request tools
 		PullRequestRead(t),
