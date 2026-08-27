@@ -71,6 +71,46 @@ func TestAllToolInputSchemasAvoidTopLevelCombinators(t *testing.T) {
 	}
 }
 
+// TestAllToolInputSchemasUseCanonicalPaginationNames keeps pagination properties
+// spelled one way across the whole inventory. The pagination helpers read page,
+// perPage, after and before, so a schema that advertises a case or underscore
+// variant of one of those names promises a knob the handler never turns: whatever
+// the client sends is dropped and the default is used instead. actions_list
+// advertised per_page for months that way.
+func TestAllToolInputSchemasUseCanonicalPaginationNames(t *testing.T) {
+	canonical := map[string]string{
+		"page":    "page",
+		"perpage": "perPage",
+		"after":   "after",
+		"before":  "before",
+	}
+
+	tools := AllTools(stubTranslation)
+	require.NotEmpty(t, tools, "AllTools should return at least one tool")
+
+	for _, serverTool := range tools {
+		tool := serverTool.Tool
+		t.Run(tool.Name, func(t *testing.T) {
+			data, err := json.Marshal(tool.InputSchema)
+			require.NoError(t, err, "Tool %q InputSchema must marshal", tool.Name)
+
+			var schema struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+			}
+			require.NoError(t, json.Unmarshal(data, &schema), "Tool %q InputSchema must be a JSON object", tool.Name)
+
+			for name := range schema.Properties {
+				want, ok := canonical[strings.ToLower(strings.ReplaceAll(name, "_", ""))]
+				if !ok {
+					continue
+				}
+				assert.Equal(t, want, name,
+					"Tool %q advertises pagination property %q; the canonical spelling is %q", tool.Name, name, want)
+			}
+		})
+	}
+}
+
 // TestAllResourcesHaveRequiredMetadata validates that all resources have mandatory metadata
 func TestAllResourcesHaveRequiredMetadata(t *testing.T) {
 	// Resources are now stateless - no client functions needed

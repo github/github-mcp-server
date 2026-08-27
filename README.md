@@ -1092,7 +1092,7 @@ The following sets of tools are available:
   - `method`: The action to perform (string, required)
   - `owner`: The owner (user or organization login). The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (user or org). If not provided, will automatically try both. (string, optional)
-  - `per_page`: Results per page (max 50) (number, optional)
+  - `perPage`: Results per page (max 50) (number, optional)
   - `project_number`: The project's number. Required for 'list_project_fields', 'list_project_items', 'list_project_views', and 'list_project_status_updates' methods. (number, optional)
   - `query`: Filter/query string. For list_projects: filter by title text and state (e.g. "roadmap is:open"). For list_project_items: advanced filtering using GitHub's project filtering syntax. (string, optional)
 
