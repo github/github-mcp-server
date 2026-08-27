@@ -19,8 +19,9 @@ section in the Insiders docs](./insiders-features.md#how-feature-flags-are-resol
 
 The URL query parameter exists for clients that compose the server URL on the
 user's behalf (hosted IDEs, agent platforms) and cannot set custom headers.
-When both the query parameter and the header are present, the query parameter
-wins — the two channels are never combined.
+When both the query parameter and the header are present, the header wins —
+even when its value is empty, whitespace-only, or contains only unknown flags.
+The two channels are never combined.
 
 Only flags listed in
 [`AllowedFeatureFlags`](../pkg/github/feature_flags.go) can be enabled by

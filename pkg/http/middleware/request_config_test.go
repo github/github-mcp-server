@@ -13,6 +13,7 @@ func TestWithRequestConfigFeatureSelection(t *testing.T) {
 	tests := []struct {
 		name         string
 		url          string
+		headerSet    bool
 		headerValue  string
 		wantFeatures []string
 	}{
@@ -24,18 +25,41 @@ func TestWithRequestConfigFeatureSelection(t *testing.T) {
 		{
 			name:         "header only",
 			url:          "/",
+			headerSet:    true,
 			headerValue:  "mcp_holdback_consolidated_projects",
 			wantFeatures: []string{"mcp_holdback_consolidated_projects"},
 		},
 		{
-			name:         "query parameter wins over header, never combined",
+			name:         "header wins over query parameter, never combined",
 			url:          "/?features=flag_from_query",
+			headerSet:    true,
 			headerValue:  "flag_from_header",
-			wantFeatures: []string{"flag_from_query"},
+			wantFeatures: []string{"flag_from_header"},
 		},
 		{
-			name:         "empty query value falls back to header",
+			name:         "empty header suppresses query parameter",
+			url:          "/?features=flag_from_query",
+			headerSet:    true,
+			wantFeatures: []string{},
+		},
+		{
+			name:         "whitespace-only header suppresses query parameter",
+			url:          "/?features=flag_from_query",
+			headerSet:    true,
+			headerValue:  "  , \t ",
+			wantFeatures: []string{},
+		},
+		{
+			name:         "unknown header suppresses query parameter",
+			url:          "/?features=flag_from_query",
+			headerSet:    true,
+			headerValue:  "unknown_from_header",
+			wantFeatures: []string{"unknown_from_header"},
+		},
+		{
+			name:         "empty query value with header",
 			url:          "/?features=",
+			headerSet:    true,
 			headerValue:  "flag_from_header",
 			wantFeatures: []string{"flag_from_header"},
 		},
@@ -55,7 +79,7 @@ func TestWithRequestConfigFeatureSelection(t *testing.T) {
 			}))
 
 			req := httptest.NewRequest(http.MethodPost, tc.url, nil)
-			if tc.headerValue != "" {
+			if tc.headerSet {
 				req.Header.Set(headers.MCPFeaturesHeader, tc.headerValue)
 			}
 			rec := httptest.NewRecorder()
