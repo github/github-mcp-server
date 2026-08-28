@@ -134,7 +134,7 @@ func (h *Handler) RegisterMiddleware(r chi.Router) {
 	r.Use(
 		// Must run first: bounds the body before anything downstream reads it.
 		middleware.WithMaxBodySize(h.maxRequestBodyBytes()),
-		middleware.ExtractUserToken(h.oauthCfg),
+		middleware.ExtractUserTokenWithFallback(h.oauthCfg, h.config.StaticToken),
 		middleware.WithRequestConfig,
 		middleware.WithMCPParse(),
 		middleware.WithPATScopes(h.logger, h.scopeFetcher),

@@ -60,6 +60,19 @@ func (f allScopesFetcher) FetchTokenScopes(_ context.Context, _ string) ([]strin
 
 var _ scopes.FetcherInterface = allScopesFetcher{}
 
+type recordingScopesFetcher struct {
+	token string
+	calls int
+}
+
+func (f *recordingScopesFetcher) FetchTokenScopes(_ context.Context, token string) ([]string, error) {
+	f.token = token
+	f.calls++
+	return []string{string(scopes.Repo)}, nil
+}
+
+var _ scopes.FetcherInterface = (*recordingScopesFetcher)(nil)
+
 func mockToolWithFeatureFlag(name, toolsetID string, readOnly bool, enableFlag, disableFlag string) inventory.ServerTool {
 	tool := mockTool(name, toolsetID, readOnly)
 	tool.FeatureFlagEnable = enableFlag
@@ -1009,6 +1022,53 @@ func TestCrossOriginProtection(t *testing.T) {
 			assert.Equal(t, http.StatusOK, rr.Code, "unexpected status code; body: %s", rr.Body.String())
 		})
 	}
+}
+
+func TestStaticTokenFallbackFlowsThroughPATScopeMiddleware(t *testing.T) {
+	const staticToken = "ghp_staticxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+	jsonRPCBody := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}`
+
+	apiHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+
+	var capturedTokenInfo *ghcontext.TokenInfo
+	var capturedScopes []string
+	fetcher := &recordingScopesFetcher{}
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{Version: "test", StaticToken: staticToken},
+		nil,
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+		WithInventoryFactory(func(_ *http.Request) (*inventory.Inventory, error) {
+			return inventory.NewBuilder().Build()
+		}),
+		WithGitHubMCPServerFactory(func(r *http.Request, _ github.ToolDependencies, _ *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+			capturedTokenInfo, _ = ghcontext.GetTokenInfo(r.Context())
+			capturedScopes, _ = ghcontext.GetTokenScopes(r.Context())
+			return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+		}),
+		WithScopeFetcher(fetcher),
+	)
+
+	router := chi.NewRouter()
+	handler.RegisterMiddleware(router)
+	handler.RegisterRoutes(router)
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(jsonRPCBody))
+	req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
+	req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code, "unexpected status code; body: %s", rr.Body.String())
+	require.NotNil(t, capturedTokenInfo)
+	assert.Equal(t, staticToken, capturedTokenInfo.Token)
+	assert.Equal(t, utils.TokenTypePersonalAccessToken, capturedTokenInfo.TokenType)
+	assert.Equal(t, staticToken, fetcher.token)
+	assert.Equal(t, 1, fetcher.calls)
+	assert.Equal(t, []string{string(scopes.Repo)}, capturedScopes)
 }
 
 func TestHTTPToolMinimumProtocolVersion(t *testing.T) {
