@@ -354,6 +354,28 @@ runtime behavior (such as output formatting) won't appear here.
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: The name of the repository (string, required)
 
+### `issue_events`
+
+- **issue_read** - Get issue details
+  - **OAuth Challenge Scopes**: `repo`
+  - `event_id`: The ID of the issue event. Required for, and only used by, the get_event method. (number, optional)
+  - `issue_number`: The number of the issue. Required for every method except get_event. (number, optional)
+  - `method`: The read operation to perform on a single issue.
+    Options are:
+    1. get - Get issue details. Also returns best-effort hierarchy flags (`has_parent`, `has_children`); `parent` and `sub_issues_summary` are optional relationship summaries, and `closed_by_pull_requests` summarizes the pull requests configured to close the issue as `total_count` plus up to 5 `references`.
+    2. get_comments - Get issue comments.
+    3. get_sub_issues - Get sub-issues (children) of the issue.
+    4. get_parent - Get the parent issue, if this issue is a sub-issue of another.
+    5. get_labels - Get labels assigned to the issue.
+    6. get_events - Get the issue's event history: labeled, assigned, closed, renamed, referenced and so on.
+    7. get_timeline - Get the issue's timeline. A superset of get_events that also includes comments, commits and reviews, so prefer it when you need the full narrative and get_events when you only need state changes.
+    8. get_event - Get a single issue event by its `event_id`. Takes `event_id` instead of `issue_number`.
+     (string, required)
+  - `owner`: The owner of the repository (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: The name of the repository (string, required)
+
 ### `thread_resolution_reason`
 
 - **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews

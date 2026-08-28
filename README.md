@@ -1601,6 +1601,7 @@ The behavior of lockdown mode depends on the tool invoked.
 Following tools will return an error when the author lacks the push access:
 
 - `issue_read:get`
+- `issue_read:get_event`
 - `pull_request_read:get`
 - `pull_request_read:get_diff`
 - `pull_request_read:get_files`
@@ -1610,6 +1611,8 @@ Following tools will filter out content from users lacking the push access:
 
 - `issue_read:get_comments`
 - `issue_read:get_sub_issues`
+- `issue_read:get_events`
+- `issue_read:get_timeline`
 - `pull_request_read:get_comments`
 - `pull_request_read:get_review_comments`
 - `pull_request_read:get_reviews`
