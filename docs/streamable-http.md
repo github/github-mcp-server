@@ -164,3 +164,5 @@ To provide PAT credentials, or to customize server behavior preferences, you can
 ```
 
 See [Remote Server](./remote-server.md) documentation for more details on client configuration options.
+
+pkg/github/deprecated_tool_aliases.goea5c70b0921990aa593f12c8f54e519e8e58d524
