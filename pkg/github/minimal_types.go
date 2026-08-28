@@ -204,7 +204,7 @@ type MinimalDiscussionComment struct {
 func newMinimalDiscussionComment(id string, body string, isAnswer bool) MinimalDiscussionComment {
 	return MinimalDiscussionComment{
 		ID:       id,
-		Body:     sanitize.Sanitize(body),
+		Body:     sanitize.Content(body),
 		IsAnswer: isAnswer,
 	}
 }
@@ -797,7 +797,7 @@ func convertToMinimalPullRequestReview(review *github.PullRequestReview) Minimal
 	m := MinimalPullRequestReview{
 		ID:                review.GetID(),
 		State:             review.GetState(),
-		Body:              sanitize.Sanitize(review.GetBody()),
+		Body:              sanitize.Content(review.GetBody()),
 		HTMLURL:           review.GetHTMLURL(),
 		User:              convertToMinimalUser(review.GetUser()),
 		CommitID:          review.GetCommitID(),
@@ -815,7 +815,7 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 	m := MinimalIssue{
 		Number:            issue.GetNumber(),
 		Title:             sanitize.Sanitize(issue.GetTitle()),
-		Body:              sanitize.Sanitize(issue.GetBody()),
+		Body:              sanitize.Content(issue.GetBody()),
 		State:             issue.GetState(),
 		StateReason:       issue.GetStateReason(),
 		Draft:             issue.GetDraft(),
@@ -926,7 +926,7 @@ func fragmentWithoutFieldValuesToMinimalIssue(fragment issueFragmentWithoutField
 	m := MinimalIssue{
 		Number:    int(fragment.Number),
 		Title:     sanitize.Sanitize(string(fragment.Title)),
-		Body:      sanitize.Sanitize(string(fragment.Body)),
+		Body:      sanitize.Content(string(fragment.Body)),
 		State:     string(fragment.State),
 		Comments:  int(fragment.Comments.TotalCount),
 		CreatedAt: fragment.CreatedAt.Format(time.RFC3339),
@@ -1015,7 +1015,7 @@ func convertToMinimalIssuesResponseWithoutFieldValues(fragment issueQueryFragmen
 func convertToMinimalIssueComment(comment *github.IssueComment) MinimalIssueComment {
 	m := MinimalIssueComment{
 		ID:                comment.GetID(),
-		Body:              sanitize.Sanitize(comment.GetBody()),
+		Body:              sanitize.Content(comment.GetBody()),
 		HTMLURL:           comment.GetHTMLURL(),
 		User:              convertToMinimalUser(comment.GetUser()),
 		AuthorAssociation: comment.GetAuthorAssociation(),
@@ -1064,7 +1064,7 @@ func convertToMinimalFileContentResponse(resp *github.RepositoryContentResponse)
 
 	m.Commit = &MinimalFileCommit{
 		SHA:     resp.Commit.GetSHA(),
-		Message: sanitize.Sanitize(resp.Commit.GetMessage()),
+		Message: sanitize.Content(resp.Commit.GetMessage()),
 		HTMLURL: resp.Commit.GetHTMLURL(),
 	}
 
@@ -1085,7 +1085,7 @@ func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
 	m := MinimalPullRequest{
 		Number:         pr.GetNumber(),
 		Title:          sanitize.Sanitize(pr.GetTitle()),
-		Body:           sanitize.Sanitize(pr.GetBody()),
+		Body:           sanitize.Content(pr.GetBody()),
 		State:          pr.GetState(),
 		Draft:          pr.GetDraft(),
 		Merged:         pr.GetMerged(),
@@ -1794,7 +1794,7 @@ func newMinimalCommitFromCore(sha, htmlURL string, commit *github.Commit, author
 
 	if commit != nil {
 		minimalCommit.Commit = &MinimalCommitInfo{
-			Message: sanitize.Sanitize(commit.GetMessage()),
+			Message: sanitize.Content(commit.GetMessage()),
 		}
 
 		if commit.Author != nil {
@@ -2000,7 +2000,7 @@ func convertToMinimalPullRequestCommits(commits []*github.RepositoryCommit) []Mi
 		}
 
 		if commit.Commit != nil {
-			minimalCommit.Message = sanitize.Sanitize(commit.Commit.GetMessage())
+			minimalCommit.Message = sanitize.Content(commit.Commit.GetMessage())
 			minimalCommit.Author = convertToMinimalCommitAuthor(commit.Commit.Author)
 		}
 
@@ -2039,7 +2039,7 @@ func convertToMinimalRelease(release *github.RepositoryRelease) MinimalRelease {
 		ID:         release.GetID(),
 		TagName:    release.GetTagName(),
 		Name:       sanitize.Sanitize(release.GetName()),
-		Body:       sanitize.Sanitize(release.GetBody()),
+		Body:       sanitize.Content(release.GetBody()),
 		HTMLURL:    release.GetHTMLURL(),
 		Prerelease: release.GetPrerelease(),
 		Draft:      release.GetDraft(),
@@ -2095,7 +2095,7 @@ func convertToMinimalWorkflowRun(workflowRun *github.WorkflowRun) MinimalWorkflo
 
 	if headCommit := workflowRun.GetHeadCommit(); headCommit != nil && headCommit.GetMessage() != "" {
 		minimalRun.HeadCommit = &MinimalWorkflowRunHeadCommit{
-			Message: sanitize.Sanitize(headCommit.GetMessage()),
+			Message: sanitize.Content(headCommit.GetMessage()),
 		}
 	}
 
@@ -2280,7 +2280,7 @@ func convertToMinimalReviewThread(thread reviewThreadNode) MinimalReviewThread {
 
 func convertToMinimalReviewComment(c reviewCommentNode) MinimalReviewComment {
 	m := MinimalReviewComment{
-		Body:    sanitize.Sanitize(string(c.Body)),
+		Body:    sanitize.Content(string(c.Body)),
 		Path:    string(c.Path),
 		Author:  string(c.Author.Login),
 		HTMLURL: c.URL.String(),

@@ -6028,6 +6028,26 @@ func Test_GetSubIssues(t *testing.T) {
 			},
 		},
 	}
+	unsafeSubIssues := []*github.Issue{
+		{
+			Number:  github.Ptr(125),
+			Title:   github.Ptr(maliciousText),
+			Body:    github.Ptr(maliciousText),
+			State:   github.Ptr("open"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/125"),
+			User:    &github.User{Login: github.Ptr("user3")},
+		},
+	}
+	sanitizedSubIssues := []*github.Issue{
+		{
+			Number:  github.Ptr(125),
+			Title:   github.Ptr(sanitizedText),
+			Body:    github.Ptr(sanitizedContentText),
+			State:   github.Ptr("open"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/125"),
+			User:    &github.User{Login: github.Ptr("user3")},
+		},
+	}
 
 	tests := []struct {
 		name              string
@@ -6071,6 +6091,19 @@ func Test_GetSubIssues(t *testing.T) {
 			},
 			expectError:       false,
 			expectedSubIssues: mockSubIssues,
+		},
+		{
+			name: "sanitizes sub-issue titles and bodies",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, unsafeSubIssues),
+			}),
+			requestArgs: map[string]any{
+				"method":       "get_sub_issues",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectedSubIssues: sanitizedSubIssues,
 		},
 		{
 			name: "successful sub-issues listing with empty result",

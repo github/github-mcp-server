@@ -19,6 +19,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
 	github.com/yosida95/uritemplate/v3 v3.0.2
+	github.com/yuin/goldmark v1.8.5
 	golang.org/x/net v0.55.0
 	golang.org/x/oauth2 v0.36.0
 )
