@@ -1182,6 +1182,7 @@ The following sets of tools are available:
   - **OAuth Challenge Scopes**: `repo`
   - `commit_message`: Extra detail for merge commit (string, optional)
   - `commit_title`: Title for merge commit (string, optional)
+  - `expectedHeadSha`: The expected SHA of the pull request's HEAD ref (string, optional)
   - `merge_method`: Merge method (string, optional)
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
