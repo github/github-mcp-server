@@ -1513,6 +1513,10 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 				Description: "Merge method",
 				Enum:        []any{"merge", "squash", "rebase"},
 			},
+			"expectedHeadSha": {
+				Type:        "string",
+				Description: "The expected SHA of the pull request's HEAD ref",
+			},
 		},
 		Required: []string{"owner", "repo", "pullNumber"},
 	}
@@ -1555,9 +1559,14 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			expectedHeadSHA, err := OptionalParam[string](args, "expectedHeadSha")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
 			options := &github.PullRequestOptions{
 				CommitTitle: commitTitle,
+				SHA:         expectedHeadSHA,
 				MergeMethod: mergeMethod,
 			}
 
