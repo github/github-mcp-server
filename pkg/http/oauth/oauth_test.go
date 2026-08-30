@@ -542,37 +542,42 @@ func TestRegisterRoutes(t *testing.T) {
 	router := chi.NewRouter()
 	handler.RegisterRoutes(router)
 
-	// List of expected routes that should be registered
-	expectedRoutes := []string{
-		OAuthProtectedResourcePrefix,
-		OAuthProtectedResourcePrefix + "/",
-		OAuthProtectedResourcePrefix + "/mcp",
-		OAuthProtectedResourcePrefix + "/mcp/",
-		OAuthProtectedResourcePrefix + "/readonly",
-		OAuthProtectedResourcePrefix + "/readonly/",
-		OAuthProtectedResourcePrefix + "/mcp/readonly",
-		OAuthProtectedResourcePrefix + "/mcp/readonly/",
-		OAuthProtectedResourcePrefix + "/x/repos",
-		OAuthProtectedResourcePrefix + "/mcp/x/repos",
+	resourcePaths := []string{
+		"",
+		"/readonly",
+		"/insiders",
+		"/readonly/insiders",
+		"/x/repos",
+		"/x/repos/readonly",
+		"/x/repos/insiders",
+		"/x/repos/readonly/insiders",
 	}
 
-	for _, route := range expectedRoutes {
-		t.Run("route:"+route, func(t *testing.T) {
-			// Test GET
-			req := httptest.NewRequest(http.MethodGet, route, nil)
-			req.Host = "api.example.com"
-			rec := httptest.NewRecorder()
-			router.ServeHTTP(rec, req)
-			assert.Equal(t, http.StatusOK, rec.Code, "GET %s should return 200", route)
+	for _, basePath := range []string{"", "/mcp"} {
+		for _, resourcePath := range resourcePaths {
+			for _, trailingSlash := range []string{"", "/"} {
+				route := OAuthProtectedResourcePrefix + basePath + resourcePath + trailingSlash
+				t.Run("route:"+route, func(t *testing.T) {
+					req := httptest.NewRequest(http.MethodGet, route, nil)
+					req.Host = "api.example.com"
+					rec := httptest.NewRecorder()
+					router.ServeHTTP(rec, req)
+					assert.Equal(t, http.StatusOK, rec.Code, "GET %s should return 200", route)
 
-			// Test OPTIONS (CORS preflight)
-			req = httptest.NewRequest(http.MethodOptions, route, nil)
-			req.Host = "api.example.com"
-			rec = httptest.NewRecorder()
-			router.ServeHTTP(rec, req)
-			assert.Equal(t, http.StatusNoContent, rec.Code, "OPTIONS %s should return 204", route)
-		})
+					req = httptest.NewRequest(http.MethodOptions, route, nil)
+					req.Host = "api.example.com"
+					rec = httptest.NewRecorder()
+					router.ServeHTTP(rec, req)
+					assert.Equal(t, http.StatusNoContent, rec.Code, "OPTIONS %s should return 204", route)
+				})
+			}
+		}
 	}
+
+	req := httptest.NewRequest(http.MethodGet, OAuthProtectedResourcePrefix+"/mcp/unknown", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
 func TestSupportedScopes(t *testing.T) {

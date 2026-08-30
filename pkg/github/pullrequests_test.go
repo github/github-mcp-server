@@ -4546,12 +4546,13 @@ func TestResolveReviewThread(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name               string
-		requestArgs        map[string]any
-		mockedClient       *http.Client
-		expectToolError    bool
-		expectedToolErrMsg string
-		expectedResult     string
+		name                 string
+		requestArgs          map[string]any
+		mockedClient         *http.Client
+		withResolutionReason bool
+		expectToolError      bool
+		expectedToolErrMsg   string
+		expectedResult       string
 	}{
 		{
 			name: "successful resolve thread",
@@ -4572,7 +4573,81 @@ func TestResolveReviewThread(t *testing.T) {
 							}
 						} `graphql:"resolveReviewThread(input: $input)"`
 					}{},
-					githubv4.ResolveReviewThreadInput{
+					ResolveReviewThreadInput{
+						ThreadID: githubv4.ID("PRRT_kwDOTest123"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"resolveReviewThread": map[string]any{
+							"thread": map[string]any{
+								"id":         "PRRT_kwDOTest123",
+								"isResolved": true,
+							},
+						},
+					}),
+				),
+			),
+			expectedResult: "review thread resolved successfully",
+		},
+		{
+			name:                 "successful resolve thread with resolution reason",
+			withResolutionReason: true,
+			requestArgs: map[string]any{
+				"method":           "resolve_thread",
+				"owner":            "owner",
+				"repo":             "repo",
+				"pullNumber":       float64(42),
+				"threadId":         "PRRT_kwDOTest123",
+				"resolutionReason": "wont-fix",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewMutationMatcher(
+					struct {
+						ResolveReviewThread struct {
+							Thread struct {
+								ID         githubv4.ID
+								IsResolved githubv4.Boolean
+							}
+						} `graphql:"resolveReviewThread(input: $input)"`
+					}{},
+					ResolveReviewThreadInput{
+						ThreadID:         githubv4.ID("PRRT_kwDOTest123"),
+						ResolutionReason: newGQLStringlike[githubv4.String]("wont-fix"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"resolveReviewThread": map[string]any{
+							"thread": map[string]any{
+								"id":         "PRRT_kwDOTest123",
+								"isResolved": true,
+							},
+						},
+					}),
+				),
+			),
+			expectedResult: "review thread resolved successfully",
+		},
+		{
+			name: "default variant omits resolution reason",
+			requestArgs: map[string]any{
+				"method":           "resolve_thread",
+				"owner":            "owner",
+				"repo":             "repo",
+				"pullNumber":       float64(42),
+				"threadId":         "PRRT_kwDOTest123",
+				"resolutionReason": "wont-fix",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewMutationMatcher(
+					struct {
+						ResolveReviewThread struct {
+							Thread struct {
+								ID         githubv4.ID
+								IsResolved githubv4.Boolean
+							}
+						} `graphql:"resolveReviewThread(input: $input)"`
+					}{},
+					ResolveReviewThreadInput{
 						ThreadID: githubv4.ID("PRRT_kwDOTest123"),
 					},
 					nil,
@@ -4692,7 +4767,7 @@ func TestResolveReviewThread(t *testing.T) {
 							}
 						} `graphql:"resolveReviewThread(input: $input)"`
 					}{},
-					githubv4.ResolveReviewThreadInput{
+					ResolveReviewThreadInput{
 						ThreadID: githubv4.ID("PRRT_invalid"),
 					},
 					nil,
@@ -4711,6 +4786,9 @@ func TestResolveReviewThread(t *testing.T) {
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
 			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
+			if tc.withResolutionReason {
+				serverTool = PullRequestReviewWriteWithResolutionReason(translations.NullTranslationHelper)
+			}
 			deps := BaseDeps{
 				GQLClient: client,
 			}

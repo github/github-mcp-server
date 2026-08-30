@@ -9,6 +9,14 @@ const (
 	AcceptHeader = "Accept"
 	// UserAgentHeader is a standard HTTP Header.
 	UserAgentHeader = "User-Agent"
+	// ETagHeader is a standard HTTP Header carrying a response entity tag.
+	ETagHeader = "ETag"
+	// IfNoneMatchHeader is a standard HTTP Header used to make a request conditional on an entity tag.
+	IfNoneMatchHeader = "If-None-Match"
+	// CacheControlHeader is a standard HTTP Header carrying caching directives.
+	CacheControlHeader = "Cache-Control"
+	// VaryHeader is a standard HTTP Header describing which request headers a response varies on.
+	VaryHeader = "Vary"
 
 	// ContentTypeJSON is the standard MIME type for JSON.
 	ContentTypeJSON = "application/json"

@@ -29,7 +29,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
 ### `remote_mcp_ui_apps`
 
 - **create_pull_request** - Open new pull request
-  - **Required OAuth Scopes**: `repo`
+  - **OAuth Challenge Scopes**: `repo`
   - **MCP App UI**: `ui://github-mcp-server/pr-write`
   - `base`: Branch to merge into (string, required)
   - `body`: PR description (string, optional)
@@ -46,7 +46,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
   - No parameters required
 
 - **issue_write** - Create or update issue/pull request
-  - **Required OAuth Scopes**: `repo`
+  - **OAuth Challenge Scopes**: `repo`
   - **MCP App UI**: `ui://github-mcp-server/issue-write`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
@@ -61,6 +61,9 @@ The list below is generated from the Go source. It covers tool **inventory and s
      (string, required)
   - `milestone`: Milestone number (number, optional)
   - `owner`: Repository owner (string, required)
+  - `parent_issue_number`: Issue number of the parent issue. Only used when method is 'create' and cannot be combined with issue_fields. The new issue is created and attached to this parent in the same operation. (number, optional)
+  - `parent_owner`: Repository owner of the parent issue. Must be provided with parent_repo. Omit both to use owner and repo. Only used when method is 'create' and parent_issue_number is provided. (string, optional)
+  - `parent_repo`: Repository name of the parent issue. Must be provided with parent_owner. Omit both to use owner and repo. Only used when method is 'create' and parent_issue_number is provided. (string, optional)
   - `repo`: Repository name (string, required)
   - `state`: New state (string, optional)
   - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
@@ -68,14 +71,13 @@ The list below is generated from the Go source. It covers tool **inventory and s
   - `type`: Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter. (string | null, optional)
 
 - **ui_get** - Get UI data
-  - **Required OAuth Scopes (any of)**: `repo`, `read:org`
-  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `repo`, `write:org`
+  - **OAuth Challenge Scopes**: `repo`, `read:org`
   - `method`: The type of data to fetch (string, required)
   - `owner`: Repository owner (required for all methods) (string, required)
   - `repo`: Repository name (required for labels, assignees, milestones, branches, issue fields, reviewers) (string, optional)
 
 - **update_pull_request** - Edit pull request
-  - **Required OAuth Scopes**: `repo`
+  - **OAuth Challenge Scopes**: `repo`
   - **MCP App UI**: `ui://github-mcp-server/pr-edit`
   - `base`: New base branch name (string, optional)
   - `body`: New description (string, optional)
@@ -91,7 +93,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
 ### `file_blame`
 
 - **get_file_blame** - Get file blame information
-  - **Required OAuth Scopes**: `repo`
+  - **OAuth Challenge Scopes**: `repo`
   - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `end_line`: Optional 1-based ending line of the window of interest. Must be >= start_line when both are provided. (number, optional)
   - `owner`: Repository owner (username or organization) (string, required)
@@ -104,7 +106,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
 ### `issue_dependencies`
 
 - **issue_dependency_read** - Read issue dependencies
-  - **Required OAuth Scopes**: `repo`
+  - **OAuth Challenge Scopes**: `repo`
   - `issue_number`: The number of the issue (number, required)
   - `method`: The read operation to perform on a single issue's dependencies.
     Options are:
@@ -117,7 +119,7 @@ The list below is generated from the Go source. It covers tool **inventory and s
   - `repo`: The name of the repository (string, required)
 
 - **issue_dependency_write** - Change issue dependency
-  - **Required OAuth Scopes**: `repo`
+  - **OAuth Challenge Scopes**: `repo`
   - `issue_number`: The number of the subject issue (number, required)
   - `method`: The action to perform.
     Options are:

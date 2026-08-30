@@ -82,11 +82,14 @@ func NewAuthHandler(cfg *Config, apiHost utils.APIHostResolver) (*AuthHandler, e
 
 // routePatterns defines the route patterns for OAuth protected resource metadata.
 var routePatterns = []string{
-	"",          // Root: /.well-known/oauth-protected-resource
-	"/readonly", // Read-only mode
-	"/insiders", // Insiders mode
+	"", // Root: /.well-known/oauth-protected-resource
+	"/readonly",
+	"/insiders",
+	"/readonly/insiders",
 	"/x/{toolset}",
 	"/x/{toolset}/readonly",
+	"/x/{toolset}/insiders",
+	"/x/{toolset}/readonly/insiders",
 }
 
 // RegisterRoutes registers the OAuth protected resource metadata routes.
@@ -97,6 +100,7 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 			r.Handle(path, h.metadataHandler())
 		}
 	}
+	r.Handle(OAuthProtectedResourcePrefix+"/*", http.NotFoundHandler())
 }
 
 func (h *AuthHandler) metadataHandler() http.Handler {

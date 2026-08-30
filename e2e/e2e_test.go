@@ -307,6 +307,86 @@ func TestToolsets(t *testing.T) {
 	require.False(t, toolsContains("pull_request_read"), "expected not to find 'pull_request_read' tool")
 }
 
+func TestCreateIssueWithParent(t *testing.T) {
+	t.Parallel()
+
+	mcpClient := setupMCPClient(t)
+	ctx := context.Background()
+
+	t.Log("Getting current user...")
+	resp, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{Name: "get_me"})
+	require.NoError(t, err, "expected to call 'get_me' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+	require.Len(t, resp.Content, 1, "expected content to have one item")
+
+	textContent, ok := resp.Content[0].(*mcp.TextContent)
+	require.True(t, ok, "expected content to be of type TextContent")
+
+	var trimmedGetMeText struct {
+		Login string `json:"login"`
+	}
+	err = json.Unmarshal([]byte(textContent.Text), &trimmedGetMeText)
+	require.NoError(t, err, "expected to unmarshal text content successfully")
+	currentOwner := trimmedGetMeText.Login
+
+	repoName := fmt.Sprintf("github-mcp-server-e2e-%s-%d", t.Name(), time.Now().UnixMilli())
+	t.Logf("Creating repository %s/%s...", currentOwner, repoName)
+	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: "create_repository",
+		Arguments: map[string]any{
+			"name":     repoName,
+			"private":  true,
+			"autoInit": true,
+		},
+	})
+	require.NoError(t, err, "expected to call 'create_repository' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+	t.Cleanup(func() {
+		ghClient := getRESTClient(t)
+		t.Logf("Deleting repository %s/%s...", currentOwner, repoName)
+		_, err := ghClient.Repositories.Delete(context.Background(), currentOwner, repoName)
+		require.NoError(t, err, "expected to delete repository successfully")
+	})
+
+	t.Logf("Creating parent issue in %s/%s...", currentOwner, repoName)
+	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: "issue_write",
+		Arguments: map[string]any{
+			"method": "create",
+			"owner":  currentOwner,
+			"repo":   repoName,
+			"title":  "Parent issue",
+		},
+	})
+	require.NoError(t, err, "expected to call 'issue_write' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+	t.Logf("Creating child issue under %s/%s#1...", currentOwner, repoName)
+	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: "issue_write",
+		Arguments: map[string]any{
+			"method":              "create",
+			"owner":               currentOwner,
+			"repo":                repoName,
+			"title":               "Child issue",
+			"parent_issue_number": 1,
+		},
+	})
+	require.NoError(t, err, "expected to call 'issue_write' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+	ghClient := getRESTClient(t)
+	parentIssue, parentResponse, err := ghClient.Issues.Get(ctx, currentOwner, repoName, 1)
+	require.NoError(t, err, "expected to get parent issue successfully")
+	require.Equal(t, http.StatusOK, parentResponse.StatusCode, "expected to get parent issue successfully")
+
+	childIssue, childResponse, err := ghClient.Issues.Get(ctx, currentOwner, repoName, 2)
+	require.NoError(t, err, "expected to get child issue successfully")
+	require.Equal(t, http.StatusOK, childResponse.StatusCode, "expected to get child issue successfully")
+	require.Equal(t, parentIssue.GetURL(), childIssue.GetParentIssueURL(), "expected child issue to reference its parent")
+}
+
 func TestTags(t *testing.T) {
 	t.Parallel()
 

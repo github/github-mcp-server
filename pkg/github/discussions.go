@@ -165,7 +165,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner"},
 			}),
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -312,7 +312,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "discussionNumber"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			// Decode params
 			var params struct {
@@ -424,7 +424,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				Required: []string{"owner", "repo", "discussionNumber"},
 			}),
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			// Decode params
 			var params struct {
@@ -639,7 +639,7 @@ Options are:
 				Required: []string{"method"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -1015,7 +1015,7 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 				Required: []string{"owner"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

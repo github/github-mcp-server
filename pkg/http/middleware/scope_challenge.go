@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -40,16 +39,15 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 				return
 			}
 
-			// Try to use pre-parsed MCP method info first (performance optimization)
-			// This avoids re-parsing the JSON body if WithMCPParse middleware ran earlier
-			var toolName string
-			if methodInfo, ok := ghcontext.MCPMethod(ctx); ok && methodInfo != nil {
+			// Use pre-parsed envelope information when WithMCPParse ran earlier.
+			var methodInfo *ghcontext.MCPMethodInfo
+			if parsedMethodInfo, ok := ghcontext.MCPMethod(ctx); ok && parsedMethodInfo != nil {
 				// Only check tools/call requests
-				if methodInfo.Method != "tools/call" {
+				if parsedMethodInfo.Method != "tools/call" {
 					next.ServeHTTP(w, r)
 					return
 				}
-				toolName = methodInfo.ItemName
+				methodInfo = parsedMethodInfo
 			} else {
 				// Fallback: parse the request body directly
 				body, err := io.ReadAll(r.Body)
@@ -63,37 +61,20 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 				}
 				r.Body = io.NopCloser(bytes.NewReader(body))
 
-				var mcpRequest struct {
-					JSONRPC string `json:"jsonrpc"`
-					Method  string `json:"method"`
-					Params  struct {
-						Name      string         `json:"name,omitempty"`
-						Arguments map[string]any `json:"arguments,omitempty"`
-					} `json:"params"`
-				}
-
-				err = json.Unmarshal(body, &mcpRequest)
-				if err != nil {
+				methodInfo, err = parseMCPMethodInfo(body)
+				if err != nil || methodInfo == nil {
 					next.ServeHTTP(w, r)
 					return
 				}
 
 				// Only check tools/call requests
-				if mcpRequest.Method != "tools/call" {
+				if methodInfo.Method != "tools/call" {
 					next.ServeHTTP(w, r)
 					return
 				}
-
-				toolName = mcpRequest.Params.Name
 			}
-			toolScopeInfo, err := scopes.GetToolScopeInfo(toolName)
-			if err != nil {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			// If tool not found in scope map, allow the request
-			if toolScopeInfo == nil {
+			scopeAccess, ok := scopes.GetToolScopeAccess(methodInfo.ItemName)
+			if !ok {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -102,25 +83,36 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 			// This allows Remote Server to pass scope info to avoid redundant GitHub API calls.
 			activeScopes, ok := ghcontext.GetTokenScopes(ctx)
 			if !ok || (len(activeScopes) == 0 && tokenInfo.Token != "") {
-				activeScopes, err = scopeFetcher.FetchTokenScopes(ctx, tokenInfo.Token)
+				fetchedScopes, err := scopeFetcher.FetchTokenScopes(ctx, tokenInfo.Token)
 				if err != nil {
 					next.ServeHTTP(w, r)
 					return
 				}
+				activeScopes = fetchedScopes
 			}
 
 			// Store active scopes in context for downstream use
 			ctx = ghcontext.WithTokenScopes(ctx, activeScopes)
 			r = r.WithContext(ctx)
 
-			// Check if user has the required scopes
-			if toolScopeInfo.HasAcceptedScope(activeScopes...) {
+			// Most calls already have sufficient scopes. Compare against the
+			// exhaustive upper bound before materializing tool arguments.
+			if scopeAccess.MaximumScopesSatisfied(activeScopes) {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			// User lacks required scopes - get the scopes they need
-			requiredScopes := toolScopeInfo.GetRequiredScopesSlice()
+			arguments, err := methodInfo.DecodeArguments()
+			if err != nil {
+				// Preserve normal MCP handler validation for invalid arguments.
+				next.ServeHTTP(w, r)
+				return
+			}
+			challengeScopes := scopeAccess.ResolveChallenge(arguments, activeScopes)
+			if len(challengeScopes) == 0 {
+				next.ServeHTTP(w, r)
+				return
+			}
 
 			// Build the resource metadata URL using the shared utility
 			// GetEffectiveResourcePath returns the original path (e.g., /mcp or /mcp/x/all)
@@ -128,19 +120,14 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 			resourcePath := oauth.ResolveResourcePath(r, oauthCfg)
 			resourceMetadataURL := oauth.BuildResourceMetadataURL(r, oauthCfg, resourcePath)
 
-			// Build recommended scopes: existing scopes + required scopes
-			recommendedScopes := make([]string, 0, len(activeScopes)+len(requiredScopes))
-			recommendedScopes = append(recommendedScopes, activeScopes...)
-			recommendedScopes = append(recommendedScopes, requiredScopes...)
-
 			// Build the WWW-Authenticate header value
 			wwwAuthenticateHeader := fmt.Sprintf(`Bearer error="insufficient_scope", scope=%q, resource_metadata=%q, error_description=%q`,
-				strings.Join(recommendedScopes, " "),
+				strings.Join(challengeScopes, " "),
 				resourceMetadataURL,
-				"Additional scopes required: "+strings.Join(requiredScopes, ", "),
+				"Additional scopes required: "+strings.Join(challengeScopes, ", "),
 			)
 
-			// Send scope challenge response with the superset of existing and required scopes
+			// Send the exact scope set returned by the tool's scope check.
 			w.Header().Set("WWW-Authenticate", wwwAuthenticateHeader)
 			http.Error(w, "Forbidden: insufficient scopes", http.StatusForbidden)
 		}

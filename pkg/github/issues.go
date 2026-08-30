@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -831,7 +832,7 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -1256,7 +1257,7 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 // ListIssueTypes creates a tool to list defined issue types for an organization or repository.
 // This can be used to understand supported issue type values for creating or updating issues.
 func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issue_types",
@@ -1280,7 +1281,7 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo, scopes.ReadOrg},
+		repositoryOrOrganizationScopeAccess(),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1354,6 +1355,7 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoMetadata(true))
 			return result, nil, nil
 		})
+	return st
 }
 
 // AddIssueComment creates a tool to add a comment or reaction to an issue.
@@ -1401,7 +1403,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner", "repo", "issue_number"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1620,7 +1622,7 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"method", "owner", "repo", "issue_number", "sub_issue_id"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -1882,7 +1884,7 @@ func SearchIssues(t translations.TranslationHelperFunc, opts ...ToolOption) inve
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			options := []searchOption{ifcSearchPostProcessOption(ctx, deps)}
 			fields, err := OptionalStringArrayParam(args, "fields")
@@ -2326,11 +2328,9 @@ const IssueWriteUIResourceURI = "ui://github-mcp-server/issue-write"
 
 // issueWriteFormParams are the parameters the issue_write MCP App form collects
 // and re-sends on submit. Any other parameter present on a call cannot be
-// represented by the form. The form collects (and prefills) every parameter in
-// the tool's current input schema, so hasNonFormParams against this set is a
-// forward-compatibility safety net: a parameter added to the schema in the
-// future but not yet wired into the form trips the check and bypasses the form
-// so the supplied value isn't silently dropped.
+// represented by the form, so hasNonFormParams bypasses the form rather than
+// silently dropping it. Parent issue parameters are intentionally omitted
+// because the current form cannot represent them.
 var issueWriteFormParams = map[string]struct{}{
 	"method":        {},
 	"owner":         {},
@@ -2425,6 +2425,19 @@ Options are:
 						Type:        "number",
 						Description: "Issue number to update",
 					},
+					"parent_issue_number": {
+						Type:        "number",
+						Description: "Issue number of the parent issue. Only used when method is 'create' and cannot be combined with issue_fields. The new issue is created and attached to this parent in the same operation.",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"parent_owner": {
+						Type:        "string",
+						Description: "Repository owner of the parent issue. Must be provided with parent_repo. Omit both to use owner and repo. Only used when method is 'create' and parent_issue_number is provided.",
+					},
+					"parent_repo": {
+						Type:        "string",
+						Description: "Repository name of the parent issue. Must be provided with parent_owner. Omit both to use owner and repo. Only used when method is 'create' and parent_issue_number is provided.",
+					},
 					"title": {
 						Type:        "string",
 						Description: "Issue title",
@@ -2511,7 +2524,7 @@ Options are:
 				Required: []string{"method", "owner", "repo"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -2611,10 +2624,37 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			parentIssueNumber, err := OptionalIntParam(args, "parent_issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			parentValue, parentProvided := args["parent_issue_number"]
+			parentProvided = parentProvided && parentValue != nil
+			if parentProvided && parentIssueNumber < 1 {
+				return utils.NewToolResultError("parent_issue_number must be greater than 0"), nil, nil
+			}
+			if parentProvided && method != "create" {
+				return utils.NewToolResultError("parent_issue_number can only be used with the create method"), nil, nil
+			}
+			parentOwner, err := OptionalParam[string](args, "parent_owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			parentRepo, err := OptionalParam[string](args, "parent_repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if err := validateParentRepository(parentProvided, parentOwner, parentRepo); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
 			var issueFields []issueWriteFieldInput
 			issueFields, err = optionalIssueWriteFields(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if parentProvided && len(issueFields) > 0 {
+				return utils.NewToolResultError("issue_fields cannot be used with parent_issue_number"), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -2638,6 +2678,11 @@ Options are:
 
 			switch method {
 			case "create":
+				if parentProvided {
+					result, err := CreateIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, assignees, labels, milestoneNum, issueType, parentIssueNumber, parentOwner, parentRepo)
+					return result, nil, err
+				}
+
 				result, err := CreateIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType, issueFieldValues)
 				return result, nil, err
 			case "update":
@@ -2657,6 +2702,243 @@ Options are:
 		})
 	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}
 	return st
+}
+
+type CreateIssueInput struct {
+	RepositoryID githubv4.ID     `json:"repositoryId"`
+	Title        githubv4.String `json:"title"`
+
+	Body          *githubv4.String `json:"body,omitempty"`
+	AssigneeIDs   *[]githubv4.ID   `json:"assigneeIds,omitempty"`
+	MilestoneID   *githubv4.ID     `json:"milestoneId,omitempty"`
+	LabelIDs      *[]githubv4.ID   `json:"labelIds,omitempty"`
+	IssueTypeID   *githubv4.ID     `json:"issueTypeId,omitempty"`
+	ParentIssueID *githubv4.ID     `json:"parentIssueId,omitempty"`
+}
+
+type createIssueMutation struct {
+	CreateIssue struct {
+		Issue struct {
+			FullDatabaseID githubv4.String `graphql:"fullDatabaseId"`
+			URL            githubv4.URI
+		}
+	} `graphql:"createIssue(input: $input)"`
+}
+
+type createIssueParentMetadataQuery struct {
+	ChildRepository struct {
+		ID            githubv4.ID
+		NameWithOwner githubv4.String
+	} `graphql:"childRepository: repository(owner: $owner, name: $repo)"`
+	ParentRepository struct {
+		Issue struct {
+			ID     githubv4.ID
+			Number githubv4.Int
+		} `graphql:"issue(number: $parentIssueNumber)"`
+	} `graphql:"parentRepository: repository(owner: $parentOwner, name: $parentRepo)"`
+}
+
+// CreateIssueWithParent creates an issue and attaches it to its parent in one GraphQL mutation.
+func CreateIssueWithParent(
+	ctx context.Context,
+	client *github.Client,
+	gqlClient *githubv4.Client,
+	owner string,
+	repo string,
+	title string,
+	body string,
+	assignees []string,
+	labels []string,
+	milestoneNumber int,
+	issueType string,
+	parentIssueNumber int,
+	parentOwner string,
+	parentRepo string,
+) (*mcp.CallToolResult, error) {
+	if title == "" {
+		return utils.NewToolResultError("missing required parameter: title"), nil
+	}
+	if parentIssueNumber < 1 {
+		return utils.NewToolResultError("parent_issue_number must be greater than 0"), nil
+	}
+
+	parentOwner, parentRepo = parentRepository(owner, repo, parentOwner, parentRepo)
+	repositoryID, parentIssueID, err := resolveCreateIssueParent(ctx, gqlClient, owner, repo, parentOwner, parentRepo, parentIssueNumber)
+	if err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to resolve parent issue", err), nil
+	}
+
+	input := CreateIssueInput{
+		RepositoryID:  repositoryID,
+		Title:         githubv4.String(title),
+		ParentIssueID: &parentIssueID,
+	}
+	if body != "" {
+		input.Body = githubv4.NewString(githubv4.String(body))
+	}
+
+	if len(labels) > 0 {
+		labelIDs := make([]githubv4.ID, 0, len(labels))
+		for _, label := range labels {
+			labelID, err := getLabelID(ctx, gqlClient, owner, repo, label)
+			if err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, fmt.Sprintf("failed to resolve label %q", label), err), nil
+			}
+			labelIDs = append(labelIDs, labelID)
+		}
+		input.LabelIDs = &labelIDs
+	}
+
+	if len(assignees) > 0 {
+		assigneeIDs := make([]githubv4.ID, 0, len(assignees))
+		for _, assignee := range assignees {
+			assigneeID, err := resolveUserID(ctx, gqlClient, assignee)
+			if err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, fmt.Sprintf("failed to resolve assignee %q", assignee), err), nil
+			}
+			assigneeIDs = append(assigneeIDs, assigneeID)
+		}
+		input.AssigneeIDs = &assigneeIDs
+	}
+
+	if milestoneNumber != 0 {
+		milestoneID, err := resolveMilestoneID(ctx, gqlClient, owner, repo, milestoneNumber)
+		if err != nil {
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to resolve milestone", err), nil
+		}
+		input.MilestoneID = &milestoneID
+	}
+
+	if issueType != "" {
+		issueTypeID, resp, err := resolveIssueTypeID(ctx, client, owner, repo, issueType)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, fmt.Sprintf("failed to resolve issue type %q", issueType), resp, err), nil
+		}
+		input.IssueTypeID = &issueTypeID
+	}
+
+	var mutation createIssueMutation
+	if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to create issue", err), nil
+	}
+	if mutation.CreateIssue.Issue.FullDatabaseID == "" || mutation.CreateIssue.Issue.URL.URL == nil {
+		return utils.NewToolResultError("failed to create issue: response did not include the created issue"), nil
+	}
+
+	response := MinimalResponse{
+		ID:  string(mutation.CreateIssue.Issue.FullDatabaseID),
+		URL: mutation.CreateIssue.Issue.URL.String(),
+	}
+	encoded, err := json.Marshal(response)
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil
+	}
+	return utils.NewToolResultText(string(encoded)), nil
+}
+
+func parentRepository(owner, repo, parentOwner, parentRepo string) (string, string) {
+	if parentOwner == "" && parentRepo == "" {
+		return owner, repo
+	}
+	return parentOwner, parentRepo
+}
+
+func validateParentRepository(parentProvided bool, parentOwner, parentRepo string) error {
+	if !parentProvided {
+		if parentOwner != "" || parentRepo != "" {
+			return errors.New("parent_owner and parent_repo can only be used when parent_issue_number is provided")
+		}
+		return nil
+	}
+	if (parentOwner == "") != (parentRepo == "") {
+		return errors.New("parent_owner and parent_repo must be provided together")
+	}
+	return nil
+}
+
+func resolveCreateIssueParent(ctx context.Context, gqlClient *githubv4.Client, owner, repo, parentOwner, parentRepo string, parentIssueNumber int) (githubv4.ID, githubv4.ID, error) {
+	var query createIssueParentMetadataQuery
+	variables := map[string]any{
+		"owner":             githubv4.String(owner),
+		"repo":              githubv4.String(repo),
+		"parentOwner":       githubv4.String(parentOwner),
+		"parentRepo":        githubv4.String(parentRepo),
+		"parentIssueNumber": githubv4.Int(parentIssueNumber), // #nosec G115 - issue numbers are small positive integers
+	}
+	if err := gqlClient.Query(ctx, &query, variables); err != nil {
+		return "", "", err
+	}
+	if query.ChildRepository.NameWithOwner == "" {
+		return "", "", fmt.Errorf("repository %s/%s was not found", owner, repo)
+	}
+	if query.ParentRepository.Issue.Number == 0 {
+		return "", "", fmt.Errorf("parent issue #%d was not found in %s/%s", parentIssueNumber, parentOwner, parentRepo)
+	}
+	return query.ChildRepository.ID, query.ParentRepository.Issue.ID, nil
+}
+
+func resolveUserID(ctx context.Context, gqlClient *githubv4.Client, login string) (githubv4.ID, error) {
+	var query struct {
+		User struct {
+			ID    githubv4.ID
+			Login githubv4.String
+		} `graphql:"user(login: $login)"`
+	}
+	if err := gqlClient.Query(ctx, &query, map[string]any{"login": githubv4.String(login)}); err != nil {
+		return "", err
+	}
+	if query.User.Login == "" {
+		return "", fmt.Errorf("user %q was not found", login)
+	}
+	return query.User.ID, nil
+}
+
+func resolveMilestoneID(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, milestoneNumber int) (githubv4.ID, error) {
+	var query struct {
+		Repository struct {
+			Milestone struct {
+				ID     githubv4.ID
+				Number githubv4.Int
+			} `graphql:"milestone(number: $milestoneNumber)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+	variables := map[string]any{
+		"owner":           githubv4.String(owner),
+		"repo":            githubv4.String(repo),
+		"milestoneNumber": githubv4.Int(milestoneNumber), // #nosec G115 - milestone numbers are small positive integers
+	}
+	if err := gqlClient.Query(ctx, &query, variables); err != nil {
+		return "", err
+	}
+	if query.Repository.Milestone.Number == 0 {
+		return "", fmt.Errorf("milestone #%d was not found in %s/%s", milestoneNumber, owner, repo)
+	}
+	return query.Repository.Milestone.ID, nil
+}
+
+func resolveIssueTypeID(ctx context.Context, client *github.Client, owner, repo, issueTypeName string) (githubv4.ID, *github.Response, error) {
+	req, err := client.NewRequest(ctx, "GET", fmt.Sprintf("repos/%s/%s/issue-types", owner, repo), nil)
+	if err != nil {
+		return "", nil, err
+	}
+
+	var issueTypes []*github.IssueType
+	resp, err := client.Do(req, &issueTypes)
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+	if err != nil {
+		return "", resp, err
+	}
+	for _, issueType := range issueTypes {
+		if issueType != nil && strings.EqualFold(strings.TrimSpace(issueType.GetName()), strings.TrimSpace(issueTypeName)) {
+			if issueType.GetNodeID() == "" {
+				return "", resp, fmt.Errorf("issue type %q is missing a node ID", issueTypeName)
+			}
+			return githubv4.ID(issueType.GetNodeID()), resp, nil
+		}
+	}
+	return "", resp, fmt.Errorf("issue type %q was not found in %s/%s", issueTypeName, owner, repo)
 }
 
 func CreateIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, issueFieldValues []*github.IssueRequestFieldValue) (*mcp.CallToolResult, error) {
@@ -3044,7 +3326,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

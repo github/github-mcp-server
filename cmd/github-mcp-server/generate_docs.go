@@ -219,22 +219,8 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 	// Tool name (no icon - section header already has the toolset icon)
 	fmt.Fprintf(buf, "- **%s** - %s\n", tool.Tool.Name, tool.Tool.Annotations.Title)
 
-	// OAuth scopes if present
-	if len(tool.RequiredScopes) > 0 {
-		scopeList := "`" + strings.Join(tool.RequiredScopes, "`, `") + "`"
-		switch {
-		case len(tool.RequiredScopeGroups) > 1:
-			fmt.Fprintf(buf, "  - **Required OAuth Scopes (all required)**: %s\n", scopeList)
-		case len(tool.RequiredScopes) > 1:
-			fmt.Fprintf(buf, "  - **Required OAuth Scopes (any of)**: %s\n", scopeList)
-		default:
-			fmt.Fprintf(buf, "  - **Required OAuth Scopes**: %s\n", scopeList)
-		}
-
-		// Only show accepted scopes if they differ from required scopes
-		if len(tool.AcceptedScopes) > 0 && !scopesEqual(tool.RequiredScopes, tool.AcceptedScopes) {
-			fmt.Fprintf(buf, "  - **Accepted OAuth Scopes**: `%s`\n", strings.Join(tool.AcceptedScopes, "`, `"))
-		}
+	if scopes := tool.ScopeAccess.Scopes; len(scopes) > 0 {
+		fmt.Fprintf(buf, "  - **OAuth Challenge Scopes**: `%s`\n", strings.Join(scopes, "`, `"))
 	}
 
 	// MCP App UI metadata (only rendered when the remote_mcp_ui_apps flag
@@ -320,28 +306,6 @@ func schemaTypeString(schema *jsonschema.Schema) string {
 		}
 	}
 	return strings.Join(types, " | ")
-}
-
-// scopesEqual checks if two scope slices contain the same elements (order-independent)
-func scopesEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	// Create a map for quick lookup
-	aMap := make(map[string]bool, len(a))
-	for _, scope := range a {
-		aMap[scope] = true
-	}
-
-	// Check if all elements in b are in a
-	for _, scope := range b {
-		if !aMap[scope] {
-			return false
-		}
-	}
-
-	return true
 }
 
 // indentMultilineDescription adds the specified indent to all lines after the first line.
