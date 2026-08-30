@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -66,15 +67,14 @@ func getRESTClient(t *testing.T) *gogithub.Client {
 	token := getE2EToken(t)
 
 	// Create a new GitHub client with the token
-	ghClient := gogithub.NewClient(nil).WithAuthToken(token)
-
+	opts := []gogithub.ClientOptionsFunc{gogithub.WithAuthToken(token)}
 	if host := getE2EHost(); host != "" && host != "https://github.com" {
-		var err error
 		// Currently this works for GHEC because the API is exposed at the api subdomain and the path prefix
 		// but it would be preferable to extract the host parsing from the main server logic, and use it here.
-		ghClient, err = ghClient.WithEnterpriseURLs(host, host)
-		require.NoError(t, err, "expected to create GitHub client with host")
+		opts = append(opts, gogithub.WithEnterpriseURLs(host, host))
 	}
+	ghClient, err := gogithub.NewClient(opts...)
+	require.NoError(t, err, "expected to create GitHub client successfully")
 
 	return ghClient
 }
@@ -221,11 +221,13 @@ func setupMCPClient(t *testing.T, options ...clientOption) *mcp.ClientSession {
 			enabledToolsets = github.GetDefaultToolsetIDs()
 		}
 
-		ghServer, err := ghmcp.NewMCPServer(ghmcp.MCPServerConfig{
+		ghServer, err := ghmcp.NewStdioMCPServer(ctx, github.MCPServerConfig{
+			Version:         "e2e-test",
 			Token:           token,
 			EnabledToolsets: enabledToolsets,
 			Host:            getE2EHost(),
 			Translator:      translations.NullTranslationHelper,
+			Logger:          slog.New(slog.DiscardHandler),
 		})
 		require.NoError(t, err, "expected to construct MCP server successfully")
 
@@ -968,9 +970,10 @@ func TestRequestCopilotReview(t *testing.T) {
 	// Cleanup the repository after the test
 	t.Cleanup(func() {
 		// MCP Server doesn't support deletions, but we can use the GitHub Client
-		ghClient := gogithub.NewClient(nil).WithAuthToken(getE2EToken(t))
+		ghClient, err := gogithub.NewClient(gogithub.WithAuthToken(getE2EToken(t)))
+		require.NoError(t, err, "expected to create GitHub client successfully")
 		t.Logf("Deleting repository %s/%s...", currentOwner, repoName)
-		_, err := ghClient.Repositories.Delete(context.Background(), currentOwner, repoName)
+		_, err = ghClient.Repositories.Delete(context.Background(), currentOwner, repoName)
 		require.NoError(t, err, "expected to delete repository successfully")
 	})
 
@@ -1063,9 +1066,10 @@ func TestRequestCopilotReview(t *testing.T) {
 
 	// Finally, get requested reviews and see copilot is in there
 	// MCP Server doesn't support requesting reviews yet, but we can use the GitHub Client
-	ghClient := gogithub.NewClient(nil).WithAuthToken(getE2EToken(t))
+	ghClient, err := gogithub.NewClient(gogithub.WithAuthToken(getE2EToken(t)))
+	require.NoError(t, err, "expected to create GitHub client successfully")
 	t.Logf("Getting reviews for pull request in %s/%s...", currentOwner, repoName)
-	reviewRequests, _, err := ghClient.PullRequests.ListReviewers(context.Background(), currentOwner, repoName, 1, nil)
+	reviewRequests, _, err := ghClient.PullRequests.ListReviewers(context.Background(), currentOwner, repoName, 1)
 	require.NoError(t, err, "expected to get review requests successfully")
 
 	// Check if Copilot was added as a reviewer - skip if not available
