@@ -1,0 +1,18 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "List star lists"
+  },
+  "description": "List the authenticated user's star lists (UserLists), optionally including the repositories in each list.",
+  "inputSchema": {
+    "properties": {
+      "include_items": {
+        "description": "Whether to include the repositories in each list.",
+        "type": "boolean"
+      }
+    },
+    "type": "object"
+  },
+  "name": "list_user_lists"
+}

@@ -1481,6 +1481,22 @@ The following sets of tools are available:
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/star-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/star-light.png"><img src="pkg/octicons/icons/star-light.png" width="20" height="20" alt="star"></picture> Stargazers</summary>
 
+- **add_repository_to_list** - Add repository to star list
+  - **OAuth Challenge Scopes**: `user`
+  - `list_name`: The name of the star list to add the repository to. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **create_user_list** - Create star list
+  - **OAuth Challenge Scopes**: `user`
+  - `description`: A description of the list. (string, optional)
+  - `is_private`: Whether the list is private. (boolean, optional)
+  - `name`: The name of the new list. (string, required)
+
+- **delete_user_list** - Delete star list
+  - **OAuth Challenge Scopes**: `user`
+  - `name`: The name of the list to delete. (string, required)
+
 - **list_starred_repositories** - List starred repositories
   - **OAuth Challenge Scopes**: `repo`
   - `direction`: The direction to sort the results by. (string, optional)
@@ -1488,6 +1504,16 @@ The following sets of tools are available:
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `sort`: How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to). (string, optional)
   - `username`: Username to list starred repositories for. Defaults to the authenticated user. (string, optional)
+
+- **list_user_lists** - List star lists
+  - **OAuth Challenge Scopes**: `read:user`
+  - `include_items`: Whether to include the repositories in each list. (boolean, optional)
+
+- **remove_repository_from_list** - Remove repository from star list
+  - **OAuth Challenge Scopes**: `user`
+  - `list_name`: The name of the star list to remove the repository from. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
 
 - **star_repository** - Star repository
   - **OAuth Challenge Scopes**: `repo`
@@ -1498,6 +1524,13 @@ The following sets of tools are available:
   - **OAuth Challenge Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+
+- **update_user_list** - Update star list
+  - **OAuth Challenge Scopes**: `user`
+  - `description`: The new description for the list. (string, optional)
+  - `is_private`: Whether the list is private. (boolean, optional)
+  - `name`: The current name of the list to update. (string, required)
+  - `new_name`: The new name for the list. (string, optional)
 
 </details>
 

@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Add repository to star list"
+  },
+  "description": "Add a repository to a star list (UserList). List membership is independent of star state.",
+  "inputSchema": {
+    "properties": {
+      "list_name": {
+        "description": "The name of the star list to add the repository to.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "list_name"
+    ],
+    "type": "object"
+  },
+  "name": "add_repository_to_list"
+}

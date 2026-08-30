@@ -241,6 +241,12 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		ListStarredRepositories(t),
 		StarRepository(t),
 		UnstarRepository(t),
+		ListUserLists(t),
+		CreateUserList(t),
+		UpdateUserList(t),
+		DeleteUserList(t),
+		AddRepositoryToList(t),
+		RemoveRepositoryFromList(t),
 		ListRepositoryCollaborators(t),
 
 		// Git tools

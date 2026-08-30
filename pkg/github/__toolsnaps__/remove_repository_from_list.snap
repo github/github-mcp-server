@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Remove repository from star list"
+  },
+  "description": "Remove a repository from a star list (UserList). List membership is independent of star state.",
+  "inputSchema": {
+    "properties": {
+      "list_name": {
+        "description": "The name of the star list to remove the repository from.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "list_name"
+    ],
+    "type": "object"
+  },
+  "name": "remove_repository_from_list"
+}
