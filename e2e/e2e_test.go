@@ -1997,3 +1997,166 @@ func TestPullRequestReviewDeletion(t *testing.T) {
 	require.NoError(t, err, "expected to unmarshal text content successfully")
 	require.Len(t, noReviews, 0, "expected to find no reviews")
 }
+
+// TestUserLists exercises the star list (UserList) tools end-to-end. It creates
+// a private list, renames it, adds a repository, verifies membership, removes the
+// repository, and deletes the list. Because list management is a global
+// (per-account) mutation with no repository boundary, the test creates its own
+// uniquely named list and cleans it up in every exit path.
+func TestUserLists(t *testing.T) {
+	t.Parallel()
+
+	mcpClient := setupMCPClient(t)
+	ctx := context.Background()
+
+	listName := fmt.Sprintf("github-mcp-server-e2e-%s-%d", t.Name(), time.Now().UnixMilli())
+	renamedList := listName + "-renamed"
+
+	t.Cleanup(func() {
+		t.Logf("Cleaning up list %q...", renamedList)
+		resp, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "delete_user_list",
+			Arguments: map[string]any{"name": renamedList},
+		})
+		if err == nil && resp.IsError {
+			t.Logf("Cleanup: failed to delete list %q: %+v", renamedList, resp)
+		}
+	})
+
+	// Create a list.
+	t.Logf("Creating list %q...", listName)
+	resp, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: "create_user_list",
+		Arguments: map[string]any{
+			"name":        listName,
+			"description": "e2e test list",
+			"is_private":  true,
+		},
+	})
+	require.NoError(t, err, "expected to call 'create_user_list' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+	// Rename the list.
+	t.Logf("Renaming list %q -> %q...", listName, renamedList)
+	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: "update_user_list",
+		Arguments: map[string]any{
+			"name":     listName,
+			"new_name": renamedList,
+		},
+	})
+	require.NoError(t, err, "expected to call 'update_user_list' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+	// Use the user's own account to find a repository to add. We create one so
+	// the test is self-contained and does not depend on any pre-existing repo.
+	t.Log("Getting current user...")
+	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{Name: "get_me"})
+	require.NoError(t, err, "expected to call 'get_me' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+	textContent, ok := resp.Content[0].(*mcp.TextContent)
+	require.True(t, ok, "expected content to be of type TextContent")
+	var me struct {
+		Login string `json:"login"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &me), "expected to unmarshal text content successfully")
+	currentOwner := me.Login
+
+	repoName := fmt.Sprintf("github-mcp-server-e2e-%s-%d", t.Name(), time.Now().UnixMilli())
+	t.Logf("Creating repository %s/%s...", currentOwner, repoName)
+	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: "create_repository",
+		Arguments: map[string]any{
+			"name":     repoName,
+			"private":  true,
+			"autoInit": true,
+		},
+	})
+	require.NoError(t, err, "expected to call 'create_repository' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+	t.Cleanup(func() {
+		ghClient := getRESTClient(t)
+		t.Logf("Deleting repository %s/%s...", currentOwner, repoName)
+		_, err := ghClient.Repositories.Delete(context.Background(), currentOwner, repoName)
+		require.NoError(t, err, "expected to delete repository successfully")
+	})
+
+	// Add the repository to the list.
+	t.Logf("Adding %s/%s to list %q...", currentOwner, repoName, renamedList)
+	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: "add_repository_to_list",
+		Arguments: map[string]any{
+			"owner":     currentOwner,
+			"repo":      repoName,
+			"list_name": renamedList,
+		},
+	})
+	require.NoError(t, err, "expected to call 'add_repository_to_list' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+	// Verify membership by listing lists with items and finding ours.
+	t.Log("Verifying membership via 'list_user_lists'...")
+	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "list_user_lists",
+		Arguments: map[string]any{"include_items": true},
+	})
+	require.NoError(t, err, "expected to call 'list_user_lists' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+	textContent, ok = resp.Content[0].(*mcp.TextContent)
+	require.True(t, ok, "expected content to be of type TextContent")
+	var listing struct {
+		Lists []struct {
+			Name  string `json:"name"`
+			Items []struct {
+				Repository string `json:"repository"`
+			} `json:"items"`
+		} `json:"lists"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &listing), "expected to unmarshal text content successfully")
+
+	var found *struct {
+		Name  string `json:"name"`
+		Items []struct {
+			Repository string `json:"repository"`
+		} `json:"items"`
+	}
+	for i := range listing.Lists {
+		if listing.Lists[i].Name == renamedList {
+			found = &listing.Lists[i]
+			break
+		}
+	}
+	require.NotNil(t, found, "expected to find list %q in listing", renamedList)
+	var containsRepo bool
+	for _, item := range found.Items {
+		if item.Repository == currentOwner+"/"+repoName {
+			containsRepo = true
+			break
+		}
+	}
+	require.True(t, containsRepo, "expected list %q to contain %s/%s", renamedList, currentOwner, repoName)
+
+	// Remove the repository from the list.
+	t.Logf("Removing %s/%s from list %q...", currentOwner, repoName, renamedList)
+	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: "remove_repository_from_list",
+		Arguments: map[string]any{
+			"owner":     currentOwner,
+			"repo":      repoName,
+			"list_name": renamedList,
+		},
+	})
+	require.NoError(t, err, "expected to call 'remove_repository_from_list' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+	// Delete the list (cleanup also deletes it, but this asserts the tool works).
+	t.Logf("Deleting list %q...", renamedList)
+	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "delete_user_list",
+		Arguments: map[string]any{"name": renamedList},
+	})
+	require.NoError(t, err, "expected to call 'delete_user_list' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+}
