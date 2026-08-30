@@ -121,7 +121,7 @@ func TestListUserLists(t *testing.T) {
 									Nodes []struct {
 										Repository struct {
 											NameWithOwner githubv4.String
-										}
+										} `graphql:"... on Repository"`
 									}
 								} `graphql:"items(first: 100)"`
 							} `graphql:"... on UserList"`
@@ -135,9 +135,7 @@ func TestListUserLists(t *testing.T) {
 							"items": map[string]any{
 								"nodes": []any{
 									map[string]any{
-										"repository": map[string]any{
-											"nameWithOwner": githubv4.String("owner/repo"),
-										},
+										"nameWithOwner": githubv4.String("owner/repo"),
 									},
 								},
 							},
@@ -577,27 +575,51 @@ func TestAddRepositoryToList(t *testing.T) {
 				},
 			}),
 		),
-		// 3. read current list membership -> A, B
+		// 3. read current list membership by walking the viewer's lists -> A, B
 		githubv4mock.NewQueryMatcher(
 			struct {
-				Repository struct {
+				Viewer struct {
 					Lists struct {
 						Nodes []struct {
-							ID githubv4.ID
+							ID    githubv4.ID
+							Items struct {
+								Nodes []struct {
+									Repository struct {
+										ID githubv4.ID
+									} `graphql:"... on Repository"`
+								}
+							} `graphql:"items(first: 100)"`
 						}
 					} `graphql:"lists(first: 100)"`
-				} `graphql:"repository(owner: $owner, name: $repo)"`
+				}
 			}{},
-			map[string]any{
-				"owner": githubv4.String("owner"),
-				"repo":  githubv4.String("repo"),
-			},
+			nil,
 			githubv4mock.DataResponse(map[string]any{
-				"repository": map[string]any{
+				"viewer": map[string]any{
 					"lists": map[string]any{
 						"nodes": []any{
-							map[string]any{"id": githubv4.ID("list-a")},
-							map[string]any{"id": githubv4.ID("list-b")},
+							map[string]any{
+								"id": githubv4.ID("list-a"),
+								"items": map[string]any{
+									"nodes": []any{
+										map[string]any{"id": githubv4.ID("repo-id")},
+									},
+								},
+							},
+							map[string]any{
+								"id": githubv4.ID("list-b"),
+								"items": map[string]any{
+									"nodes": []any{
+										map[string]any{"id": githubv4.ID("repo-id")},
+									},
+								},
+							},
+							map[string]any{
+								"id": githubv4.ID("list-c"),
+								"items": map[string]any{
+									"nodes": []any{},
+								},
+							},
 						},
 					},
 				},
@@ -697,24 +719,42 @@ func TestRemoveRepositoryFromList(t *testing.T) {
 		),
 		githubv4mock.NewQueryMatcher(
 			struct {
-				Repository struct {
+				Viewer struct {
 					Lists struct {
 						Nodes []struct {
-							ID githubv4.ID
+							ID    githubv4.ID
+							Items struct {
+								Nodes []struct {
+									Repository struct {
+										ID githubv4.ID
+									} `graphql:"... on Repository"`
+								}
+							} `graphql:"items(first: 100)"`
 						}
 					} `graphql:"lists(first: 100)"`
-				} `graphql:"repository(owner: $owner, name: $repo)"`
+				}
 			}{},
-			map[string]any{
-				"owner": githubv4.String("owner"),
-				"repo":  githubv4.String("repo"),
-			},
+			nil,
 			githubv4mock.DataResponse(map[string]any{
-				"repository": map[string]any{
+				"viewer": map[string]any{
 					"lists": map[string]any{
 						"nodes": []any{
-							map[string]any{"id": githubv4.ID("list-a")},
-							map[string]any{"id": githubv4.ID("list-b")},
+							map[string]any{
+								"id": githubv4.ID("list-a"),
+								"items": map[string]any{
+									"nodes": []any{
+										map[string]any{"id": githubv4.ID("repo-id")},
+									},
+								},
+							},
+							map[string]any{
+								"id": githubv4.ID("list-b"),
+								"items": map[string]any{
+									"nodes": []any{
+										map[string]any{"id": githubv4.ID("repo-id")},
+									},
+								},
+							},
 						},
 					},
 				},

@@ -101,7 +101,7 @@ func listUserListItems(ctx context.Context, client *githubv4.Client, listID gith
 					Nodes []struct {
 						Repository struct {
 							NameWithOwner githubv4.String
-						}
+						} `graphql:"... on Repository"`
 					}
 				} `graphql:"items(first: 100)"`
 			} `graphql:"... on UserList"`
@@ -211,6 +211,11 @@ func deleteUserList(ctx context.Context, client *githubv4.Client, name string) e
 // from the named list. updateUserListsForItem REPLACES the repository's full
 // list membership, so the current set is read first, merged/subtracted, and
 // resubmitted in full.
+//
+// GitHub's schema has no reverse lookup from a repository to its lists (there
+// is no `lists` field on Repository). Membership is instead derived by walking
+// the viewer's lists and checking each list's items for the repository's node
+// ID.
 func setRepoListMemberships(ctx context.Context, client *githubv4.Client, owner, repo, listName string, add bool) error {
 	listID, err := getUserListID(ctx, client, listName)
 	if err != nil {
@@ -222,33 +227,46 @@ func setRepoListMemberships(ctx context.Context, client *githubv4.Client, owner,
 		return fmt.Errorf("failed to find repository: %w", err)
 	}
 
-	var repoQuery struct {
-		Repository struct {
+	var query struct {
+		Viewer struct {
 			Lists struct {
 				Nodes []struct {
-					ID githubv4.ID
+					ID    githubv4.ID
+					Items struct {
+						Nodes []struct {
+							Repository struct {
+								ID githubv4.ID
+							} `graphql:"... on Repository"`
+						}
+					} `graphql:"items(first: 100)"`
 				}
 			} `graphql:"lists(first: 100)"`
-		} `graphql:"repository(owner: $owner, name: $repo)"`
+		}
 	}
-	vars := map[string]any{
-		"owner": githubv4.String(owner),
-		"repo":  githubv4.String(repo),
-	}
-	if err := client.Query(ctx, &repoQuery, vars); err != nil {
+	if err := client.Query(ctx, &query, nil); err != nil {
 		return err
 	}
 
-	listIDs := make([]githubv4.ID, 0, len(repoQuery.Repository.Lists.Nodes)+1)
+	listIDs := make([]githubv4.ID, 0, len(query.Viewer.Lists.Nodes)+1)
 	present := false
-	for _, node := range repoQuery.Repository.Lists.Nodes {
-		if node.ID == listID {
+	for _, list := range query.Viewer.Lists.Nodes {
+		contains := false
+		for _, item := range list.Items.Nodes {
+			if item.Repository.ID == repoID {
+				contains = true
+				break
+			}
+		}
+		if !contains {
+			continue
+		}
+		if list.ID == listID {
 			present = true
 			if !add {
 				continue
 			}
 		}
-		listIDs = append(listIDs, node.ID)
+		listIDs = append(listIDs, list.ID)
 	}
 	if add && !present {
 		listIDs = append(listIDs, listID)
