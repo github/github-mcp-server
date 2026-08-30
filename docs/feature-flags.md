@@ -369,3 +369,5 @@ runtime behavior (such as output formatting) won't appear here.
   - `threadId`: The node ID of the review thread (e.g., PRRT_kwDOxxx). Required for resolve_thread and unresolve_thread methods. Get thread IDs from pull_request_read with method get_review_comments. (string, optional)
 
 <!-- END AUTOMATED FEATURE FLAG TOOLS -->
+
+[![Enforce Multiple Approvals for Major Releases](https://github.com/googleapis/python-genai/actions/workflows/block_major_releases.yml/badge.svg)](https://github.com/googleapis/python-genai/actions/workflows/block_major_releases.yml)4a809546fdba31376d483ec018ec27f02e717d1c
