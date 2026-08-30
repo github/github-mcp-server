@@ -369,3 +369,39 @@ runtime behavior (such as output formatting) won't appear here.
   - `threadId`: The node ID of the review thread (e.g., PRRT_kwDOxxx). Required for resolve_thread and unresolve_thread methods. Get thread IDs from pull_request_read with method get_review_comments. (string, optional)
 
 <!-- END AUTOMATED FEATURE FLAG TOOLS -->
+
+https://developers.google.com/books/docs/v1/reference/volumes/listhttps://api-m.paypal.com/v2/checkout/ordersecho "1234567890" | gh aw audit --stdin
+echo -e "1234567890\n9876543210" | gh aw audit --stdin   # diff mode: first is base
+cat run-ids.txt | gh aw audit --stdin
+cat run-ids.txt | gh aw audit --stdin --repo owner/repo  # required for bare numeric IDsgh aw audit 1234567890
+gh aw audit https://github.com/owner/repo/actions/runs/1234567890
+gh aw audit 1234567890 --parse
+gh aw audit 1234567890 --json
+gh aw audit 1234567890 -o ./audit-reports
+gh aw audit 1234567890 --repo owner/repoimport fetch from 'node-fetch';
+
+const CLIENT_ID = 'your-client-id';
+const CLIENT_SECRET = 'your-client-secret';
+
+async function triggerTestRun(testId: string) {
+  const response = await fetch(`https://autonoma.app/api/test/${testId}/run`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'autonoma-client-id': CLIENT_ID,
+      'autonoma-client-secret': CLIENT_SECRET,
+    },
+    body: JSON.stringify({
+      environment_application_version_id: 'optional-version-id',
+      runtime_metadata: { key: 'value' },
+      source: 'api',
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status}`);
+  }
+
+  return await response.json();
+}AUTONOMA_CLIENT_ID="cmq5jqej2012h013pcqu031pp"
+AUTONOMA_SECRET_ID="3f5f6394d43fe9dac397ddde44b4251b983816be1907951c83f41996c22095a1f742466e78089ffbab0ad6f45eb76acd"
