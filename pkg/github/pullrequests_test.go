@@ -2302,8 +2302,16 @@ func Test_GetPullRequestComments(t *testing.T) {
 				require.NoError(t, json.Unmarshal([]byte(textContent), &raw))
 				require.Len(t, raw.ReviewThreads, 1)
 				require.Len(t, raw.ReviewThreads[0].Comments, 3)
+				assert.Equal(t, float64(86), raw.ReviewThreads[0].Comments[0]["line"])
+				assert.Equal(t, float64(84), raw.ReviewThreads[0].Comments[0]["original_line"])
+				assert.Equal(t, float64(73), raw.ReviewThreads[0].Comments[0]["start_line"])
+				assert.Equal(t, float64(73), raw.ReviewThreads[0].Comments[0]["original_start_line"])
 				assert.NotContains(t, raw.ReviewThreads[0].Comments[1], "start_line")
 				assert.NotContains(t, raw.ReviewThreads[0].Comments[1], "original_start_line")
+				assert.NotContains(t, raw.ReviewThreads[0].Comments[2], "line")
+				assert.NotContains(t, raw.ReviewThreads[0].Comments[2], "start_line")
+				assert.Equal(t, float64(178), raw.ReviewThreads[0].Comments[2]["original_line"])
+				assert.Equal(t, float64(176), raw.ReviewThreads[0].Comments[2]["original_start_line"])
 
 				comment3 := thread.Comments[2]
 				assert.Nil(t, comment3.Line)
