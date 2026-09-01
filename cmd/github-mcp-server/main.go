@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -149,12 +150,25 @@ var (
 				stdioServerConfig.OAuthScopes = scopes
 			}
 
+			// With an installation ID, the server authenticates as that single
+			// installation. Without one, it discovers every installation of the
+			// app and picks the one that owns the resource each request
+			// addresses, so repositories spread across organizations all work
+			// from one app ID and private key.
 			if appAuthRequested {
-				tokenProvider, err := newGitHubAppTokenProvider(appID, appInstallationID, appPrivateKeyPath, appPrivateKeyInline, viper.GetString("host"))
-				if err != nil {
-					return err
+				if appInstallationID != "" {
+					tokenProvider, err := newGitHubAppTokenProvider(appID, appInstallationID, appPrivateKeyPath, appPrivateKeyInline, viper.GetString("host"))
+					if err != nil {
+						return err
+					}
+					stdioServerConfig.TokenProvider = tokenProvider
+				} else {
+					requestTokenProvider, err := newGitHubAppRequestTokenProvider(appID, appPrivateKeyPath, appPrivateKeyInline, viper.GetString("host"))
+					if err != nil {
+						return err
+					}
+					stdioServerConfig.RequestTokenProvider = requestTokenProvider
 				}
-				stdioServerConfig.TokenProvider = tokenProvider
 			}
 
 			return ghmcp.RunStdioServer(stdioServerConfig)
@@ -257,7 +271,7 @@ func init() {
 
 	// The private key has no flag because passing it in argv would expose it.
 	stdioCmd.Flags().String("app-id", "", "GitHub App ID or client ID, enabling non-interactive server-to-server authentication")
-	stdioCmd.Flags().String("app-installation-id", "", "GitHub App installation ID to mint installation access tokens for")
+	stdioCmd.Flags().String("app-installation-id", "", "GitHub App installation ID to mint installation access tokens for. Omit to use every installation of the app, selecting the one that owns each requested resource")
 	stdioCmd.Flags().String("app-private-key-path", "", "Path to the GitHub App private key (PEM). Preferred over GITHUB_APP_PRIVATE_KEY: keeps the key off the command line and out of the environment")
 
 	// HTTP-specific flags
@@ -322,25 +336,61 @@ func newGitHubAppTokenProvider(appID, installationID, keyPath, keyInline, host s
 		return nil, err
 	}
 
-	apiHost, err := utils.NewAPIHost(host)
+	restURL, err := appRESTBaseURL(host)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse host for GitHub App authentication: %w", err)
-	}
-	restURL, err := apiHost.BaseRESTURL(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve REST URL for GitHub App authentication: %w", err)
+		return nil, err
 	}
 
 	provider, err := githubapp.NewProvider(githubapp.Config{
 		AppID:          appID,
 		InstallationID: installationID,
 		PrivateKeyPEM:  keyBytes,
-		BaseRESTURL:    restURL.String(),
+		BaseRESTURL:    restURL,
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure GitHub App authentication: %w", err)
 	}
 	return provider.AccessToken, nil
+}
+
+// newGitHubAppRequestTokenProvider builds a token provider for a GitHub App
+// installed on more than one account. It mints a token per installation on
+// demand, routing each request to the installation that owns the resource it
+// addresses.
+func newGitHubAppRequestTokenProvider(appID, keyPath, keyInline, host string) (func(*http.Request) string, error) {
+	keyBytes, err := loadAppPrivateKey(keyPath, keyInline)
+	if err != nil {
+		return nil, err
+	}
+
+	restURL, err := appRESTBaseURL(host)
+	if err != nil {
+		return nil, err
+	}
+
+	provider, err := githubapp.NewMultiProvider(githubapp.MultiConfig{
+		AppID:         appID,
+		PrivateKeyPEM: keyBytes,
+		BaseRESTURL:   restURL,
+	}, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to configure GitHub App authentication: %w", err)
+	}
+	return provider.TokenForRequest, nil
+}
+
+// appRESTBaseURL resolves the REST API base used to mint installation tokens
+// for the configured host.
+func appRESTBaseURL(host string) (string, error) {
+	apiHost, err := utils.NewAPIHost(host)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse host for GitHub App authentication: %w", err)
+	}
+	restURL, err := apiHost.BaseRESTURL(context.Background())
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve REST URL for GitHub App authentication: %w", err)
+	}
+	return restURL.String(), nil
 }
 
 func loadAppPrivateKey(path, inline string) ([]byte, error) {
