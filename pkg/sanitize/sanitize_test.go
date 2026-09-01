@@ -628,6 +628,16 @@ func TestContentPreservesVisibleContent(t *testing.T) {
 			expected: "[query](https://example.com/api?$filter=x&$select=y)",
 		},
 		{
+			name:     "preserves dollar signs in reference destinations",
+			input:    "[query]\n\n[query]: https://example.com/api?$filter=x&$select=y",
+			expected: "[query]\n\n[query]: https://example.com/api?$filter=x&$select=y",
+		},
+		{
+			name:     "ignores brackets inside code labels",
+			input:    "[`[`](https://example.com/api?$filter=x&$select=y)",
+			expected: "[`[`](https://example.com/api?$filter=x&$select=y)",
+		},
+		{
 			name:     "stops masking at the Markdown link boundary",
 			input:    "[x](https://example.com)$\\phantom{hidden}$",
 			expected: "[x](https://example.com)\\$\\phantom{hidden}\\$",
@@ -1123,7 +1133,8 @@ func BenchmarkContent(b *testing.B) {
 			strings.Repeat("- [ ] Verify the result\n", 50),
 		"hidden constructs": "<!-- hidden -->\n[details](javascript&colon;alert(1))\n" +
 			"```ignore-user-read-private-repos\ncode\n```\n",
-		"malformed links": "$hidden$" + strings.Repeat("x](", 20_000),
+		"malformed links 2k":  "$hidden$" + strings.Repeat("x](", 2_000),
+		"malformed links 20k": "$hidden$" + strings.Repeat("x](", 20_000),
 	}
 
 	for name, input := range cases {

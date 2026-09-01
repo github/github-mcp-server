@@ -13,7 +13,6 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 )
@@ -87,9 +86,6 @@ func Content(input string) string {
 const maxContentFilterPasses = 4
 
 var markdownParser = goldmark.DefaultParser()
-var markdownLinkParser = goldmark.New(goldmark.WithExtensions(
-	extension.NewLinkify(extension.WithLinkifyAllowedProtocols([]string{"http:", "https:"})),
-)).Parser()
 
 type sourceSpan struct {
 	start int
@@ -432,103 +428,143 @@ func githubMathDelimiters(input string, codeMask, urlMask []bool) []int {
 func markdownURLMask(input string) []bool {
 	mask := make([]bool, len(input))
 	source := []byte(input)
-	document := markdownLinkParser.Parse(text.NewReader(source))
-	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
+	codeMask := markdownCodeMask(input)
+	brackets := make([]int, 0, 8)
+	lineStart := 0
+
+	for offset := 0; offset < len(source); {
+		if source[offset] == '\n' {
+			brackets = brackets[:0]
+			lineStart = offset + 1
+			offset++
+			continue
+		}
+		if codeMask[offset] {
+			offset++
+			continue
 		}
 
-		var span sourceSpan
-		var ok bool
-		switch node := node.(type) {
-		case *ast.AutoLink:
-			span, ok = autoLinkDestinationSpan(source, node)
-		case *ast.Link:
-			if node.Reference == nil &&
-				len(node.Title) == 0 &&
-				linkHasVisibleLabel(node, source) &&
-				linkDestinationIsSafe(node.Destination) {
-				span, ok = inlineLinkDestinationSpan(source, node.Pos())
+		if offset == lineStart {
+			if span, stop, ok := referenceDestinationSpan(source, offset); ok {
+				markSourceSpan(mask, span)
+				offset = stop
+				continue
 			}
 		}
-		if ok {
-			for offset := span.start; offset < span.stop; offset++ {
-				mask[offset] = true
+
+		switch source[offset] {
+		case '<':
+			if span, stop, ok := angleAutoLinkSpan(source, offset); ok {
+				markSourceSpan(mask, span)
+				offset = stop
+				continue
+			}
+		case '[':
+			if !isBackslashEscapedBytes(source, offset) {
+				brackets = append(brackets, offset)
+			}
+		case ']':
+			if !isBackslashEscapedBytes(source, offset) && len(brackets) > 0 {
+				brackets = brackets[:len(brackets)-1]
+				if offset+1 < len(source) && source[offset+1] == '(' {
+					if span, stop, ok := inlineDestinationSpan(source, offset+2); ok {
+						if linkDestinationIsSafe(source[span.start:span.stop]) {
+							markSourceSpan(mask, span)
+						}
+						offset = stop
+						continue
+					}
+				}
+			}
+		default:
+			if span, ok := bareHTTPURLSpan(source, offset); ok {
+				markSourceSpan(mask, span)
+				offset = span.stop
+				continue
 			}
 		}
-		return ast.WalkContinue, nil
-	})
+		offset++
+	}
 	return mask
 }
 
-func autoLinkDestinationSpan(source []byte, link *ast.AutoLink) (sourceSpan, bool) {
-	value := link.Label(source)
-	if len(value) == 0 || link.Pos() < 0 || link.Pos() >= len(source) {
-		return sourceSpan{}, false
+func markSourceSpan(mask []bool, span sourceSpan) {
+	for offset := span.start; offset < span.stop; offset++ {
+		mask[offset] = true
 	}
-	line := source[link.Pos():]
-	if newline := bytes.IndexByte(line, '\n'); newline >= 0 {
-		line = line[:newline]
-	}
-	offset := bytes.Index(line, value)
-	if offset < 0 {
-		return sourceSpan{}, false
-	}
-	start := link.Pos() + offset
-	return sourceSpan{start: start, stop: start + len(value)}, true
 }
 
-func inlineLinkDestinationSpan(source []byte, start int) (sourceSpan, bool) {
-	if start < 0 || start >= len(source) || source[start] != '[' {
-		return sourceSpan{}, false
+func referenceDestinationSpan(source []byte, start int) (sourceSpan, int, bool) {
+	offset := start
+	for offset < len(source) && offset-start <= 3 && source[offset] == ' ' {
+		offset++
 	}
+	if offset >= len(source) || source[offset] != '[' || isBackslashEscapedBytes(source, offset) {
+		return sourceSpan{}, start, false
+	}
+	closing := bytes.Index(source[offset:], []byte("]:"))
+	if closing < 0 {
+		return sourceSpan{}, start, false
+	}
+	destinationStart := offset + closing + 2
+	span, stop, ok := inlineDestinationSpan(source, destinationStart)
+	if !ok || !linkDestinationIsSafe(source[span.start:span.stop]) {
+		return sourceSpan{}, start, false
+	}
+	return span, stop, true
+}
 
-	bracketDepth := 0
-	destinationStart := -1
-	for offset := start; offset+1 < len(source); offset++ {
-		switch source[offset] {
-		case '[':
-			if isBackslashEscapedBytes(source, offset) {
-				continue
-			}
-			bracketDepth++
-		case ']':
-			if isBackslashEscapedBytes(source, offset) {
-				continue
-			}
-			bracketDepth--
-			if bracketDepth == 0 && source[offset+1] == '(' {
-				destinationStart = offset + 2
-				offset = len(source)
-			}
-		}
+func angleAutoLinkSpan(source []byte, start int) (sourceSpan, int, bool) {
+	closeOffset := bytes.IndexByte(source[start+1:], '>')
+	if closeOffset < 0 {
+		return sourceSpan{}, start, false
 	}
-	if destinationStart < 0 {
-		return sourceSpan{}, false
+	stop := start + 1 + closeOffset
+	destination := source[start+1 : stop]
+	if !linkDestinationIsSafe(destination) {
+		return sourceSpan{}, start, false
 	}
+	parsed, err := url.Parse(string(destination))
+	if err != nil ||
+		(parsed.Scheme != "" &&
+			!strings.EqualFold(parsed.Scheme, "http") &&
+			!strings.EqualFold(parsed.Scheme, "https") &&
+			!strings.EqualFold(parsed.Scheme, "mailto")) {
+		return sourceSpan{}, start, false
+	}
+	return sourceSpan{start: start + 1, stop: stop}, stop + 1, true
+}
 
-	for destinationStart < len(source) {
-		r, size := utf8.DecodeRune(source[destinationStart:])
+func inlineDestinationSpan(source []byte, start int) (sourceSpan, int, bool) {
+	for start < len(source) {
+		r, size := utf8.DecodeRune(source[start:])
 		if !unicode.IsSpace(r) {
 			break
 		}
-		destinationStart += size
+		start += size
 	}
-	if destinationStart >= len(source) {
-		return sourceSpan{}, false
+	if start >= len(source) {
+		return sourceSpan{}, start, false
 	}
 
-	if source[destinationStart] == '<' {
-		for stop := destinationStart + 1; stop < len(source); stop++ {
+	if source[start] == '<' {
+		for stop := start + 1; stop < len(source); stop++ {
 			if source[stop] == '>' && !isBackslashEscapedBytes(source, stop) {
-				return sourceSpan{start: destinationStart + 1, stop: stop}, true
+				closing := stop + 1
+				for closing < len(source) && unicode.IsSpace(rune(source[closing])) {
+					closing++
+				}
+				if closing < len(source) && source[closing] == ')' {
+					return sourceSpan{start: start + 1, stop: stop}, closing + 1, true
+				}
+				return sourceSpan{}, start, false
 			}
 		}
-		return sourceSpan{}, false
+		return sourceSpan{}, start, false
 	}
 
 	parentheses := 0
-	for stop := destinationStart; stop < len(source); {
+	for stop := start; stop < len(source); {
 		r, size := utf8.DecodeRune(source[stop:])
 		if r == '(' || r == ')' {
 			if !isBackslashEscapedBytes(source, stop) {
@@ -536,22 +572,78 @@ func inlineLinkDestinationSpan(source []byte, start int) (sourceSpan, bool) {
 				case r == '(':
 					parentheses++
 				case parentheses == 0:
-					return sourceSpan{start: destinationStart, stop: stop}, true
+					return sourceSpan{start: start, stop: stop}, stop + 1, true
 				default:
 					parentheses--
 				}
 			}
 		} else if parentheses == 0 && unicode.IsSpace(r) {
-			return sourceSpan{start: destinationStart, stop: stop}, true
+			return sourceSpan{}, start, false
 		}
 		stop += size
 	}
-	return sourceSpan{}, false
+	return sourceSpan{}, start, false
+}
+
+func bareHTTPURLSpan(source []byte, start int) (sourceSpan, bool) {
+	var prefixLength int
+	switch {
+	case hasASCIIFoldPrefix(source[start:], "https://"):
+		prefixLength = len("https://")
+	case hasASCIIFoldPrefix(source[start:], "http://"):
+		prefixLength = len("http://")
+	case bytes.HasPrefix(source[start:], []byte("www.")):
+		prefixLength = len("www.")
+	default:
+		return sourceSpan{}, false
+	}
+	if start > 0 && isURLCharacter(source[start-1]) {
+		return sourceSpan{}, false
+	}
+
+	stop := start + prefixLength
+	parentheses := 0
+	for stop < len(source) {
+		r, size := utf8.DecodeRune(source[stop:])
+		if unicode.IsSpace(r) || r == '<' || r == '>' {
+			break
+		}
+		if r == ')' {
+			if parentheses == 0 {
+				break
+			}
+			parentheses--
+		} else if r == '(' {
+			parentheses++
+		}
+		stop += size
+	}
+	for stop > start && strings.ContainsRune(".,;:!?", rune(source[stop-1])) {
+		stop--
+	}
+	return sourceSpan{start: start, stop: stop}, stop > start+prefixLength
+}
+
+func hasASCIIFoldPrefix(input []byte, prefix string) bool {
+	return len(input) >= len(prefix) && strings.EqualFold(string(input[:len(prefix)]), prefix)
+}
+
+func isURLCharacter(b byte) bool {
+	return (b >= 'a' && b <= 'z') ||
+		(b >= 'A' && b <= 'Z') ||
+		(b >= '0' && b <= '9') ||
+		b == '_' ||
+		b == '-'
 }
 
 func markdownCodeMask(input string) []bool {
-	mask := make([]bool, len(input))
-	spans := markdownCodeSpans(input)
+	document := markdownParser.Parse(text.NewReader([]byte(input)))
+	return markdownCodeMaskFromDocument(document, len(input))
+}
+
+func markdownCodeMaskFromDocument(document ast.Node, size int) []bool {
+	mask := make([]bool, size)
+	spans := markdownCodeSpansFromDocument(document)
 	for _, span := range spans {
 		for offset := span.start; offset < span.stop; offset++ {
 			mask[offset] = true
@@ -876,6 +968,10 @@ func filterContentInvisibleCharacters(input string) string {
 func markdownCodeSpans(input string) []sourceSpan {
 	source := []byte(input)
 	document := markdownParser.Parse(text.NewReader(source))
+	return markdownCodeSpansFromDocument(document)
+}
+
+func markdownCodeSpansFromDocument(document ast.Node) []sourceSpan {
 	var spans []sourceSpan
 	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
