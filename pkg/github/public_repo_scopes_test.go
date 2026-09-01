@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -11,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPublicRepoContributionToolScopes(t *testing.T) {
+func TestPublicRepoContributionToolOAuthScopes(t *testing.T) {
 	t.Parallel()
 
 	tools := []struct {
@@ -20,7 +19,6 @@ func TestPublicRepoContributionToolScopes(t *testing.T) {
 	}{
 		{name: "fork_repository", tool: ForkRepository(translations.NullTranslationHelper)},
 		{name: "create_branch", tool: CreateBranch(translations.NullTranslationHelper)},
-		{name: "push_files", tool: PushFiles(translations.NullTranslationHelper)},
 		{name: "create_pull_request", tool: CreatePullRequest(translations.NullTranslationHelper)},
 		{name: "issue_write", tool: IssueWrite(translations.NullTranslationHelper)},
 		{name: "add_issue_comment", tool: AddIssueComment(translations.NullTranslationHelper)},
@@ -28,19 +26,13 @@ func TestPublicRepoContributionToolScopes(t *testing.T) {
 
 	for _, tt := range tools {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.True(t, tt.tool.ScopeAccess.Visible([]string{string(scopes.PublicRepo)}))
-			assert.True(t, tt.tool.ScopeAccess.Visible([]string{string(scopes.Repo)}))
-
+			assert.Equal(t, []string{string(scopes.PublicRepo)}, tt.tool.ScopeAccess.Scopes)
+			assert.Equal(t, []string{string(scopes.PublicRepo)}, tt.tool.ScopeAccess.Challenge(nil, nil))
 			for _, activeScopes := range [][]string{
 				{string(scopes.PublicRepo)},
 				{string(scopes.Repo)},
 			} {
 				assert.Empty(t, tt.tool.ScopeAccess.Challenge(nil, activeScopes))
-			}
-
-			if tt.name != "push_files" {
-				assert.Equal(t, []string{string(scopes.PublicRepo)}, tt.tool.ScopeAccess.Scopes)
-				assert.Equal(t, []string{string(scopes.PublicRepo)}, tt.tool.ScopeAccess.Challenge(nil, nil))
 			}
 		})
 	}
@@ -62,7 +54,7 @@ func TestPublicRepoContributionToolsVisibleToPATs(t *testing.T) {
 		t.Run(string(tokenScope), func(t *testing.T) {
 			filter := CreateToolScopeFilter([]string{string(tokenScope)})
 			for i := range tools {
-				included, err := filter(context.Background(), &tools[i])
+				included, err := filter(t.Context(), &tools[i])
 				require.NoError(t, err)
 				assert.True(t, included, "%s should be visible", tools[i].Tool.Name)
 			}
