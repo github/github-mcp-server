@@ -332,6 +332,7 @@ func (r *Inventory) RegisterPrompts(ctx context.Context, s *mcp.Server) {
 // RegisterAll registers all available tools, resources, and prompts with the server.
 // The context is used for feature flag evaluation.
 func (r *Inventory) RegisterAll(ctx context.Context, s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
+	ctx = r.WithResolvedFeatures(ctx)
 	r.RegisterTools(ctx, s, deps, middleware...)
 	r.RegisterResourceTemplates(ctx, s, deps)
 	r.RegisterPrompts(ctx, s)

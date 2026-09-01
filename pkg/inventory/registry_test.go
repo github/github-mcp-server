@@ -1221,6 +1221,53 @@ func TestFeatureFlagPrompts(t *testing.T) {
 	}
 }
 
+func TestRegisterAllSharesFeatureResolution(t *testing.T) {
+	const feature = FeatureFlag("shared")
+	rule := NewFeatureRule([]FeatureFlag{feature}, func(featureAsBool FeatureResolver) bool {
+		return featureAsBool(feature)
+	})
+	tool := mockTool("tool", "toolset1", true)
+	tool.FeatureRule = rule
+	resource := mockResource("resource", "toolset1", "test://{id}")
+	resource.FeatureRule = rule
+	prompt := mockPrompt("prompt", "toolset1")
+	prompt.FeatureRule = rule
+
+	calls := 0
+	checker := func(context.Context, FeatureFlag) (bool, error) {
+		calls++
+		return calls == 1, nil
+	}
+	inv := mustBuild(t, NewBuilder().
+		SetTools([]ServerTool{tool}).
+		SetResources([]ServerResourceTemplate{resource}).
+		SetPrompts([]ServerPrompt{prompt}).
+		WithToolsets([]string{"all"}).
+		WithFeatureChecker(checker))
+
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	inv.RegisterAll(context.Background(), server, nil)
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = serverSession.Close() })
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clientSession.Close() })
+
+	tools, err := clientSession.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, tools.Tools, 1)
+	resources, err := clientSession.ListResourceTemplates(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, resources.ResourceTemplates, 1)
+	prompts, err := clientSession.ListPrompts(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, prompts.Prompts, 1)
+	require.Equal(t, 1, calls)
+}
+
 func TestFeatureMetadataIsCachedAndNarrowed(t *testing.T) {
 	tools := []ServerTool{
 		mockToolWithFlags("tool_x", "toolset1", true, "x", ""),
