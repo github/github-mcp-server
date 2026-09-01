@@ -1046,6 +1046,74 @@ func TestCrossOriginProtection(t *testing.T) {
 	}
 }
 
+func TestFeatureResolutionUsesOuterHTTPContext(t *testing.T) {
+	type userContextKey struct{}
+	const (
+		userValue   = "remote-user"
+		featureFlag = inventory.FeatureFlag("remote-feature")
+	)
+
+	var checkerCalls int
+	tool := mockTool("feature_tool", "test", true)
+	tool.FeatureRule = inventory.NewFeatureRule(
+		[]inventory.FeatureFlag{featureFlag},
+		func(featureAsBool inventory.FeatureResolver) bool {
+			return featureAsBool(featureFlag)
+		},
+	)
+	inventoryFactory := func(_ *http.Request) (*inventory.Inventory, error) {
+		checker := func(ctx context.Context, flag inventory.FeatureFlag) (bool, error) {
+			checkerCalls++
+			return flag == featureFlag && ctx.Value(userContextKey{}) == userValue, nil
+		}
+		return inventory.NewBuilder().
+			SetTools([]inventory.ServerTool{tool}).
+			WithToolsets([]string{"all"}).
+			WithFeatureChecker(checker).
+			Build()
+	}
+
+	apiHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{Version: "test"},
+		nil,
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+		WithInventoryFactory(inventoryFactory),
+		WithGitHubMCPServerFactory(func(r *http.Request, _ github.ToolDependencies, inv *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+			assert.True(t, inventory.ResolveFeature(r.Context(), nil, featureFlag))
+			require.Len(t, inv.AvailableTools(r.Context()), 1)
+			return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+		}),
+		WithScopeFetcher(allScopesFetcher{}),
+	)
+
+	router := chi.NewRouter()
+	router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userContextKey{}, userValue)))
+		})
+	})
+	handler.RegisterMiddleware(router)
+	handler.RegisterRoutes(router)
+
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1.0.0"},"io.modelcontextprotocol/clientCapabilities":{}}}}`
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+	req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
+	req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+	req.Header.Set("Mcp-Protocol-Version", "2026-07-28")
+	req.Header.Set("Mcp-Method", "tools/list")
+	req.Header.Set(headers.AuthorizationHeader, "ghs_test-token")
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusOK, recorder.Code, "response body: %s", recorder.Body.String())
+	assert.Equal(t, 1, checkerCalls)
+}
+
 func TestHTTPToolMinimumProtocolVersion(t *testing.T) {
 	apiHost, err := utils.NewAPIHost("https://api.github.com")
 	require.NoError(t, err)

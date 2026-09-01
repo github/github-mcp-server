@@ -53,6 +53,12 @@ type Inventory struct {
 	// Takes context and flag name, returns (enabled, error). If error, log and treat as false.
 	// If checker is nil, all flag checks return false.
 	featureChecker FeatureFlagChecker
+	// Feature metadata is derived once from the immutable inventory contents.
+	toolFeatures             []FeatureFlag
+	resourceTemplateFeatures []FeatureFlag
+	promptFeatures           []FeatureFlag
+	requiredFeatures         []FeatureFlag
+	usesMCPApps              bool
 	// filters are functions that will be applied to all tools during filtering.
 	// If any filter returns false or an error, the tool is excluded.
 	filters []ToolFilter
@@ -154,6 +160,7 @@ func (r *Inventory) ForMCPRequest(method string, itemName string) *Inventory {
 		clearAll()
 	}
 
+	result.cacheFeatureMetadata()
 	return result
 }
 
@@ -188,58 +195,18 @@ func (r *Inventory) ToolsetDescriptions() map[ToolsetID]string {
 //     capability is unknown (e.g. stdio paths that do not populate the
 //     context flag) the feature-flag gate is the sole source of truth.
 func (r *Inventory) ToolsForRegistration(ctx context.Context) []ServerTool {
-	ctx = WithResolvedFeatures(ctx, r.featureChecker, r.RequiredFeatures())
-	tools := r.AvailableTools(ctx)
-	if r.usesMCPAppsMetadata() && shouldStripMCPAppsMetadata(ctx, r.checkFeatureFlag(ctx, mcpAppsFeatureFlag)) {
+	ctx = WithResolvedFeatures(ctx, r.featureChecker, r.requiredFeatures)
+	tools := r.availableTools(ctx)
+	if r.usesMCPApps && shouldStripMCPAppsMetadata(ctx, r.checkFeatureFlag(ctx, mcpAppsFeatureFlag)) {
 		tools = stripMCPAppsMetadata(tools)
 	}
 	return tools
 }
 
-func (r *Inventory) requiredToolFeatures() []FeatureFlag {
-	rules := make([]FeatureRule, 0, len(r.tools))
-	for i := range r.tools {
-		rules = append(rules, r.tools[i].FeatureRule)
-	}
-	return collectFeatures(rules...)
-}
-
-func (r *Inventory) requiredResourceFeatures() []FeatureFlag {
-	rules := make([]FeatureRule, 0, len(r.resourceTemplates))
-	for i := range r.resourceTemplates {
-		rules = append(rules, r.resourceTemplates[i].FeatureRule)
-	}
-	return collectFeatures(rules...)
-}
-
-func (r *Inventory) requiredPromptFeatures() []FeatureFlag {
-	rules := make([]FeatureRule, 0, len(r.prompts))
-	for i := range r.prompts {
-		rules = append(rules, r.prompts[i].FeatureRule)
-	}
-	return collectFeatures(rules...)
-}
-
 // RequiredFeatures returns the deduplicated feature flags used to expose the
 // inventory's current tools, resources, and prompts.
 func (r *Inventory) RequiredFeatures() []FeatureFlag {
-	features := append(r.requiredToolFeatures(), r.requiredResourceFeatures()...)
-	features = append(features, r.requiredPromptFeatures()...)
-	if r.usesMCPAppsMetadata() {
-		features = append(features, mcpAppsFeatureFlag)
-	}
-
-	seen := make(map[FeatureFlag]struct{}, len(features))
-	result := make([]FeatureFlag, 0, len(features))
-	for _, feature := range features {
-		if _, ok := seen[feature]; ok {
-			continue
-		}
-		seen[feature] = struct{}{}
-		result = append(result, feature)
-	}
-	slices.Sort(result)
-	return result
+	return slices.Clone(r.requiredFeatures)
 }
 
 // WithFeatureState installs request-owned feature state without resolving any
@@ -251,18 +218,53 @@ func (r *Inventory) WithFeatureState(ctx context.Context) context.Context {
 // WithResolvedFeatures installs request-owned feature state and resolves every
 // feature required by the current inventory through its own checker.
 func (r *Inventory) WithResolvedFeatures(ctx context.Context) context.Context {
-	return WithResolvedFeatures(ctx, r.featureChecker, r.RequiredFeatures())
+	return WithResolvedFeatures(ctx, r.featureChecker, r.requiredFeatures)
 }
 
-func (r *Inventory) usesMCPAppsMetadata() bool {
+func (r *Inventory) cacheFeatureMetadata() {
+	toolFeatureSet := make(map[FeatureFlag]struct{})
+	resourceFeatureSet := make(map[FeatureFlag]struct{})
+	promptFeatureSet := make(map[FeatureFlag]struct{})
+	requiredFeatureSet := make(map[FeatureFlag]struct{})
+
+	add := func(target map[FeatureFlag]struct{}, rule FeatureRule) {
+		for _, feature := range rule.features {
+			target[feature] = struct{}{}
+			requiredFeatureSet[feature] = struct{}{}
+		}
+	}
+
+	r.usesMCPApps = false
 	for i := range r.tools {
+		add(toolFeatureSet, r.tools[i].FeatureRule)
 		for _, key := range mcpAppsMetaKeys {
 			if _, ok := r.tools[i].Tool.Meta[key]; ok {
-				return true
+				r.usesMCPApps = true
+				requiredFeatureSet[mcpAppsFeatureFlag] = struct{}{}
+				break
 			}
 		}
 	}
-	return false
+	for i := range r.resourceTemplates {
+		add(resourceFeatureSet, r.resourceTemplates[i].FeatureRule)
+	}
+	for i := range r.prompts {
+		add(promptFeatureSet, r.prompts[i].FeatureRule)
+	}
+
+	r.toolFeatures = sortedFeatures(toolFeatureSet)
+	r.resourceTemplateFeatures = sortedFeatures(resourceFeatureSet)
+	r.promptFeatures = sortedFeatures(promptFeatureSet)
+	r.requiredFeatures = sortedFeatures(requiredFeatureSet)
+}
+
+func sortedFeatures(featureSet map[FeatureFlag]struct{}) []FeatureFlag {
+	features := make([]FeatureFlag, 0, len(featureSet))
+	for feature := range featureSet {
+		features = append(features, feature)
+	}
+	slices.Sort(features)
+	return features
 }
 
 // shouldStripMCPAppsMetadata centralises the strip decision so the same logic

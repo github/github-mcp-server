@@ -8,17 +8,22 @@ import (
 	"sync"
 )
 
+const maxFeatureRuleFlags = 16
+
 // FeatureFlag identifies a feature consistently across inventory consumers.
 type FeatureFlag string
 
-// FeatureFlagChecker resolves one feature flag for the current request.
+// FeatureFlagChecker resolves one feature flag for the current request. Every
+// context value needed for availability checks must be installed before the
+// inventory is resolved. Handler-only checks receive the live tool-call context.
 type FeatureFlagChecker func(ctx context.Context, flag FeatureFlag) (bool, error)
 
 // FeatureResolver returns the resolved value of a feature flag.
 // Implementations absorb resolution errors and fail closed.
 type FeatureResolver func(flag FeatureFlag) bool
 
-// FeaturePredicate determines whether an inventory item is available.
+// FeaturePredicate determines whether an inventory item is available. Predicates
+// must be pure: their result may depend only on calls to the supplied resolver.
 type FeaturePredicate func(featureAsBool FeatureResolver) bool
 
 // FeatureRule declares the feature flags used by an availability predicate.
@@ -44,10 +49,32 @@ func NewFeatureRule(features []FeatureFlag, predicate FeaturePredicate) FeatureR
 		featureSet[feature] = struct{}{}
 		declared = append(declared, feature)
 	}
-	return FeatureRule{
+	rule := FeatureRule{
 		features:   declared,
 		featureSet: featureSet,
 		predicate:  predicate,
+	}
+	rule.validate()
+	return rule
+}
+
+func (r FeatureRule) validate() {
+	if r.predicate == nil {
+		return
+	}
+	if len(r.features) > maxFeatureRuleFlags {
+		panic(fmt.Sprintf("feature rule declares %d flags; maximum is %d", len(r.features), maxFeatureRuleFlags))
+	}
+
+	for assignment := range 1 << len(r.features) {
+		r.evaluate(func(feature FeatureFlag) bool {
+			for i, declared := range r.features {
+				if feature == declared {
+					return assignment&(1<<i) != 0
+				}
+			}
+			return false
+		})
 	}
 }
 
@@ -69,7 +96,10 @@ func (r FeatureRule) Enabled(featureAsBool FeatureResolver) bool {
 	if featureAsBool == nil {
 		return false
 	}
+	return r.evaluate(featureAsBool)
+}
 
+func (r FeatureRule) evaluate(featureAsBool FeatureResolver) bool {
 	var undeclared FeatureFlag
 	usedUndeclared := false
 	enabled := r.predicate(func(feature FeatureFlag) bool {
@@ -81,25 +111,35 @@ func (r FeatureRule) Enabled(featureAsBool FeatureResolver) bool {
 		return featureAsBool(feature)
 	})
 	if usedUndeclared {
-		fmt.Fprintf(os.Stderr, "Feature rule used undeclared feature %q\n", undeclared)
-		return false
+		panic(fmt.Sprintf("feature rule used undeclared feature %q", undeclared))
 	}
 	return enabled
 }
 
 type featureStateContextKey struct{}
+type resolvingFeatureContextKey struct{}
 
 type featureState struct {
 	checker FeatureFlagChecker
 
-	mu     sync.Mutex
-	values map[FeatureFlag]bool
+	mu      sync.Mutex
+	results map[FeatureFlag]*featureResult
+}
+
+type featureResult struct {
+	ready   chan struct{}
+	enabled bool
+}
+
+type resolvingFeature struct {
+	flag   FeatureFlag
+	parent *resolvingFeature
 }
 
 func newFeatureState(checker FeatureFlagChecker) *featureState {
 	return &featureState{
 		checker: checker,
-		values:  make(map[FeatureFlag]bool),
+		results: make(map[FeatureFlag]*featureResult),
 	}
 }
 
@@ -108,24 +148,60 @@ func (s *featureState) enabled(ctx context.Context, feature FeatureFlag) bool {
 		return false
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if enabled, ok := s.values[feature]; ok {
-		return enabled
+	for current := resolvingFeatureFromContext(ctx); current != nil; current = current.parent {
+		if current.flag == feature {
+			fmt.Fprintf(os.Stderr, "Feature flag resolution cycle detected for %q\n", feature)
+			return false
+		}
 	}
 
-	enabled, err := s.checker(ctx, feature)
+	s.mu.Lock()
+	result, found := s.results[feature]
+	if !found {
+		result = &featureResult{ready: make(chan struct{})}
+		s.results[feature] = result
+	}
+	s.mu.Unlock()
+
+	if found {
+		select {
+		case <-result.ready:
+			return result.enabled
+		case <-ctx.Done():
+			return false
+		}
+	}
+
+	completed := false
+	defer func() {
+		if !completed {
+			close(result.ready)
+		}
+	}()
+
+	resolutionCtx := context.WithValue(ctx, resolvingFeatureContextKey{}, &resolvingFeature{
+		flag:   feature,
+		parent: resolvingFeatureFromContext(ctx),
+	})
+	enabled, err := s.checker(resolutionCtx, feature)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", feature, err)
 		enabled = false
 	}
-	s.values[feature] = enabled
+	result.enabled = enabled
+	completed = true
+	close(result.ready)
 	return enabled
 }
 
+func resolvingFeatureFromContext(ctx context.Context) *resolvingFeature {
+	feature, _ := ctx.Value(resolvingFeatureContextKey{}).(*resolvingFeature)
+	return feature
+}
+
 // WithResolvedFeatures resolves the deduplicated feature names into state owned
-// by the returned context. Repeated calls extend and reuse that state.
+// by the returned context. Repeated calls extend and reuse that state. When state
+// already exists, its checker is authoritative and checker is ignored.
 func WithResolvedFeatures(ctx context.Context, checker FeatureFlagChecker, features []FeatureFlag) context.Context {
 	state, _ := ctx.Value(featureStateContextKey{}).(*featureState)
 	if state == nil {
@@ -145,18 +221,20 @@ func WithResolvedFeatures(ctx context.Context, checker FeatureFlagChecker, featu
 }
 
 // ResolveFeature returns a feature value from request-owned resolution state.
-// Features not resolved up front are resolved lazily and cached.
-func ResolveFeature(ctx context.Context, checker FeatureFlagChecker, feature FeatureFlag) bool {
+// Context state and its checker are authoritative. fallbackChecker is used only
+// when the context has no state; that uncached compatibility path lets handlers
+// invoked directly outside a server continue to resolve features.
+func ResolveFeature(ctx context.Context, fallbackChecker FeatureFlagChecker, feature FeatureFlag) bool {
 	if feature == "" {
 		return false
 	}
 	if state, _ := ctx.Value(featureStateContextKey{}).(*featureState); state != nil {
 		return state.enabled(ctx, feature)
 	}
-	if checker == nil {
+	if fallbackChecker == nil {
 		return false
 	}
-	return newFeatureState(checker).enabled(ctx, feature)
+	return newFeatureState(fallbackChecker).enabled(ctx, feature)
 }
 
 func featureResolver(ctx context.Context, checker FeatureFlagChecker) FeatureResolver {
@@ -172,20 +250,4 @@ func featureResolver(ctx context.Context, checker FeatureFlagChecker) FeatureRes
 	return func(feature FeatureFlag) bool {
 		return state.enabled(ctx, feature)
 	}
-}
-
-func collectFeatures(rules ...FeatureRule) []FeatureFlag {
-	seen := make(map[FeatureFlag]struct{})
-	for _, rule := range rules {
-		for _, feature := range rule.features {
-			seen[feature] = struct{}{}
-		}
-	}
-
-	features := make([]FeatureFlag, 0, len(seen))
-	for feature := range seen {
-		features = append(features, feature)
-	}
-	slices.Sort(features)
-	return features
 }

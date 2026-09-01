@@ -3,7 +3,9 @@ package inventory
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,26 +38,37 @@ func TestFeatureRuleSupportsBooleanExpressions(t *testing.T) {
 
 }
 
-func TestFeatureRuleFailsClosedForUndeclaredFeature(t *testing.T) {
-	rule := NewFeatureRule(
-		[]FeatureFlag{"declared"},
-		func(featureAsBool FeatureResolver) bool {
-			return featureAsBool("undeclared")
-		},
-	)
-
-	assert.False(t, rule.Enabled(func(FeatureFlag) bool { return true }))
+func TestFeatureRuleRejectsUndeclaredFeature(t *testing.T) {
+	assert.PanicsWithValue(t, `feature rule used undeclared feature "undeclared"`, func() {
+		NewFeatureRule(
+			[]FeatureFlag{"declared"},
+			func(featureAsBool FeatureResolver) bool {
+				return featureAsBool("undeclared")
+			},
+		)
+	})
 }
 
-func TestFeatureRuleFailsClosedForEmptyFeature(t *testing.T) {
-	rule := NewFeatureRule(
-		[]FeatureFlag{"declared"},
-		func(featureAsBool FeatureResolver) bool {
-			return !featureAsBool("")
-		},
-	)
+func TestFeatureRuleValidatesShortCircuitedBranches(t *testing.T) {
+	assert.PanicsWithValue(t, `feature rule used undeclared feature "undeclared"`, func() {
+		NewFeatureRule(
+			[]FeatureFlag{"declared"},
+			func(featureAsBool FeatureResolver) bool {
+				return featureAsBool("declared") || featureAsBool("undeclared")
+			},
+		)
+	})
+}
 
-	assert.False(t, rule.Enabled(func(FeatureFlag) bool { return true }))
+func TestFeatureRuleRejectsEmptyFeature(t *testing.T) {
+	assert.PanicsWithValue(t, `feature rule used undeclared feature ""`, func() {
+		NewFeatureRule(
+			[]FeatureFlag{"declared"},
+			func(featureAsBool FeatureResolver) bool {
+				return !featureAsBool("")
+			},
+		)
+	})
 }
 
 func TestResolvedFeaturesDeduplicateAndCacheChecks(t *testing.T) {
@@ -103,4 +116,78 @@ func TestLazyFeatureResolutionUsesLiveContext(t *testing.T) {
 	ctx := WithResolvedFeatures(context.Background(), checker, nil)
 	ctx = context.WithValue(ctx, contextKey{}, true)
 	assert.True(t, ResolveFeature(ctx, checker, "handler_only"))
+}
+
+func TestFeatureResolutionIsReentrantAcrossFlags(t *testing.T) {
+	var checker FeatureFlagChecker
+	checker = func(ctx context.Context, flag FeatureFlag) (bool, error) {
+		if flag == "meta" {
+			return ResolveFeature(ctx, checker, "base"), nil
+		}
+		return flag == "base", nil
+	}
+
+	ctx := WithResolvedFeatures(context.Background(), checker, nil)
+	assert.True(t, ResolveFeature(ctx, nil, "meta"))
+}
+
+func TestFeatureResolutionCycleFailsClosed(t *testing.T) {
+	var checker FeatureFlagChecker
+	checker = func(ctx context.Context, flag FeatureFlag) (bool, error) {
+		return ResolveFeature(ctx, checker, flag), nil
+	}
+
+	ctx := WithResolvedFeatures(context.Background(), checker, nil)
+	assert.False(t, ResolveFeature(ctx, nil, "cycle"))
+}
+
+func TestConcurrentFeatureResolutionIsDeduplicated(t *testing.T) {
+	var (
+		calls   int
+		callsMu sync.Mutex
+		started = make(chan struct{})
+		release = make(chan struct{})
+	)
+	checker := func(context.Context, FeatureFlag) (bool, error) {
+		callsMu.Lock()
+		calls++
+		callsMu.Unlock()
+		close(started)
+		<-release
+		return true, nil
+	}
+
+	ctx := WithResolvedFeatures(context.Background(), checker, nil)
+	results := make(chan bool, 2)
+	go func() { results <- ResolveFeature(ctx, nil, "shared") }()
+	<-started
+	go func() { results <- ResolveFeature(ctx, nil, "shared") }()
+	close(release)
+
+	for range 2 {
+		select {
+		case result := <-results:
+			assert.True(t, result)
+		case <-time.After(time.Second):
+			t.Fatal("feature resolution did not complete")
+		}
+	}
+	callsMu.Lock()
+	assert.Equal(t, 1, calls)
+	callsMu.Unlock()
+}
+
+func TestContextFeatureStateTakesPrecedence(t *testing.T) {
+	var fallbackCalls int
+	stateChecker := func(context.Context, FeatureFlag) (bool, error) {
+		return true, nil
+	}
+	fallbackChecker := func(context.Context, FeatureFlag) (bool, error) {
+		fallbackCalls++
+		return false, nil
+	}
+
+	ctx := WithResolvedFeatures(context.Background(), stateChecker, nil)
+	assert.True(t, ResolveFeature(ctx, fallbackChecker, "feature"))
+	assert.Zero(t, fallbackCalls)
 }

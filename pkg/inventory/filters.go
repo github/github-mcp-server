@@ -96,7 +96,11 @@ func sortTools(tools []ServerTool) {
 // sorted deterministically by toolset ID, then tool name.
 // The context is used for feature flag evaluation.
 func (r *Inventory) AvailableTools(ctx context.Context) []ServerTool {
-	ctx = WithResolvedFeatures(ctx, r.featureChecker, r.requiredToolFeatures())
+	ctx = WithResolvedFeatures(ctx, r.featureChecker, r.toolFeatures)
+	return r.availableTools(ctx)
+}
+
+func (r *Inventory) availableTools(ctx context.Context) []ServerTool {
 	featureAsBool := featureResolver(ctx, r.featureChecker)
 	var result []ServerTool
 	for i := range r.tools {
@@ -123,7 +127,7 @@ func sortResourceTemplates(resourceTemplates []ServerResourceTemplate) {
 // sorted deterministically by toolset ID, then template name.
 // The context is used for feature flag evaluation.
 func (r *Inventory) AvailableResourceTemplates(ctx context.Context) []ServerResourceTemplate {
-	ctx = WithResolvedFeatures(ctx, r.featureChecker, r.requiredResourceFeatures())
+	ctx = WithResolvedFeatures(ctx, r.featureChecker, r.resourceTemplateFeatures)
 	featureAsBool := featureResolver(ctx, r.featureChecker)
 	var result []ServerResourceTemplate
 	for i := range r.resourceTemplates {
@@ -153,7 +157,7 @@ func sortPrompts(prompts []ServerPrompt) {
 // sorted deterministically by toolset ID, then prompt name.
 // The context is used for feature flag evaluation.
 func (r *Inventory) AvailablePrompts(ctx context.Context) []ServerPrompt {
-	ctx = WithResolvedFeatures(ctx, r.featureChecker, r.requiredPromptFeatures())
+	ctx = WithResolvedFeatures(ctx, r.featureChecker, r.promptFeatures)
 	featureAsBool := featureResolver(ctx, r.featureChecker)
 	var result []ServerPrompt
 	for i := range r.prompts {

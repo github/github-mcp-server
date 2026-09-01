@@ -255,6 +255,8 @@ func (b *Builder) Build() (*Inventory, error) {
 		}
 	}
 
+	r.cacheFeatureMetadata()
+
 	if b.generateInstructions {
 		r.instructions = generateInstructions(r)
 	}

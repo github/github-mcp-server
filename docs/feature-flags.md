@@ -55,6 +55,19 @@ The service deduplicates the declared flags, resolves each one at most once for
 the request, and shares those values with tool dependencies. Feature checks
 inside handlers continue to use `deps.IsFeatureEnabled`.
 
+Feature predicates are pure and may depend only on their resolver. Construction
+validates every combination of up to 16 declared flags, so an undeclared lookup
+fails immediately even when ordinary evaluation would short-circuit that
+branch.
+
+The inventory's checker owns request feature state. Once installed, that state
+is authoritative; a checker stored on tool dependencies is used only as a
+fallback when handlers are invoked directly without request state. HTTP
+availability is resolved after outer HTTP middleware and the inventory factory
+run, but before MCP receiving middleware, because the tool set must be known
+before constructing the MCP server. Handler-only lazy checks use the live
+tool-call context.
+
 ---
 
 ## Tools affected by each flag

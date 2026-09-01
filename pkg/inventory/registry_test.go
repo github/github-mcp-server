@@ -1221,6 +1221,28 @@ func TestFeatureFlagPrompts(t *testing.T) {
 	}
 }
 
+func TestFeatureMetadataIsCachedAndNarrowed(t *testing.T) {
+	tools := []ServerTool{
+		mockToolWithFlags("tool_x", "toolset1", true, "x", ""),
+		mockToolWithFlags("tool_y", "toolset1", true, "y", ""),
+	}
+	inv := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"all"}))
+
+	require.Equal(t, []FeatureFlag{"x", "y"}, inv.RequiredFeatures())
+
+	// RequiredFeatures reads cached metadata rather than walking live tools.
+	inv.tools[0].FeatureRule = NewFeatureRule([]FeatureFlag{"changed"}, func(featureAsBool FeatureResolver) bool {
+		return featureAsBool("changed")
+	})
+	require.Equal(t, []FeatureFlag{"x", "y"}, inv.RequiredFeatures())
+
+	// Request narrowing builds a fresh cache over only the candidate variants.
+	narrowed := inv.ForMCPRequest(MCPMethodToolsCall, "tool_x")
+	require.Equal(t, []FeatureFlag{"changed"}, narrowed.RequiredFeatures())
+}
+
 func TestServerToolHasHandler(t *testing.T) {
 	// Tool with handler
 	toolWithHandler := mockTool("has_handler", "toolset1", true)

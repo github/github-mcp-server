@@ -203,9 +203,9 @@ func (d BaseDeps) Metrics(ctx context.Context) metrics.Metrics {
 // GetRequestStateSealer implements RequestStateSealerProvider.
 func (d BaseDeps) GetRequestStateSealer() RequestStateSealer { return d.StateSealer }
 
-// IsFeatureEnabled checks if a feature flag is enabled.
-// Returns false if the feature checker is nil, flag name is empty, or an error occurs.
-// This allows tools to conditionally change behavior based on feature flags.
+// IsFeatureEnabled checks if a feature flag is enabled. Request feature state
+// is authoritative when present; the dependency checker is a fallback for
+// direct handler invocation. Empty names and checker errors resolve false.
 func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flag inventory.FeatureFlag) bool {
 	return inventory.ResolveFeature(ctx, d.featureChecker, flag)
 }
@@ -483,7 +483,9 @@ func (d *RequestDeps) Metrics(ctx context.Context) metrics.Metrics {
 	return d.obsv.Metrics(ctx)
 }
 
-// IsFeatureEnabled checks if a feature flag is enabled.
+// IsFeatureEnabled checks if a feature flag is enabled. Request feature state
+// is authoritative when present; the dependency checker is a fallback for
+// direct handler invocation.
 func (d *RequestDeps) IsFeatureEnabled(ctx context.Context, flag inventory.FeatureFlag) bool {
 	return inventory.ResolveFeature(ctx, d.featureChecker, flag)
 }
