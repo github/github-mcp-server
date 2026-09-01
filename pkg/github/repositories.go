@@ -1229,7 +1229,7 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			},
 		},
-		scopes.RequireAll(scopes.PublicRepo),
+		publicRepositoryWriteScopeAccess(),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1526,7 +1526,7 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "branch"},
 			},
 		},
-		scopes.RequireAll(scopes.PublicRepo),
+		publicRepositoryWriteScopeAccess(),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1658,7 +1658,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "branch", "files", "message"},
 			},
 		},
-		scopes.RequireAll(scopes.PublicRepo),
+		publicRepositoryWriteScopeAccess(),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1840,7 +1840,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 	)
 	tool.ScopeAccess = scopes.DynamicChallenge(
-		[]scopes.Scope{scopes.PublicRepo, scopes.Workflow},
+		[]scopes.Scope{scopes.Repo, scopes.Workflow},
 		tool.ScopeAccess.Visible,
 		workflowScopeChallengeForFiles,
 	)

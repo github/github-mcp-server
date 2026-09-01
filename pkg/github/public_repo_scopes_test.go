@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPublicRepoContributionToolOAuthScopes(t *testing.T) {
+func TestPublicRepoContributionToolScopeAccess(t *testing.T) {
 	t.Parallel()
 
 	tools := []struct {
@@ -26,14 +26,16 @@ func TestPublicRepoContributionToolOAuthScopes(t *testing.T) {
 
 	for _, tt := range tools {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, []string{string(scopes.PublicRepo)}, tt.tool.ScopeAccess.Scopes)
-			assert.Equal(t, []string{string(scopes.PublicRepo)}, tt.tool.ScopeAccess.Challenge(nil, nil))
-			for _, activeScopes := range [][]string{
-				{string(scopes.PublicRepo)},
-				{string(scopes.Repo)},
-			} {
-				assert.Empty(t, tt.tool.ScopeAccess.Challenge(nil, activeScopes))
-			}
+			assert.Equal(t, []string{string(scopes.Repo)}, tt.tool.ScopeAccess.Scopes)
+			require.NotNil(t, tt.tool.ScopeAccess.Visible)
+			assert.False(t, tt.tool.ScopeAccess.Visible(nil))
+			assert.True(t, tt.tool.ScopeAccess.Visible([]string{string(scopes.PublicRepo)}))
+			assert.True(t, tt.tool.ScopeAccess.Visible([]string{string(scopes.Repo)}))
+
+			require.NotNil(t, tt.tool.ScopeAccess.Challenge)
+			assert.Equal(t, []string{string(scopes.Repo)}, tt.tool.ScopeAccess.Challenge(nil, nil))
+			assert.Equal(t, []string{string(scopes.Repo)}, tt.tool.ScopeAccess.Challenge(nil, []string{string(scopes.PublicRepo)}))
+			assert.Empty(t, tt.tool.ScopeAccess.Challenge(nil, []string{string(scopes.Repo)}))
 		})
 	}
 }
@@ -50,13 +52,23 @@ func TestPublicRepoContributionToolsVisibleToPATs(t *testing.T) {
 		AddIssueComment(translations.NullTranslationHelper),
 	}
 
-	for _, tokenScope := range []scopes.Scope{scopes.PublicRepo, scopes.Repo} {
-		t.Run(string(tokenScope), func(t *testing.T) {
-			filter := CreateToolScopeFilter([]string{string(tokenScope)})
+	tests := []struct {
+		name        string
+		tokenScopes []string
+		wantVisible bool
+	}{
+		{name: "no scopes"},
+		{name: "public_repo", tokenScopes: []string{string(scopes.PublicRepo)}, wantVisible: true},
+		{name: "repo", tokenScopes: []string{string(scopes.Repo)}, wantVisible: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filter := CreateToolScopeFilter(tt.tokenScopes)
 			for i := range tools {
 				included, err := filter(t.Context(), &tools[i])
 				require.NoError(t, err)
-				assert.True(t, included, "%s should be visible", tools[i].Tool.Name)
+				assert.Equal(t, tt.wantVisible, included, tools[i].Tool.Name)
 			}
 		})
 	}
@@ -73,12 +85,19 @@ func TestPushFilesOAuthScopeChallenges(t *testing.T) {
 		"files": []any{map[string]any{"path": ".github/workflows/ci.yml"}},
 	}
 
-	assert.Equal(t, []string{string(scopes.PublicRepo), string(scopes.Workflow)}, tool.ScopeAccess.Scopes)
-	assert.Equal(t, []string{string(scopes.PublicRepo)}, tool.ScopeAccess.Challenge(regularFiles, nil))
-	assert.Equal(t, []string{string(scopes.PublicRepo), string(scopes.Workflow)}, tool.ScopeAccess.Challenge(workflowFiles, nil))
-	assert.Equal(t, []string{string(scopes.PublicRepo), string(scopes.Workflow)}, tool.ScopeAccess.Challenge(workflowFiles, []string{string(scopes.PublicRepo)}))
-	assert.Empty(t, tool.ScopeAccess.Challenge(regularFiles, []string{string(scopes.PublicRepo)}))
+	assert.Equal(t, []string{string(scopes.Repo), string(scopes.Workflow)}, tool.ScopeAccess.Scopes)
+	require.NotNil(t, tool.ScopeAccess.Visible)
+	assert.True(t, tool.ScopeAccess.Visible([]string{string(scopes.PublicRepo)}))
+	assert.True(t, tool.ScopeAccess.Visible([]string{string(scopes.Repo)}))
+
+	assert.Equal(t, []string{string(scopes.Repo)}, tool.ScopeAccess.Challenge(regularFiles, nil))
+	assert.Equal(t, []string{string(scopes.Repo)}, tool.ScopeAccess.Challenge(regularFiles, []string{string(scopes.PublicRepo)}))
 	assert.Empty(t, tool.ScopeAccess.Challenge(regularFiles, []string{string(scopes.Repo)}))
-	assert.Empty(t, tool.ScopeAccess.Challenge(workflowFiles, []string{string(scopes.PublicRepo), string(scopes.Workflow)}))
+
+	assert.Equal(t, []string{string(scopes.Repo), string(scopes.Workflow)}, tool.ScopeAccess.Challenge(workflowFiles, nil))
+	assert.Equal(t, []string{string(scopes.Repo), string(scopes.Workflow)}, tool.ScopeAccess.Challenge(workflowFiles, []string{string(scopes.PublicRepo)}))
+	assert.Equal(t, []string{string(scopes.Workflow)}, tool.ScopeAccess.Challenge(workflowFiles, []string{string(scopes.Repo)}))
+	assert.Equal(t, []string{string(scopes.Repo)}, tool.ScopeAccess.Challenge(workflowFiles, []string{string(scopes.Workflow)}))
+	assert.Equal(t, []string{string(scopes.Repo)}, tool.ScopeAccess.Challenge(workflowFiles, []string{string(scopes.PublicRepo), string(scopes.Workflow)}))
 	assert.Empty(t, tool.ScopeAccess.Challenge(workflowFiles, []string{string(scopes.Repo), string(scopes.Workflow)}))
 }

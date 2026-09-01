@@ -875,7 +875,7 @@ The following sets of tools are available:
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/issue-opened-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/issue-opened-light.png"><img src="pkg/octicons/icons/issue-opened-light.png" width="20" height="20" alt="issue-opened"></picture> Issues</summary>
 
 - **add_issue_comment** - Add comment to issue or pull request
-  - **OAuth Challenge Scopes**: `public_repo`
+  - **OAuth Challenge Scopes**: `repo`
   - `body`: Comment content. Required unless reaction is provided. (string, optional)
   - `comment_id`: The numeric ID of the issue or pull request comment to react to. Use this for reactions to comments; omit it to react to the issue or pull request itself. Cannot be combined with body. (integer, optional)
   - `issue_number`: Issue or pull request number to comment on or react to. (number, required)
@@ -906,7 +906,7 @@ The following sets of tools are available:
   - `repo`: The name of the repository (string, required)
 
 - **issue_write** - Create or update issue/pull request
-  - **OAuth Challenge Scopes**: `public_repo`
+  - **OAuth Challenge Scopes**: `repo`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Required when state_reason is 'duplicate'. (number, optional)
@@ -1154,7 +1154,7 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
 
 - **create_pull_request** - Open new pull request
-  - **OAuth Challenge Scopes**: `public_repo`
+  - **OAuth Challenge Scopes**: `repo`
   - `base`: Branch to merge into (string, required)
   - `body`: PR description (string, optional)
   - `draft`: Create as draft PR (boolean, optional)
@@ -1257,7 +1257,7 @@ The following sets of tools are available:
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/repo-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/repo-light.png"><img src="pkg/octicons/icons/repo-light.png" width="20" height="20" alt="repo"></picture> Repositories</summary>
 
 - **create_branch** - Create branch
-  - **OAuth Challenge Scopes**: `public_repo`
+  - **OAuth Challenge Scopes**: `repo`
   - `branch`: Name for new branch (string, required)
   - `from_branch`: Source branch (defaults to repo default) (string, optional)
   - `owner`: Repository owner (string, required)
@@ -1296,7 +1296,7 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
 
 - **fork_repository** - Fork repository
-  - **OAuth Challenge Scopes**: `public_repo`
+  - **OAuth Challenge Scopes**: `repo`
   - `organization`: Organization to fork to (string, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
@@ -1380,7 +1380,7 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
 
 - **push_files** - Push files to repository
-  - **OAuth Challenge Scopes**: `public_repo`, `workflow`
+  - **OAuth Challenge Scopes**: `repo`, `workflow`
   - `branch`: Branch to push to (string, required)
   - `files`: Array of file objects to push, each object with path (string) and content (string) (object[], required)
   - `message`: Commit message (string, required)
