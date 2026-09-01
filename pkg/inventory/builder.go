@@ -23,7 +23,9 @@ const mcpAppsFeatureFlag FeatureFlag = "remote_mcp_ui_apps"
 // Returns true if the tool should be included, false to exclude it.
 type ToolFilter func(ctx context.Context, tool *ServerTool) (bool, error)
 
-// Builder builds a Registry with the specified configuration.
+// Builder builds a Registry with the specified configuration. SetTools,
+// SetResources, and SetPrompts copy the feature and metadata state retained by
+// the inventory.
 // Use NewBuilder to create a builder, chain configuration methods,
 // then call Build() to create the final inventory.
 //
@@ -65,20 +67,47 @@ func NewBuilder() *Builder {
 
 // SetTools sets the tools for the inventory. Returns self for chaining.
 func (b *Builder) SetTools(tools []ServerTool) *Builder {
-	b.tools = tools
+	b.tools = slices.Clone(tools)
+	for i := range b.tools {
+		b.tools[i] = cloneServerTool(b.tools[i])
+	}
 	return b
 }
 
 // SetResources sets the resource templates for the inventory. Returns self for chaining.
 func (b *Builder) SetResources(resources []ServerResourceTemplate) *Builder {
-	b.resourceTemplates = resources
+	b.resourceTemplates = slices.Clone(resources)
+	for i := range b.resourceTemplates {
+		b.resourceTemplates[i] = cloneResourceTemplate(b.resourceTemplates[i])
+	}
 	return b
 }
 
 // SetPrompts sets the prompts for the inventory. Returns self for chaining.
 func (b *Builder) SetPrompts(prompts []ServerPrompt) *Builder {
-	b.prompts = prompts
+	b.prompts = slices.Clone(prompts)
+	for i := range b.prompts {
+		b.prompts[i] = clonePrompt(b.prompts[i])
+	}
 	return b
+}
+
+func cloneServerTool(tool ServerTool) ServerTool {
+	tool.Tool.Meta = maps.Clone(tool.Tool.Meta)
+	tool.FeatureRule = tool.FeatureRule.clone()
+	return tool
+}
+
+func cloneResourceTemplate(resource ServerResourceTemplate) ServerResourceTemplate {
+	resource.Template.Meta = maps.Clone(resource.Template.Meta)
+	resource.FeatureRule = resource.FeatureRule.clone()
+	return resource
+}
+
+func clonePrompt(prompt ServerPrompt) ServerPrompt {
+	prompt.Prompt.Meta = maps.Clone(prompt.Prompt.Meta)
+	prompt.FeatureRule = prompt.FeatureRule.clone()
+	return prompt
 }
 
 // WithDeprecatedAliases adds deprecated tool name aliases that map to canonical names.

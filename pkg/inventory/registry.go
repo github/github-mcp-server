@@ -53,7 +53,7 @@ type Inventory struct {
 	// Takes context and flag name, returns (enabled, error). If error, log and treat as false.
 	// If checker is nil, all flag checks return false.
 	featureChecker FeatureFlagChecker
-	// Feature metadata is derived once from the immutable inventory contents.
+	// Feature metadata is derived once from builder-owned inventory contents.
 	toolFeatures             []FeatureFlag
 	resourceTemplateFeatures []FeatureFlag
 	promptFeatures           []FeatureFlag

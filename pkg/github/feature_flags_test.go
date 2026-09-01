@@ -47,7 +47,7 @@ func HelloWorldTool(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			// Check feature flag to determine greeting style
 			greeting := "Hello, world!"
-			if deps.IsFeatureEnabled(ctx, RemoteMCPEnthusiasticGreeting) {
+			if deps.IsFeatureEnabled(ctx, string(RemoteMCPEnthusiasticGreeting)) {
 				greeting += " Welcome to the future of MCP! 🎉"
 			}
 

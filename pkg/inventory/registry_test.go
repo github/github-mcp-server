@@ -1243,6 +1243,66 @@ func TestFeatureMetadataIsCachedAndNarrowed(t *testing.T) {
 	require.Equal(t, []FeatureFlag{"changed"}, narrowed.RequiredFeatures())
 }
 
+func TestBuilderOwnsFeatureMetadataInputs(t *testing.T) {
+	toolRule := NewFeatureRule([]FeatureFlag{"tool"}, func(featureAsBool FeatureResolver) bool {
+		return featureAsBool("tool")
+	})
+	resourceRule := NewFeatureRule([]FeatureFlag{"resource"}, func(featureAsBool FeatureResolver) bool {
+		return featureAsBool("resource")
+	})
+	promptRule := NewFeatureRule([]FeatureFlag{"prompt"}, func(featureAsBool FeatureResolver) bool {
+		return featureAsBool("prompt")
+	})
+	tools := []ServerTool{mockTool("tool", "toolset1", true)}
+	tools[0].FeatureRule = toolRule
+	tools[0].Tool.Meta = map[string]any{"ui": "resource"}
+	resources := []ServerResourceTemplate{mockResource("resource", "toolset1", "uri")}
+	resources[0].FeatureRule = resourceRule
+	resources[0].Template.Meta = map[string]any{"resource": true}
+	prompts := []ServerPrompt{mockPrompt("prompt", "toolset1")}
+	prompts[0].FeatureRule = promptRule
+	prompts[0].Prompt.Meta = map[string]any{"prompt": true}
+
+	checker := func(_ context.Context, flag FeatureFlag) (bool, error) {
+		return flag == "tool" || flag == "resource" || flag == "prompt" || flag == mcpAppsFeatureFlag, nil
+	}
+	inv := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		SetResources(resources).
+		SetPrompts(prompts).
+		WithToolsets([]string{"all"}).
+		WithFeatureChecker(checker))
+
+	tools[0].FeatureRule.features[0] = "changed"
+	delete(tools[0].Tool.Meta, "ui")
+	resources[0].FeatureRule.features[0] = "changed"
+	delete(resources[0].Template.Meta, "resource")
+	prompts[0].FeatureRule.features[0] = "changed"
+	delete(prompts[0].Prompt.Meta, "prompt")
+
+	require.Equal(t, []FeatureFlag{"prompt", "remote_mcp_ui_apps", "resource", "tool"}, inv.RequiredFeatures())
+	require.Len(t, inv.AvailableTools(context.Background()), 1)
+	require.Len(t, inv.AvailableResourceTemplates(context.Background()), 1)
+	require.Len(t, inv.AvailablePrompts(context.Background()), 1)
+	require.Contains(t, inv.tools[0].Tool.Meta, "ui")
+	require.Contains(t, inv.resourceTemplates[0].Template.Meta, "resource")
+	require.Contains(t, inv.prompts[0].Prompt.Meta, "prompt")
+
+	availableTools := inv.AvailableTools(context.Background())
+	availableResources := inv.AvailableResourceTemplates(context.Background())
+	availablePrompts := inv.AvailablePrompts(context.Background())
+	delete(availableTools[0].Tool.Meta, "ui")
+	availableTools[0].FeatureRule.features[0] = "changed"
+	delete(availableResources[0].Template.Meta, "resource")
+	availableResources[0].FeatureRule.features[0] = "changed"
+	delete(availablePrompts[0].Prompt.Meta, "prompt")
+	availablePrompts[0].FeatureRule.features[0] = "changed"
+
+	require.Contains(t, inv.AvailableTools(context.Background())[0].Tool.Meta, "ui")
+	require.Contains(t, inv.AvailableResourceTemplates(context.Background())[0].Template.Meta, "resource")
+	require.Contains(t, inv.AvailablePrompts(context.Background())[0].Prompt.Meta, "prompt")
+}
+
 func TestServerToolHasHandler(t *testing.T) {
 	// Tool with handler
 	toolWithHandler := mockTool("has_handler", "toolset1", true)

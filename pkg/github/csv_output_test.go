@@ -366,7 +366,7 @@ type csvOutputTestDeps struct {
 	csvOn bool
 }
 
-func (d csvOutputTestDeps) IsFeatureEnabled(_ context.Context, flag inventory.FeatureFlag) bool {
+func (d csvOutputTestDeps) IsFeatureEnabled(_ context.Context, flag string) bool {
 	return flag == FeatureFlagCSVOutput && d.csvOn
 }
 

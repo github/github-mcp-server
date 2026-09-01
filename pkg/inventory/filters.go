@@ -106,7 +106,7 @@ func (r *Inventory) availableTools(ctx context.Context) []ServerTool {
 	for i := range r.tools {
 		tool := &r.tools[i]
 		if r.isToolEnabled(ctx, tool, featureAsBool) {
-			result = append(result, *tool)
+			result = append(result, cloneServerTool(*tool))
 		}
 	}
 
@@ -136,7 +136,7 @@ func (r *Inventory) AvailableResourceTemplates(ctx context.Context) []ServerReso
 			continue
 		}
 		if r.isToolsetEnabled(res.Toolset.ID) {
-			result = append(result, *res)
+			result = append(result, cloneResourceTemplate(*res))
 		}
 	}
 
@@ -166,7 +166,7 @@ func (r *Inventory) AvailablePrompts(ctx context.Context) []ServerPrompt {
 			continue
 		}
 		if r.isToolsetEnabled(prompt.Toolset.ID) {
-			result = append(result, *prompt)
+			result = append(result, clonePrompt(*prompt))
 		}
 	}
 

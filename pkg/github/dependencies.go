@@ -94,7 +94,7 @@ type ToolDependencies interface {
 	GetContentWindowSize() int
 
 	// IsFeatureEnabled checks if a feature flag is enabled.
-	IsFeatureEnabled(ctx context.Context, flag inventory.FeatureFlag) bool
+	IsFeatureEnabled(ctx context.Context, flag string) bool
 
 	// Logger returns the structured logger, optionally enriched with
 	// request-scoped data from ctx. Integrators provide their own slog.Handler
@@ -206,8 +206,8 @@ func (d BaseDeps) GetRequestStateSealer() RequestStateSealer { return d.StateSea
 // IsFeatureEnabled checks if a feature flag is enabled. Request feature state
 // is authoritative when present; the dependency checker is a fallback for
 // direct handler invocation. Empty names and checker errors resolve false.
-func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flag inventory.FeatureFlag) bool {
-	return inventory.ResolveFeature(ctx, d.featureChecker, flag)
+func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flag string) bool {
+	return inventory.ResolveFeature(ctx, d.featureChecker, inventory.FeatureFlag(flag))
 }
 
 // NewTool creates a ServerTool that retrieves ToolDependencies from context at call time.
@@ -486,6 +486,6 @@ func (d *RequestDeps) Metrics(ctx context.Context) metrics.Metrics {
 // IsFeatureEnabled checks if a feature flag is enabled. Request feature state
 // is authoritative when present; the dependency checker is a fallback for
 // direct handler invocation.
-func (d *RequestDeps) IsFeatureEnabled(ctx context.Context, flag inventory.FeatureFlag) bool {
-	return inventory.ResolveFeature(ctx, d.featureChecker, flag)
+func (d *RequestDeps) IsFeatureEnabled(ctx context.Context, flag string) bool {
+	return inventory.ResolveFeature(ctx, d.featureChecker, inventory.FeatureFlag(flag))
 }

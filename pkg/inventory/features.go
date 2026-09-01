@@ -3,6 +3,7 @@ package inventory
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"sync"
@@ -33,6 +34,14 @@ type FeatureRule struct {
 	features   []FeatureFlag
 	featureSet map[FeatureFlag]struct{}
 	predicate  FeaturePredicate
+}
+
+func (r FeatureRule) clone() FeatureRule {
+	return FeatureRule{
+		features:   slices.Clone(r.features),
+		featureSet: maps.Clone(r.featureSet),
+		predicate:  r.predicate,
+	}
 }
 
 // NewFeatureRule creates an availability rule over the supplied feature flags.
@@ -124,22 +133,25 @@ type featureState struct {
 
 	mu      sync.Mutex
 	results map[FeatureFlag]*featureResult
+	waiting map[FeatureFlag]map[FeatureFlag]int
 }
 
 type featureResult struct {
 	ready   chan struct{}
 	enabled bool
+	failed  bool
+	done    bool
 }
 
 type resolvingFeature struct {
-	flag   FeatureFlag
-	parent *resolvingFeature
+	flag FeatureFlag
 }
 
 func newFeatureState(checker FeatureFlagChecker) *featureState {
 	return &featureState{
 		checker: checker,
 		results: make(map[FeatureFlag]*featureResult),
+		waiting: make(map[FeatureFlag]map[FeatureFlag]int),
 	}
 }
 
@@ -148,21 +160,34 @@ func (s *featureState) enabled(ctx context.Context, feature FeatureFlag) bool {
 		return false
 	}
 
-	for current := resolvingFeatureFromContext(ctx); current != nil; current = current.parent {
-		if current.flag == feature {
-			fmt.Fprintf(os.Stderr, "Feature flag resolution cycle detected for %q\n", feature)
-			return false
-		}
-	}
-
+	owner := resolvingFeatureFromContext(ctx)
 	s.mu.Lock()
 	result, found := s.results[feature]
+	if found && result.done {
+		enabled := result.enabled
+		s.mu.Unlock()
+		return enabled
+	}
 	if !found {
 		result = &featureResult{ready: make(chan struct{})}
 		s.results[feature] = result
 	}
+	if owner != nil {
+		if path := s.pathLocked(feature, owner.flag, nil); path != nil {
+			s.failCycleLocked(owner.flag, path)
+			s.mu.Unlock()
+			return false
+		}
+		if s.waiting[owner.flag] == nil {
+			s.waiting[owner.flag] = make(map[FeatureFlag]int)
+		}
+		s.waiting[owner.flag][feature]++
+	}
 	s.mu.Unlock()
 
+	if owner != nil {
+		defer s.clearWait(owner.flag, feature)
+	}
 	if found {
 		select {
 		case <-result.ready:
@@ -175,23 +200,75 @@ func (s *featureState) enabled(ctx context.Context, feature FeatureFlag) bool {
 	completed := false
 	defer func() {
 		if !completed {
+			s.mu.Lock()
+			result.failed = true
+			result.done = true
 			close(result.ready)
+			s.mu.Unlock()
 		}
 	}()
 
-	resolutionCtx := context.WithValue(ctx, resolvingFeatureContextKey{}, &resolvingFeature{
-		flag:   feature,
-		parent: resolvingFeatureFromContext(ctx),
-	})
+	resolutionCtx := context.WithValue(ctx, resolvingFeatureContextKey{}, &resolvingFeature{flag: feature})
 	enabled, err := s.checker(resolutionCtx, feature)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", feature, err)
 		enabled = false
 	}
+	s.mu.Lock()
+	if result.failed {
+		enabled = false
+	}
 	result.enabled = enabled
+	result.done = true
 	completed = true
 	close(result.ready)
+	s.mu.Unlock()
 	return enabled
+}
+
+func (s *featureState) pathLocked(current, target FeatureFlag, seen map[FeatureFlag]bool) []FeatureFlag {
+	if current == target {
+		return []FeatureFlag{current}
+	}
+	if seen == nil {
+		seen = make(map[FeatureFlag]bool)
+	}
+	if seen[current] {
+		return nil
+	}
+	seen[current] = true
+	for next := range s.waiting[current] {
+		if path := s.pathLocked(next, target, seen); path != nil {
+			return append([]FeatureFlag{current}, path...)
+		}
+	}
+	return nil
+}
+
+func (s *featureState) failCycleLocked(owner FeatureFlag, path []FeatureFlag) {
+	if result := s.results[owner]; result != nil {
+		result.failed = true
+	}
+	for _, feature := range path {
+		if result := s.results[feature]; result != nil {
+			result.failed = true
+		}
+	}
+	fmt.Fprintf(os.Stderr, "Feature flag resolution cycle detected for %q\n", path[0])
+}
+
+func (s *featureState) clearWait(owner, target FeatureFlag) {
+	s.mu.Lock()
+	if targets := s.waiting[owner]; targets != nil {
+		targets[target]--
+		if targets[target] == 0 {
+			delete(targets, target)
+		}
+	}
+	if len(s.waiting[owner]) == 0 {
+		delete(s.waiting, owner)
+	}
+	s.mu.Unlock()
 }
 
 func resolvingFeatureFromContext(ctx context.Context) *resolvingFeature {
