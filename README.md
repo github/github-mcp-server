@@ -1272,7 +1272,7 @@ The following sets of tools are available:
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: Path where to create/update the file (string, required)
   - `repo`: Repository name (string, required)
-  - `sha`: The blob SHA of the file being replaced. Required if the file already exists. (string, optional)
+  - `sha`: The blob SHA of the file being replaced. Required if the file already exists. Retrieve it with get_file_contents using the same owner, repo, and path, with ref set to this tool's branch value. (string, optional)
 
 - **create_repository** - Create repository
   - **OAuth Challenge Scopes**: `repo`
