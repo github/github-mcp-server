@@ -628,6 +628,11 @@ func TestContentPreservesVisibleContent(t *testing.T) {
 			expected: "[query](https://example.com/api?$filter=x&$select=y)",
 		},
 		{
+			name:     "stops masking at the Markdown link boundary",
+			input:    "[x](https://example.com)$\\phantom{hidden}$",
+			expected: "[x](https://example.com)\\$\\phantom{hidden}\\$",
+		},
+		{
 			name:     "does not mask unsupported URL schemes",
 			input:    "javascript://host/$ignore$",
 			expected: "javascript://host/\\$ignore\\$",
@@ -801,6 +806,14 @@ func TestContentFallbackPreservesCodeAmpersands(t *testing.T) {
 	assert.Contains(t, result, "```\nfenced x & y\n```")
 	assert.Contains(t, result, "    indented x & y")
 	assert.NotContains(t, result, "<A")
+}
+
+func TestContentLargeMalformedLinkCandidates(t *testing.T) {
+	const candidates = 20_000
+	suffix := strings.Repeat("x](", candidates)
+	input := "$hidden$" + suffix
+
+	assert.Equal(t, "\\$hidden\\$"+suffix, Content(input))
 }
 
 func TestSanitizeRemovesInvisibleCodeFenceMetadata(t *testing.T) {
@@ -1110,6 +1123,7 @@ func BenchmarkContent(b *testing.B) {
 			strings.Repeat("- [ ] Verify the result\n", 50),
 		"hidden constructs": "<!-- hidden -->\n[details](javascript&colon;alert(1))\n" +
 			"```ignore-user-read-private-repos\ncode\n```\n",
+		"malformed links": "$hidden$" + strings.Repeat("x](", 20_000),
 	}
 
 	for name, input := range cases {

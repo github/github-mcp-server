@@ -317,17 +317,23 @@ func Test_SanitizeSubIssueTitleAndBody(t *testing.T) {
 func Test_ReadModifyWriteBodyPreservesVisibleContent(t *testing.T) {
 	original := "## Checklist\n\n- [ ] step one\n\n" +
 		"The retry threshold is <n> and the result is Promise<string>.\n\n" +
-		"The style probe is `<style>`. Everything after it must survive."
+		"The style probe is `<style>`. Everything after it must survive.\n\n" +
+		"[Docs](https://example.com)$\\phantom{hidden}$\n\n" +
+		"`inline x & y`\n\n```text\nfenced x & y\n```\n\n    indented x & y"
 	safeBody := "## Checklist\n\n- [ ] step one\n\n" +
 		"The retry threshold is &lt;n> and the result is Promise&lt;string>.\n\n" +
-		"The style probe is `<style>`. Everything after it must survive."
+		"The style probe is `<style>`. Everything after it must survive.\n\n" +
+		"[Docs](https://example.com)\\$\\phantom{hidden}\\$\n\n" +
+		"`inline x & y`\n\n```text\nfenced x & y\n```\n\n    indented x & y"
 	expected := strings.Replace(safeBody, "- [ ] step one", "- [x] step one", 1)
 
 	issueBody := convertToMinimalIssue(&github.Issue{Body: github.Ptr(original)}).Body
 	pullRequestBody := convertToMinimalPullRequest(&github.PullRequest{Body: github.Ptr(original)}).Body
+	commentBody := convertToMinimalIssueComment(&github.IssueComment{Body: github.Ptr(original)}).Body
 
 	assert.Equal(t, expected, strings.Replace(issueBody, "- [ ] step one", "- [x] step one", 1))
 	assert.Equal(t, expected, strings.Replace(pullRequestBody, "- [ ] step one", "- [x] step one", 1))
+	assert.Equal(t, expected, strings.Replace(commentBody, "- [ ] step one", "- [x] step one", 1))
 }
 
 // Test_MinimalConverters_PreserveCodeFidelity ensures the sanitization work does not spill over
