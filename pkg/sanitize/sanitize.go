@@ -79,9 +79,8 @@ func Content(input string) string {
 	// Adversarially nested constructs can reveal one hidden construct per pass.
 	// Bound the work, then make every remaining Markdown control inert outside
 	// code and remove all fence metadata.
-	filtered = strings.ReplaceAll(filtered, "&", "&amp;")
 	filtered = stripAllFenceMetadata(filtered)
-	return escapeMarkdownSyntaxOutsideCode(filtered)
+	return escapeContentOutsideCode(filtered)
 }
 
 const maxContentFilterPasses = 4
@@ -429,16 +428,30 @@ func githubMathDelimiters(input string, codeMask, urlMask []bool) []int {
 func markdownURLMask(input string) []bool {
 	mask := make([]bool, len(input))
 	for start := 0; start < len(input); {
-		for start < len(input) && unicode.IsSpace(rune(input[start])) {
-			start++
+		for start < len(input) {
+			r, size := utf8.DecodeRuneInString(input[start:])
+			if !unicode.IsSpace(r) {
+				break
+			}
+			start += size
 		}
 		stop := start
-		for stop < len(input) && !unicode.IsSpace(rune(input[stop])) {
-			stop++
+		for stop < len(input) {
+			r, size := utf8.DecodeRuneInString(input[stop:])
+			if unicode.IsSpace(r) {
+				break
+			}
+			stop += size
 		}
 		token := input[start:stop]
 		if urlStart := urlStart(token); urlStart >= 0 {
-			for offset := start + urlStart; offset < stop; offset++ {
+			urlStop := len(token)
+			if urlStart > 0 && token[urlStart-1] == '<' {
+				if closeOffset := strings.IndexByte(token[urlStart:], '>'); closeOffset >= 0 {
+					urlStop = urlStart + closeOffset
+				}
+			}
+			for offset := start + urlStart; offset < start+urlStop; offset++ {
 				mask[offset] = true
 			}
 		}
@@ -453,10 +466,12 @@ func markdownURLMask(input string) []bool {
 		}
 		destinationStart := start + 2
 		stop := destinationStart
-		for stop < len(input) &&
-			input[stop] != ')' &&
-			!unicode.IsSpace(rune(input[stop])) {
-			stop++
+		for stop < len(input) && input[stop] != ')' {
+			r, size := utf8.DecodeRuneInString(input[stop:])
+			if unicode.IsSpace(r) {
+				break
+			}
+			stop += size
 		}
 		if stop < len(input) && input[stop] == ')' {
 			for offset := destinationStart; offset < stop; offset++ {
@@ -483,14 +498,28 @@ func urlStart(token string) int {
 		for start > 0 && isURLSchemeCharacter(token[start-1]) {
 			start--
 		}
-		if isASCIILetter(token[start]) {
+		scheme := token[start:separator]
+		if strings.EqualFold(scheme, "http") || strings.EqualFold(scheme, "https") {
 			return start
 		}
 	}
-	if start := strings.Index(token, "mailto:"); start >= 0 {
-		return start
+	if start := indexASCIIFold(token, "mailto:"); start >= 0 {
+		if start > 0 &&
+			token[start-1] == '<' &&
+			strings.IndexByte(token[start:], '>') >= 0 {
+			return start
+		}
 	}
 	return strings.Index(token, "www.")
+}
+
+func indexASCIIFold(input, target string) int {
+	for start := 0; start+len(target) <= len(input); start++ {
+		if strings.EqualFold(input[start:start+len(target)], target) {
+			return start
+		}
+	}
+	return -1
 }
 
 func isURLSchemeCharacter(b byte) bool {
@@ -608,7 +637,7 @@ func markdownHiddenSpans(document ast.Node, source []byte) []sourceSpan {
 	return spans
 }
 
-func escapeMarkdownSyntaxOutsideCode(input string) string {
+func escapeContentOutsideCode(input string) string {
 	codeSpans := markdownCodeSpans(input)
 	codeSpanIndex := 0
 	var out strings.Builder
@@ -622,7 +651,10 @@ func escapeMarkdownSyntaxOutsideCode(input string) string {
 			offset >= codeSpans[codeSpanIndex].start &&
 			offset < codeSpans[codeSpanIndex].stop
 		if inCode ||
-			(input[offset] != '<' && input[offset] != '[' && input[offset] != '$') ||
+			(input[offset] != '<' &&
+				input[offset] != '[' &&
+				input[offset] != '$' &&
+				input[offset] != '&') ||
 			((input[offset] == '[' || input[offset] == '$') && isBackslashEscaped(input, offset)) {
 			continue
 		}
@@ -638,6 +670,8 @@ func escapeMarkdownSyntaxOutsideCode(input string) string {
 			out.WriteString(`\[`)
 		case '$':
 			out.WriteString(`\$`)
+		case '&':
+			out.WriteString("&amp;")
 		}
 		copied = offset + 1
 	}

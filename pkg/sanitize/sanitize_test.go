@@ -628,6 +628,41 @@ func TestContentPreservesVisibleContent(t *testing.T) {
 			expected: "[query](https://example.com/api?$filter=x&$select=y)",
 		},
 		{
+			name:     "does not mask unsupported URL schemes",
+			input:    "javascript://host/$ignore$",
+			expected: "javascript://host/\\$ignore\\$",
+		},
+		{
+			name:     "unicode whitespace ends a bare URL",
+			input:    "https://example.com\u00A0$hidden$",
+			expected: "https://example.com\u00A0\\$hidden\\$",
+		},
+		{
+			name:     "preserves uppercase mailto autolinks",
+			input:    "<MAILTO:a$b$c@example.com>",
+			expected: "<MAILTO:a$b$c@example.com>",
+		},
+		{
+			name:     "does not mask bare mailto prose",
+			input:    "MAILTO:a$b$c@example.com",
+			expected: "MAILTO:a\\$b\\$c@example.com",
+		},
+		{
+			name:     "does not mask an unclosed mailto autolink",
+			input:    "<MAILTO:a$b$c@example.com",
+			expected: "<MAILTO:a\\$b\\$c@example.com",
+		},
+		{
+			name:     "preserves uppercase mailto while exposing hidden content",
+			input:    "<MAILTO:a$b$c@example.com> <!-- hidden -->",
+			expected: "<MAILTO:a$b$c@example.com> &lt;!-- hidden -->",
+		},
+		{
+			name:     "stops uppercase mailto masking at the autolink boundary",
+			input:    "<MAILTO:a$b$c@example.com>$\\phantom{hidden}$",
+			expected: "<MAILTO:a$b$c@example.com>\\$\\phantom{hidden}\\$",
+		},
+		{
 			name:     "does not mask math adjacent to a URL",
 			input:    "$\\phantom{Hidden}$https://example.com",
 			expected: "\\$\\phantom{Hidden}\\$https://example.com",
@@ -749,6 +784,23 @@ func TestContentPreservesVisibleContent(t *testing.T) {
 			assert.Equal(t, tt.expected, Content(tt.input))
 		})
 	}
+}
+
+func TestContentFallbackPreservesCodeAmpersands(t *testing.T) {
+	nested := strings.Repeat("<A A000=", maxContentFilterPasses+2) +
+		"<A0>" +
+		strings.Repeat(">", maxContentFilterPasses+2)
+	input := "`inline x & y`\n\n" +
+		"```text\nfenced x & y\n```\n\n" +
+		"    indented x & y\n\n" +
+		nested
+
+	result := Content(input)
+
+	assert.Contains(t, result, "`inline x & y`")
+	assert.Contains(t, result, "```\nfenced x & y\n```")
+	assert.Contains(t, result, "    indented x & y")
+	assert.NotContains(t, result, "<A")
 }
 
 func TestSanitizeRemovesInvisibleCodeFenceMetadata(t *testing.T) {
