@@ -478,7 +478,9 @@ func markdownURLMask(input string) []bool {
 			}
 		default:
 			if span, ok := bareHTTPURLSpan(source, offset); ok {
-				markSourceSpan(mask, span)
+				if linkDestinationIsSafe(bareHTTPURLDestination(source[span.start:span.stop])) {
+					markSourceSpan(mask, span)
+				}
 				offset = span.stop
 				continue
 			}
@@ -507,11 +509,61 @@ func referenceDestinationSpan(source []byte, start int) (sourceSpan, int, bool) 
 		return sourceSpan{}, start, false
 	}
 	destinationStart := offset + closing + 2
-	span, stop, ok := inlineDestinationSpan(source, destinationStart)
+	for destinationStart < len(source) && (source[destinationStart] == ' ' || source[destinationStart] == '\t') {
+		destinationStart++
+	}
+	if destinationStart < len(source) && source[destinationStart] == '\n' {
+		destinationStart++
+		for destinationStart < len(source) && (source[destinationStart] == ' ' || source[destinationStart] == '\t') {
+			destinationStart++
+		}
+	}
+	span, stop, ok := referenceLinkDestinationSpan(source, destinationStart)
 	if !ok || !linkDestinationIsSafe(source[span.start:span.stop]) {
 		return sourceSpan{}, start, false
 	}
 	return span, stop, true
+}
+
+// referenceLinkDestinationSpan parses a link reference definition's destination,
+// which (unlike an inline link destination) is not wrapped in parentheses and
+// instead terminates at whitespace, end of line, or an unescaped closing '>'
+// for angle-bracket destinations. Any trailing title is left for the caller to
+// scan normally.
+func referenceLinkDestinationSpan(source []byte, start int) (sourceSpan, int, bool) {
+	if start >= len(source) || unicode.IsSpace(rune(source[start])) {
+		return sourceSpan{}, start, false
+	}
+	if source[start] == '<' {
+		for stop := start + 1; stop < len(source); stop++ {
+			if source[stop] == '\n' {
+				return sourceSpan{}, start, false
+			}
+			if source[stop] == '>' && !isBackslashEscapedBytes(source, stop) {
+				return sourceSpan{start: start + 1, stop: stop}, stop + 1, true
+			}
+		}
+		return sourceSpan{}, start, false
+	}
+
+	parentheses := 0
+	stop := start
+	for stop < len(source) {
+		r, size := utf8.DecodeRune(source[stop:])
+		if unicode.IsSpace(r) {
+			break
+		}
+		if r == '(' && !isBackslashEscapedBytes(source, stop) {
+			parentheses++
+		} else if r == ')' && !isBackslashEscapedBytes(source, stop) {
+			if parentheses == 0 {
+				break
+			}
+			parentheses--
+		}
+		stop += size
+	}
+	return sourceSpan{start: start, stop: stop}, stop, true
 }
 
 func angleAutoLinkSpan(source []byte, start int) (sourceSpan, int, bool) {
@@ -622,6 +674,17 @@ func bareHTTPURLSpan(source []byte, start int) (sourceSpan, bool) {
 		stop--
 	}
 	return sourceSpan{start: start, stop: stop}, stop > start+prefixLength
+}
+
+// bareHTTPURLDestination normalizes a bareHTTPURLSpan match into a destination
+// linkDestinationIsSafe can validate, giving a "www."-prefixed match an
+// implicit https:// scheme so it is held to the same host-presence check as
+// an explicit http(s) URL.
+func bareHTTPURLDestination(match []byte) []byte {
+	if bytes.HasPrefix(match, []byte("www.")) {
+		return append([]byte("https://"), match...)
+	}
+	return match
 }
 
 func hasASCIIFoldPrefix(input []byte, prefix string) bool {

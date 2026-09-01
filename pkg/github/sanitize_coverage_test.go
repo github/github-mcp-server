@@ -336,6 +336,25 @@ func Test_ReadModifyWriteBodyPreservesVisibleContent(t *testing.T) {
 	assert.Equal(t, expected, strings.Replace(commentBody, "- [ ] step one", "- [x] step one", 1))
 }
 
+// Test_ReadModifyWriteBody_ReferenceDestinationAndBareURL covers two sanitizer fixes: reference-style
+// link destinations (which have no closing paren) must be masked with definition-specific grammar
+// rather than reused inline-destination parsing, and bare http(s) candidates must be validated for a
+// host before masking so hostless/malformed text remains available to math neutralization.
+func Test_ReadModifyWriteBody_ReferenceDestinationAndBareURL(t *testing.T) {
+	original := "[query]\n\n[query]: /api/$filter$ $\\phantom{hidden}$\n\n" +
+		"See http://example.com/api?$q=1 and http://?$hidden$"
+	expected := "[query]\n\n[query]: /api/$filter$ \\$\\phantom{hidden}\\$\n\n" +
+		"See http://example.com/api?$q=1 and http://?\\$hidden\\$"
+
+	issueBody := convertToMinimalIssue(&github.Issue{Body: github.Ptr(original)}).Body
+	pullRequestBody := convertToMinimalPullRequest(&github.PullRequest{Body: github.Ptr(original)}).Body
+	commentBody := convertToMinimalIssueComment(&github.IssueComment{Body: github.Ptr(original)}).Body
+
+	assert.Equal(t, expected, issueBody)
+	assert.Equal(t, expected, pullRequestBody)
+	assert.Equal(t, expected, commentBody)
+}
+
 // Test_MinimalConverters_PreserveCodeFidelity ensures the sanitization work does not spill over
 // into fidelity-sensitive fields (diffs/patches and raw file content), which must survive byte
 // for byte so patches can still be applied and code isn't corrupted.

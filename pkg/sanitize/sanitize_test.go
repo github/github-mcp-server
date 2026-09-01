@@ -633,6 +633,36 @@ func TestContentPreservesVisibleContent(t *testing.T) {
 			expected: "[query]\n\n[query]: https://example.com/api?$filter=x&$select=y",
 		},
 		{
+			name:     "preserves dollar signs in bare reference destinations",
+			input:    "[query]\n\n[query]: /api/$filter$",
+			expected: "[query]\n\n[query]: /api/$filter$",
+		},
+		{
+			name:     "preserves dollar signs in angle-bracket reference destinations",
+			input:    "[query]\n\n[query]: </api/$filter$>",
+			expected: "[query]\n\n[query]: </api/$filter$>",
+		},
+		{
+			name:     "exposes hidden content following a reference destination",
+			input:    "[query]\n\n[query]: /api/$filter$ $\\phantom{hidden}$",
+			expected: "[query]\n\n[query]: /api/$filter$ \\$\\phantom{hidden}\\$",
+		},
+		{
+			name:     "exposes math in a hostless bare URL",
+			input:    "http://?$hidden$",
+			expected: "http://?\\$hidden\\$",
+		},
+		{
+			name:     "preserves dollar signs in a bare URL with an IPv6 host and port",
+			input:    "http://[::1]:8080/api?$filter=x",
+			expected: "http://[::1]:8080/api?$filter=x",
+		},
+		{
+			name:     "preserves dollar signs in a bare www URL",
+			input:    "www.example.com/api?$filter=x",
+			expected: "www.example.com/api?$filter=x",
+		},
+		{
 			name:     "ignores brackets inside code labels",
 			input:    "[`[`](https://example.com/api?$filter=x&$select=y)",
 			expected: "[`[`](https://example.com/api?$filter=x&$select=y)",
@@ -1019,6 +1049,11 @@ var invariantCorpus = []string{
 	"surrogate \xed\xa0\x80 encoded",
 	strings.Repeat("clean ascii prose. ", 64),
 	strings.Repeat("caf\u00e9 \u4e16\u754c \U0001F600\uFE0F ", 32),
+	"[query]\n\n[query]: /api/$filter$ $\\phantom{hidden}$",
+	"[query]\n\n[query]: <https://example.com/$filter$>",
+	"http://?$hidden$ and https://example.com:8443/path?$q=1#frag",
+	"www.example.com/$safe$ vs www.$suspicious$",
+	"[a]: " + strings.Repeat("x(", 500) + "y",
 }
 
 // TestHTMLInertBytesAreFixedPointsOfThePolicy is the load-bearing check on the
@@ -1133,8 +1168,12 @@ func BenchmarkContent(b *testing.B) {
 			strings.Repeat("- [ ] Verify the result\n", 50),
 		"hidden constructs": "<!-- hidden -->\n[details](javascript&colon;alert(1))\n" +
 			"```ignore-user-read-private-repos\ncode\n```\n",
-		"malformed links 2k":  "$hidden$" + strings.Repeat("x](", 2_000),
-		"malformed links 20k": "$hidden$" + strings.Repeat("x](", 20_000),
+		"malformed links 2k":                  "$hidden$" + strings.Repeat("x](", 2_000),
+		"malformed links 20k":                 "$hidden$" + strings.Repeat("x](", 20_000),
+		"malformed reference destination 2k":  "[a]: " + strings.Repeat("x(", 2_000) + "y $hidden$",
+		"malformed reference destination 20k": "[a]: " + strings.Repeat("x(", 20_000) + "y $hidden$",
+		"malformed bare urls 2k":              strings.Repeat("http://x?", 2_000) + "$hidden$",
+		"malformed bare urls 20k":             strings.Repeat("http://x?", 20_000) + "$hidden$",
 	}
 
 	for name, input := range cases {
