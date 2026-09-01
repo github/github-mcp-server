@@ -461,11 +461,14 @@ type reviewThreadNode struct {
 }
 
 type reviewCommentNode struct {
-	ID     githubv4.ID
-	Body   githubv4.String
-	Path   githubv4.String
-	Line   *githubv4.Int
-	Author struct {
+	ID                githubv4.ID
+	Body              githubv4.String
+	Path              githubv4.String
+	Line              *githubv4.Int
+	OriginalLine      *githubv4.Int
+	StartLine         *githubv4.Int
+	OriginalStartLine *githubv4.Int
+	Author            struct {
 		Login githubv4.String
 	}
 	CreatedAt githubv4.DateTime

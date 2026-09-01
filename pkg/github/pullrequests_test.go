@@ -2187,13 +2187,16 @@ func Test_GetPullRequestComments(t *testing.T) {
 											"isOutdated":  false,
 											"isCollapsed": false,
 											"comments": map[string]any{
-												"totalCount": 2,
+												"totalCount": 3,
 												"nodes": []map[string]any{
 													{
-														"id":   "PRRC_kwDOA0xdyM4AX1Y0",
-														"body": "This looks good",
-														"path": "file1.go",
-														"line": 5,
+														"id":                "PRRC_kwDOA0xdyM4AX1Y0",
+														"body":              "This looks good",
+														"path":              "file1.go",
+														"line":              86,
+														"originalLine":      84,
+														"startLine":         73,
+														"originalStartLine": 73,
 														"author": map[string]any{
 															"login": "reviewer1",
 														},
@@ -2202,16 +2205,32 @@ func Test_GetPullRequestComments(t *testing.T) {
 														"url":       "https://github.com/owner/repo/pull/42#discussion_r101",
 													},
 													{
-														"id":   "PRRC_kwDOA0xdyM4AX1Y1",
-														"body": "Please fix this",
-														"path": "file1.go",
-														"line": 10,
+														"id":           "PRRC_kwDOA0xdyM4AX1Y1",
+														"body":         "Please fix this",
+														"path":         "file1.go",
+														"line":         159,
+														"originalLine": 157,
 														"author": map[string]any{
 															"login": "reviewer2",
 														},
 														"createdAt": "2024-01-01T13:00:00Z",
 														"updatedAt": "2024-01-01T13:00:00Z",
 														"url":       "https://github.com/owner/repo/pull/42#discussion_r102",
+													},
+													{
+														"id":                "PRRC_kwDOA0xdyM4AX1Y2",
+														"body":              "Comment with current coordinates unavailable",
+														"path":              "file1.go",
+														"line":              nil,
+														"originalLine":      178,
+														"startLine":         nil,
+														"originalStartLine": 176,
+														"author": map[string]any{
+															"login": "reviewer3",
+														},
+														"createdAt": "2024-01-01T14:00:00Z",
+														"updatedAt": "2024-01-01T14:00:00Z",
+														"url":       "https://github.com/owner/repo/pull/42#discussion_r103",
 													},
 												},
 											},
@@ -2251,13 +2270,48 @@ func Test_GetPullRequestComments(t *testing.T) {
 				assert.Equal(t, false, thread.IsCollapsed)
 
 				// Validate comments within thread
-				assert.Len(t, thread.Comments, 2)
+				assert.Len(t, thread.Comments, 3)
 
 				// Validate first comment
 				comment1 := thread.Comments[0]
 				assert.Equal(t, "This looks good", comment1.Body)
 				assert.Equal(t, "file1.go", comment1.Path)
 				assert.Equal(t, "reviewer1", comment1.Author)
+				require.NotNil(t, comment1.Line)
+				assert.Equal(t, 86, *comment1.Line)
+				require.NotNil(t, comment1.OriginalLine)
+				assert.Equal(t, 84, *comment1.OriginalLine)
+				require.NotNil(t, comment1.StartLine)
+				assert.Equal(t, 73, *comment1.StartLine)
+				require.NotNil(t, comment1.OriginalStartLine)
+				assert.Equal(t, 73, *comment1.OriginalStartLine)
+
+				comment2 := thread.Comments[1]
+				require.NotNil(t, comment2.Line)
+				assert.Equal(t, 159, *comment2.Line)
+				require.NotNil(t, comment2.OriginalLine)
+				assert.Equal(t, 157, *comment2.OriginalLine)
+				assert.Nil(t, comment2.StartLine)
+				assert.Nil(t, comment2.OriginalStartLine)
+
+				var raw struct {
+					ReviewThreads []struct {
+						Comments []map[string]any `json:"comments"`
+					} `json:"review_threads"`
+				}
+				require.NoError(t, json.Unmarshal([]byte(textContent), &raw))
+				require.Len(t, raw.ReviewThreads, 1)
+				require.Len(t, raw.ReviewThreads[0].Comments, 3)
+				assert.NotContains(t, raw.ReviewThreads[0].Comments[1], "start_line")
+				assert.NotContains(t, raw.ReviewThreads[0].Comments[1], "original_start_line")
+
+				comment3 := thread.Comments[2]
+				assert.Nil(t, comment3.Line)
+				require.NotNil(t, comment3.OriginalLine)
+				assert.Equal(t, 178, *comment3.OriginalLine)
+				assert.Nil(t, comment3.StartLine)
+				require.NotNil(t, comment3.OriginalStartLine)
+				assert.Equal(t, 176, *comment3.OriginalStartLine)
 
 				// Validate pagination info
 				assert.Equal(t, false, result.PageInfo.HasNextPage)
