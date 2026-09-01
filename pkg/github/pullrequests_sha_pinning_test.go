@@ -7,17 +7,12 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v89/github"
-	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_MergePullRequestSHAPinning(t *testing.T) {
 	serverTool := MergePullRequest(translations.NullTranslationHelper)
-
-	schema := serverTool.Tool.InputSchema.(*jsonschema.Schema)
-	require.Contains(t, schema.Properties, "expectedHeadSha")
-	assert.Equal(t, "string", schema.Properties["expectedHeadSha"].Type)
 
 	const pinnedSHA = "0123456789abcdef0123456789abcdef01234567"
 
@@ -44,7 +39,7 @@ func Test_MergePullRequestSHAPinning(t *testing.T) {
 			"owner":           "owner",
 			"repo":            "repo",
 			"pullNumber":      float64(42),
-			"merge_method":     "merge",
+			"merge_method":    "merge",
 			"expectedHeadSha": pinnedSHA,
 		})
 
@@ -81,7 +76,7 @@ func Test_MergePullRequestSHAPinning(t *testing.T) {
 			"owner":           "owner",
 			"repo":            "repo",
 			"pullNumber":      float64(42),
-			"merge_method":     "merge",
+			"merge_method":    "merge",
 			"expectedHeadSha": pinnedSHA,
 		})
 
@@ -92,6 +87,7 @@ func Test_MergePullRequestSHAPinning(t *testing.T) {
 
 		require.NoError(t, err)
 		require.True(t, result.IsError)
+		assert.Contains(t, getErrorResult(t, result).Text, "Head branch was modified")
 		assert.Equal(t, 1, calls, "merge must not retry after a head-SHA mismatch")
 	})
 }

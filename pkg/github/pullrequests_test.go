@@ -760,6 +760,7 @@ func Test_MergePullRequest(t *testing.T) {
 	assert.Contains(t, schema.Properties, "commit_title")
 	assert.Contains(t, schema.Properties, "commit_message")
 	assert.Contains(t, schema.Properties, "merge_method")
+	assert.Contains(t, schema.Properties, "expectedHeadSha")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "pullNumber"})
 
 	// Setup mock merge result for success case
@@ -778,7 +779,7 @@ func Test_MergePullRequest(t *testing.T) {
 		expectedErrMsg      string
 	}{
 		{
-			name: "successful merge",
+			name: "successful merge without expected head SHA",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PutReposPullsMergeByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
 					"commit_title":   "Merge PR #42",

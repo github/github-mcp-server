@@ -357,7 +357,7 @@ runtime behavior (such as output formatting) won't appear here.
 ### `thread_resolution_reason`
 
 - **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews
-  - **Required OAuth Scopes**: `repo`
+  - **OAuth Challenge Scopes**: `repo`
   - `body`: Review comment text (string, optional)
   - `commitID`: SHA of commit to review (string, optional)
   - `event`: Review action to perform. (string, optional)
