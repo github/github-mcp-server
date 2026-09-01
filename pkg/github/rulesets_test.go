@@ -181,6 +181,7 @@ func Test_RepositoryRulesetRead(t *testing.T) {
 			"time_period":       "week",
 			"actor_name":        "octocat",
 			"rule_suite_result": "pass",
+			"evaluate_status":   "evaluate",
 			"perPage":           float64(25),
 		})
 
@@ -193,6 +194,7 @@ func Test_RepositoryRulesetRead(t *testing.T) {
 		assert.Equal(t, "week", capturedQuery.Get("time_period"))
 		assert.Equal(t, "octocat", capturedQuery.Get("actor_name"))
 		assert.Equal(t, "pass", capturedQuery.Get("rule_suite_result"))
+		assert.Equal(t, "evaluate", capturedQuery.Get("evaluate_status"))
 		assert.Equal(t, "25", capturedQuery.Get("per_page"))
 	})
 
@@ -281,7 +283,46 @@ func Test_RepositoryRulesetRead(t *testing.T) {
 		assert.Equal(t, "org rs", returned[0].Name)
 	})
 
-	t.Run("organization level: repository-only method defers to normal validation", func(t *testing.T) {
+	t.Run("organization level: list_rule_suites forwards organization filters", func(t *testing.T) {
+		var capturedQuery url.Values
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			"GET /orgs/{org}/rulesets/rule-suites": func(w http.ResponseWriter, r *http.Request) {
+				capturedQuery = r.URL.Query()
+				mockResponse(t, http.StatusOK, []map[string]any{{"id": 101, "repository_name": "repo"}})(w, r)
+			},
+		}))
+		deps := BaseDeps{Client: client}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"level":           "organization",
+			"method":          "list_rule_suites",
+			"org":             "octo",
+			"repository_name": "repo",
+			"evaluate_status": "active",
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		assert.Equal(t, "repo", capturedQuery.Get("repository_name"))
+		assert.Equal(t, "active", capturedQuery.Get("evaluate_status"))
+	})
+
+	t.Run("organization level: get_rule_suite", func(t *testing.T) {
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			"GET /orgs/{org}/rulesets/rule-suites/{rule_suite_id}": mockResponse(t, http.StatusOK, map[string]any{"id": 101, "result": "pass"}),
+		}))
+		deps := BaseDeps{Client: client}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{"level": "organization", "method": "get_rule_suite", "org": "octo", "rule_suite_id": float64(101)})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		assert.Contains(t, getTextResult(t, result).Text, "pass")
+	})
+
+	t.Run("organization level: repository-only method is rejected", func(t *testing.T) {
 		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
 		deps := BaseDeps{Client: client}
 		handler := toolDef.Handler(deps)
@@ -352,7 +393,7 @@ func Test_RepositoryRulesetRead(t *testing.T) {
 		assert.Equal(t, "enterprise rs", returned[0].Name)
 	})
 
-	t.Run("enterprise level: repository-only method defers to normal validation", func(t *testing.T) {
+	t.Run("enterprise level: rule suite method is rejected", func(t *testing.T) {
 		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
 		deps := BaseDeps{Client: client}
 		handler := toolDef.Handler(deps)
@@ -377,13 +418,6 @@ func Test_RepositoryRulesetRead(t *testing.T) {
 	})
 
 	t.Run("mismatched-case level is rejected rather than silently normalized", func(t *testing.T) {
-		// The scope challenge in rulesetReadScopeAccess matches "level" with an
-		// exact, case-sensitive comparison. If the handler instead normalized case
-		// (e.g. via strings.ToLower) before dispatching, a caller could send
-		// "Organization" to reach the organization-level read while the OAuth
-		// middleware -- which sees the raw, un-normalized argument -- would find no
-		// case matching "organization" and issue no scope challenge at all,
-		// letting an under-scoped token read organization rulesets for free.
 		called := false
 		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			"GET /orgs/{org}/rulesets": func(w http.ResponseWriter, r *http.Request) {
@@ -401,8 +435,6 @@ func Test_RepositoryRulesetRead(t *testing.T) {
 		assert.Contains(t, getErrorResult(t, result).Text, "unknown level")
 		assert.False(t, called, "a mismatched-case level must not reach the organization-level API call")
 
-		// The scope challenge must independently agree: it must not treat
-		// "Organization" as a recognized level either.
 		assert.Empty(t, toolDef.ScopeAccess.Challenge(map[string]any{"level": "Organization"}, nil))
 	})
 }
@@ -465,8 +497,6 @@ func Test_CreateRepositoryRuleset(t *testing.T) {
 		assert.Equal(t, github.RulesetEnforcement("active"), capturedBody.Enforcement)
 		require.NotNil(t, capturedBody.Rules)
 
-		// Verify the outbound body preserves all requested rules and the pull_request
-		// parameters, rather than silently dropping them in the JSON round-trip.
 		var outbound struct {
 			Rules []struct {
 				Type       string         `json:"type"`
@@ -540,6 +570,37 @@ func Test_CreateRepositoryRuleset(t *testing.T) {
 		assert.False(t, called, "request must not be sent when a rule type is unsupported")
 	})
 
+	t.Run("unrecognized rule key", func(t *testing.T) {
+		called := false
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			"POST /repos/{owner}/{repo}/rulesets": func(w http.ResponseWriter, _ *http.Request) {
+				called = true
+				w.WriteHeader(http.StatusCreated)
+			},
+		}))
+		deps := BaseDeps{Client: client}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"level":       "repository",
+			"owner":       "owner",
+			"repo":        "repo",
+			"name":        "x",
+			"enforcement": "active",
+			"rules": []any{
+				map[string]any{
+					"type":          "pull_request",
+					"configuration": map[string]any{"required_approving_review_count": float64(2)},
+				},
+			},
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		assert.Contains(t, getErrorResult(t, result).Text, "configuration")
+		assert.False(t, called)
+	})
+
 	t.Run("invalid rules", func(t *testing.T) {
 		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
 		deps := BaseDeps{Client: client}
@@ -589,11 +650,6 @@ func Test_CreateRepositoryRuleset(t *testing.T) {
 	})
 
 	t.Run("unrecognized rule parameter is rejected even though the rule type is valid", func(t *testing.T) {
-		// "require_code_owners_review" is a plausible typo for the real
-		// pull_request parameter "require_code_owner_review". go-github's
-		// generated UnmarshalJSON silently drops unknown parameter keys, so
-		// without this check the ruleset would be created with the weaker
-		// default (false) instead of surfacing the mistake.
 		called := false
 		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			"POST /repos/{owner}/{repo}/rulesets": func(w http.ResponseWriter, _ *http.Request) {
@@ -627,11 +683,6 @@ func Test_CreateRepositoryRuleset(t *testing.T) {
 	})
 
 	t.Run("zero-valued parameters are not flagged as unrecognized", func(t *testing.T) {
-		// Scalar fields without `omitempty` (like required_approving_review_count)
-		// always round-trip, but slice fields with `omitempty` (like
-		// allowed_merge_methods) vanish from the response when empty. An
-		// explicit zero value supplied by the caller must not be misread as an
-		// unsupported parameter key.
 		var capturedBody []byte
 		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			"POST /repos/{owner}/{repo}/rulesets": func(w http.ResponseWriter, r *http.Request) {
@@ -668,14 +719,6 @@ func Test_CreateRepositoryRuleset(t *testing.T) {
 	})
 
 	t.Run("unrecognized key inside a rule parameter array element is rejected", func(t *testing.T) {
-		// "integration_ids" is a plausible typo for the real per-check field
-		// "integration_id" on required_status_checks[].  Unlike the top-level
-		// rule/condition round-trip, this array is produced by our own local
-		// JSON marshal/unmarshal of the go-github struct (not a remote API
-		// response), so element order is guaranteed stable and comparing by
-		// index is safe. Without this check, the typo would silently vanish and
-		// the resulting rule would accept a status check from any integration
-		// instead of only the one requested.
 		called := false
 		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			"POST /repos/{owner}/{repo}/rulesets": func(w http.ResponseWriter, _ *http.Request) {
@@ -787,11 +830,6 @@ func Test_CreateRepositoryRuleset(t *testing.T) {
 	})
 
 	t.Run("unrecognized bypass_actors key is rejected", func(t *testing.T) {
-		// "bypass_modes" is a plausible typo for "bypass_mode". github.BypassActor
-		// only recognizes actor_id/actor_type/bypass_mode, so an unknown key is
-		// silently discarded during JSON unmarshal -- and because the API
-		// defaults an omitted bypass_mode to "always", the resulting actor would
-		// get broader bypass rights than the caller requested.
 		called := false
 		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			"POST /repos/{owner}/{repo}/rulesets": func(w http.ResponseWriter, _ *http.Request) {
@@ -821,11 +859,6 @@ func Test_CreateRepositoryRuleset(t *testing.T) {
 	})
 
 	t.Run("unrecognized top-level condition key is rejected", func(t *testing.T) {
-		// "ref_names" is a plausible typo for the real condition key "ref_name".
-		// github.RepositoryRulesetConditions silently drops unknown keys during
-		// JSON unmarshal, so without this check the ruleset would be created with
-		// no ref_name condition at all (applying to every ref) instead of
-		// surfacing the mistake.
 		called := false
 		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			"POST /repos/{owner}/{repo}/rulesets": func(w http.ResponseWriter, _ *http.Request) {
@@ -1028,13 +1061,6 @@ func Test_CreateRepositoryRuleset(t *testing.T) {
 	})
 
 	t.Run("mismatched-case level is rejected rather than silently normalized", func(t *testing.T) {
-		// Mirrors the read-tool regression above: rulesetWriteScopeAccess only
-		// recognizes an exact, lowercase "organization"/"enterprise" match. If the
-		// handler normalized case before dispatching, "Organization" would reach
-		// client.Organizations.CreateRepositoryRuleset while the OAuth middleware
-		// -- which challenges on the raw argument -- would see no case match and
-		// require no admin:org scope at all, letting an under-scoped token create
-		// organization-wide rulesets for free.
 		called := false
 		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			"POST /orgs/{org}/rulesets": func(w http.ResponseWriter, _ *http.Request) {
@@ -1062,10 +1088,6 @@ func Test_CreateRepositoryRuleset(t *testing.T) {
 	})
 }
 
-// Test_RulesetScopeChallenges verifies that the ruleset read and write tools
-// challenge for the exact scope implied by the "level" argument, and defer to
-// normal handler validation (no challenge) when "level" is missing or not a
-// string.
 func Test_RulesetScopeChallenges(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -1150,7 +1172,6 @@ func Test_RulesetScopeChallenges(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			require.NotNil(t, tt.tool.ScopeAccess.Challenge)
 			assert.True(t, tt.tool.ScopeAccess.Dynamic)
-			assert.True(t, tt.tool.ScopeAccess.Visible(nil))
 			assert.Empty(t, tt.tool.ScopeAccess.Challenge(tt.arguments, tt.allowed))
 			if tt.disallowed == nil {
 				assert.Empty(t, tt.tool.ScopeAccess.Challenge(tt.arguments, nil))
@@ -1159,6 +1180,18 @@ func Test_RulesetScopeChallenges(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_RulesetScopeVisibility(t *testing.T) {
+	readAccess := RepositoryRulesetRead(translations.NullTranslationHelper).ScopeAccess
+	writeAccess := CreateRepositoryRuleset(translations.NullTranslationHelper).ScopeAccess
+
+	assert.True(t, readAccess.Visible(nil))
+	assert.False(t, writeAccess.Visible(nil))
+	assert.True(t, writeAccess.Visible([]string{"repo"}))
+	assert.True(t, writeAccess.Visible([]string{"admin:org"}))
+	assert.True(t, writeAccess.Visible([]string{"admin:enterprise"}))
+	assert.False(t, writeAccess.Visible([]string{"read:org", "read:enterprise"}))
 }
 
 func Test_RulesetScopeMetadataIsExhaustive(t *testing.T) {

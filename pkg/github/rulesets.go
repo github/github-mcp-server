@@ -67,7 +67,11 @@ func rulesetReadScopeAccess() inventory.ScopeAccess {
 func rulesetWriteScopeAccess() inventory.ScopeAccess {
 	return scopes.DynamicChallenge(
 		[]scopes.Scope{scopes.Repo, scopes.AdminOrg, scopes.AdminEnterprise},
-		func([]string) bool { return true },
+		func(activeScopes []string) bool {
+			return scopes.HasAll(activeScopes, scopes.Repo) ||
+				scopes.HasAll(activeScopes, scopes.AdminOrg) ||
+				scopes.HasAll(activeScopes, scopes.AdminEnterprise)
+		},
 		func(arguments map[string]any, activeScopes []string) []string {
 			level, ok := arguments["level"].(string)
 			if !ok {
@@ -87,16 +91,13 @@ func rulesetWriteScopeAccess() inventory.ScopeAccess {
 	)
 }
 
-// RepositoryRulesetRead creates a tool for read operations on rulesets and
-// rule suites at the repository, organization, or enterprise level. The
-// level is selected with the "level" parameter and the operation with the
-// "method" parameter.
+// RepositoryRulesetRead creates a tool for ruleset and rule-suite reads.
 func RepositoryRulesetRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataGovernance,
 		mcp.Tool{
 			Name:        "repository_ruleset_read",
-			Description: t("TOOL_REPOSITORY_RULESET_READ_DESCRIPTION", "Read rulesets and rule suites at the repository, organization, or enterprise level. Select the level with the 'level' parameter and the operation with the 'method' parameter."),
+			Description: t("TOOL_REPOSITORY_RULESET_READ_DESCRIPTION", "Read rulesets at the repository, organization, or enterprise level, and rule suites at the repository or organization level. Select the level with the 'level' parameter and the operation with the 'method' parameter."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_REPOSITORY_RULESET_READ_USER_TITLE", "Read repository rulesets"),
 				ReadOnlyHint: true,
@@ -116,8 +117,8 @@ func RepositoryRulesetRead(t translations.TranslationHelperFunc) inventory.Serve
 							"- 'get': Get a specific ruleset by ID (requires 'ruleset_id'). Supported at every level.\n" +
 							"- 'list': List all rulesets. Supported at every level.\n" +
 							"- 'get_rules_for_branch': Get all rules that apply to a branch (requires 'branch'). Repository level only.\n" +
-							"- 'list_rule_suites': List rule suites, the evaluations of rules against pushes. Repository level only.\n" +
-							"- 'get_rule_suite': Get a specific rule suite by ID (requires 'rule_suite_id'). Repository level only.",
+							"- 'list_rule_suites': List rule suites, the evaluations of rules against pushes. Repository and organization levels only.\n" +
+							"- 'get_rule_suite': Get a specific rule suite by ID (requires 'rule_suite_id'). Repository and organization levels only.",
 					},
 					"owner": {
 						Type:        "string",
@@ -160,10 +161,19 @@ func RepositoryRulesetRead(t translations.TranslationHelperFunc) inventory.Serve
 						Type:        "string",
 						Description: "The handle for the GitHub user account to filter rule suites on. Used by the 'list_rule_suites' method.",
 					},
+					"repository_name": {
+						Type:        "string",
+						Description: "Repository name to filter rule suites by. Used by the 'list_rule_suites' method at the organization level.",
+					},
 					"rule_suite_result": {
 						Type:        "string",
 						Enum:        []any{"pass", "fail", "bypass", "all"},
 						Description: "The rule suite result to filter by. Used by the 'list_rule_suites' method.",
+					},
+					"evaluate_status": {
+						Type:        "string",
+						Enum:        []any{"all", "active", "evaluate"},
+						Description: "Filter rule suites by ruleset evaluation mode. Used by the 'list_rule_suites' method.",
 					},
 					"rule_suite_id": {
 						Type:        "number",
@@ -220,8 +230,7 @@ func repositoryRulesetReadRepository(ctx context.Context, client *github.Client,
 		if err != nil {
 			return utils.NewToolResultError(err.Error()), nil, nil
 		}
-		// GetRuleset always sends includes_parents; default to the
-		// GitHub API default of true when the caller omits it.
+		// GetRuleset always sends includes_parents, so preserve GitHub's true default.
 		includesParents := true
 		if _, ok := args["includes_parents"]; ok {
 			includesParents, err = OptionalParam[bool](args, "includes_parents")
@@ -302,8 +311,26 @@ func repositoryRulesetReadOrganization(ctx context.Context, client *github.Clien
 		}
 		result, err := ListOrganizationRepositoryRulesets(ctx, client, org, pagination)
 		return result, nil, err
+	case "list_rule_suites":
+		filters, err := ruleSuiteFiltersFromArgs(args)
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		pagination, err := OptionalPaginationParams(args)
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		result, err := ListOrganizationRuleSuites(ctx, client, org, filters, pagination)
+		return result, nil, err
+	case "get_rule_suite":
+		ruleSuiteID, err := RequiredBigInt(args, "rule_suite_id")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		result, err := GetOrganizationRuleSuite(ctx, client, org, ruleSuiteID)
+		return result, nil, err
 	default:
-		return utils.NewToolResultError(fmt.Sprintf("method %q is not supported for level \"organization\"; supported methods: get, list", method)), nil, nil
+		return utils.NewToolResultError(fmt.Sprintf("method %q is not supported for level \"organization\"; supported methods: get, list, list_rule_suites, get_rule_suite", method)), nil, nil
 	}
 }
 
@@ -387,47 +414,72 @@ func GetRepositoryRulesForBranch(ctx context.Context, client *github.Client, own
 	return MarshalledTextResult(branchRules), nil
 }
 
-// ruleSuiteFilters holds the optional filters for listing rule suites.
-type ruleSuiteFilters struct {
+// RuleSuiteFilters holds the optional filters for listing rule suites.
+type RuleSuiteFilters struct {
 	Ref             string
+	RepositoryName  string
 	TimePeriod      string
 	ActorName       string
 	RuleSuiteResult string
+	EvaluateStatus  string
 }
 
-func ruleSuiteFiltersFromArgs(args map[string]any) (ruleSuiteFilters, error) {
+func ruleSuiteFiltersFromArgs(args map[string]any) (RuleSuiteFilters, error) {
 	ref, err := OptionalParam[string](args, "ref")
 	if err != nil {
-		return ruleSuiteFilters{}, err
+		return RuleSuiteFilters{}, err
+	}
+	repositoryName, err := OptionalParam[string](args, "repository_name")
+	if err != nil {
+		return RuleSuiteFilters{}, err
 	}
 	timePeriod, err := OptionalParam[string](args, "time_period")
 	if err != nil {
-		return ruleSuiteFilters{}, err
+		return RuleSuiteFilters{}, err
 	}
 	actorName, err := OptionalParam[string](args, "actor_name")
 	if err != nil {
-		return ruleSuiteFilters{}, err
+		return RuleSuiteFilters{}, err
 	}
 	ruleSuiteResult, err := OptionalParam[string](args, "rule_suite_result")
 	if err != nil {
-		return ruleSuiteFilters{}, err
+		return RuleSuiteFilters{}, err
 	}
-	return ruleSuiteFilters{
+	evaluateStatus, err := OptionalParam[string](args, "evaluate_status")
+	if err != nil {
+		return RuleSuiteFilters{}, err
+	}
+	return RuleSuiteFilters{
 		Ref:             ref,
+		RepositoryName:  repositoryName,
 		TimePeriod:      timePeriod,
 		ActorName:       actorName,
 		RuleSuiteResult: ruleSuiteResult,
+		EvaluateStatus:  evaluateStatus,
 	}, nil
 }
 
 // ListRepositoryRuleSuites lists rule suites (evaluations of rules against
 // pushes) for a repository. Rule suites are not supported by go-github, so the
 // request is issued directly.
-func ListRepositoryRuleSuites(ctx context.Context, client *github.Client, owner, repo string, filters ruleSuiteFilters, pagination PaginationParams) (*mcp.CallToolResult, error) {
-	apiURL := fmt.Sprintf("repos/%s/%s/rulesets/rule-suites", owner, repo)
+func ListRepositoryRuleSuites(ctx context.Context, client *github.Client, owner, repo string, filters RuleSuiteFilters, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	apiURL := fmt.Sprintf("repos/%s/%s/rulesets/rule-suites", url.PathEscape(owner), url.PathEscape(repo))
+	return listRuleSuites(ctx, client, apiURL, "failed to list repository rule suites", filters, false, pagination)
+}
+
+// ListOrganizationRuleSuites lists rule suites for an organization.
+func ListOrganizationRuleSuites(ctx context.Context, client *github.Client, org string, filters RuleSuiteFilters, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	apiURL := fmt.Sprintf("orgs/%s/rulesets/rule-suites", url.PathEscape(org))
+	return listRuleSuites(ctx, client, apiURL, "failed to list organization rule suites", filters, true, pagination)
+}
+
+func listRuleSuites(ctx context.Context, client *github.Client, apiURL, errorMessage string, filters RuleSuiteFilters, includeRepositoryName bool, pagination PaginationParams) (*mcp.CallToolResult, error) {
 	query := url.Values{}
 	if filters.Ref != "" {
 		query.Set("ref", filters.Ref)
+	}
+	if includeRepositoryName && filters.RepositoryName != "" {
+		query.Set("repository_name", filters.RepositoryName)
 	}
 	if filters.TimePeriod != "" {
 		query.Set("time_period", filters.TimePeriod)
@@ -437,6 +489,9 @@ func ListRepositoryRuleSuites(ctx context.Context, client *github.Client, owner,
 	}
 	if filters.RuleSuiteResult != "" {
 		query.Set("rule_suite_result", filters.RuleSuiteResult)
+	}
+	if filters.EvaluateStatus != "" {
+		query.Set("evaluate_status", filters.EvaluateStatus)
 	}
 	if pagination.Page > 0 {
 		query.Set("page", strconv.Itoa(pagination.Page))
@@ -459,17 +514,25 @@ func ListRepositoryRuleSuites(ctx context.Context, client *github.Client, owner,
 		defer func() { _ = resp.Body.Close() }()
 	}
 	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list repository rule suites", resp, err), nil
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, errorMessage, resp, err), nil
 	}
 
 	return MarshalledTextResult(ruleSuites), nil
 }
 
-// GetRepositoryRuleSuite gets details of a specific repository rule suite,
-// including the evaluation results for each rule. Rule suites are not supported
-// by go-github, so the request is issued directly.
+// GetRepositoryRuleSuite gets details of a specific repository rule suite.
 func GetRepositoryRuleSuite(ctx context.Context, client *github.Client, owner, repo string, ruleSuiteID int64) (*mcp.CallToolResult, error) {
-	apiURL := fmt.Sprintf("repos/%s/%s/rulesets/rule-suites/%d", owner, repo, ruleSuiteID)
+	apiURL := fmt.Sprintf("repos/%s/%s/rulesets/rule-suites/%d", url.PathEscape(owner), url.PathEscape(repo), ruleSuiteID)
+	return getRuleSuite(ctx, client, apiURL, "failed to get repository rule suite")
+}
+
+// GetOrganizationRuleSuite gets details of a specific organization rule suite.
+func GetOrganizationRuleSuite(ctx context.Context, client *github.Client, org string, ruleSuiteID int64) (*mcp.CallToolResult, error) {
+	apiURL := fmt.Sprintf("orgs/%s/rulesets/rule-suites/%d", url.PathEscape(org), ruleSuiteID)
+	return getRuleSuite(ctx, client, apiURL, "failed to get organization rule suite")
+}
+
+func getRuleSuite(ctx context.Context, client *github.Client, apiURL, errorMessage string) (*mcp.CallToolResult, error) {
 	req, err := client.NewRequest(ctx, http.MethodGet, apiURL, nil)
 	if err != nil {
 		return utils.NewToolResultErrorFromErr("failed to create request", err), nil
@@ -481,7 +544,7 @@ func GetRepositoryRuleSuite(ctx context.Context, client *github.Client, owner, r
 		defer func() { _ = resp.Body.Close() }()
 	}
 	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get repository rule suite", resp, err), nil
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, errorMessage, resp, err), nil
 	}
 
 	return MarshalledTextResult(ruleSuite), nil
@@ -538,7 +601,7 @@ func GetEnterpriseRepositoryRuleset(ctx context.Context, client *github.Client, 
 // enterprise. Listing enterprise rulesets is not supported by go-github, so
 // the request is issued directly.
 func ListEnterpriseRepositoryRulesets(ctx context.Context, client *github.Client, enterprise string, pagination PaginationParams) (*mcp.CallToolResult, error) {
-	apiURL := fmt.Sprintf("enterprises/%s/rulesets", enterprise)
+	apiURL := fmt.Sprintf("enterprises/%s/rulesets", url.PathEscape(enterprise))
 	query := url.Values{}
 	if pagination.Page > 0 {
 		query.Set("page", strconv.Itoa(pagination.Page))
@@ -555,7 +618,7 @@ func ListEnterpriseRepositoryRulesets(ctx context.Context, client *github.Client
 		return utils.NewToolResultErrorFromErr("failed to create request", err), nil
 	}
 
-	var rulesets any
+	var rulesets []*github.RepositoryRuleset
 	resp, err := client.Do(req, &rulesets)
 	if resp != nil {
 		defer func() { _ = resp.Body.Close() }()
@@ -688,7 +751,8 @@ func rulesetWriteProperties() map[string]*jsonschema.Schema {
 			Type:        "array",
 			Description: "An array of rules within the ruleset. Each rule is an object with a 'type' (e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks') and, for rules that need configuration, a 'parameters' object",
 			Items: &jsonschema.Schema{
-				Type: "object",
+				Type:                 "object",
+				AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 				Properties: map[string]*jsonschema.Schema{
 					"type": {
 						Type:        "string",
@@ -710,7 +774,8 @@ func rulesetWriteProperties() map[string]*jsonschema.Schema {
 			Type:        "array",
 			Description: "The actors that can bypass the rules in this ruleset",
 			Items: &jsonschema.Schema{
-				Type: "object",
+				Type:                 "object",
+				AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 				Properties: map[string]*jsonschema.Schema{
 					"actor_id": {
 						Type:        "number",
@@ -727,6 +792,7 @@ func rulesetWriteProperties() map[string]*jsonschema.Schema {
 						Description: "When the specified actor can bypass the ruleset. 'pull_request' only applies to branch rulesets and is not valid for the 'DeployKey' actor type. 'exempt' means rules are not run for that actor and no bypass audit entry is created.",
 					},
 				},
+				Required: []string{"actor_type"},
 			},
 		},
 	}
@@ -757,19 +823,22 @@ func buildRepositoryRulesetFromArgs(args map[string]any) (github.RepositoryRules
 	requestedRuleTypes := make([]string, 0, len(rules))
 	requestedRuleParameters := make(map[string]map[string]any, len(rules))
 	seenRuleTypes := make(map[string]bool, len(rules))
-	for _, rule := range rules {
+	for i, rule := range rules {
 		ruleMap, ok := rule.(map[string]any)
 		if !ok {
 			return github.RepositoryRuleset{}, utils.NewToolResultError("each rule must be an object with a 'type' field")
+		}
+		for key := range ruleMap {
+			if key != "type" && key != "parameters" {
+				return github.RepositoryRuleset{}, utils.NewToolResultError(fmt.Sprintf("rules[%d]: unsupported or unrecognized key: %q", i, key))
+			}
 		}
 		ruleType, ok := ruleMap["type"].(string)
 		if !ok || ruleType == "" {
 			return github.RepositoryRuleset{}, utils.NewToolResultError("each rule must have a non-empty string 'type' field")
 		}
 		if seenRuleTypes[ruleType] {
-			// github.RepositoryRulesetRules has a single field per rule type, so a
-			// second rule of the same type would silently overwrite the first
-			// during the round-trip below rather than producing two rules.
+			// go-github stores only one rule per type.
 			return github.RepositoryRuleset{}, utils.NewToolResultError(fmt.Sprintf("duplicate rule type: %q (a ruleset may only have one rule of each type)", ruleType))
 		}
 		seenRuleTypes[ruleType] = true
@@ -808,10 +877,6 @@ func buildRepositoryRulesetFromArgs(args map[string]any) (github.RepositoryRules
 			if !ok {
 				return github.RepositoryRuleset{}, utils.NewToolResultError(fmt.Sprintf("bypass_actors[%d] must be an object", i))
 			}
-			// github.BypassActor recognizes only these three keys; any other key
-			// (e.g. a "bypass_modes" typo) is silently discarded by JSON
-			// unmarshal, which would grant the actor the default "always" bypass
-			// mode instead of the caller's intended value.
 			for key := range actorMap {
 				if key != "actor_id" && key != "actor_type" && key != "bypass_mode" {
 					return github.RepositoryRuleset{}, utils.NewToolResultError(fmt.Sprintf("bypass_actors[%d]: unsupported or unrecognized key: %q", i, key))
@@ -830,12 +895,7 @@ func buildRepositoryRulesetFromArgs(args map[string]any) (github.RepositoryRules
 		return github.RepositoryRuleset{}, utils.NewToolResultErrorFromErr("failed to parse ruleset request", err)
 	}
 
-	// github.RepositoryRulesetRules.UnmarshalJSON silently discards rule types and
-	// rule parameters it does not recognize, which would let a typo (e.g.
-	// "require_code_owners_review" instead of "require_code_owner_review") create
-	// a weaker ruleset than the caller requested. Verify every requested rule
-	// type, and every supplied parameter key within it (recursively), survived
-	// the round-trip.
+	// Reject fields silently discarded by go-github's custom ruleset unmarshaler.
 	appliedRules, errResult := rulesetAppliedRules(ruleset.Rules)
 	if errResult != nil {
 		return github.RepositoryRuleset{}, errResult
@@ -852,9 +912,6 @@ func buildRepositoryRulesetFromArgs(args map[string]any) (github.RepositoryRules
 		}
 	}
 
-	// github.RepositoryRulesetConditions has the same silent-drop behavior for
-	// unrecognized keys (e.g. "ref_names" instead of "ref_name"), so verify the
-	// requested conditions survived the round-trip the same way.
 	if requestedConditions, ok := payload["conditions"].(map[string]any); ok {
 		appliedConditions, errResult := rulesetAppliedConditions(ruleset.Conditions)
 		if errResult != nil {
@@ -868,16 +925,8 @@ func buildRepositoryRulesetFromArgs(args map[string]any) (github.RepositoryRules
 	return ruleset, nil
 }
 
-// droppedKeyPath recursively compares a caller-supplied object against its
-// round-tripped counterpart and returns the path of the first key or array
-// element that did not survive (e.g. "required_status_checks[0].integration_id"),
-// or "" if everything survived. A caller-supplied value that is a JSON zero
-// value (false, 0, "", or an empty array/object) is exempt, since it is
-// indistinguishable from a field omitted by a `json:",omitempty"` struct tag
-// on the far side of the round-trip. This round-trip is entirely local (our
-// own JSON marshal/unmarshal of a go-github struct, not a remote API
-// response), so slice order and length are preserved deterministically and
-// array elements are safe to compare by index.
+// droppedKeyPath returns the first caller-supplied field omitted by the local
+// go-github JSON round-trip. JSON zero values may disappear through omitempty.
 func droppedKeyPath(requested, applied map[string]any) string {
 	for key, requestedValue := range requested {
 		appliedValue, ok := applied[key]
@@ -894,9 +943,6 @@ func droppedKeyPath(requested, applied map[string]any) string {
 	return ""
 }
 
-// droppedValuePath recurses into map and array values on behalf of
-// droppedKeyPath. It returns a path suffix beginning with "." (object key) or
-// "[i]" (array index), or "" when requested and applied agree closely enough.
 func droppedValuePath(requested, applied any) string {
 	switch requestedTyped := requested.(type) {
 	case map[string]any:
@@ -930,10 +976,6 @@ func droppedValuePath(requested, applied any) string {
 	}
 }
 
-// isZeroJSONValue reports whether v is the JSON zero value for its type
-// (false, 0, "", nil, or an empty array/object). Such values are
-// indistinguishable from an omitted field once round-tripped through a Go
-// struct field tagged `omitempty`.
 func isZeroJSONValue(v any) bool {
 	switch value := v.(type) {
 	case nil:

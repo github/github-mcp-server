@@ -17,6 +17,12 @@ func TestOAuthScopeCatalog(t *testing.T) {
 	assert.NotContains(t, defaults, string(Workflow))
 	assert.Contains(t, supported, string(Codespace))
 	assert.NotContains(t, defaults, string(Codespace))
+	assert.Contains(t, supported, string(AdminOrg))
+	assert.NotContains(t, defaults, string(AdminOrg))
+	assert.Contains(t, supported, string(ReadEnterprise))
+	assert.NotContains(t, defaults, string(ReadEnterprise))
+	assert.Contains(t, supported, string(AdminEnterprise))
+	assert.NotContains(t, defaults, string(AdminEnterprise))
 }
 
 func TestScopeChecks(t *testing.T) {
@@ -25,8 +31,12 @@ func TestScopeChecks(t *testing.T) {
 	assert.False(t, HasAll([]string{"repo"}, Repo, Workflow))
 	assert.True(t, HasAll([]string{"admin:org"}, ReadOrg))
 	assert.True(t, HasAllScopeNames([]string{"admin:org"}, []string{"read:org"}))
+	assert.True(t, HasAll([]string{"admin:enterprise"}, ReadEnterprise))
+	assert.True(t, HasAllScopeNames([]string{"admin:enterprise"}, []string{"read:enterprise"}))
+	assert.False(t, HasAll([]string{"read:enterprise"}, AdminEnterprise))
 	assert.False(t, HasAllScopeNames([]string{"repo"}, []string{"repo", "workflow"}))
 	assert.Nil(t, ChallengeAll([]string{"repo", "workflow"}, Repo, Workflow))
+	assert.Nil(t, ChallengeAll([]string{"admin:enterprise"}, ReadEnterprise))
 	assert.Equal(t, []string{"repo", "workflow"}, ChallengeAll([]string{"repo"}, Repo, Workflow))
 }
 
@@ -53,6 +63,7 @@ func TestScopeHierarchy(t *testing.T) {
 	assert.Contains(t, ScopeHierarchy[Repo], SecurityEvents)
 	assert.Contains(t, ScopeHierarchy[AdminOrg], WriteOrg)
 	assert.Contains(t, ScopeHierarchy[AdminOrg], ReadOrg)
+	assert.Contains(t, ScopeHierarchy[AdminEnterprise], ReadEnterprise)
 	assert.Contains(t, ScopeHierarchy[WriteOrg], ReadOrg)
 	assert.Contains(t, ScopeHierarchy[Project], ReadProject)
 	assert.Contains(t, ScopeHierarchy[WritePackages], ReadPackages)

@@ -897,6 +897,7 @@ The following sets of tools are available:
   - `actor_name`: The handle for the GitHub user account to filter rule suites on. Used by the 'list_rule_suites' method. (string, optional)
   - `branch`: Branch name. Required for the 'get_rules_for_branch' method. (string, optional)
   - `enterprise`: Enterprise slug. Required when level is 'enterprise'. (string, optional)
+  - `evaluate_status`: Filter rule suites by ruleset evaluation mode. Used by the 'list_rule_suites' method. (string, optional)
   - `includes_parents`: Include rulesets configured at higher levels that also apply. Defaults to true. Used by the 'get' and 'list' methods at the repository level. (boolean, optional)
   - `level`: The level at which the ruleset is configured:
     - 'repository': A ruleset on a single repository (requires 'owner' and 'repo').
@@ -906,14 +907,15 @@ The following sets of tools are available:
     - 'get': Get a specific ruleset by ID (requires 'ruleset_id'). Supported at every level.
     - 'list': List all rulesets. Supported at every level.
     - 'get_rules_for_branch': Get all rules that apply to a branch (requires 'branch'). Repository level only.
-    - 'list_rule_suites': List rule suites, the evaluations of rules against pushes. Repository level only.
-    - 'get_rule_suite': Get a specific rule suite by ID (requires 'rule_suite_id'). Repository level only. (string, required)
+    - 'list_rule_suites': List rule suites, the evaluations of rules against pushes. Repository and organization levels only.
+    - 'get_rule_suite': Get a specific rule suite by ID (requires 'rule_suite_id'). Repository and organization levels only. (string, required)
   - `org`: Organization name. Required when level is 'organization'. (string, optional)
   - `owner`: Repository owner. Required when level is 'repository'. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `ref`: The name of the ref (branch, tag, etc.) to filter rule suites by. Used by the 'list_rule_suites' method. (string, optional)
   - `repo`: Repository name. Required when level is 'repository'. (string, optional)
+  - `repository_name`: Repository name to filter rule suites by. Used by the 'list_rule_suites' method at the organization level. (string, optional)
   - `rule_suite_id`: Rule suite ID. Required for the 'get_rule_suite' method. (number, optional)
   - `rule_suite_result`: The rule suite result to filter by. Used by the 'list_rule_suites' method. (string, optional)
   - `ruleset_id`: Ruleset ID. Required for the 'get' method. (number, optional)

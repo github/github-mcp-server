@@ -4,7 +4,7 @@
     "readOnlyHint": true,
     "title": "Read repository rulesets"
   },
-  "description": "Read rulesets and rule suites at the repository, organization, or enterprise level. Select the level with the 'level' parameter and the operation with the 'method' parameter.",
+  "description": "Read rulesets at the repository, organization, or enterprise level, and rule suites at the repository or organization level. Select the level with the 'level' parameter and the operation with the 'method' parameter.",
   "inputSchema": {
     "properties": {
       "actor_name": {
@@ -17,6 +17,15 @@
       },
       "enterprise": {
         "description": "Enterprise slug. Required when level is 'enterprise'.",
+        "type": "string"
+      },
+      "evaluate_status": {
+        "description": "Filter rule suites by ruleset evaluation mode. Used by the 'list_rule_suites' method.",
+        "enum": [
+          "all",
+          "active",
+          "evaluate"
+        ],
         "type": "string"
       },
       "includes_parents": {
@@ -33,7 +42,7 @@
         "type": "string"
       },
       "method": {
-        "description": "Operation to perform:\n- 'get': Get a specific ruleset by ID (requires 'ruleset_id'). Supported at every level.\n- 'list': List all rulesets. Supported at every level.\n- 'get_rules_for_branch': Get all rules that apply to a branch (requires 'branch'). Repository level only.\n- 'list_rule_suites': List rule suites, the evaluations of rules against pushes. Repository level only.\n- 'get_rule_suite': Get a specific rule suite by ID (requires 'rule_suite_id'). Repository level only.",
+        "description": "Operation to perform:\n- 'get': Get a specific ruleset by ID (requires 'ruleset_id'). Supported at every level.\n- 'list': List all rulesets. Supported at every level.\n- 'get_rules_for_branch': Get all rules that apply to a branch (requires 'branch'). Repository level only.\n- 'list_rule_suites': List rule suites, the evaluations of rules against pushes. Repository and organization levels only.\n- 'get_rule_suite': Get a specific rule suite by ID (requires 'rule_suite_id'). Repository and organization levels only.",
         "enum": [
           "get",
           "list",
@@ -68,6 +77,10 @@
       },
       "repo": {
         "description": "Repository name. Required when level is 'repository'.",
+        "type": "string"
+      },
+      "repository_name": {
+        "description": "Repository name to filter rule suites by. Used by the 'list_rule_suites' method at the organization level.",
         "type": "string"
       },
       "rule_suite_id": {

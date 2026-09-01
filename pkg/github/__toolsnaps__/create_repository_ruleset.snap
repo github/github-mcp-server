@@ -10,6 +10,7 @@
       "bypass_actors": {
         "description": "The actors that can bypass the rules in this ruleset",
         "items": {
+          "additionalProperties": false,
           "properties": {
             "actor_id": {
               "description": "The ID of the actor that can bypass a ruleset",
@@ -39,6 +40,9 @@
               "type": "string"
             }
           },
+          "required": [
+            "actor_type"
+          ],
           "type": "object"
         },
         "type": "array"
@@ -88,6 +92,7 @@
       "rules": {
         "description": "An array of rules within the ruleset. Each rule is an object with a 'type' (e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks') and, for rules that need configuration, a 'parameters' object",
         "items": {
+          "additionalProperties": false,
           "properties": {
             "parameters": {
               "description": "Parameters for rule types that require additional configuration",
