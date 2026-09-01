@@ -2090,6 +2090,112 @@ func Test_CreateIssue(t *testing.T) {
 	}
 }
 
+func TestIssueWriteReportsUnappliedLabels(t *testing.T) {
+	tests := []struct {
+		name               string
+		method             string
+		requestedLabels    []string
+		appliedLabels      []string
+		expectedMissing    string
+		expectedUnexpected string
+	}{
+		{
+			name:               "create reports partially applied labels",
+			method:             "create",
+			requestedLabels:    []string{"bug", "enhancement"},
+			appliedLabels:      []string{"bug"},
+			expectedMissing:    `missing=["enhancement"]`,
+			expectedUnexpected: "unexpected=[]",
+		},
+		{
+			name:               "update reports silently dropped labels",
+			method:             "update",
+			requestedLabels:    []string{"enhancement"},
+			appliedLabels:      []string{"existing"},
+			expectedMissing:    `missing=["enhancement"]`,
+			expectedUnexpected: `unexpected=["existing"]`,
+		},
+		{
+			name:               "update reports labels that were not cleared",
+			method:             "update",
+			requestedLabels:    []string{},
+			appliedLabels:      []string{"existing"},
+			expectedMissing:    "missing=[]",
+			expectedUnexpected: `unexpected=["existing"]`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			responseLabels := make([]*github.Label, 0, len(tc.appliedLabels))
+			for _, label := range tc.appliedLabels {
+				responseLabels = append(responseLabels, &github.Label{Name: label})
+			}
+			responseIssue := &github.Issue{
+				ID:      github.Ptr(int64(123)),
+				Number:  github.Ptr(123),
+				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
+				Labels:  responseLabels,
+			}
+
+			endpoint := PostReposIssuesByOwnerByRepo
+			status := http.StatusCreated
+			if tc.method == "update" {
+				endpoint = PatchReposIssuesByOwnerByRepoByIssueNumber
+				status = http.StatusOK
+			}
+			restHTTPClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				endpoint: mockResponse(t, status, responseIssue),
+			})
+			restRequests := &requestCountingTransport{inner: restHTTPClient.Transport}
+			restHTTPClient.Transport = restRequests
+
+			gqlHTTPClient := githubv4mock.NewMockedHTTPClient()
+			gqlRequests := &requestCountingTransport{inner: gqlHTTPClient.Transport}
+			gqlHTTPClient.Transport = gqlRequests
+
+			requestLabels := make([]any, len(tc.requestedLabels))
+			for i, label := range tc.requestedLabels {
+				requestLabels[i] = label
+			}
+			requestArgs := map[string]any{
+				"method": tc.method,
+				"owner":  "owner",
+				"repo":   "repo",
+				"labels": requestLabels,
+			}
+			if tc.method == "create" {
+				requestArgs["title"] = "Test issue"
+			} else {
+				requestArgs["issue_number"] = float64(123)
+			}
+
+			deps := BaseDeps{
+				Client:    mustNewGHClient(t, restHTTPClient),
+				GQLClient: githubv4.NewClient(gqlHTTPClient),
+			}
+			serverTool := IssueWrite(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(requestArgs)
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Equal(t, 1, restRequests.count, "label verification must use the write response without a readback")
+			assert.Zero(t, gqlRequests.count, "label verification must not make a GraphQL readback")
+
+			resultText := getErrorResult(t, result).Text
+			assert.Contains(t, resultText, "issue "+tc.method+"d but requested labels were not fully applied")
+			assert.Contains(t, resultText, fmt.Sprintf("requested=%q", tc.requestedLabels))
+			assert.Contains(t, resultText, fmt.Sprintf("applied=%q", tc.appliedLabels))
+			assert.Contains(t, resultText, tc.expectedMissing)
+			assert.Contains(t, resultText, tc.expectedUnexpected)
+			assert.Contains(t, resultText, `issue_url="https://github.com/owner/repo/issues/123"`)
+			assert.Contains(t, resultText, "AddLabelsToLabelable permission")
+		})
+	}
+}
+
 // Test_IssueWrite_MCPAppsFeature_UIGate verifies the MCP Apps feature UI gate
 // behavior: UI clients get a form message, non-UI clients execute directly.
 func Test_IssueWrite_MCPAppsFeature_UIGate(t *testing.T) {
