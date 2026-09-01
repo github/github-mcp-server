@@ -1,6 +1,7 @@
 package middleware_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -75,6 +76,38 @@ func TestSetCorsHeadersPreflight(t *testing.T) {
 			assert.NotContains(t, rr.Header().Get("Access-Control-Expose-Headers"), "Mcp-Param-")
 		})
 	}
+}
+
+func TestSetCorsHeadersPreflightBoundsProjectedHeaders(t *testing.T) {
+	const (
+		maxProjectedHeaders = 64
+		requestedHeaders    = 1024
+	)
+
+	requested := make([]string, 0, requestedHeaders*2)
+	expected := strings.Split(fixedAllowedRequestHeaders, ", ")
+	for i := range requestedHeaders {
+		header := fmt.Sprintf("mcp-param-%04d", i)
+		requested = append(requested, header, strings.ToUpper(header))
+		if i < maxProjectedHeaders {
+			expected = append(expected, http.CanonicalHeaderKey(header))
+		}
+	}
+	requestedValue := strings.Join(requested, ", ")
+
+	handler := middleware.SetCorsHeaders(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("preflight reached the inner handler")
+	}))
+	req := httptest.NewRequest(http.MethodOptions, "/", nil)
+	req.Header.Set("Access-Control-Request-Headers", requestedValue)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	allowedValue := rr.Header().Get("Access-Control-Allow-Headers")
+	assert.Equal(t, expected, strings.Split(allowedValue, ", "))
+	assert.NotContains(t, allowedValue, "Mcp-Param-0064")
+	assert.Less(t, len(allowedValue), len(requestedValue))
 }
 
 func TestSetCorsHeadersPostPreservesBehavior(t *testing.T) {

@@ -9,6 +9,8 @@ import (
 	"golang.org/x/net/http/httpguts"
 )
 
+const maxCORSProjectedRequestHeaders = 64
+
 var corsAllowedRequestHeaders = []string{
 	headers.ContentTypeHeader,
 	"Mcp-Session-Id",
@@ -62,7 +64,8 @@ func corsPreflightAllowedRequestHeaders(requestHeaders http.Header) string {
 	}
 
 	prefix := strings.ToLower(headers.MCPParamHeaderPrefix)
-	var projected []string
+	projected := make([]string, 0, maxCORSProjectedRequestHeaders)
+requestedHeaders:
 	for _, value := range requestHeaders.Values("Access-Control-Request-Headers") {
 		for header := range strings.SplitSeq(value, ",") {
 			header = strings.TrimSpace(header)
@@ -80,6 +83,9 @@ func corsPreflightAllowedRequestHeaders(requestHeaders http.Header) string {
 
 			seen[key] = struct{}{}
 			projected = append(projected, key)
+			if len(projected) == maxCORSProjectedRequestHeaders {
+				break requestedHeaders
+			}
 		}
 	}
 
