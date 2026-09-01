@@ -4926,6 +4926,29 @@ func Test_GetLatestRelease(t *testing.T) {
 	}
 }
 
+func Test_GetLatestRelease_SanitizesNameAndBody(t *testing.T) {
+	serverTool := GetLatestRelease(translations.NullTranslationHelper)
+	mockRelease := &github.RepositoryRelease{
+		TagName: "v1.0.0",
+		Name:    github.Ptr(maliciousText),
+		Body:    github.Ptr(maliciousText),
+	}
+	client := mustNewGHClient(t, NewMockedHTTPClient(
+		WithRequestMatch(GetReposReleasesLatestByOwnerByRepo, mockRelease),
+	))
+	deps := BaseDeps{Client: client}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{"owner": "owner", "repo": "repo"})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+
+	var release github.RepositoryRelease
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &release))
+	assert.Equal(t, sanitizedText, release.GetName())
+	assert.Equal(t, sanitizedContentText, release.GetBody())
+}
+
 func Test_GetReleaseByTag(t *testing.T) {
 	serverTool := GetReleaseByTag(translations.NullTranslationHelper)
 	tool := serverTool.Tool
@@ -5095,6 +5118,33 @@ func Test_GetReleaseByTag(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_GetReleaseByTag_SanitizesNameAndBody(t *testing.T) {
+	serverTool := GetReleaseByTag(translations.NullTranslationHelper)
+	mockRelease := &github.RepositoryRelease{
+		TagName: "v1.0.0",
+		Name:    github.Ptr(maliciousText),
+		Body:    github.Ptr(maliciousText),
+	}
+	client := mustNewGHClient(t, NewMockedHTTPClient(
+		WithRequestMatch(GetReposReleasesTagsByOwnerByRepoByTag, mockRelease),
+	))
+	deps := BaseDeps{Client: client}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"owner": "owner",
+		"repo":  "repo",
+		"tag":   "v1.0.0",
+	})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+
+	var release github.RepositoryRelease
+	require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &release))
+	assert.Equal(t, sanitizedText, release.GetName())
+	assert.Equal(t, sanitizedContentText, release.GetBody())
 }
 
 // Test_GetReleaseByTag_IFC_FeatureFlag verifies the IFC label on
@@ -6200,7 +6250,7 @@ func Test_GetFileBlame(t *testing.T) {
 				var br BlameResult
 				require.NoError(t, json.Unmarshal([]byte(result), &br))
 				require.Contains(t, br.Commits, "badc0ffee0000")
-				assert.Equal(t, sanitizedText, br.Commits["badc0ffee0000"].MessageHeadline)
+				assert.Equal(t, sanitizedContentText, br.Commits["badc0ffee0000"].MessageHeadline)
 				assert.NotContains(t, result, "<script>")
 				assert.NotContains(t, result, "Long body that should not appear")
 			},

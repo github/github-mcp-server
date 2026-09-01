@@ -293,7 +293,7 @@ func linkHasVisibleLabel(link ast.Node, source []byte) bool {
 			if textNode.HardLineBreak() {
 				label = bytes.TrimSuffix(label, []byte{'\\'})
 			}
-			if strings.TrimSpace(string(label)) != "" {
+			if labelHasVisibleRune(label) {
 				visible = true
 				return ast.WalkStop, nil
 			}
@@ -313,15 +313,41 @@ func linkHasVisibleLabel(link ast.Node, source []byte) bool {
 	return visible
 }
 
+func labelHasVisibleRune(label []byte) bool {
+	for _, r := range string(label) {
+		if unicode.IsSpace(r) ||
+			unicode.IsControl(r) ||
+			unicode.IsMark(r) ||
+			r == '*' ||
+			r == '_' ||
+			r == '~' ||
+			shouldRemoveRune(r) ||
+			isVariationSelector(r) ||
+			r == 0x200D ||
+			r == 0x115F ||
+			r == 0x1160 ||
+			r == 0x2800 ||
+			r == 0x3164 ||
+			r == 0xFFA0 ||
+			r == 0x13441 ||
+			r == 0x13442 {
+			continue
+		}
+		return unicode.IsGraphic(r)
+	}
+	return false
+}
+
 func neutralizeGitHubMarkdownExtensions(input string) string {
 	if !strings.Contains(input, "$") && !strings.Contains(input, "[^") {
 		return input
 	}
 
 	codeMask := markdownCodeMask(input)
+	urlMask := markdownURLMask(input)
 	var mutations []sourceMutation
 	for offset := range len(input) {
-		if codeMask[offset] {
+		if codeMask[offset] || urlMask[offset] {
 			continue
 		}
 		if strings.HasPrefix(input[offset:], "[^") && !isBackslashEscaped(input, offset) {
@@ -332,7 +358,7 @@ func neutralizeGitHubMarkdownExtensions(input string) string {
 			})
 		}
 	}
-	for _, offset := range githubMathDelimiters(input, codeMask) {
+	for _, offset := range githubMathDelimiters(input, codeMask, urlMask) {
 		mutations = append(mutations, sourceMutation{
 			start:       offset,
 			stop:        offset + 1,
@@ -345,7 +371,7 @@ func neutralizeGitHubMarkdownExtensions(input string) string {
 	return applySourceMutations(input, mutations)
 }
 
-func githubMathDelimiters(input string, codeMask []bool) []int {
+func githubMathDelimiters(input string, codeMask, urlMask []bool) []int {
 	var (
 		openings        []int
 		inlineOpening   = -1
@@ -360,17 +386,19 @@ func githubMathDelimiters(input string, codeMask []bool) []int {
 			offset++
 			continue
 		}
-		if codeMask[offset] || isBackslashEscaped(input, offset) {
+		if codeMask[offset] || urlMask[offset] {
 			offset++
 			continue
 		}
 
 		switch {
-		case strings.HasPrefix(input[offset:], "`$") && backtickOpening >= 0:
+		case strings.HasPrefix(input[offset:], "`$") &&
+			backtickOpening >= 0 &&
+			!isBackslashEscaped(input, offset+1):
 			openings = append(openings, backtickOpening, offset+1)
 			backtickOpening = -1
 			offset += 2
-		case strings.HasPrefix(input[offset:], "$$"):
+		case strings.HasPrefix(input[offset:], "$$") && !isBackslashEscaped(input, offset):
 			if blockOpening < 0 {
 				blockOpening = offset
 			} else {
@@ -378,12 +406,12 @@ func githubMathDelimiters(input string, codeMask []bool) []int {
 				blockOpening = -1
 			}
 			offset += 2
-		case strings.HasPrefix(input[offset:], "$`"):
+		case strings.HasPrefix(input[offset:], "$`") && !isBackslashEscaped(input, offset):
 			if backtickOpening < 0 {
 				backtickOpening = offset
 			}
 			offset += 2
-		case input[offset] == '$':
+		case input[offset] == '$' && !isBackslashEscaped(input, offset):
 			if inlineOpening < 0 {
 				inlineOpening = offset
 			} else {
@@ -396,6 +424,85 @@ func githubMathDelimiters(input string, codeMask []bool) []int {
 		}
 	}
 	return openings
+}
+
+func markdownURLMask(input string) []bool {
+	mask := make([]bool, len(input))
+	for start := 0; start < len(input); {
+		for start < len(input) && unicode.IsSpace(rune(input[start])) {
+			start++
+		}
+		stop := start
+		for stop < len(input) && !unicode.IsSpace(rune(input[stop])) {
+			stop++
+		}
+		token := input[start:stop]
+		if urlStart := urlStart(token); urlStart >= 0 {
+			for offset := start + urlStart; offset < stop; offset++ {
+				mask[offset] = true
+			}
+		}
+		start = stop
+	}
+
+	for start := 0; start+2 < len(input); start++ {
+		if input[start] != ']' ||
+			input[start+1] != '(' ||
+			!hasActiveLinkOpener(input, start) {
+			continue
+		}
+		destinationStart := start + 2
+		stop := destinationStart
+		for stop < len(input) &&
+			input[stop] != ')' &&
+			!unicode.IsSpace(rune(input[stop])) {
+			stop++
+		}
+		if stop < len(input) && input[stop] == ')' {
+			for offset := destinationStart; offset < stop; offset++ {
+				mask[offset] = true
+			}
+		}
+		start = stop
+	}
+	return mask
+}
+
+func hasActiveLinkOpener(input string, closingLabel int) bool {
+	for offset := closingLabel - 1; offset >= 0 && input[offset] != '\n'; offset-- {
+		if input[offset] == '[' {
+			return !isBackslashEscaped(input, offset)
+		}
+	}
+	return false
+}
+
+func urlStart(token string) int {
+	if separator := strings.Index(token, "://"); separator > 0 {
+		start := separator - 1
+		for start > 0 && isURLSchemeCharacter(token[start-1]) {
+			start--
+		}
+		if isASCIILetter(token[start]) {
+			return start
+		}
+	}
+	if start := strings.Index(token, "mailto:"); start >= 0 {
+		return start
+	}
+	return strings.Index(token, "www.")
+}
+
+func isURLSchemeCharacter(b byte) bool {
+	return isASCIILetter(b) ||
+		(b >= '0' && b <= '9') ||
+		b == '+' ||
+		b == '-' ||
+		b == '.'
+}
+
+func isASCIILetter(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }
 
 func markdownCodeMask(input string) []bool {
@@ -547,16 +654,13 @@ func escapeMarkdownSyntaxOutsideCode(input string) string {
 // - Unicode tag characters: U+E0001, U+E0020–U+E007F
 // - BiDi control characters: U+202A–U+202E, U+2066–U+2069
 // - BiDi/directional marks: U+200E, U+200F, U+061C
-// - Hidden modifier characters: U+200B, U+200C, U+00AD, U+FEFF, U+180E, U+2060–U+2064
-// - Orphaned variation selectors: U+FE00–U+FE0F, U+E0100–U+E01EF
+// - Hidden modifier characters: U+200B–U+200D, U+00AD, U+FEFF, U+180E, U+2060–U+2064
+// - Variation selectors: U+FE00–U+FE0F, U+E0100–U+E01EF
 //
-// Variation selectors are filtered contextually rather than unconditionally.
-// A selector that forms a plausible variation sequence with the character it
-// follows is preserved, so ordinary content such as "✈️", "1️⃣" and CJK
-// ideographic variation sequences survive unchanged. Selectors that cannot
-// belong to such a sequence — those at the start of the input, those following
-// a removed or non-graphic character, and runs of consecutive selectors — are
-// removed, which is the shape used to smuggle hidden payloads.
+// Variation selectors are removed unconditionally. Without validating every
+// pair against the Unicode variation registries, accepting them provides a
+// covert alphabet that can encode arbitrary hidden content between visible
+// base characters. The base characters remain, but presentation may change.
 //
 // The scan is copy-on-first-match: clean input is returned unchanged with no
 // allocation.
@@ -825,9 +929,9 @@ func decodedEntityIsVisible(input string, prev rune, prevKept bool) (rune, bool,
 	return prev, prevKept, visible
 }
 
-func keepVisibleRune(r, prev rune, prevKept bool) bool {
+func keepVisibleRune(r, _ rune, _ bool) bool {
 	if isVariationSelector(r) {
-		return prevKept && isValidVariationSequence(prev, r)
+		return false
 	}
 	return !shouldRemoveRune(r)
 }
@@ -1114,7 +1218,8 @@ var safeCodeFenceLanguages = map[string]struct{}{
 	"console": {}, "cpp": {}, "csharp": {}, "cs": {}, "css": {}, "dart": {},
 	"diff": {}, "dockerfile": {}, "elixir": {}, "erlang": {}, "ex": {}, "fish": {},
 	"go": {}, "golang": {}, "graphql": {}, "haskell": {}, "hcl": {}, "html": {},
-	"ini": {}, "java": {}, "javascript": {}, "js": {}, "json": {}, "jsonc": {},
+	"env": {}, "http": {}, "ini": {}, "java": {}, "javascript": {}, "js": {},
+	"json": {}, "jsonc": {},
 	"jsx": {}, "kotlin": {}, "kt": {}, "less": {}, "lisp": {}, "lua": {},
 	"makefile": {}, "markdown": {}, "md": {}, "nix": {}, "objective-c": {},
 	"ocaml": {}, "patch": {}, "perl": {}, "php": {}, "pl": {}, "plaintext": {},
@@ -1158,13 +1263,16 @@ func getPolicy() *bluemonday.Policy {
 func shouldRemoveRune(r rune) bool {
 	switch r {
 	case 0x200B, // ZERO WIDTH SPACE
-		0x200C, // ZERO WIDTH NON-JOINER
-		0x200E, // LEFT-TO-RIGHT MARK
-		0x200F, // RIGHT-TO-LEFT MARK
-		0x061C, // ARABIC LETTER MARK
-		0x00AD, // SOFT HYPHEN
-		0xFEFF, // ZERO WIDTH NO-BREAK SPACE
-		0x180E: // MONGOLIAN VOWEL SEPARATOR
+		0x200C,  // ZERO WIDTH NON-JOINER
+		0x200D,  // ZERO WIDTH JOINER
+		0x200E,  // LEFT-TO-RIGHT MARK
+		0x200F,  // RIGHT-TO-LEFT MARK
+		0x061C,  // ARABIC LETTER MARK
+		0x00AD,  // SOFT HYPHEN
+		0xFEFF,  // ZERO WIDTH NO-BREAK SPACE
+		0x180E,  // MONGOLIAN VOWEL SEPARATOR
+		0x13441, // EGYPTIAN HIEROGLYPH FULL BLANK
+		0x13442: // EGYPTIAN HIEROGLYPH HALF BLANK
 		return true
 	case 0xE0001: // TAG
 		return true
@@ -1195,35 +1303,8 @@ func shouldRemoveRune(r rune) bool {
 // from the Variation Selectors block (VS1–VS16) or the Variation Selectors
 // Supplement (VS17–VS256).
 func isVariationSelector(r rune) bool {
-	return (r >= 0xFE00 && r <= 0xFE0F) || (r >= 0xE0100 && r <= 0xE01EF)
-}
-
-// isValidVariationSequence reports whether selector can legitimately apply to
-// the base character it immediately follows.
-//
-// A base may carry at most one selector, so a selector following another
-// selector is always rejected; consecutive selectors carry no rendering meaning
-// and are the primary way arbitrary data is hidden in text.
-func isValidVariationSequence(base, selector rune) bool {
-	if isVariationSelector(base) || !unicode.IsGraphic(base) || unicode.IsSpace(base) {
-		return false
-	}
-
-	// The Ideographic Variation Database only registers sequences whose base is
-	// a CJK ideograph, so supplement selectors are meaningless elsewhere.
-	if selector >= 0xE0100 {
-		return unicode.Is(unicode.Han, base)
-	}
-
-	// Standardized variation sequences use non-ASCII bases, except for the
-	// keycap bases '#', '*' and the ASCII digits, which take a presentation
-	// selector (VS15/VS16) only.
-	if base < utf8.RuneSelf {
-		if base != '#' && base != '*' && (base < '0' || base > '9') {
-			return false
-		}
-		return selector == 0xFE0E || selector == 0xFE0F
-	}
-
-	return true
+	return (r >= 0x180B && r <= 0x180D) ||
+		r == 0x180F ||
+		(r >= 0xFE00 && r <= 0xFE0F) ||
+		(r >= 0xE0100 && r <= 0xE01EF)
 }
