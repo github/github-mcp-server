@@ -40,7 +40,18 @@
               "type": "array"
             },
             "default_value": {
-              "description": "Organization and enterprise levels only: the value applied when a repository does not set the property. A string or an array of strings."
+              "description": "Organization and enterprise levels only: the value applied when a repository does not set the property. A string or an array of strings.",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              ]
             },
             "description": {
               "description": "Organization and enterprise levels only: a short description of the property.",
@@ -55,7 +66,21 @@
               "type": "boolean"
             },
             "value": {
-              "description": "Repository level only: the value to assign. A string, an array of strings, or null to clear the value."
+              "description": "Repository level only: the value to assign. A string, an array of strings, or null to clear the value.",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "value_type": {
               "description": "Organization and enterprise levels only: the data type of the property. Required when defining a property.",

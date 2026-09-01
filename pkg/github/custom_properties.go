@@ -14,19 +14,12 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// customPropertiesLevelDescription documents the "level" parameter shared by
-// the custom properties read and write tools. The repository level operates on
-// the property VALUES assigned to a repository, while the organization and
-// enterprise levels operate on the property DEFINITIONS (schema).
 const customPropertiesLevelDescription = "The level at which custom properties are managed:\n" +
 	"- 'repository': The custom property VALUES assigned to a repository (requires 'owner' and 'repo').\n" +
 	"- 'organization': The custom property DEFINITIONS (schema) for an organization (requires 'org').\n" +
 	"- 'enterprise': The custom property DEFINITIONS (schema) for an enterprise (requires 'enterprise')."
 
-// CustomPropertiesRead creates a tool for read operations on custom properties
-// at the repository, organization, or enterprise level. The level is selected
-// with the "level" parameter. Repository reads return property values;
-// organization and enterprise reads return property definitions.
+// CustomPropertiesRead creates the custom properties read tool.
 func CustomPropertiesRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataGovernance,
@@ -91,7 +84,6 @@ func CustomPropertiesRead(t translations.TranslationHelperFunc) inventory.Server
 	)
 }
 
-// customPropertiesReadRepository handles custom_properties_read calls with level="repository".
 func customPropertiesReadRepository(ctx context.Context, client *github.Client, args map[string]any) (*mcp.CallToolResult, any, error) {
 	owner, err := RequiredParam[string](args, "owner")
 	if err != nil {
@@ -113,7 +105,6 @@ func customPropertiesReadRepository(ctx context.Context, client *github.Client, 
 	return MarshalledTextResult(properties), nil, nil
 }
 
-// customPropertiesReadOrganization handles custom_properties_read calls with level="organization".
 func customPropertiesReadOrganization(ctx context.Context, client *github.Client, args map[string]any) (*mcp.CallToolResult, any, error) {
 	org, err := RequiredParam[string](args, "org")
 	if err != nil {
@@ -131,7 +122,6 @@ func customPropertiesReadOrganization(ctx context.Context, client *github.Client
 	return MarshalledTextResult(properties), nil, nil
 }
 
-// customPropertiesReadEnterprise handles custom_properties_read calls with level="enterprise".
 func customPropertiesReadEnterprise(ctx context.Context, client *github.Client, args map[string]any) (*mcp.CallToolResult, any, error) {
 	enterprise, err := RequiredParam[string](args, "enterprise")
 	if err != nil {
@@ -149,10 +139,7 @@ func customPropertiesReadEnterprise(ctx context.Context, client *github.Client, 
 	return MarshalledTextResult(properties), nil, nil
 }
 
-// CustomPropertiesWrite creates a tool for create-or-update operations on
-// custom properties at the repository, organization, or enterprise level. The
-// level is selected with the "level" parameter. Repository writes set property
-// values; organization and enterprise writes define property schemas.
+// CustomPropertiesWrite creates the custom properties write tool.
 func CustomPropertiesWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataGovernance,
@@ -222,7 +209,6 @@ func CustomPropertiesWrite(t translations.TranslationHelperFunc) inventory.Serve
 	)
 }
 
-// customPropertiesWriteRepository handles custom_properties_write calls with level="repository".
 func customPropertiesWriteRepository(ctx context.Context, client *github.Client, args map[string]any) (*mcp.CallToolResult, any, error) {
 	owner, err := RequiredParam[string](args, "owner")
 	if err != nil {
@@ -232,7 +218,7 @@ func customPropertiesWriteRepository(ctx context.Context, client *github.Client,
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
-	values, errResult := parseCustomProperties[*github.CustomPropertyValue](args)
+	values, errResult := parseCustomProperties[*github.CustomPropertyValue](args, "value")
 	if errResult != nil {
 		return errResult, nil, nil
 	}
@@ -248,13 +234,12 @@ func customPropertiesWriteRepository(ctx context.Context, client *github.Client,
 	return utils.NewToolResultText("Repository custom property values updated successfully"), nil, nil
 }
 
-// customPropertiesWriteOrganization handles custom_properties_write calls with level="organization".
 func customPropertiesWriteOrganization(ctx context.Context, client *github.Client, args map[string]any) (*mcp.CallToolResult, any, error) {
 	org, err := RequiredParam[string](args, "org")
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
-	properties, errResult := parseCustomProperties[*github.CustomProperty](args)
+	properties, errResult := parseCustomProperties[*github.CustomProperty](args, "value_type")
 	if errResult != nil {
 		return errResult, nil, nil
 	}
@@ -270,13 +255,12 @@ func customPropertiesWriteOrganization(ctx context.Context, client *github.Clien
 	return MarshalledTextResult(updated), nil, nil
 }
 
-// customPropertiesWriteEnterprise handles custom_properties_write calls with level="enterprise".
 func customPropertiesWriteEnterprise(ctx context.Context, client *github.Client, args map[string]any) (*mcp.CallToolResult, any, error) {
 	enterprise, err := RequiredParam[string](args, "enterprise")
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
-	properties, errResult := parseCustomProperties[*github.CustomProperty](args)
+	properties, errResult := parseCustomProperties[*github.CustomProperty](args, "value_type")
 	if errResult != nil {
 		return errResult, nil, nil
 	}
@@ -292,10 +276,7 @@ func customPropertiesWriteEnterprise(ctx context.Context, client *github.Client,
 	return MarshalledTextResult(updated), nil, nil
 }
 
-// customPropertyItemSchema describes a single item of the "properties" array
-// for custom_properties_write. It covers both a repository property value and
-// an organization or enterprise property definition; which fields apply
-// depends on the "level" argument.
+// customPropertyItemSchema combines repository values with organization and enterprise definitions.
 func customPropertyItemSchema() *jsonschema.Schema {
 	return &jsonschema.Schema{
 		Type: "object",
@@ -306,6 +287,14 @@ func customPropertyItemSchema() *jsonschema.Schema {
 			},
 			"value": {
 				Description: "Repository level only: the value to assign. A string, an array of strings, or null to clear the value.",
+				OneOf: []*jsonschema.Schema{
+					{Type: "string"},
+					{
+						Type:  "array",
+						Items: &jsonschema.Schema{Type: "string"},
+					},
+					{Type: "null"},
+				},
 			},
 			"value_type": {
 				Type:        "string",
@@ -318,6 +307,13 @@ func customPropertyItemSchema() *jsonschema.Schema {
 			},
 			"default_value": {
 				Description: "Organization and enterprise levels only: the value applied when a repository does not set the property. A string or an array of strings.",
+				OneOf: []*jsonschema.Schema{
+					{Type: "string"},
+					{
+						Type:  "array",
+						Items: &jsonschema.Schema{Type: "string"},
+					},
+				},
 			},
 			"description": {
 				Type:        "string",
@@ -338,10 +334,7 @@ func customPropertyItemSchema() *jsonschema.Schema {
 	}
 }
 
-// parseCustomProperties reads the "properties" array argument and decodes it into
-// the requested go-github type. It returns a non-nil *mcp.CallToolResult
-// describing the problem when the argument is missing or malformed.
-func parseCustomProperties[T any](args map[string]any) ([]T, *mcp.CallToolResult) {
+func parseCustomProperties[T any](args map[string]any, requiredItemField string) ([]T, *mcp.CallToolResult) {
 	raw, ok := args["properties"]
 	if !ok || raw == nil {
 		return nil, utils.NewToolResultError("properties parameter is required")
@@ -349,6 +342,15 @@ func parseCustomProperties[T any](args map[string]any) ([]T, *mcp.CallToolResult
 	arr, ok := raw.([]any)
 	if !ok {
 		return nil, utils.NewToolResultError("properties parameter must be an array")
+	}
+	for i, rawProperty := range arr {
+		property, ok := rawProperty.(map[string]any)
+		if !ok {
+			return nil, utils.NewToolResultError(fmt.Sprintf("properties[%d] must be an object", i))
+		}
+		if _, ok := property[requiredItemField]; !ok {
+			return nil, utils.NewToolResultError(fmt.Sprintf("properties[%d].%s is required", i, requiredItemField))
+		}
 	}
 
 	encoded, err := json.Marshal(arr)
