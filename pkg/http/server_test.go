@@ -282,15 +282,21 @@ func TestOAuthChallengeMetadataRouteContracts(t *testing.T) {
 			metadataURL,
 		)
 
-		req = httptest.NewRequest(http.MethodGet, strings.TrimPrefix(metadataURL, baseURL), nil)
-		req.Header.Set("Origin", "https://confer.to")
-		rec = httptest.NewRecorder()
-		router.ServeHTTP(rec, req)
+		metadataPaths := []string{
+			strings.TrimPrefix(metadataURL, baseURL),
+			oauth.OAuthProtectedResourcePrefix + queryPath,
+		}
+		for _, metadataPath := range metadataPaths {
+			req = httptest.NewRequest(http.MethodGet, metadataPath, nil)
+			req.Header.Set("Origin", "https://confer.to")
+			rec = httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
 
-		require.Equal(t, http.StatusOK, rec.Code)
-		var metadata map[string]any
-		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &metadata))
-		assert.Equal(t, baseURL+"/mcp"+queryPath, metadata["resource"])
+			require.Equal(t, http.StatusOK, rec.Code)
+			var metadata map[string]any
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &metadata))
+			assert.Equal(t, baseURL+"/mcp"+queryPath, metadata["resource"])
+		}
 	})
 
 	req := httptest.NewRequest(

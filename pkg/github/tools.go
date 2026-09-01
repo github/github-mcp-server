@@ -159,9 +159,9 @@ var (
 	FeatureFlagPullRequestsGranular = "pull_requests_granular"
 )
 
-// HeaderAllowedFeatureFlags returns the feature flags that clients may enable via
-// the X-MCP-Features header. It delegates to AllowedFeatureFlags as the single
-// source of truth.
+// HeaderAllowedFeatureFlags returns the feature flags that clients may enable
+// through the X-MCP-Features header or features URL query parameter. It
+// delegates to AllowedFeatureFlags as the single source of truth.
 func HeaderAllowedFeatureFlags() []string {
 	return slices.Clone(AllowedFeatureFlags)
 }

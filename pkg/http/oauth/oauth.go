@@ -187,10 +187,6 @@ func ResolveResourcePath(r *http.Request, cfg *Config) string {
 }
 
 // buildResourceURL constructs the full resource URL for OAuth metadata.
-// The request's query string is preserved: MCP clients that receive a server
-// URL such as /mcp/x/issues?features=... identify the protected resource by
-// exact string match against metadata.resource (RFC 9728), so dropping the
-// query would make standards-compliant clients reject the metadata.
 func (h *AuthHandler) buildResourceURL(r *http.Request, resourcePath string) string {
 	host, scheme := GetEffectiveHostAndScheme(r, h.cfg)
 	baseURL := fmt.Sprintf("%s://%s", scheme, host)
@@ -203,13 +199,12 @@ func (h *AuthHandler) buildResourceURL(r *http.Request, resourcePath string) str
 	if !strings.HasPrefix(resourcePath, "/") {
 		resourcePath = "/" + resourcePath
 	}
-	return AppendQuery(baseURL+resourcePath, r.URL.RawQuery)
+	return appendRawQuery(baseURL+resourcePath, r.URL.RawQuery)
 }
 
-// AppendQuery appends rawQuery to target when non-empty. It is shared by the
-// resource URL and the advertised metadata URL so both consistently carry the
-// same query string as the MCP server URL the client connects to.
-func AppendQuery(target, rawQuery string) string {
+// appendRawQuery avoids re-encoding the resource identifier that RFC 9728
+// clients compare as an exact string.
+func appendRawQuery(target, rawQuery string) string {
 	if rawQuery == "" {
 		return target
 	}
@@ -268,9 +263,7 @@ func BuildResourceMetadataURL(r *http.Request, cfg *Config, resourcePath string)
 	} else {
 		metadataURL = fmt.Sprintf("%s://%s%s%s", scheme, host, OAuthProtectedResourcePrefix, suffix)
 	}
-	// Preserve the request query so the advertised metadata endpoint matches
-	// the full resource identifier, including feature-flag query parameters.
-	return AppendQuery(metadataURL, r.URL.RawQuery)
+	return appendRawQuery(metadataURL, r.URL.RawQuery)
 }
 
 func normalizeBasePath(path string) string {

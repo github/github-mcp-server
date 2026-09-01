@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
@@ -384,6 +385,21 @@ func TestBuildResourceMetadataURL(t *testing.T) {
 			resourcePath: "/mcp",
 			expectedURL:  "http://api.example.com/.well-known/oauth-protected-resource/mcp?features=a,b",
 		},
+		{
+			name: "raw query encoding and ordering are preserved",
+			cfg: &Config{
+				BaseURL: "https://custom.example.com",
+			},
+			setupRequest: func() *http.Request {
+				return httptest.NewRequest(
+					http.MethodGet,
+					"/mcp?features=issue_dependencies%2Cfile_blame&client=web%20ide",
+					nil,
+				)
+			},
+			resourcePath: "/mcp",
+			expectedURL:  "https://custom.example.com/.well-known/oauth-protected-resource/mcp?features=issue_dependencies%2Cfile_blame&client=web%20ide",
+		},
 	}
 
 	for _, tc := range tests {
@@ -485,6 +501,20 @@ func TestHandleProtectedResource(t *testing.T) {
 			},
 		},
 		{
+			name: "path with feature query",
+			cfg: &Config{
+				BaseURL: "https://api.example.com",
+			},
+			path:               OAuthProtectedResourcePrefix + "/mcp/x/repos?features=issue_dependencies",
+			host:               "api.example.com",
+			method:             http.MethodGet,
+			expectedStatusCode: http.StatusOK,
+			validateResponse: func(t *testing.T, body map[string]any) {
+				t.Helper()
+				assert.Equal(t, "https://api.example.com/mcp/x/repos?features=issue_dependencies", body["resource"])
+			},
+		},
+		{
 			name: "custom authorization server in response",
 			cfg: &Config{
 				BaseURL:             "https://api.example.com",
@@ -580,11 +610,24 @@ func TestRegisterRoutes(t *testing.T) {
 			for _, trailingSlash := range []string{"", "/"} {
 				route := OAuthProtectedResourcePrefix + basePath + resourcePath + trailingSlash
 				t.Run("route:"+route, func(t *testing.T) {
-					req := httptest.NewRequest(http.MethodGet, route, nil)
+					queryRoute := route + "?features=issue_dependencies"
+					req := httptest.NewRequest(http.MethodGet, queryRoute, nil)
 					req.Host = "api.example.com"
 					rec := httptest.NewRecorder()
 					router.ServeHTTP(rec, req)
-					assert.Equal(t, http.StatusOK, rec.Code, "GET %s should return 200", route)
+					require.Equal(t, http.StatusOK, rec.Code, "GET %s should return 200", queryRoute)
+
+					var metadata map[string]any
+					require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &metadata))
+					resourcePath := resolveResourcePath(
+						strings.TrimPrefix(route, OAuthProtectedResourcePrefix),
+						"",
+					)
+					assert.Equal(
+						t,
+						"https://api.example.com"+resourcePath+"?features=issue_dependencies",
+						metadata["resource"],
+					)
 
 					req = httptest.NewRequest(http.MethodOptions, route, nil)
 					req.Host = "api.example.com"

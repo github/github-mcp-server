@@ -7,6 +7,7 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestWithRequestConfigFeatureSelection(t *testing.T) {
@@ -16,11 +17,13 @@ func TestWithRequestConfigFeatureSelection(t *testing.T) {
 		headerSet    bool
 		headerValue  string
 		wantFeatures []string
+		wantPresent  bool
 	}{
 		{
 			name:         "query parameter only",
 			url:          "/?features=mcp_holdback_consolidated_projects",
 			wantFeatures: []string{"mcp_holdback_consolidated_projects"},
+			wantPresent:  true,
 		},
 		{
 			name:         "header only",
@@ -28,6 +31,7 @@ func TestWithRequestConfigFeatureSelection(t *testing.T) {
 			headerSet:    true,
 			headerValue:  "mcp_holdback_consolidated_projects",
 			wantFeatures: []string{"mcp_holdback_consolidated_projects"},
+			wantPresent:  true,
 		},
 		{
 			name:         "header wins over query parameter, never combined",
@@ -35,12 +39,14 @@ func TestWithRequestConfigFeatureSelection(t *testing.T) {
 			headerSet:    true,
 			headerValue:  "flag_from_header",
 			wantFeatures: []string{"flag_from_header"},
+			wantPresent:  true,
 		},
 		{
 			name:         "empty header suppresses query parameter",
 			url:          "/?features=flag_from_query",
 			headerSet:    true,
 			wantFeatures: []string{},
+			wantPresent:  true,
 		},
 		{
 			name:         "whitespace-only header suppresses query parameter",
@@ -48,6 +54,7 @@ func TestWithRequestConfigFeatureSelection(t *testing.T) {
 			headerSet:    true,
 			headerValue:  "  , \t ",
 			wantFeatures: []string{},
+			wantPresent:  true,
 		},
 		{
 			name:         "unknown header suppresses query parameter",
@@ -55,6 +62,7 @@ func TestWithRequestConfigFeatureSelection(t *testing.T) {
 			headerSet:    true,
 			headerValue:  "unknown_from_header",
 			wantFeatures: []string{"unknown_from_header"},
+			wantPresent:  true,
 		},
 		{
 			name:         "empty query value with header",
@@ -62,6 +70,13 @@ func TestWithRequestConfigFeatureSelection(t *testing.T) {
 			headerSet:    true,
 			headerValue:  "flag_from_header",
 			wantFeatures: []string{"flag_from_header"},
+			wantPresent:  true,
+		},
+		{
+			name:         "empty query value stores an explicit empty selection",
+			url:          "/?features=",
+			wantFeatures: []string{},
+			wantPresent:  true,
 		},
 		{
 			name:         "no channel present stores nothing",
@@ -85,17 +100,13 @@ func TestWithRequestConfigFeatureSelection(t *testing.T) {
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
 
-			if tc.wantFeatures == nil && len(got) == 0 {
-				return
+			assert.Equal(t, tc.wantFeatures, got)
+			if tc.wantPresent {
+				assert.NotNil(t, got)
+			} else {
+				assert.Nil(t, got)
 			}
-			if len(got) != len(tc.wantFeatures) {
-				t.Fatalf("got features %v, want %v", got, tc.wantFeatures)
-			}
-			for i := range tc.wantFeatures {
-				if got[i] != tc.wantFeatures[i] {
-					t.Fatalf("got features %v, want %v", got, tc.wantFeatures)
-				}
-			}
+			assert.Contains(t, rec.Header().Values(headers.VaryHeader), headers.MCPFeaturesHeader)
 		})
 	}
 }

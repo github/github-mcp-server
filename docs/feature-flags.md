@@ -23,6 +23,14 @@ When both the query parameter and the header are present, the header wins —
 even when its value is empty, whitespace-only, or contains only unknown flags.
 The two channels are never combined.
 
+The complete query string is preserved during OAuth protected-resource metadata
+discovery because it is part of the canonical resource identifier. Query
+parameters also participate in HTTP cache keys, while MCP responses vary on
+`X-MCP-Features` so a header override cannot reuse a response selected for a
+different feature set. Feature names are configuration identifiers, not
+secrets; as with any URL query value, they may appear in client history, proxy
+logs, and server access logs.
+
 Only flags listed in
 [`AllowedFeatureFlags`](../pkg/github/feature_flags.go) can be enabled by
 end users. Insiders-only flags are not user-toggleable.
@@ -364,7 +372,7 @@ runtime behavior (such as output formatting) won't appear here.
 ### `thread_resolution_reason`
 
 - **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews
-  - **Required OAuth Scopes**: `repo`
+  - **OAuth Challenge Scopes**: `repo`
   - `body`: Review comment text (string, optional)
   - `commitID`: SHA of commit to review (string, optional)
   - `event`: Review action to perform. (string, optional)

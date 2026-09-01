@@ -177,9 +177,9 @@ func testTools() []inventory.ServerTool {
 		mockTool("create_issue", "issues", false),
 		mockTool("list_pull_requests", "pull_requests", true),
 		mockTool("create_pull_request", "pull_requests", false),
-		// Feature-flagged tools for testing X-MCP-Features header
-		mockToolWithFeatureFlag("needs_holdback", "repos", true, "mcp_holdback_consolidated_projects", ""),
-		mockToolWithFeatureFlag("hidden_by_holdback", "repos", true, "", "mcp_holdback_consolidated_projects"),
+		// Feature-flagged tools for testing per-request feature selection.
+		mockToolWithFeatureFlag("needs_holdback", "repos", true, github.FeatureFlagIssueDependencies, ""),
+		mockToolWithFeatureFlag("hidden_by_holdback", "repos", true, "", github.FeatureFlagIssueDependencies),
 	}
 }
 
@@ -293,13 +293,36 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			name: "X-MCP-Features header enables flagged tool",
 			path: "/",
 			headers: map[string]string{
-				headers.MCPFeaturesHeader: "mcp_holdback_consolidated_projects",
+				headers.MCPFeaturesHeader: github.FeatureFlagIssueDependencies,
 			},
 			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "needs_holdback"},
 		},
 		{
 			name: "X-MCP-Features header with unknown flag is ignored",
 			path: "/",
+			headers: map[string]string{
+				headers.MCPFeaturesHeader: "unknown_flag",
+			},
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "hidden_by_holdback"},
+		},
+		{
+			name:          "features query parameter enables allowlisted feature",
+			path:          "/?features=" + github.FeatureFlagIssueDependencies,
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "needs_holdback"},
+		},
+		{
+			name:          "features query parameter works with toolset and readonly routes",
+			path:          "/x/repos/readonly?features=" + github.FeatureFlagIssueDependencies,
+			expectedTools: []string{"get_file_contents", "needs_holdback"},
+		},
+		{
+			name:          "unknown feature in query parameter is ignored",
+			path:          "/?features=unknown_flag",
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "hidden_by_holdback"},
+		},
+		{
+			name: "unknown header suppresses allowlisted query feature",
+			path: "/?features=" + github.FeatureFlagIssueDependencies,
 			headers: map[string]string{
 				headers.MCPFeaturesHeader: "unknown_flag",
 			},
@@ -346,10 +369,13 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			var capturedInventory *inventory.Inventory
 			var capturedCtx context.Context
 
-			// Create feature checker that reads from context without whitelist validation
-			// (the whitelist is tested separately; here we test the filtering logic)
+			// Match the production allowlist and insiders expansion behavior.
 			featureChecker := func(ctx context.Context, flag string) (bool, error) {
-				return slices.Contains(ghcontext.GetHeaderFeatures(ctx), flag), nil
+				effective := github.ResolveFeatureFlags(
+					ghcontext.GetHeaderFeatures(ctx),
+					ghcontext.IsInsidersMode(ctx),
+				)
+				return effective[flag], nil
 			}
 
 			apiHost, err := utils.NewAPIHost("https://api.github.com")
