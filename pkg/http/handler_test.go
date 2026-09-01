@@ -379,10 +379,10 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			// Match the production allowlist and insiders expansion behavior.
 			featureChecker := func(ctx context.Context, flag inventory.FeatureFlag) (bool, error) {
 				effective := github.ResolveFeatureFlags(
-					github.FeatureFlagsFromStrings(ghcontext.GetHeaderFeatures(ctx)),
+					ghcontext.GetHeaderFeatures(ctx),
 					ghcontext.IsInsidersMode(ctx),
 				)
-				return effective[flag], nil
+				return effective[string(flag)], nil
 			}
 
 			apiHost, err := utils.NewAPIHost("https://api.github.com")
