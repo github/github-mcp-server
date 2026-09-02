@@ -31,6 +31,7 @@
       "properties": {
         "description": "The custom properties to create or update. At the repository level each item assigns a value ('property_name' and 'value'); at the organization and enterprise levels each item defines the schema ('property_name' and 'value_type', plus optional definition fields).",
         "items": {
+          "additionalProperties": false,
           "properties": {
             "allowed_values": {
               "description": "Organization and enterprise levels only: the ordered list of allowed values for single_select and multi_select properties.",

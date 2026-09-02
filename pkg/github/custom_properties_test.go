@@ -134,6 +134,33 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.ElementsMatch(t, schema.Required, []string{"level", "properties"})
 
+	t.Run("property items reject unknown fields", func(t *testing.T) {
+		itemSchema := schema.Properties["properties"].Items
+		require.NotNil(t, itemSchema.AdditionalProperties)
+		require.NotNil(t, itemSchema.AdditionalProperties.Not)
+
+		resolved, err := itemSchema.Resolve(nil)
+		require.NoError(t, err)
+		require.NoError(t, resolved.Validate(map[string]any{
+			"property_name":      "environment",
+			"value_type":         "single_select",
+			"required":           true,
+			"default_value":      "production",
+			"description":        "Deployment environment",
+			"allowed_values":     []any{"production", "staging"},
+			"values_editable_by": "org_and_repo_actors",
+		}))
+		require.NoError(t, resolved.Validate(map[string]any{
+			"property_name": "environment",
+			"value":         []any{"production", "staging"},
+		}))
+		require.Error(t, resolved.Validate(map[string]any{
+			"property_name": "environment",
+			"value_type":    "string",
+			"require":       true,
+		}))
+	})
+
 	t.Run("value schemas enforce documented JSON types", func(t *testing.T) {
 		defaultValueSchema := schema.Properties["properties"].Items.Properties["default_value"]
 		require.Len(t, defaultValueSchema.OneOf, 2)

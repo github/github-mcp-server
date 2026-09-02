@@ -279,7 +279,8 @@ func customPropertiesWriteEnterprise(ctx context.Context, client *github.Client,
 // customPropertyItemSchema combines repository values with organization and enterprise definitions.
 func customPropertyItemSchema() *jsonschema.Schema {
 	return &jsonschema.Schema{
-		Type: "object",
+		Type:                 "object",
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 		Properties: map[string]*jsonschema.Schema{
 			"property_name": {
 				Type:        "string",
