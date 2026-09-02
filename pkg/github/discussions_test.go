@@ -553,6 +553,30 @@ func Test_GetDiscussion(t *testing.T) {
 			expectError: true,
 			errContains: "discussion not found",
 		},
+		{
+			name: "sanitizes malicious title and body",
+			response: githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{"discussion": map[string]any{
+					"number":     1,
+					"title":      maliciousText,
+					"body":       maliciousText,
+					"url":        "https://github.com/owner/repo/discussions/1",
+					"createdAt":  "2025-04-25T12:00:00Z",
+					"closed":     false,
+					"isAnswered": false,
+					"category":   map[string]any{"name": "General"},
+				}},
+			}),
+			expectError: false,
+			expected: map[string]any{
+				"number":     float64(1),
+				"title":      sanitizedText,
+				"body":       sanitizedText,
+				"url":        "https://github.com/owner/repo/discussions/1",
+				"closed":     false,
+				"isAnswered": false,
+			},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

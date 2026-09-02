@@ -28,7 +28,7 @@
         "type": "string"
       },
       "duplicate_of": {
-        "description": "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
+        "description": "Issue number that this issue is a duplicate of. Required when state_reason is 'duplicate'.",
         "type": "number"
       },
       "issue_fields": {
@@ -37,10 +37,7 @@
           "additionalProperties": false,
           "properties": {
             "delete": {
-              "description": "Set to true to clear this field's current value on the issue. Cannot be combined with 'value', 'field_option_name', or 'field_option_names'.",
-              "enum": [
-                true
-              ],
+              "description": "Set to true to clear this field's current value on the issue. When false or omitted, this property is ignored. Cannot be true when 'value', 'field_option_name', or 'field_option_names' is provided.",
               "type": "boolean"
             },
             "field_name": {
@@ -48,18 +45,18 @@
               "type": "string"
             },
             "field_option_name": {
-              "description": "Option name for single-select fields. Validated against the field's options before the API call. Cannot be combined with 'value', 'field_option_names', or 'delete'.",
+              "description": "Option name for single-select fields. Validated against the field's options before the API call. Cannot be combined with 'value', 'field_option_names', or 'delete: true'.",
               "type": "string"
             },
             "field_option_names": {
-              "description": "Option names for multi-select fields. All names are validated against the field's options before the API call. An empty array is rejected — use 'delete: true' to clear the field. Cannot be combined with 'value', 'field_option_name', or 'delete'.",
+              "description": "Option names for multi-select fields. All names are validated against the field's options before the API call. An empty array is rejected — use 'delete: true' to clear the field. Cannot be combined with 'value', 'field_option_name', or 'delete: true'.",
               "items": {
                 "type": "string"
               },
               "type": "array"
             },
             "value": {
-              "description": "Value to set. Use for text, number, and date fields (date as YYYY-MM-DD). For single-select fields, prefer 'field_option_name' so the option is validated before the API call. Cannot be combined with 'field_option_name', 'field_option_names', or 'delete'.",
+              "description": "Value to set. Use for text, number, and date fields (date as YYYY-MM-DD). For single-select fields, prefer 'field_option_name' so the option is validated before the API call. Cannot be combined with 'field_option_name', 'field_option_names', or 'delete: true'.",
               "type": [
                 "string",
                 "number",
@@ -101,6 +98,19 @@
         "description": "Repository owner",
         "type": "string"
       },
+      "parent_issue_number": {
+        "description": "Issue number of the parent issue. Only used when method is 'create' and cannot be combined with issue_fields. The new issue is created and attached to this parent in the same operation.",
+        "minimum": 1,
+        "type": "number"
+      },
+      "parent_owner": {
+        "description": "Repository owner of the parent issue. Must be provided with parent_repo. Omit both to use owner and repo. Only used when method is 'create' and parent_issue_number is provided.",
+        "type": "string"
+      },
+      "parent_repo": {
+        "description": "Repository name of the parent issue. Must be provided with parent_owner. Omit both to use owner and repo. Only used when method is 'create' and parent_issue_number is provided.",
+        "type": "string"
+      },
       "repo": {
         "description": "Repository name",
         "type": "string"
@@ -127,8 +137,16 @@
         "type": "string"
       },
       "type": {
-        "description": "Type of this issue. Only use if issue types are enabled for this repository. Use list_issue_types tool to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter.",
-        "type": "string"
+        "anyOf": [
+          {
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Type of this issue. For updates, pass null to remove the current type. Only use if issue types are enabled for this repository. Use list_issue_types to get valid type values for this repository or its owner organization. If the repository doesn't support issue types, omit this parameter."
       }
     },
     "required": [

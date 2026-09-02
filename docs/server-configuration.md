@@ -13,7 +13,7 @@ We currently support the following ways in which the GitHub MCP Server can be co
 | Read-Only Mode | `X-MCP-Readonly` header or `/readonly` URL | `--read-only` flag or `GITHUB_READ_ONLY` env var |
 | Lockdown Mode | `X-MCP-Lockdown` header | `--lockdown-mode` flag or `GITHUB_LOCKDOWN_MODE` env var |
 | Insiders Mode | `X-MCP-Insiders` header or `/insiders` URL | `--insiders` flag or `GITHUB_INSIDERS` env var |
-| Feature Flags | `X-MCP-Features` header | `--features` flag |
+| Feature Flags | `X-MCP-Features` header or `?features=` URL query parameter | `--features` flag |
 | Scope Filtering | Always enabled | Always enabled |
 | Server Name/Title | Not available | `GITHUB_MCP_SERVER_NAME` / `GITHUB_MCP_SERVER_TITLE` env vars or `github-mcp-server-config.json` |
 
@@ -28,6 +28,8 @@ All configuration options are **composable**: you can combine toolsets, individu
 Note: **read-only** mode acts as a strict security filter that takes precedence over any other configuration, by disabling write tools even when explicitly requested.
 
 Note: **excluded tools** takes precedence over toolsets and individual tools — listed tools are always excluded, even if their toolset is enabled or they are explicitly added via `--tools` / `X-MCP-Tools`.
+
+Note: server-side **lockdown mode** (`--lockdown-mode` / `GITHUB_LOCKDOWN_MODE`) is an upper bound in HTTP mode — once an operator enables it, the `X-MCP-Lockdown` header can no longer disable it for a given request. A request may still use the header to enable lockdown mode for itself when the operator has not already enabled it server-wide, but it can never relax lockdown mode below what the operator configured. Lockdown mode remains a best-effort content filter, not a security boundary.
 
 ---
 
@@ -292,6 +294,12 @@ When active, this mode will disable all tools that are not read-only even if the
 
 Lockdown mode ensures the server only surfaces content in public repositories from users with push access to that repository. Private repositories are unaffected, and collaborators retain full access to their own content.
 
+> In HTTP mode, server-side lockdown mode (`--lockdown-mode` / `GITHUB_LOCKDOWN_MODE`) is an upper bound: the `X-MCP-Lockdown` header can enable lockdown mode for a request when the operator has not enabled it server-wide, but it cannot disable lockdown mode the operator has already enabled.
+
+Lockdown mode is a best-effort content filter meant to reduce prompt-injection risk from untrusted repository content; it is not an authorization boundary. It does not restrict what the underlying credential can otherwise read or write, and content withheld from a filtered tool response may still be reachable through other tools or direct GitHub API access with the same credential.
+
+As an intentional exception, content authored by trusted bot accounts (currently `github-actions[bot]` and `copilot`) is always treated as safe, regardless of push access, so routine automation output isn't filtered.
+
 **Example:**
 <table>
 <tr><th>Remote Server</th><th>Local Server</th></tr>
@@ -395,6 +403,17 @@ See [Insiders Features](./insiders-features.md) for a full list of what's availa
 [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) is an extension to the Model Context Protocol that enables servers to deliver interactive user interfaces to end users. Instead of returning plain text that the LLM must interpret and relay, tools can render forms, profiles, and dashboards right in the chat.
 
 MCP Apps is enabled by [Insiders Mode](#insiders-mode), or independently via the `remote_mcp_ui_apps` feature flag.
+
+To keep MCP App result views enabled while making write tools execute directly
+instead of first opening an interactive form, also enable the
+`mcp_apps_disable_form_deferral` feature flag. For the remote server, send both
+flags in the request header:
+
+```http
+X-MCP-Features: remote_mcp_ui_apps,mcp_apps_disable_form_deferral
+```
+
+For the local server, pass both flags to `--features`.
 
 **Supported tools:**
 

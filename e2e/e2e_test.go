@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -18,6 +19,7 @@ import (
 	"github.com/github/github-mcp-server/internal/ghmcp"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/pkg/utils"
 	gogithub "github.com/google/go-github/v89/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
@@ -62,21 +64,116 @@ func getE2EHost() string {
 }
 
 func getRESTClient(t *testing.T) *gogithub.Client {
-	// Get token and ensure Docker image is built
-	token := getE2EToken(t)
-
-	// Create a new GitHub client with the token
-	ghClient := gogithub.NewClient(nil).WithAuthToken(token)
-
-	if host := getE2EHost(); host != "" && host != "https://github.com" {
-		var err error
-		// Currently this works for GHEC because the API is exposed at the api subdomain and the path prefix
-		// but it would be preferable to extract the host parsing from the main server logic, and use it here.
-		ghClient, err = ghClient.WithEnterpriseURLs(host, host)
-		require.NoError(t, err, "expected to create GitHub client with host")
-	}
+	ghClient, err := newRESTClient(getE2EToken(t), getE2EHost())
+	require.NoError(t, err, "expected to create GitHub client successfully")
 
 	return ghClient
+}
+
+func newRESTClient(token, host string) (*gogithub.Client, error) {
+	apiHost, err := utils.NewAPIHost(host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse API host: %w", err)
+	}
+
+	restURL, err := apiHost.BaseRESTURL(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get base REST URL: %w", err)
+	}
+
+	uploadURL, err := apiHost.UploadURL(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get upload URL: %w", err)
+	}
+
+	return gogithub.NewClient(
+		gogithub.WithAuthToken(token),
+		gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
+	)
+}
+
+func TestRESTClientURLs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		host          string
+		wantBaseURL   string
+		wantUploadURL string
+	}{
+		{
+			name:          "dotcom default",
+			wantBaseURL:   "https://api.github.com/",
+			wantUploadURL: "https://uploads.github.com/",
+		},
+		{
+			name:          "dotcom explicit",
+			host:          "https://github.com",
+			wantBaseURL:   "https://api.github.com/",
+			wantUploadURL: "https://uploads.github.com/",
+		},
+		{
+			name:          "GHEC",
+			host:          "https://example.ghe.com",
+			wantBaseURL:   "https://api.example.ghe.com/",
+			wantUploadURL: "https://uploads.example.ghe.com/",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, err := newRESTClient("test-token", tt.host)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantBaseURL, client.BaseURL())
+			require.Equal(t, tt.wantUploadURL, client.UploadURL())
+		})
+	}
+}
+
+func TestInProcessStdioServer(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	server, err := ghmcp.NewStdioMCPServer(ctx, github.MCPServerConfig{
+		Version:         "e2e-test",
+		Token:           "test-token",
+		EnabledToolsets: []string{"context"},
+		Translator:      translations.NullTranslationHelper,
+		Logger:          slog.New(slog.DiscardHandler),
+	})
+	require.NoError(t, err)
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- server.Run(ctx, serverTransport)
+	}()
+
+	client := mcp.NewClient(&mcp.Implementation{
+		Name:    "e2e-test-client",
+		Version: "0.0.1",
+	}, nil)
+	session, err := client.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	tools, err := session.ListTools(ctx, nil)
+	require.NoError(t, err)
+	require.True(t, slices.ContainsFunc(tools.Tools, func(tool *mcp.Tool) bool {
+		return tool.Name == "get_me"
+	}))
+
+	require.NoError(t, session.Close())
+	select {
+	case err := <-serverErr:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for the in-process MCP server to stop")
+	}
 }
 
 // waitForRateLimit checks the current rate limit and waits if necessary.
@@ -221,11 +318,13 @@ func setupMCPClient(t *testing.T, options ...clientOption) *mcp.ClientSession {
 			enabledToolsets = github.GetDefaultToolsetIDs()
 		}
 
-		ghServer, err := ghmcp.NewMCPServer(ghmcp.MCPServerConfig{
+		ghServer, err := ghmcp.NewStdioMCPServer(ctx, github.MCPServerConfig{
+			Version:         "e2e-test",
 			Token:           token,
 			EnabledToolsets: enabledToolsets,
 			Host:            getE2EHost(),
 			Translator:      translations.NullTranslationHelper,
+			Logger:          slog.New(slog.DiscardHandler),
 		})
 		require.NoError(t, err, "expected to construct MCP server successfully")
 
@@ -305,6 +404,86 @@ func TestToolsets(t *testing.T) {
 	require.True(t, toolsContains("issue_read"), "expected to find 'issue_read' tool")
 	require.True(t, toolsContains("list_branches"), "expected to find 'list_branches' tool")
 	require.False(t, toolsContains("pull_request_read"), "expected not to find 'pull_request_read' tool")
+}
+
+func TestCreateIssueWithParent(t *testing.T) {
+	t.Parallel()
+
+	mcpClient := setupMCPClient(t)
+	ctx := context.Background()
+
+	t.Log("Getting current user...")
+	resp, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{Name: "get_me"})
+	require.NoError(t, err, "expected to call 'get_me' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+	require.Len(t, resp.Content, 1, "expected content to have one item")
+
+	textContent, ok := resp.Content[0].(*mcp.TextContent)
+	require.True(t, ok, "expected content to be of type TextContent")
+
+	var trimmedGetMeText struct {
+		Login string `json:"login"`
+	}
+	err = json.Unmarshal([]byte(textContent.Text), &trimmedGetMeText)
+	require.NoError(t, err, "expected to unmarshal text content successfully")
+	currentOwner := trimmedGetMeText.Login
+
+	repoName := fmt.Sprintf("github-mcp-server-e2e-%s-%d", t.Name(), time.Now().UnixMilli())
+	t.Logf("Creating repository %s/%s...", currentOwner, repoName)
+	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: "create_repository",
+		Arguments: map[string]any{
+			"name":     repoName,
+			"private":  true,
+			"autoInit": true,
+		},
+	})
+	require.NoError(t, err, "expected to call 'create_repository' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+	t.Cleanup(func() {
+		ghClient := getRESTClient(t)
+		t.Logf("Deleting repository %s/%s...", currentOwner, repoName)
+		_, err := ghClient.Repositories.Delete(context.Background(), currentOwner, repoName)
+		require.NoError(t, err, "expected to delete repository successfully")
+	})
+
+	t.Logf("Creating parent issue in %s/%s...", currentOwner, repoName)
+	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: "issue_write",
+		Arguments: map[string]any{
+			"method": "create",
+			"owner":  currentOwner,
+			"repo":   repoName,
+			"title":  "Parent issue",
+		},
+	})
+	require.NoError(t, err, "expected to call 'issue_write' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+	t.Logf("Creating child issue under %s/%s#1...", currentOwner, repoName)
+	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: "issue_write",
+		Arguments: map[string]any{
+			"method":              "create",
+			"owner":               currentOwner,
+			"repo":                repoName,
+			"title":               "Child issue",
+			"parent_issue_number": 1,
+		},
+	})
+	require.NoError(t, err, "expected to call 'issue_write' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+	ghClient := getRESTClient(t)
+	parentIssue, parentResponse, err := ghClient.Issues.Get(ctx, currentOwner, repoName, 1)
+	require.NoError(t, err, "expected to get parent issue successfully")
+	require.Equal(t, http.StatusOK, parentResponse.StatusCode, "expected to get parent issue successfully")
+
+	childIssue, childResponse, err := ghClient.Issues.Get(ctx, currentOwner, repoName, 2)
+	require.NoError(t, err, "expected to get child issue successfully")
+	require.Equal(t, http.StatusOK, childResponse.StatusCode, "expected to get child issue successfully")
+	require.Equal(t, parentIssue.GetURL(), childIssue.GetParentIssueURL(), "expected child issue to reference its parent")
 }
 
 func TestTags(t *testing.T) {
@@ -888,7 +1067,7 @@ func TestRequestCopilotReview(t *testing.T) {
 	// Cleanup the repository after the test
 	t.Cleanup(func() {
 		// MCP Server doesn't support deletions, but we can use the GitHub Client
-		ghClient := gogithub.NewClient(nil).WithAuthToken(getE2EToken(t))
+		ghClient := getRESTClient(t)
 		t.Logf("Deleting repository %s/%s...", currentOwner, repoName)
 		_, err := ghClient.Repositories.Delete(context.Background(), currentOwner, repoName)
 		require.NoError(t, err, "expected to delete repository successfully")
@@ -983,9 +1162,9 @@ func TestRequestCopilotReview(t *testing.T) {
 
 	// Finally, get requested reviews and see copilot is in there
 	// MCP Server doesn't support requesting reviews yet, but we can use the GitHub Client
-	ghClient := gogithub.NewClient(nil).WithAuthToken(getE2EToken(t))
+	ghClient := getRESTClient(t)
 	t.Logf("Getting reviews for pull request in %s/%s...", currentOwner, repoName)
-	reviewRequests, _, err := ghClient.PullRequests.ListReviewers(context.Background(), currentOwner, repoName, 1, nil)
+	reviewRequests, _, err := ghClient.PullRequests.ListReviewers(context.Background(), currentOwner, repoName, 1)
 	require.NoError(t, err, "expected to get review requests successfully")
 
 	// Check if Copilot was added as a reviewer - skip if not available
@@ -1085,7 +1264,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 	textContent, ok = resp.Content[0].(*mcp.TextContent)
 	require.True(t, ok, "expected content to be of type TextContent")
 
-	possibleExpectedFailure := "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information."
+	possibleExpectedFailure := "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent for more information."
 	if resp.IsError && textContent.Text == possibleExpectedFailure {
 		t.Skip("skipping because copilot wasn't available as an assignee on this issue, it's likely that the owner doesn't have copilot enabled in their settings")
 	}
@@ -1102,6 +1281,115 @@ func TestAssignCopilotToIssue(t *testing.T) {
 	require.Equal(t, http.StatusOK, response.StatusCode, "expected to get issue successfully")
 	require.Len(t, assignees.Assignees, 1, "expected to find one assignee")
 	require.Equal(t, "Copilot", *assignees.Assignees[0].Login, "expected copilot to be assigned to the issue")
+}
+
+// TestAssignCopilotToIssueWithIntent exercises the opt-in intent-aware assignment
+// tool along the is_suggestion=true path. That path records a pending Copilot
+// assignment intent rather than launching the agent, so the tool returns a
+// suggestion-shaped result without a linked pull request and no Copilot user is
+// added to the issue's assignees.
+func TestAssignCopilotToIssueWithIntent(t *testing.T) {
+	t.Parallel()
+
+	if getE2EHost() != "" && getE2EHost() != "https://github.com" {
+		t.Skip("Skipping test because the host does not support copilot being assigned to issues")
+	}
+
+	mcpClient := setupMCPClient(t)
+	ctx := context.Background()
+
+	t.Log("Getting current user...")
+	resp, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{Name: "get_me"})
+	require.NoError(t, err, "expected to call 'get_me' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+	require.Len(t, resp.Content, 1, "expected content to have one item")
+
+	textContent, ok := resp.Content[0].(*mcp.TextContent)
+	require.True(t, ok, "expected content to be of type TextContent")
+
+	var trimmedGetMeText struct {
+		Login string `json:"login"`
+	}
+	err = json.Unmarshal([]byte(textContent.Text), &trimmedGetMeText)
+	require.NoError(t, err, "expected to unmarshal text content successfully")
+	currentOwner := trimmedGetMeText.Login
+
+	repoName := fmt.Sprintf("github-mcp-server-e2e-%s-%d", t.Name(), time.Now().UnixMilli())
+
+	t.Logf("Creating repository %s/%s...", currentOwner, repoName)
+	_, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: "create_repository",
+		Arguments: map[string]any{
+			"name":     repoName,
+			"private":  true,
+			"autoInit": true,
+		},
+	})
+	require.NoError(t, err, "expected to call 'create_repository' tool successfully")
+
+	t.Cleanup(func() {
+		ghClient := getRESTClient(t)
+		t.Logf("Deleting repository %s/%s...", currentOwner, repoName)
+		_, err := ghClient.Repositories.Delete(context.Background(), currentOwner, repoName)
+		require.NoError(t, err, "expected to delete repository successfully")
+	})
+
+	t.Logf("Creating issue in %s/%s...", currentOwner, repoName)
+	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: "issue_write",
+		Arguments: map[string]any{
+			"method": "create",
+			"owner":  currentOwner,
+			"repo":   repoName,
+			"title":  "Test issue for intent-aware copilot suggestion",
+		},
+	})
+	require.NoError(t, err, "expected to call 'issue_write' tool successfully")
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+	t.Logf("Recording pending copilot assignment suggestion in %s/%s...", currentOwner, repoName)
+	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
+		Name: "assign_copilot_to_issue_with_intent",
+		Arguments: map[string]any{
+			"owner":         currentOwner,
+			"repo":          repoName,
+			"issue_number":  1,
+			"rationale":     "E2E: well-scoped test task.",
+			"confidence":    "HIGH",
+			"is_suggestion": true,
+		},
+	})
+	require.NoError(t, err, "expected to call 'assign_copilot_to_issue_with_intent' tool successfully")
+
+	require.Len(t, resp.Content, 1, "expected content to have one item")
+	textContent, ok = resp.Content[0].(*mcp.TextContent)
+	require.True(t, ok, "expected content to be of type TextContent")
+
+	possibleExpectedFailure := "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/concepts/agents/cloud-agent/about-cloud-agent for more information."
+	if resp.IsError && textContent.Text == possibleExpectedFailure {
+		t.Skip("skipping because copilot wasn't available as an assignee on this issue, it's likely that the owner doesn't have copilot enabled in their settings")
+	}
+
+	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &response), "expected suggestion result to be JSON")
+	require.Equal(t, true, response["is_suggestion"], "expected is_suggestion=true in result")
+	require.Contains(t, response["message"], "pending copilot assignment suggestion",
+		"expected suggestion-shaped message, got %v", response["message"])
+	require.NotContains(t, response, "pull_request",
+		"suggestion path must not claim PR creation")
+
+	// A pure suggestion does not launch Copilot, so no Copilot user should appear
+	// on the issue's assignees list.
+	ghClient := getRESTClient(t)
+	issue, response2, err := ghClient.Issues.Get(context.Background(), currentOwner, repoName, 1)
+	require.NoError(t, err, "expected to get issue successfully")
+	require.Equal(t, http.StatusOK, response2.StatusCode, "expected to get issue successfully")
+	for _, a := range issue.Assignees {
+		require.NotEqual(t, "Copilot", *a.Login,
+			"suggestion path must not add Copilot to applied assignees")
+	}
 }
 
 func TestPullRequestAtomicCreateAndSubmit(t *testing.T) {

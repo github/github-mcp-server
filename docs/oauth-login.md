@@ -15,6 +15,9 @@ pass `--oauth-client-id` (see [Bring your own app](#bring-your-own-app)).
 > `http` command have their own authentication; see
 > [Remote Server](remote-server.md).
 
+> For non-interactive stdio deployments, see
+> [GitHub App authentication](github-app-auth.md).
+
 ## Contents
 
 - [How it works](#how-it-works)

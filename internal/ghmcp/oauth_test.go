@@ -7,12 +7,13 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/oauth"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/headers"
-	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +21,108 @@ import (
 
 func discardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+func TestCreateGitHubClientsScopesRESTAndRawTokens(t *testing.T) {
+	t.Parallel()
+
+	var foreignAuth string
+	foreign := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		foreignAuth = r.Header.Get(headers.AuthorizationHeader)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer foreign.Close()
+
+	var sourceAuth string
+	source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sourceAuth = r.Header.Get(headers.AuthorizationHeader)
+		http.Redirect(w, r, foreign.URL, http.StatusFound)
+	}))
+	defer source.Close()
+
+	tests := []struct {
+		name string
+		cfg  github.MCPServerConfig
+	}{
+		{
+			name: "static token",
+			cfg: github.MCPServerConfig{
+				Version: "test",
+				Token:   "static-token",
+			},
+		},
+		{
+			name: "token provider",
+			cfg: github.MCPServerConfig{
+				Version:       "test",
+				TokenProvider: func() string { return "provider-token" },
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			apiHost := newStaticAPIHostResolver(t, source.URL)
+			clients, err := createGitHubClients(tt.cfg, apiHost)
+			require.NoError(t, err)
+
+			sourceAuth = ""
+			foreignAuth = ""
+			resp, err := clients.rest.Client().Get(source.URL + "/rest")
+			require.NoError(t, err)
+			resp.Body.Close()
+			assert.NotEmpty(t, sourceAuth, "REST request must authenticate to the configured host")
+			assert.Empty(t, foreignAuth, "REST redirect must not authenticate to a foreign host")
+
+			sourceAuth = ""
+			foreignAuth = ""
+			resp, err = clients.raw.GetRawContent(context.Background(), "owner", "repo", "file", nil)
+			require.NoError(t, err)
+			resp.Body.Close()
+			assert.NotEmpty(t, sourceAuth, "raw request must authenticate to the configured host")
+			assert.Empty(t, foreignAuth, "raw redirect must not authenticate to a foreign host")
+		})
+	}
+}
+
+type staticAPIHostResolver struct {
+	restURL    *url.URL
+	graphQLURL *url.URL
+	uploadURL  *url.URL
+	rawURL     *url.URL
+}
+
+func newStaticAPIHostResolver(t *testing.T, endpoint string) staticAPIHostResolver {
+	t.Helper()
+
+	u, err := url.Parse(endpoint)
+	require.NoError(t, err)
+	return staticAPIHostResolver{
+		restURL:    u,
+		graphQLURL: u,
+		uploadURL:  u,
+		rawURL:     u,
+	}
+}
+
+func (r staticAPIHostResolver) BaseRESTURL(context.Context) (*url.URL, error) {
+	return r.restURL, nil
+}
+
+func (r staticAPIHostResolver) GraphqlURL(context.Context) (*url.URL, error) {
+	return r.graphQLURL, nil
+}
+
+func (r staticAPIHostResolver) UploadURL(context.Context) (*url.URL, error) {
+	return r.uploadURL, nil
+}
+
+func (r staticAPIHostResolver) RawURL(context.Context) (*url.URL, error) {
+	return r.rawURL, nil
+}
+
+func (r staticAPIHostResolver) AuthorizationServerURL(context.Context) (*url.URL, error) {
+	return r.restURL, nil
 }
 
 // probeToolName is the name of the throwaway tool the harness registers; its
@@ -140,57 +243,49 @@ func TestSessionPrompterCapabilities(t *testing.T) {
 	}
 }
 
-func TestSessionPrompterPromptActions(t *testing.T) {
+// TestSessionPrompterModernProtocolUnavailable verifies that on protocol version
+// 2026-07-28 and later — the default negotiated by current clients — the server
+// may not initiate elicitation (SEP-2322), so PromptURL and PromptForm report
+// the prompt as undeliverable. This is what routes authorization to the
+// multi-round-trip path instead (see authorizeViaMultiRoundTrip).
+func TestSessionPrompterModernProtocolUnavailable(t *testing.T) {
 	t.Parallel()
-
-	tests := []struct {
-		name        string
-		action      string
-		wantDecline bool
-	}{
-		{name: "accept", action: "accept", wantDecline: false},
-		{name: "decline", action: "decline", wantDecline: true},
-		{name: "cancel", action: "cancel", wantDecline: true},
-	}
 
 	caps := &mcp.ClientCapabilities{Elicitation: &mcp.ElicitationCapabilities{
 		URL:  &mcp.URLElicitationCapabilities{},
 		Form: &mcp.FormElicitationCapabilities{},
 	}}
 
-	for _, tc := range tests {
-		// URL and form modes share the accept/decline mapping; cover both.
-		for _, mode := range []string{"url", "form"} {
-			t.Run(tc.name+"/"+mode, func(t *testing.T) {
-				t.Parallel()
+	// The handler should never be reached: the SDK blocks the server-initiated
+	// request before it leaves the server.
+	handler := func(_ context.Context, _ *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		return &mcp.ElicitResult{Action: "accept"}, nil
+	}
 
-				handler := func(_ context.Context, _ *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
-					return &mcp.ElicitResult{Action: tc.action}, nil
-				}
+	for _, mode := range []string{"url", "form"} {
+		t.Run(mode, func(t *testing.T) {
+			t.Parallel()
 
-				got := runProbe(t, caps, handler, func(ctx context.Context, p *sessionPrompter) string {
-					var err error
-					if mode == "url" {
-						err = p.PromptURL(ctx, oauth.Prompt{Message: "msg", URL: "https://example.com/auth"})
-					} else {
-						err = p.PromptForm(ctx, oauth.Prompt{Message: "msg"})
-					}
-					if err == nil {
-						return "ok"
-					}
-					if err == oauth.ErrPromptDeclined {
-						return "declined"
-					}
-					return "error: " + err.Error()
-				})
-
-				if tc.wantDecline {
-					assert.Equal(t, "declined", got)
+			got := runProbe(t, caps, handler, func(ctx context.Context, p *sessionPrompter) string {
+				var err error
+				if mode == "url" {
+					err = p.PromptURL(ctx, oauth.Prompt{Message: "msg", URL: "https://example.com/auth"})
 				} else {
-					assert.Equal(t, "ok", got)
+					err = p.PromptForm(ctx, oauth.Prompt{Message: "msg"})
+				}
+				switch {
+				case err == nil:
+					return "ok"
+				case errors.Is(err, oauth.ErrPromptUnavailable):
+					return "unavailable"
+				default:
+					return "error: " + err.Error()
 				}
 			})
-		}
+
+			assert.Equal(t, "unavailable", got,
+				"server-initiated elicitation must be reported undeliverable on protocol 2026-07-28+")
+		})
 	}
 }
 
@@ -247,6 +342,18 @@ type fakeAuthenticator struct {
 	err          error
 	authCalls    int
 	lastPrompter oauth.Prompter
+
+	// awaitOutcome/awaitErr are returned by AwaitToken; tokenAfterAwait flips
+	// HasToken to true once AwaitToken is called, simulating a flow that
+	// acquires the token while the user acts on the elicitation.
+	awaitOutcome     *oauth.Outcome
+	awaitErr         error
+	tokenAfterAwait  bool
+	awaitCalls       int
+	cancelCalls      int
+	cancelResult     bool
+	lastAwaitFlowID  string
+	lastCancelFlowID string
 }
 
 func (f *fakeAuthenticator) HasToken() bool { return f.hasToken }
@@ -257,34 +364,38 @@ func (f *fakeAuthenticator) Authenticate(_ context.Context, prompter oauth.Promp
 	return f.outcome, f.err
 }
 
-func TestCreateOAuthMiddleware(t *testing.T) {
+func (f *fakeAuthenticator) AwaitToken(_ context.Context, flowID string) (*oauth.Outcome, error) {
+	f.awaitCalls++
+	f.lastAwaitFlowID = flowID
+	if f.tokenAfterAwait {
+		f.hasToken = true
+	}
+	return f.awaitOutcome, f.awaitErr
+}
+
+func (f *fakeAuthenticator) Cancel(flowID string) bool {
+	f.cancelCalls++
+	f.lastCancelFlowID = flowID
+	return f.cancelResult
+}
+
+func TestCreateOAuthToolMiddleware(t *testing.T) {
 	t.Parallel()
 
 	const nextText = "handler-ran"
-	newNext := func(called *bool) mcp.MethodHandler {
-		return func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
+	newNext := func(called *bool) mcp.ToolHandler {
+		return func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			*called = true
 			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: nextText}}}, nil
 		}
 	}
 
-	t.Run("non tool call passes through without authenticating", func(t *testing.T) {
-		t.Parallel()
-		fake := &fakeAuthenticator{hasToken: false}
-		var called bool
-		mw := createOAuthMiddleware(fake, discardLogger())
-		_, err := mw(newNext(&called))(context.Background(), "initialize", &mcp.InitializeRequest{})
-		require.NoError(t, err)
-		assert.True(t, called, "next should run")
-		assert.Zero(t, fake.authCalls, "authentication must not run for non tool calls")
-	})
-
 	t.Run("existing token short circuits authentication", func(t *testing.T) {
 		t.Parallel()
 		fake := &fakeAuthenticator{hasToken: true}
 		var called bool
-		mw := createOAuthMiddleware(fake, discardLogger())
-		_, err := mw(newNext(&called))(context.Background(), "tools/call", &mcp.CallToolRequest{})
+		mw := createOAuthToolMiddleware(fake, discardLogger())
+		_, err := mw(newNext(&called))(context.Background(), &mcp.CallToolRequest{})
 		require.NoError(t, err)
 		assert.True(t, called, "next should run")
 		assert.Zero(t, fake.authCalls, "authentication must be skipped when a token already exists")
@@ -294,15 +405,13 @@ func TestCreateOAuthMiddleware(t *testing.T) {
 		t.Parallel()
 		fake := &fakeAuthenticator{hasToken: false, outcome: nil, err: nil}
 		var called bool
-		mw := createOAuthMiddleware(fake, discardLogger())
-		res, err := mw(newNext(&called))(context.Background(), "tools/call", &mcp.CallToolRequest{})
+		mw := createOAuthToolMiddleware(fake, discardLogger())
+		res, err := mw(newNext(&called))(context.Background(), &mcp.CallToolRequest{})
 		require.NoError(t, err)
 		assert.Equal(t, 1, fake.authCalls)
 		assert.True(t, called, "next should run once authorized")
-		callRes, ok := res.(*mcp.CallToolResult)
-		require.True(t, ok)
-		require.Len(t, callRes.Content, 1)
-		assert.Equal(t, nextText, callRes.Content[0].(*mcp.TextContent).Text)
+		require.Len(t, res.Content, 1)
+		assert.Equal(t, nextText, res.Content[0].(*mcp.TextContent).Text)
 	})
 
 	t.Run("pending user action is surfaced as a tool result", func(t *testing.T) {
@@ -310,48 +419,261 @@ func TestCreateOAuthMiddleware(t *testing.T) {
 		const message = "Open https://example.com/auth to authorize, then retry."
 		fake := &fakeAuthenticator{hasToken: false, outcome: &oauth.Outcome{UserAction: &oauth.UserAction{Message: message}}}
 		var called bool
-		mw := createOAuthMiddleware(fake, discardLogger())
-		res, err := mw(newNext(&called))(context.Background(), "tools/call", &mcp.CallToolRequest{})
+		mw := createOAuthToolMiddleware(fake, discardLogger())
+		res, err := mw(newNext(&called))(context.Background(), &mcp.CallToolRequest{})
 		require.NoError(t, err)
 		assert.False(t, called, "next must not run while the user still needs to authorize")
-		callRes, ok := res.(*mcp.CallToolResult)
-		require.True(t, ok)
-		require.Len(t, callRes.Content, 1)
-		assert.Equal(t, message, callRes.Content[0].(*mcp.TextContent).Text)
+		require.Len(t, res.Content, 1)
+		assert.Equal(t, message, res.Content[0].(*mcp.TextContent).Text)
 	})
 
 	t.Run("authentication error is returned", func(t *testing.T) {
 		t.Parallel()
 		fake := &fakeAuthenticator{hasToken: false, err: assert.AnError}
 		var called bool
-		mw := createOAuthMiddleware(fake, discardLogger())
-		_, err := mw(newNext(&called))(context.Background(), "tools/call", &mcp.CallToolRequest{})
+		mw := createOAuthToolMiddleware(fake, discardLogger())
+		_, err := mw(newNext(&called))(context.Background(), &mcp.CallToolRequest{})
 		require.Error(t, err)
 		assert.ErrorIs(t, err, assert.AnError)
 		assert.False(t, called, "next must not run when authentication fails")
 	})
 }
 
-// TestRunStdioServerRejectsTokenAndOAuth verifies the mutually-exclusive guard:
-// supplying both a static token and an OAuth manager is rejected before the
-// server starts, rather than silently preferring one for auth and the other for
-// scope filtering.
-func TestRunStdioServerRejectsTokenAndOAuth(t *testing.T) {
+// runOAuthMiddlewareCall stands up an in-memory client/server pair with the
+// OAuth middleware installed ahead of a probe tool, then calls the tool from a
+// default (protocol 2026-07-28) client — driving the multi-round-trip
+// authorization path. It returns the final tool-result text and whether the
+// probe tool ultimately ran.
+func runOAuthMiddlewareCall(
+	t *testing.T,
+	fake *fakeAuthenticator,
+	clientCaps *mcp.ClientCapabilities,
+	elicitationHandler func(context.Context, *mcp.ElicitRequest) (*mcp.ElicitResult, error),
+) (string, bool) {
+	t.Helper()
+
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	var toolRan bool
+	handler := createOAuthToolMiddleware(fake, discardLogger())(func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		toolRan = true
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "tool-ran"}}}, nil
+	})
+	server.AddTool(&mcp.Tool{
+		Name:        probeToolName,
+		InputSchema: &jsonschema.Schema{Type: "object"},
+	}, handler)
+
+	st, ct := mcp.NewInMemoryTransports()
+
+	ss, err := server.Connect(context.Background(), st, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ss.Close() })
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, &mcp.ClientOptions{
+		Capabilities:       clientCaps,
+		ElicitationHandler: elicitationHandler,
+	})
+	cs, err := client.Connect(context.Background(), ct, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = cs.Close() })
+
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: probeToolName})
+	require.NoError(t, err)
+	require.Len(t, res.Content, 1)
+	text, ok := res.Content[0].(*mcp.TextContent)
+	require.True(t, ok, "tool result should be text content")
+	return text.Text, toolRan
+}
+
+// TestOAuthMiddlewareMultiRoundTrip exercises the protocol-2026-07-28 path, where
+// server-initiated elicitation is forbidden and authorization must be presented
+// as a multi-round-trip input request that the client fulfills and retries.
+func TestOAuthMiddlewareMultiRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	urlCaps := &mcp.ClientCapabilities{Elicitation: &mcp.ElicitationCapabilities{URL: &mcp.URLElicitationCapabilities{}}}
+
+	t.Run("accepted elicitation authorizes and proceeds", func(t *testing.T) {
+		t.Parallel()
+		fake := &fakeAuthenticator{
+			outcome:         &oauth.Outcome{UserAction: &oauth.UserAction{URL: "https://example.com/auth", Message: "manual"}, FlowID: "flow-1"},
+			tokenAfterAwait: true,
+		}
+		var elicited int
+		accept := func(_ context.Context, _ *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+			elicited++
+			return &mcp.ElicitResult{Action: "accept"}, nil
+		}
+
+		text, toolRan := runOAuthMiddlewareCall(t, fake, urlCaps, accept)
+
+		assert.Equal(t, "tool-ran", text, "the tool should run once authorization completes")
+		assert.True(t, toolRan)
+		assert.Equal(t, 1, elicited, "the client should be asked to authorize exactly once")
+		assert.Equal(t, 1, fake.awaitCalls, "the middleware should await the token on retry")
+		assert.Equal(t, "flow-1", fake.lastAwaitFlowID)
+		assert.Zero(t, fake.cancelCalls)
+		assert.Nil(t, fake.lastPrompter, "the manager must not be given a prompter on this protocol")
+	})
+
+	t.Run("declined elicitation cancels and does not run the tool", func(t *testing.T) {
+		t.Parallel()
+		fake := &fakeAuthenticator{
+			outcome:      &oauth.Outcome{UserAction: &oauth.UserAction{URL: "https://example.com/auth", Message: "manual"}, FlowID: "flow-1"},
+			cancelResult: true,
+		}
+		decline := func(_ context.Context, _ *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+			return &mcp.ElicitResult{Action: "decline"}, nil
+		}
+
+		text, toolRan := runOAuthMiddlewareCall(t, fake, urlCaps, decline)
+
+		assert.False(t, toolRan, "the tool must not run when authorization is declined")
+		assert.Contains(t, text, "declined")
+		assert.Equal(t, 1, fake.cancelCalls, "a decline should cancel the in-flight flow")
+		assert.Equal(t, "flow-1", fake.lastCancelFlowID)
+		assert.Zero(t, fake.awaitCalls)
+	})
+
+	t.Run("stale decline does not cancel the current flow", func(t *testing.T) {
+		t.Parallel()
+		fake := &fakeAuthenticator{
+			outcome: &oauth.Outcome{UserAction: &oauth.UserAction{URL: "https://example.com/auth", Message: "manual"}, FlowID: "old-flow"},
+		}
+		decline := func(_ context.Context, _ *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+			return &mcp.ElicitResult{Action: "decline"}, nil
+		}
+
+		text, toolRan := runOAuthMiddlewareCall(t, fake, urlCaps, decline)
+
+		assert.False(t, toolRan)
+		assert.Contains(t, text, "expired")
+		assert.Equal(t, "old-flow", fake.lastCancelFlowID)
+		assert.Zero(t, fake.awaitCalls)
+	})
+
+	t.Run("form-only client receives actionable instructions", func(t *testing.T) {
+		t.Parallel()
+		const (
+			authURL = "https://example.com/auth"
+			message = "Open https://example.com/auth and enter code ABCD-1234."
+		)
+		fake := &fakeAuthenticator{
+			outcome: &oauth.Outcome{
+				UserAction: &oauth.UserAction{URL: authURL, UserCode: "ABCD-1234", Message: message},
+				FlowID:     "flow-1",
+			},
+			tokenAfterAwait: true,
+		}
+		var elicited *mcp.ElicitParams
+		accept := func(_ context.Context, req *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+			elicited = req.Params
+			return &mcp.ElicitResult{Action: "accept"}, nil
+		}
+		formCaps := &mcp.ClientCapabilities{Elicitation: &mcp.ElicitationCapabilities{Form: &mcp.FormElicitationCapabilities{}}}
+
+		text, toolRan := runOAuthMiddlewareCall(t, fake, formCaps, accept)
+
+		assert.True(t, toolRan)
+		assert.Equal(t, "tool-ran", text)
+		require.NotNil(t, elicited)
+		assert.Equal(t, "form", elicited.Mode)
+		assert.Contains(t, elicited.Message, authURL)
+		assert.Contains(t, elicited.Message, "ABCD-1234")
+	})
+
+	t.Run("no elicitation capability falls back to a tool-result message", func(t *testing.T) {
+		t.Parallel()
+		const message = "Open https://example.com/auth to authorize, then retry."
+		fake := &fakeAuthenticator{
+			outcome: &oauth.Outcome{UserAction: &oauth.UserAction{URL: "https://example.com/auth", Message: message}, FlowID: "flow-1"},
+		}
+
+		// No elicitation capability advertised, and no handler needed since the
+		// middleware should not issue an input request.
+		text, toolRan := runOAuthMiddlewareCall(t, fake, &mcp.ClientCapabilities{}, nil)
+
+		assert.False(t, toolRan, "the tool must not run before authorization completes")
+		assert.Equal(t, message, text, "the manual instructions should be surfaced as a tool result")
+		assert.Zero(t, fake.awaitCalls)
+		assert.Zero(t, fake.cancelCalls)
+	})
+}
+
+func TestOAuthMultiRoundTripResultType(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeAuthenticator{
+		outcome: &oauth.Outcome{
+			UserAction: &oauth.UserAction{URL: "https://example.com/auth", Message: "manual"},
+			FlowID:     "flow-1",
+		},
+	}
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	var toolRan bool
+	handler := createOAuthToolMiddleware(fake, discardLogger())(func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		toolRan = true
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "tool-ran"}}}, nil
+	})
+	server.AddTool(&mcp.Tool{
+		Name:        probeToolName,
+		InputSchema: &jsonschema.Schema{Type: "object"},
+	}, handler)
+
+	st, ct := mcp.NewInMemoryTransports()
+	ss, err := server.Connect(context.Background(), st, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ss.Close() })
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, &mcp.ClientOptions{
+		Capabilities:   &mcp.ClientCapabilities{Elicitation: &mcp.ElicitationCapabilities{URL: &mcp.URLElicitationCapabilities{}}},
+		MultiRoundTrip: &mcp.MultiRoundTripOptions{Disabled: true},
+	})
+	cs, err := client.Connect(context.Background(), ct, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = cs.Close() })
+
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: probeToolName})
+	require.NoError(t, err)
+	assert.True(t, res.NeedsInput(), "the wire response must declare resultType input_required")
+	assert.Contains(t, res.InputRequests, oauthElicitIDPrefix+"flow-1")
+	assert.False(t, toolRan)
+}
+
+func TestRunStdioServerRejectsMultipleAuthModes(t *testing.T) {
 	t.Parallel()
 
 	mgr := oauth.NewManager(oauth.NewGitHubConfig("client-id", "", nil, "", 0), discardLogger())
-	err := RunStdioServer(StdioServerConfig{
-		Token:        "ghp_static",
-		OAuthManager: mgr,
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "mutually exclusive")
+
+	tests := []struct {
+		name string
+		cfg  StdioServerConfig
+	}{
+		{
+			name: "token and oauth",
+			cfg:  StdioServerConfig{Token: "ghp_static", OAuthManager: mgr},
+		},
+		{
+			name: "token and provider",
+			cfg:  StdioServerConfig{Token: "ghp_static", TokenProvider: func() string { return "token" }},
+		},
+		{
+			name: "oauth and provider",
+			cfg:  StdioServerConfig{OAuthManager: mgr, TokenProvider: func() string { return "token" }},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := RunStdioServer(tt.cfg)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "exactly one authentication mode")
+		})
+	}
 }
 
-// TestCreateGitHubClientsTokenProvider proves the OAuth wiring: when a
-// TokenProvider is configured the REST client authenticates with the provider's
-// current token on every request (and never pins a stale one), which is what the
-// lazy, refreshing OAuth token depends on.
+// TestCreateGitHubClientsTokenProvider verifies that clients resolve the
+// provider for every request instead of pinning a token.
 func TestCreateGitHubClientsTokenProvider(t *testing.T) {
 	t.Parallel()
 
@@ -363,8 +685,7 @@ func TestCreateGitHubClientsTokenProvider(t *testing.T) {
 	defer server.Close()
 
 	current := ""
-	apiHost, err := utils.NewAPIHost(server.URL)
-	require.NoError(t, err)
+	apiHost := newStaticAPIHostResolver(t, server.URL)
 
 	clients, err := createGitHubClients(github.MCPServerConfig{
 		Version:       "test",

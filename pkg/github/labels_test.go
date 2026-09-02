@@ -175,12 +175,14 @@ func TestListLabels(t *testing.T) {
 									Description githubv4.String
 								}
 								TotalCount githubv4.Int
-							} `graphql:"labels(first: 100)"`
+							} `graphql:"labels(first: 100, orderBy: {field: $orderByField, direction: $orderByDirection})"`
 						} `graphql:"repository(owner: $owner, name: $repo)"`
 					}{},
 					map[string]any{
-						"owner": githubv4.String("owner"),
-						"repo":  githubv4.String("repo"),
+						"owner":            githubv4.String("owner"),
+						"repo":             githubv4.String("repo"),
+						"orderByField":     labelOrderFieldIssueCount,
+						"orderByDirection": githubv4.OrderDirectionDesc,
 					},
 					githubv4mock.DataResponse(map[string]any{
 						"repository": map[string]any{
@@ -247,6 +249,8 @@ func TestWriteLabel(t *testing.T) {
 	assert.Equal(t, "label_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.False(t, tool.Annotations.ReadOnlyHint, "label_write tool should not be read-only")
+	assert.NotNil(t, tool.Annotations.DestructiveHint)
+	assert.True(t, *tool.Annotations.DestructiveHint, "label_write delete removes labels repository-wide")
 
 	tests := []struct {
 		name               string

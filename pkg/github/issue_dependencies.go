@@ -62,7 +62,7 @@ Options are:
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -171,16 +171,17 @@ func issueToDependencyRef(issue *github.Issue) MinimalIssueRef {
 	if issue == nil {
 		return MinimalIssueRef{}
 	}
-	ref := MinimalIssueRef{
-		Number: issue.GetNumber(),
-		Title:  issue.GetTitle(),
-		State:  strings.ToUpper(issue.GetState()),
-		URL:    issue.GetHTMLURL(),
-	}
+	var repository string
 	if owner, repo, ok := parseRepositoryURL(issue.GetRepositoryURL()); ok {
-		ref.Repository = owner + "/" + repo
+		repository = owner + "/" + repo
 	}
-	return ref
+	return newMinimalIssueRef(
+		issue.GetNumber(),
+		issue.GetTitle(),
+		strings.ToUpper(issue.GetState()),
+		issue.GetHTMLURL(),
+		repository,
+	)
 }
 
 // IssueDependencyWrite creates a tool to add or remove an issue dependency
@@ -248,7 +249,7 @@ Options are:
 				Required: []string{"method", "type", "owner", "repo", "issue_number", "related_issue_number"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {

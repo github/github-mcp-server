@@ -47,7 +47,7 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 				Required: []string{"owner", "repo", "alertNumber"},
 			},
 		},
-		[]scopes.Scope{scopes.SecurityEvents},
+		scopes.RequireAll(scopes.SecurityEvents),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -139,7 +139,7 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.SecurityEvents},
+		scopes.RequireAll(scopes.SecurityEvents),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

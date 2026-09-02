@@ -2,6 +2,8 @@ package lockdown
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -25,6 +27,7 @@ type RepoAccessCache struct {
 	ttl              time.Duration
 	logger           *slog.Logger
 	trustedBotLogins map[string]struct{}
+	identityDigest   string
 
 	viewerMu    sync.Mutex
 	viewerLogin string
@@ -66,11 +69,33 @@ func WithLogger(logger *slog.Logger) RepoAccessOption {
 
 // WithCacheName overrides the cache table name used for storing entries.
 // Use this to isolate cache entries between tenants or in tests.
+//
+// cache2go never reclaims a named table, so names must come from a bounded,
+// known set; never derive one from request data. Use WithIdentity instead to
+// isolate per request identity.
 func WithCacheName(name string) RepoAccessOption {
 	return func(c *RepoAccessCache) {
 		if name != "" {
 			c.cache = cache2go.Cache(name)
 		}
+	}
+}
+
+// WithIdentity scopes cache entries to a single request identity, typically an
+// auth token, so a decision computed under one caller's credentials is never
+// served to another. Equal identities share a warm cache; an empty one is a
+// no-op.
+//
+// Scoping lives in the entry key rather than the table so per-identity state
+// stays bounded and is reclaimed by ordinary idle-TTL cleanup. The identity is
+// hashed so it never appears verbatim in a key.
+func WithIdentity(identity string) RepoAccessOption {
+	return func(c *RepoAccessCache) {
+		if identity == "" {
+			return
+		}
+		sum := sha256.Sum256([]byte(identity))
+		c.identityDigest = hex.EncodeToString(sum[:])
 	}
 }
 
@@ -180,7 +205,7 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 		return RepoAccessInfo{}, fmt.Errorf("nil repo access cache")
 	}
 
-	key := cacheKey(owner, repo)
+	key := c.cacheKey(owner, repo)
 	userKey := strings.ToLower(username)
 
 	// Entries are immutable once added: the cache table is shared across instances,
@@ -305,6 +330,12 @@ func (c *RepoAccessCache) isTrustedBot(username string) bool {
 	return ok
 }
 
-func cacheKey(owner, repo string) string {
-	return fmt.Sprintf("%s/%s", strings.ToLower(owner), strings.ToLower(repo))
+// cacheKey scopes the owner/repo key to this cache's identity, so identities
+// sharing a table cannot observe each other's entries.
+func (c *RepoAccessCache) cacheKey(owner, repo string) string {
+	key := fmt.Sprintf("%s/%s", strings.ToLower(owner), strings.ToLower(repo))
+	if c.identityDigest == "" {
+		return key
+	}
+	return c.identityDigest + ":" + key
 }

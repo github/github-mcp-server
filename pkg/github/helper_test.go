@@ -40,10 +40,12 @@ const (
 	PostReposForksByOwnerByRepo          = "POST /repos/{owner}/{repo}/forks"
 	GetReposSubscriptionByOwnerByRepo    = "GET /repos/{owner}/{repo}/subscription"
 	PutReposSubscriptionByOwnerByRepo    = "PUT /repos/{owner}/{repo}/subscription"
+	DeleteReposByOwnerByRepo             = "DELETE /repos/{owner}/{repo}"
 	DeleteReposSubscriptionByOwnerByRepo = "DELETE /repos/{owner}/{repo}/subscription"
 	ListCollaborators                    = "GET /repos/{owner}/{repo}/collaborators"
 
 	// Git endpoints
+	GetReposGitBlobsByOwnerByRepoByFileSHA     = "GET /repos/{owner}/{repo}/git/blobs/{file_sha}"
 	GetReposGitTreesByOwnerByRepoByTree        = "GET /repos/{owner}/{repo}/git/trees/{tree}"
 	GetReposGitRefByOwnerByRepoByRef           = "GET /repos/{owner}/{repo}/git/ref/{ref:.*}"
 	PostReposGitRefsByOwnerByRepo              = "POST /repos/{owner}/{repo}/git/refs"

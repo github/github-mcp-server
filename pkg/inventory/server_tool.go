@@ -1,6 +1,7 @@
 package inventory
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,6 +18,37 @@ import (
 // The deps parameter is typed as `any` to avoid circular dependencies - callers
 // should define their own typed dependencies struct and type-assert as needed.
 type HandlerFunc func(deps any) mcp.ToolHandler
+
+// ScopeVisibility reports whether a token can use any form of a tool.
+type ScopeVisibility func(activeScopes []string) bool
+
+// ScopeChallenge returns the exact scopes to include in an OAuth challenge.
+// An empty result means the call can continue.
+type ScopeChallenge func(arguments map[string]any, activeScopes []string) []string
+
+// ScopeAccess contains scope metadata and the two checks used by the server.
+type ScopeAccess struct {
+	// Scopes is the exhaustive upper bound of every scope this tool may request.
+	// It is used for documentation, the list-scopes command, and bypassing
+	// call-specific challenge evaluation when a token already grants them all.
+	Scopes []string
+
+	// Visible is used when filtering tools for a fixed-scope token.
+	// Nil means the tool remains visible.
+	Visible ScopeVisibility
+
+	// Challenge evaluates one call before its handler runs.
+	// Nil means the call does not use OAuth scope challenges.
+	Challenge ScopeChallenge
+
+	// Dynamic reports whether Challenge depends on tool arguments. Dynamic
+	// policies must declare their exhaustive upper bound in Scopes.
+	Dynamic bool
+}
+
+// ToolHandlerMiddleware wraps an MCP tool handler. Middleware is applied from
+// right to left, so the first middleware passed to RegisterFunc executes first.
+type ToolHandlerMiddleware func(next mcp.ToolHandler) mcp.ToolHandler
 
 // ToolsetID is a unique identifier for a toolset.
 // Using a distinct type provides compile-time type safety.
@@ -66,25 +98,31 @@ type ServerTool struct {
 	// to be available. If set and the flag is not enabled, the tool is omitted.
 	FeatureFlagEnable string
 
+	// FeatureFlagEnableAll specifies additional feature flags that must all be enabled
+	// for this tool to be available.
+	FeatureFlagEnableAll []string
+
 	// FeatureFlagDisable specifies feature flags that, when any is enabled, cause this
 	// tool to be omitted. Used to disable tools when a feature flag is on.
 	FeatureFlagDisable []string
 
 	// Enabled is an optional function called at build/filter time to determine
 	// if this tool should be available. If nil, the tool is considered enabled
-	// (subject to FeatureFlagEnable/FeatureFlagDisable checks).
+	// (subject to feature flag checks).
 	// The context carries request-scoped information for the consumer to use.
 	// Returns (enabled, error). On error, the tool should be treated as disabled.
 	Enabled func(ctx context.Context) (bool, error)
 
-	// RequiredScopes specifies the minimum OAuth scopes required for this tool.
-	// These are the scopes that must be present for the tool to function.
-	RequiredScopes []string
+	// MinimumProtocolVersion is the oldest MCP protocol version that may list or
+	// call this tool. Empty means the tool is available on every version.
+	MinimumProtocolVersion string
 
-	// AcceptedScopes specifies all OAuth scopes that can be used with this tool.
-	// This includes the required scopes plus any higher-level scopes that provide
-	// the necessary permissions due to scope hierarchy.
-	AcceptedScopes []string
+	// RequiredElicitationMode is the elicitation mode the client must support to
+	// list or call this tool. Empty means the tool does not require elicitation.
+	RequiredElicitationMode ElicitationMode
+
+	// ScopeAccess controls fixed-token visibility and per-call OAuth challenges.
+	ScopeAccess ScopeAccess
 }
 
 // IsReadOnly returns true if this tool is marked as read-only via annotations.
@@ -110,29 +148,32 @@ func (st *ServerTool) Handler(deps any) mcp.ToolHandler {
 // Icons are automatically applied from the toolset metadata if not already set.
 // A shallow copy of the tool is made to avoid mutating the original ServerTool.
 // Panics if the tool has no handler - all tools should have handlers.
-func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any) {
+func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
 	handler := st.Handler(deps) // This will panic if HandlerFunc is nil
+	for i := len(middleware) - 1; i >= 0; i-- {
+		handler = middleware[i](handler)
+	}
+	handler = st.wrapAvailabilityCheck(handler)
 	// Make a shallow copy of the tool to avoid mutating the original
 	toolCopy := st.Tool
 	// Apply icons from toolset metadata if tool doesn't have icons set
 	if len(toolCopy.Icons) == 0 {
 		toolCopy.Icons = st.Toolset.Icons()
 	}
-	// Project routing-relevant params to standard MCP-Param-* headers (SEP-2243)
-	// so a remote proxy can read owner/repo from headers instead of re-parsing the
-	// JSON-RPC body. No-op for tools without these params.
+	// Project owner/repo routing params to standard MCP-Param-* headers (SEP-2243)
+	// so a remote proxy can route requests without re-parsing the JSON-RPC body.
+	// No-op for tools without these params.
 	AnnotateHeaderParams(&toolCopy)
 	s.AddTool(&toolCopy, handler)
 }
 
-// HeaderParams maps tool input properties to the MCP-Param-* header name a
-// header-aware proxy reads, avoiding a second parse of the request body. New
-// routing-relevant params should be added here so projection stays automatic
-// for every tool; the enforcement test in pkg/github guards full coverage.
+// HeaderParams maps owner/repo input properties to the MCP-Param-* headers a
+// header-aware proxy reads for repository routing. The enforcement test in
+// pkg/github guards full coverage.
 var HeaderParams = map[string]string{"owner": "owner", "repo": "repo"}
 
-// AnnotateHeaderParams returns a copy of tool whose routing-relevant input
-// properties (per HeaderParams) carry an "x-mcp-header" annotation, which the
+// AnnotateHeaderParams returns a copy of tool whose owner/repo input properties
+// carry an "x-mcp-header" annotation, which the
 // SDK projects onto Mcp-Param-{name} request headers. It never mutates the
 // input tool's schema or any map shared with the original tool definition:
 // callers shallow-copy ServerTool.Tool, so the *jsonschema.Schema (and its
@@ -189,19 +230,32 @@ func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset Too
 		// HandlerFunc ignores deps - deps are retrieved from context at call time
 		HandlerFunc: func(_ any) mcp.ToolHandler {
 			return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				rawArguments := req.Params.Arguments
+				if len(rawArguments) == 0 {
+					rawArguments = json.RawMessage(`{}`)
+				}
+
+				if bytes.Equal(bytes.TrimSpace(rawArguments), []byte("null")) {
+					return invalidArgumentsResult(fmt.Errorf("arguments must be a JSON object")), nil
+				}
+
 				var arguments In
-				if err := json.Unmarshal(req.Params.Arguments, &arguments); err != nil {
-					return &mcp.CallToolResult{
-						Content: []mcp.Content{
-							&mcp.TextContent{Text: fmt.Sprintf("invalid arguments: %s", err)},
-						},
-						IsError: true,
-					}, nil
+				if err := json.Unmarshal(rawArguments, &arguments); err != nil {
+					return invalidArgumentsResult(err), nil
 				}
 				resp, _, err := handler(ctx, req, arguments)
 				return resp, err
 			}
 		},
+	}
+}
+
+func invalidArgumentsResult(err error) *mcp.CallToolResult {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf("invalid arguments: %s", err)},
+		},
+		IsError: true,
 	}
 }
 

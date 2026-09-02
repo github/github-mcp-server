@@ -29,7 +29,7 @@ func issueUpdateTool(
 	name, description, title string,
 	extraProps map[string]*jsonschema.Schema,
 	extraRequired []string,
-	buildRequest func(args map[string]any) (*github.IssueRequest, error),
+	buildRequest func(args map[string]any) (github.UpdateIssueRequest, error),
 ) inventory.ServerTool {
 	props := map[string]*jsonschema.Schema{
 		"owner": {
@@ -67,7 +67,7 @@ func issueUpdateTool(
 				Required:   required,
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -92,7 +92,7 @@ func issueUpdateTool(
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			issue, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueReq)
+			issue, resp, err := client.Issues.Update(ctx, owner, repo, issueNumber, issueReq)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue", resp, err), nil, nil
 			}
@@ -144,11 +144,24 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 						Type:        "string",
 						Description: "Issue body content (optional)",
 					},
+					"parent_issue_number": {
+						Type:        "number",
+						Description: "Issue number of the parent issue. The new issue is created and attached to this parent in the same operation.",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"parent_owner": {
+						Type:        "string",
+						Description: "Repository owner of the parent issue. Must be provided with parent_repo. Omit both to use owner and repo. Only used when parent_issue_number is provided.",
+					},
+					"parent_repo": {
+						Type:        "string",
+						Description: "Repository name of the parent issue. Must be provided with parent_owner. Omit both to use owner and repo. Only used when parent_issue_number is provided.",
+					},
 				},
 				Required: []string{"owner", "repo", "title"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -163,9 +176,29 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			body, _ := OptionalParam[string](args, "body")
+			parentIssueNumber, err := OptionalIntParam(args, "parent_issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			parentValue, parentProvided := args["parent_issue_number"]
+			parentProvided = parentProvided && parentValue != nil
+			if parentProvided && parentIssueNumber < 1 {
+				return utils.NewToolResultError("parent_issue_number must be greater than 0"), nil, nil
+			}
+			parentOwner, err := OptionalParam[string](args, "parent_owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			parentRepo, err := OptionalParam[string](args, "parent_repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if err := validateParentRepository(parentProvided, parentOwner, parentRepo); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
-			issueReq := &github.IssueRequest{
-				Title: &title,
+			issueReq := github.CreateIssueRequest{
+				Title: title,
 			}
 			if body != "" {
 				issueReq.Body = &body
@@ -174,6 +207,15 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			if parentProvided {
+				gqlClient, err := deps.GetGQLClient(ctx)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
+				}
+				result, err := CreateIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, nil, nil, 0, "", parentIssueNumber, parentOwner, parentRepo)
+				return result, nil, err
 			}
 
 			issue, resp, err := client.Issues.Create(ctx, owner, repo, issueReq)
@@ -206,12 +248,12 @@ func GranularUpdateIssueTitle(t translations.TranslationHelperFunc) inventory.Se
 			"title": {Type: "string", Description: "The new title for the issue"},
 		},
 		[]string{"title"},
-		func(args map[string]any) (*github.IssueRequest, error) {
+		func(args map[string]any) (github.UpdateIssueRequest, error) {
 			title, err := RequiredParam[string](args, "title")
 			if err != nil {
-				return nil, err
+				return github.UpdateIssueRequest{}, err
 			}
-			return &github.IssueRequest{Title: &title}, nil
+			return github.UpdateIssueRequest{Title: &title}, nil
 		},
 	)
 }
@@ -226,12 +268,12 @@ func GranularUpdateIssueBody(t translations.TranslationHelperFunc) inventory.Ser
 			"body": {Type: "string", Description: "The new body content for the issue"},
 		},
 		[]string{"body"},
-		func(args map[string]any) (*github.IssueRequest, error) {
+		func(args map[string]any) (github.UpdateIssueRequest, error) {
 			body, err := RequiredParam[string](args, "body")
 			if err != nil {
-				return nil, err
+				return github.UpdateIssueRequest{}, err
 			}
-			return &github.IssueRequest{Body: &body}, nil
+			return github.UpdateIssueRequest{Body: &body}, nil
 		},
 	)
 }
@@ -304,7 +346,7 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 				Required: []string{"owner", "repo", "issue_number", "assignees"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -392,7 +434,7 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 				for i, p := range payload {
 					logins[i] = p.(string)
 				}
-				body = &github.IssueRequest{Assignees: &logins}
+				body = &github.UpdateIssueRequest{Assignees: logins}
 			}
 
 			apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
@@ -522,7 +564,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 				Required: []string{"owner", "repo", "issue_number", "labels"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -610,7 +652,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 				for i, p := range payload {
 					names[i] = p.(string)
 				}
-				body = &github.IssueRequest{Labels: &names}
+				body = &github.UpdateIssueRequest{Labels: names}
 			}
 
 			apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
@@ -654,12 +696,12 @@ func GranularUpdateIssueMilestone(t translations.TranslationHelperFunc) inventor
 			},
 		},
 		[]string{"milestone"},
-		func(args map[string]any) (*github.IssueRequest, error) {
+		func(args map[string]any) (github.UpdateIssueRequest, error) {
 			milestone, err := RequiredInt(args, "milestone")
 			if err != nil {
-				return nil, err
+				return github.UpdateIssueRequest{}, err
 			}
-			return &github.IssueRequest{Milestone: &milestone}, nil
+			return github.UpdateIssueRequest{Milestone: &milestone}, nil
 		},
 	)
 }
@@ -679,13 +721,13 @@ type issueTypeUpdateRequest struct {
 	Type issueTypeWithIntent `json:"type"`
 }
 
-// GranularUpdateIssueType creates a tool to update an issue's type.
+// GranularUpdateIssueType creates a tool to set or clear an issue's type.
 func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_type",
-			Description: t("TOOL_UPDATE_ISSUE_TYPE_DESCRIPTION", "Update the type of an existing issue (e.g. 'bug', 'feature'). When setting values, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
+			Description: t("TOOL_UPDATE_ISSUE_TYPE_DESCRIPTION", "Set or remove the type of an existing issue. Pass null to remove the current type. When setting a value, include a confidence level (LOW, MEDIUM, or HIGH) reflecting how certain you are about the choice."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_UPDATE_ISSUE_TYPE_USER_TITLE", "Update Issue Type"),
 				ReadOnlyHint:    false,
@@ -709,8 +751,11 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 						Minimum:     jsonschema.Ptr(1.0),
 					},
 					"issue_type": {
-						Type:        "string",
-						Description: "The issue type to set",
+						AnyOf: []*jsonschema.Schema{
+							{Type: "string", MinLength: jsonschema.Ptr(1)},
+							{Type: "null"},
+						},
+						Description: "The issue type to set, or null to remove the current type",
 					},
 					"rationale": {
 						Type: "string",
@@ -732,7 +777,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 				Required: []string{"owner", "repo", "issue_number", "issue_type"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -746,9 +791,12 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			issueType, err := RequiredParam[string](args, "issue_type")
+			issueType, issueTypeProvided, err := OptionalNullableStringParam(args, "issue_type")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if !issueTypeProvided {
+				return utils.NewToolResultError("missing required parameter: issue_type"), nil, nil
 			}
 			rationale, err := OptionalParam[string](args, "rationale")
 			if err != nil {
@@ -770,24 +818,29 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-
+			if issueType == nil && (rationale != "" || confidence != "" || isSuggestion) {
+				return utils.NewToolResultError("suggestion metadata is not supported when removing an issue type; omit rationale, confidence, and is_suggestion"), nil, nil
+			}
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			var body any
-			if rationale != "" || isSuggestion || confidence != "" {
+			switch {
+			case issueType == nil:
+				body = map[string]any{"type": nil}
+			case rationale != "" || isSuggestion || confidence != "":
 				body = &issueTypeUpdateRequest{
 					Type: issueTypeWithIntent{
-						Value:      issueType,
+						Value:      *issueType,
 						Rationale:  rationale,
 						Confidence: confidence,
 						Suggest:    isSuggestion,
 					},
 				}
-			} else {
-				body = &github.IssueRequest{Type: &issueType}
+			default:
+				body = &github.UpdateIssueRequest{Type: issueType}
 			}
 
 			apiURL := fmt.Sprintf("repos/%s/%s/issues/%d", owner, repo, issueNumber)
@@ -898,7 +951,7 @@ func GranularUpdateIssueState(t translations.TranslationHelperFunc) inventory.Se
 				Required: []string{"owner", "repo", "issue_number", "state"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -981,7 +1034,7 @@ func GranularUpdateIssueState(t translations.TranslationHelperFunc) inventory.Se
 				}
 				body = req
 			} else {
-				req := &github.IssueRequest{State: &state}
+				req := &github.UpdateIssueRequest{State: &state}
 				if stateReason != "" {
 					req.StateReason = &stateReason
 				}
@@ -1056,7 +1109,7 @@ func GranularAddSubIssue(t translations.TranslationHelperFunc) inventory.ServerT
 				Required: []string{"owner", "repo", "issue_number", "sub_issue_id"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1126,7 +1179,7 @@ func GranularRemoveSubIssue(t translations.TranslationHelperFunc) inventory.Serv
 				Required: []string{"owner", "repo", "issue_number", "sub_issue_id"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1203,7 +1256,7 @@ func GranularReprioritizeSubIssue(t translations.TranslationHelperFunc) inventor
 				Required: []string{"owner", "repo", "issue_number", "sub_issue_id"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1262,6 +1315,27 @@ type IssueFieldCreateOrUpdateInput struct {
 	Rationale            *githubv4.String  `json:"rationale,omitempty"`
 	Confidence           *string           `json:"confidence,omitempty"`
 	Suggest              *githubv4.Boolean `json:"suggest,omitempty"`
+}
+
+type setIssueFieldValueMutation struct {
+	SetIssueFieldValue struct {
+		Issue struct {
+			ID  githubv4.ID
+			URL githubv4.String
+		}
+	} `graphql:"setIssueFieldValue(input: $input)"`
+}
+
+// SetIssueFieldValues updates Issue Field values and returns the updated issue.
+func SetIssueFieldValues(ctx context.Context, gqlClient *githubv4.Client, input SetIssueFieldValueInput) (MinimalResponse, error) {
+	var mutation setIssueFieldValueMutation
+	if err := gqlClient.Mutate(ctx, &mutation, input, nil); err != nil {
+		return MinimalResponse{}, err
+	}
+	return MinimalResponse{
+		ID:  fmt.Sprintf("%v", mutation.SetIssueFieldValue.Issue.ID),
+		URL: string(mutation.SetIssueFieldValue.Issue.URL),
+	}, nil
 }
 
 // GranularSetIssueFields creates a tool to set issue field values on an issue using GraphQL.
@@ -1355,7 +1429,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				Required: []string{"owner", "repo", "issue_number", "fields"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1508,36 +1582,6 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue", err), nil, nil
 			}
 
-			// Execute the setIssueFieldValue mutation
-			var mutation struct {
-				SetIssueFieldValue struct {
-					Issue struct {
-						ID     githubv4.ID
-						Number githubv4.Int
-						URL    githubv4.String
-					}
-					IssueFieldValues []struct {
-						TextValue struct {
-							Value string
-						} `graphql:"... on IssueFieldTextValue"`
-						SingleSelectValue struct {
-							Name string
-						} `graphql:"... on IssueFieldSingleSelectValue"`
-						MultiSelectValue struct {
-							Options []struct {
-								Name string
-							}
-						} `graphql:"... on IssueFieldMultiSelectValue"`
-						DateValue struct {
-							Value string
-						} `graphql:"... on IssueFieldDateValue"`
-						NumberValue struct {
-							Value float64
-						} `graphql:"... on IssueFieldNumberValue"`
-					}
-				} `graphql:"setIssueFieldValue(input: $input)"`
-			}
-
 			mutationInput := SetIssueFieldValueInput{
 				IssueID:     issueID,
 				IssueFields: issueFields,
@@ -1546,14 +1590,12 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 			// The rationale and suggest input fields on IssueFieldCreateOrUpdateInput
 			// are gated behind the update_issue_suggestions GraphQL feature flag.
 			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "update_issue_suggestions")
-			if err := gqlClient.Mutate(ctxWithFeatures, &mutation, mutationInput, nil); err != nil {
+			response, err := SetIssueFieldValues(ctxWithFeatures, gqlClient, mutationInput)
+			if err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to set issue field values", err), nil, nil
 			}
 
-			r, err := json.Marshal(MinimalResponse{
-				ID:  fmt.Sprintf("%v", mutation.SetIssueFieldValue.Issue.ID),
-				URL: string(mutation.SetIssueFieldValue.Issue.URL),
-			})
+			r, err := json.Marshal(response)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
@@ -1602,7 +1644,7 @@ func GranularAddIssueReaction(t translations.TranslationHelperFunc) inventory.Se
 				Required: []string{"owner", "repo", "issue_number", "content"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1684,7 +1726,7 @@ func GranularAddIssueCommentReaction(t translations.TranslationHelperFunc) inven
 				Required: []string{"owner", "repo", "comment_id", "content"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

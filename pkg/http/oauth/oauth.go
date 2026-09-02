@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/modelcontextprotocol/go-sdk/auth"
@@ -19,27 +20,14 @@ const (
 	OAuthProtectedResourcePrefix = "/.well-known/oauth-protected-resource"
 )
 
-// SupportedScopes lists every OAuth scope that an MCP tool may require. It is the
-// source of truth in two places: HTTP mode advertises it as scopes_supported in
-// the protected-resource metadata, and stdio OAuth login requests it by default
-// and then filters the exposed tools to the granted scopes. A tool whose required
-// scope is absent here is therefore hidden under default OAuth even though a PAT
-// carrying that scope would expose it, so keep this list in sync with tool scope
-// requirements when scopes change.
-var SupportedScopes = []string{
-	"repo",
-	"read:org",
-	"read:user",
-	"user:email",
-	"read:packages",
-	"write:packages",
-	"read:project",
-	"project",
-	"gist",
-	"notifications",
-	"workflow",
-	"codespace",
-}
+// SupportedScopes lists every OAuth scope that an MCP tool may require. HTTP
+// protected-resource metadata advertises this full set so clients can step up
+// authorization for tools excluded from the default grant.
+var SupportedScopes = scopes.SupportedOAuthScopes()
+
+// DefaultScopes are requested by stdio OAuth unless the operator explicitly
+// supplies --oauth-scopes. High-risk scopes such as delete_repo require opt-in.
+var DefaultScopes = scopes.DefaultOAuthScopes()
 
 // Config holds the OAuth configuration for the MCP server.
 type Config struct {
@@ -94,11 +82,14 @@ func NewAuthHandler(cfg *Config, apiHost utils.APIHostResolver) (*AuthHandler, e
 
 // routePatterns defines the route patterns for OAuth protected resource metadata.
 var routePatterns = []string{
-	"",          // Root: /.well-known/oauth-protected-resource
-	"/readonly", // Read-only mode
-	"/insiders", // Insiders mode
+	"", // Root: /.well-known/oauth-protected-resource
+	"/readonly",
+	"/insiders",
+	"/readonly/insiders",
 	"/x/{toolset}",
 	"/x/{toolset}/readonly",
+	"/x/{toolset}/insiders",
+	"/x/{toolset}/readonly/insiders",
 }
 
 // RegisterRoutes registers the OAuth protected resource metadata routes.
@@ -109,6 +100,7 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 			r.Handle(path, h.metadataHandler())
 		}
 	}
+	r.Handle(OAuthProtectedResourcePrefix+"/*", http.NotFoundHandler())
 }
 
 func (h *AuthHandler) metadataHandler() http.Handler {
@@ -207,7 +199,16 @@ func (h *AuthHandler) buildResourceURL(r *http.Request, resourcePath string) str
 	if !strings.HasPrefix(resourcePath, "/") {
 		resourcePath = "/" + resourcePath
 	}
-	return baseURL + resourcePath
+	return appendRawQuery(baseURL+resourcePath, r.URL.RawQuery)
+}
+
+// appendRawQuery avoids re-encoding the resource identifier that RFC 9728
+// clients compare as an exact string.
+func appendRawQuery(target, rawQuery string) string {
+	if rawQuery == "" {
+		return target
+	}
+	return target + "?" + rawQuery
 }
 
 // GetEffectiveHostAndScheme returns the effective host and scheme for a request.
@@ -256,10 +257,13 @@ func BuildResourceMetadataURL(r *http.Request, cfg *Config, resourcePath string)
 			suffix = resourcePath
 		}
 	}
+	metadataURL := ""
 	if cfg != nil && cfg.BaseURL != "" {
-		return strings.TrimSuffix(cfg.BaseURL, "/") + OAuthProtectedResourcePrefix + suffix
+		metadataURL = strings.TrimSuffix(cfg.BaseURL, "/") + OAuthProtectedResourcePrefix + suffix
+	} else {
+		metadataURL = fmt.Sprintf("%s://%s%s%s", scheme, host, OAuthProtectedResourcePrefix, suffix)
 	}
-	return fmt.Sprintf("%s://%s%s%s", scheme, host, OAuthProtectedResourcePrefix, suffix)
+	return appendRawQuery(metadataURL, r.URL.RawQuery)
 }
 
 func normalizeBasePath(path string) string {

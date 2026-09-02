@@ -17,6 +17,11 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// labelOrderFieldIssueCount orders labels by the number of issues they are assigned to.
+// It is not part of the githubv4.LabelOrderField constants shipped with the client library
+// (or GitHub's public GraphQL schema docs), but the API accepts it, so we define it locally.
+const labelOrderFieldIssueCount githubv4.LabelOrderField = "ISSUE_COUNT"
+
 // GetLabel retrieves a specific label by name from a GitHub repository
 func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
@@ -47,7 +52,7 @@ func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "name"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -129,9 +134,9 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 		ToolsetLabels,
 		mcp.Tool{
 			Name:        "list_label",
-			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository"),
+			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository, ordered by issue count (descending) so the most-used labels are returned first"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository"),
+				Title:        t("TOOL_LIST_LABEL_TITLE", "List labels from a repository"),
 				ReadOnlyHint: true,
 			},
 			InputSchema: &jsonschema.Schema{
@@ -149,7 +154,7 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -176,13 +181,16 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 							Description githubv4.String
 						}
 						TotalCount githubv4.Int
-					} `graphql:"labels(first: 100)"`
+					} `graphql:"labels(first: 100, orderBy: {field: $orderByField, direction: $orderByDirection})"`
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
 
 			vars := map[string]any{
 				"owner": githubv4.String(owner),
 				"repo":  githubv4.String(repo),
+				// Order labels by issue count (descending) so the most-used labels are returned first.
+				"orderByField":     labelOrderFieldIssueCount,
+				"orderByDirection": githubv4.OrderDirectionDesc,
 			}
 
 			if err := client.Query(ctx, &query, vars); err != nil {
@@ -226,8 +234,9 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "label_write",
 			Description: t("TOOL_LABEL_WRITE_DESCRIPTION", "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LABEL_WRITE_TITLE", "Write operations on repository labels"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_LABEL_WRITE_TITLE", "Write operations on repository labels"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -265,7 +274,7 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"method", "owner", "repo", "name"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			// Get and validate required parameters
 			method, err := RequiredParam[string](args, "method")
