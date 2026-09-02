@@ -146,7 +146,7 @@ func TestLazyFeatureResolutionUsesLiveContext(t *testing.T) {
 	assert.True(t, ResolveFeature(ctx, checker, "handler_only"))
 }
 
-func TestFeatureResolutionIsReentrantAcrossFlags(t *testing.T) {
+func TestNestedFeatureResolutionFailsClosed(t *testing.T) {
 	var checker FeatureFlagChecker
 	checker = func(ctx context.Context, flag string) (bool, error) {
 		if flag == "meta" {
@@ -156,7 +156,8 @@ func TestFeatureResolutionIsReentrantAcrossFlags(t *testing.T) {
 	}
 
 	ctx := WithFeatureState(context.Background(), checker)
-	assert.True(t, ResolveFeature(ctx, nil, "meta"))
+	assert.False(t, ResolveFeature(ctx, nil, "meta"))
+	assert.True(t, ResolveFeature(ctx, nil, "base"))
 }
 
 func TestDirectFeatureResolutionCycleFailsClosed(t *testing.T) {
@@ -195,6 +196,27 @@ func TestMutualFeatureResolutionCycleFailsClosed(t *testing.T) {
 	ctx := WithFeatureState(context.Background(), checker)
 	assert.False(t, ResolveFeature(ctx, nil, "a"))
 	assert.False(t, ResolveFeature(ctx, nil, "b"))
+}
+
+func TestThreeNodeFeatureResolutionCycleFailsClosed(t *testing.T) {
+	var checker FeatureFlagChecker
+	checker = func(ctx context.Context, flag string) (bool, error) {
+		switch flag {
+		case "a":
+			return !ResolveFeature(ctx, checker, "b"), nil
+		case "b":
+			return !ResolveFeature(ctx, checker, "c"), nil
+		case "c":
+			return !ResolveFeature(ctx, checker, "a"), nil
+		default:
+			return false, nil
+		}
+	}
+
+	ctx := WithFeatureState(context.Background(), checker)
+	assert.False(t, ResolveFeature(ctx, nil, "a"))
+	assert.False(t, ResolveFeature(ctx, nil, "b"))
+	assert.False(t, ResolveFeature(ctx, nil, "c"))
 }
 
 func TestConcurrentFeatureResolutionIsDeduplicated(t *testing.T) {

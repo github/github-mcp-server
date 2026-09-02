@@ -13,9 +13,8 @@ const maxFeatureRuleFlags = 16
 // FeatureFlag identifies a feature consistently across inventory consumers.
 type FeatureFlag string
 
-// FeatureFlagChecker resolves one feature flag for the current request. Every
-// context value needed for availability checks must be installed before the
-// inventory is resolved. Handler-only checks receive the live tool-call context.
+// FeatureFlagChecker resolves one feature flag for the current request. Checkers
+// must not call ResolveFeature; nested resolution fails the owning check closed.
 type FeatureFlagChecker func(ctx context.Context, flag string) (bool, error)
 
 // FeatureResolver returns the resolved value of a feature flag.
@@ -154,6 +153,16 @@ func (s *featureState) enabled(ctx context.Context, feature FeatureFlag) bool {
 	}
 
 	owner := resolvingFeatureFromContext(ctx)
+	if owner != nil {
+		s.mu.Lock()
+		if ownerResult := s.results[owner.flag]; ownerResult != nil {
+			ownerResult.failed = true
+		}
+		s.mu.Unlock()
+		fmt.Fprintf(os.Stderr, "Feature flag checker attempted nested resolution of %q\n", feature)
+		return false
+	}
+
 	s.mu.Lock()
 	if s.results == nil {
 		s.results = make(map[FeatureFlag]*featureResult)
@@ -164,15 +173,6 @@ func (s *featureState) enabled(ctx context.Context, feature FeatureFlag) bool {
 			enabled := result.enabled
 			s.mu.Unlock()
 			return enabled
-		}
-		if owner != nil {
-			result.failed = true
-			if ownerResult := s.results[owner.flag]; ownerResult != nil {
-				ownerResult.failed = true
-			}
-			s.mu.Unlock()
-			fmt.Fprintf(os.Stderr, "Feature flag resolution cycle detected for %q\n", feature)
-			return false
 		}
 		for !result.done {
 			s.cond.Wait()

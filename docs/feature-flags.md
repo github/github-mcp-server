@@ -70,6 +70,8 @@ branch.
 The inventory's string-based checker owns request feature state. Once installed,
 that state is authoritative; a checker stored on tool dependencies is used only
 as a fallback when handlers are invoked directly without request state.
+Feature checkers must not call `ResolveFeature`; nested resolution fails the
+owning check closed.
 
 ---
 
