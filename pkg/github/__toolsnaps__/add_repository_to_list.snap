@@ -1,7 +1,7 @@
 {
   "annotations": {
     "destructiveHint": false,
-    "idempotentHint": false,
+    "idempotentHint": true,
     "readOnlyHint": false,
     "title": "Add repository to star list"
   },

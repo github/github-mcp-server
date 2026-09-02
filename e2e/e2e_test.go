@@ -2012,14 +2012,18 @@ func TestUserLists(t *testing.T) {
 	listName := fmt.Sprintf("github-mcp-server-e2e-%s-%d", t.Name(), time.Now().UnixMilli())
 	renamedList := listName + "-renamed"
 
+	// currentListName tracks the list's current name so cleanup deletes the
+	// right one even if the rename below fails after creation. It is only
+	// advanced once the rename succeeds.
+	currentListName := listName
 	t.Cleanup(func() {
-		t.Logf("Cleaning up list %q...", renamedList)
+		t.Logf("Cleaning up list %q...", currentListName)
 		resp, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{
 			Name:      "delete_user_list",
-			Arguments: map[string]any{"name": renamedList},
+			Arguments: map[string]any{"name": currentListName},
 		})
 		if err == nil && resp.IsError {
-			t.Logf("Cleanup: failed to delete list %q: %+v", renamedList, resp)
+			t.Logf("Cleanup: failed to delete list %q: %+v", currentListName, resp)
 		}
 	})
 
@@ -2047,6 +2051,7 @@ func TestUserLists(t *testing.T) {
 	})
 	require.NoError(t, err, "expected to call 'update_user_list' tool successfully")
 	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+	currentListName = renamedList
 
 	// Use the user's own account to find a repository to add. We create one so
 	// the test is self-contained and does not depend on any pre-existing repo.

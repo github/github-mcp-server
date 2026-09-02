@@ -123,12 +123,17 @@ func TestListUserLists(t *testing.T) {
 											NameWithOwner githubv4.String
 										} `graphql:"... on Repository"`
 									}
-								} `graphql:"items(first: 100)"`
+									PageInfo struct {
+										HasNextPage bool
+										EndCursor   string
+									}
+								} `graphql:"items(first: 100, after: $after)"`
 							} `graphql:"... on UserList"`
 						} `graphql:"node(id: $id)"`
 					}{},
 					map[string]any{
-						"id": githubv4.ID("list-1"),
+						"id":    githubv4.ID("list-1"),
+						"after": (*githubv4.String)(nil),
 					},
 					githubv4mock.DataResponse(map[string]any{
 						"node": map[string]any{
@@ -137,6 +142,10 @@ func TestListUserLists(t *testing.T) {
 									map[string]any{
 										"nameWithOwner": githubv4.String("owner/repo"),
 									},
+								},
+								"pageInfo": map[string]any{
+									"hasNextPage": false,
+									"endCursor":   "",
 								},
 							},
 						},
@@ -530,6 +539,7 @@ func TestAddRepositoryToList(t *testing.T) {
 	assert.False(t, tool.Annotations.ReadOnlyHint)
 	require.NotNil(t, tool.Annotations.DestructiveHint)
 	assert.False(t, *tool.Annotations.DestructiveHint)
+	assert.True(t, tool.Annotations.IdempotentHint)
 	assert.Equal(t, []string{"user"}, serverTool.ScopeAccess.Scopes)
 
 	// Repository currently in lists "A" and "B"; adding to "C" must resubmit all
@@ -588,12 +598,22 @@ func TestAddRepositoryToList(t *testing.T) {
 										ID githubv4.ID
 									} `graphql:"... on Repository"`
 								}
+								PageInfo struct {
+									HasNextPage bool
+									EndCursor   string
+								}
 							} `graphql:"items(first: 100)"`
 						}
-					} `graphql:"lists(first: 100)"`
+						PageInfo struct {
+							HasNextPage bool
+							EndCursor   string
+						}
+					} `graphql:"lists(first: 100, after: $listsAfter)"`
 				}
 			}{},
-			nil,
+			map[string]any{
+				"listsAfter": (*githubv4.String)(nil),
+			},
 			githubv4mock.DataResponse(map[string]any{
 				"viewer": map[string]any{
 					"lists": map[string]any{
@@ -604,6 +624,10 @@ func TestAddRepositoryToList(t *testing.T) {
 									"nodes": []any{
 										map[string]any{"id": githubv4.ID("repo-id")},
 									},
+									"pageInfo": map[string]any{
+										"hasNextPage": false,
+										"endCursor":   "",
+									},
 								},
 							},
 							map[string]any{
@@ -612,14 +636,23 @@ func TestAddRepositoryToList(t *testing.T) {
 									"nodes": []any{
 										map[string]any{"id": githubv4.ID("repo-id")},
 									},
+									"pageInfo": map[string]any{
+										"hasNextPage": false,
+										"endCursor":   "",
+									},
 								},
 							},
 							map[string]any{
 								"id": githubv4.ID("list-c"),
 								"items": map[string]any{
-									"nodes": []any{},
+									"nodes":    []any{},
+									"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
 								},
 							},
+						},
+						"pageInfo": map[string]any{
+							"hasNextPage": false,
+							"endCursor":   "",
 						},
 					},
 				},
@@ -673,7 +706,8 @@ func TestRemoveRepositoryFromList(t *testing.T) {
 	assert.Equal(t, "remove_repository_from_list", tool.Name)
 	assert.False(t, tool.Annotations.ReadOnlyHint)
 	require.NotNil(t, tool.Annotations.DestructiveHint)
-	assert.False(t, *tool.Annotations.DestructiveHint)
+	assert.True(t, *tool.Annotations.DestructiveHint)
+	assert.True(t, tool.Annotations.IdempotentHint)
 	assert.Equal(t, []string{"user"}, serverTool.ScopeAccess.Scopes)
 
 	// Repository currently in lists "A" and "B"; removing from "B" must resubmit
@@ -729,12 +763,22 @@ func TestRemoveRepositoryFromList(t *testing.T) {
 										ID githubv4.ID
 									} `graphql:"... on Repository"`
 								}
+								PageInfo struct {
+									HasNextPage bool
+									EndCursor   string
+								}
 							} `graphql:"items(first: 100)"`
 						}
-					} `graphql:"lists(first: 100)"`
+						PageInfo struct {
+							HasNextPage bool
+							EndCursor   string
+						}
+					} `graphql:"lists(first: 100, after: $listsAfter)"`
 				}
 			}{},
-			nil,
+			map[string]any{
+				"listsAfter": (*githubv4.String)(nil),
+			},
 			githubv4mock.DataResponse(map[string]any{
 				"viewer": map[string]any{
 					"lists": map[string]any{
@@ -745,6 +789,7 @@ func TestRemoveRepositoryFromList(t *testing.T) {
 									"nodes": []any{
 										map[string]any{"id": githubv4.ID("repo-id")},
 									},
+									"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
 								},
 							},
 							map[string]any{
@@ -753,8 +798,13 @@ func TestRemoveRepositoryFromList(t *testing.T) {
 									"nodes": []any{
 										map[string]any{"id": githubv4.ID("repo-id")},
 									},
+									"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
 								},
 							},
+						},
+						"pageInfo": map[string]any{
+							"hasNextPage": false,
+							"endCursor":   "",
 						},
 					},
 				},

@@ -92,32 +92,89 @@ func listUserLists(ctx context.Context, client *githubv4.Client, includeItems bo
 	return lists, int(query.Viewer.Lists.TotalCount), nil
 }
 
-// listUserListItems returns the repositories held by a single list.
+// listUserListItems returns the repositories held by a single list, following
+// the items connection's cursor until every page has been consumed.
 func listUserListItems(ctx context.Context, client *githubv4.Client, listID githubv4.ID) ([]userListItem, error) {
-	var query struct {
-		Node struct {
-			UserList struct {
-				Items struct {
-					Nodes []struct {
-						Repository struct {
-							NameWithOwner githubv4.String
-						} `graphql:"... on Repository"`
-					}
-				} `graphql:"items(first: 100)"`
-			} `graphql:"... on UserList"`
-		} `graphql:"node(id: $id)"`
-	}
-	vars := map[string]any{
-		"id": listID,
-	}
-	if err := client.Query(ctx, &query, vars); err != nil {
-		return nil, err
-	}
-	items := make([]userListItem, 0, len(query.Node.UserList.Items.Nodes))
-	for _, node := range query.Node.UserList.Items.Nodes {
-		items = append(items, userListItem{Repository: string(node.Repository.NameWithOwner)})
+	items := make([]userListItem, 0)
+	var after *githubv4.String
+	for {
+		var query struct {
+			Node struct {
+				UserList struct {
+					Items struct {
+						Nodes []struct {
+							Repository struct {
+								NameWithOwner githubv4.String
+							} `graphql:"... on Repository"`
+						}
+						PageInfo struct {
+							HasNextPage bool
+							EndCursor   string
+						}
+					} `graphql:"items(first: 100, after: $after)"`
+				} `graphql:"... on UserList"`
+			} `graphql:"node(id: $id)"`
+		}
+		vars := map[string]any{
+			"id":    listID,
+			"after": after,
+		}
+		if err := client.Query(ctx, &query, vars); err != nil {
+			return nil, err
+		}
+		for _, node := range query.Node.UserList.Items.Nodes {
+			items = append(items, userListItem{Repository: string(node.Repository.NameWithOwner)})
+		}
+		if !query.Node.UserList.Items.PageInfo.HasNextPage {
+			break
+		}
+		cursor := githubv4.String(query.Node.UserList.Items.PageInfo.EndCursor)
+		after = &cursor
 	}
 	return items, nil
+}
+
+// repoInList reports whether the repository identified by repoID belongs to the
+// list identified by listID, paging through the list's items until a match is
+// found or the connection is exhausted.
+func repoInList(ctx context.Context, client *githubv4.Client, listID, repoID githubv4.ID) (bool, error) {
+	var after *githubv4.String
+	for {
+		var query struct {
+			Node struct {
+				UserList struct {
+					Items struct {
+						Nodes []struct {
+							Repository struct {
+								ID githubv4.ID
+							} `graphql:"... on Repository"`
+						}
+						PageInfo struct {
+							HasNextPage bool
+							EndCursor   string
+						}
+					} `graphql:"items(first: 100, after: $after)"`
+				} `graphql:"... on UserList"`
+			} `graphql:"node(id: $id)"`
+		}
+		vars := map[string]any{
+			"id":    listID,
+			"after": after,
+		}
+		if err := client.Query(ctx, &query, vars); err != nil {
+			return false, err
+		}
+		for _, node := range query.Node.UserList.Items.Nodes {
+			if node.Repository.ID == repoID {
+				return true, nil
+			}
+		}
+		if !query.Node.UserList.Items.PageInfo.HasNextPage {
+			return false, nil
+		}
+		cursor := githubv4.String(query.Node.UserList.Items.PageInfo.EndCursor)
+		after = &cursor
+	}
 }
 
 // createUserList creates a new star list for the authenticated user.
@@ -150,8 +207,10 @@ func createUserList(ctx context.Context, client *githubv4.Client, name, descript
 
 // updateUserList updates the name, description, and/or privacy of an existing
 // star list. name identifies the list; newName, description, and isPrivate are
-// optional changes.
-func updateUserList(ctx context.Context, client *githubv4.Client, name, newName, description string, isPrivate *bool) (string, error) {
+// optional changes. description is nil when the field was omitted (leave
+// unchanged) and non-nil when supplied (including an explicit empty string,
+// which clears the description).
+func updateUserList(ctx context.Context, client *githubv4.Client, name, newName string, description *string, isPrivate *bool) (string, error) {
 	listID, err := getUserListID(ctx, client, name)
 	if err != nil {
 		return "", err
@@ -164,8 +223,8 @@ func updateUserList(ctx context.Context, client *githubv4.Client, name, newName,
 		n := githubv4.String(newName)
 		input.Name = &n
 	}
-	if description != "" {
-		d := githubv4.String(description)
+	if description != nil {
+		d := githubv4.String(*description)
 		input.Description = &d
 	}
 	if isPrivate != nil {
@@ -215,7 +274,9 @@ func deleteUserList(ctx context.Context, client *githubv4.Client, name string) e
 // GitHub's schema has no reverse lookup from a repository to its lists (there
 // is no `lists` field on Repository). Membership is instead derived by walking
 // the viewer's lists and checking each list's items for the repository's node
-// ID.
+// ID. Both the lists and each list's items are fully paginated so a repository
+// beyond the first 100 items of a list is still counted; omitting it here would
+// silently drop the repository from that list on the subsequent mutation.
 func setRepoListMemberships(ctx context.Context, client *githubv4.Client, owner, repo, listName string, add bool) error {
 	listID, err := getUserListID(ctx, client, listName)
 	if err != nil {
@@ -227,54 +288,97 @@ func setRepoListMemberships(ctx context.Context, client *githubv4.Client, owner,
 		return fmt.Errorf("failed to find repository: %w", err)
 	}
 
-	var query struct {
-		Viewer struct {
-			Lists struct {
-				Nodes []struct {
-					ID    githubv4.ID
-					Items struct {
-						Nodes []struct {
-							Repository struct {
-								ID githubv4.ID
-							} `graphql:"... on Repository"`
-						}
-					} `graphql:"items(first: 100)"`
-				}
-			} `graphql:"lists(first: 100)"`
+	// Walk every list and, for each, every page of items to determine which
+	// lists currently contain the repository.
+	var listIDs []githubv4.ID
+	var listsAfter *githubv4.String
+	for {
+		var query struct {
+			Viewer struct {
+				Lists struct {
+					Nodes []struct {
+						ID    githubv4.ID
+						Items struct {
+							Nodes []struct {
+								Repository struct {
+									ID githubv4.ID
+								} `graphql:"... on Repository"`
+							}
+							PageInfo struct {
+								HasNextPage bool
+								EndCursor   string
+							}
+						} `graphql:"items(first: 100)"`
+					}
+					PageInfo struct {
+						HasNextPage bool
+						EndCursor   string
+					}
+				} `graphql:"lists(first: 100, after: $listsAfter)"`
+			}
 		}
-	}
-	if err := client.Query(ctx, &query, nil); err != nil {
-		return err
+		vars := map[string]any{
+			"listsAfter": listsAfter,
+		}
+		if err := client.Query(ctx, &query, vars); err != nil {
+			return err
+		}
+		for _, list := range query.Viewer.Lists.Nodes {
+			contains := false
+			for _, item := range list.Items.Nodes {
+				if item.Repository.ID == repoID {
+					contains = true
+					break
+				}
+			}
+			// If the first page didn't contain the repository but the list has
+			// more than 100 items, keep paging until we know for certain.
+			if !contains && list.Items.PageInfo.HasNextPage {
+				var err error
+				contains, err = repoInList(ctx, client, list.ID, repoID)
+				if err != nil {
+					return err
+				}
+			}
+			if contains {
+				listIDs = append(listIDs, list.ID)
+			}
+		}
+
+		if !query.Viewer.Lists.PageInfo.HasNextPage {
+			break
+		}
+		cursor := githubv4.String(query.Viewer.Lists.PageInfo.EndCursor)
+		listsAfter = &cursor
 	}
 
-	listIDs := make([]githubv4.ID, 0, len(query.Viewer.Lists.Nodes)+1)
 	present := false
-	for _, list := range query.Viewer.Lists.Nodes {
-		contains := false
-		for _, item := range list.Items.Nodes {
-			if item.Repository.ID == repoID {
-				contains = true
-				break
-			}
-		}
-		if !contains {
-			continue
-		}
-		if list.ID == listID {
+	for _, id := range listIDs {
+		if id == listID {
 			present = true
-			if !add {
-				continue
+			break
+		}
+	}
+
+	result := make([]githubv4.ID, 0, len(listIDs)+1)
+	if add {
+		for _, id := range listIDs {
+			result = append(result, id)
+		}
+		if !present {
+			result = append(result, listID)
+		}
+	} else {
+		for _, id := range listIDs {
+			if id != listID {
+				result = append(result, id)
 			}
 		}
-		listIDs = append(listIDs, list.ID)
-	}
-	if add && !present {
-		listIDs = append(listIDs, listID)
 	}
 
 	input := githubv4.UpdateUserListsForItemInput{
 		ItemID:  repoID,
-		ListIDs: listIDs,
+		ListIDs: result,
 	}
 	var mutation struct {
 		UpdateUserListsForItem struct {
@@ -447,7 +551,7 @@ func UpdateUserList(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			description, err := OptionalParam[string](args, "description")
+			description, descPresent, err := OptionalParamOK[string](args, "description")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -456,7 +560,7 @@ func UpdateUserList(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			if newName == "" && description == "" && !present {
+			if newName == "" && !descPresent && !present {
 				return utils.NewToolResultError("at least one of new_name, description, or is_private must be provided for update"), nil, nil
 			}
 
@@ -469,7 +573,11 @@ func UpdateUserList(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if present {
 				isPrivatePtr = &isPrivate
 			}
-			updatedName, err := updateUserList(ctx, client, name, newName, description, isPrivatePtr)
+			var descriptionPtr *string
+			if descPresent {
+				descriptionPtr = &description
+			}
+			updatedName, err := updateUserList(ctx, client, name, newName, descriptionPtr, isPrivatePtr)
 			if err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to update user list", err), nil, nil
 			}
@@ -532,6 +640,7 @@ func AddRepositoryToList(t translations.TranslationHelperFunc) inventory.ServerT
 				Title:           t("TOOL_ADD_REPOSITORY_TO_LIST_USER_TITLE", "Add repository to star list"),
 				ReadOnlyHint:    false,
 				DestructiveHint: jsonschema.Ptr(false),
+				IdempotentHint:  true,
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -590,7 +699,8 @@ func RemoveRepositoryFromList(t translations.TranslationHelperFunc) inventory.Se
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_REMOVE_REPOSITORY_FROM_LIST_USER_TITLE", "Remove repository from star list"),
 				ReadOnlyHint:    false,
-				DestructiveHint: jsonschema.Ptr(false),
+				DestructiveHint: jsonschema.Ptr(true),
+				IdempotentHint:  true,
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
