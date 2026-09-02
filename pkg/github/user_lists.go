@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"sync"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -26,6 +28,48 @@ type userList struct {
 
 type userListItem struct {
 	Repository string `json:"repository"`
+}
+
+type refCountedMutex struct {
+	mutex sync.Mutex
+	refs  int
+}
+
+var repoListMembershipLocks = struct {
+	sync.Mutex
+	locks map[string]*refCountedMutex
+}{
+	locks: make(map[string]*refCountedMutex),
+}
+
+// lockRepoListMembership serializes replacement-style membership updates for
+// the same repository within this process. The lock is repository-wide rather
+// than account-specific because ToolDependencies intentionally does not expose
+// credential identity; this is a stronger serialization boundary and avoids
+// cross-account lost updates inside a shared server process.
+func lockRepoListMembership(owner, repo string) func() {
+	key := strings.ToLower(owner + "/" + repo)
+
+	repoListMembershipLocks.Lock()
+	lock := repoListMembershipLocks.locks[key]
+	if lock == nil {
+		lock = &refCountedMutex{}
+		repoListMembershipLocks.locks[key] = lock
+	}
+	lock.refs++
+	repoListMembershipLocks.Unlock()
+
+	lock.mutex.Lock()
+	return func() {
+		lock.mutex.Unlock()
+
+		repoListMembershipLocks.Lock()
+		lock.refs--
+		if lock.refs == 0 {
+			delete(repoListMembershipLocks.locks, key)
+		}
+		repoListMembershipLocks.Unlock()
+	}
 }
 
 // getUserListID resolves the authenticated user's list with the given name to
@@ -288,6 +332,9 @@ func setRepoListMemberships(ctx context.Context, client *githubv4.Client, owner,
 		return fmt.Errorf("failed to find repository: %w", err)
 	}
 
+	unlock := lockRepoListMembership(owner, repo)
+	defer unlock()
+
 	// Walk every list and, for each, every page of items to determine which
 	// lists currently contain the repository.
 	var listIDs []githubv4.ID
@@ -358,6 +405,9 @@ func setRepoListMemberships(ctx context.Context, client *githubv4.Client, owner,
 			present = true
 			break
 		}
+	}
+	if add == present {
+		return nil
 	}
 
 	result := make([]githubv4.ID, 0, len(listIDs)+1)

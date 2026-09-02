@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
@@ -892,4 +893,114 @@ func TestAddRepositoryToListListNotFound(t *testing.T) {
 	assert.True(t, result.IsError)
 	textContent := getErrorResult(t, result)
 	assert.Contains(t, textContent.Text, "list 'Missing' not found")
+}
+
+func TestRepoListMembershipLockSerializesConcurrentUpdates(t *testing.T) {
+	unlockFirst := lockRepoListMembership("ConcurrentOwner", "ConcurrentRepo")
+	firstReleased := false
+	defer func() {
+		if !firstReleased {
+			unlockFirst()
+		}
+	}()
+
+	started := make(chan struct{})
+	acquired := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		close(started)
+		unlockSecond := lockRepoListMembership("concurrentowner", "concurrentrepo")
+		close(acquired)
+		unlockSecond()
+		close(done)
+	}()
+	<-started
+
+	select {
+	case <-acquired:
+		t.Fatal("second update acquired the same repository lock before the first released it")
+	case <-time.After(25 * time.Millisecond):
+	}
+
+	unlockFirst()
+	firstReleased = true
+	select {
+	case <-acquired:
+	case <-time.After(time.Second):
+		t.Fatal("second update did not acquire the repository lock after release")
+	}
+	<-done
+}
+
+func TestSetRepoListMembershipsSkipsSatisfiedMutation(t *testing.T) {
+	tests := []struct {
+		name          string
+		add           bool
+		currentlyInIt bool
+	}{
+		{name: "add already present", add: true, currentlyInIt: true},
+		{name: "remove already absent", add: false, currentlyInIt: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			itemNodes := "[]"
+			if tc.currentlyInIt {
+				itemNodes = `[{"id":"repo-id"}]`
+			}
+			transport := &sequencedGraphQLTransport{
+				t: t,
+				responses: []func(capturedGraphQLRequest) (int, string){
+					func(capturedGraphQLRequest) (int, string) {
+						return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-c","name":"C"}]}}}}`
+					},
+					func(capturedGraphQLRequest) (int, string) {
+						return http.StatusOK, `{"data":{"repository":{"id":"repo-id"}}}`
+					},
+					func(capturedGraphQLRequest) (int, string) {
+						return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-c","items":{"nodes":` + itemNodes + `,"pageInfo":{"hasNextPage":false,"endCursor":""}}}],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
+					},
+				},
+			}
+			client := githubv4.NewClient(&http.Client{Transport: transport})
+
+			require.NoError(t, setRepoListMemberships(context.Background(), client, "owner", "repo", "C", tc.add))
+			require.Len(t, transport.calls, 3, "satisfied operation should not issue a mutation")
+		})
+	}
+}
+
+func TestSetRepoListMembershipsPreservesMembershipFoundOnLaterPage(t *testing.T) {
+	transport := &sequencedGraphQLTransport{
+		t: t,
+		responses: []func(capturedGraphQLRequest) (int, string){
+			func(capturedGraphQLRequest) (int, string) {
+				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-c","name":"C"}]}}}}`
+			},
+			func(capturedGraphQLRequest) (int, string) {
+				return http.StatusOK, `{"data":{"repository":{"id":"repo-id"}}}`
+			},
+			func(capturedGraphQLRequest) (int, string) {
+				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-a","items":{"nodes":[],"pageInfo":{"hasNextPage":true,"endCursor":"cursor-a"}}},{"id":"list-c","items":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":""}}}],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
+			},
+			func(req capturedGraphQLRequest) (int, string) {
+				assert.Nil(t, req.Variables["after"])
+				return http.StatusOK, `{"data":{"node":{"items":{"nodes":[],"pageInfo":{"hasNextPage":true,"endCursor":"cursor-a"}}}}}`
+			},
+			func(req capturedGraphQLRequest) (int, string) {
+				assert.Equal(t, "cursor-a", req.Variables["after"])
+				return http.StatusOK, `{"data":{"node":{"items":{"nodes":[{"id":"repo-id"}],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
+			},
+			func(req capturedGraphQLRequest) (int, string) {
+				input, ok := req.Variables["input"].(map[string]any)
+				require.True(t, ok)
+				assert.Equal(t, []any{"list-a", "list-c"}, input["listIds"])
+				return http.StatusOK, `{"data":{"updateUserListsForItem":{"clientMutationId":"test-mutation-id"}}}`
+			},
+		},
+	}
+	client := githubv4.NewClient(&http.Client{Transport: transport})
+
+	require.NoError(t, setRepoListMemberships(context.Background(), client, "owner", "repo", "C", true))
+	require.Len(t, transport.calls, 6)
 }
