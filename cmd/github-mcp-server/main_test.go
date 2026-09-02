@@ -57,6 +57,46 @@ func TestAuthorizationServerConfigurationIsHTTPOnly(t *testing.T) {
 	assert.Equal(t, "https://oauth-proxy.example.com", viper.GetString("authorization-server"))
 }
 
+func TestStaticAuthConfigurationIsHTTPOnly(t *testing.T) {
+	flag := httpCmd.Flags().Lookup("static-auth")
+	require.NotNil(t, flag)
+	assert.Equal(t, "false", flag.DefValue)
+	assert.Nil(t, stdioCmd.Flags().Lookup("static-auth"))
+
+	t.Setenv("GITHUB_STATIC_AUTH", "true")
+	initConfig()
+	assert.True(t, viper.GetBool("static-auth"))
+}
+
+func TestResolveHTTPStaticToken(t *testing.T) {
+	const validToken = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+	t.Run("disabled ignores configured token", func(t *testing.T) {
+		token, err := resolveHTTPStaticToken(false, validToken)
+		require.NoError(t, err)
+		assert.Empty(t, token)
+	})
+
+	t.Run("enabled accepts configured token", func(t *testing.T) {
+		token, err := resolveHTTPStaticToken(true, validToken)
+		require.NoError(t, err)
+		assert.Equal(t, validToken, token)
+	})
+
+	t.Run("enabled rejects missing token", func(t *testing.T) {
+		_, err := resolveHTTPStaticToken(true, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "GITHUB_PERSONAL_ACCESS_TOKEN")
+	})
+
+	t.Run("enabled rejects invalid token without exposing it", func(t *testing.T) {
+		const invalidToken = "invalid-secret-value"
+		_, err := resolveHTTPStaticToken(true, invalidToken)
+		require.Error(t, err)
+		assert.NotContains(t, err.Error(), invalidToken)
+	})
+}
+
 func TestWriteToolDocScopes(t *testing.T) {
 	tool := inventory.ServerTool{
 		Tool:        mcp.Tool{Name: "delete", Annotations: &mcp.ToolAnnotations{Title: "Delete"}},

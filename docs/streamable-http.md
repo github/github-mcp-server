@@ -22,6 +22,38 @@ github-mcp-server http
 
 The server will be available at `http://localhost:8082`.
 
+### Single-tenant static authentication
+
+By default, every HTTP request must provide its own GitHub token in the
+`Authorization` header. For a single-tenant deployment where a trusted gateway
+cannot add that header, explicitly opt in to using the process credential when
+the header is absent:
+
+```bash
+export GITHUB_PERSONAL_ACCESS_TOKEN=ghp_yourtokenhere
+# Bind the backend to loopback and put an authenticating gateway in front of it.
+github-mcp-server http --static-auth --listen-host 127.0.0.1 --read-only
+```
+
+The environment equivalent of the flag is `GITHUB_STATIC_AUTH=true`. If static
+authentication is enabled without a valid `GITHUB_PERSONAL_ACCESS_TOKEN`, the
+server refuses to start. A request that includes an `Authorization` header
+always uses that header instead; an empty, malformed, or unsupported header is
+rejected rather than replaced with the process credential.
+
+Browser requests carrying an `Origin` header cannot use the static credential
+fallback. They must explicitly request the `Authorization` header during CORS
+preflight and send their own token with the actual request.
+
+> [!WARNING]
+> Static authentication does not authenticate callers to the MCP server. Any
+> caller that can reach the endpoint without an `Authorization` header receives
+> the permissions of the shared GitHub credential. Use this mode only behind an
+> authenticating trusted gateway or access boundary. Binding to a loopback
+> interface reduces network exposure but does not authenticate local callers and
+> is not sufficient by itself. Grant the token the least privileges possible,
+> and enable `--read-only` unless write tools are required.
+
 ### With Scope Challenge
 
 Enable scope validation to enforce GitHub permission checks:

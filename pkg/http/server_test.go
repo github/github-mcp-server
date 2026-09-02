@@ -51,6 +51,36 @@ func TestRunHTTPServerRejectsInvalidStaticTools(t *testing.T) {
 	}
 }
 
+func TestRunHTTPServerRejectsInvalidStaticToken(t *testing.T) {
+	const invalidToken = "invalid-static-token-secret"
+
+	err := RunHTTPServer(ServerConfig{StaticToken: invalidToken})
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "invalid static token configuration")
+	assert.NotContains(t, err.Error(), invalidToken)
+}
+
+func TestValidateStaticToken(t *testing.T) {
+	t.Run("empty token keeps fallback disabled", func(t *testing.T) {
+		require.NoError(t, validateStaticToken(""))
+	})
+
+	t.Run("valid token is accepted", func(t *testing.T) {
+		require.NoError(t, validateStaticToken("ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"))
+	})
+
+	t.Run("invalid token is rejected without exposing it", func(t *testing.T) {
+		const invalidToken = "invalid-static-token-secret"
+
+		err := validateStaticToken(invalidToken)
+
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "invalid static token configuration")
+		assert.NotContains(t, err.Error(), invalidToken)
+	})
+}
+
 func TestNewOAuthConfig(t *testing.T) {
 	tests := []struct {
 		name                string
@@ -188,6 +218,121 @@ func TestHTTPRouterCORSContract(t *testing.T) {
 					`Bearer resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource/mcp"`,
 					rec.Header().Get("WWW-Authenticate"),
 				)
+			}
+		})
+	}
+}
+
+func TestHTTPRouterStaticAuthBrowserGuard(t *testing.T) {
+	var mcpCalled bool
+	var metadataCalled bool
+	router := newHTTPRouter(
+		func(r chi.Router) {
+			r.Post("/", func(w http.ResponseWriter, _ *http.Request) {
+				mcpCalled = true
+				w.WriteHeader(http.StatusNoContent)
+			})
+		},
+		func(r chi.Router) {
+			r.Get(oauth.OAuthProtectedResourcePrefix, func(w http.ResponseWriter, _ *http.Request) {
+				metadataCalled = true
+				w.WriteHeader(http.StatusNoContent)
+			})
+		},
+		middleware.StaticAuthBrowserGuard,
+	)
+
+	tests := []struct {
+		name               string
+		method             string
+		path               string
+		origin             string
+		authorization      string
+		preflightHeaders   string
+		expectedStatus     int
+		expectMCP          bool
+		expectMetadata     bool
+		expectWildcardCORS bool
+	}{
+		{
+			name:           "headerless browser request cannot reach MCP handler",
+			method:         http.MethodPost,
+			path:           "/",
+			origin:         "https://example.com",
+			expectedStatus: http.StatusForbidden,
+		},
+		{
+			name:               "non-browser request can reach MCP handler",
+			method:             http.MethodPost,
+			path:               "/",
+			expectedStatus:     http.StatusNoContent,
+			expectMCP:          true,
+			expectWildcardCORS: true,
+		},
+		{
+			name:               "browser request with authorization can reach MCP handler",
+			method:             http.MethodPost,
+			path:               "/",
+			origin:             "https://example.com",
+			authorization:      "Bearer github_pat_requesttoken",
+			expectedStatus:     http.StatusNoContent,
+			expectMCP:          true,
+			expectWildcardCORS: true,
+		},
+		{
+			name:             "headerless preflight is rejected",
+			method:           http.MethodOptions,
+			path:             "/",
+			origin:           "https://example.com",
+			preflightHeaders: "content-type",
+			expectedStatus:   http.StatusForbidden,
+		},
+		{
+			name:               "preflight requesting authorization is allowed",
+			method:             http.MethodOptions,
+			path:               "/",
+			origin:             "https://example.com",
+			preflightHeaders:   "content-type, authorization",
+			expectedStatus:     http.StatusOK,
+			expectWildcardCORS: true,
+		},
+		{
+			name:               "OAuth metadata keeps wildcard CORS",
+			method:             http.MethodGet,
+			path:               oauth.OAuthProtectedResourcePrefix,
+			origin:             "https://example.com",
+			expectedStatus:     http.StatusNoContent,
+			expectMetadata:     true,
+			expectWildcardCORS: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mcpCalled = false
+			metadataCalled = false
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			if tt.origin != "" {
+				req.Header.Set("Origin", tt.origin)
+			}
+			if tt.authorization != "" {
+				req.Header.Set("Authorization", tt.authorization)
+			}
+			if tt.preflightHeaders != "" {
+				req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+				req.Header.Set("Access-Control-Request-Headers", tt.preflightHeaders)
+			}
+
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectedStatus, rr.Code)
+			assert.Equal(t, tt.expectMCP, mcpCalled)
+			assert.Equal(t, tt.expectMetadata, metadataCalled)
+			if tt.expectWildcardCORS {
+				assert.Equal(t, "*", rr.Header().Get("Access-Control-Allow-Origin"))
+			} else {
+				assert.Empty(t, rr.Header().Get("Access-Control-Allow-Origin"))
 			}
 		})
 	}
