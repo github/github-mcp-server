@@ -1,10 +1,26 @@
 package inventory
 
 import (
-	"slices"
+	"encoding/json"
+	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+func normalizeMeta(meta mcp.Meta) (mcp.Meta, error) {
+	if meta == nil {
+		return nil, nil
+	}
+	data, err := json.Marshal(meta)
+	if err != nil {
+		return nil, fmt.Errorf("marshal metadata: %w", err)
+	}
+	var normalized mcp.Meta
+	if err := json.Unmarshal(data, &normalized); err != nil {
+		return nil, fmt.Errorf("unmarshal metadata: %w", err)
+	}
+	return normalized, nil
+}
 
 func cloneMeta(meta mcp.Meta) mcp.Meta {
 	if meta == nil {
@@ -33,9 +49,9 @@ func cloneMetaValue(value any) any {
 			clone[i] = cloneMetaValue(item)
 		}
 		return clone
-	case []string:
-		return slices.Clone(value)
-	default:
+	case nil, bool, float64, string:
 		return value
+	default:
+		panic(fmt.Sprintf("metadata value %T is not normalized", value))
 	}
 }

@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -1309,6 +1310,9 @@ func TestBuilderOwnsFeatureMetadataInputs(t *testing.T) {
 	prompts := []ServerPrompt{mockPrompt("prompt", "toolset1")}
 	prompts[0].FeatureRule = promptRule
 	prompts[0].Prompt.Meta = nestedTestMeta("prompt", "prompt")
+	expectedToolMeta := mustMarshalJSON(t, tools[0].Tool.Meta)
+	expectedResourceMeta := mustMarshalJSON(t, resources[0].Template.Meta)
+	expectedPromptMeta := mustMarshalJSON(t, prompts[0].Prompt.Meta)
 
 	checker := func(_ context.Context, flag FeatureFlag) (bool, error) {
 		return flag == "tool" || flag == "resource" || flag == "prompt" || flag == mcpAppsFeatureFlag, nil
@@ -1320,16 +1324,16 @@ func TestBuilderOwnsFeatureMetadataInputs(t *testing.T) {
 		WithToolsets([]string{"all"}).
 		WithFeatureChecker(checker)
 
-	setNestedTestMeta(tools[0].Tool.Meta, "ui", "after-set")
-	setNestedTestMeta(resources[0].Template.Meta, "resource", "after-set")
-	setNestedTestMeta(prompts[0].Prompt.Meta, "prompt", "after-set")
+	mutateSourceTestMeta(tools[0].Tool.Meta, "ui", "after-set", 's')
+	mutateSourceTestMeta(resources[0].Template.Meta, "resource", "after-set", 's')
+	mutateSourceTestMeta(prompts[0].Prompt.Meta, "prompt", "after-set", 's')
 	inv := mustBuild(t, builder)
 	tools[0].FeatureRule.features[0] = "changed"
-	setNestedTestMeta(tools[0].Tool.Meta, "ui", "after-build")
+	mutateSourceTestMeta(tools[0].Tool.Meta, "ui", "after-build", 'b')
 	resources[0].FeatureRule.features[0] = "changed"
-	setNestedTestMeta(resources[0].Template.Meta, "resource", "after-build")
+	mutateSourceTestMeta(resources[0].Template.Meta, "resource", "after-build", 'b')
 	prompts[0].FeatureRule.features[0] = "changed"
-	setNestedTestMeta(prompts[0].Prompt.Meta, "prompt", "after-build")
+	mutateSourceTestMeta(prompts[0].Prompt.Meta, "prompt", "after-build", 'b')
 
 	require.Equal(t, []FeatureFlag{"prompt", "remote_mcp_ui_apps", "resource", "tool"}, inv.RequiredFeatures())
 	availableTools := inv.AvailableTools(context.Background())
@@ -1342,18 +1346,18 @@ func TestBuilderOwnsFeatureMetadataInputs(t *testing.T) {
 	requireNestedTestMeta(t, availableResources[0].Template.Meta, "resource", "resource")
 	requireNestedTestMeta(t, availablePrompts[0].Prompt.Meta, "prompt", "prompt")
 
-	setNestedTestMeta(availableTools[0].Tool.Meta, "ui", "after-available")
+	mutateNormalizedTestMeta(availableTools[0].Tool.Meta, "ui", "after-available")
 	availableTools[0].FeatureRule.features[0] = "changed"
-	setNestedTestMeta(availableResources[0].Template.Meta, "resource", "after-available")
+	mutateNormalizedTestMeta(availableResources[0].Template.Meta, "resource", "after-available")
 	availableResources[0].FeatureRule.features[0] = "changed"
-	setNestedTestMeta(availablePrompts[0].Prompt.Meta, "prompt", "after-available")
+	mutateNormalizedTestMeta(availablePrompts[0].Prompt.Meta, "prompt", "after-available")
 	availablePrompts[0].FeatureRule.features[0] = "changed"
 
 	allTools := inv.AllTools()
-	setNestedTestMeta(allTools[0].Tool.Meta, "ui", "after-all")
+	mutateNormalizedTestMeta(allTools[0].Tool.Meta, "ui", "after-all")
 	foundTool, _, err := inv.FindToolByName("tool")
 	require.NoError(t, err)
-	setNestedTestMeta(foundTool.Tool.Meta, "ui", "after-find")
+	mutateNormalizedTestMeta(foundTool.Tool.Meta, "ui", "after-find")
 
 	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
 	inv.RegisterAll(context.Background(), server, nil)
@@ -1369,40 +1373,110 @@ func TestBuilderOwnsFeatureMetadataInputs(t *testing.T) {
 	registeredTools, err := clientSession.ListTools(context.Background(), nil)
 	require.NoError(t, err)
 	requireNestedTestMeta(t, registeredTools.Tools[0].Meta, "ui", "tool")
+	require.JSONEq(t, string(expectedToolMeta), string(mustMarshalJSON(t, registeredTools.Tools[0].Meta)))
 	registeredResources, err := clientSession.ListResourceTemplates(context.Background(), nil)
 	require.NoError(t, err)
 	requireNestedTestMeta(t, registeredResources.ResourceTemplates[0].Meta, "resource", "resource")
+	require.JSONEq(t, string(expectedResourceMeta), string(mustMarshalJSON(t, registeredResources.ResourceTemplates[0].Meta)))
 	registeredPrompts, err := clientSession.ListPrompts(context.Background(), nil)
 	require.NoError(t, err)
 	requireNestedTestMeta(t, registeredPrompts.Prompts[0].Meta, "prompt", "prompt")
+	require.JSONEq(t, string(expectedPromptMeta), string(mustMarshalJSON(t, registeredPrompts.Prompts[0].Meta)))
+}
+
+type testMetaMap map[string]string
+type testMetaSlice []string
+type testMetaPointer struct {
+	Value string `json:"value"`
 }
 
 func nestedTestMeta(key, value string) mcp.Meta {
 	return mcp.Meta{
 		key: map[string]any{
-			"objects": []any{map[string]any{"value": value}},
-			"strings": []string{value},
+			"objects":     []any{map[string]any{"value": value}},
+			"strings":     []string{value},
+			"typed_map":   testMetaMap{"value": value},
+			"typed_slice": testMetaSlice{value},
+			"bytes":       []byte(value),
+			"pointer":     &testMetaPointer{Value: value},
 		},
 	}
 }
 
-func setNestedTestMeta(meta mcp.Meta, key, value string) {
+func mutateSourceTestMeta(meta mcp.Meta, key, value string, marker byte) {
 	nested := meta[key].(map[string]any)
 	nested["objects"].([]any)[0].(map[string]any)["value"] = value
 	nested["strings"].([]string)[0] = value
+	nested["typed_map"].(testMetaMap)["value"] = value
+	nested["typed_slice"].(testMetaSlice)[0] = value
+	nested["bytes"].([]byte)[0] = marker
+	nested["pointer"].(*testMetaPointer).Value = value
+}
+
+func mutateNormalizedTestMeta(meta mcp.Meta, key, value string) {
+	nested := meta[key].(map[string]any)
+	nested["objects"].([]any)[0].(map[string]any)["value"] = value
+	nested["strings"].([]any)[0] = value
+	nested["typed_map"].(map[string]any)["value"] = value
+	nested["typed_slice"].([]any)[0] = value
+	nested["bytes"] = value
+	nested["pointer"].(map[string]any)["value"] = value
 }
 
 func requireNestedTestMeta(t *testing.T, meta mcp.Meta, key, value string) {
 	t.Helper()
 	nested := meta[key].(map[string]any)
 	require.Equal(t, value, nested["objects"].([]any)[0].(map[string]any)["value"])
-	switch strings := nested["strings"].(type) {
-	case []string:
-		require.Equal(t, value, strings[0])
-	case []any:
-		require.Equal(t, value, strings[0])
-	default:
-		require.Failf(t, "unexpected strings metadata", "type %T", strings)
+	require.Equal(t, value, nested["strings"].([]any)[0])
+	require.Equal(t, value, nested["typed_map"].(map[string]any)["value"])
+	require.Equal(t, value, nested["typed_slice"].([]any)[0])
+	require.Equal(t, base64.StdEncoding.EncodeToString([]byte(value)), nested["bytes"])
+	require.Equal(t, value, nested["pointer"].(map[string]any)["value"])
+}
+
+func mustMarshalJSON(t *testing.T, value any) []byte {
+	t.Helper()
+	data, err := json.Marshal(value)
+	require.NoError(t, err)
+	return data
+}
+
+func TestBuildRejectsInvalidMetadata(t *testing.T) {
+	tests := []struct {
+		name      string
+		builder   *Builder
+		errorText string
+	}{
+		{
+			name: "tool",
+			builder: NewBuilder().SetTools([]ServerTool{{
+				Tool: mcp.Tool{Name: "tool", Meta: mcp.Meta{"invalid": make(chan int)}},
+			}}),
+			errorText: `tool "tool" metadata`,
+		},
+		{
+			name: "resource",
+			builder: NewBuilder().SetResources([]ServerResourceTemplate{{
+				Template: mcp.ResourceTemplate{Name: "resource", Meta: mcp.Meta{"invalid": make(chan int)}},
+			}}),
+			errorText: `resource template "resource" metadata`,
+		},
+		{
+			name: "prompt",
+			builder: NewBuilder().SetPrompts([]ServerPrompt{{
+				Prompt: mcp.Prompt{Name: "prompt", Meta: mcp.Meta{"invalid": make(chan int)}},
+			}}),
+			errorText: `prompt "prompt" metadata`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.builder.Build()
+			require.ErrorContains(t, err, "invalid inventory metadata")
+			require.ErrorContains(t, err, tt.errorText)
+			require.ErrorContains(t, err, "unsupported type: chan int")
+		})
 	}
 }
 
