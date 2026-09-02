@@ -9,7 +9,6 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v89/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -190,7 +189,7 @@ func Test_GetMe_IFC_FeatureFlag(t *testing.T) {
 			translations.NullTranslationHelper,
 			FeatureFlags{},
 			0,
-			func(_ context.Context, flagName inventory.FeatureFlag) (bool, error) {
+			func(_ context.Context, flagName string) (bool, error) {
 				return flagName == FeatureFlagIFCLabels && enabled, nil
 			},
 			stubExporters(),

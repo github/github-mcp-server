@@ -20,11 +20,11 @@ import (
 const RemoteMCPEnthusiasticGreeting inventory.FeatureFlag = "remote_mcp_enthusiastic_greeting"
 
 func featureCheckerFor(enabledFlags ...inventory.FeatureFlag) inventory.FeatureFlagChecker {
-	enabled := make(map[inventory.FeatureFlag]bool, len(enabledFlags))
+	enabled := make(map[string]bool, len(enabledFlags))
 	for _, flag := range enabledFlags {
-		enabled[flag] = true
+		enabled[string(flag)] = true
 	}
-	return func(_ context.Context, flagName inventory.FeatureFlag) (bool, error) {
+	return func(_ context.Context, flagName string) (bool, error) {
 		return enabled[flagName], nil
 	}
 }

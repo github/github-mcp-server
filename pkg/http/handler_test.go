@@ -377,12 +377,12 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			var capturedCtx context.Context
 
 			// Match the production allowlist and insiders expansion behavior.
-			featureChecker := func(ctx context.Context, flag inventory.FeatureFlag) (bool, error) {
+			featureChecker := func(ctx context.Context, flag string) (bool, error) {
 				effective := github.ResolveFeatureFlags(
 					ghcontext.GetHeaderFeatures(ctx),
 					ghcontext.IsInsidersMode(ctx),
 				)
-				return effective[string(flag)], nil
+				return effective[flag], nil
 			}
 
 			apiHost, err := utils.NewAPIHost("https://api.github.com")
@@ -586,8 +586,8 @@ func TestStaticConfigEnforcement(t *testing.T) {
 			var capturedInventory *inventory.Inventory
 			var capturedCtx context.Context
 
-			featureChecker := func(ctx context.Context, flag inventory.FeatureFlag) (bool, error) {
-				return slices.Contains(ghcontext.GetHeaderFeatures(ctx), string(flag)), nil
+			featureChecker := func(ctx context.Context, flag string) (bool, error) {
+				return slices.Contains(ghcontext.GetHeaderFeatures(ctx), flag), nil
 			}
 
 			apiHost, err := utils.NewAPIHost("https://api.github.com")
@@ -1062,9 +1062,9 @@ func TestFeatureResolutionUsesOuterHTTPContext(t *testing.T) {
 		},
 	)
 	inventoryFactory := func(_ *http.Request) (*inventory.Inventory, error) {
-		checker := func(ctx context.Context, flag inventory.FeatureFlag) (bool, error) {
+		checker := func(ctx context.Context, flag string) (bool, error) {
 			checkerCalls++
-			return flag == featureFlag && ctx.Value(userContextKey{}) == userValue, nil
+			return flag == string(featureFlag) && ctx.Value(userContextKey{}) == userValue, nil
 		}
 		return inventory.NewBuilder().
 			SetTools([]inventory.ServerTool{tool}).

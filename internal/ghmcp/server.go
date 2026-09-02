@@ -436,8 +436,8 @@ func RunStdioServer(cfg StdioServerConfig) error {
 // features are resolved once at startup from --features CLI flag and insiders mode.
 func createFeatureChecker(enabledFeatures []string, insidersMode bool) inventory.FeatureFlagChecker {
 	featureSet := github.ResolveFeatureFlags(enabledFeatures, insidersMode)
-	return func(_ context.Context, flagName inventory.FeatureFlag) (bool, error) {
-		return featureSet[string(flagName)], nil
+	return func(_ context.Context, flagName string) (bool, error) {
+		return featureSet[flagName], nil
 	}
 }
 

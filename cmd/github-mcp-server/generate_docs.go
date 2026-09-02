@@ -31,7 +31,7 @@ func init() {
 
 // noFeatureFlagsChecker reports every feature flag as disabled. It models the
 // default user experience used by the generated documentation.
-func noFeatureFlagsChecker(_ context.Context, _ inventory.FeatureFlag) (bool, error) {
+func noFeatureFlagsChecker(_ context.Context, _ string) (bool, error) {
 	return false, nil
 }
 

@@ -207,12 +207,10 @@ Insiders is a **meta feature flag** — the same shape as `default` or `all` for
 3. **Insiders expansion.** If insiders mode is on (`--insiders`, `/insiders` route, or `X-MCP-Insiders: true`), every flag in [`InsidersFeatureFlags`](../pkg/github/feature_flags.go) is unioned in. The insiders expansion is **not** re-validated against the allowlist — insiders is a server-controlled switch that can reach internal-only flags.
 4. **Server-side fallback (remote server only).** Any flag not yet decided falls back to the remote server's feature manager, which can roll a feature out independently of user input or insiders membership.
 
-For tool availability, each functional feature rule statically declares the
-flags it reads. The service deduplicates those declarations, resolves every
-relevant flag once into request-owned state, and then evaluates all rules as
-in-memory boolean expressions. The same state backs
-`deps.IsFeatureEnabled`, so checks made inside a tool call reuse resolved values
-and lazily cache any handler-only flag using the live tool-call context.
+For tool availability, functional rules declare the flags they may read and are
+evaluated lazily after request narrowing. Short-circuiting skips unnecessary
+checks, and request-owned state memoizes each flag that is reached. The same
+state backs `deps.IsFeatureEnabled`.
 
 `AllowedFeatureFlags` and `InsidersFeatureFlags` are deliberately independent sets:
 

@@ -100,8 +100,8 @@ func flaggedToolDiff(t translations.TranslationHelperFunc, flag string, defaultT
 // the given flags as enabled and every other flag as disabled. Passing nil
 // produces the default-flagged inventory.
 func buildInventoryWithFlags(t translations.TranslationHelperFunc, enabled map[string]bool) *inventory.Inventory {
-	checker := func(_ context.Context, flag inventory.FeatureFlag) (bool, error) {
-		return enabled[string(flag)], nil
+	checker := func(_ context.Context, flag string) (bool, error) {
+		return enabled[flag], nil
 	}
 	inv, _ := github.NewInventory(t).
 		WithToolsets([]string{"all"}).

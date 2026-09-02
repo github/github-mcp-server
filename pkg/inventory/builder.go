@@ -23,9 +23,7 @@ const mcpAppsFeatureFlag FeatureFlag = "remote_mcp_ui_apps"
 // Returns true if the tool should be included, false to exclude it.
 type ToolFilter func(ctx context.Context, tool *ServerTool) (bool, error)
 
-// Builder builds a Registry with the specified configuration. SetTools,
-// SetResources, and SetPrompts normalize retained metadata through JSON so the
-// inventory owns it; Build reports metadata that cannot be represented as JSON.
+// Builder builds a Registry with the specified configuration.
 // Use NewBuilder to create a builder, chain configuration methods,
 // then call Build() to create the final inventory.
 //
@@ -45,9 +43,6 @@ type Builder struct {
 	tools             []ServerTool
 	resourceTemplates []ServerResourceTemplate
 	prompts           []ServerPrompt
-	toolsErr          error
-	resourcesErr      error
-	promptsErr        error
 	deprecatedAliases map[string]string
 
 	// Configuration options (processed at Build time)
@@ -71,82 +66,19 @@ func NewBuilder() *Builder {
 // SetTools sets the tools for the inventory. Returns self for chaining.
 func (b *Builder) SetTools(tools []ServerTool) *Builder {
 	b.tools = slices.Clone(tools)
-	b.toolsErr = nil
-	for i := range b.tools {
-		tool, err := ownServerTool(b.tools[i])
-		if err != nil {
-			b.toolsErr = errors.Join(b.toolsErr, fmt.Errorf("tool %q metadata: %w", b.tools[i].Tool.Name, err))
-		}
-		b.tools[i] = tool
-	}
 	return b
 }
 
 // SetResources sets the resource templates for the inventory. Returns self for chaining.
 func (b *Builder) SetResources(resources []ServerResourceTemplate) *Builder {
 	b.resourceTemplates = slices.Clone(resources)
-	b.resourcesErr = nil
-	for i := range b.resourceTemplates {
-		resource, err := ownResourceTemplate(b.resourceTemplates[i])
-		if err != nil {
-			b.resourcesErr = errors.Join(b.resourcesErr, fmt.Errorf("resource template %q metadata: %w", b.resourceTemplates[i].Template.Name, err))
-		}
-		b.resourceTemplates[i] = resource
-	}
 	return b
 }
 
 // SetPrompts sets the prompts for the inventory. Returns self for chaining.
 func (b *Builder) SetPrompts(prompts []ServerPrompt) *Builder {
 	b.prompts = slices.Clone(prompts)
-	b.promptsErr = nil
-	for i := range b.prompts {
-		prompt, err := ownPrompt(b.prompts[i])
-		if err != nil {
-			b.promptsErr = errors.Join(b.promptsErr, fmt.Errorf("prompt %q metadata: %w", b.prompts[i].Prompt.Name, err))
-		}
-		b.prompts[i] = prompt
-	}
 	return b
-}
-
-func ownServerTool(tool ServerTool) (ServerTool, error) {
-	meta, err := normalizeMeta(tool.Tool.Meta)
-	tool.Tool.Meta = meta
-	tool.FeatureRule = tool.FeatureRule.clone()
-	return tool, err
-}
-
-func ownResourceTemplate(resource ServerResourceTemplate) (ServerResourceTemplate, error) {
-	meta, err := normalizeMeta(resource.Template.Meta)
-	resource.Template.Meta = meta
-	resource.FeatureRule = resource.FeatureRule.clone()
-	return resource, err
-}
-
-func ownPrompt(prompt ServerPrompt) (ServerPrompt, error) {
-	meta, err := normalizeMeta(prompt.Prompt.Meta)
-	prompt.Prompt.Meta = meta
-	prompt.FeatureRule = prompt.FeatureRule.clone()
-	return prompt, err
-}
-
-func cloneServerTool(tool ServerTool) ServerTool {
-	tool.Tool.Meta = cloneMeta(tool.Tool.Meta)
-	tool.FeatureRule = tool.FeatureRule.clone()
-	return tool
-}
-
-func cloneResourceTemplate(resource ServerResourceTemplate) ServerResourceTemplate {
-	resource.Template.Meta = cloneMeta(resource.Template.Meta)
-	resource.FeatureRule = resource.FeatureRule.clone()
-	return resource
-}
-
-func clonePrompt(prompt ServerPrompt) ServerPrompt {
-	prompt.Prompt.Meta = cloneMeta(prompt.Prompt.Meta)
-	prompt.FeatureRule = prompt.FeatureRule.clone()
-	return prompt
 }
 
 // WithDeprecatedAliases adds deprecated tool name aliases that map to canonical names.
@@ -273,10 +205,6 @@ func cleanTools(tools []string) []string {
 // (i.e., they don't exist in the tool set and are not deprecated aliases).
 // This ensures invalid tool configurations fail fast at build time.
 func (b *Builder) Build() (*Inventory, error) {
-	if err := errors.Join(b.toolsErr, b.resourcesErr, b.promptsErr); err != nil {
-		return nil, fmt.Errorf("invalid inventory metadata: %w", err)
-	}
-
 	tools := b.tools
 
 	filters := b.filters
@@ -326,8 +254,6 @@ func (b *Builder) Build() (*Inventory, error) {
 			return nil, fmt.Errorf("%w: %s", ErrUnknownTools, strings.Join(unrecognizedTools, ", "))
 		}
 	}
-
-	r.cacheFeatureMetadata()
 
 	if b.generateInstructions {
 		r.instructions = generateInstructions(r)

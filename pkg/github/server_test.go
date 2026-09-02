@@ -196,7 +196,7 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 
 func TestFeatureStateMiddlewareCachesHandlerChecks(t *testing.T) {
 	var calls int
-	checker := func(_ context.Context, flag inventory.FeatureFlag) (bool, error) {
+	checker := func(_ context.Context, flag string) (bool, error) {
 		calls++
 		return flag == "enabled", nil
 	}

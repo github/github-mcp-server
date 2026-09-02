@@ -53,12 +53,6 @@ type Inventory struct {
 	// Takes context and flag name, returns (enabled, error). If error, log and treat as false.
 	// If checker is nil, all flag checks return false.
 	featureChecker FeatureFlagChecker
-	// Feature metadata is derived once from builder-owned inventory contents.
-	toolFeatures             []FeatureFlag
-	resourceTemplateFeatures []FeatureFlag
-	promptFeatures           []FeatureFlag
-	requiredFeatures         []FeatureFlag
-	usesMCPApps              bool
 	// filters are functions that will be applied to all tools during filtering.
 	// If any filter returns false or an error, the tool is excluded.
 	filters []ToolFilter
@@ -160,7 +154,6 @@ func (r *Inventory) ForMCPRequest(method string, itemName string) *Inventory {
 		clearAll()
 	}
 
-	result.cacheFeatureMetadata()
 	return result
 }
 
@@ -195,9 +188,9 @@ func (r *Inventory) ToolsetDescriptions() map[ToolsetID]string {
 //     capability is unknown (e.g. stdio paths that do not populate the
 //     context flag) the feature-flag gate is the sole source of truth.
 func (r *Inventory) ToolsForRegistration(ctx context.Context) []ServerTool {
-	ctx = WithResolvedFeatures(ctx, r.featureChecker, r.requiredFeatures)
+	ctx = WithFeatureState(ctx, r.featureChecker)
 	tools := r.availableTools(ctx)
-	if r.usesMCPApps && shouldStripMCPAppsMetadata(ctx, r.checkFeatureFlag(ctx, mcpAppsFeatureFlag)) {
+	if r.usesMCPAppsMetadata() && shouldStripMCPAppsMetadata(ctx, r.checkFeatureFlag(ctx, mcpAppsFeatureFlag)) {
 		tools = stripMCPAppsMetadata(tools)
 	}
 	return tools
@@ -206,64 +199,44 @@ func (r *Inventory) ToolsForRegistration(ctx context.Context) []ServerTool {
 // RequiredFeatures returns the deduplicated feature flags used to expose the
 // inventory's current tools, resources, and prompts.
 func (r *Inventory) RequiredFeatures() []FeatureFlag {
-	return slices.Clone(r.requiredFeatures)
+	var features []FeatureFlag
+	for i := range r.tools {
+		features = appendFeatureDeclaration(features, r.tools[i].FeatureRule)
+	}
+	for i := range r.resourceTemplates {
+		features = appendFeatureDeclaration(features, r.resourceTemplates[i].FeatureRule)
+	}
+	for i := range r.prompts {
+		features = appendFeatureDeclaration(features, r.prompts[i].FeatureRule)
+	}
+	if r.usesMCPAppsMetadata() {
+		features = appendUniqueFeature(features, mcpAppsFeatureFlag)
+	}
+	slices.Sort(features)
+	return features
 }
 
 // WithFeatureState installs request-owned feature state without resolving any
 // flags up front. Handler-only checks are resolved lazily and cached.
 func (r *Inventory) WithFeatureState(ctx context.Context) context.Context {
-	return WithResolvedFeatures(ctx, r.featureChecker, nil)
+	return WithFeatureState(ctx, r.featureChecker)
 }
 
-// WithResolvedFeatures installs request-owned feature state and resolves every
-// feature required by the current inventory through its own checker.
-func (r *Inventory) WithResolvedFeatures(ctx context.Context) context.Context {
-	return WithResolvedFeatures(ctx, r.featureChecker, r.requiredFeatures)
-}
-
-func (r *Inventory) cacheFeatureMetadata() {
-	toolFeatureSet := make(map[FeatureFlag]struct{})
-	resourceFeatureSet := make(map[FeatureFlag]struct{})
-	promptFeatureSet := make(map[FeatureFlag]struct{})
-	requiredFeatureSet := make(map[FeatureFlag]struct{})
-
-	add := func(target map[FeatureFlag]struct{}, rule FeatureRule) {
-		for _, feature := range rule.features {
-			target[feature] = struct{}{}
-			requiredFeatureSet[feature] = struct{}{}
-		}
-	}
-
-	r.usesMCPApps = false
+func (r *Inventory) usesMCPAppsMetadata() bool {
 	for i := range r.tools {
-		add(toolFeatureSet, r.tools[i].FeatureRule)
 		for _, key := range mcpAppsMetaKeys {
 			if _, ok := r.tools[i].Tool.Meta[key]; ok {
-				r.usesMCPApps = true
-				requiredFeatureSet[mcpAppsFeatureFlag] = struct{}{}
-				break
+				return true
 			}
 		}
 	}
-	for i := range r.resourceTemplates {
-		add(resourceFeatureSet, r.resourceTemplates[i].FeatureRule)
-	}
-	for i := range r.prompts {
-		add(promptFeatureSet, r.prompts[i].FeatureRule)
-	}
-
-	r.toolFeatures = sortedFeatures(toolFeatureSet)
-	r.resourceTemplateFeatures = sortedFeatures(resourceFeatureSet)
-	r.promptFeatures = sortedFeatures(promptFeatureSet)
-	r.requiredFeatures = sortedFeatures(requiredFeatureSet)
+	return false
 }
 
-func sortedFeatures(featureSet map[FeatureFlag]struct{}) []FeatureFlag {
-	features := make([]FeatureFlag, 0, len(featureSet))
-	for feature := range featureSet {
-		features = append(features, feature)
+func appendFeatureDeclaration(features []FeatureFlag, rule FeatureRule) []FeatureFlag {
+	for _, feature := range rule.features {
+		features = appendUniqueFeature(features, feature)
 	}
-	slices.Sort(features)
 	return features
 }
 
@@ -303,7 +276,8 @@ func (r *Inventory) RegisterTools(ctx context.Context, s *mcp.Server, deps any, 
 // The context is used for feature flag evaluation.
 // Icons are automatically applied from the toolset metadata if not already set.
 func (r *Inventory) RegisterResourceTemplates(ctx context.Context, s *mcp.Server, deps any) {
-	for _, res := range r.AvailableResourceTemplates(ctx) {
+	ctx = WithFeatureState(ctx, r.featureChecker)
+	for _, res := range r.availableResourceTemplates(ctx) {
 		// Make a shallow copy to avoid mutating the original
 		templateCopy := res.Template
 		// Apply icons from toolset metadata if not already set
@@ -318,7 +292,8 @@ func (r *Inventory) RegisterResourceTemplates(ctx context.Context, s *mcp.Server
 // The context is used for feature flag evaluation.
 // Icons are automatically applied from the toolset metadata if not already set.
 func (r *Inventory) RegisterPrompts(ctx context.Context, s *mcp.Server) {
-	for _, prompt := range r.AvailablePrompts(ctx) {
+	ctx = WithFeatureState(ctx, r.featureChecker)
+	for _, prompt := range r.availablePrompts(ctx) {
 		// Make a shallow copy to avoid mutating the original
 		promptCopy := prompt.Prompt
 		// Apply icons from toolset metadata if not already set
@@ -332,7 +307,7 @@ func (r *Inventory) RegisterPrompts(ctx context.Context, s *mcp.Server) {
 // RegisterAll registers all available tools, resources, and prompts with the server.
 // The context is used for feature flag evaluation.
 func (r *Inventory) RegisterAll(ctx context.Context, s *mcp.Server, deps any, middleware ...ToolHandlerMiddleware) {
-	ctx = r.WithResolvedFeatures(ctx)
+	ctx = r.WithFeatureState(ctx)
 	r.RegisterTools(ctx, s, deps, middleware...)
 	r.RegisterResourceTemplates(ctx, s, deps)
 	r.RegisterPrompts(ctx, s)
@@ -364,8 +339,7 @@ func (r *Inventory) ResolveToolAliases(toolNames []string) (resolved []string, a
 func (r *Inventory) FindToolByName(toolName string) (*ServerTool, ToolsetID, error) {
 	for i := range r.tools {
 		if r.tools[i].Tool.Name == toolName {
-			tool := cloneServerTool(r.tools[i])
-			return &tool, tool.Toolset.ID, nil
+			return &r.tools[i], r.tools[i].Toolset.ID, nil
 		}
 	}
 	return nil, "", NewToolDoesNotExistError(toolName)
@@ -378,10 +352,7 @@ func (r *Inventory) HasToolset(toolsetID ToolsetID) bool {
 
 // AllTools returns all tools without any filtering, sorted deterministically.
 func (r *Inventory) AllTools() []ServerTool {
-	result := make([]ServerTool, len(r.tools))
-	for i := range r.tools {
-		result[i] = cloneServerTool(r.tools[i])
-	}
+	result := slices.Clone(r.tools)
 
 	// Sort deterministically: by toolset ID, then by tool name
 	sort.Slice(result, func(i, j int) bool {

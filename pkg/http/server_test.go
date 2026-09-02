@@ -472,7 +472,7 @@ func TestCreateHTTPFeatureChecker(t *testing.T) {
 				ctx = ghcontext.WithInsidersMode(ctx, true)
 			}
 
-			enabled, err := checker(ctx, inventory.FeatureFlag(tt.flagName))
+			enabled, err := checker(ctx, tt.flagName)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantEnabled, enabled)
 		})

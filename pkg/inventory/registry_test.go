@@ -1,9 +1,7 @@
 package inventory
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -1077,7 +1075,7 @@ func TestFeatureFlagEnable(t *testing.T) {
 	}
 
 	// With feature checker returning false, the feature-gated tool is excluded.
-	checkerFalse := func(_ context.Context, _ FeatureFlag) (bool, error) { return false, nil }
+	checkerFalse := func(_ context.Context, _ string) (bool, error) { return false, nil }
 	regFalse := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerFalse))
 	availableFalse := regFalse.AvailableTools(context.Background())
 	if len(availableFalse) != 1 {
@@ -1088,7 +1086,7 @@ func TestFeatureFlagEnable(t *testing.T) {
 	}
 
 	// With feature checker returning true for "my_feature", tool should be included
-	checkerTrue := func(_ context.Context, flag FeatureFlag) (bool, error) {
+	checkerTrue := func(_ context.Context, flag string) (bool, error) {
 		return flag == "my_feature", nil
 	}
 	regTrue := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerTrue))
@@ -1112,7 +1110,7 @@ func TestFeatureFlagDisable(t *testing.T) {
 	}
 
 	// With feature checker returning true for "kill_switch", tool should be excluded
-	checkerTrue := func(_ context.Context, flag FeatureFlag) (bool, error) {
+	checkerTrue := func(_ context.Context, flag string) (bool, error) {
 		return flag == "kill_switch", nil
 	}
 	regFiltered := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerTrue))
@@ -1132,21 +1130,21 @@ func TestFeatureFlagBoth(t *testing.T) {
 	}
 
 	// Enable flag not set -> excluded
-	checker1 := func(_ context.Context, _ FeatureFlag) (bool, error) { return false, nil }
+	checker1 := func(_ context.Context, _ string) (bool, error) { return false, nil }
 	reg1 := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checker1))
 	if len(reg1.AvailableTools(context.Background())) != 0 {
 		t.Error("Tool should be excluded when enable flag is false")
 	}
 
 	// Enable flag set, disable flag not set -> included
-	checker2 := func(_ context.Context, flag FeatureFlag) (bool, error) { return flag == "new_feature", nil }
+	checker2 := func(_ context.Context, flag string) (bool, error) { return flag == "new_feature", nil }
 	reg2 := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checker2))
 	if len(reg2.AvailableTools(context.Background())) != 1 {
 		t.Error("Tool should be included when enable flag is true and disable flag is false")
 	}
 
 	// Enable flag set, disable flag also set -> excluded (disable wins)
-	checker3 := func(_ context.Context, _ FeatureFlag) (bool, error) { return true, nil }
+	checker3 := func(_ context.Context, _ string) (bool, error) { return true, nil }
 	reg3 := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checker3))
 	if len(reg3.AvailableTools(context.Background())) != 0 {
 		t.Error("Tool should be excluded when both flags are true (disable wins)")
@@ -1159,7 +1157,7 @@ func TestFeatureFlagError(t *testing.T) {
 	}
 
 	// Checker that returns error should treat as false (tool excluded)
-	checkerError := func(_ context.Context, _ FeatureFlag) (bool, error) {
+	checkerError := func(_ context.Context, _ string) (bool, error) {
 		return false, fmt.Errorf("simulated error")
 	}
 	reg := mustBuild(t, NewBuilder().SetTools(tools).WithFeatureChecker(checkerError))
@@ -1189,7 +1187,7 @@ func TestFeatureFlagResources(t *testing.T) {
 	}
 
 	// With checker returning true, both should be included
-	checker := func(_ context.Context, _ FeatureFlag) (bool, error) { return true, nil }
+	checker := func(_ context.Context, _ string) (bool, error) { return true, nil }
 	regWithChecker := mustBuild(t, NewBuilder().SetResources(resources).WithToolsets([]string{"all"}).WithFeatureChecker(checker))
 	if len(regWithChecker.AvailableResourceTemplates(context.Background())) != 2 {
 		t.Errorf("Expected 2 resources with checker, got %d", len(regWithChecker.AvailableResourceTemplates(context.Background())))
@@ -1216,7 +1214,7 @@ func TestFeatureFlagPrompts(t *testing.T) {
 	}
 
 	// With checker returning true, both should be included
-	checker := func(_ context.Context, _ FeatureFlag) (bool, error) { return true, nil }
+	checker := func(_ context.Context, _ string) (bool, error) { return true, nil }
 	regWithChecker := mustBuild(t, NewBuilder().SetPrompts(prompts).WithToolsets([]string{"all"}).WithFeatureChecker(checker))
 	if len(regWithChecker.AvailablePrompts(context.Background())) != 2 {
 		t.Errorf("Expected 2 prompts with checker, got %d", len(regWithChecker.AvailablePrompts(context.Background())))
@@ -1236,7 +1234,7 @@ func TestRegisterAllSharesFeatureResolution(t *testing.T) {
 	prompt.FeatureRule = rule
 
 	calls := 0
-	checker := func(context.Context, FeatureFlag) (bool, error) {
+	checker := func(context.Context, string) (bool, error) {
 		calls++
 		return calls == 1, nil
 	}
@@ -1270,7 +1268,7 @@ func TestRegisterAllSharesFeatureResolution(t *testing.T) {
 	require.Equal(t, 1, calls)
 }
 
-func TestFeatureMetadataIsCachedAndNarrowed(t *testing.T) {
+func TestRequiredFeaturesReflectNarrowedInventory(t *testing.T) {
 	tools := []ServerTool{
 		mockToolWithFlags("tool_x", "toolset1", true, "x", ""),
 		mockToolWithFlags("tool_y", "toolset1", true, "y", ""),
@@ -1281,19 +1279,13 @@ func TestFeatureMetadataIsCachedAndNarrowed(t *testing.T) {
 
 	require.Equal(t, []FeatureFlag{"x", "y"}, inv.RequiredFeatures())
 
-	// RequiredFeatures reads cached metadata rather than walking live tools.
-	inv.tools[0].FeatureRule = NewFeatureRule([]FeatureFlag{"changed"}, func(featureAsBool FeatureResolver) bool {
-		return featureAsBool("changed")
-	})
-	require.Equal(t, []FeatureFlag{"x", "y"}, inv.RequiredFeatures())
-
-	// Request narrowing builds a fresh cache over only the candidate variants.
 	narrowed := inv.ForMCPRequest(MCPMethodToolsCall, "tool_x")
-	require.Equal(t, []FeatureFlag{"changed"}, narrowed.RequiredFeatures())
+	require.Equal(t, []FeatureFlag{"x"}, narrowed.RequiredFeatures())
 }
 
-func TestBuilderOwnsFeatureMetadataInputs(t *testing.T) {
-	toolRule := NewFeatureRule([]FeatureFlag{"tool"}, func(featureAsBool FeatureResolver) bool {
+func TestBuilderCopiesFeatureRuleItems(t *testing.T) {
+	toolFeatures := []FeatureFlag{"tool"}
+	toolRule := NewFeatureRule(toolFeatures, func(featureAsBool FeatureResolver) bool {
 		return featureAsBool("tool")
 	})
 	resourceRule := NewFeatureRule([]FeatureFlag{"resource"}, func(featureAsBool FeatureResolver) bool {
@@ -1304,244 +1296,47 @@ func TestBuilderOwnsFeatureMetadataInputs(t *testing.T) {
 	})
 	tools := []ServerTool{mockTool("tool", "toolset1", true)}
 	tools[0].FeatureRule = toolRule
-	tools[0].Tool.Meta = nestedTestMeta("ui", "tool")
 	resources := []ServerResourceTemplate{mockResource("resource", "toolset1", "uri")}
 	resources[0].FeatureRule = resourceRule
-	resources[0].Template.Meta = nestedTestMeta("resource", "resource")
 	prompts := []ServerPrompt{mockPrompt("prompt", "toolset1")}
 	prompts[0].FeatureRule = promptRule
-	prompts[0].Prompt.Meta = nestedTestMeta("prompt", "prompt")
-	expectedToolMeta := mustMarshalJSON(t, tools[0].Tool.Meta)
-	expectedResourceMeta := mustMarshalJSON(t, resources[0].Template.Meta)
-	expectedPromptMeta := mustMarshalJSON(t, prompts[0].Prompt.Meta)
-
-	checker := func(_ context.Context, flag FeatureFlag) (bool, error) {
-		return flag == "tool" || flag == "resource" || flag == "prompt" || flag == mcpAppsFeatureFlag, nil
-	}
 	builder := NewBuilder().
 		SetTools(tools).
 		SetResources(resources).
 		SetPrompts(prompts).
-		WithToolsets([]string{"all"}).
-		WithFeatureChecker(checker)
+		WithToolsets([]string{"all"})
 
-	mutateSourceTestMeta(tools[0].Tool.Meta, "ui", "after-set", 's')
-	mutateSourceTestMeta(resources[0].Template.Meta, "resource", "after-set", 's')
-	mutateSourceTestMeta(prompts[0].Prompt.Meta, "prompt", "after-set", 's')
+	toolFeatures[0] = "changed"
+	tools[0].FeatureRule = NewFeatureRule([]FeatureFlag{"changed"}, func(featureAsBool FeatureResolver) bool {
+		return featureAsBool("changed")
+	})
+	resources[0].FeatureRule = tools[0].FeatureRule
+	prompts[0].FeatureRule = tools[0].FeatureRule
 	inv := mustBuild(t, builder)
-	tools[0].FeatureRule.features[0] = "changed"
-	mutateSourceTestMeta(tools[0].Tool.Meta, "ui", "after-build", 'b')
-	resources[0].FeatureRule.features[0] = "changed"
-	mutateSourceTestMeta(resources[0].Template.Meta, "resource", "after-build", 'b')
-	prompts[0].FeatureRule.features[0] = "changed"
-	mutateSourceTestMeta(prompts[0].Prompt.Meta, "prompt", "after-build", 'b')
 
-	require.Equal(t, []FeatureFlag{"prompt", "remote_mcp_ui_apps", "resource", "tool"}, inv.RequiredFeatures())
-	availableTools := inv.AvailableTools(context.Background())
-	availableResources := inv.AvailableResourceTemplates(context.Background())
-	availablePrompts := inv.AvailablePrompts(context.Background())
-	require.Len(t, availableTools, 1)
-	require.Len(t, availableResources, 1)
-	require.Len(t, availablePrompts, 1)
-	requireNestedTestMeta(t, availableTools[0].Tool.Meta, "ui", "tool")
-	requireNestedTestMeta(t, availableResources[0].Template.Meta, "resource", "resource")
-	requireNestedTestMeta(t, availablePrompts[0].Prompt.Meta, "prompt", "prompt")
-	requireExactTestMetaNumbers(t, availableTools[0].Tool.Meta, "ui")
-	requireExactTestMetaNumbers(t, availableResources[0].Template.Meta, "resource")
-	requireExactTestMetaNumbers(t, availablePrompts[0].Prompt.Meta, "prompt")
-	requireJSONEquivalent(t, expectedToolMeta, mustMarshalJSON(t, availableTools[0].Tool.Meta))
-	requireJSONEquivalent(t, expectedResourceMeta, mustMarshalJSON(t, availableResources[0].Template.Meta))
-	requireJSONEquivalent(t, expectedPromptMeta, mustMarshalJSON(t, availablePrompts[0].Prompt.Meta))
-
-	mutateNormalizedTestMeta(availableTools[0].Tool.Meta, "ui", "after-available")
-	availableTools[0].FeatureRule.features[0] = "changed"
-	mutateNormalizedTestMeta(availableResources[0].Template.Meta, "resource", "after-available")
-	availableResources[0].FeatureRule.features[0] = "changed"
-	mutateNormalizedTestMeta(availablePrompts[0].Prompt.Meta, "prompt", "after-available")
-	availablePrompts[0].FeatureRule.features[0] = "changed"
-
-	allTools := inv.AllTools()
-	mutateNormalizedTestMeta(allTools[0].Tool.Meta, "ui", "after-all")
-	foundTool, _, err := inv.FindToolByName("tool")
-	require.NoError(t, err)
-	mutateNormalizedTestMeta(foundTool.Tool.Meta, "ui", "after-find")
-
-	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
-	inv.RegisterAll(context.Background(), server, nil)
-	clientTransport, serverTransport := mcp.NewInMemoryTransports()
-	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = serverSession.Close() })
-	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
-	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = clientSession.Close() })
-
-	registeredTools, err := clientSession.ListTools(context.Background(), nil)
-	require.NoError(t, err)
-	requireNestedTestMeta(t, registeredTools.Tools[0].Meta, "ui", "tool")
-	require.JSONEq(t, string(expectedToolMeta), string(mustMarshalJSON(t, registeredTools.Tools[0].Meta)))
-	registeredResources, err := clientSession.ListResourceTemplates(context.Background(), nil)
-	require.NoError(t, err)
-	requireNestedTestMeta(t, registeredResources.ResourceTemplates[0].Meta, "resource", "resource")
-	require.JSONEq(t, string(expectedResourceMeta), string(mustMarshalJSON(t, registeredResources.ResourceTemplates[0].Meta)))
-	registeredPrompts, err := clientSession.ListPrompts(context.Background(), nil)
-	require.NoError(t, err)
-	requireNestedTestMeta(t, registeredPrompts.Prompts[0].Meta, "prompt", "prompt")
-	require.JSONEq(t, string(expectedPromptMeta), string(mustMarshalJSON(t, registeredPrompts.Prompts[0].Meta)))
+	want := []FeatureFlag{"prompt", "resource", "tool"}
+	require.Equal(t, want, inv.RequiredFeatures())
 }
 
-type testMetaMap map[string]string
-type testMetaSlice []string
-type testMetaPointer struct {
-	Value   string  `json:"value"`
-	Decimal float64 `json:"decimal"`
-}
-
-const (
-	testLargeSigned   int64  = 9007199254740993
-	testLargeUnsigned uint64 = 18446744073709551614
-	testExponent             = 6.022e23
-	testDecimal              = 1.2345678901234567
-)
-
-func nestedTestMeta(key, value string) mcp.Meta {
-	return mcp.Meta{
-		key: map[string]any{
-			"objects":     []any{map[string]any{"value": value}},
-			"strings":     []string{value},
-			"typed_map":   testMetaMap{"value": value},
-			"typed_slice": testMetaSlice{value},
-			"bytes":       []byte(value),
-			"pointer":     &testMetaPointer{Value: value, Decimal: testDecimal},
-			"numbers": &testMetaNumbers{
-				Signed:   testLargeSigned,
-				Unsigned: testLargeUnsigned,
-				Exponent: testExponent,
-				Decimal:  testDecimal,
-			},
-		},
+func TestMetadataBehaviorRemainsLive(t *testing.T) {
+	meta := mcp.Meta{
+		"typed_map": map[string]string{"value": "original"},
+		"bytes":     []byte("original"),
+		"invalid":   make(chan int),
 	}
-}
-
-type testMetaNumbers struct {
-	Signed   int64   `json:"signed"`
-	Unsigned uint64  `json:"unsigned"`
-	Exponent float64 `json:"exponent"`
-	Decimal  float64 `json:"decimal"`
-}
-
-func mutateSourceTestMeta(meta mcp.Meta, key, value string, marker byte) {
-	nested := meta[key].(map[string]any)
-	nested["objects"].([]any)[0].(map[string]any)["value"] = value
-	nested["strings"].([]string)[0] = value
-	nested["typed_map"].(testMetaMap)["value"] = value
-	nested["typed_slice"].(testMetaSlice)[0] = value
-	nested["bytes"].([]byte)[0] = marker
-	nested["pointer"].(*testMetaPointer).Value = value
-	nested["numbers"].(*testMetaNumbers).Signed = 1
-}
-
-func mutateNormalizedTestMeta(meta mcp.Meta, key, value string) {
-	nested := meta[key].(map[string]any)
-	nested["objects"].([]any)[0].(map[string]any)["value"] = value
-	nested["strings"].([]any)[0] = value
-	nested["typed_map"].(map[string]any)["value"] = value
-	nested["typed_slice"].([]any)[0] = value
-	nested["bytes"] = value
-	nested["pointer"].(map[string]any)["value"] = value
-	nested["numbers"].(map[string]any)["signed"] = json.Number("1")
-}
-
-func requireNestedTestMeta(t *testing.T, meta mcp.Meta, key, value string) {
-	t.Helper()
-	nested := meta[key].(map[string]any)
-	require.Equal(t, value, nested["objects"].([]any)[0].(map[string]any)["value"])
-	require.Equal(t, value, nested["strings"].([]any)[0])
-	require.Equal(t, value, nested["typed_map"].(map[string]any)["value"])
-	require.Equal(t, value, nested["typed_slice"].([]any)[0])
-	require.Equal(t, base64.StdEncoding.EncodeToString([]byte(value)), nested["bytes"])
-	require.Equal(t, value, nested["pointer"].(map[string]any)["value"])
-}
-
-func requireExactTestMetaNumbers(t *testing.T, meta mcp.Meta, key string) {
-	t.Helper()
-	nested := meta[key].(map[string]any)
-	require.Equal(t, json.Number("1.2345678901234567"), nested["pointer"].(map[string]any)["decimal"])
-	numbers := nested["numbers"].(map[string]any)
-	require.Equal(t, json.Number("9007199254740993"), numbers["signed"])
-	require.Equal(t, json.Number("18446744073709551614"), numbers["unsigned"])
-	require.Equal(t, json.Number("6.022e+23"), numbers["exponent"])
-	require.Equal(t, json.Number("1.2345678901234567"), numbers["decimal"])
-}
-
-func mustMarshalJSON(t *testing.T, value any) []byte {
-	t.Helper()
-	data, err := json.Marshal(value)
+	tool := mockTool("tool", "toolset1", true)
+	tool.Tool.Meta = meta
+	inv, err := NewBuilder().SetTools([]ServerTool{tool}).Build()
 	require.NoError(t, err)
-	return data
-}
 
-func requireJSONEquivalent(t *testing.T, expected, actual []byte) {
-	t.Helper()
-	decode := func(data []byte) any {
-		decoder := json.NewDecoder(bytes.NewReader(data))
-		decoder.UseNumber()
-		var value any
-		require.NoError(t, decoder.Decode(&value))
-		return value
-	}
-	require.Equal(t, decode(expected), decode(actual))
-}
+	meta["ui"] = map[string]any{"resourceUri": "ui://live"}
+	meta["typed_map"].(map[string]string)["value"] = "changed"
+	meta["bytes"].([]byte)[0] = 'X'
 
-func TestBuildRejectsInvalidMetadata(t *testing.T) {
-	tests := []struct {
-		name      string
-		builder   *Builder
-		errorText string
-	}{
-		{
-			name: "tool",
-			builder: NewBuilder().SetTools([]ServerTool{{
-				Tool: mcp.Tool{Name: "tool", Meta: mcp.Meta{"invalid": make(chan int)}},
-			}}),
-			errorText: `tool "tool" metadata`,
-		},
-		{
-			name: "resource",
-			builder: NewBuilder().SetResources([]ServerResourceTemplate{{
-				Template: mcp.ResourceTemplate{Name: "resource", Meta: mcp.Meta{"invalid": make(chan int)}},
-			}}),
-			errorText: `resource template "resource" metadata`,
-		},
-		{
-			name: "prompt",
-			builder: NewBuilder().SetPrompts([]ServerPrompt{{
-				Prompt: mcp.Prompt{Name: "prompt", Meta: mcp.Meta{"invalid": make(chan int)}},
-			}}),
-			errorText: `prompt "prompt" metadata`,
-		},
-		{
-			name: "invalid number",
-			builder: NewBuilder().SetTools([]ServerTool{{
-				Tool: mcp.Tool{Name: "tool", Meta: mcp.Meta{"invalid": json.Number("nope")}},
-			}}),
-			errorText: `tool "tool" metadata`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := tt.builder.Build()
-			require.ErrorContains(t, err, "invalid inventory metadata")
-			require.ErrorContains(t, err, tt.errorText)
-			if tt.name == "invalid number" {
-				require.ErrorContains(t, err, "invalid number literal")
-			} else {
-				require.ErrorContains(t, err, "unsupported type: chan int")
-			}
-		})
-	}
+	require.Contains(t, inv.RequiredFeatures(), mcpAppsFeatureFlag)
+	available := inv.AllTools()
+	require.Equal(t, "changed", available[0].Tool.Meta["typed_map"].(map[string]string)["value"])
+	require.Equal(t, byte('X'), available[0].Tool.Meta["bytes"].([]byte)[0])
 }
 
 func TestServerToolHasHandler(t *testing.T) {
@@ -1819,7 +1614,7 @@ func TestEnabledAndFeatureFlagInteraction(t *testing.T) {
 	}
 
 	// Feature flag not enabled - tool should be excluded despite Enabled returning true
-	checkerOff := func(_ context.Context, _ FeatureFlag) (bool, error) { return false, nil }
+	checkerOff := func(_ context.Context, _ string) (bool, error) { return false, nil }
 	reg1 := mustBuild(t, NewBuilder().
 		SetTools([]ServerTool{tool}).
 		WithToolsets([]string{"all"}).
@@ -1830,7 +1625,7 @@ func TestEnabledAndFeatureFlagInteraction(t *testing.T) {
 	}
 
 	// Feature flag enabled - tool should be included
-	checker := func(_ context.Context, flag FeatureFlag) (bool, error) {
+	checker := func(_ context.Context, flag string) (bool, error) {
 		return flag == "my_feature", nil
 	}
 	reg2 := mustBuild(t, NewBuilder().
@@ -1889,7 +1684,7 @@ func TestAllFiltersInteraction(t *testing.T) {
 		return true, nil
 	}
 
-	checker := func(_ context.Context, flag FeatureFlag) (bool, error) {
+	checker := func(_ context.Context, flag string) (bool, error) {
 		return flag == "my_feature", nil
 	}
 
@@ -2007,7 +1802,7 @@ func TestFilteringOrder(t *testing.T) {
 		return true, nil
 	}
 
-	checker := func(_ context.Context, _ FeatureFlag) (bool, error) {
+	checker := func(_ context.Context, _ string) (bool, error) {
 		callOrder = append(callOrder, "FeatureFlag")
 		return true, nil
 	}
@@ -2024,8 +1819,8 @@ func TestFilteringOrder(t *testing.T) {
 
 	_ = reg.AvailableTools(context.Background())
 
-	// Declared features resolve first, then Enabled runs before read-only stops.
-	expectedOrder := []string{"FeatureFlag", "Enabled"}
+	// Enabled runs before the lazy feature check; read-only then stops the pipeline.
+	expectedOrder := []string{"Enabled", "FeatureFlag"}
 	if len(callOrder) != len(expectedOrder) {
 		t.Errorf("Expected %d checks, got %d: %v", len(expectedOrder), len(callOrder), callOrder)
 	}
@@ -2048,7 +1843,7 @@ func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 	}
 
 	// Test 1: Flag is OFF - first tool variant should be available
-	checkerOff := func(_ context.Context, _ FeatureFlag) (bool, error) { return false, nil }
+	checkerOff := func(_ context.Context, _ string) (bool, error) { return false, nil }
 	regFlagOff := mustBuild(t, NewBuilder().
 		SetTools(tools).
 		WithToolsets([]string{"all"}).
@@ -2063,7 +1858,7 @@ func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 	}
 
 	// Test 2: Flag is ON - second tool variant should be available
-	checker := func(_ context.Context, flag FeatureFlag) (bool, error) {
+	checker := func(_ context.Context, flag string) (bool, error) {
 		return flag == "consolidated_flag", nil
 	}
 	regFlagOn := mustBuild(t, NewBuilder().
@@ -2100,7 +1895,7 @@ func TestWithTools_DeprecatedAliasAndFeatureFlag(t *testing.T) {
 
 	// Test 1: Flag OFF - old_tool should be available via direct name match
 	// (not via alias resolution to new_tool, since old_tool still exists)
-	checkerOff := func(_ context.Context, _ FeatureFlag) (bool, error) { return false, nil }
+	checkerOff := func(_ context.Context, _ string) (bool, error) { return false, nil }
 	regFlagOff := mustBuild(t, NewBuilder().
 		SetTools(tools).
 		WithDeprecatedAliases(deprecatedAliases).
@@ -2116,7 +1911,7 @@ func TestWithTools_DeprecatedAliasAndFeatureFlag(t *testing.T) {
 	}
 
 	// Test 2: Flag ON - new_tool should be available via alias resolution
-	checker := func(_ context.Context, flag FeatureFlag) (bool, error) {
+	checker := func(_ context.Context, flag string) (bool, error) {
 		return flag == "my_flag", nil
 	}
 	regFlagOn := mustBuild(t, NewBuilder().
@@ -2179,8 +1974,8 @@ func TestWithMCPApps_EnabledPreservesUIMetadata(t *testing.T) {
 	})
 
 	// Feature checker enables MCP Apps - UI meta should be preserved
-	mcpAppsChecker := func(_ context.Context, flag FeatureFlag) (bool, error) {
-		return flag == mcpAppsFeatureFlag, nil
+	mcpAppsChecker := func(_ context.Context, flag string) (bool, error) {
+		return flag == string(mcpAppsFeatureFlag), nil
 	}
 	reg := mustBuild(t, NewBuilder().
 		SetTools([]ServerTool{toolWithUI}).

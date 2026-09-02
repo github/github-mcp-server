@@ -222,7 +222,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Tool registration must know availability before the MCP server exists.
 	// Remote consumers install user identity in HTTP middleware before the
 	// inventory factory, so their per-user checker has its full context here.
-	r = r.WithContext(invToUse.WithResolvedFeatures(r.Context()))
+	r = r.WithContext(invToUse.WithFeatureState(r.Context()))
 
 	ghServer, err := h.githubMcpServerFactory(r, h.deps, invToUse, &github.MCPServerConfig{
 		Version:           h.config.Version,

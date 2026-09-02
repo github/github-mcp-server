@@ -71,21 +71,17 @@ func TestFeatureRuleRejectsEmptyFeature(t *testing.T) {
 	})
 }
 
-func TestResolvedFeaturesDeduplicateAndCacheChecks(t *testing.T) {
+func TestFeatureStateDeduplicatesChecks(t *testing.T) {
 	calls := make(map[FeatureFlag]int)
-	checker := func(_ context.Context, flag FeatureFlag) (bool, error) {
-		calls[flag]++
+	checker := func(_ context.Context, flag string) (bool, error) {
+		calls[FeatureFlag(flag)]++
 		if flag == "error" {
 			return false, errors.New("failed")
 		}
 		return flag == "enabled", nil
 	}
 
-	ctx := WithResolvedFeatures(
-		context.Background(),
-		checker,
-		[]FeatureFlag{"enabled", "disabled", "enabled", "error"},
-	)
+	ctx := WithFeatureState(context.Background(), checker)
 
 	assert.True(t, ResolveFeature(ctx, nil, "enabled"))
 	assert.False(t, ResolveFeature(ctx, checker, "disabled"))
@@ -101,59 +97,91 @@ func TestResolvedFeaturesDeduplicateAndCacheChecks(t *testing.T) {
 	}, calls)
 }
 
-func TestResolvedFeaturesAllowNilChecker(t *testing.T) {
-	ctx := WithResolvedFeatures(context.Background(), nil, []FeatureFlag{"feature"})
+func TestFeatureRuleShortCircuitsAndMemoizes(t *testing.T) {
+	rule := NewFeatureRule(
+		[]FeatureFlag{"first", "second"},
+		func(featureAsBool FeatureResolver) bool {
+			return featureAsBool("first") && featureAsBool("second") && featureAsBool("first")
+		},
+	)
+
+	tests := []struct {
+		name  string
+		first bool
+		want  int
+	}{
+		{name: "false prerequisite", want: 1},
+		{name: "true prerequisite", first: true, want: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			checker := func(_ context.Context, flag string) (bool, error) {
+				calls++
+				return flag == "first" && tt.first, nil
+			}
+			ctx := WithFeatureState(context.Background(), checker)
+			assert.False(t, rule.Enabled(func(flag FeatureFlag) bool {
+				return ResolveFeature(ctx, checker, flag)
+			}))
+			assert.Equal(t, tt.want, calls)
+		})
+	}
+}
+
+func TestFeatureStateAllowsNilChecker(t *testing.T) {
+	ctx := WithFeatureState(context.Background(), nil)
 	assert.False(t, ResolveFeature(ctx, nil, "feature"))
 }
 
 func TestLazyFeatureResolutionUsesLiveContext(t *testing.T) {
 	type contextKey struct{}
-	checker := func(ctx context.Context, _ FeatureFlag) (bool, error) {
+	checker := func(ctx context.Context, _ string) (bool, error) {
 		enabled, _ := ctx.Value(contextKey{}).(bool)
 		return enabled, nil
 	}
 
-	ctx := WithResolvedFeatures(context.Background(), checker, nil)
+	ctx := WithFeatureState(context.Background(), checker)
 	ctx = context.WithValue(ctx, contextKey{}, true)
 	assert.True(t, ResolveFeature(ctx, checker, "handler_only"))
 }
 
 func TestFeatureResolutionIsReentrantAcrossFlags(t *testing.T) {
 	var checker FeatureFlagChecker
-	checker = func(ctx context.Context, flag FeatureFlag) (bool, error) {
+	checker = func(ctx context.Context, flag string) (bool, error) {
 		if flag == "meta" {
 			return ResolveFeature(ctx, checker, "base"), nil
 		}
 		return flag == "base", nil
 	}
 
-	ctx := WithResolvedFeatures(context.Background(), checker, nil)
+	ctx := WithFeatureState(context.Background(), checker)
 	assert.True(t, ResolveFeature(ctx, nil, "meta"))
 }
 
 func TestDirectFeatureResolutionCycleFailsClosed(t *testing.T) {
 	var checker FeatureFlagChecker
-	checker = func(ctx context.Context, flag FeatureFlag) (bool, error) {
-		return ResolveFeature(ctx, checker, flag), nil
+	checker = func(ctx context.Context, flag string) (bool, error) {
+		return ResolveFeature(ctx, checker, FeatureFlag(flag)), nil
 	}
 
-	ctx := WithResolvedFeatures(context.Background(), checker, nil)
+	ctx := WithFeatureState(context.Background(), checker)
 	assert.False(t, ResolveFeature(ctx, nil, "cycle"))
 }
 
 func TestSelfNegatingFeatureResolutionCycleFailsClosed(t *testing.T) {
 	var checker FeatureFlagChecker
-	checker = func(ctx context.Context, flag FeatureFlag) (bool, error) {
-		return !ResolveFeature(ctx, checker, flag), nil
+	checker = func(ctx context.Context, flag string) (bool, error) {
+		return !ResolveFeature(ctx, checker, FeatureFlag(flag)), nil
 	}
 
-	ctx := WithResolvedFeatures(context.Background(), checker, nil)
+	ctx := WithFeatureState(context.Background(), checker)
 	assert.False(t, ResolveFeature(ctx, nil, "cycle"))
 }
 
 func TestMutualFeatureResolutionCycleFailsClosed(t *testing.T) {
 	var checker FeatureFlagChecker
-	checker = func(ctx context.Context, flag FeatureFlag) (bool, error) {
+	checker = func(ctx context.Context, flag string) (bool, error) {
 		switch flag {
 		case "a":
 			return !ResolveFeature(ctx, checker, "b"), nil
@@ -164,7 +192,7 @@ func TestMutualFeatureResolutionCycleFailsClosed(t *testing.T) {
 		}
 	}
 
-	ctx := WithResolvedFeatures(context.Background(), checker, nil)
+	ctx := WithFeatureState(context.Background(), checker)
 	assert.False(t, ResolveFeature(ctx, nil, "a"))
 	assert.False(t, ResolveFeature(ctx, nil, "b"))
 }
@@ -176,7 +204,7 @@ func TestConcurrentFeatureResolutionIsDeduplicated(t *testing.T) {
 		started = make(chan struct{})
 		release = make(chan struct{})
 	)
-	checker := func(context.Context, FeatureFlag) (bool, error) {
+	checker := func(context.Context, string) (bool, error) {
 		callsMu.Lock()
 		calls++
 		callsMu.Unlock()
@@ -185,7 +213,7 @@ func TestConcurrentFeatureResolutionIsDeduplicated(t *testing.T) {
 		return true, nil
 	}
 
-	ctx := WithResolvedFeatures(context.Background(), checker, nil)
+	ctx := WithFeatureState(context.Background(), checker)
 	results := make(chan bool, 2)
 	go func() { results <- ResolveFeature(ctx, nil, "shared") }()
 	<-started
@@ -209,7 +237,7 @@ func TestConcurrentCrossFeatureCycleFailsClosed(t *testing.T) {
 	startedA := make(chan struct{})
 	startedB := make(chan struct{})
 	var checker FeatureFlagChecker
-	checker = func(ctx context.Context, flag FeatureFlag) (bool, error) {
+	checker = func(ctx context.Context, flag string) (bool, error) {
 		switch flag {
 		case "a":
 			close(startedA)
@@ -224,7 +252,7 @@ func TestConcurrentCrossFeatureCycleFailsClosed(t *testing.T) {
 		}
 	}
 
-	ctx := WithResolvedFeatures(context.Background(), checker, nil)
+	ctx := WithFeatureState(context.Background(), checker)
 	results := make(chan bool, 2)
 	go func() { results <- ResolveFeature(ctx, nil, "a") }()
 	go func() { results <- ResolveFeature(ctx, nil, "b") }()
@@ -241,15 +269,15 @@ func TestConcurrentCrossFeatureCycleFailsClosed(t *testing.T) {
 
 func TestContextFeatureStateTakesPrecedence(t *testing.T) {
 	var fallbackCalls int
-	stateChecker := func(context.Context, FeatureFlag) (bool, error) {
+	stateChecker := func(context.Context, string) (bool, error) {
 		return true, nil
 	}
-	fallbackChecker := func(context.Context, FeatureFlag) (bool, error) {
+	fallbackChecker := func(context.Context, string) (bool, error) {
 		fallbackCalls++
 		return false, nil
 	}
 
-	ctx := WithResolvedFeatures(context.Background(), stateChecker, nil)
+	ctx := WithFeatureState(context.Background(), stateChecker)
 	assert.True(t, ResolveFeature(ctx, fallbackChecker, "feature"))
 	assert.Zero(t, fallbackCalls)
 }

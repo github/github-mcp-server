@@ -96,7 +96,7 @@ func sortTools(tools []ServerTool) {
 // sorted deterministically by toolset ID, then tool name.
 // The context is used for feature flag evaluation.
 func (r *Inventory) AvailableTools(ctx context.Context) []ServerTool {
-	ctx = WithResolvedFeatures(ctx, r.featureChecker, r.toolFeatures)
+	ctx = WithFeatureState(ctx, r.featureChecker)
 	return r.availableTools(ctx)
 }
 
@@ -106,7 +106,7 @@ func (r *Inventory) availableTools(ctx context.Context) []ServerTool {
 	for i := range r.tools {
 		tool := &r.tools[i]
 		if r.isToolEnabled(ctx, tool, featureAsBool) {
-			result = append(result, cloneServerTool(*tool))
+			result = append(result, *tool)
 		}
 	}
 
@@ -127,7 +127,11 @@ func sortResourceTemplates(resourceTemplates []ServerResourceTemplate) {
 // sorted deterministically by toolset ID, then template name.
 // The context is used for feature flag evaluation.
 func (r *Inventory) AvailableResourceTemplates(ctx context.Context) []ServerResourceTemplate {
-	ctx = WithResolvedFeatures(ctx, r.featureChecker, r.resourceTemplateFeatures)
+	ctx = WithFeatureState(ctx, r.featureChecker)
+	return r.availableResourceTemplates(ctx)
+}
+
+func (r *Inventory) availableResourceTemplates(ctx context.Context) []ServerResourceTemplate {
 	featureAsBool := featureResolver(ctx, r.featureChecker)
 	var result []ServerResourceTemplate
 	for i := range r.resourceTemplates {
@@ -136,7 +140,7 @@ func (r *Inventory) AvailableResourceTemplates(ctx context.Context) []ServerReso
 			continue
 		}
 		if r.isToolsetEnabled(res.Toolset.ID) {
-			result = append(result, cloneResourceTemplate(*res))
+			result = append(result, *res)
 		}
 	}
 
@@ -157,7 +161,11 @@ func sortPrompts(prompts []ServerPrompt) {
 // sorted deterministically by toolset ID, then prompt name.
 // The context is used for feature flag evaluation.
 func (r *Inventory) AvailablePrompts(ctx context.Context) []ServerPrompt {
-	ctx = WithResolvedFeatures(ctx, r.featureChecker, r.promptFeatures)
+	ctx = WithFeatureState(ctx, r.featureChecker)
+	return r.availablePrompts(ctx)
+}
+
+func (r *Inventory) availablePrompts(ctx context.Context) []ServerPrompt {
 	featureAsBool := featureResolver(ctx, r.featureChecker)
 	var result []ServerPrompt
 	for i := range r.prompts {
@@ -166,7 +174,7 @@ func (r *Inventory) AvailablePrompts(ctx context.Context) []ServerPrompt {
 			continue
 		}
 		if r.isToolsetEnabled(prompt.Toolset.ID) {
-			result = append(result, clonePrompt(*prompt))
+			result = append(result, *prompt)
 		}
 	}
 
