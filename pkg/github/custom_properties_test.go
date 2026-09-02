@@ -134,83 +134,77 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.ElementsMatch(t, schema.Required, []string{"level", "properties"})
 
-	t.Run("property items reject unknown fields", func(t *testing.T) {
+	t.Run("property items use level-specific schemas", func(t *testing.T) {
 		itemSchema := schema.Properties["properties"].Items
-		require.NotNil(t, itemSchema.AdditionalProperties)
-		require.NotNil(t, itemSchema.AdditionalProperties.Not)
+		require.Len(t, itemSchema.OneOf, 2)
+		valueItemSchema := itemSchema.OneOf[0]
+		definitionItemSchema := itemSchema.OneOf[1]
+		require.NotNil(t, valueItemSchema.AdditionalProperties.Not)
+		require.NotNil(t, definitionItemSchema.AdditionalProperties.Not)
+		assert.ElementsMatch(t, []string{"property_name", "value"}, valueItemSchema.Required)
+		assert.ElementsMatch(t, []string{"property_name", "value_type"}, definitionItemSchema.Required)
 
-		resolved, err := itemSchema.Resolve(nil)
+		resolvedValue, err := valueItemSchema.Resolve(nil)
 		require.NoError(t, err)
-		require.NoError(t, resolved.Validate(map[string]any{
-			"property_name":      "environment",
-			"value_type":         "single_select",
-			"required":           true,
-			"default_value":      "production",
-			"description":        "Deployment environment",
-			"allowed_values":     []any{"production", "staging"},
-			"values_editable_by": "org_and_repo_actors",
-		}))
-		require.NoError(t, resolved.Validate(map[string]any{
-			"property_name": "environment",
-			"value":         []any{"production", "staging"},
-		}))
-		require.Error(t, resolved.Validate(map[string]any{
-			"property_name": "environment",
-			"value_type":    "string",
-			"require":       true,
-		}))
-	})
+		resolvedDefinition, err := definitionItemSchema.Resolve(nil)
+		require.NoError(t, err)
 
-	t.Run("value schemas enforce documented JSON types", func(t *testing.T) {
-		defaultValueSchema := schema.Properties["properties"].Items.Properties["default_value"]
-		require.Len(t, defaultValueSchema.OneOf, 2)
-		assert.Equal(t, "string", defaultValueSchema.OneOf[0].Type)
-		assert.Equal(t, "array", defaultValueSchema.OneOf[1].Type)
-		assert.Equal(t, "string", defaultValueSchema.OneOf[1].Items.Type)
-
-		valueSchema := schema.Properties["properties"].Items.Properties["value"]
+		valueSchema := valueItemSchema.Properties["value"]
 		require.Len(t, valueSchema.OneOf, 3)
 		assert.Equal(t, "string", valueSchema.OneOf[0].Type)
 		assert.Equal(t, "array", valueSchema.OneOf[1].Type)
 		assert.Equal(t, "string", valueSchema.OneOf[1].Items.Type)
 		assert.Equal(t, "null", valueSchema.OneOf[2].Type)
 
-		resolved, err := schema.Resolve(nil)
-		require.NoError(t, err)
+		defaultValueSchema := definitionItemSchema.Properties["default_value"]
+		require.Len(t, defaultValueSchema.OneOf, 2)
+		assert.Equal(t, "string", defaultValueSchema.OneOf[0].Type)
+		assert.Equal(t, "array", defaultValueSchema.OneOf[1].Type)
+		assert.Equal(t, "string", defaultValueSchema.OneOf[1].Items.Type)
 
 		tests := []struct {
 			name       string
-			field      string
-			value      any
+			definition bool
+			property   map[string]any
 			shouldPass bool
 		}{
-			{name: "default string", field: "default_value", value: "production", shouldPass: true},
-			{name: "default string array", field: "default_value", value: []any{"production", "staging"}, shouldPass: true},
-			{name: "default number", field: "default_value", value: 1},
-			{name: "default boolean", field: "default_value", value: true},
-			{name: "default object", field: "default_value", value: map[string]any{"environment": "production"}},
-			{name: "default null", field: "default_value", value: nil},
-			{name: "value string", field: "value", value: "production", shouldPass: true},
-			{name: "value string array", field: "value", value: []any{"production", "staging"}, shouldPass: true},
-			{name: "value null", field: "value", value: nil, shouldPass: true},
-			{name: "value number", field: "value", value: 1},
-			{name: "value boolean", field: "value", value: true},
-			{name: "value object", field: "value", value: map[string]any{"environment": "production"}},
+			{name: "repository string", property: map[string]any{"property_name": "environment", "value": "production"}, shouldPass: true},
+			{name: "repository string array", property: map[string]any{"property_name": "environment", "value": []any{"production", "staging"}}, shouldPass: true},
+			{name: "repository null", property: map[string]any{"property_name": "environment", "value": nil}, shouldPass: true},
+			{name: "repository number", property: map[string]any{"property_name": "environment", "value": 1}},
+			{name: "repository boolean", property: map[string]any{"property_name": "environment", "value": true}},
+			{name: "repository object", property: map[string]any{"property_name": "environment", "value": map[string]any{"name": "production"}}},
+			{name: "repository definition field", property: map[string]any{"property_name": "environment", "value": "production", "required": true}},
+			{
+				name:       "definition all fields",
+				definition: true,
+				property: map[string]any{
+					"property_name":      "environment",
+					"value_type":         "single_select",
+					"required":           true,
+					"default_value":      "production",
+					"description":        "Deployment environment",
+					"allowed_values":     []any{"production", "staging"},
+					"values_editable_by": "org_and_repo_actors",
+				},
+				shouldPass: true,
+			},
+			{name: "definition array default", definition: true, property: map[string]any{"property_name": "compliance", "value_type": "multi_select", "default_value": []any{"soc2", "fedramp"}}, shouldPass: true},
+			{name: "definition number default", definition: true, property: map[string]any{"property_name": "environment", "value_type": "string", "default_value": 1}},
+			{name: "definition boolean default", definition: true, property: map[string]any{"property_name": "environment", "value_type": "string", "default_value": true}},
+			{name: "definition object default", definition: true, property: map[string]any{"property_name": "environment", "value_type": "string", "default_value": map[string]any{"name": "production"}}},
+			{name: "definition null default", definition: true, property: map[string]any{"property_name": "environment", "value_type": "string", "default_value": nil}},
+			{name: "definition repository field", definition: true, property: map[string]any{"property_name": "environment", "value_type": "string", "value": "production"}},
+			{name: "definition misspelled field", definition: true, property: map[string]any{"property_name": "environment", "value_type": "string", "require": true}},
 		}
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				level := "repository"
-				property := map[string]any{"property_name": "environment"}
-				if tt.field == "default_value" {
-					level = "organization"
-					property["value_type"] = "single_select"
+				resolved := resolvedValue
+				if tt.definition {
+					resolved = resolvedDefinition
 				}
-				property[tt.field] = tt.value
-				err := resolved.Validate(map[string]any{
-					"level":      level,
-					"properties": []any{property},
-				})
+				err := resolved.Validate(tt.property)
 				if tt.shouldPass {
 					require.NoError(t, err)
 				} else {
@@ -267,11 +261,10 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 		assert.Contains(t, getErrorResult(t, result).Text, "properties parameter is required")
 	})
 
-	t.Run("requires level-specific property fields", func(t *testing.T) {
+	t.Run("rejects missing and level-incompatible fields", func(t *testing.T) {
 		tests := []struct {
-			name         string
-			args         map[string]any
-			requiredPath string
+			name string
+			args map[string]any
 		}{
 			{
 				name: "repository value",
@@ -281,7 +274,6 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 					"repo":       "repo",
 					"properties": []any{map[string]any{"property_name": "environment"}},
 				},
-				requiredPath: "properties[0].value",
 			},
 			{
 				name: "organization value_type",
@@ -290,7 +282,43 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 					"org":        "octo",
 					"properties": []any{map[string]any{"property_name": "environment"}},
 				},
-				requiredPath: "properties[0].value_type",
+			},
+			{
+				name: "repository rejects definition field",
+				args: map[string]any{
+					"level": "repository",
+					"owner": "owner",
+					"repo":  "repo",
+					"properties": []any{map[string]any{
+						"property_name": "environment",
+						"value":         "production",
+						"required":      true,
+					}},
+				},
+			},
+			{
+				name: "organization rejects value",
+				args: map[string]any{
+					"level": "organization",
+					"org":   "octo",
+					"properties": []any{map[string]any{
+						"property_name": "environment",
+						"value_type":    "string",
+						"value":         "production",
+					}},
+				},
+			},
+			{
+				name: "enterprise rejects value",
+				args: map[string]any{
+					"level":      "enterprise",
+					"enterprise": "acme",
+					"properties": []any{map[string]any{
+						"property_name": "environment",
+						"value_type":    "string",
+						"value":         "production",
+					}},
+				},
 			},
 		}
 
@@ -304,7 +332,7 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 				result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 				require.NoError(t, err)
 				require.True(t, result.IsError)
-				assert.Contains(t, getErrorResult(t, result).Text, tt.requiredPath)
+				assert.Contains(t, getErrorResult(t, result).Text, "properties[0] is invalid")
 			})
 		}
 	})
@@ -328,11 +356,13 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 			"org":   "octo",
 			"properties": []any{
 				map[string]any{
-					"property_name":  "environment",
-					"value_type":     "single_select",
-					"required":       true,
-					"default_value":  "production",
-					"allowed_values": []any{"production", "staging"},
+					"property_name":      "environment",
+					"value_type":         "single_select",
+					"required":           true,
+					"default_value":      "production",
+					"description":        "Deployment environment",
+					"allowed_values":     []any{"production", "staging"},
+					"values_editable_by": "org_and_repo_actors",
 				},
 			},
 		})
@@ -344,7 +374,10 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 		require.Len(t, captured.Properties, 1)
 		assert.Equal(t, "environment", captured.Properties[0].GetPropertyName())
 		assert.Equal(t, github.PropertyValueType("single_select"), captured.Properties[0].ValueType)
+		assert.True(t, captured.Properties[0].GetRequired())
+		assert.Equal(t, "Deployment environment", captured.Properties[0].GetDescription())
 		assert.ElementsMatch(t, []string{"production", "staging"}, captured.Properties[0].AllowedValues)
+		assert.Equal(t, "org_and_repo_actors", captured.Properties[0].GetValuesEditableBy())
 		defaultValue, ok := captured.Properties[0].DefaultValueString()
 		require.True(t, ok)
 		assert.Equal(t, "production", defaultValue)

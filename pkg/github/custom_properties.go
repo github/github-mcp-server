@@ -177,7 +177,12 @@ func CustomPropertiesWrite(t translations.TranslationHelperFunc) inventory.Serve
 					"properties": {
 						Type:        "array",
 						Description: "The custom properties to create or update. At the repository level each item assigns a value ('property_name' and 'value'); at the organization and enterprise levels each item defines the schema ('property_name' and 'value_type', plus optional definition fields).",
-						Items:       customPropertyItemSchema(),
+						Items: &jsonschema.Schema{
+							OneOf: []*jsonschema.Schema{
+								customPropertyValueSchema(),
+								customPropertyDefinitionSchema(),
+							},
+						},
 					},
 				},
 				Required: []string{"level", "properties"},
@@ -218,7 +223,7 @@ func customPropertiesWriteRepository(ctx context.Context, client *github.Client,
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
-	values, errResult := parseCustomProperties[*github.CustomPropertyValue](args, "value")
+	values, errResult := parseCustomProperties[*github.CustomPropertyValue](args, customPropertyValueSchema())
 	if errResult != nil {
 		return errResult, nil, nil
 	}
@@ -239,7 +244,7 @@ func customPropertiesWriteOrganization(ctx context.Context, client *github.Clien
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
-	properties, errResult := parseCustomProperties[*github.CustomProperty](args, "value_type")
+	properties, errResult := parseCustomProperties[*github.CustomProperty](args, customPropertyDefinitionSchema())
 	if errResult != nil {
 		return errResult, nil, nil
 	}
@@ -260,7 +265,7 @@ func customPropertiesWriteEnterprise(ctx context.Context, client *github.Client,
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
-	properties, errResult := parseCustomProperties[*github.CustomProperty](args, "value_type")
+	properties, errResult := parseCustomProperties[*github.CustomProperty](args, customPropertyDefinitionSchema())
 	if errResult != nil {
 		return errResult, nil, nil
 	}
@@ -276,10 +281,10 @@ func customPropertiesWriteEnterprise(ctx context.Context, client *github.Client,
 	return MarshalledTextResult(updated), nil, nil
 }
 
-// customPropertyItemSchema combines repository values with organization and enterprise definitions.
-func customPropertyItemSchema() *jsonschema.Schema {
+func customPropertyValueSchema() *jsonschema.Schema {
 	return &jsonschema.Schema{
 		Type:                 "object",
+		Description:          "A repository-level custom property value.",
 		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 		Properties: map[string]*jsonschema.Schema{
 			"property_name": {
@@ -297,17 +302,32 @@ func customPropertyItemSchema() *jsonschema.Schema {
 					{Type: "null"},
 				},
 			},
+		},
+		Required: []string{"property_name", "value"},
+	}
+}
+
+func customPropertyDefinitionSchema() *jsonschema.Schema {
+	return &jsonschema.Schema{
+		Type:                 "object",
+		Description:          "An organization- or enterprise-level custom property definition.",
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+		Properties: map[string]*jsonschema.Schema{
+			"property_name": {
+				Type:        "string",
+				Description: "The name of the custom property.",
+			},
 			"value_type": {
 				Type:        "string",
 				Enum:        []any{"string", "single_select", "multi_select", "true_false", "url"},
-				Description: "Organization and enterprise levels only: the data type of the property. Required when defining a property.",
+				Description: "The data type of the property.",
 			},
 			"required": {
 				Type:        "boolean",
-				Description: "Organization and enterprise levels only: whether the property must be set on every repository.",
+				Description: "Whether the property must be set on every repository.",
 			},
 			"default_value": {
-				Description: "Organization and enterprise levels only: the value applied when a repository does not set the property. A string or an array of strings.",
+				Description: "The value applied when a repository does not set the property. A string or an array of strings.",
 				OneOf: []*jsonschema.Schema{
 					{Type: "string"},
 					{
@@ -318,24 +338,24 @@ func customPropertyItemSchema() *jsonschema.Schema {
 			},
 			"description": {
 				Type:        "string",
-				Description: "Organization and enterprise levels only: a short description of the property.",
+				Description: "A short description of the property.",
 			},
 			"allowed_values": {
 				Type:        "array",
-				Description: "Organization and enterprise levels only: the ordered list of allowed values for single_select and multi_select properties.",
+				Description: "The ordered list of allowed values for single_select and multi_select properties.",
 				Items:       &jsonschema.Schema{Type: "string"},
 			},
 			"values_editable_by": {
 				Type:        "string",
 				Enum:        []any{"org_actors", "org_and_repo_actors"},
-				Description: "Organization and enterprise levels only: who can edit the values of the property.",
+				Description: "Who can edit the values of the property.",
 			},
 		},
-		Required: []string{"property_name"},
+		Required: []string{"property_name", "value_type"},
 	}
 }
 
-func parseCustomProperties[T any](args map[string]any, requiredItemField string) ([]T, *mcp.CallToolResult) {
+func parseCustomProperties[T any](args map[string]any, itemSchema *jsonschema.Schema) ([]T, *mcp.CallToolResult) {
 	raw, ok := args["properties"]
 	if !ok || raw == nil {
 		return nil, utils.NewToolResultError("properties parameter is required")
@@ -344,13 +364,13 @@ func parseCustomProperties[T any](args map[string]any, requiredItemField string)
 	if !ok {
 		return nil, utils.NewToolResultError("properties parameter must be an array")
 	}
-	for i, rawProperty := range arr {
-		property, ok := rawProperty.(map[string]any)
-		if !ok {
-			return nil, utils.NewToolResultError(fmt.Sprintf("properties[%d] must be an object", i))
-		}
-		if _, ok := property[requiredItemField]; !ok {
-			return nil, utils.NewToolResultError(fmt.Sprintf("properties[%d].%s is required", i, requiredItemField))
+	resolved, err := itemSchema.Resolve(nil)
+	if err != nil {
+		return nil, utils.NewToolResultErrorFromErr("failed to resolve properties schema", err)
+	}
+	for i, property := range arr {
+		if err := resolved.Validate(property); err != nil {
+			return nil, utils.NewToolResultErrorFromErr(fmt.Sprintf("properties[%d] is invalid", i), err)
 		}
 	}
 

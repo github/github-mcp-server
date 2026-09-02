@@ -31,82 +31,103 @@
       "properties": {
         "description": "The custom properties to create or update. At the repository level each item assigns a value ('property_name' and 'value'); at the organization and enterprise levels each item defines the schema ('property_name' and 'value_type', plus optional definition fields).",
         "items": {
-          "additionalProperties": false,
-          "properties": {
-            "allowed_values": {
-              "description": "Organization and enterprise levels only: the ordered list of allowed values for single_select and multi_select properties.",
-              "items": {
-                "type": "string"
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "description": "A repository-level custom property value.",
+              "properties": {
+                "property_name": {
+                  "description": "The name of the custom property.",
+                  "type": "string"
+                },
+                "value": {
+                  "description": "Repository level only: the value to assign. A string, an array of strings, or null to clear the value.",
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
               },
-              "type": "array"
+              "required": [
+                "property_name",
+                "value"
+              ],
+              "type": "object"
             },
-            "default_value": {
-              "description": "Organization and enterprise levels only: the value applied when a repository does not set the property. A string or an array of strings.",
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                }
-              ]
-            },
-            "description": {
-              "description": "Organization and enterprise levels only: a short description of the property.",
-              "type": "string"
-            },
-            "property_name": {
-              "description": "The name of the custom property.",
-              "type": "string"
-            },
-            "required": {
-              "description": "Organization and enterprise levels only: whether the property must be set on every repository.",
-              "type": "boolean"
-            },
-            "value": {
-              "description": "Repository level only: the value to assign. A string, an array of strings, or null to clear the value.",
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
+            {
+              "additionalProperties": false,
+              "description": "An organization- or enterprise-level custom property definition.",
+              "properties": {
+                "allowed_values": {
+                  "description": "The ordered list of allowed values for single_select and multi_select properties.",
                   "items": {
                     "type": "string"
                   },
                   "type": "array"
                 },
-                {
-                  "type": "null"
+                "default_value": {
+                  "description": "The value applied when a repository does not set the property. A string or an array of strings.",
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  ]
+                },
+                "description": {
+                  "description": "A short description of the property.",
+                  "type": "string"
+                },
+                "property_name": {
+                  "description": "The name of the custom property.",
+                  "type": "string"
+                },
+                "required": {
+                  "description": "Whether the property must be set on every repository.",
+                  "type": "boolean"
+                },
+                "value_type": {
+                  "description": "The data type of the property.",
+                  "enum": [
+                    "string",
+                    "single_select",
+                    "multi_select",
+                    "true_false",
+                    "url"
+                  ],
+                  "type": "string"
+                },
+                "values_editable_by": {
+                  "description": "Who can edit the values of the property.",
+                  "enum": [
+                    "org_actors",
+                    "org_and_repo_actors"
+                  ],
+                  "type": "string"
                 }
-              ]
-            },
-            "value_type": {
-              "description": "Organization and enterprise levels only: the data type of the property. Required when defining a property.",
-              "enum": [
-                "string",
-                "single_select",
-                "multi_select",
-                "true_false",
-                "url"
+              },
+              "required": [
+                "property_name",
+                "value_type"
               ],
-              "type": "string"
-            },
-            "values_editable_by": {
-              "description": "Organization and enterprise levels only: who can edit the values of the property.",
-              "enum": [
-                "org_actors",
-                "org_and_repo_actors"
-              ],
-              "type": "string"
+              "type": "object"
             }
-          },
-          "required": [
-            "property_name"
-          ],
-          "type": "object"
+          ]
         },
         "type": "array"
       },
