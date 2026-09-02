@@ -403,7 +403,7 @@ func GetRepositoryRulesForBranch(ctx context.Context, client *github.Client, own
 		PerPage: pagination.PerPage,
 	}
 
-	branchRules, resp, err := client.Repositories.ListRulesForBranch(ctx, owner, repo, branch, opts)
+	branchRules, resp, err := client.Repositories.ListRulesForBranch(ctx, owner, repo, url.PathEscape(branch), opts)
 	if resp != nil {
 		defer func() { _ = resp.Body.Close() }()
 	}

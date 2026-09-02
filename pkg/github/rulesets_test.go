@@ -439,6 +439,38 @@ func Test_RepositoryRulesetRead(t *testing.T) {
 	})
 }
 
+func Test_GetRepositoryRulesForBranchEscapesBranch(t *testing.T) {
+	tests := []struct {
+		name        string
+		branch      string
+		escapedPath string
+	}{
+		{
+			name:        "slash",
+			branch:      "release/1.0",
+			escapedPath: "/repos/owner/repo/rules/branches/release%2F1.0",
+		},
+		{
+			name:        "special characters",
+			branch:      "release/#1%ready",
+			escapedPath: "/repos/owner/repo/rules/branches/release%2F%231%25ready",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := mustNewGHClient(t, MockHTTPClientWithHandler(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, tt.escapedPath, r.URL.EscapedPath())
+				mockResponse(t, http.StatusOK, []map[string]any{{"type": "creation"}})(w, r)
+			}))
+
+			result, err := GetRepositoryRulesForBranch(t.Context(), client, "owner", "repo", tt.branch, PaginationParams{})
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+		})
+	}
+}
+
 func Test_CreateRepositoryRuleset(t *testing.T) {
 	toolDef := CreateRepositoryRuleset(translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
