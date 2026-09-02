@@ -78,7 +78,7 @@ func TestListUserLists(t *testing.T) {
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
-					userListPageQuery{},
+					userListPageWithItemsQuery{},
 					map[string]any{"after": (*githubv4.String)(nil)},
 					githubv4mock.DataResponse(map[string]any{
 						"viewer": map[string]any{
@@ -89,47 +89,16 @@ func TestListUserLists(t *testing.T) {
 										"name":        githubv4.String("My list"),
 										"description": githubv4.String("A list"),
 										"isPrivate":   githubv4.Boolean(false),
+										"items": map[string]any{
+											"nodes": []any{
+												map[string]any{"nameWithOwner": githubv4.String("owner/repo")},
+											},
+											"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
+										},
 									},
 								},
+								"pageInfo":   map[string]any{"hasNextPage": false, "endCursor": ""},
 								"totalCount": githubv4.Int(1),
-							},
-						},
-					}),
-				),
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Node struct {
-							UserList struct {
-								Items struct {
-									Nodes []struct {
-										Repository struct {
-											NameWithOwner githubv4.String
-										} `graphql:"... on Repository"`
-									}
-									PageInfo struct {
-										HasNextPage bool
-										EndCursor   string
-									}
-								} `graphql:"items(first: 100, after: $after)"`
-							} `graphql:"... on UserList"`
-						} `graphql:"node(id: $id)"`
-					}{},
-					map[string]any{
-						"id":    githubv4.ID("list-1"),
-						"after": (*githubv4.String)(nil),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"node": map[string]any{
-							"items": map[string]any{
-								"nodes": []any{
-									map[string]any{
-										"nameWithOwner": githubv4.String("owner/repo"),
-									},
-								},
-								"pageInfo": map[string]any{
-									"hasNextPage": false,
-									"endCursor":   "",
-								},
 							},
 						},
 					}),
@@ -240,6 +209,31 @@ func TestListUserListsPaginates(t *testing.T) {
 	assert.Equal(t, "First", lists[0].Name)
 	assert.Equal(t, "Second", lists[1].Name)
 	assert.Equal(t, 2, totalCount)
+	require.Len(t, transport.calls, 2)
+}
+
+func TestListUserListsIncludesFirstItemPageInlineAndContinues(t *testing.T) {
+	transport := &sequencedGraphQLTransport{
+		t: t,
+		responses: []func(capturedGraphQLRequest) (int, string){
+			func(req capturedGraphQLRequest) (int, string) {
+				assert.Nil(t, req.Variables["after"])
+				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-1","name":"List","description":"","isPrivate":false,"items":{"nodes":[{"nameWithOwner":"owner/first"}],"pageInfo":{"hasNextPage":true,"endCursor":"next-item"}}}],"pageInfo":{"hasNextPage":false,"endCursor":""},"totalCount":1}}}}`
+			},
+			func(req capturedGraphQLRequest) (int, string) {
+				assert.Equal(t, githubv4.ID("list-1"), githubv4.ID(req.Variables["id"].(string)))
+				assert.Equal(t, "next-item", req.Variables["after"])
+				return http.StatusOK, `{"data":{"node":{"items":{"nodes":[{"nameWithOwner":"owner/second"}],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
+			},
+		},
+	}
+	client := githubv4.NewClient(&http.Client{Transport: transport})
+
+	lists, totalCount, err := listUserLists(context.Background(), client, true)
+	require.NoError(t, err)
+	require.Len(t, lists, 1)
+	assert.Equal(t, 1, totalCount)
+	assert.Equal(t, []userListItem{{Repository: "owner/first"}, {Repository: "owner/second"}}, lists[0].Items)
 	require.Len(t, transport.calls, 2)
 }
 
@@ -569,7 +563,7 @@ func TestAddRepositoryToList(t *testing.T) {
 	require.NotNil(t, tool.Annotations.DestructiveHint)
 	assert.False(t, *tool.Annotations.DestructiveHint)
 	assert.True(t, tool.Annotations.IdempotentHint)
-	assert.Equal(t, []string{"user"}, serverTool.ScopeAccess.Scopes)
+	assert.Equal(t, []string{"user", "repo"}, serverTool.ScopeAccess.Scopes)
 
 	// Repository currently in lists "A" and "B"; adding to "C" must resubmit all
 	// three because updateUserListsForItem REPLACES membership (does not append).
@@ -728,7 +722,7 @@ func TestRemoveRepositoryFromList(t *testing.T) {
 	require.NotNil(t, tool.Annotations.DestructiveHint)
 	assert.True(t, *tool.Annotations.DestructiveHint)
 	assert.True(t, tool.Annotations.IdempotentHint)
-	assert.Equal(t, []string{"user"}, serverTool.ScopeAccess.Scopes)
+	assert.Equal(t, []string{"user", "repo"}, serverTool.ScopeAccess.Scopes)
 
 	// Repository currently in lists "A" and "B"; removing from "B" must resubmit
 	// only the remainder ("A").

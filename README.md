@@ -1482,7 +1482,7 @@ The following sets of tools are available:
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/star-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/star-light.png"><img src="pkg/octicons/icons/star-light.png" width="20" height="20" alt="star"></picture> Stargazers</summary>
 
 - **add_repository_to_list** - Add repository to star list
-  - **OAuth Challenge Scopes**: `user`
+  - **OAuth Challenge Scopes**: `user`, `repo`
   - `list_name`: The name of the star list to add the repository to. (string, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
@@ -1510,7 +1510,7 @@ The following sets of tools are available:
   - `include_items`: Whether to include the repositories in each list. (boolean, optional)
 
 - **remove_repository_from_list** - Remove repository from star list
-  - **OAuth Challenge Scopes**: `user`
+  - **OAuth Challenge Scopes**: `user`, `repo`
   - `list_name`: The name of the star list to remove the repository from. (string, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
