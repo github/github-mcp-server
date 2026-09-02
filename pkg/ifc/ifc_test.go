@@ -121,6 +121,12 @@ func TestLabelGetMe(t *testing.T) {
 	assert.Equal(t, ConfidentialityPrivate, label.Confidentiality)
 }
 
+func TestLabelUserList(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, PrivateTrusted(), LabelUserList())
+}
+
 func TestLabelRelease(t *testing.T) {
 	t.Parallel()
 

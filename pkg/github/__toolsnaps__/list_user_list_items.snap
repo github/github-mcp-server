@@ -1,0 +1,31 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "List star list items"
+  },
+  "description": "List a page of repositories in one star list (UserList).",
+  "inputSchema": {
+    "properties": {
+      "after": {
+        "description": "Cursor for pagination. Use the cursor from the previous response.",
+        "type": "string"
+      },
+      "name": {
+        "description": "The name of the star list whose repositories should be listed.",
+        "type": "string"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "type": "object"
+  },
+  "name": "list_user_list_items"
+}

@@ -87,6 +87,7 @@ var oauthScopeDefinitions = []oauthScopeDefinition{
 	{scope: Notifications, byDefault: true},
 	{scope: Workflow},
 	{scope: Codespace},
+	{scope: User},
 }
 
 // SupportedOAuthScopes returns every OAuth scope the server may request.

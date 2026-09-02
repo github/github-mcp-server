@@ -1,0 +1,34 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Update star list"
+  },
+  "description": "Update an existing star list (UserList): rename it, change its description, or change its privacy.",
+  "inputSchema": {
+    "properties": {
+      "description": {
+        "description": "The new description for the list.",
+        "type": "string"
+      },
+      "is_private": {
+        "description": "Whether the list is private.",
+        "type": "boolean"
+      },
+      "name": {
+        "description": "The current name of the list to update.",
+        "type": "string"
+      },
+      "new_name": {
+        "description": "The new name for the list.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "type": "object"
+  },
+  "name": "update_user_list"
+}
