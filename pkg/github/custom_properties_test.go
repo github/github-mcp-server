@@ -136,6 +136,7 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 
 	t.Run("property items use level-specific schemas", func(t *testing.T) {
 		itemSchema := schema.Properties["properties"].Items
+		assert.Equal(t, "object", itemSchema.Type)
 		require.Len(t, itemSchema.OneOf, 2)
 		valueItemSchema := itemSchema.OneOf[0]
 		definitionItemSchema := itemSchema.OneOf[1]

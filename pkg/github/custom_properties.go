@@ -178,6 +178,7 @@ func CustomPropertiesWrite(t translations.TranslationHelperFunc) inventory.Serve
 						Type:        "array",
 						Description: "The custom properties to create or update. At the repository level each item assigns a value ('property_name' and 'value'); at the organization and enterprise levels each item defines the schema ('property_name' and 'value_type', plus optional definition fields).",
 						Items: &jsonschema.Schema{
+							Type: "object",
 							OneOf: []*jsonschema.Schema{
 								customPropertyValueSchema(),
 								customPropertyDefinitionSchema(),
