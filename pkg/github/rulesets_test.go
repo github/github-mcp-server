@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"testing"
@@ -540,6 +541,60 @@ func Test_CreateRepositoryRuleset(t *testing.T) {
 	schema, ok := toolDef.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok)
 	assert.ElementsMatch(t, schema.Required, []string{"level", "name", "enforcement", "rules"})
+	require.NotNil(t, schema.AdditionalProperties)
+	require.NotNil(t, schema.AdditionalProperties.Not)
+
+	propertyNames := make([]string, 0, len(schema.Properties))
+	for name := range schema.Properties {
+		propertyNames = append(propertyNames, name)
+	}
+	assert.ElementsMatch(t, []string{
+		"level",
+		"owner",
+		"repo",
+		"org",
+		"enterprise",
+		"name",
+		"enforcement",
+		"target",
+		"rules",
+		"conditions",
+		"bypass_actors",
+	}, propertyNames)
+
+	resolvedSchema, err := schema.Resolve(nil)
+	require.NoError(t, err)
+	validArgs := map[string]any{
+		"level":       "repository",
+		"owner":       "owner",
+		"repo":        "repo",
+		"org":         "org",
+		"enterprise":  "enterprise",
+		"name":        "main protection",
+		"enforcement": "active",
+		"target":      "branch",
+		"rules":       []any{map[string]any{"type": "creation"}},
+		"conditions":  map[string]any{"ref_name": map[string]any{"include": []any{"refs/heads/main"}}},
+		"bypass_actors": []any{
+			map[string]any{"actor_type": "OrganizationAdmin", "bypass_mode": "always"},
+		},
+	}
+	require.NoError(t, resolvedSchema.Validate(validArgs))
+
+	for _, test := range []struct {
+		field string
+		typo  string
+	}{
+		{field: "target", typo: "targte"},
+		{field: "conditions", typo: "conditons"},
+	} {
+		t.Run("rejects misspelled "+test.field, func(t *testing.T) {
+			args := maps.Clone(validArgs)
+			args[test.typo] = args[test.field]
+			delete(args, test.field)
+			require.Error(t, resolvedSchema.Validate(args))
+		})
+	}
 
 	t.Run("repository level", func(t *testing.T) {
 		var capturedBody github.RepositoryRuleset

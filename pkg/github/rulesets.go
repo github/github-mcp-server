@@ -660,9 +660,10 @@ func CreateRepositoryRuleset(t translations.TranslationHelperFunc) inventory.Ser
 				ReadOnlyHint: false,
 			},
 			InputSchema: &jsonschema.Schema{
-				Type:       "object",
-				Properties: properties,
-				Required:   []string{"level", "name", "enforcement", "rules"},
+				Type:                 "object",
+				AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+				Properties:           properties,
+				Required:             []string{"level", "name", "enforcement", "rules"},
 			},
 		},
 		rulesetWriteScopeAccess(),

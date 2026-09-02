@@ -6,6 +6,7 @@
   },
   "description": "Create a new ruleset at the repository, organization, or enterprise level",
   "inputSchema": {
+    "additionalProperties": false,
     "properties": {
       "bypass_actors": {
         "description": "The actors that can bypass the rules in this ruleset",
