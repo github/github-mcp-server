@@ -60,7 +60,11 @@ func Test_CustomPropertiesRead(t *testing.T) {
 	})
 
 	t.Run("organization level: returns property definitions", func(t *testing.T) {
-		mockProps := []*github.CustomProperty{{PropertyName: github.Ptr("environment"), ValueType: "single_select"}}
+		mockProps := []map[string]any{{
+			"property_name":           "environment",
+			"value_type":              "single_select",
+			"require_explicit_values": true,
+		}}
 		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			"GET /orgs/{org}/properties/schema": mockResponse(t, http.StatusOK, mockProps),
 		}))
@@ -72,10 +76,11 @@ func Test_CustomPropertiesRead(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, result.IsError)
 
-		var returned []*github.CustomProperty
+		var returned []map[string]any
 		require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returned))
 		require.Len(t, returned, 1)
-		assert.Equal(t, "environment", returned[0].GetPropertyName())
+		assert.Equal(t, "environment", returned[0]["property_name"])
+		assert.Equal(t, true, returned[0]["require_explicit_values"])
 	})
 
 	t.Run("organization level: requires org", func(t *testing.T) {
@@ -143,7 +148,8 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 		require.NotNil(t, valueItemSchema.AdditionalProperties.Not)
 		require.NotNil(t, definitionItemSchema.AdditionalProperties.Not)
 		assert.ElementsMatch(t, []string{"property_name", "value"}, valueItemSchema.Required)
-		assert.ElementsMatch(t, []string{"property_name", "value_type"}, definitionItemSchema.Required)
+		assert.ElementsMatch(t, []string{"property_name"}, definitionItemSchema.Required)
+		assert.Equal(t, "boolean", definitionItemSchema.Properties["require_explicit_values"].Type)
 
 		resolvedValue, err := valueItemSchema.Resolve(nil)
 		require.NoError(t, err)
@@ -158,10 +164,11 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 		assert.Equal(t, "null", valueSchema.OneOf[2].Type)
 
 		defaultValueSchema := definitionItemSchema.Properties["default_value"]
-		require.Len(t, defaultValueSchema.OneOf, 2)
+		require.Len(t, defaultValueSchema.OneOf, 3)
 		assert.Equal(t, "string", defaultValueSchema.OneOf[0].Type)
 		assert.Equal(t, "array", defaultValueSchema.OneOf[1].Type)
 		assert.Equal(t, "string", defaultValueSchema.OneOf[1].Items.Type)
+		assert.Equal(t, "null", defaultValueSchema.OneOf[2].Type)
 
 		tests := []struct {
 			name       string
@@ -180,21 +187,23 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 				name:       "definition all fields",
 				definition: true,
 				property: map[string]any{
-					"property_name":      "environment",
-					"value_type":         "single_select",
-					"required":           true,
-					"default_value":      "production",
-					"description":        "Deployment environment",
-					"allowed_values":     []any{"production", "staging"},
-					"values_editable_by": "org_and_repo_actors",
+					"property_name":           "environment",
+					"value_type":              "single_select",
+					"required":                true,
+					"default_value":           "production",
+					"description":             "Deployment environment",
+					"allowed_values":          []any{"production", "staging"},
+					"values_editable_by":      "org_and_repo_actors",
+					"require_explicit_values": true,
 				},
 				shouldPass: true,
 			},
+			{name: "partial definition", definition: true, property: map[string]any{"property_name": "environment", "required": false}, shouldPass: true},
 			{name: "definition array default", definition: true, property: map[string]any{"property_name": "compliance", "value_type": "multi_select", "default_value": []any{"soc2", "fedramp"}}, shouldPass: true},
+			{name: "definition explicit nulls", definition: true, property: map[string]any{"property_name": "environment", "default_value": nil, "description": nil, "allowed_values": nil, "values_editable_by": nil}, shouldPass: true},
 			{name: "definition number default", definition: true, property: map[string]any{"property_name": "environment", "value_type": "string", "default_value": 1}},
 			{name: "definition boolean default", definition: true, property: map[string]any{"property_name": "environment", "value_type": "string", "default_value": true}},
 			{name: "definition object default", definition: true, property: map[string]any{"property_name": "environment", "value_type": "string", "default_value": map[string]any{"name": "production"}}},
-			{name: "definition null default", definition: true, property: map[string]any{"property_name": "environment", "value_type": "string", "default_value": nil}},
 			{name: "definition repository field", definition: true, property: map[string]any{"property_name": "environment", "value_type": "string", "value": "production"}},
 			{name: "definition misspelled field", definition: true, property: map[string]any{"property_name": "environment", "value_type": "string", "require": true}},
 		}
@@ -215,12 +224,14 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 		}
 	})
 
-	t.Run("repository level: sets property values", func(t *testing.T) {
+	t.Run("repository level: sets property values with one request", func(t *testing.T) {
+		requests := 0
 		var captured struct {
 			Properties []*github.CustomPropertyValue `json:"properties"`
 		}
 		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 			"PATCH /repos/{owner}/{repo}/properties/values": func(w http.ResponseWriter, r *http.Request) {
+				requests++
 				body, _ := io.ReadAll(r.Body)
 				_ = json.Unmarshal(body, &captured)
 				w.WriteHeader(http.StatusNoContent)
@@ -242,6 +253,7 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, result.IsError)
 		assert.Contains(t, getTextResult(t, result).Text, "updated successfully")
+		assert.Equal(t, 1, requests)
 
 		require.Len(t, captured.Properties, 2)
 		assert.Equal(t, "environment", captured.Properties[0].PropertyName)
@@ -262,92 +274,51 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 		assert.Contains(t, getErrorResult(t, result).Text, "properties parameter is required")
 	})
 
-	t.Run("rejects missing and level-incompatible fields", func(t *testing.T) {
-		tests := []struct {
-			name string
-			args map[string]any
-		}{
-			{
-				name: "repository value",
-				args: map[string]any{
-					"level":      "repository",
-					"owner":      "owner",
-					"repo":       "repo",
-					"properties": []any{map[string]any{"property_name": "environment"}},
-				},
-			},
-			{
-				name: "organization value_type",
-				args: map[string]any{
-					"level":      "organization",
-					"org":        "octo",
-					"properties": []any{map[string]any{"property_name": "environment"}},
-				},
-			},
-			{
-				name: "repository rejects definition field",
-				args: map[string]any{
-					"level": "repository",
-					"owner": "owner",
-					"repo":  "repo",
-					"properties": []any{map[string]any{
-						"property_name": "environment",
-						"value":         "production",
-						"required":      true,
-					}},
-				},
-			},
-			{
-				name: "organization rejects value",
-				args: map[string]any{
-					"level": "organization",
-					"org":   "octo",
-					"properties": []any{map[string]any{
-						"property_name": "environment",
-						"value_type":    "string",
-						"value":         "production",
-					}},
-				},
-			},
-			{
-				name: "enterprise rejects value",
-				args: map[string]any{
-					"level":      "enterprise",
-					"enterprise": "acme",
-					"properties": []any{map[string]any{
-						"property_name": "environment",
-						"value_type":    "string",
-						"value":         "production",
-					}},
-				},
-			},
-		}
-
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}))
-				deps := BaseDeps{Client: client}
-				handler := toolDef.Handler(deps)
-				request := createMCPRequest(tt.args)
-
-				result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-				require.NoError(t, err)
-				require.True(t, result.IsError)
-				assert.Contains(t, getErrorResult(t, result).Text, "properties[0] is invalid")
-			})
-		}
-	})
-
-	t.Run("organization level: defines property schema", func(t *testing.T) {
+	t.Run("organization level: merges mixed create and update in two requests", func(t *testing.T) {
+		requests := 0
 		var captured struct {
-			Properties []*github.CustomProperty `json:"properties"`
+			Properties []map[string]any `json:"properties"`
+		}
+		current := []map[string]any{
+			{
+				"property_name":           "environment",
+				"source_type":             "organization",
+				"url":                     "https://api.github.com/orgs/octo/properties/schema/environment",
+				"value_type":              "single_select",
+				"required":                true,
+				"default_value":           "production",
+				"description":             "Deployment environment",
+				"allowed_values":          []string{"production", "staging"},
+				"values_editable_by":      "org_and_repo_actors",
+				"require_explicit_values": true,
+			},
+			{
+				"property_name":           "legacy",
+				"source_type":             "organization",
+				"value_type":              "string",
+				"required":                false,
+				"default_value":           nil,
+				"description":             "",
+				"allowed_values":          []string{},
+				"values_editable_by":      nil,
+				"require_explicit_values": false,
+			},
+			{
+				"property_name": "untouched",
+				"source_type":   "organization",
+				"value_type":    "string",
+			},
 		}
 		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			"GET /orgs/{org}/properties/schema": func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				mockResponse(t, http.StatusOK, current)(w, r)
+			},
 			"PATCH /orgs/{org}/properties/schema": func(w http.ResponseWriter, r *http.Request) {
+				requests++
 				body, _ := io.ReadAll(r.Body)
-				_ = json.Unmarshal(body, &captured)
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(`[{"property_name":"environment","value_type":"single_select"}]`))
+				require.NoError(t, json.Unmarshal(body, &captured))
+				mockResponse(t, http.StatusOK, captured.Properties)(w, r)
 			},
 		}))
 		deps := BaseDeps{Client: client}
@@ -357,13 +328,24 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 			"org":   "octo",
 			"properties": []any{
 				map[string]any{
-					"property_name":      "environment",
-					"value_type":         "single_select",
-					"required":           true,
-					"default_value":      "production",
-					"description":        "Deployment environment",
-					"allowed_values":     []any{"production", "staging"},
-					"values_editable_by": "org_and_repo_actors",
+					"property_name": "environment",
+					"required":      false,
+				},
+				map[string]any{
+					"property_name":           "legacy",
+					"description":             nil,
+					"allowed_values":          []any{},
+					"require_explicit_values": false,
+				},
+				map[string]any{
+					"property_name":           "service",
+					"value_type":              "string",
+					"required":                false,
+					"default_value":           nil,
+					"description":             "",
+					"allowed_values":          nil,
+					"values_editable_by":      nil,
+					"require_explicit_values": false,
 				},
 			},
 		})
@@ -371,29 +353,72 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
 		require.False(t, result.IsError)
+		assert.Equal(t, 2, requests)
+		require.Len(t, captured.Properties, 3)
 
-		require.Len(t, captured.Properties, 1)
-		assert.Equal(t, "environment", captured.Properties[0].GetPropertyName())
-		assert.Equal(t, github.PropertyValueType("single_select"), captured.Properties[0].ValueType)
-		assert.True(t, captured.Properties[0].GetRequired())
-		assert.Equal(t, "Deployment environment", captured.Properties[0].GetDescription())
-		assert.ElementsMatch(t, []string{"production", "staging"}, captured.Properties[0].AllowedValues)
-		assert.Equal(t, "org_and_repo_actors", captured.Properties[0].GetValuesEditableBy())
-		defaultValue, ok := captured.Properties[0].DefaultValueString()
-		require.True(t, ok)
-		assert.Equal(t, "production", defaultValue)
+		environment := captured.Properties[0]
+		assert.Equal(t, "environment", environment["property_name"])
+		assert.Equal(t, "single_select", environment["value_type"])
+		assert.Equal(t, false, environment["required"])
+		assert.Equal(t, "production", environment["default_value"])
+		assert.Equal(t, "Deployment environment", environment["description"])
+		assert.Equal(t, []any{"production", "staging"}, environment["allowed_values"])
+		assert.Equal(t, "org_and_repo_actors", environment["values_editable_by"])
+		assert.Equal(t, true, environment["require_explicit_values"])
+		assert.NotContains(t, environment, "source_type")
+		assert.NotContains(t, environment, "url")
+
+		legacy := captured.Properties[1]
+		assert.Equal(t, "string", legacy["value_type"])
+		assert.Equal(t, false, legacy["required"])
+		assert.Contains(t, legacy, "default_value")
+		assert.Nil(t, legacy["default_value"])
+		assert.Contains(t, legacy, "description")
+		assert.Nil(t, legacy["description"])
+		assert.Contains(t, legacy, "allowed_values")
+		assert.Empty(t, legacy["allowed_values"])
+		assert.Contains(t, legacy, "values_editable_by")
+		assert.Nil(t, legacy["values_editable_by"])
+		assert.Equal(t, false, legacy["require_explicit_values"])
+
+		service := captured.Properties[2]
+		assert.Equal(t, "string", service["value_type"])
+		assert.Equal(t, false, service["required"])
+		assert.Contains(t, service, "default_value")
+		assert.Nil(t, service["default_value"])
+		assert.Equal(t, "", service["description"])
+		assert.Contains(t, service, "allowed_values")
+		assert.Nil(t, service["allowed_values"])
+		assert.Contains(t, service, "values_editable_by")
+		assert.Nil(t, service["values_editable_by"])
+		assert.Equal(t, false, service["require_explicit_values"])
 	})
 
-	t.Run("enterprise level: defines property schema", func(t *testing.T) {
+	t.Run("enterprise level: merges an existing definition", func(t *testing.T) {
+		requests := 0
 		var captured struct {
-			Properties []*github.CustomProperty `json:"properties"`
+			Properties []map[string]any `json:"properties"`
 		}
 		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			"GET /enterprises/{enterprise}/properties/schema": func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				mockResponse(t, http.StatusOK, []map[string]any{{
+					"property_name":           "compliance",
+					"source_type":             "enterprise",
+					"value_type":              "multi_select",
+					"required":                true,
+					"default_value":           []string{"soc2"},
+					"description":             "Compliance frameworks",
+					"allowed_values":          []string{"soc2", "fedramp"},
+					"values_editable_by":      "org_actors",
+					"require_explicit_values": true,
+				}})(w, r)
+			},
 			"PATCH /enterprises/{enterprise}/properties/schema": func(w http.ResponseWriter, r *http.Request) {
+				requests++
 				body, _ := io.ReadAll(r.Body)
-				_ = json.Unmarshal(body, &captured)
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(`[{"property_name":"compliance","value_type":"true_false"}]`))
+				require.NoError(t, json.Unmarshal(body, &captured))
+				mockResponse(t, http.StatusOK, captured.Properties)(w, r)
 			},
 		}))
 		deps := BaseDeps{Client: client}
@@ -404,7 +429,6 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 			"properties": []any{
 				map[string]any{
 					"property_name": "compliance",
-					"value_type":    "multi_select",
 					"default_value": []any{"soc2", "fedramp"},
 				},
 			},
@@ -413,12 +437,100 @@ func Test_CustomPropertiesWrite(t *testing.T) {
 		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 		require.NoError(t, err)
 		require.False(t, result.IsError)
-
+		assert.Equal(t, 2, requests)
 		require.Len(t, captured.Properties, 1)
-		assert.Equal(t, "compliance", captured.Properties[0].GetPropertyName())
-		defaultValues, ok := captured.Properties[0].DefaultValueStrings()
-		require.True(t, ok)
-		assert.Equal(t, []string{"soc2", "fedramp"}, defaultValues)
+		assert.Equal(t, "multi_select", captured.Properties[0]["value_type"])
+		assert.Equal(t, []any{"soc2", "fedramp"}, captured.Properties[0]["default_value"])
+		assert.Equal(t, true, captured.Properties[0]["require_explicit_values"])
+	})
+
+	t.Run("rejects invalid definition writes before patch", func(t *testing.T) {
+		tests := []struct {
+			name             string
+			args             map[string]any
+			current          []map[string]any
+			getStatus        int
+			expectedError    string
+			expectedRequests int
+		}{
+			{
+				name: "organization definition without value_type",
+				args: map[string]any{
+					"level":      "organization",
+					"org":        "octo",
+					"properties": []any{map[string]any{"property_name": "environment"}},
+				},
+				expectedError:    "value_type is required for new property",
+				expectedRequests: 1,
+			},
+			{
+				name: "duplicate property names",
+				args: map[string]any{
+					"level": "organization",
+					"org":   "octo",
+					"properties": []any{
+						map[string]any{"property_name": "environment"},
+						map[string]any{"property_name": "environment"},
+					},
+				},
+				expectedError: "duplicates",
+			},
+			{
+				name: "inherited enterprise definition",
+				args: map[string]any{
+					"level":      "organization",
+					"org":        "octo",
+					"properties": []any{map[string]any{"property_name": "environment"}},
+				},
+				current: []map[string]any{{
+					"property_name": "environment",
+					"source_type":   "enterprise",
+					"value_type":    "string",
+				}},
+				expectedError:    "inherited from enterprise",
+				expectedRequests: 1,
+			},
+			{
+				name: "GET failure",
+				args: map[string]any{
+					"level":      "organization",
+					"org":        "octo",
+					"properties": []any{map[string]any{"property_name": "environment"}},
+				},
+				getStatus:        http.StatusInternalServerError,
+				expectedError:    "failed to get organization custom properties before updating",
+				expectedRequests: 1,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				requests := 0
+				status := tt.getStatus
+				if status == 0 {
+					status = http.StatusOK
+				}
+				client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+					"GET /orgs/{org}/properties/schema": func(w http.ResponseWriter, r *http.Request) {
+						requests++
+						mockResponse(t, status, tt.current)(w, r)
+					},
+					"PATCH /orgs/{org}/properties/schema": func(w http.ResponseWriter, _ *http.Request) {
+						requests++
+						w.WriteHeader(http.StatusOK)
+					},
+				}))
+				deps := BaseDeps{Client: client}
+				handler := toolDef.Handler(deps)
+				request := createMCPRequest(tt.args)
+
+				result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				assert.Contains(t, getErrorResult(t, result).Text, tt.expectedError)
+				assert.Equal(t, tt.expectedRequests, requests)
+			})
+		}
 	})
 
 	t.Run("unknown level returns an error", func(t *testing.T) {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -111,12 +113,9 @@ func customPropertiesReadOrganization(ctx context.Context, client *github.Client
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
-	properties, resp, err := client.Organizations.GetAllCustomProperties(ctx, org)
-	if resp != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get organization custom properties", resp, err), nil, nil
+	properties, errResult := getCustomPropertyDefinitions(ctx, client, fmt.Sprintf("orgs/%s/properties/schema", url.PathEscape(org)), "failed to get organization custom properties")
+	if errResult != nil {
+		return errResult, nil, nil
 	}
 
 	return MarshalledTextResult(properties), nil, nil
@@ -128,12 +127,9 @@ func customPropertiesReadEnterprise(ctx context.Context, client *github.Client, 
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
-	properties, resp, err := client.Enterprise.GetAllCustomProperties(ctx, enterprise)
-	if resp != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get enterprise custom properties", resp, err), nil, nil
+	properties, errResult := getCustomPropertyDefinitions(ctx, client, fmt.Sprintf("enterprises/%s/properties/schema", url.PathEscape(enterprise)), "failed to get enterprise custom properties")
+	if errResult != nil {
+		return errResult, nil, nil
 	}
 
 	return MarshalledTextResult(properties), nil, nil
@@ -145,7 +141,7 @@ func CustomPropertiesWrite(t translations.TranslationHelperFunc) inventory.Serve
 		ToolsetMetadataGovernance,
 		mcp.Tool{
 			Name:        "custom_properties_write",
-			Description: t("TOOL_CUSTOM_PROPERTIES_WRITE_DESCRIPTION", "Create or update custom properties at the repository, organization, or enterprise level. At the repository level this sets the property values on a repository (the properties must already be defined for the organization); at the organization and enterprise levels it creates or updates the property definitions (schema). Select the level with the 'level' parameter."),
+			Description: t("TOOL_CUSTOM_PROPERTIES_WRITE_DESCRIPTION", "Create or update custom properties at the repository, organization, or enterprise level. At the repository level this sets the property values on a repository (the properties must already be defined for the organization). Organization and enterprise definition writes preserve omitted writable fields by reading current definitions immediately before updating; concurrent definition updates remain last-write-wins. Select the level with the 'level' parameter."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_CUSTOM_PROPERTIES_WRITE_USER_TITLE", "Set custom properties"),
 				ReadOnlyHint: false,
@@ -245,20 +241,12 @@ func customPropertiesWriteOrganization(ctx context.Context, client *github.Clien
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
-	properties, errResult := parseCustomProperties[*github.CustomProperty](args, customPropertyDefinitionSchema())
+	properties, errResult := parseCustomProperties[map[string]any](args, customPropertyDefinitionSchema())
 	if errResult != nil {
 		return errResult, nil, nil
 	}
 
-	updated, resp, err := client.Organizations.CreateOrUpdateCustomProperties(ctx, org, properties)
-	if resp != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update organization custom properties", resp, err), nil, nil
-	}
-
-	return MarshalledTextResult(updated), nil, nil
+	return customPropertiesWriteDefinitions(ctx, client, fmt.Sprintf("orgs/%s/properties/schema", url.PathEscape(org)), "organization", properties)
 }
 
 func customPropertiesWriteEnterprise(ctx context.Context, client *github.Client, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -266,20 +254,12 @@ func customPropertiesWriteEnterprise(ctx context.Context, client *github.Client,
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
-	properties, errResult := parseCustomProperties[*github.CustomProperty](args, customPropertyDefinitionSchema())
+	properties, errResult := parseCustomProperties[map[string]any](args, customPropertyDefinitionSchema())
 	if errResult != nil {
 		return errResult, nil, nil
 	}
 
-	updated, resp, err := client.Enterprise.CreateOrUpdateCustomProperties(ctx, enterprise, properties)
-	if resp != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update enterprise custom properties", resp, err), nil, nil
-	}
-
-	return MarshalledTextResult(updated), nil, nil
+	return customPropertiesWriteDefinitions(ctx, client, fmt.Sprintf("enterprises/%s/properties/schema", url.PathEscape(enterprise)), "enterprise", properties)
 }
 
 func customPropertyValueSchema() *jsonschema.Schema {
@@ -321,39 +301,164 @@ func customPropertyDefinitionSchema() *jsonschema.Schema {
 			"value_type": {
 				Type:        "string",
 				Enum:        []any{"string", "single_select", "multi_select", "true_false", "url"},
-				Description: "The data type of the property.",
+				Description: "The data type of the property. Required for new definitions; omit when updating to preserve the current type.",
 			},
 			"required": {
 				Type:        "boolean",
-				Description: "Whether the property must be set on every repository.",
+				Description: "Whether the property must be set on every repository. Omit when updating to preserve the current setting.",
 			},
 			"default_value": {
-				Description: "The value applied when a repository does not set the property. A string or an array of strings.",
+				Description: "The value applied when a repository does not set the property. Omit when updating to preserve the current value; use null to clear it.",
 				OneOf: []*jsonschema.Schema{
 					{Type: "string"},
 					{
 						Type:  "array",
 						Items: &jsonschema.Schema{Type: "string"},
 					},
+					{Type: "null"},
 				},
 			},
 			"description": {
-				Type:        "string",
-				Description: "A short description of the property.",
+				Description: "A short description of the property. Omit when updating to preserve the current description; use null to clear it.",
+				AnyOf: []*jsonschema.Schema{
+					{Type: "string"},
+					{Type: "null"},
+				},
 			},
 			"allowed_values": {
-				Type:        "array",
-				Description: "The ordered list of allowed values for single_select and multi_select properties.",
-				Items:       &jsonschema.Schema{Type: "string"},
+				Description: "The ordered list of allowed values for single_select and multi_select properties. Omit when updating to preserve the current list; use null or an empty array to clear it.",
+				AnyOf: []*jsonschema.Schema{
+					{
+						Type:  "array",
+						Items: &jsonschema.Schema{Type: "string"},
+					},
+					{Type: "null"},
+				},
 			},
 			"values_editable_by": {
-				Type:        "string",
-				Enum:        []any{"org_actors", "org_and_repo_actors"},
-				Description: "Who can edit the values of the property.",
+				Description: "Who can edit the values of the property. Omit when updating to preserve the current setting; use null to restore the default.",
+				AnyOf: []*jsonschema.Schema{
+					{
+						Type: "string",
+						Enum: []any{"org_actors", "org_and_repo_actors"},
+					},
+					{Type: "null"},
+				},
+			},
+			"require_explicit_values": {
+				Type:        "boolean",
+				Description: "Whether repositories must explicitly set a value for the property. Omit when updating to preserve the current setting.",
 			},
 		},
-		Required: []string{"property_name", "value_type"},
+		Required: []string{"property_name"},
 	}
+}
+
+var customPropertyDefinitionFields = []string{
+	"value_type",
+	"required",
+	"default_value",
+	"description",
+	"allowed_values",
+	"values_editable_by",
+	"require_explicit_values",
+}
+
+func customPropertiesWriteDefinitions(ctx context.Context, client *github.Client, apiURL, sourceType string, requested []map[string]any) (*mcp.CallToolResult, any, error) {
+	if errResult := validateUniqueCustomPropertyNames(requested); errResult != nil {
+		return errResult, nil, nil
+	}
+
+	current, errResult := getCustomPropertyDefinitions(ctx, client, apiURL, fmt.Sprintf("failed to get %s custom properties before updating", sourceType))
+	if errResult != nil {
+		return errResult, nil, nil
+	}
+	merged, errResult := mergeCustomPropertyDefinitions(current, requested, sourceType)
+	if errResult != nil {
+		return errResult, nil, nil
+	}
+
+	req, err := client.NewRequest(ctx, http.MethodPatch, apiURL, map[string]any{"properties": merged})
+	if err != nil {
+		return utils.NewToolResultErrorFromErr("failed to create custom properties update request", err), nil, nil
+	}
+
+	var updated []map[string]any
+	resp, err := client.Do(req, &updated)
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, fmt.Sprintf("failed to update %s custom properties", sourceType), resp, err), nil, nil
+	}
+	return MarshalledTextResult(updated), nil, nil
+}
+
+func getCustomPropertyDefinitions(ctx context.Context, client *github.Client, apiURL, errorMessage string) ([]map[string]any, *mcp.CallToolResult) {
+	req, err := client.NewRequest(ctx, http.MethodGet, apiURL, nil)
+	if err != nil {
+		return nil, utils.NewToolResultErrorFromErr("failed to create custom properties request", err)
+	}
+
+	var properties []map[string]any
+	resp, err := client.Do(req, &properties)
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+	if err != nil {
+		return nil, ghErrors.NewGitHubAPIErrorResponse(ctx, errorMessage, resp, err)
+	}
+	return properties, nil
+}
+
+func validateUniqueCustomPropertyNames(properties []map[string]any) *mcp.CallToolResult {
+	seen := make(map[string]struct{}, len(properties))
+	for i, property := range properties {
+		name := property["property_name"].(string)
+		if _, ok := seen[name]; ok {
+			return utils.NewToolResultError(fmt.Sprintf("properties[%d].property_name duplicates %q", i, name))
+		}
+		seen[name] = struct{}{}
+	}
+	return nil
+}
+
+func mergeCustomPropertyDefinitions(current, requested []map[string]any, sourceType string) ([]map[string]any, *mcp.CallToolResult) {
+	currentByName := make(map[string]map[string]any, len(current))
+	for _, property := range current {
+		name, _ := property["property_name"].(string)
+		if name != "" {
+			currentByName[name] = property
+		}
+	}
+
+	merged := make([]map[string]any, 0, len(requested))
+	for i, update := range requested {
+		name := update["property_name"].(string)
+		existing, exists := currentByName[name]
+		if !exists {
+			if _, ok := update["value_type"]; !ok {
+				return nil, utils.NewToolResultError(fmt.Sprintf("properties[%d].value_type is required for new property %q", i, name))
+			}
+			merged = append(merged, update)
+			continue
+		}
+		if existingSource, _ := existing["source_type"].(string); existingSource != "" && existingSource != sourceType {
+			return nil, utils.NewToolResultError(fmt.Sprintf("property %q is inherited from %s and cannot be updated at the %s level", name, existingSource, sourceType))
+		}
+
+		property := map[string]any{"property_name": name}
+		for _, field := range customPropertyDefinitionFields {
+			if value, ok := existing[field]; ok {
+				property[field] = value
+			}
+			if value, ok := update[field]; ok {
+				property[field] = value
+			}
+		}
+		merged = append(merged, property)
+	}
+	return merged, nil
 }
 
 func parseCustomProperties[T any](args map[string]any, itemSchema *jsonschema.Schema) ([]T, *mcp.CallToolResult) {
