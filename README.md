@@ -1507,7 +1507,9 @@ The following sets of tools are available:
 
 - **list_user_lists** - List star lists
   - **OAuth Challenge Scopes**: `read:user`, `repo`
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
   - `include_items`: Whether to include the repositories in each list. (boolean, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
 
 - **remove_repository_from_list** - Remove repository from star list
   - **OAuth Challenge Scopes**: `user`, `repo`

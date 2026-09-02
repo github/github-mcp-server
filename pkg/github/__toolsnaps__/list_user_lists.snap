@@ -7,9 +7,19 @@
   "description": "List the authenticated user's star lists (UserLists), optionally including the repositories in each list.",
   "inputSchema": {
     "properties": {
+      "after": {
+        "description": "Cursor for pagination. Use the cursor from the previous response.",
+        "type": "string"
+      },
       "include_items": {
         "description": "Whether to include the repositories in each list.",
         "type": "boolean"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
       }
     },
     "type": "object"

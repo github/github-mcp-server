@@ -52,7 +52,7 @@ func TestListUserLists(t *testing.T) {
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					userListPageQuery{},
-					map[string]any{"after": (*githubv4.String)(nil)},
+					map[string]any{"first": githubv4.Int(30), "after": (*githubv4.String)(nil)},
 					githubv4mock.DataResponse(map[string]any{
 						"viewer": map[string]any{
 							"lists": map[string]any{
@@ -80,7 +80,7 @@ func TestListUserLists(t *testing.T) {
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					userListPageWithItemsQuery{},
-					map[string]any{"after": (*githubv4.String)(nil)},
+					map[string]any{"first": githubv4.Int(30), "after": (*githubv4.String)(nil)},
 					githubv4mock.DataResponse(map[string]any{
 						"viewer": map[string]any{
 							"lists": map[string]any{
@@ -150,7 +150,7 @@ func TestListUserListsIFCLabel(t *testing.T) {
 	mockedClient := githubv4mock.NewMockedHTTPClient(
 		githubv4mock.NewQueryMatcher(
 			userListPageQuery{},
-			map[string]any{"after": (*githubv4.String)(nil)},
+			map[string]any{"first": githubv4.Int(30), "after": (*githubv4.String)(nil)},
 			githubv4mock.DataResponse(map[string]any{
 				"viewer": map[string]any{
 					"lists": map[string]any{
@@ -200,54 +200,52 @@ func TestGetUserListIDPaginates(t *testing.T) {
 	require.Len(t, transport.calls, 2)
 }
 
-func TestListUserListsPaginates(t *testing.T) {
+func TestListUserListsReturnsRequestedPage(t *testing.T) {
 	transport := &sequencedGraphQLTransport{
 		t: t,
 		responses: []func(capturedGraphQLRequest) (int, string){
-			func(req capturedGraphQLRequest) (int, string) {
-				assert.Nil(t, req.Variables["after"])
-				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-1","name":"First","description":"","isPrivate":false}],"pageInfo":{"hasNextPage":true,"endCursor":"next-list"},"totalCount":2}}}}`
-			},
 			func(req capturedGraphQLRequest) (int, string) {
 				assert.Equal(t, "next-list", req.Variables["after"])
-				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-2","name":"Second","description":"","isPrivate":true}],"pageInfo":{"hasNextPage":false,"endCursor":""},"totalCount":2}}}}`
+				assert.Equal(t, float64(1), req.Variables["first"])
+				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-2","name":"Second","description":"","isPrivate":true}],"pageInfo":{"hasNextPage":false,"hasPreviousPage":true,"startCursor":"second","endCursor":"second"},"totalCount":2}}}}`
 			},
 		},
 	}
 	client := githubv4.NewClient(&http.Client{Transport: transport})
+	after := githubv4.String("next-list")
 
-	lists, totalCount, err := listUserLists(context.Background(), client, false)
+	lists, totalCount, pageInfo, err := listUserLists(context.Background(), client, false, 1, &after)
 	require.NoError(t, err)
-	require.Len(t, lists, 2)
-	assert.Equal(t, "First", lists[0].Name)
-	assert.Equal(t, "Second", lists[1].Name)
+	require.Len(t, lists, 1)
+	assert.Equal(t, "Second", lists[0].Name)
 	assert.Equal(t, 2, totalCount)
-	require.Len(t, transport.calls, 2)
+	assert.True(t, pageInfo.HasPreviousPage)
+	assert.Equal(t, "second", pageInfo.EndCursor)
+	require.Len(t, transport.calls, 1)
 }
 
-func TestListUserListsIncludesFirstItemPageInlineAndContinues(t *testing.T) {
+func TestListUserListsIncludesBoundedItemPage(t *testing.T) {
 	transport := &sequencedGraphQLTransport{
 		t: t,
 		responses: []func(capturedGraphQLRequest) (int, string){
 			func(req capturedGraphQLRequest) (int, string) {
 				assert.Nil(t, req.Variables["after"])
+				assert.Equal(t, float64(30), req.Variables["first"])
 				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-1","name":"List","description":"","isPrivate":false,"items":{"nodes":[{"nameWithOwner":"owner/first"}],"pageInfo":{"hasNextPage":true,"endCursor":"next-item"}}}],"pageInfo":{"hasNextPage":false,"endCursor":""},"totalCount":1}}}}`
-			},
-			func(req capturedGraphQLRequest) (int, string) {
-				assert.Equal(t, githubv4.ID("list-1"), githubv4.ID(req.Variables["id"].(string)))
-				assert.Equal(t, "next-item", req.Variables["after"])
-				return http.StatusOK, `{"data":{"node":{"items":{"nodes":[{"nameWithOwner":"owner/second"}],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
 			},
 		},
 	}
 	client := githubv4.NewClient(&http.Client{Transport: transport})
 
-	lists, totalCount, err := listUserLists(context.Background(), client, true)
+	lists, totalCount, _, err := listUserLists(context.Background(), client, true, 30, nil)
 	require.NoError(t, err)
 	require.Len(t, lists, 1)
 	assert.Equal(t, 1, totalCount)
-	assert.Equal(t, []userListItem{{Repository: "owner/first"}, {Repository: "owner/second"}}, lists[0].Items)
-	require.Len(t, transport.calls, 2)
+	assert.Equal(t, []userListItem{{Repository: "owner/first"}}, lists[0].Items)
+	require.NotNil(t, lists[0].ItemsPageInfo)
+	assert.True(t, lists[0].ItemsPageInfo.HasNextPage)
+	assert.Equal(t, "next-item", lists[0].ItemsPageInfo.EndCursor)
+	require.Len(t, transport.calls, 1)
 }
 
 func TestCreateUserList(t *testing.T) {
