@@ -597,6 +597,11 @@ func GetEnterpriseRepositoryRuleset(ctx context.Context, client *github.Client, 
 	return MarshalledTextResult(ruleset), nil
 }
 
+type enterpriseRepositoryRulesetsResponse struct {
+	TotalCount int                         `json:"total_count"`
+	Rulesets   []*github.RepositoryRuleset `json:"rulesets"`
+}
+
 // ListEnterpriseRepositoryRulesets lists all repository rulesets for an
 // enterprise. Listing enterprise rulesets is not supported by go-github, so
 // the request is issued directly.
@@ -618,8 +623,8 @@ func ListEnterpriseRepositoryRulesets(ctx context.Context, client *github.Client
 		return utils.NewToolResultErrorFromErr("failed to create request", err), nil
 	}
 
-	var rulesets []*github.RepositoryRuleset
-	resp, err := client.Do(req, &rulesets)
+	var result enterpriseRepositoryRulesetsResponse
+	resp, err := client.Do(req, &result)
 	if resp != nil {
 		defer func() { _ = resp.Body.Close() }()
 	}
@@ -627,7 +632,7 @@ func ListEnterpriseRepositoryRulesets(ctx context.Context, client *github.Client
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list enterprise repository rulesets", resp, err), nil
 	}
 
-	return MarshalledTextResult(rulesets), nil
+	return MarshalledTextResult(result), nil
 }
 
 // CreateRepositoryRuleset creates a tool to create a new repository ruleset

@@ -376,21 +376,80 @@ func Test_RepositoryRulesetRead(t *testing.T) {
 	})
 
 	t.Run("enterprise level: list", func(t *testing.T) {
-		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			"GET /enterprises/{enterprise}/rulesets": mockResponse(t, http.StatusOK, []*github.RepositoryRuleset{{Name: "enterprise rs"}}),
-		}))
-		deps := BaseDeps{Client: client}
-		handler := toolDef.Handler(deps)
-		request := createMCPRequest(map[string]any{"level": "enterprise", "method": "list", "enterprise": "acme"})
+		t.Run("success preserves total count and pagination", func(t *testing.T) {
+			var capturedQuery url.Values
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /enterprises/{enterprise}/rulesets": func(w http.ResponseWriter, r *http.Request) {
+					capturedQuery = r.URL.Query()
+					mockResponse(t, http.StatusOK, map[string]any{
+						"total_count": 17,
+						"rulesets":    []*github.RepositoryRuleset{{Name: "enterprise rs"}},
+					})(w, r)
+				},
+			}))
+			deps := BaseDeps{Client: client}
+			handler := toolDef.Handler(deps)
+			request := createMCPRequest(map[string]any{
+				"level":      "enterprise",
+				"method":     "list",
+				"enterprise": "acme",
+				"page":       float64(2),
+				"perPage":    float64(1),
+			})
 
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-		require.NoError(t, err)
-		require.False(t, result.IsError)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+			assert.Equal(t, "2", capturedQuery.Get("page"))
+			assert.Equal(t, "1", capturedQuery.Get("per_page"))
 
-		var returned []*github.RepositoryRuleset
-		require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returned))
-		require.Len(t, returned, 1)
-		assert.Equal(t, "enterprise rs", returned[0].Name)
+			var returned struct {
+				TotalCount int                         `json:"total_count"`
+				Rulesets   []*github.RepositoryRuleset `json:"rulesets"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returned))
+			assert.Equal(t, 17, returned.TotalCount)
+			require.Len(t, returned.Rulesets, 1)
+			assert.Equal(t, "enterprise rs", returned.Rulesets[0].Name)
+		})
+
+		t.Run("empty response preserves object shape", func(t *testing.T) {
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /enterprises/{enterprise}/rulesets": mockResponse(t, http.StatusOK, map[string]any{
+					"total_count": 0,
+					"rulesets":    []*github.RepositoryRuleset{},
+				}),
+			}))
+			deps := BaseDeps{Client: client}
+			handler := toolDef.Handler(deps)
+			request := createMCPRequest(map[string]any{"level": "enterprise", "method": "list", "enterprise": "acme"})
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			var returned struct {
+				TotalCount int                         `json:"total_count"`
+				Rulesets   []*github.RepositoryRuleset `json:"rulesets"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &returned))
+			assert.Zero(t, returned.TotalCount)
+			assert.Empty(t, returned.Rulesets)
+		})
+
+		t.Run("API error", func(t *testing.T) {
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /enterprises/{enterprise}/rulesets": mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "Internal Server Error"}),
+			}))
+			deps := BaseDeps{Client: client}
+			handler := toolDef.Handler(deps)
+			request := createMCPRequest(map[string]any{"level": "enterprise", "method": "list", "enterprise": "acme"})
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			assert.Contains(t, getErrorResult(t, result).Text, "failed to list enterprise repository rulesets")
+		})
 	})
 
 	t.Run("enterprise level: rule suite method is rejected", func(t *testing.T) {
