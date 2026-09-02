@@ -1,6 +1,7 @@
 package inventory
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -16,7 +17,9 @@ func normalizeMeta(meta mcp.Meta) (mcp.Meta, error) {
 		return nil, fmt.Errorf("marshal metadata: %w", err)
 	}
 	var normalized mcp.Meta
-	if err := json.Unmarshal(data, &normalized); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(&normalized); err != nil {
 		return nil, fmt.Errorf("unmarshal metadata: %w", err)
 	}
 	return normalized, nil
@@ -49,7 +52,7 @@ func cloneMetaValue(value any) any {
 			clone[i] = cloneMetaValue(item)
 		}
 		return clone
-	case nil, bool, float64, string:
+	case nil, bool, string, json.Number:
 		return value
 	default:
 		panic(fmt.Sprintf("metadata value %T is not normalized", value))

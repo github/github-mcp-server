@@ -1,6 +1,7 @@
 package inventory
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -1345,6 +1346,12 @@ func TestBuilderOwnsFeatureMetadataInputs(t *testing.T) {
 	requireNestedTestMeta(t, availableTools[0].Tool.Meta, "ui", "tool")
 	requireNestedTestMeta(t, availableResources[0].Template.Meta, "resource", "resource")
 	requireNestedTestMeta(t, availablePrompts[0].Prompt.Meta, "prompt", "prompt")
+	requireExactTestMetaNumbers(t, availableTools[0].Tool.Meta, "ui")
+	requireExactTestMetaNumbers(t, availableResources[0].Template.Meta, "resource")
+	requireExactTestMetaNumbers(t, availablePrompts[0].Prompt.Meta, "prompt")
+	requireJSONEquivalent(t, expectedToolMeta, mustMarshalJSON(t, availableTools[0].Tool.Meta))
+	requireJSONEquivalent(t, expectedResourceMeta, mustMarshalJSON(t, availableResources[0].Template.Meta))
+	requireJSONEquivalent(t, expectedPromptMeta, mustMarshalJSON(t, availablePrompts[0].Prompt.Meta))
 
 	mutateNormalizedTestMeta(availableTools[0].Tool.Meta, "ui", "after-available")
 	availableTools[0].FeatureRule.features[0] = "changed"
@@ -1387,8 +1394,16 @@ func TestBuilderOwnsFeatureMetadataInputs(t *testing.T) {
 type testMetaMap map[string]string
 type testMetaSlice []string
 type testMetaPointer struct {
-	Value string `json:"value"`
+	Value   string  `json:"value"`
+	Decimal float64 `json:"decimal"`
 }
+
+const (
+	testLargeSigned   int64  = 9007199254740993
+	testLargeUnsigned uint64 = 18446744073709551614
+	testExponent             = 6.022e23
+	testDecimal              = 1.2345678901234567
+)
 
 func nestedTestMeta(key, value string) mcp.Meta {
 	return mcp.Meta{
@@ -1398,9 +1413,22 @@ func nestedTestMeta(key, value string) mcp.Meta {
 			"typed_map":   testMetaMap{"value": value},
 			"typed_slice": testMetaSlice{value},
 			"bytes":       []byte(value),
-			"pointer":     &testMetaPointer{Value: value},
+			"pointer":     &testMetaPointer{Value: value, Decimal: testDecimal},
+			"numbers": &testMetaNumbers{
+				Signed:   testLargeSigned,
+				Unsigned: testLargeUnsigned,
+				Exponent: testExponent,
+				Decimal:  testDecimal,
+			},
 		},
 	}
+}
+
+type testMetaNumbers struct {
+	Signed   int64   `json:"signed"`
+	Unsigned uint64  `json:"unsigned"`
+	Exponent float64 `json:"exponent"`
+	Decimal  float64 `json:"decimal"`
 }
 
 func mutateSourceTestMeta(meta mcp.Meta, key, value string, marker byte) {
@@ -1411,6 +1439,7 @@ func mutateSourceTestMeta(meta mcp.Meta, key, value string, marker byte) {
 	nested["typed_slice"].(testMetaSlice)[0] = value
 	nested["bytes"].([]byte)[0] = marker
 	nested["pointer"].(*testMetaPointer).Value = value
+	nested["numbers"].(*testMetaNumbers).Signed = 1
 }
 
 func mutateNormalizedTestMeta(meta mcp.Meta, key, value string) {
@@ -1421,6 +1450,7 @@ func mutateNormalizedTestMeta(meta mcp.Meta, key, value string) {
 	nested["typed_slice"].([]any)[0] = value
 	nested["bytes"] = value
 	nested["pointer"].(map[string]any)["value"] = value
+	nested["numbers"].(map[string]any)["signed"] = json.Number("1")
 }
 
 func requireNestedTestMeta(t *testing.T, meta mcp.Meta, key, value string) {
@@ -1434,11 +1464,34 @@ func requireNestedTestMeta(t *testing.T, meta mcp.Meta, key, value string) {
 	require.Equal(t, value, nested["pointer"].(map[string]any)["value"])
 }
 
+func requireExactTestMetaNumbers(t *testing.T, meta mcp.Meta, key string) {
+	t.Helper()
+	nested := meta[key].(map[string]any)
+	require.Equal(t, json.Number("1.2345678901234567"), nested["pointer"].(map[string]any)["decimal"])
+	numbers := nested["numbers"].(map[string]any)
+	require.Equal(t, json.Number("9007199254740993"), numbers["signed"])
+	require.Equal(t, json.Number("18446744073709551614"), numbers["unsigned"])
+	require.Equal(t, json.Number("6.022e+23"), numbers["exponent"])
+	require.Equal(t, json.Number("1.2345678901234567"), numbers["decimal"])
+}
+
 func mustMarshalJSON(t *testing.T, value any) []byte {
 	t.Helper()
 	data, err := json.Marshal(value)
 	require.NoError(t, err)
 	return data
+}
+
+func requireJSONEquivalent(t *testing.T, expected, actual []byte) {
+	t.Helper()
+	decode := func(data []byte) any {
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		decoder.UseNumber()
+		var value any
+		require.NoError(t, decoder.Decode(&value))
+		return value
+	}
+	require.Equal(t, decode(expected), decode(actual))
 }
 
 func TestBuildRejectsInvalidMetadata(t *testing.T) {
@@ -1468,6 +1521,13 @@ func TestBuildRejectsInvalidMetadata(t *testing.T) {
 			}}),
 			errorText: `prompt "prompt" metadata`,
 		},
+		{
+			name: "invalid number",
+			builder: NewBuilder().SetTools([]ServerTool{{
+				Tool: mcp.Tool{Name: "tool", Meta: mcp.Meta{"invalid": json.Number("nope")}},
+			}}),
+			errorText: `tool "tool" metadata`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1475,7 +1535,11 @@ func TestBuildRejectsInvalidMetadata(t *testing.T) {
 			_, err := tt.builder.Build()
 			require.ErrorContains(t, err, "invalid inventory metadata")
 			require.ErrorContains(t, err, tt.errorText)
-			require.ErrorContains(t, err, "unsupported type: chan int")
+			if tt.name == "invalid number" {
+				require.ErrorContains(t, err, "invalid number literal")
+			} else {
+				require.ErrorContains(t, err, "unsupported type: chan int")
+			}
 		})
 	}
 }
