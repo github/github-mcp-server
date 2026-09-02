@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -128,6 +129,18 @@ func TestListUserLists(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUserListItemsJSONDistinguishesNotFetchedFromEmpty(t *testing.T) {
+	t.Parallel()
+
+	notFetched, err := json.Marshal(userList{})
+	require.NoError(t, err)
+	assert.Contains(t, string(notFetched), `"items":null`)
+
+	fetchedEmpty, err := json.Marshal(userList{Items: []userListItem{}})
+	require.NoError(t, err)
+	assert.Contains(t, string(fetchedEmpty), `"items":[]`)
 }
 
 func TestListUserListsIFCLabel(t *testing.T) {

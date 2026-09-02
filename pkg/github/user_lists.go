@@ -22,7 +22,7 @@ type userList struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description,omitempty"`
 	IsPrivate   bool           `json:"is_private"`
-	Items       []userListItem `json:"items,omitempty"`
+	Items       []userListItem `json:"items"`
 }
 
 type userListItem struct {
