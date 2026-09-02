@@ -355,6 +355,23 @@ func Test_ReadModifyWriteBody_ReferenceDestinationAndBareURL(t *testing.T) {
 	assert.Equal(t, expected, commentBody)
 }
 
+// Test_ReadModifyWriteBody_UnbalancedReferenceDestinationAndLargeInput covers this round's fixes:
+// a reference destination with an unbalanced paren must not be masked, leaving trailing hidden
+// math exposed, and a large adversarial run of malformed inline-link candidates must still be
+// processed (bounded destination scanning) rather than degrading through the tool conversion path.
+func Test_ReadModifyWriteBody_UnbalancedReferenceDestinationAndLargeInput(t *testing.T) {
+	original := "[x]: foo($ignore$\n\n" + "$hidden$" + strings.Repeat("[y](", 500)
+	expected := "\\[x]: foo(\\$ignore\\$\n\n" + "\\$hidden\\$" + strings.Repeat("[y](", 500)
+
+	issueBody := convertToMinimalIssue(&github.Issue{Body: github.Ptr(original)}).Body
+	pullRequestBody := convertToMinimalPullRequest(&github.PullRequest{Body: github.Ptr(original)}).Body
+	commentBody := convertToMinimalIssueComment(&github.IssueComment{Body: github.Ptr(original)}).Body
+
+	assert.Equal(t, expected, issueBody)
+	assert.Equal(t, expected, pullRequestBody)
+	assert.Equal(t, expected, commentBody)
+}
+
 // Test_MinimalConverters_PreserveCodeFidelity ensures the sanitization work does not spill over
 // into fidelity-sensitive fields (diffs/patches and raw file content), which must survive byte
 // for byte so patches can still be applied and code isn't corrupted.

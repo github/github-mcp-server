@@ -648,6 +648,11 @@ func TestContentPreservesVisibleContent(t *testing.T) {
 			expected: "[query]\n\n[query]: /api/$filter$ \\$\\phantom{hidden}\\$",
 		},
 		{
+			name:     "exposes hidden math after an unbalanced reference destination paren",
+			input:    "[x]: foo($ignore$",
+			expected: "\\[x]: foo(\\$ignore\\$",
+		},
+		{
 			name:     "exposes math in a hostless bare URL",
 			input:    "http://?$hidden$",
 			expected: "http://?\\$hidden\\$",
@@ -856,6 +861,32 @@ func TestContentLargeMalformedLinkCandidates(t *testing.T) {
 	assert.Equal(t, "\\$hidden\\$"+suffix, Content(input))
 }
 
+// TestContentLargeMalformedReferenceDestination guards against reintroducing
+// an unbounded scan in referenceLinkDestinationSpan: a reference destination
+// with many nested, never-closed parentheses must still terminate promptly
+// and leave the trailing hidden math exposed rather than masked.
+func TestContentLargeMalformedReferenceDestination(t *testing.T) {
+	const depth = 20_000
+	input := "[a]: " + strings.Repeat("x(", depth) + "y $hidden$"
+
+	result := Content(input)
+
+	assert.Contains(t, result, "\\$hidden\\$")
+}
+
+// TestContentLargeUnmatchedAngleBrackets guards against reintroducing an
+// unbounded bytes.IndexByte scan in angleAutoLinkSpan: many consecutive
+// unmatched '<' candidates must still terminate promptly.
+func TestContentLargeUnmatchedAngleBrackets(t *testing.T) {
+	const candidates = 20_000
+	suffix := strings.Repeat("<x ", candidates)
+	input := suffix + "$hidden$"
+
+	result := Content(input)
+
+	assert.Contains(t, result, "\\$hidden\\$")
+}
+
 func TestSanitizeRemovesInvisibleCodeFenceMetadata(t *testing.T) {
 	input := "`\u200B`\u200B`steal secrets\nfmt.Println(42)\n```"
 	expected := "```\nfmt.Println(42)\n```"
@@ -1054,6 +1085,8 @@ var invariantCorpus = []string{
 	"http://?$hidden$ and https://example.com:8443/path?$q=1#frag",
 	"www.example.com/$safe$ vs www.$suspicious$",
 	"[a]: " + strings.Repeat("x(", 500) + "y",
+	"[x]: foo($ignore$",
+	strings.Repeat("<x ", 500) + "$hidden$",
 }
 
 // TestHTMLInertBytesAreFixedPointsOfThePolicy is the load-bearing check on the
@@ -1174,6 +1207,8 @@ func BenchmarkContent(b *testing.B) {
 		"malformed reference destination 20k": "[a]: " + strings.Repeat("x(", 20_000) + "y $hidden$",
 		"malformed bare urls 2k":              strings.Repeat("http://x?", 2_000) + "$hidden$",
 		"malformed bare urls 20k":             strings.Repeat("http://x?", 20_000) + "$hidden$",
+		"unmatched angle brackets 2k":         strings.Repeat("<x ", 2_000) + "$hidden$",
+		"unmatched angle brackets 20k":        strings.Repeat("<x ", 20_000) + "$hidden$",
 	}
 
 	for name, input := range cases {

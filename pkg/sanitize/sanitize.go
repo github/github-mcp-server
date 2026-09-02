@@ -85,6 +85,13 @@ func Content(input string) string {
 
 const maxContentFilterPasses = 4
 
+// maxLinkDestinationLength bounds how far destination-scanning functions look
+// for a terminator (matching bracket, closing angle bracket) before giving
+// up. Without a bound, an unterminated destination forces a scan to the end
+// of input on every call site, which is quadratic across many such
+// candidates.
+const maxLinkDestinationLength = 4096
+
 var markdownParser = goldmark.DefaultParser()
 
 type sourceSpan struct {
@@ -548,7 +555,8 @@ func referenceLinkDestinationSpan(source []byte, start int) (sourceSpan, int, bo
 
 	parentheses := 0
 	stop := start
-	for stop < len(source) {
+	limit := min(len(source), start+maxLinkDestinationLength)
+	for stop < limit {
 		r, size := utf8.DecodeRune(source[stop:])
 		if unicode.IsSpace(r) {
 			break
@@ -563,11 +571,15 @@ func referenceLinkDestinationSpan(source []byte, start int) (sourceSpan, int, bo
 		}
 		stop += size
 	}
+	if parentheses != 0 {
+		return sourceSpan{}, start, false
+	}
 	return sourceSpan{start: start, stop: stop}, stop, true
 }
 
 func angleAutoLinkSpan(source []byte, start int) (sourceSpan, int, bool) {
-	closeOffset := bytes.IndexByte(source[start+1:], '>')
+	searchLimit := min(len(source), start+1+maxLinkDestinationLength)
+	closeOffset := bytes.IndexByte(source[start+1:searchLimit], '>')
 	if closeOffset < 0 {
 		return sourceSpan{}, start, false
 	}
@@ -600,7 +612,8 @@ func inlineDestinationSpan(source []byte, start int) (sourceSpan, int, bool) {
 	}
 
 	if source[start] == '<' {
-		for stop := start + 1; stop < len(source); stop++ {
+		limit := min(len(source), start+1+maxLinkDestinationLength)
+		for stop := start + 1; stop < limit; stop++ {
 			if source[stop] == '>' && !isBackslashEscapedBytes(source, stop) {
 				closing := stop + 1
 				for closing < len(source) && unicode.IsSpace(rune(source[closing])) {
@@ -616,7 +629,8 @@ func inlineDestinationSpan(source []byte, start int) (sourceSpan, int, bool) {
 	}
 
 	parentheses := 0
-	for stop := start; stop < len(source); {
+	limit := min(len(source), start+maxLinkDestinationLength)
+	for stop := start; stop < limit; {
 		r, size := utf8.DecodeRune(source[stop:])
 		if r == '(' || r == ')' {
 			if !isBackslashEscapedBytes(source, stop) {
