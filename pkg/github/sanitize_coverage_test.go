@@ -355,6 +355,19 @@ func Test_ReadModifyWriteBody_ReferenceDestinationAndBareURL(t *testing.T) {
 	assert.Equal(t, expected, commentBody)
 }
 
+func Test_ReadModifyWriteBody_CommonMarkDestinationGrammar(t *testing.T) {
+	original := "[query]\n\n[query]: /api/$filter$\n\n" +
+		"<https://example.com/$query$> <user+tag@example.com>\n\n" +
+		"<relative/$hidden$>\n\n[x](\r\n\r\nfoo$hidden$)"
+	expected := "[query]\n\n[query]: /api/$filter$\n\n" +
+		"<https://example.com/$query$> <user+tag@example.com>\n\n" +
+		"<relative/\\$hidden\\$>\n\n[x](\r\n\r\nfoo\\$hidden\\$)"
+
+	assert.Equal(t, expected, convertToMinimalIssue(&github.Issue{Body: github.Ptr(original)}).Body)
+	assert.Equal(t, expected, convertToMinimalPullRequest(&github.PullRequest{Body: github.Ptr(original)}).Body)
+	assert.Equal(t, expected, convertToMinimalIssueComment(&github.IssueComment{Body: github.Ptr(original)}).Body)
+}
+
 // Test_ReadModifyWriteBody_UnbalancedReferenceDestinationAndLargeInput covers this round's fixes:
 // a reference destination with an unbalanced paren must not be masked, leaving trailing hidden
 // math exposed, and a large adversarial run of malformed inline-link candidates must still be

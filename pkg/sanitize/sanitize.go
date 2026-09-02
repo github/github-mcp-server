@@ -85,12 +85,8 @@ func Content(input string) string {
 
 const maxContentFilterPasses = 4
 
-// maxLinkDestinationLength bounds how far destination-scanning functions look
-// for a terminator (matching bracket, closing angle bracket) before giving
-// up. Without a bound, an unterminated destination forces a scan to the end
-// of input on every call site, which is quadratic across many such
-// candidates.
 const maxLinkDestinationLength = 4096
+const maxLinkLabelLength = 999
 
 var markdownParser = goldmark.DefaultParser()
 
@@ -511,11 +507,11 @@ func referenceDestinationSpan(source []byte, start int) (sourceSpan, int, bool) 
 	if offset >= len(source) || source[offset] != '[' || isBackslashEscapedBytes(source, offset) {
 		return sourceSpan{}, start, false
 	}
-	closing := bytes.Index(source[offset:], []byte("]:"))
-	if closing < 0 {
+	closing, ok := referenceLabelEnd(source, offset)
+	if !ok {
 		return sourceSpan{}, start, false
 	}
-	destinationStart := offset + closing + 2
+	destinationStart := closing + 2
 	for destinationStart < len(source) && (source[destinationStart] == ' ' || source[destinationStart] == '\t') {
 		destinationStart++
 	}
@@ -530,6 +526,39 @@ func referenceDestinationSpan(source []byte, start int) (sourceSpan, int, bool) 
 		return sourceSpan{}, start, false
 	}
 	return span, stop, true
+}
+
+func referenceLabelEnd(source []byte, start int) (int, bool) {
+	depth := 1
+	characters := 0
+	for offset := start + 1; offset < len(source) && source[offset] != '\n' && source[offset] != '\r'; {
+		if characters >= maxLinkLabelLength {
+			return 0, false
+		}
+		if source[offset] == '\\' {
+			_, size := utf8.DecodeRune(source[offset:])
+			offset += size
+			if offset < len(source) && source[offset] != '\n' && source[offset] != '\r' {
+				_, size = utf8.DecodeRune(source[offset:])
+				offset += size
+				characters++
+			}
+			continue
+		}
+		switch source[offset] {
+		case '[':
+			depth++
+		case ']':
+			depth--
+			if depth == 0 {
+				return offset, offset+1 < len(source) && source[offset+1] == ':'
+			}
+		}
+		_, size := utf8.DecodeRune(source[offset:])
+		offset += size
+		characters++
+	}
+	return 0, false
 }
 
 // referenceLinkDestinationSpan parses a link reference definition's destination,
@@ -588,22 +617,24 @@ func angleAutoLinkSpan(source []byte, start int) (sourceSpan, int, bool) {
 	if !linkDestinationIsSafe(destination) {
 		return sourceSpan{}, start, false
 	}
-	parsed, err := url.Parse(string(destination))
-	if err != nil ||
-		(parsed.Scheme != "" &&
-			!strings.EqualFold(parsed.Scheme, "http") &&
-			!strings.EqualFold(parsed.Scheme, "https") &&
-			!strings.EqualFold(parsed.Scheme, "mailto")) {
+	if !isCommonMarkAutoLink(destination) {
 		return sourceSpan{}, start, false
 	}
 	return sourceSpan{start: start + 1, stop: stop}, stop + 1, true
 }
 
 func inlineDestinationSpan(source []byte, start int) (sourceSpan, int, bool) {
+	var lineBreaks int
 	for start < len(source) {
-		r, size := utf8.DecodeRune(source[start:])
-		if !unicode.IsSpace(r) {
+		size, isLineBreak := markdownWhitespaceSize(source[start:])
+		if size == 0 {
 			break
+		}
+		if isLineBreak {
+			lineBreaks++
+			if lineBreaks > 1 {
+				return sourceSpan{}, start, false
+			}
 		}
 		start += size
 	}
@@ -616,8 +647,19 @@ func inlineDestinationSpan(source []byte, start int) (sourceSpan, int, bool) {
 		for stop := start + 1; stop < limit; stop++ {
 			if source[stop] == '>' && !isBackslashEscapedBytes(source, stop) {
 				closing := stop + 1
-				for closing < len(source) && unicode.IsSpace(rune(source[closing])) {
-					closing++
+				lineBreaks = 0
+				for closing < len(source) {
+					size, isLineBreak := markdownWhitespaceSize(source[closing:])
+					if size == 0 {
+						break
+					}
+					if isLineBreak {
+						lineBreaks++
+						if lineBreaks > 1 {
+							return sourceSpan{}, start, false
+						}
+					}
+					closing += size
 				}
 				if closing < len(source) && source[closing] == ')' {
 					return sourceSpan{start: start + 1, stop: stop}, closing + 1, true
@@ -649,6 +691,82 @@ func inlineDestinationSpan(source []byte, start int) (sourceSpan, int, bool) {
 		stop += size
 	}
 	return sourceSpan{}, start, false
+}
+
+func markdownWhitespaceSize(source []byte) (int, bool) {
+	switch source[0] {
+	case ' ', '\t':
+		return 1, false
+	case '\n':
+		return 1, true
+	case '\r':
+		if len(source) > 1 && source[1] == '\n' {
+			return 2, true
+		}
+		return 1, true
+	default:
+		return 0, false
+	}
+}
+
+func isCommonMarkAutoLink(destination []byte) bool {
+	schemeEnd := bytes.IndexByte(destination, ':')
+	if schemeEnd > 0 {
+		scheme := destination[:schemeEnd]
+		if bytes.EqualFold(scheme, []byte("mailto")) {
+			return isMailtoAddress(destination[schemeEnd+1:])
+		}
+		if !bytes.EqualFold(scheme, []byte("http")) && !bytes.EqualFold(scheme, []byte("https")) {
+			return false
+		}
+		parsed, err := url.Parse(string(destination))
+		return err == nil && parsed.Host != ""
+	}
+	at := bytes.IndexByte(destination, '@')
+	return at >= 1 && at+1 < len(destination) &&
+		isCommonMarkEmail(destination[:at], destination[at+1:])
+}
+
+func isMailtoAddress(destination []byte) bool {
+	at := bytes.IndexByte(destination, '@')
+	return at > 0 && at+1 < len(destination) && bytes.IndexByte(destination[at+1:], '@') < 0 &&
+		!bytes.ContainsAny(destination, " \t\r\n<>")
+}
+
+func isCommonMarkEmail(local, domain []byte) bool {
+	if domain == nil {
+		at := bytes.IndexByte(local, '@')
+		if at < 1 || at+1 >= len(local) {
+			return false
+		}
+		domain = local[at+1:]
+		local = local[:at]
+	}
+	for _, character := range local {
+		if !isEmailLocalCharacter(character) {
+			return false
+		}
+	}
+	if !isASCIIAlphaNumeric(domain[0]) {
+		return false
+	}
+	for _, character := range domain {
+		switch {
+		case isASCIIAlphaNumeric(character), character == '.', character == '-':
+		default:
+			return false
+		}
+	}
+	return domain[len(domain)-1] != '.' && domain[len(domain)-1] != '-'
+}
+
+func isEmailLocalCharacter(character byte) bool {
+	return isASCIIAlphaNumeric(character) || strings.ContainsRune("._+-!#$%&'*+/=?^`{|}~", rune(character))
+}
+
+func isASCIIAlphaNumeric(character byte) bool {
+	return (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
+		(character >= '0' && character <= '9')
 }
 
 func bareHTTPURLSpan(source []byte, start int) (sourceSpan, bool) {

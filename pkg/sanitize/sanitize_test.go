@@ -693,6 +693,31 @@ func TestContentPreservesVisibleContent(t *testing.T) {
 			expected: "<MAILTO:a$b$c@example.com>",
 		},
 		{
+			name:     "preserves CommonMark email autolinks",
+			input:    "<user.name+tag@example.com>",
+			expected: "<user.name+tag@example.com>",
+		},
+		{
+			name:     "does not mask ordinary angle text",
+			input:    "<foo$hidden$>",
+			expected: "<foo\\$hidden\\$>",
+		},
+		{
+			name:     "does not mask unsupported angle URI schemes",
+			input:    "<ftp://example.com/$hidden$>",
+			expected: "<ftp://example.com/\\$hidden\\$>",
+		},
+		{
+			name:     "does not make a link across a blank line",
+			input:    "[x](\n\nfoo$hidden$)",
+			expected: "[x](\n\nfoo\\$hidden\\$)",
+		},
+		{
+			name:     "does not make a link across a CRLF blank line",
+			input:    "[x](\r\n\r\nfoo$hidden$)",
+			expected: "[x](\r\n\r\nfoo\\$hidden\\$)",
+		},
+		{
 			name:     "does not mask bare mailto prose",
 			input:    "MAILTO:a$b$c@example.com",
 			expected: "MAILTO:a\\$b\\$c@example.com",
@@ -885,6 +910,13 @@ func TestContentLargeUnmatchedAngleBrackets(t *testing.T) {
 	result := Content(input)
 
 	assert.Contains(t, result, "\\$hidden\\$")
+}
+
+func TestContentLargeUnmatchedReferenceLabels(t *testing.T) {
+	const candidates = 20_000
+	input := strings.Repeat("[x\n", candidates) + "$hidden$"
+
+	assert.Contains(t, Content(input), "\\$hidden\\$")
 }
 
 func TestSanitizeRemovesInvisibleCodeFenceMetadata(t *testing.T) {
@@ -1084,6 +1116,7 @@ var invariantCorpus = []string{
 	"[query]\n\n[query]: <https://example.com/$filter$>",
 	"http://?$hidden$ and https://example.com:8443/path?$q=1#frag",
 	"www.example.com/$safe$ vs www.$suspicious$",
+	strings.Repeat("[x\n", 128) + "$hidden$",
 	"[a]: " + strings.Repeat("x(", 500) + "y",
 	"[x]: foo($ignore$",
 	strings.Repeat("<x ", 500) + "$hidden$",
@@ -1205,6 +1238,8 @@ func BenchmarkContent(b *testing.B) {
 		"malformed links 20k":                 "$hidden$" + strings.Repeat("x](", 20_000),
 		"malformed reference destination 2k":  "[a]: " + strings.Repeat("x(", 2_000) + "y $hidden$",
 		"malformed reference destination 20k": "[a]: " + strings.Repeat("x(", 20_000) + "y $hidden$",
+		"malformed reference labels 2k":       strings.Repeat("[x\n", 2_000) + "$hidden$",
+		"malformed reference labels 20k":      strings.Repeat("[x\n", 20_000) + "$hidden$",
 		"malformed bare urls 2k":              strings.Repeat("http://x?", 2_000) + "$hidden$",
 		"malformed bare urls 20k":             strings.Repeat("http://x?", 20_000) + "$hidden$",
 		"unmatched angle brackets 2k":         strings.Repeat("<x ", 2_000) + "$hidden$",
