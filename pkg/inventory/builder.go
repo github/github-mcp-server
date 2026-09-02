@@ -93,19 +93,19 @@ func (b *Builder) SetPrompts(prompts []ServerPrompt) *Builder {
 }
 
 func cloneServerTool(tool ServerTool) ServerTool {
-	tool.Tool.Meta = maps.Clone(tool.Tool.Meta)
+	tool.Tool.Meta = cloneMeta(tool.Tool.Meta)
 	tool.FeatureRule = tool.FeatureRule.clone()
 	return tool
 }
 
 func cloneResourceTemplate(resource ServerResourceTemplate) ServerResourceTemplate {
-	resource.Template.Meta = maps.Clone(resource.Template.Meta)
+	resource.Template.Meta = cloneMeta(resource.Template.Meta)
 	resource.FeatureRule = resource.FeatureRule.clone()
 	return resource
 }
 
 func clonePrompt(prompt ServerPrompt) ServerPrompt {
-	prompt.Prompt.Meta = maps.Clone(prompt.Prompt.Meta)
+	prompt.Prompt.Meta = cloneMeta(prompt.Prompt.Meta)
 	prompt.FeatureRule = prompt.FeatureRule.clone()
 	return prompt
 }

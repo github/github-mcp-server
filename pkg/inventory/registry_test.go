@@ -1302,52 +1302,102 @@ func TestBuilderOwnsFeatureMetadataInputs(t *testing.T) {
 	})
 	tools := []ServerTool{mockTool("tool", "toolset1", true)}
 	tools[0].FeatureRule = toolRule
-	tools[0].Tool.Meta = map[string]any{"ui": "resource"}
+	tools[0].Tool.Meta = nestedTestMeta("ui", "tool")
 	resources := []ServerResourceTemplate{mockResource("resource", "toolset1", "uri")}
 	resources[0].FeatureRule = resourceRule
-	resources[0].Template.Meta = map[string]any{"resource": true}
+	resources[0].Template.Meta = nestedTestMeta("resource", "resource")
 	prompts := []ServerPrompt{mockPrompt("prompt", "toolset1")}
 	prompts[0].FeatureRule = promptRule
-	prompts[0].Prompt.Meta = map[string]any{"prompt": true}
+	prompts[0].Prompt.Meta = nestedTestMeta("prompt", "prompt")
 
 	checker := func(_ context.Context, flag FeatureFlag) (bool, error) {
 		return flag == "tool" || flag == "resource" || flag == "prompt" || flag == mcpAppsFeatureFlag, nil
 	}
-	inv := mustBuild(t, NewBuilder().
+	builder := NewBuilder().
 		SetTools(tools).
 		SetResources(resources).
 		SetPrompts(prompts).
 		WithToolsets([]string{"all"}).
-		WithFeatureChecker(checker))
+		WithFeatureChecker(checker)
 
+	setNestedTestMeta(tools[0].Tool.Meta, "ui", "after-set")
+	setNestedTestMeta(resources[0].Template.Meta, "resource", "after-set")
+	setNestedTestMeta(prompts[0].Prompt.Meta, "prompt", "after-set")
+	inv := mustBuild(t, builder)
 	tools[0].FeatureRule.features[0] = "changed"
-	delete(tools[0].Tool.Meta, "ui")
+	setNestedTestMeta(tools[0].Tool.Meta, "ui", "after-build")
 	resources[0].FeatureRule.features[0] = "changed"
-	delete(resources[0].Template.Meta, "resource")
+	setNestedTestMeta(resources[0].Template.Meta, "resource", "after-build")
 	prompts[0].FeatureRule.features[0] = "changed"
-	delete(prompts[0].Prompt.Meta, "prompt")
+	setNestedTestMeta(prompts[0].Prompt.Meta, "prompt", "after-build")
 
 	require.Equal(t, []FeatureFlag{"prompt", "remote_mcp_ui_apps", "resource", "tool"}, inv.RequiredFeatures())
-	require.Len(t, inv.AvailableTools(context.Background()), 1)
-	require.Len(t, inv.AvailableResourceTemplates(context.Background()), 1)
-	require.Len(t, inv.AvailablePrompts(context.Background()), 1)
-	require.Contains(t, inv.tools[0].Tool.Meta, "ui")
-	require.Contains(t, inv.resourceTemplates[0].Template.Meta, "resource")
-	require.Contains(t, inv.prompts[0].Prompt.Meta, "prompt")
-
 	availableTools := inv.AvailableTools(context.Background())
 	availableResources := inv.AvailableResourceTemplates(context.Background())
 	availablePrompts := inv.AvailablePrompts(context.Background())
-	delete(availableTools[0].Tool.Meta, "ui")
+	require.Len(t, availableTools, 1)
+	require.Len(t, availableResources, 1)
+	require.Len(t, availablePrompts, 1)
+	requireNestedTestMeta(t, availableTools[0].Tool.Meta, "ui", "tool")
+	requireNestedTestMeta(t, availableResources[0].Template.Meta, "resource", "resource")
+	requireNestedTestMeta(t, availablePrompts[0].Prompt.Meta, "prompt", "prompt")
+
+	setNestedTestMeta(availableTools[0].Tool.Meta, "ui", "after-available")
 	availableTools[0].FeatureRule.features[0] = "changed"
-	delete(availableResources[0].Template.Meta, "resource")
+	setNestedTestMeta(availableResources[0].Template.Meta, "resource", "after-available")
 	availableResources[0].FeatureRule.features[0] = "changed"
-	delete(availablePrompts[0].Prompt.Meta, "prompt")
+	setNestedTestMeta(availablePrompts[0].Prompt.Meta, "prompt", "after-available")
 	availablePrompts[0].FeatureRule.features[0] = "changed"
 
-	require.Contains(t, inv.AvailableTools(context.Background())[0].Tool.Meta, "ui")
-	require.Contains(t, inv.AvailableResourceTemplates(context.Background())[0].Template.Meta, "resource")
-	require.Contains(t, inv.AvailablePrompts(context.Background())[0].Prompt.Meta, "prompt")
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	inv.RegisterAll(context.Background(), server, nil)
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = serverSession.Close() })
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clientSession.Close() })
+
+	registeredTools, err := clientSession.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	requireNestedTestMeta(t, registeredTools.Tools[0].Meta, "ui", "tool")
+	registeredResources, err := clientSession.ListResourceTemplates(context.Background(), nil)
+	require.NoError(t, err)
+	requireNestedTestMeta(t, registeredResources.ResourceTemplates[0].Meta, "resource", "resource")
+	registeredPrompts, err := clientSession.ListPrompts(context.Background(), nil)
+	require.NoError(t, err)
+	requireNestedTestMeta(t, registeredPrompts.Prompts[0].Meta, "prompt", "prompt")
+}
+
+func nestedTestMeta(key, value string) mcp.Meta {
+	return mcp.Meta{
+		key: map[string]any{
+			"objects": []any{map[string]any{"value": value}},
+			"strings": []string{value},
+		},
+	}
+}
+
+func setNestedTestMeta(meta mcp.Meta, key, value string) {
+	nested := meta[key].(map[string]any)
+	nested["objects"].([]any)[0].(map[string]any)["value"] = value
+	nested["strings"].([]string)[0] = value
+}
+
+func requireNestedTestMeta(t *testing.T, meta mcp.Meta, key, value string) {
+	t.Helper()
+	nested := meta[key].(map[string]any)
+	require.Equal(t, value, nested["objects"].([]any)[0].(map[string]any)["value"])
+	switch strings := nested["strings"].(type) {
+	case []string:
+		require.Equal(t, value, strings[0])
+	case []any:
+		require.Equal(t, value, strings[0])
+	default:
+		require.Failf(t, "unexpected strings metadata", "type %T", strings)
+	}
 }
 
 func TestServerToolHasHandler(t *testing.T) {
