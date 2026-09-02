@@ -4,10 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
-	"sync"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -28,48 +27,6 @@ type userList struct {
 
 type userListItem struct {
 	Repository string `json:"repository"`
-}
-
-type refCountedMutex struct {
-	mutex sync.Mutex
-	refs  int
-}
-
-var repoListMembershipLocks = struct {
-	sync.Mutex
-	locks map[string]*refCountedMutex
-}{
-	locks: make(map[string]*refCountedMutex),
-}
-
-// lockRepoListMembership serializes replacement-style membership updates for
-// the same repository within this process. The lock is repository-wide rather
-// than account-specific because ToolDependencies intentionally does not expose
-// credential identity; this is a stronger serialization boundary and avoids
-// cross-account lost updates inside a shared server process.
-func lockRepoListMembership(owner, repo string) func() {
-	key := strings.ToLower(owner + "/" + repo)
-
-	repoListMembershipLocks.Lock()
-	lock := repoListMembershipLocks.locks[key]
-	if lock == nil {
-		lock = &refCountedMutex{}
-		repoListMembershipLocks.locks[key] = lock
-	}
-	lock.refs++
-	repoListMembershipLocks.Unlock()
-
-	lock.mutex.Lock()
-	return func() {
-		lock.mutex.Unlock()
-
-		repoListMembershipLocks.Lock()
-		lock.refs--
-		if lock.refs == 0 {
-			delete(repoListMembershipLocks.locks, key)
-		}
-		repoListMembershipLocks.Unlock()
-	}
 }
 
 // getUserListID resolves the authenticated user's list with the given name to
@@ -181,8 +138,7 @@ func listUserListItems(ctx context.Context, client *githubv4.Client, listID gith
 // repoInList reports whether the repository identified by repoID belongs to the
 // list identified by listID, paging through the list's items until a match is
 // found or the connection is exhausted.
-func repoInList(ctx context.Context, client *githubv4.Client, listID, repoID githubv4.ID) (bool, error) {
-	var after *githubv4.String
+func repoInList(ctx context.Context, client *githubv4.Client, listID, repoID githubv4.ID, after *githubv4.String) (bool, error) {
 	for {
 		var query struct {
 			Node struct {
@@ -332,9 +288,6 @@ func setRepoListMemberships(ctx context.Context, client *githubv4.Client, owner,
 		return fmt.Errorf("failed to find repository: %w", err)
 	}
 
-	unlock := lockRepoListMembership(owner, repo)
-	defer unlock()
-
 	// Walk every list and, for each, every page of items to determine which
 	// lists currently contain the repository.
 	var listIDs []githubv4.ID
@@ -381,8 +334,9 @@ func setRepoListMemberships(ctx context.Context, client *githubv4.Client, owner,
 			// If the first page didn't contain the repository but the list has
 			// more than 100 items, keep paging until we know for certain.
 			if !contains && list.Items.PageInfo.HasNextPage {
+				cursor := githubv4.String(list.Items.PageInfo.EndCursor)
 				var err error
-				contains, err = repoInList(ctx, client, list.ID, repoID)
+				contains, err = repoInList(ctx, client, list.ID, repoID, &cursor)
 				if err != nil {
 					return err
 				}
@@ -487,7 +441,9 @@ func ListUserLists(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal user lists: %w", err)
 			}
-			return utils.NewToolResultText(string(out)), nil, nil
+			result := utils.NewToolResultText(string(out))
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelUserList())
+			return result, nil, nil
 		},
 	)
 }

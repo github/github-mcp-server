@@ -4,10 +4,10 @@ import (
 	"context"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/ifc"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -177,6 +177,53 @@ func TestListUserLists(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestListUserListsIFCLabel(t *testing.T) {
+	t.Parallel()
+
+	serverTool := ListUserLists(translations.NullTranslationHelper)
+	mockedClient := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			struct {
+				Viewer struct {
+					Lists struct {
+						Nodes []struct {
+							ID          githubv4.ID
+							Name        githubv4.String
+							Description githubv4.String
+							IsPrivate   githubv4.Boolean
+						}
+						TotalCount githubv4.Int
+					} `graphql:"lists(first: 100)"`
+				}
+			}{},
+			nil,
+			githubv4mock.DataResponse(map[string]any{
+				"viewer": map[string]any{
+					"lists": map[string]any{
+						"nodes":      []any{},
+						"totalCount": githubv4.Int(0),
+					},
+				},
+			}),
+		),
+	)
+	client := githubv4.NewClient(mockedClient)
+	deps := BaseDeps{
+		GQLClient:      client,
+		featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+	}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	label, ok := result.Meta["ifc"].(ifc.SecurityLabel)
+	require.True(t, ok)
+	assert.Equal(t, ifc.PrivateTrusted(), label)
 }
 
 func TestCreateUserList(t *testing.T) {
@@ -895,43 +942,6 @@ func TestAddRepositoryToListListNotFound(t *testing.T) {
 	assert.Contains(t, textContent.Text, "list 'Missing' not found")
 }
 
-func TestRepoListMembershipLockSerializesConcurrentUpdates(t *testing.T) {
-	unlockFirst := lockRepoListMembership("ConcurrentOwner", "ConcurrentRepo")
-	firstReleased := false
-	defer func() {
-		if !firstReleased {
-			unlockFirst()
-		}
-	}()
-
-	started := make(chan struct{})
-	acquired := make(chan struct{})
-	done := make(chan struct{})
-	go func() {
-		close(started)
-		unlockSecond := lockRepoListMembership("concurrentowner", "concurrentrepo")
-		close(acquired)
-		unlockSecond()
-		close(done)
-	}()
-	<-started
-
-	select {
-	case <-acquired:
-		t.Fatal("second update acquired the same repository lock before the first released it")
-	case <-time.After(25 * time.Millisecond):
-	}
-
-	unlockFirst()
-	firstReleased = true
-	select {
-	case <-acquired:
-	case <-time.After(time.Second):
-		t.Fatal("second update did not acquire the repository lock after release")
-	}
-	<-done
-}
-
 func TestSetRepoListMembershipsSkipsSatisfiedMutation(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -984,10 +994,6 @@ func TestSetRepoListMembershipsPreservesMembershipFoundOnLaterPage(t *testing.T)
 				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-a","items":{"nodes":[],"pageInfo":{"hasNextPage":true,"endCursor":"cursor-a"}}},{"id":"list-c","items":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":""}}}],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
 			},
 			func(req capturedGraphQLRequest) (int, string) {
-				assert.Nil(t, req.Variables["after"])
-				return http.StatusOK, `{"data":{"node":{"items":{"nodes":[],"pageInfo":{"hasNextPage":true,"endCursor":"cursor-a"}}}}}`
-			},
-			func(req capturedGraphQLRequest) (int, string) {
 				assert.Equal(t, "cursor-a", req.Variables["after"])
 				return http.StatusOK, `{"data":{"node":{"items":{"nodes":[{"id":"repo-id"}],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
 			},
@@ -1002,5 +1008,5 @@ func TestSetRepoListMembershipsPreservesMembershipFoundOnLaterPage(t *testing.T)
 	client := githubv4.NewClient(&http.Client{Transport: transport})
 
 	require.NoError(t, setRepoListMemberships(context.Background(), client, "owner", "repo", "C", true))
-	require.Len(t, transport.calls, 6)
+	require.Len(t, transport.calls, 5)
 }

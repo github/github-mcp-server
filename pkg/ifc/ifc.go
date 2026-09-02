@@ -73,6 +73,15 @@ func LabelGetMe() SecurityLabel {
 	return PrivateTrusted()
 }
 
+// LabelUserList returns the IFC label for the authenticated user's star lists.
+// List names and descriptions may be private, and included items may expose
+// memberships in private repositories, so the joined result is conservatively
+// private. Integrity is trusted because the lists are maintained by the
+// authenticated user through GitHub.
+func LabelUserList() SecurityLabel {
+	return PrivateTrusted()
+}
+
 // LabelListIssues returns the IFC label for a list_issues result.
 // Public repositories are universally readable; private repositories are
 // restricted to their collaborators (resolved client-side from the marker).
