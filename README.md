@@ -29,7 +29,11 @@ The remote GitHub MCP Server is hosted by GitHub and provides the easiest method
 
 ### Install in VS Code
 
-For quick installation, use one of the one-click install buttons above. Once you complete that flow, toggle Agent mode (located by the Copilot Chat text input) and the server will start. Make sure you're using [VS Code 1.101](https://code.visualstudio.com/updates/v1_101) or [later](https://code.visualstudio.com/updates) for remote MCP and OAuth support.
+> **Already using GitHub Copilot in VS Code?** If you have the [GitHub Copilot Chat extension](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat) (`vscode-copilot-chat`), the GitHub MCP server is bundled for in-editor use. Enable it with the `github.copilot.chat.githubMcpServer.enabled` setting (or via **Settings → GitHub Copilot Chat → GitHub MCP Server**). You do **not** need a separate installation from this repository for VS Code-only use.
+>
+> Install or configure this repository's server separately only when you need capabilities beyond the bundled integration—for example: running a local server, connecting to GitHub Enterprise Server, or exposing GitHub MCP to hosts outside VS Code. Avoid adding a duplicate `mcp.json` entry alongside the bundled server, which can register tools twice.
+
+If you do not have Copilot Chat enabled, or you need a standalone MCP configuration, use one of the one-click install buttons above. Once you complete that flow, toggle Agent mode (located by the Copilot Chat text input) and the server will start. Make sure you're using [VS Code 1.101](https://code.visualstudio.com/updates/v1_101) or [later](https://code.visualstudio.com/updates) for remote MCP and OAuth support.
 
 Alternatively, to manually configure VS Code, choose the appropriate JSON block from the examples below and add it to your host configuration:
 
@@ -274,7 +278,9 @@ the hostname for GitHub Enterprise Server or GitHub Enterprise Cloud with data r
 
 ### Install in GitHub Copilot on VS Code
 
-For quick installation, use one of the one-click install buttons above. Once you complete that flow, toggle Agent mode (located by the Copilot Chat text input) and the server will start.
+> **Already using GitHub Copilot in VS Code?** The [GitHub Copilot Chat extension](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat) bundles the GitHub MCP server for in-editor use. Enable it with `github.copilot.chat.githubMcpServer.enabled`. A separate install from this repository is only needed for local hosting, GitHub Enterprise Server, or MCP access outside VS Code.
+
+If you need a standalone MCP configuration, use one of the one-click install buttons above. Once you complete that flow, toggle Agent mode (located by the Copilot Chat text input) and the server will start.
 
 More about using MCP server tools in VS Code's [agent mode documentation](https://code.visualstudio.com/docs/copilot/chat/mcp-servers).
 
