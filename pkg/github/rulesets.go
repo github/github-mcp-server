@@ -798,7 +798,7 @@ func rulesetWriteProperties() map[string]*jsonschema.Schema {
 						Description: "When the specified actor can bypass the ruleset. 'pull_request' only applies to branch rulesets and is not valid for the 'DeployKey' actor type. 'exempt' means rules are not run for that actor and no bypass audit entry is created.",
 					},
 				},
-				Required: []string{"actor_type"},
+				Required: []string{"actor_type", "bypass_mode"},
 			},
 		},
 	}
@@ -887,6 +887,15 @@ func buildRepositoryRulesetFromArgs(args map[string]any) (github.RepositoryRules
 				if key != "actor_id" && key != "actor_type" && key != "bypass_mode" {
 					return github.RepositoryRuleset{}, utils.NewToolResultError(fmt.Sprintf("bypass_actors[%d]: unsupported or unrecognized key: %q", i, key))
 				}
+			}
+			bypassMode, ok := actorMap["bypass_mode"].(string)
+			if !ok {
+				return github.RepositoryRuleset{}, utils.NewToolResultError(fmt.Sprintf("bypass_actors[%d].bypass_mode is required and must be a string", i))
+			}
+			switch github.BypassMode(bypassMode) {
+			case github.BypassModeAlways, github.BypassModePullRequest, github.BypassModeExempt:
+			default:
+				return github.RepositoryRuleset{}, utils.NewToolResultError(fmt.Sprintf("bypass_actors[%d].bypass_mode must be one of \"always\", \"pull_request\", or \"exempt\"", i))
 			}
 		}
 		payload["bypass_actors"] = bypassActorsArr

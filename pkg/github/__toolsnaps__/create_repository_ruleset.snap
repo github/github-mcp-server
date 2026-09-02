@@ -42,7 +42,8 @@
             }
           },
           "required": [
-            "actor_type"
+            "actor_type",
+            "bypass_mode"
           ],
           "type": "object"
         },

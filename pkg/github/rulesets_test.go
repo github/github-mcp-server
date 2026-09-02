@@ -564,6 +564,11 @@ func Test_CreateRepositoryRuleset(t *testing.T) {
 
 	resolvedSchema, err := schema.Resolve(nil)
 	require.NoError(t, err)
+	bypassActorSchema := schema.Properties["bypass_actors"].Items
+	require.NotNil(t, bypassActorSchema)
+	assert.ElementsMatch(t, []string{"actor_type", "bypass_mode"}, bypassActorSchema.Required)
+	assert.ElementsMatch(t, []any{"always", "pull_request", "exempt"}, bypassActorSchema.Properties["bypass_mode"].Enum)
+
 	validArgs := map[string]any{
 		"level":       "repository",
 		"owner":       "owner",
@@ -580,6 +585,15 @@ func Test_CreateRepositoryRuleset(t *testing.T) {
 		},
 	}
 	require.NoError(t, resolvedSchema.Validate(validArgs))
+
+	t.Run("bypass actor requires an explicit documented mode", func(t *testing.T) {
+		args := maps.Clone(validArgs)
+		args["bypass_actors"] = []any{map[string]any{"actor_type": "OrganizationAdmin"}}
+		require.Error(t, resolvedSchema.Validate(args))
+
+		args["bypass_actors"] = []any{map[string]any{"actor_type": "OrganizationAdmin", "bypass_mode": "never"}}
+		require.Error(t, resolvedSchema.Validate(args))
+	})
 
 	for _, test := range []struct {
 		field string
@@ -942,6 +956,74 @@ func Test_CreateRepositoryRuleset(t *testing.T) {
 			t.Fatalf("unexpected error: %s", getErrorResult(t, result).Text)
 		}
 		assert.NotEmpty(t, capturedBody)
+	})
+
+	for _, bypassMode := range []string{"always", "pull_request", "exempt"} {
+		t.Run("bypass_actors serializes "+bypassMode+" exactly", func(t *testing.T) {
+			var capturedRaw []byte
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"POST /repos/{owner}/{repo}/rulesets": func(w http.ResponseWriter, r *http.Request) {
+					capturedRaw, _ = io.ReadAll(r.Body)
+					w.WriteHeader(http.StatusCreated)
+					_, _ = w.Write(capturedRaw)
+				},
+			}))
+			deps := BaseDeps{Client: client}
+			handler := toolDef.Handler(deps)
+			request := createMCPRequest(map[string]any{
+				"level":       "repository",
+				"owner":       "owner",
+				"repo":        "repo",
+				"name":        "main protection",
+				"enforcement": "active",
+				"rules":       []any{map[string]any{"type": "creation"}},
+				"bypass_actors": []any{
+					map[string]any{"actor_type": "OrganizationAdmin", "bypass_mode": bypassMode},
+				},
+			})
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			var outbound struct {
+				BypassActors []struct {
+					BypassMode string `json:"bypass_mode"`
+				} `json:"bypass_actors"`
+			}
+			require.NoError(t, json.Unmarshal(capturedRaw, &outbound))
+			require.Len(t, outbound.BypassActors, 1)
+			assert.Equal(t, bypassMode, outbound.BypassActors[0].BypassMode)
+		})
+	}
+
+	t.Run("bypass_actors without bypass_mode is rejected before request", func(t *testing.T) {
+		called := false
+		client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			"POST /repos/{owner}/{repo}/rulesets": func(w http.ResponseWriter, _ *http.Request) {
+				called = true
+				w.WriteHeader(http.StatusCreated)
+			},
+		}))
+		deps := BaseDeps{Client: client}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"level":       "repository",
+			"owner":       "owner",
+			"repo":        "repo",
+			"name":        "main protection",
+			"enforcement": "active",
+			"rules":       []any{map[string]any{"type": "creation"}},
+			"bypass_actors": []any{
+				map[string]any{"actor_type": "OrganizationAdmin"},
+			},
+		})
+
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		assert.Contains(t, getErrorResult(t, result).Text, "bypass_actors[0].bypass_mode")
+		assert.False(t, called)
 	})
 
 	t.Run("bypass_actors accepts exempt bypass mode and enterprise actor types", func(t *testing.T) {
