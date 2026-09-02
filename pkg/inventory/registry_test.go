@@ -1349,6 +1349,12 @@ func TestBuilderOwnsFeatureMetadataInputs(t *testing.T) {
 	setNestedTestMeta(availablePrompts[0].Prompt.Meta, "prompt", "after-available")
 	availablePrompts[0].FeatureRule.features[0] = "changed"
 
+	allTools := inv.AllTools()
+	setNestedTestMeta(allTools[0].Tool.Meta, "ui", "after-all")
+	foundTool, _, err := inv.FindToolByName("tool")
+	require.NoError(t, err)
+	setNestedTestMeta(foundTool.Tool.Meta, "ui", "after-find")
+
 	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
 	inv.RegisterAll(context.Background(), server, nil)
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()

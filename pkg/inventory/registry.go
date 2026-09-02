@@ -364,7 +364,8 @@ func (r *Inventory) ResolveToolAliases(toolNames []string) (resolved []string, a
 func (r *Inventory) FindToolByName(toolName string) (*ServerTool, ToolsetID, error) {
 	for i := range r.tools {
 		if r.tools[i].Tool.Name == toolName {
-			return &r.tools[i], r.tools[i].Toolset.ID, nil
+			tool := cloneServerTool(r.tools[i])
+			return &tool, tool.Toolset.ID, nil
 		}
 	}
 	return nil, "", NewToolDoesNotExistError(toolName)
@@ -377,7 +378,10 @@ func (r *Inventory) HasToolset(toolsetID ToolsetID) bool {
 
 // AllTools returns all tools without any filtering, sorted deterministically.
 func (r *Inventory) AllTools() []ServerTool {
-	result := slices.Clone(r.tools)
+	result := make([]ServerTool, len(r.tools))
+	for i := range r.tools {
+		result[i] = cloneServerTool(r.tools[i])
+	}
 
 	// Sort deterministically: by toolset ID, then by tool name
 	sort.Slice(result, func(i, j int) bool {
