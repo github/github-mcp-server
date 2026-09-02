@@ -29,26 +29,59 @@ type userListItem struct {
 	Repository string `json:"repository"`
 }
 
+type userListLookupQuery struct {
+	Viewer struct {
+		Lists struct {
+			Nodes []struct {
+				ID   githubv4.ID
+				Name githubv4.String
+			}
+			PageInfo struct {
+				HasNextPage bool
+				EndCursor   string
+			}
+		} `graphql:"lists(first: 100, after: $after)"`
+	}
+}
+
+type userListPageQuery struct {
+	Viewer struct {
+		Lists struct {
+			Nodes []struct {
+				ID          githubv4.ID
+				Name        githubv4.String
+				Description githubv4.String
+				IsPrivate   githubv4.Boolean
+			}
+			PageInfo struct {
+				HasNextPage bool
+				EndCursor   string
+			}
+			TotalCount githubv4.Int
+		} `graphql:"lists(first: 100, after: $after)"`
+	}
+}
+
 // getUserListID resolves the authenticated user's list with the given name to
 // its node ID. It returns an error when no list matches the name.
 func getUserListID(ctx context.Context, client *githubv4.Client, name string) (githubv4.ID, error) {
-	var query struct {
-		Viewer struct {
-			Lists struct {
-				Nodes []struct {
-					ID   githubv4.ID
-					Name githubv4.String
-				}
-			} `graphql:"lists(first: 100)"`
+	var after *githubv4.String
+	for {
+		var query userListLookupQuery
+		vars := map[string]any{"after": after}
+		if err := client.Query(ctx, &query, vars); err != nil {
+			return "", err
 		}
-	}
-	if err := client.Query(ctx, &query, nil); err != nil {
-		return "", err
-	}
-	for _, node := range query.Viewer.Lists.Nodes {
-		if string(node.Name) == name {
-			return node.ID, nil
+		for _, node := range query.Viewer.Lists.Nodes {
+			if string(node.Name) == name {
+				return node.ID, nil
+			}
 		}
+		if !query.Viewer.Lists.PageInfo.HasNextPage {
+			break
+		}
+		cursor := githubv4.String(query.Viewer.Lists.PageInfo.EndCursor)
+		after = &cursor
 	}
 	return "", fmt.Errorf("list '%s' not found", name)
 }
@@ -56,41 +89,39 @@ func getUserListID(ctx context.Context, client *githubv4.Client, name string) (g
 // listUserLists returns the authenticated user's star lists, optionally
 // including the repositories each list contains.
 func listUserLists(ctx context.Context, client *githubv4.Client, includeItems bool) ([]userList, int, error) {
-	var query struct {
-		Viewer struct {
-			Lists struct {
-				Nodes []struct {
-					ID          githubv4.ID
-					Name        githubv4.String
-					Description githubv4.String
-					IsPrivate   githubv4.Boolean
-				}
-				TotalCount githubv4.Int
-			} `graphql:"lists(first: 100)"`
+	lists := make([]userList, 0)
+	totalCount := 0
+	var after *githubv4.String
+	for {
+		var query userListPageQuery
+		vars := map[string]any{"after": after}
+		if err := client.Query(ctx, &query, vars); err != nil {
+			return nil, 0, err
 		}
-	}
-	if err := client.Query(ctx, &query, nil); err != nil {
-		return nil, 0, err
-	}
-
-	lists := make([]userList, 0, len(query.Viewer.Lists.Nodes))
-	for _, node := range query.Viewer.Lists.Nodes {
-		list := userList{
-			ID:          node.ID,
-			Name:        string(node.Name),
-			Description: string(node.Description),
-			IsPrivate:   bool(node.IsPrivate),
-		}
-		if includeItems {
-			items, err := listUserListItems(ctx, client, node.ID)
-			if err != nil {
-				return nil, 0, err
+		totalCount = int(query.Viewer.Lists.TotalCount)
+		for _, node := range query.Viewer.Lists.Nodes {
+			list := userList{
+				ID:          node.ID,
+				Name:        string(node.Name),
+				Description: string(node.Description),
+				IsPrivate:   bool(node.IsPrivate),
 			}
-			list.Items = items
+			if includeItems {
+				items, err := listUserListItems(ctx, client, node.ID)
+				if err != nil {
+					return nil, 0, err
+				}
+				list.Items = items
+			}
+			lists = append(lists, list)
 		}
-		lists = append(lists, list)
+		if !query.Viewer.Lists.PageInfo.HasNextPage {
+			break
+		}
+		cursor := githubv4.String(query.Viewer.Lists.PageInfo.EndCursor)
+		after = &cursor
 	}
-	return lists, int(query.Viewer.Lists.TotalCount), nil
+	return lists, totalCount, nil
 }
 
 // listUserListItems returns the repositories held by a single list, following
@@ -416,7 +447,7 @@ func ListUserLists(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 			},
 		},
-		scopes.PublicRead(scopes.ReadUser),
+		userListReadScopeAccess(),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			includeItems, err := OptionalParam[bool](args, "include_items")
 			if err != nil {

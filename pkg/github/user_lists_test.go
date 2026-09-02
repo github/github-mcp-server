@@ -25,11 +25,17 @@ func TestListUserLists(t *testing.T) {
 	assert.NotEmpty(t, tool.Description)
 	assert.True(t, tool.Annotations.ReadOnlyHint, "list_user_lists tool should be read-only")
 
-	// scope gating: PublicRead(ReadUser)
-	assert.Equal(t, []string{"read:user"}, serverTool.ScopeAccess.Scopes)
+	// Scope gating: list metadata needs read:user, while include_items also
+	// requires repo so private repository memberships are not silently omitted.
+	assert.Equal(t, []string{"read:user", "repo"}, serverTool.ScopeAccess.Scopes)
 	assert.NotNil(t, serverTool.ScopeAccess.Visible)
 	assert.NotNil(t, serverTool.ScopeAccess.Challenge)
+	assert.True(t, serverTool.ScopeAccess.Dynamic)
 	assert.True(t, serverTool.ScopeAccess.Visible(nil))
+	assert.Empty(t, serverTool.ScopeAccess.Challenge(map[string]any{}, []string{"read:user"}))
+	assert.ElementsMatch(t, []string{"read:user", "repo"}, serverTool.ScopeAccess.Challenge(
+		map[string]any{"include_items": true}, []string{"read:user"},
+	))
 
 	tests := []struct {
 		name            string
@@ -44,20 +50,8 @@ func TestListUserLists(t *testing.T) {
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
-					struct {
-						Viewer struct {
-							Lists struct {
-								Nodes []struct {
-									ID          githubv4.ID
-									Name        githubv4.String
-									Description githubv4.String
-									IsPrivate   githubv4.Boolean
-								}
-								TotalCount githubv4.Int
-							} `graphql:"lists(first: 100)"`
-						}
-					}{},
-					nil,
+					userListPageQuery{},
+					map[string]any{"after": (*githubv4.String)(nil)},
 					githubv4mock.DataResponse(map[string]any{
 						"viewer": map[string]any{
 							"lists": map[string]any{
@@ -84,20 +78,8 @@ func TestListUserLists(t *testing.T) {
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
-					struct {
-						Viewer struct {
-							Lists struct {
-								Nodes []struct {
-									ID          githubv4.ID
-									Name        githubv4.String
-									Description githubv4.String
-									IsPrivate   githubv4.Boolean
-								}
-								TotalCount githubv4.Int
-							} `graphql:"lists(first: 100)"`
-						}
-					}{},
-					nil,
+					userListPageQuery{},
+					map[string]any{"after": (*githubv4.String)(nil)},
 					githubv4mock.DataResponse(map[string]any{
 						"viewer": map[string]any{
 							"lists": map[string]any{
@@ -185,20 +167,8 @@ func TestListUserListsIFCLabel(t *testing.T) {
 	serverTool := ListUserLists(translations.NullTranslationHelper)
 	mockedClient := githubv4mock.NewMockedHTTPClient(
 		githubv4mock.NewQueryMatcher(
-			struct {
-				Viewer struct {
-					Lists struct {
-						Nodes []struct {
-							ID          githubv4.ID
-							Name        githubv4.String
-							Description githubv4.String
-							IsPrivate   githubv4.Boolean
-						}
-						TotalCount githubv4.Int
-					} `graphql:"lists(first: 100)"`
-				}
-			}{},
-			nil,
+			userListPageQuery{},
+			map[string]any{"after": (*githubv4.String)(nil)},
 			githubv4mock.DataResponse(map[string]any{
 				"viewer": map[string]any{
 					"lists": map[string]any{
@@ -224,6 +194,53 @@ func TestListUserListsIFCLabel(t *testing.T) {
 	label, ok := result.Meta["ifc"].(ifc.SecurityLabel)
 	require.True(t, ok)
 	assert.Equal(t, ifc.PrivateTrusted(), label)
+}
+
+func TestGetUserListIDPaginates(t *testing.T) {
+	transport := &sequencedGraphQLTransport{
+		t: t,
+		responses: []func(capturedGraphQLRequest) (int, string){
+			func(req capturedGraphQLRequest) (int, string) {
+				assert.Nil(t, req.Variables["after"])
+				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-1","name":"Other"}],"pageInfo":{"hasNextPage":true,"endCursor":"next-list"}}}}}`
+			},
+			func(req capturedGraphQLRequest) (int, string) {
+				assert.Equal(t, "next-list", req.Variables["after"])
+				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-2","name":"Target"}],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
+			},
+		},
+	}
+	client := githubv4.NewClient(&http.Client{Transport: transport})
+
+	id, err := getUserListID(context.Background(), client, "Target")
+	require.NoError(t, err)
+	assert.Equal(t, githubv4.ID("list-2"), id)
+	require.Len(t, transport.calls, 2)
+}
+
+func TestListUserListsPaginates(t *testing.T) {
+	transport := &sequencedGraphQLTransport{
+		t: t,
+		responses: []func(capturedGraphQLRequest) (int, string){
+			func(req capturedGraphQLRequest) (int, string) {
+				assert.Nil(t, req.Variables["after"])
+				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-1","name":"First","description":"","isPrivate":false}],"pageInfo":{"hasNextPage":true,"endCursor":"next-list"},"totalCount":2}}}}`
+			},
+			func(req capturedGraphQLRequest) (int, string) {
+				assert.Equal(t, "next-list", req.Variables["after"])
+				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-2","name":"Second","description":"","isPrivate":true}],"pageInfo":{"hasNextPage":false,"endCursor":""},"totalCount":2}}}}`
+			},
+		},
+	}
+	client := githubv4.NewClient(&http.Client{Transport: transport})
+
+	lists, totalCount, err := listUserLists(context.Background(), client, false)
+	require.NoError(t, err)
+	require.Len(t, lists, 2)
+	assert.Equal(t, "First", lists[0].Name)
+	assert.Equal(t, "Second", lists[1].Name)
+	assert.Equal(t, 2, totalCount)
+	require.Len(t, transport.calls, 2)
 }
 
 func TestCreateUserList(t *testing.T) {
@@ -332,17 +349,8 @@ func TestUpdateUserList(t *testing.T) {
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
-					struct {
-						Viewer struct {
-							Lists struct {
-								Nodes []struct {
-									ID   githubv4.ID
-									Name githubv4.String
-								}
-							} `graphql:"lists(first: 100)"`
-						}
-					}{},
-					nil,
+					userListLookupQuery{},
+					map[string]any{"after": (*githubv4.String)(nil)},
 					githubv4mock.DataResponse(map[string]any{
 						"viewer": map[string]any{
 							"lists": map[string]any{
@@ -388,17 +396,8 @@ func TestUpdateUserList(t *testing.T) {
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
-					struct {
-						Viewer struct {
-							Lists struct {
-								Nodes []struct {
-									ID   githubv4.ID
-									Name githubv4.String
-								}
-							} `graphql:"lists(first: 100)"`
-						}
-					}{},
-					nil,
+					userListLookupQuery{},
+					map[string]any{"after": (*githubv4.String)(nil)},
 					githubv4mock.DataResponse(map[string]any{
 						"viewer": map[string]any{
 							"lists": map[string]any{
@@ -475,17 +474,8 @@ func TestDeleteUserList(t *testing.T) {
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
-					struct {
-						Viewer struct {
-							Lists struct {
-								Nodes []struct {
-									ID   githubv4.ID
-									Name githubv4.String
-								}
-							} `graphql:"lists(first: 100)"`
-						}
-					}{},
-					nil,
+					userListLookupQuery{},
+					map[string]any{"after": (*githubv4.String)(nil)},
 					githubv4mock.DataResponse(map[string]any{
 						"viewer": map[string]any{
 							"lists": map[string]any{
@@ -525,17 +515,8 @@ func TestDeleteUserList(t *testing.T) {
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
-					struct {
-						Viewer struct {
-							Lists struct {
-								Nodes []struct {
-									ID   githubv4.ID
-									Name githubv4.String
-								}
-							} `graphql:"lists(first: 100)"`
-						}
-					}{},
-					nil,
+					userListLookupQuery{},
+					map[string]any{"after": (*githubv4.String)(nil)},
 					githubv4mock.DataResponse(map[string]any{
 						"viewer": map[string]any{
 							"lists": map[string]any{
@@ -595,17 +576,8 @@ func TestAddRepositoryToList(t *testing.T) {
 	mockedClient := githubv4mock.NewMockedHTTPClient(
 		// 1. resolve list "C" -> list-c
 		githubv4mock.NewQueryMatcher(
-			struct {
-				Viewer struct {
-					Lists struct {
-						Nodes []struct {
-							ID   githubv4.ID
-							Name githubv4.String
-						}
-					} `graphql:"lists(first: 100)"`
-				}
-			}{},
-			nil,
+			userListLookupQuery{},
+			map[string]any{"after": (*githubv4.String)(nil)},
 			githubv4mock.DataResponse(map[string]any{
 				"viewer": map[string]any{
 					"lists": map[string]any{
@@ -762,17 +734,8 @@ func TestRemoveRepositoryFromList(t *testing.T) {
 	// only the remainder ("A").
 	mockedClient := githubv4mock.NewMockedHTTPClient(
 		githubv4mock.NewQueryMatcher(
-			struct {
-				Viewer struct {
-					Lists struct {
-						Nodes []struct {
-							ID   githubv4.ID
-							Name githubv4.String
-						}
-					} `graphql:"lists(first: 100)"`
-				}
-			}{},
-			nil,
+			userListLookupQuery{},
+			map[string]any{"after": (*githubv4.String)(nil)},
 			githubv4mock.DataResponse(map[string]any{
 				"viewer": map[string]any{
 					"lists": map[string]any{
@@ -901,17 +864,8 @@ func TestAddRepositoryToListListNotFound(t *testing.T) {
 	serverTool := AddRepositoryToList(translations.NullTranslationHelper)
 	mockedClient := githubv4mock.NewMockedHTTPClient(
 		githubv4mock.NewQueryMatcher(
-			struct {
-				Viewer struct {
-					Lists struct {
-						Nodes []struct {
-							ID   githubv4.ID
-							Name githubv4.String
-						}
-					} `graphql:"lists(first: 100)"`
-				}
-			}{},
-			nil,
+			userListLookupQuery{},
+			map[string]any{"after": (*githubv4.String)(nil)},
 			githubv4mock.DataResponse(map[string]any{
 				"viewer": map[string]any{
 					"lists": map[string]any{

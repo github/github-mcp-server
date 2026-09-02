@@ -1506,7 +1506,7 @@ The following sets of tools are available:
   - `username`: Username to list starred repositories for. Defaults to the authenticated user. (string, optional)
 
 - **list_user_lists** - List star lists
-  - **OAuth Challenge Scopes**: `read:user`
+  - **OAuth Challenge Scopes**: `read:user`, `repo`
   - `include_items`: Whether to include the repositories in each list. (boolean, optional)
 
 - **remove_repository_from_list** - Remove repository from star list
