@@ -90,6 +90,22 @@ type userListPageWithItemsQuery struct {
 	}
 }
 
+type userListItemsPageQuery struct {
+	Node struct {
+		UserList struct {
+			Items struct {
+				Nodes []struct {
+					Repository struct {
+						NameWithOwner githubv4.String
+					} `graphql:"... on Repository"`
+				}
+				PageInfo   userListPageInfo
+				TotalCount githubv4.Int
+			} `graphql:"items(first: $first, after: $after)"`
+		} `graphql:"... on UserList"`
+	} `graphql:"node(id: $id)"`
+}
+
 // getUserListID resolves the authenticated user's list with the given name to
 // its node ID. It returns an error when no list matches the name.
 func getUserListID(ctx context.Context, client *githubv4.Client, name string) (githubv4.ID, error) {
@@ -157,6 +173,23 @@ func listUserLists(ctx context.Context, client *githubv4.Client, includeItems bo
 		})
 	}
 	return lists, int(query.Viewer.Lists.TotalCount), query.Viewer.Lists.PageInfo, nil
+}
+
+func listUserListItemsPage(ctx context.Context, client *githubv4.Client, listID githubv4.ID, first githubv4.Int, after *githubv4.String) ([]userListItem, int, userListPageInfo, error) {
+	var query userListItemsPageQuery
+	var afterVariable any = (*githubv4.String)(nil)
+	if after != nil {
+		afterVariable = *after
+	}
+	vars := map[string]any{"id": listID, "first": first, "after": afterVariable}
+	if err := client.Query(ctx, &query, vars); err != nil {
+		return nil, 0, userListPageInfo{}, err
+	}
+	items := make([]userListItem, 0, len(query.Node.UserList.Items.Nodes))
+	for _, node := range query.Node.UserList.Items.Nodes {
+		items = append(items, userListItem{Repository: string(node.Repository.NameWithOwner)})
+	}
+	return items, int(query.Node.UserList.Items.TotalCount), query.Node.UserList.Items.PageInfo, nil
 }
 
 // repoInList reports whether the repository identified by repoID belongs to the
@@ -311,6 +344,9 @@ func setRepoListMemberships(ctx context.Context, client *githubv4.Client, owner,
 	if err != nil {
 		return fmt.Errorf("failed to find repository: %w", err)
 	}
+	if repoID == nil || repoID == "" {
+		return fmt.Errorf("repository '%s/%s' not found", owner, repo)
+	}
 
 	// Walk every list and, for each, every page of items to determine which
 	// lists currently contain the repository.
@@ -425,7 +461,7 @@ func ListUserLists(t translations.TranslationHelperFunc) inventory.ServerTool {
 		ToolsetMetadataStargazers,
 		mcp.Tool{
 			Name:        "list_user_lists",
-			Description: t("TOOL_LIST_USER_LISTS_DESCRIPTION", "List the authenticated user's star lists (UserLists), optionally including the repositories in each list."),
+			Description: t("TOOL_LIST_USER_LISTS_DESCRIPTION", "List a page of the authenticated user's star lists (UserLists), optionally including the first page of repositories in each list."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_USER_LISTS_USER_TITLE", "List star lists"),
 				ReadOnlyHint: true,
@@ -435,7 +471,7 @@ func ListUserLists(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Properties: map[string]*jsonschema.Schema{
 					"include_items": {
 						Type:        "boolean",
-						Description: "Whether to include the repositories in each list.",
+						Description: "Whether to include up to 100 repositories and item cursor metadata for each returned list.",
 					},
 				},
 			}),
@@ -481,6 +517,75 @@ func ListUserLists(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal user lists: %w", err)
 			}
 			result := utils.NewToolResultText(string(out))
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelUserList())
+			return result, nil, nil
+		},
+	)
+}
+
+// ListUserListItems creates a tool to page through the repositories in one
+// user list. Use the per-list cursor returned by list_user_lists when its item
+// preview indicates that additional pages exist.
+func ListUserListItems(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataStargazers,
+		mcp.Tool{
+			Name:        "list_user_list_items",
+			Description: t("TOOL_LIST_USER_LIST_ITEMS_DESCRIPTION", "List a page of repositories in one star list (UserList)."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_LIST_USER_LIST_ITEMS_USER_TITLE", "List star list items"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: WithCursorPagination(&jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"name": {
+						Type:        "string",
+						Description: "The name of the star list whose repositories should be listed.",
+					},
+				},
+				Required: []string{"name"},
+			}),
+		},
+		scopes.RequireAll(scopes.ReadUser, scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			name, err := RequiredParam[string](args, "name")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			pagination, err := OptionalCursorPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			paginationParams, err := pagination.ToGraphQLParams()
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			first := githubv4.Int(*paginationParams.First)
+			var after *githubv4.String
+			if paginationParams.After != nil {
+				cursor := githubv4.String(*paginationParams.After)
+				after = &cursor
+			}
+
+			client, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+			listID, err := getUserListID(ctx, client, name)
+			if err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find user list", err), nil, nil
+			}
+			items, totalCount, pageInfo, err := listUserListItemsPage(ctx, client, listID, first, after)
+			if err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to list user-list items", err), nil, nil
+			}
+			response := map[string]any{
+				"items":      items,
+				"pageInfo":   pageInfo,
+				"totalCount": totalCount,
+			}
+			result := MarshalledTextResult(response)
 			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelUserList())
 			return result, nil, nil
 		},

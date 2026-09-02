@@ -1505,10 +1505,16 @@ The following sets of tools are available:
   - `sort`: How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to). (string, optional)
   - `username`: Username to list starred repositories for. Defaults to the authenticated user. (string, optional)
 
+- **list_user_list_items** - List star list items
+  - **OAuth Challenge Scopes**: `read:user`, `repo`
+  - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
+  - `name`: The name of the star list whose repositories should be listed. (string, required)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+
 - **list_user_lists** - List star lists
   - **OAuth Challenge Scopes**: `read:user`, `repo`
   - `after`: Cursor for pagination. Use the cursor from the previous response. (string, optional)
-  - `include_items`: Whether to include the repositories in each list. (boolean, optional)
+  - `include_items`: Whether to include up to 100 repositories and item cursor metadata for each returned list. (boolean, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
 
 - **remove_repository_from_list** - Remove repository from star list

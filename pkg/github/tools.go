@@ -242,6 +242,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		StarRepository(t),
 		UnstarRepository(t),
 		ListUserLists(t),
+		ListUserListItems(t),
 		CreateUserList(t),
 		UpdateUserList(t),
 		DeleteUserList(t),

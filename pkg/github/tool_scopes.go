@@ -73,10 +73,8 @@ func uiGetScopeAccess() inventory.ScopeAccess {
 func userListReadScopeAccess() inventory.ScopeAccess {
 	return scopes.DynamicChallenge(
 		[]scopes.Scope{scopes.ReadUser, scopes.Repo},
-		func([]string) bool {
-			// User-list metadata may be readable with read:user, while MCP OAuth
-			// can challenge for missing scopes at call time.
-			return true
+		func(activeScopes []string) bool {
+			return scopes.HasAll(activeScopes, scopes.ReadUser)
 		},
 		func(arguments map[string]any, activeScopes []string) []string {
 			includeItems, ok := arguments["include_items"].(bool)

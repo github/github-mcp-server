@@ -32,7 +32,8 @@ func TestListUserLists(t *testing.T) {
 	assert.NotNil(t, serverTool.ScopeAccess.Visible)
 	assert.NotNil(t, serverTool.ScopeAccess.Challenge)
 	assert.True(t, serverTool.ScopeAccess.Dynamic)
-	assert.True(t, serverTool.ScopeAccess.Visible(nil))
+	assert.False(t, serverTool.ScopeAccess.Visible(nil))
+	assert.True(t, serverTool.ScopeAccess.Visible([]string{"read:user"}))
 	assert.Empty(t, serverTool.ScopeAccess.Challenge(map[string]any{}, []string{"read:user"}))
 	assert.ElementsMatch(t, []string{"read:user", "repo"}, serverTool.ScopeAccess.Challenge(
 		map[string]any{"include_items": true}, []string{"read:user"},
@@ -171,7 +172,7 @@ func TestListUserListsIFCLabel(t *testing.T) {
 
 	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)
-	require.False(t, result.IsError)
+	require.False(t, result.IsError, "unexpected tool error: %s", getTextResult(t, result).Text)
 
 	label, ok := result.Meta["ifc"].(ifc.SecurityLabel)
 	require.True(t, ok)
@@ -246,6 +247,62 @@ func TestListUserListsIncludesBoundedItemPage(t *testing.T) {
 	assert.True(t, lists[0].ItemsPageInfo.HasNextPage)
 	assert.Equal(t, "next-item", lists[0].ItemsPageInfo.EndCursor)
 	require.Len(t, transport.calls, 1)
+}
+
+func TestListUserListItems(t *testing.T) {
+	t.Parallel()
+
+	serverTool := ListUserListItems(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	assert.Equal(t, "list_user_list_items", tool.Name)
+	assert.True(t, tool.Annotations.ReadOnlyHint)
+	assert.Equal(t, []string{"read:user", "repo"}, serverTool.ScopeAccess.Scopes)
+
+	mockedClient := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			userListLookupQuery{},
+			map[string]any{"after": (*githubv4.String)(nil)},
+			githubv4mock.DataResponse(map[string]any{
+				"viewer": map[string]any{
+					"lists": map[string]any{
+						"nodes":    []any{map[string]any{"id": githubv4.ID("list-1"), "name": githubv4.String("List")}},
+						"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
+					},
+				},
+			}),
+		),
+		githubv4mock.NewQueryMatcher(
+			userListItemsPageQuery{},
+			map[string]any{
+				"id":    githubv4.ID("list-1"),
+				"first": githubv4.Int(1),
+				"after": githubv4.String("item-start"),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"node": map[string]any{
+					"items": map[string]any{
+						"nodes": []any{map[string]any{"nameWithOwner": githubv4.String("owner/repo")}},
+						"pageInfo": map[string]any{
+							"hasNextPage": false,
+							"endCursor":   "item-cursor",
+						},
+						"totalCount": githubv4.Int(1),
+					},
+				},
+			}),
+		),
+	)
+	client := githubv4.NewClient(mockedClient)
+	deps := BaseDeps{GQLClient: client}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{"name": "List", "perPage": float64(1), "after": "item-start"})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, "unexpected tool error: %s", getTextResult(t, result).Text)
+	assert.Contains(t, getTextResult(t, result).Text, `"repository":"owner/repo"`)
+	assert.Contains(t, getTextResult(t, result).Text, `"endCursor":"item-cursor"`)
 }
 
 func TestCreateUserList(t *testing.T) {
@@ -899,6 +956,44 @@ func TestAddRepositoryToListListNotFound(t *testing.T) {
 	assert.True(t, result.IsError)
 	textContent := getErrorResult(t, result)
 	assert.Contains(t, textContent.Text, "list 'Missing' not found")
+}
+
+func TestAddRepositoryToListRepositoryNotFound(t *testing.T) {
+	t.Parallel()
+
+	serverTool := AddRepositoryToList(translations.NullTranslationHelper)
+	mockedClient := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			userListLookupQuery{},
+			map[string]any{"after": (*githubv4.String)(nil)},
+			githubv4mock.DataResponse(map[string]any{
+				"viewer": map[string]any{
+					"lists": map[string]any{
+						"nodes":    []any{map[string]any{"id": githubv4.ID("list-c"), "name": githubv4.String("C")}},
+						"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
+					},
+				},
+			}),
+		),
+		githubv4mock.NewQueryMatcher(
+			struct {
+				Repository struct {
+					ID githubv4.ID
+				} `graphql:"repository(owner: $owner, name: $repo)"`
+			}{},
+			map[string]any{"owner": githubv4.String("owner"), "repo": githubv4.String("repo")},
+			githubv4mock.DataResponse(map[string]any{"repository": nil}),
+		),
+	)
+	client := githubv4.NewClient(mockedClient)
+	deps := BaseDeps{GQLClient: client}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{"owner": "owner", "repo": "repo", "list_name": "C"})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Contains(t, getErrorResult(t, result).Text, "repository 'owner/repo' not found")
 }
 
 func TestSetRepoListMembershipsSkipsSatisfiedMutation(t *testing.T) {
