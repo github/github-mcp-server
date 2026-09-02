@@ -15,10 +15,13 @@ import (
 )
 
 func Test_ListIssueFields(t *testing.T) {
-	// Verify tool definition
+	// list_issue_fields is a single ungated tool that owns the canonical
+	// list_issue_fields.snap. Multi-select is unconditional.
 	serverTool := ListIssueFields(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	assert.Empty(t, serverTool.FeatureFlagEnable, "ListIssueFields must not require any flag to be enabled")
+	assert.Contains(t, tool.Description, "multi_select", "the description must mention multi_select")
 
 	assert.Equal(t, "list_issue_fields", tool.Name)
 	assert.NotEmpty(t, tool.Description)
