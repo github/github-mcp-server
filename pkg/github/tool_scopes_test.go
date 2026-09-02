@@ -109,6 +109,7 @@ func TestDynamicToolScopeMetadataIsExhaustive(t *testing.T) {
 		{tool: ListIssueFields(translations.NullTranslationHelper), maxScopes: []string{"repo", "read:org"}},
 		{tool: ListIssueTypes(translations.NullTranslationHelper), maxScopes: []string{"repo", "read:org"}},
 		{tool: UIGet(translations.NullTranslationHelper), maxScopes: []string{"repo", "read:org"}},
+		{tool: ListUserLists(translations.NullTranslationHelper), maxScopes: []string{"read:user", "repo"}},
 	}
 
 	for _, tt := range tests {

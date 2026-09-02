@@ -1,0 +1,1066 @@
+package github
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"testing"
+
+	"github.com/github/github-mcp-server/internal/githubv4mock"
+	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/ifc"
+	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/shurcooL/githubv4"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestListUserLists(t *testing.T) {
+	t.Parallel()
+
+	serverTool := ListUserLists(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "list_user_lists", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.True(t, tool.Annotations.ReadOnlyHint, "list_user_lists tool should be read-only")
+
+	// Scope gating: list metadata needs read:user, while include_items also
+	// requires repo so private repository memberships are not silently omitted.
+	assert.Equal(t, []string{"read:user", "repo"}, serverTool.ScopeAccess.Scopes)
+	assert.NotNil(t, serverTool.ScopeAccess.Visible)
+	assert.NotNil(t, serverTool.ScopeAccess.Challenge)
+	assert.True(t, serverTool.ScopeAccess.Dynamic)
+	assert.False(t, serverTool.ScopeAccess.Visible(nil))
+	assert.True(t, serverTool.ScopeAccess.Visible([]string{"read:user"}))
+	assert.Empty(t, serverTool.ScopeAccess.Challenge(map[string]any{}, []string{"read:user"}))
+	assert.ElementsMatch(t, []string{"read:user", "repo"}, serverTool.ScopeAccess.Challenge(
+		map[string]any{"include_items": true}, []string{"read:user"},
+	))
+
+	tests := []struct {
+		name            string
+		requestArgs     map[string]any
+		mockedClient    *http.Client
+		expectToolError bool
+	}{
+		{
+			name: "list user lists without items",
+			requestArgs: map[string]any{
+				"include_items": false,
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					userListPageQuery{},
+					map[string]any{"first": githubv4.Int(30), "after": (*githubv4.String)(nil)},
+					githubv4mock.DataResponse(map[string]any{
+						"viewer": map[string]any{
+							"lists": map[string]any{
+								"nodes": []any{
+									map[string]any{
+										"id":          githubv4.ID("list-1"),
+										"name":        githubv4.String("My list"),
+										"description": githubv4.String("A list"),
+										"isPrivate":   githubv4.Boolean(true),
+									},
+								},
+								"totalCount": githubv4.Int(1),
+							},
+						},
+					}),
+				),
+			),
+			expectToolError: false,
+		},
+		{
+			name: "list user lists with items",
+			requestArgs: map[string]any{
+				"include_items": true,
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					userListPageWithItemsQuery{},
+					map[string]any{"first": githubv4.Int(30), "after": (*githubv4.String)(nil)},
+					githubv4mock.DataResponse(map[string]any{
+						"viewer": map[string]any{
+							"lists": map[string]any{
+								"nodes": []any{
+									map[string]any{
+										"id":          githubv4.ID("list-1"),
+										"name":        githubv4.String("My list"),
+										"description": githubv4.String("A list"),
+										"isPrivate":   githubv4.Boolean(false),
+										"items": map[string]any{
+											"nodes": []any{
+												map[string]any{"nameWithOwner": githubv4.String("owner/repo")},
+											},
+											"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
+										},
+									},
+								},
+								"pageInfo":   map[string]any{"hasNextPage": false, "endCursor": ""},
+								"totalCount": githubv4.Int(1),
+							},
+						},
+					}),
+				),
+			),
+			expectToolError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := githubv4.NewClient(tc.mockedClient)
+			deps := BaseDeps{
+				GQLClient: client,
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			require.NoError(t, err)
+			assert.NotNil(t, result)
+			if tc.expectToolError {
+				assert.True(t, result.IsError)
+			} else {
+				assert.False(t, result.IsError)
+			}
+		})
+	}
+}
+
+func TestUserListItemsJSONDistinguishesNotFetchedFromEmpty(t *testing.T) {
+	t.Parallel()
+
+	notFetched, err := json.Marshal(userList{})
+	require.NoError(t, err)
+	assert.Contains(t, string(notFetched), `"items":null`)
+
+	fetchedEmpty, err := json.Marshal(userList{Items: []userListItem{}})
+	require.NoError(t, err)
+	assert.Contains(t, string(fetchedEmpty), `"items":[]`)
+}
+
+func TestListUserListsIFCLabel(t *testing.T) {
+	t.Parallel()
+
+	serverTool := ListUserLists(translations.NullTranslationHelper)
+	mockedClient := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			userListPageQuery{},
+			map[string]any{"first": githubv4.Int(30), "after": (*githubv4.String)(nil)},
+			githubv4mock.DataResponse(map[string]any{
+				"viewer": map[string]any{
+					"lists": map[string]any{
+						"nodes":      []any{},
+						"totalCount": githubv4.Int(0),
+					},
+				},
+			}),
+		),
+	)
+	client := githubv4.NewClient(mockedClient)
+	deps := BaseDeps{
+		GQLClient:      client,
+		featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+	}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, "unexpected tool error: %s", getTextResult(t, result).Text)
+
+	label, ok := result.Meta["ifc"].(ifc.SecurityLabel)
+	require.True(t, ok)
+	assert.Equal(t, ifc.PrivateTrusted(), label)
+}
+
+func TestGetUserListIDPaginates(t *testing.T) {
+	transport := &sequencedGraphQLTransport{
+		t: t,
+		responses: []func(capturedGraphQLRequest) (int, string){
+			func(req capturedGraphQLRequest) (int, string) {
+				assert.Nil(t, req.Variables["after"])
+				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-1","name":"Other"}],"pageInfo":{"hasNextPage":true,"endCursor":"next-list"}}}}}`
+			},
+			func(req capturedGraphQLRequest) (int, string) {
+				assert.Equal(t, "next-list", req.Variables["after"])
+				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-2","name":"Target"}],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
+			},
+		},
+	}
+	client := githubv4.NewClient(&http.Client{Transport: transport})
+
+	id, err := getUserListID(context.Background(), client, "Target")
+	require.NoError(t, err)
+	assert.Equal(t, githubv4.ID("list-2"), id)
+	require.Len(t, transport.calls, 2)
+}
+
+func TestListUserListsReturnsRequestedPage(t *testing.T) {
+	transport := &sequencedGraphQLTransport{
+		t: t,
+		responses: []func(capturedGraphQLRequest) (int, string){
+			func(req capturedGraphQLRequest) (int, string) {
+				assert.Equal(t, "next-list", req.Variables["after"])
+				assert.Equal(t, float64(1), req.Variables["first"])
+				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-2","name":"Second","description":"","isPrivate":true}],"pageInfo":{"hasNextPage":false,"hasPreviousPage":true,"startCursor":"second","endCursor":"second"},"totalCount":2}}}}`
+			},
+		},
+	}
+	client := githubv4.NewClient(&http.Client{Transport: transport})
+	after := githubv4.String("next-list")
+
+	lists, totalCount, pageInfo, err := listUserLists(context.Background(), client, false, 1, &after)
+	require.NoError(t, err)
+	require.Len(t, lists, 1)
+	assert.Equal(t, "Second", lists[0].Name)
+	assert.Equal(t, 2, totalCount)
+	assert.True(t, pageInfo.HasPreviousPage)
+	assert.Equal(t, "second", pageInfo.EndCursor)
+	require.Len(t, transport.calls, 1)
+}
+
+func TestListUserListsIncludesBoundedItemPage(t *testing.T) {
+	transport := &sequencedGraphQLTransport{
+		t: t,
+		responses: []func(capturedGraphQLRequest) (int, string){
+			func(req capturedGraphQLRequest) (int, string) {
+				assert.Nil(t, req.Variables["after"])
+				assert.Equal(t, float64(30), req.Variables["first"])
+				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-1","name":"List","description":"","isPrivate":false,"items":{"nodes":[{"nameWithOwner":"owner/first"}],"pageInfo":{"hasNextPage":true,"endCursor":"next-item"}}}],"pageInfo":{"hasNextPage":false,"endCursor":""},"totalCount":1}}}}`
+			},
+		},
+	}
+	client := githubv4.NewClient(&http.Client{Transport: transport})
+
+	lists, totalCount, _, err := listUserLists(context.Background(), client, true, 30, nil)
+	require.NoError(t, err)
+	require.Len(t, lists, 1)
+	assert.Equal(t, 1, totalCount)
+	assert.Equal(t, []userListItem{{Repository: "owner/first"}}, lists[0].Items)
+	require.NotNil(t, lists[0].ItemsPageInfo)
+	assert.True(t, lists[0].ItemsPageInfo.HasNextPage)
+	assert.Equal(t, "next-item", lists[0].ItemsPageInfo.EndCursor)
+	require.Len(t, transport.calls, 1)
+}
+
+func TestListUserListItems(t *testing.T) {
+	t.Parallel()
+
+	serverTool := ListUserListItems(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	assert.Equal(t, "list_user_list_items", tool.Name)
+	assert.True(t, tool.Annotations.ReadOnlyHint)
+	assert.Equal(t, []string{"read:user", "repo"}, serverTool.ScopeAccess.Scopes)
+
+	mockedClient := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			userListLookupQuery{},
+			map[string]any{"after": (*githubv4.String)(nil)},
+			githubv4mock.DataResponse(map[string]any{
+				"viewer": map[string]any{
+					"lists": map[string]any{
+						"nodes":    []any{map[string]any{"id": githubv4.ID("list-1"), "name": githubv4.String("List")}},
+						"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
+					},
+				},
+			}),
+		),
+		githubv4mock.NewQueryMatcher(
+			userListItemsPageQuery{},
+			map[string]any{
+				"id":    githubv4.ID("list-1"),
+				"first": githubv4.Int(1),
+				"after": githubv4.String("item-start"),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"node": map[string]any{
+					"items": map[string]any{
+						"nodes": []any{map[string]any{"nameWithOwner": githubv4.String("owner/repo")}},
+						"pageInfo": map[string]any{
+							"hasNextPage": false,
+							"endCursor":   "item-cursor",
+						},
+						"totalCount": githubv4.Int(1),
+					},
+				},
+			}),
+		),
+	)
+	client := githubv4.NewClient(mockedClient)
+	deps := BaseDeps{GQLClient: client}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{"name": "List", "perPage": float64(1), "after": "item-start"})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.False(t, result.IsError, "unexpected tool error: %s", getTextResult(t, result).Text)
+	assert.Contains(t, getTextResult(t, result).Text, `"repository":"owner/repo"`)
+	assert.Contains(t, getTextResult(t, result).Text, `"endCursor":"item-cursor"`)
+}
+
+func TestCreateUserList(t *testing.T) {
+	t.Parallel()
+
+	serverTool := CreateUserList(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "create_user_list", tool.Name)
+	assert.False(t, tool.Annotations.ReadOnlyHint)
+	require.NotNil(t, tool.Annotations.DestructiveHint)
+	assert.False(t, *tool.Annotations.DestructiveHint)
+
+	// scope gating: RequireAll(User)
+	assert.Equal(t, []string{"user"}, serverTool.ScopeAccess.Scopes)
+	assert.NotNil(t, serverTool.ScopeAccess.Visible)
+	assert.NotNil(t, serverTool.ScopeAccess.Challenge)
+
+	tests := []struct {
+		name            string
+		requestArgs     map[string]any
+		mockedClient    *http.Client
+		expectToolError bool
+	}{
+		{
+			name: "create list",
+			requestArgs: map[string]any{
+				"name":        "My list",
+				"description": "A list",
+				"is_private":  true,
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewMutationMatcher(
+					struct {
+						CreateUserList struct {
+							List struct {
+								ID   githubv4.ID
+								Name githubv4.String
+							}
+						} `graphql:"createUserList(input: $input)"`
+					}{},
+					githubv4.CreateUserListInput{
+						Name:        githubv4.String("My list"),
+						Description: func() *githubv4.String { s := githubv4.String("A list"); return &s }(),
+						IsPrivate:   func() *githubv4.Boolean { b := githubv4.Boolean(true); return &b }(),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"createUserList": map[string]any{
+							"list": map[string]any{
+								"id":   githubv4.ID("list-1"),
+								"name": githubv4.String("My list"),
+							},
+						},
+					}),
+				),
+			),
+			expectToolError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := githubv4.NewClient(tc.mockedClient)
+			deps := BaseDeps{
+				GQLClient: client,
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			require.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.Equal(t, tc.expectToolError, result.IsError)
+		})
+	}
+}
+
+func TestUpdateUserList(t *testing.T) {
+	t.Parallel()
+
+	serverTool := UpdateUserList(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "update_user_list", tool.Name)
+	assert.False(t, tool.Annotations.ReadOnlyHint)
+	require.NotNil(t, tool.Annotations.DestructiveHint)
+	assert.False(t, *tool.Annotations.DestructiveHint)
+	assert.Equal(t, []string{"user"}, serverTool.ScopeAccess.Scopes)
+
+	tests := []struct {
+		name               string
+		requestArgs        map[string]any
+		mockedClient       *http.Client
+		expectToolError    bool
+		expectedToolErrMsg string
+	}{
+		{
+			name: "update list name",
+			requestArgs: map[string]any{
+				"name":     "Old name",
+				"new_name": "New name",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					userListLookupQuery{},
+					map[string]any{"after": (*githubv4.String)(nil)},
+					githubv4mock.DataResponse(map[string]any{
+						"viewer": map[string]any{
+							"lists": map[string]any{
+								"nodes": []any{
+									map[string]any{
+										"id":   githubv4.ID("list-1"),
+										"name": githubv4.String("Old name"),
+									},
+								},
+							},
+						},
+					}),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						UpdateUserList struct {
+							List struct {
+								Name githubv4.String
+							}
+						} `graphql:"updateUserList(input: $input)"`
+					}{},
+					githubv4.UpdateUserListInput{
+						ListID: githubv4.ID("list-1"),
+						Name:   func() *githubv4.String { s := githubv4.String("New name"); return &s }(),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"updateUserList": map[string]any{
+							"list": map[string]any{
+								"name": githubv4.String("New name"),
+							},
+						},
+					}),
+				),
+			),
+			expectToolError: false,
+		},
+		{
+			name: "update list not found",
+			requestArgs: map[string]any{
+				"name":     "Missing",
+				"new_name": "New name",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					userListLookupQuery{},
+					map[string]any{"after": (*githubv4.String)(nil)},
+					githubv4mock.DataResponse(map[string]any{
+						"viewer": map[string]any{
+							"lists": map[string]any{
+								"nodes": []any{},
+							},
+						},
+					}),
+				),
+			),
+			expectToolError:    true,
+			expectedToolErrMsg: "list 'Missing' not found",
+		},
+		{
+			name: "update without changes",
+			requestArgs: map[string]any{
+				"name": "My list",
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "at least one of new_name, description, or is_private must be provided for update",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := githubv4.NewClient(tc.mockedClient)
+			deps := BaseDeps{
+				GQLClient: client,
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			require.NoError(t, err)
+			assert.NotNil(t, result)
+			if tc.expectToolError {
+				assert.True(t, result.IsError)
+				if tc.expectedToolErrMsg != "" {
+					textContent := getErrorResult(t, result)
+					assert.Contains(t, textContent.Text, tc.expectedToolErrMsg)
+				}
+			} else {
+				assert.False(t, result.IsError)
+			}
+		})
+	}
+}
+
+func TestDeleteUserList(t *testing.T) {
+	t.Parallel()
+
+	serverTool := DeleteUserList(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "delete_user_list", tool.Name)
+	assert.False(t, tool.Annotations.ReadOnlyHint)
+	require.NotNil(t, tool.Annotations.DestructiveHint)
+	assert.True(t, *tool.Annotations.DestructiveHint)
+	assert.Equal(t, []string{"user"}, serverTool.ScopeAccess.Scopes)
+
+	tests := []struct {
+		name               string
+		requestArgs        map[string]any
+		mockedClient       *http.Client
+		expectToolError    bool
+		expectedToolErrMsg string
+	}{
+		{
+			name: "delete list",
+			requestArgs: map[string]any{
+				"name": "My list",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					userListLookupQuery{},
+					map[string]any{"after": (*githubv4.String)(nil)},
+					githubv4mock.DataResponse(map[string]any{
+						"viewer": map[string]any{
+							"lists": map[string]any{
+								"nodes": []any{
+									map[string]any{
+										"id":   githubv4.ID("list-1"),
+										"name": githubv4.String("My list"),
+									},
+								},
+							},
+						},
+					}),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						DeleteUserList struct {
+							ClientMutationID githubv4.String
+						} `graphql:"deleteUserList(input: $input)"`
+					}{},
+					githubv4.DeleteUserListInput{
+						ListID: githubv4.ID("list-1"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"deleteUserList": map[string]any{
+							"clientMutationId": githubv4.String("test-mutation-id"),
+						},
+					}),
+				),
+			),
+			expectToolError: false,
+		},
+		{
+			name: "delete list not found",
+			requestArgs: map[string]any{
+				"name": "Missing",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					userListLookupQuery{},
+					map[string]any{"after": (*githubv4.String)(nil)},
+					githubv4mock.DataResponse(map[string]any{
+						"viewer": map[string]any{
+							"lists": map[string]any{
+								"nodes": []any{},
+							},
+						},
+					}),
+				),
+			),
+			expectToolError:    true,
+			expectedToolErrMsg: "list 'Missing' not found",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := githubv4.NewClient(tc.mockedClient)
+			deps := BaseDeps{
+				GQLClient: client,
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			require.NoError(t, err)
+			assert.NotNil(t, result)
+			if tc.expectToolError {
+				assert.True(t, result.IsError)
+				if tc.expectedToolErrMsg != "" {
+					textContent := getErrorResult(t, result)
+					assert.Contains(t, textContent.Text, tc.expectedToolErrMsg)
+				}
+			} else {
+				assert.False(t, result.IsError)
+			}
+		})
+	}
+}
+
+func TestAddRepositoryToList(t *testing.T) {
+	t.Parallel()
+
+	serverTool := AddRepositoryToList(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "add_repository_to_list", tool.Name)
+	assert.False(t, tool.Annotations.ReadOnlyHint)
+	require.NotNil(t, tool.Annotations.DestructiveHint)
+	assert.False(t, *tool.Annotations.DestructiveHint)
+	assert.True(t, tool.Annotations.IdempotentHint)
+	assert.Equal(t, []string{"user", "repo"}, serverTool.ScopeAccess.Scopes)
+
+	// Repository currently in lists "A" and "B"; adding to "C" must resubmit all
+	// three because updateUserListsForItem REPLACES membership (does not append).
+	mockedClient := githubv4mock.NewMockedHTTPClient(
+		// 1. resolve list "C" -> list-c
+		githubv4mock.NewQueryMatcher(
+			userListLookupQuery{},
+			map[string]any{"after": (*githubv4.String)(nil)},
+			githubv4mock.DataResponse(map[string]any{
+				"viewer": map[string]any{
+					"lists": map[string]any{
+						"nodes": []any{
+							map[string]any{"id": githubv4.ID("list-c"), "name": githubv4.String("C")},
+						},
+					},
+				},
+			}),
+		),
+		// 2. resolve repository -> repo-id
+		githubv4mock.NewQueryMatcher(
+			struct {
+				Repository struct {
+					ID githubv4.ID
+				} `graphql:"repository(owner: $owner, name: $repo)"`
+			}{},
+			map[string]any{
+				"owner": githubv4.String("owner"),
+				"repo":  githubv4.String("repo"),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"id": githubv4.ID("repo-id"),
+				},
+			}),
+		),
+		// 3. read current list membership by walking the viewer's lists -> A, B
+		githubv4mock.NewQueryMatcher(
+			struct {
+				Viewer struct {
+					Lists struct {
+						Nodes []struct {
+							ID    githubv4.ID
+							Items struct {
+								Nodes []struct {
+									Repository struct {
+										ID githubv4.ID
+									} `graphql:"... on Repository"`
+								}
+								PageInfo struct {
+									HasNextPage bool
+									EndCursor   string
+								}
+							} `graphql:"items(first: 100)"`
+						}
+						PageInfo struct {
+							HasNextPage bool
+							EndCursor   string
+						}
+					} `graphql:"lists(first: 100, after: $listsAfter)"`
+				}
+			}{},
+			map[string]any{
+				"listsAfter": (*githubv4.String)(nil),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"viewer": map[string]any{
+					"lists": map[string]any{
+						"nodes": []any{
+							map[string]any{
+								"id": githubv4.ID("list-a"),
+								"items": map[string]any{
+									"nodes": []any{
+										map[string]any{"id": githubv4.ID("repo-id")},
+									},
+									"pageInfo": map[string]any{
+										"hasNextPage": false,
+										"endCursor":   "",
+									},
+								},
+							},
+							map[string]any{
+								"id": githubv4.ID("list-b"),
+								"items": map[string]any{
+									"nodes": []any{
+										map[string]any{"id": githubv4.ID("repo-id")},
+									},
+									"pageInfo": map[string]any{
+										"hasNextPage": false,
+										"endCursor":   "",
+									},
+								},
+							},
+							map[string]any{
+								"id": githubv4.ID("list-c"),
+								"items": map[string]any{
+									"nodes":    []any{},
+									"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
+								},
+							},
+						},
+						"pageInfo": map[string]any{
+							"hasNextPage": false,
+							"endCursor":   "",
+						},
+					},
+				},
+			}),
+		),
+		// 4. resubmit full set A, B, C
+		githubv4mock.NewMutationMatcher(
+			struct {
+				UpdateUserListsForItem struct {
+					ClientMutationID githubv4.String
+				} `graphql:"updateUserListsForItem(input: $input)"`
+			}{},
+			githubv4.UpdateUserListsForItemInput{
+				ItemID:  githubv4.ID("repo-id"),
+				ListIDs: []githubv4.ID{"list-a", "list-b", "list-c"},
+			},
+			nil,
+			githubv4mock.DataResponse(map[string]any{
+				"updateUserListsForItem": map[string]any{
+					"clientMutationId": githubv4.String("test-mutation-id"),
+				},
+			}),
+		),
+	)
+
+	client := githubv4.NewClient(mockedClient)
+	deps := BaseDeps{
+		GQLClient: client,
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":     "owner",
+		"repo":      "repo",
+		"list_name": "C",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.False(t, result.IsError)
+}
+
+func TestRemoveRepositoryFromList(t *testing.T) {
+	t.Parallel()
+
+	serverTool := RemoveRepositoryFromList(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "remove_repository_from_list", tool.Name)
+	assert.False(t, tool.Annotations.ReadOnlyHint)
+	require.NotNil(t, tool.Annotations.DestructiveHint)
+	assert.True(t, *tool.Annotations.DestructiveHint)
+	assert.True(t, tool.Annotations.IdempotentHint)
+	assert.Equal(t, []string{"user", "repo"}, serverTool.ScopeAccess.Scopes)
+
+	// Repository currently in lists "A" and "B"; removing from "B" must resubmit
+	// only the remainder ("A").
+	mockedClient := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			userListLookupQuery{},
+			map[string]any{"after": (*githubv4.String)(nil)},
+			githubv4mock.DataResponse(map[string]any{
+				"viewer": map[string]any{
+					"lists": map[string]any{
+						"nodes": []any{
+							map[string]any{"id": githubv4.ID("list-b"), "name": githubv4.String("B")},
+						},
+					},
+				},
+			}),
+		),
+		githubv4mock.NewQueryMatcher(
+			struct {
+				Repository struct {
+					ID githubv4.ID
+				} `graphql:"repository(owner: $owner, name: $repo)"`
+			}{},
+			map[string]any{
+				"owner": githubv4.String("owner"),
+				"repo":  githubv4.String("repo"),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"id": githubv4.ID("repo-id"),
+				},
+			}),
+		),
+		githubv4mock.NewQueryMatcher(
+			struct {
+				Viewer struct {
+					Lists struct {
+						Nodes []struct {
+							ID    githubv4.ID
+							Items struct {
+								Nodes []struct {
+									Repository struct {
+										ID githubv4.ID
+									} `graphql:"... on Repository"`
+								}
+								PageInfo struct {
+									HasNextPage bool
+									EndCursor   string
+								}
+							} `graphql:"items(first: 100)"`
+						}
+						PageInfo struct {
+							HasNextPage bool
+							EndCursor   string
+						}
+					} `graphql:"lists(first: 100, after: $listsAfter)"`
+				}
+			}{},
+			map[string]any{
+				"listsAfter": (*githubv4.String)(nil),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"viewer": map[string]any{
+					"lists": map[string]any{
+						"nodes": []any{
+							map[string]any{
+								"id": githubv4.ID("list-a"),
+								"items": map[string]any{
+									"nodes": []any{
+										map[string]any{"id": githubv4.ID("repo-id")},
+									},
+									"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
+								},
+							},
+							map[string]any{
+								"id": githubv4.ID("list-b"),
+								"items": map[string]any{
+									"nodes": []any{
+										map[string]any{"id": githubv4.ID("repo-id")},
+									},
+									"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
+								},
+							},
+						},
+						"pageInfo": map[string]any{
+							"hasNextPage": false,
+							"endCursor":   "",
+						},
+					},
+				},
+			}),
+		),
+		githubv4mock.NewMutationMatcher(
+			struct {
+				UpdateUserListsForItem struct {
+					ClientMutationID githubv4.String
+				} `graphql:"updateUserListsForItem(input: $input)"`
+			}{},
+			githubv4.UpdateUserListsForItemInput{
+				ItemID:  githubv4.ID("repo-id"),
+				ListIDs: []githubv4.ID{"list-a"},
+			},
+			nil,
+			githubv4mock.DataResponse(map[string]any{
+				"updateUserListsForItem": map[string]any{
+					"clientMutationId": githubv4.String("test-mutation-id"),
+				},
+			}),
+		),
+	)
+
+	client := githubv4.NewClient(mockedClient)
+	deps := BaseDeps{
+		GQLClient: client,
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":     "owner",
+		"repo":      "repo",
+		"list_name": "B",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.False(t, result.IsError)
+}
+
+func TestAddRepositoryToListListNotFound(t *testing.T) {
+	t.Parallel()
+
+	serverTool := AddRepositoryToList(translations.NullTranslationHelper)
+	mockedClient := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			userListLookupQuery{},
+			map[string]any{"after": (*githubv4.String)(nil)},
+			githubv4mock.DataResponse(map[string]any{
+				"viewer": map[string]any{
+					"lists": map[string]any{
+						"nodes": []any{},
+					},
+				},
+			}),
+		),
+	)
+
+	client := githubv4.NewClient(mockedClient)
+	deps := BaseDeps{
+		GQLClient: client,
+	}
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":     "owner",
+		"repo":      "repo",
+		"list_name": "Missing",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.True(t, result.IsError)
+	textContent := getErrorResult(t, result)
+	assert.Contains(t, textContent.Text, "list 'Missing' not found")
+}
+
+func TestAddRepositoryToListRepositoryNotFound(t *testing.T) {
+	t.Parallel()
+
+	serverTool := AddRepositoryToList(translations.NullTranslationHelper)
+	mockedClient := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			userListLookupQuery{},
+			map[string]any{"after": (*githubv4.String)(nil)},
+			githubv4mock.DataResponse(map[string]any{
+				"viewer": map[string]any{
+					"lists": map[string]any{
+						"nodes":    []any{map[string]any{"id": githubv4.ID("list-c"), "name": githubv4.String("C")}},
+						"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
+					},
+				},
+			}),
+		),
+		githubv4mock.NewQueryMatcher(
+			struct {
+				Repository struct {
+					ID githubv4.ID
+				} `graphql:"repository(owner: $owner, name: $repo)"`
+			}{},
+			map[string]any{"owner": githubv4.String("owner"), "repo": githubv4.String("repo")},
+			githubv4mock.DataResponse(map[string]any{"repository": nil}),
+		),
+	)
+	client := githubv4.NewClient(mockedClient)
+	deps := BaseDeps{GQLClient: client}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{"owner": "owner", "repo": "repo", "list_name": "C"})
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Contains(t, getErrorResult(t, result).Text, "repository 'owner/repo' not found")
+}
+
+func TestSetRepoListMembershipsSkipsSatisfiedMutation(t *testing.T) {
+	tests := []struct {
+		name          string
+		add           bool
+		currentlyInIt bool
+	}{
+		{name: "add already present", add: true, currentlyInIt: true},
+		{name: "remove already absent", add: false, currentlyInIt: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			itemNodes := "[]"
+			if tc.currentlyInIt {
+				itemNodes = `[{"id":"repo-id"}]`
+			}
+			transport := &sequencedGraphQLTransport{
+				t: t,
+				responses: []func(capturedGraphQLRequest) (int, string){
+					func(capturedGraphQLRequest) (int, string) {
+						return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-c","name":"C"}]}}}}`
+					},
+					func(capturedGraphQLRequest) (int, string) {
+						return http.StatusOK, `{"data":{"repository":{"id":"repo-id"}}}`
+					},
+					func(capturedGraphQLRequest) (int, string) {
+						return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-c","items":{"nodes":` + itemNodes + `,"pageInfo":{"hasNextPage":false,"endCursor":""}}}],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
+					},
+				},
+			}
+			client := githubv4.NewClient(&http.Client{Transport: transport})
+
+			require.NoError(t, setRepoListMemberships(context.Background(), client, "owner", "repo", "C", tc.add))
+			require.Len(t, transport.calls, 3, "satisfied operation should not issue a mutation")
+		})
+	}
+}
+
+func TestSetRepoListMembershipsPreservesMembershipFoundOnLaterPage(t *testing.T) {
+	transport := &sequencedGraphQLTransport{
+		t: t,
+		responses: []func(capturedGraphQLRequest) (int, string){
+			func(capturedGraphQLRequest) (int, string) {
+				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-c","name":"C"}]}}}}`
+			},
+			func(capturedGraphQLRequest) (int, string) {
+				return http.StatusOK, `{"data":{"repository":{"id":"repo-id"}}}`
+			},
+			func(capturedGraphQLRequest) (int, string) {
+				return http.StatusOK, `{"data":{"viewer":{"lists":{"nodes":[{"id":"list-a","items":{"nodes":[],"pageInfo":{"hasNextPage":true,"endCursor":"cursor-a"}}},{"id":"list-c","items":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":""}}}],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
+			},
+			func(req capturedGraphQLRequest) (int, string) {
+				assert.Equal(t, "cursor-a", req.Variables["after"])
+				return http.StatusOK, `{"data":{"node":{"items":{"nodes":[{"id":"repo-id"}],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
+			},
+			func(req capturedGraphQLRequest) (int, string) {
+				input, ok := req.Variables["input"].(map[string]any)
+				require.True(t, ok)
+				assert.Equal(t, []any{"list-a", "list-c"}, input["listIds"])
+				return http.StatusOK, `{"data":{"updateUserListsForItem":{"clientMutationId":"test-mutation-id"}}}`
+			},
+		},
+	}
+	client := githubv4.NewClient(&http.Client{Transport: transport})
+
+	require.NoError(t, setRepoListMemberships(context.Background(), client, "owner", "repo", "C", true))
+	require.Len(t, transport.calls, 5)
+}

@@ -17,6 +17,8 @@ func TestOAuthScopeCatalog(t *testing.T) {
 	assert.NotContains(t, defaults, string(Workflow))
 	assert.Contains(t, supported, string(Codespace))
 	assert.NotContains(t, defaults, string(Codespace))
+	assert.Contains(t, supported, string(User))
+	assert.NotContains(t, defaults, string(User))
 }
 
 func TestScopeChecks(t *testing.T) {

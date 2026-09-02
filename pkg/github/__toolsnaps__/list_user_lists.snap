@@ -1,0 +1,28 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "List star lists"
+  },
+  "description": "List a page of the authenticated user's star lists (UserLists), optionally including the first page of repositories in each list.",
+  "inputSchema": {
+    "properties": {
+      "after": {
+        "description": "Cursor for pagination. Use the cursor from the previous response.",
+        "type": "string"
+      },
+      "include_items": {
+        "description": "Whether to include up to 100 repositories and item cursor metadata for each returned list.",
+        "type": "boolean"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      }
+    },
+    "type": "object"
+  },
+  "name": "list_user_lists"
+}

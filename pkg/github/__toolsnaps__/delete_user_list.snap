@@ -1,0 +1,22 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Delete star list"
+  },
+  "description": "Delete a star list (UserList) owned by the authenticated user.",
+  "inputSchema": {
+    "properties": {
+      "name": {
+        "description": "The name of the list to delete.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "type": "object"
+  },
+  "name": "delete_user_list"
+}

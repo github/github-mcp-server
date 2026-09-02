@@ -1,0 +1,30 @@
+{
+  "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Create star list"
+  },
+  "description": "Create a new star list (UserList) for the authenticated user.",
+  "inputSchema": {
+    "properties": {
+      "description": {
+        "description": "A description of the list.",
+        "type": "string"
+      },
+      "is_private": {
+        "description": "Whether the list is private.",
+        "type": "boolean"
+      },
+      "name": {
+        "description": "The name of the new list.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "type": "object"
+  },
+  "name": "create_user_list"
+}
