@@ -1504,6 +1504,10 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			var commentResponse *MinimalResponse
 			if hasBody {
+				body = sanitize.FilterInvisibleCharacters(body)
+				if body == "" {
+					return utils.NewToolResultError("body cannot be empty after removing invisible characters"), nil, nil
+				}
 				comment := &github.IssueComment{
 					Body: github.Ptr(body),
 				}
