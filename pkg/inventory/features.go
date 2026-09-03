@@ -26,8 +26,8 @@ type FeatureResolver func(flag FeatureFlag) bool
 type FeaturePredicate func(featureAsBool FeatureResolver) bool
 
 // FeatureRule declares the feature flags used by an availability predicate.
-// The declaration lets the service resolve and deduplicate checks before the
-// predicate runs, while the predicate retains normal Go boolean semantics.
+// The predicate resolves reached flags lazily with normal Go boolean semantics,
+// while request state deduplicates repeated checks.
 type FeatureRule struct {
 	features  []FeatureFlag
 	predicate FeaturePredicate
