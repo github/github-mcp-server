@@ -1118,6 +1118,9 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 		subIssues = filteredSubIssues
 	}
 
+	for _, subIssue := range subIssues {
+		sanitizeSubIssueTitleAndBody(subIssue)
+	}
 	r, err := json.Marshal(subIssues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -1708,6 +1711,7 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add sub-issue", resp, body), nil
 	}
 
+	sanitizeSubIssueTitleAndBody(subIssue)
 	r, err := json.Marshal(subIssue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -1739,6 +1743,7 @@ func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, re
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to remove sub-issue", resp, body), nil
 	}
 
+	sanitizeSubIssueTitleAndBody(subIssue)
 	r, err := json.Marshal(subIssue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -1788,6 +1793,7 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to reprioritize sub-issue", resp, body), nil
 	}
 
+	sanitizeSubIssueTitleAndBody(subIssue)
 	r, err := json.Marshal(subIssue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -1998,7 +2004,19 @@ func sanitizeIssueTitleAndBody(issue *github.Issue) {
 		issue.Title = github.Ptr(sanitize.PlainText(*issue.Title))
 	}
 	if issue.Body != nil {
-		issue.Body = github.Ptr(sanitize.Sanitize(*issue.Body))
+		issue.Body = github.Ptr(sanitize.Content(*issue.Body))
+	}
+}
+
+func sanitizeSubIssueTitleAndBody(issue *github.SubIssue) {
+	if issue == nil {
+		return
+	}
+	if issue.Title != nil {
+		issue.Title = github.Ptr(sanitize.Sanitize(*issue.Title))
+	}
+	if issue.Body != nil {
+		issue.Body = github.Ptr(sanitize.Content(*issue.Body))
 	}
 }
 

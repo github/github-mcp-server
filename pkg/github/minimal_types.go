@@ -797,7 +797,7 @@ func convertToMinimalPullRequestReview(review *github.PullRequestReview) Minimal
 	m := MinimalPullRequestReview{
 		ID:                review.GetID(),
 		State:             review.GetState(),
-		Body:              sanitize.Sanitize(review.GetBody()),
+		Body:              sanitize.Content(review.GetBody()),
 		HTMLURL:           review.GetHTMLURL(),
 		User:              convertToMinimalUser(review.GetUser()),
 		CommitID:          review.GetCommitID(),
@@ -815,7 +815,7 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 	m := MinimalIssue{
 		Number:            issue.GetNumber(),
 		Title:             sanitize.PlainText(issue.GetTitle()),
-		Body:              sanitize.Sanitize(issue.GetBody()),
+		Body:              sanitize.Content(issue.GetBody()),
 		State:             issue.GetState(),
 		StateReason:       issue.GetStateReason(),
 		Draft:             issue.GetDraft(),
@@ -926,7 +926,7 @@ func fragmentWithoutFieldValuesToMinimalIssue(fragment issueFragmentWithoutField
 	m := MinimalIssue{
 		Number:    int(fragment.Number),
 		Title:     sanitize.PlainText(string(fragment.Title)),
-		Body:      sanitize.Sanitize(string(fragment.Body)),
+		Body:      sanitize.Content(string(fragment.Body)),
 		State:     string(fragment.State),
 		Comments:  int(fragment.Comments.TotalCount),
 		CreatedAt: fragment.CreatedAt.Format(time.RFC3339),
@@ -1085,7 +1085,7 @@ func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
 	m := MinimalPullRequest{
 		Number:         pr.GetNumber(),
 		Title:          sanitize.PlainText(pr.GetTitle()),
-		Body:           sanitize.Sanitize(pr.GetBody()),
+		Body:           sanitize.Content(pr.GetBody()),
 		State:          pr.GetState(),
 		Draft:          pr.GetDraft(),
 		Merged:         pr.GetMerged(),
@@ -2039,7 +2039,7 @@ func convertToMinimalRelease(release *github.RepositoryRelease) MinimalRelease {
 		ID:         release.GetID(),
 		TagName:    release.GetTagName(),
 		Name:       sanitize.PlainText(release.GetName()),
-		Body:       sanitize.Sanitize(release.GetBody()),
+		Body:       sanitize.Content(release.GetBody()),
 		HTMLURL:    release.GetHTMLURL(),
 		Prerelease: release.GetPrerelease(),
 		Draft:      release.GetDraft(),

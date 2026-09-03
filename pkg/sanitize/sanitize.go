@@ -43,6 +43,10 @@ func Sanitize(input string) string {
 	return FilterCodeFenceMetadata(FilterInvisibleCharacters(normalized))
 }
 
+func Content(input string) string {
+	return FilterInvisibleCharacters(input)
+}
+
 // PlainText sanitizes user-authored text that must not contain HTML.
 func PlainText(input string) string {
 	filtered := FilterCodeFenceMetadata(FilterInvisibleCharacters(input))

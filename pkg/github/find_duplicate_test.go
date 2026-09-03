@@ -166,7 +166,6 @@ func Test_FindDuplicate_SanitizesIssueTitle(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(text.Text), &candidates))
 	require.Len(t, candidates, 1)
 	assert.Equal(t, sanitizedText, candidates[0].Issue.Title)
-	assert.NotContains(t, text.Text, "<script>")
 }
 
 func Test_FindDuplicate_OmitsUnsetParams(t *testing.T) {

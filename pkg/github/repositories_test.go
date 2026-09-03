@@ -4855,6 +4855,7 @@ func Test_GetLatestRelease(t *testing.T) {
 		ID:      1,
 		TagName: "v1.0.0",
 		Name:    github.Ptr("First Release"),
+		Body:    github.Ptr("<details>Notes</details>\u200B"),
 	}
 
 	tests := []struct {
@@ -4922,6 +4923,8 @@ func Test_GetLatestRelease(t *testing.T) {
 			err = json.Unmarshal([]byte(textContent.Text), &returnedRelease)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedResult.TagName, returnedRelease.TagName)
+			assert.Equal(t, "First Release", *returnedRelease.Name)
+			assert.Equal(t, "<details>Notes</details>", *returnedRelease.Body)
 		})
 	}
 }
@@ -4945,7 +4948,7 @@ func Test_GetReleaseByTag(t *testing.T) {
 		ID:      1,
 		TagName: "v1.0.0",
 		Name:    github.Ptr("Release v1.0.0"),
-		Body:    github.Ptr("This is the first stable release."),
+		Body:    github.Ptr("<details>Notes</details>\u200B"),
 		Assets: []*github.ReleaseAsset{
 			{
 				ID:   github.Ptr(int64(1)),
@@ -5087,7 +5090,7 @@ func Test_GetReleaseByTag(t *testing.T) {
 			assert.Equal(t, tc.expectedResult.TagName, returnedRelease.TagName)
 			assert.Equal(t, *tc.expectedResult.Name, *returnedRelease.Name)
 			if tc.expectedResult.Body != nil {
-				assert.Equal(t, *tc.expectedResult.Body, *returnedRelease.Body)
+				assert.Equal(t, "<details>Notes</details>", *returnedRelease.Body)
 			}
 			if len(tc.expectedResult.Assets) > 0 {
 				require.Len(t, returnedRelease.Assets, len(tc.expectedResult.Assets))
@@ -6200,7 +6203,7 @@ func Test_GetFileBlame(t *testing.T) {
 				var br BlameResult
 				require.NoError(t, json.Unmarshal([]byte(result), &br))
 				require.Contains(t, br.Commits, "badc0ffee0000")
-				assert.Equal(t, sanitizedText, br.Commits["badc0ffee0000"].MessageHeadline)
+				assert.Equal(t, sanitizedContentText, br.Commits["badc0ffee0000"].MessageHeadline)
 				assert.NotContains(t, result, "<script>")
 				assert.NotContains(t, result, "Long body that should not appear")
 			},

@@ -362,7 +362,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 			response := map[string]any{
 				"number":     int(d.Number),
 				"title":      sanitize.PlainText(string(d.Title)),
-				"body":       sanitize.Sanitize(string(d.Body)),
+				"body":       sanitize.Content(string(d.Body)),
 				"url":        string(d.URL),
 				"closed":     bool(d.Closed),
 				"isAnswered": bool(d.IsAnswered),

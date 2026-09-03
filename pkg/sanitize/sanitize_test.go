@@ -858,3 +858,18 @@ func TestSanitizeStillStripsMaliciousContent(t *testing.T) {
 }
 
 var sink string
+
+func TestContentPreservesMarkdownAndCode(t *testing.T) {
+	content := "普通 prose with $5 and $x^2$, :rocket:, ✈️, 👩‍💻.\n\n" +
+		"[link](https://example.com/a?b=c) ![badge](https://example.com/b.svg)\n\n" +
+		"<details><summary>Details</summary><table><tr><td>cell</td></tr></table></details>\n\n" +
+		"```uncommon-language\nx & y\n```\n\n" +
+		"    inline `code` and footnote[^1]\n\n[^1]: note"
+
+	require.Equal(t, content, Content(content))
+}
+
+func TestContentRemovesOnlyUnconditionalInvisibleCharacters(t *testing.T) {
+	require.Equal(t, "left right", Content("left\u200B right"))
+	require.Equal(t, "✈️ and 👩‍💻", Content("✈️ and 👩‍💻"))
+}
