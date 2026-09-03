@@ -622,7 +622,7 @@ type MinimalPullRequestRef struct {
 func newMinimalPullRequestRef(number int, title, state, url, repository string) MinimalPullRequestRef {
 	return MinimalPullRequestRef{
 		Number:     number,
-		Title:      sanitize.Sanitize(title),
+		Title:      sanitize.PlainText(title),
 		State:      state,
 		URL:        url,
 		Repository: repository,
@@ -646,7 +646,7 @@ type MinimalIssueRef struct {
 func newMinimalIssueRef(number int, title, state, url, repository string) MinimalIssueRef {
 	return MinimalIssueRef{
 		Number:     number,
-		Title:      sanitize.Sanitize(title),
+		Title:      sanitize.PlainText(title),
 		State:      state,
 		URL:        url,
 		Repository: repository,
@@ -814,7 +814,7 @@ func convertToMinimalPullRequestReview(review *github.PullRequestReview) Minimal
 func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 	m := MinimalIssue{
 		Number:            issue.GetNumber(),
-		Title:             sanitize.Sanitize(issue.GetTitle()),
+		Title:             sanitize.PlainText(issue.GetTitle()),
 		Body:              sanitize.Sanitize(issue.GetBody()),
 		State:             issue.GetState(),
 		StateReason:       issue.GetStateReason(),
@@ -925,7 +925,7 @@ func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 func fragmentWithoutFieldValuesToMinimalIssue(fragment issueFragmentWithoutFieldValues) MinimalIssue {
 	m := MinimalIssue{
 		Number:    int(fragment.Number),
-		Title:     sanitize.Sanitize(string(fragment.Title)),
+		Title:     sanitize.PlainText(string(fragment.Title)),
 		Body:      sanitize.Sanitize(string(fragment.Body)),
 		State:     string(fragment.State),
 		Comments:  int(fragment.Comments.TotalCount),
@@ -1084,7 +1084,7 @@ func convertToMinimalFileContentResponse(resp *github.RepositoryContentResponse)
 func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
 	m := MinimalPullRequest{
 		Number:         pr.GetNumber(),
-		Title:          sanitize.Sanitize(pr.GetTitle()),
+		Title:          sanitize.PlainText(pr.GetTitle()),
 		Body:           sanitize.Sanitize(pr.GetBody()),
 		State:          pr.GetState(),
 		Draft:          pr.GetDraft(),
@@ -1279,7 +1279,7 @@ func convertIssueToMinimalProjectItemContent(issue *github.Issue) *MinimalProjec
 		ID:          issue.GetID(),
 		NodeID:      issue.GetNodeID(),
 		Number:      issue.GetNumber(),
-		Title:       sanitize.Sanitize(issue.GetTitle()),
+		Title:       sanitize.PlainText(issue.GetTitle()),
 		State:       issue.GetState(),
 		StateReason: issue.GetStateReason(),
 		HTMLURL:     issue.GetHTMLURL(),
@@ -1316,7 +1316,7 @@ func convertPullRequestToMinimalProjectItemContent(pr *github.PullRequest) *Mini
 		ID:         pr.GetID(),
 		NodeID:     pr.GetNodeID(),
 		Number:     pr.GetNumber(),
-		Title:      sanitize.Sanitize(pr.GetTitle()),
+		Title:      sanitize.PlainText(pr.GetTitle()),
 		State:      pr.GetState(),
 		HTMLURL:    pr.GetHTMLURL(),
 		Repository: pullRequestRepositoryFullName(pr),
@@ -1353,7 +1353,7 @@ func convertDraftIssueToMinimalProjectItemContent(draftIssue *github.ProjectV2Dr
 	m := &MinimalProjectItemContent{
 		ID:        draftIssue.GetID(),
 		NodeID:    draftIssue.GetNodeID(),
-		Title:     sanitize.Sanitize(draftIssue.GetTitle()),
+		Title:     sanitize.PlainText(draftIssue.GetTitle()),
 		CreatedAt: formatProjectTimestamp(draftIssue.CreatedAt),
 		UpdatedAt: formatProjectTimestamp(draftIssue.UpdatedAt),
 	}
@@ -1612,7 +1612,7 @@ func minimalProjectPullRequestRefFromPullRequest(pr *github.PullRequest) minimal
 	}
 	return minimalProjectPullRequestRef{
 		Number:     pr.GetNumber(),
-		Title:      sanitize.Sanitize(pr.GetTitle()),
+		Title:      sanitize.PlainText(pr.GetTitle()),
 		State:      pr.GetState(),
 		HTMLURL:    pr.GetHTMLURL(),
 		Repository: pullRequestRepositoryFullName(pr),
@@ -1634,7 +1634,7 @@ func minimalProjectPullRequestRefFromMap(value map[string]any) minimalProjectPul
 
 	return minimalProjectPullRequestRef{
 		Number:     intFromAny(value["number"]),
-		Title:      sanitize.Sanitize(stringFromMap(value, "title")),
+		Title:      sanitize.PlainText(stringFromMap(value, "title")),
 		State:      stringFromMap(value, "state"),
 		HTMLURL:    htmlURL,
 		Repository: repository,
@@ -2038,7 +2038,7 @@ func convertToMinimalRelease(release *github.RepositoryRelease) MinimalRelease {
 	m := MinimalRelease{
 		ID:         release.GetID(),
 		TagName:    release.GetTagName(),
-		Name:       sanitize.Sanitize(release.GetName()),
+		Name:       sanitize.PlainText(release.GetName()),
 		Body:       sanitize.Sanitize(release.GetBody()),
 		HTMLURL:    release.GetHTMLURL(),
 		Prerelease: release.GetPrerelease(),

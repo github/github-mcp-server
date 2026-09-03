@@ -13,19 +13,19 @@ import (
 )
 
 // maliciousText contains an HTML payload plus invisible/hidden-instruction characters,
-// mirroring the classes of untrusted content pkg/sanitize.Sanitize is meant to strip:
+// mirroring the classes of untrusted content the shared sanitizers are meant to strip:
 // disallowed HTML tags and zero-width/BiDi control characters that can hide instructions
 // from a human reviewer while still being interpreted by a model.
 const maliciousText = "<script>alert(1)</script>Hello\u200BWorld"
 
-// sanitizedText is what maliciousText becomes after sanitize.Sanitize: the <script> tag
-// (and its content) is stripped by the HTML policy, and the zero-width space is removed.
+// sanitizedText is what maliciousText becomes after sanitization: the <script> tag and
+// its content are stripped by the HTML policy, and the zero-width space is removed.
 const sanitizedText = "HelloWorld"
 
 // Test_MinimalConverters_SanitizeUserAuthoredText is a table-driven regression test asserting
 // that every convertToMinimal* helper which surfaces untrusted, user-authored prose (issue and
-// PR titles/bodies, comments, reviews, review comments, releases, commit messages) applies
-// pkg/sanitize.Sanitize consistently. This guards against the inconsistent coverage described in
+// PR titles/bodies, comments, reviews, review comments, releases, commit messages) applies the
+// appropriate shared sanitizer consistently. This guards against the inconsistent coverage described in
 // https://github.com/github/github-mcp-server/issues/3106.
 func Test_MinimalConverters_SanitizeUserAuthoredText(t *testing.T) {
 	tests := []struct {
@@ -255,6 +255,23 @@ func Test_SearchIssueResult_SanitizesTitleAndBody(t *testing.T) {
 
 	assert.Equal(t, sanitizedText, decoded.Title)
 	assert.Equal(t, sanitizedText, decoded.Body)
+}
+
+func Test_TitleSanitizationPreservesToolOutputText(t *testing.T) {
+	issue := convertToMinimalIssue(&github.Issue{
+		Title: github.Ptr(`can't "quote" AT&T`),
+		Body:  github.Ptr(`<b>"quoted"</b>`),
+	})
+
+	result := MarshalledTextResult(map[string]string{
+		"body":  issue.Body,
+		"title": issue.Title,
+	})
+
+	assert.Equal(t,
+		`{"body":"\u003cb\u003e\u0026#34;quoted\u0026#34;\u003c/b\u003e","title":"can't \"quote\" AT\u0026T"}`,
+		getTextResult(t, result).Text,
+	)
 }
 
 // Test_SanitizeIssueTitleAndBody exercises the shared helper directly, including its nil-safety,

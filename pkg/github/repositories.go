@@ -2981,7 +2981,7 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 					SHA: sha,
 					// Sanitized after truncation so the headline is cut at the author's real
 					// first line break rather than one introduced by sanitization.
-					MessageHeadline: sanitize.Sanitize(headline),
+					MessageHeadline: sanitize.PlainText(headline),
 					CommittedDate:   r.Commit.CommittedDate.Format("2006-01-02T15:04:05Z"),
 					Author: BlameAuthor{
 						Name:  string(r.Commit.Author.Name),

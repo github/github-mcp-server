@@ -1194,7 +1194,7 @@ func GetIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDepen
 	return MarshalledTextResult(map[string]any{
 		"parent": map[string]any{
 			"number":     int(parent.Number),
-			"title":      sanitize.Sanitize(string(parent.Title)),
+			"title":      sanitize.PlainText(string(parent.Title)),
 			"state":      string(parent.State),
 			"url":        string(parent.URL),
 			"repository": string(parent.Repository.NameWithOwner),
@@ -1995,7 +1995,7 @@ func sanitizeIssueTitleAndBody(issue *github.Issue) {
 		return
 	}
 	if issue.Title != nil {
-		issue.Title = github.Ptr(sanitize.Sanitize(*issue.Title))
+		issue.Title = github.Ptr(sanitize.PlainText(*issue.Title))
 	}
 	if issue.Body != nil {
 		issue.Body = github.Ptr(sanitize.Sanitize(*issue.Body))
