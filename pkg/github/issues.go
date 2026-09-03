@@ -889,7 +889,7 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
 				return attachIFC(result), nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return unknownMethodError(method, "get", "get_comments", "get_sub_issues", "get_parent", "get_labels"), nil, nil
 			}
 		})
 }
@@ -1592,6 +1592,7 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 							"- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.\n" +
 							"- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.\n" +
 							"Writes issue hierarchy. To move a sub-issue to a new parent, use `add` with `replace_parent=true`; there is no writable parent field.\n",
+						Enum: []any{"add", "remove", "reprioritize"},
 					},
 					"owner": {
 						Type:        "string",
@@ -1679,7 +1680,7 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				result, err := ReprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID)
 				return result, nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return unknownMethodError(method, "add", "remove", "reprioritize"), nil, nil
 			}
 		})
 	st.FeatureRule = issuesConsolidatedFeatureRule
