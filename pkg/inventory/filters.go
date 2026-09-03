@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-
-	ghcontext "github.com/github/github-mcp-server/pkg/context"
 )
 
 // isToolsetEnabled checks if a toolset is enabled based on current filters.
@@ -60,14 +58,11 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool, feature
 	if (r.additionalTools == nil || !r.additionalTools[tool.Tool.Name]) && !r.isToolsetEnabled(tool.Toolset.ID) {
 		return false
 	}
-	if availability := tool.availability(); !availability.unrestricted() {
-		if info, ok := ghcontext.MCPMethod(ctx); ok && (info.Method == MCPMethodToolsList || info.Method == MCPMethodToolsCall) {
-			known := (availability.minimumProtocolVersion == "" || info.ProtocolVersion != "") &&
-				(availability.requiredElicitationMode == "" || info.ClientCapabilities != nil)
-			if known && !toolAvailable(info.ProtocolVersion, info.ClientCapabilities, availability) {
-				return false
-			}
-		}
+	switch featureDecisionForToolAvailability(ctx, tool.availability()) {
+	case excludeToolBeforeFeatureRule:
+		return false
+	case includeToolWithoutFeatureRule:
+		return true
 	}
 	// 4. Check feature availability.
 	if r.featureChecker != nil && !tool.FeatureRule.Enabled(featureAsBool) {

@@ -190,8 +190,14 @@ func (r *Inventory) ToolsetDescriptions() map[ToolsetID]string {
 func (r *Inventory) ToolsForRegistration(ctx context.Context) []ServerTool {
 	ctx = WithFeatureState(ctx, r.featureChecker)
 	tools := r.availableTools(ctx)
-	if r.usesMCPAppsMetadata() && shouldStripMCPAppsMetadata(ctx, r.checkFeatureFlag(ctx, mcpAppsFeatureFlag)) {
-		tools = stripMCPAppsMetadata(tools)
+	if present, checkFeature := mcpAppsMetadataStatus(ctx, tools); present {
+		featureEnabled := false
+		if checkFeature {
+			featureEnabled = r.checkFeatureFlag(ctx, mcpAppsFeatureFlag)
+		}
+		if shouldStripMCPAppsMetadata(ctx, featureEnabled) {
+			tools = stripMCPAppsMetadata(tools)
+		}
 	}
 	return tools
 }
@@ -224,10 +230,30 @@ func (r *Inventory) WithFeatureState(ctx context.Context) context.Context {
 
 func (r *Inventory) usesMCPAppsMetadata() bool {
 	for i := range r.tools {
-		for _, key := range mcpAppsMetaKeys {
-			if _, ok := r.tools[i].Tool.Meta[key]; ok {
-				return true
-			}
+		if toolUsesMCPAppsMetadata(&r.tools[i]) {
+			return true
+		}
+	}
+	return false
+}
+
+func mcpAppsMetadataStatus(ctx context.Context, tools []ServerTool) (present, checkFeature bool) {
+	for i := range tools {
+		if !toolUsesMCPAppsMetadata(&tools[i]) {
+			continue
+		}
+		present = true
+		if featureDecisionForToolAvailability(ctx, tools[i].availability()) != includeToolWithoutFeatureRule {
+			return true, true
+		}
+	}
+	return present, false
+}
+
+func toolUsesMCPAppsMetadata(tool *ServerTool) bool {
+	for _, key := range mcpAppsMetaKeys {
+		if _, ok := tool.Tool.Meta[key]; ok {
+			return true
 		}
 	}
 	return false

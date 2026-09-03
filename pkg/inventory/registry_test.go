@@ -1934,6 +1934,7 @@ func TestMCPAvailabilityRunsBeforeFeatureChecks(t *testing.T) {
 		t.Run(method, func(t *testing.T) {
 			calls := 0
 			checker := func(_ context.Context, _ string) (bool, error) {
+				time.Sleep(time.Millisecond)
 				calls++
 				return true, nil
 			}
@@ -1947,7 +1948,11 @@ func TestMCPAvailabilityRunsBeforeFeatureChecks(t *testing.T) {
 				ClientCapabilities: &mcp.ClientCapabilities{Elicitation: &mcp.ElicitationCapabilities{URL: &mcp.URLElicitationCapabilities{}}},
 			})
 
-			require.Empty(t, inv.AvailableTools(ctx))
+			if method == MCPMethodToolsList {
+				require.Empty(t, inv.AvailableTools(ctx))
+			} else {
+				require.Len(t, inv.AvailableTools(ctx), 2)
+			}
 			require.Zero(t, calls)
 
 			ctx = ghcontext.WithMCPMethodInfo(context.Background(), &ghcontext.MCPMethodInfo{
