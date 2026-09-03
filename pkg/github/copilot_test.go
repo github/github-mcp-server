@@ -60,6 +60,36 @@ func TestAssignCopilotToIssue(t *testing.T) {
 		expectedToolErrMsg string
 	}{
 		{
+			name: "missing owner is rejected",
+			requestArgs: map[string]any{
+				"repo":         "repo",
+				"issue_number": float64(123),
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: owner",
+		},
+		{
+			name: "missing repo is rejected",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"issue_number": float64(123),
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: repo",
+		},
+		{
+			name: "missing issue_number is rejected",
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: issue_number",
+		},
+		{
 			name: "successful assignment when there are no existing assignees",
 			requestArgs: map[string]any{
 				"owner":        "owner",
@@ -1228,6 +1258,19 @@ func TestAssignCopilotToIssueWithIntent(t *testing.T) {
 		expectedToolErrMsg string
 		expectSuggestion   bool
 	}{
+		{
+			name: "missing owner is rejected",
+			requestArgs: map[string]any{
+				"repo":          "repo",
+				"issue_number":  float64(123),
+				"rationale":     "Well-scoped task.",
+				"confidence":    "HIGH",
+				"is_suggestion": false,
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: owner",
+		},
 		{
 			name: "direct assignment with rationale and confidence preserves existing assignees",
 			requestArgs: map[string]any{
