@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,16 +15,16 @@ import (
 
 func TestWithMCPParse(t *testing.T) {
 	tests := []struct {
-		name           string
-		method         string
-		path           string
-		body           string
-		expectInfo     bool
-		expectedMethod string
-		expectedItem   string
-		expectedOwner  string
-		expectedRepo   string
-		expectedArgs   map[string]any
+		name            string
+		method          string
+		path            string
+		body            string
+		expectInfo      bool
+		expectedMethod  string
+		expectedItem    string
+		expectedRaw     string
+		expectedArgs    map[string]any
+		expectArgsError bool
 	}{
 		{
 			name:       "health check path is skipped",
@@ -92,18 +93,19 @@ func TestWithMCPParse(t *testing.T) {
 			expectInfo:     true,
 			expectedMethod: "tools/call",
 			expectedItem:   "get_file_contents",
-			expectedOwner:  "github",
-			expectedRepo:   "github-mcp-server",
+			expectedRaw:    `{"owner":"github","repo":"github-mcp-server","path":"README.md"}`,
 			expectedArgs:   map[string]any{"owner": "github", "repo": "github-mcp-server", "path": "README.md"},
 		},
 		{
-			name:           "tools/call with invalid arguments JSON continues without args",
-			method:         http.MethodPost,
-			path:           "/mcp",
-			body:           `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_file_contents","arguments":"not an object"}}`,
-			expectInfo:     true,
-			expectedMethod: "tools/call",
-			expectedItem:   "get_file_contents",
+			name:            "tools/call with invalid arguments JSON continues without args",
+			method:          http.MethodPost,
+			path:            "/mcp",
+			body:            `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_file_contents","arguments":"not an object"}}`,
+			expectInfo:      true,
+			expectedMethod:  "tools/call",
+			expectedItem:    "get_file_contents",
+			expectedRaw:     `"not an object"`,
+			expectArgsError: true,
 		},
 		{
 			name:           "prompts/get parses name",
@@ -156,16 +158,45 @@ func TestWithMCPParse(t *testing.T) {
 				require.NotNil(t, capturedInfo)
 				assert.Equal(t, tt.expectedMethod, capturedInfo.Method)
 				assert.Equal(t, tt.expectedItem, capturedInfo.ItemName)
-				assert.Equal(t, tt.expectedOwner, capturedInfo.Owner)
-				assert.Equal(t, tt.expectedRepo, capturedInfo.Repo)
+				if tt.expectedRaw != "" {
+					assert.JSONEq(t, tt.expectedRaw, string(capturedInfo.RawArguments))
+				}
+				decodedArgs, err := capturedInfo.DecodeArguments()
+				if tt.expectArgsError {
+					assert.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
 				if tt.expectedArgs != nil {
-					assert.Equal(t, tt.expectedArgs, capturedInfo.Arguments)
+					assert.Equal(t, tt.expectedArgs, decodedArgs)
 				}
 			} else {
 				assert.False(t, infoCaptured, "MCPMethodInfo should not be present in context")
 			}
 		})
 	}
+}
+
+func TestWithMCPParseRetainsLargeArgumentsWithoutMaterializingThem(t *testing.T) {
+	nested := map[string]any{
+		"items": []any{
+			map[string]any{"payload": strings.Repeat("x", 32*1024)},
+			[]any{1.0, 2.0, 3.0},
+		},
+	}
+	rawArguments, err := json.Marshal(nested)
+	require.NoError(t, err)
+	body := `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"test_tool","arguments":` + string(rawArguments) + `}}`
+
+	var capturedInfo *ghcontext.MCPMethodInfo
+	next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		capturedInfo, _ = ghcontext.MCPMethod(r.Context())
+	})
+	request := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))
+	WithMCPParse()(next).ServeHTTP(httptest.NewRecorder(), request)
+
+	require.NotNil(t, capturedInfo)
+	assert.Equal(t, json.RawMessage(rawArguments), capturedInfo.RawArguments)
 }
 
 func TestWithMCPParse_BodyRestoration(t *testing.T) {

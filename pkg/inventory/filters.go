@@ -43,6 +43,7 @@ func (r *Inventory) checkFeatureFlag(ctx context.Context, flagName string) bool 
 // installed when WithFeatureChecker received a non-nil checker).
 //
 //   - If FeatureFlagEnable is set, the item is only allowed if the flag is enabled.
+//   - Every FeatureFlagEnableAll entry must also be enabled.
 //   - If FeatureFlagDisable is non-empty, the item is excluded if any listed flag is enabled.
 func featureFlagAllowed(ctx context.Context, checker FeatureFlagChecker, enableFlag string, disableFlags []string) bool {
 	// Error semantics match the previous checkFeatureFlag helper: a checker
@@ -64,14 +65,22 @@ func featureFlagAllowed(ctx context.Context, checker FeatureFlagChecker, enableF
 }
 
 // createFeatureFlagFilter returns a ToolFilter that gates tools on their
-// FeatureFlagEnable / FeatureFlagDisable annotations using the given checker.
+// FeatureFlagEnable / FeatureFlagEnableAll / FeatureFlagDisable annotations using the given checker.
 // Builder.Build() installs this filter exactly once when WithFeatureChecker
 // has been called with a non-nil checker, so "no feature filtering" is
 // expressed structurally — by the absence of the filter — rather than by a
 // runtime nil check inside the filter itself.
 func createFeatureFlagFilter(checker FeatureFlagChecker) ToolFilter {
 	return func(ctx context.Context, tool *ServerTool) (bool, error) {
-		return featureFlagAllowed(ctx, checker, tool.FeatureFlagEnable, tool.FeatureFlagDisable), nil
+		if !featureFlagAllowed(ctx, checker, tool.FeatureFlagEnable, tool.FeatureFlagDisable) {
+			return false, nil
+		}
+		for _, flag := range tool.FeatureFlagEnableAll {
+			if !featureFlagAllowed(ctx, checker, flag, nil) {
+				return false, nil
+			}
+		}
+		return true, nil
 	}
 }
 

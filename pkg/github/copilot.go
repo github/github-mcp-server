@@ -201,7 +201,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				Required: []string{"owner", "repo", "issue_number"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, request *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params struct {
 				Owner              string `mapstructure:"owner"`
@@ -565,7 +565,7 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 				Required: []string{"owner", "repo", "issue_number", "rationale", "confidence", "is_suggestion"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, request *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			// Presence-check is_suggestion before decoding: mapstructure defaults a
 			// missing bool to false, which would silently launch Copilot instead of
@@ -867,7 +867,7 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

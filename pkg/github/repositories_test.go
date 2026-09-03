@@ -15,7 +15,6 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v89/github"
@@ -171,6 +170,7 @@ func Test_GetFileContents(t *testing.T) {
 				Text:     "# Test Repository\n\nThis is a test repository.",
 				MIMEType: "text/plain; charset=utf-8",
 			},
+			expectedMsg: "SHA: " + gitBlobSHA(mockRawContent),
 		},
 		{
 			name: "successful binary file content fetch (PNG)",
@@ -626,6 +626,7 @@ func Test_GetFileContents_SymlinkDisclosure(t *testing.T) {
 			metadata := repositoryPathMetadataFromResult(t, result)
 			assert.Equal(t, "symlink", metadata.Type)
 			assert.Equal(t, "docs/link", metadata.Path)
+			assert.Equal(t, linkSHA, metadata.SHA)
 			assert.Equal(t, target, metadata.Target)
 			assert.Equal(t, "target/"+tc.name, metadata.ResolvedTargetPath)
 			assert.Equal(t, "dereferenced_target", metadata.Content)
@@ -650,6 +651,7 @@ func Test_GetFileContents_SymlinkDisclosure(t *testing.T) {
 		require.False(t, result.IsError)
 		assert.Equal(t, 1, requests)
 		metadata := repositoryPathMetadataFromResult(t, result)
+		assert.Equal(t, gitBlobSHA([]byte(target)), metadata.SHA)
 		assert.Equal(t, target, metadata.Target)
 		assert.Empty(t, metadata.ResolvedTargetPath)
 		assert.Equal(t, "not_returned", metadata.Content)
@@ -2058,6 +2060,9 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 
 	assert.Equal(t, "create_or_update_file", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.NotContains(t, tool.Description, "git rev-parse")
+	assert.Contains(t, tool.Description, "get_file_contents")
+	assert.Contains(t, tool.Description, "set its ref parameter to this tool's branch value")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
 	assert.Contains(t, schema.Properties, "path")
@@ -2066,6 +2071,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 	assert.Contains(t, schema.Properties, "branch")
 	assert.Contains(t, schema.Properties, "sha")
 	assert.Contains(t, schema.Properties, "allow_symlink_write")
+	assert.Contains(t, schema.Properties["sha"].Description, "with ref set to this tool's branch value")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "path", "content", "message", "branch"})
 
 	// Setup mock file content response
@@ -2136,6 +2142,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		expectedContent      *github.RepositoryContentResponse
 		expectedErrMsg       string
 		expectedErrMsgs      []string
+		unexpectedErrMsgs    []string
 		expectedRequestCount int
 	}{
 		{
@@ -2450,14 +2457,20 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		{
 			name: "sha validation - stale sha detected",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /repos/owner/repo/contents/docs/example.md": mockResponse(t, http.StatusOK, &github.RepositoryContent{
-					SHA:  github.Ptr("newsha999888"),
-					Type: github.Ptr("file"),
-				}),
-				"GET /repos/{owner}/{repo}/contents/{path:.*}": mockResponse(t, http.StatusOK, &github.RepositoryContent{
-					SHA:  github.Ptr("newsha999888"),
-					Type: github.Ptr("file"),
-				}),
+				"GET /repos/owner/repo/contents/docs/example.md": expectQueryParams(t, map[string]string{
+					"ref": "main",
+				}).andThen(mockResponse(t, http.StatusOK, &github.RepositoryContent{
+					SHA:    github.Ptr(symlinkSHA),
+					Type:   github.Ptr("symlink"),
+					Target: github.Ptr(string(symlinkTarget)),
+				})),
+				"GET /repos/{owner}/{repo}/contents/{path:.*}": expectQueryParams(t, map[string]string{
+					"ref": "main",
+				}).andThen(mockResponse(t, http.StatusOK, &github.RepositoryContent{
+					SHA:    github.Ptr(symlinkSHA),
+					Type:   github.Ptr("symlink"),
+					Target: github.Ptr(string(symlinkTarget)),
+				})),
 			}),
 			requestArgs: map[string]any{
 				"owner":   "owner",
@@ -2468,8 +2481,36 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"branch":  "main",
 				"sha":     "oldsha123456",
 			},
+			expectError: true,
+			expectedErrMsgs: []string{
+				"SHA mismatch: provided SHA oldsha123456 is stale. Current file SHA is " + symlinkSHA,
+				`Call get_file_contents with owner="owner", repo="repo", path="docs/example.md", and ref="main"`,
+				"its first text result reports the blob SHA for the requested path",
+				"retry with the sha parameter set to the SHA that call reports",
+			},
+			expectedRequestCount: 1,
+		},
+		{
+			name: "sha validation - api error is surfaced",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/owner/repo/contents/docs/example.md": mockResponse(t, http.StatusForbidden, map[string]any{
+					"message": "Resource not accessible",
+				}),
+				"GET /repos/{owner}/{repo}/contents/{path:.*}": mockResponse(t, http.StatusForbidden, map[string]any{
+					"message": "Resource not accessible",
+				}),
+			}),
+			requestArgs: map[string]any{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"content": "updated",
+				"message": "Update example file",
+				"branch":  "main",
+				"sha":     "oldsha123456",
+			},
 			expectError:          true,
-			expectedErrMsg:       "SHA mismatch: provided SHA oldsha123456 is stale. Current file SHA is newsha999888",
+			expectedErrMsg:       "failed to verify file SHA",
 			expectedRequestCount: 1,
 		},
 		{
@@ -2514,14 +2555,18 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		{
 			name: "no sha provided - file exists, rejects update",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /repos/owner/repo/contents/docs/example.md": mockResponse(t, http.StatusOK, &github.RepositoryContent{
+				"GET /repos/owner/repo/contents/docs/example.md": expectQueryParams(t, map[string]string{
+					"ref": "release/#candidate",
+				}).andThen(mockResponse(t, http.StatusOK, &github.RepositoryContent{
 					SHA:  github.Ptr("existing123"),
 					Type: github.Ptr("file"),
-				}),
-				"GET /repos/{owner}/{repo}/contents/{path:.*}": mockResponse(t, http.StatusOK, &github.RepositoryContent{
+				})),
+				"GET /repos/{owner}/{repo}/contents/{path:.*}": expectQueryParams(t, map[string]string{
+					"ref": "release/#candidate",
+				}).andThen(mockResponse(t, http.StatusOK, &github.RepositoryContent{
 					SHA:  github.Ptr("existing123"),
 					Type: github.Ptr("file"),
-				}),
+				})),
 			}),
 			requestArgs: map[string]any{
 				"owner":   "owner",
@@ -2529,10 +2574,40 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"path":    "docs/example.md",
 				"content": "# Updated\n\nUpdated without SHA.",
 				"message": "Update without SHA",
+				"branch":  "release/#candidate",
+			},
+			expectError: true,
+			expectedErrMsgs: []string{
+				"File already exists at docs/example.md",
+				`Call get_file_contents with owner="owner", repo="repo", path="docs/example.md", and ref="release/#candidate"`,
+				"its first text result reports the blob SHA for the requested path",
+				"retry with the sha parameter set to the blob SHA that call reports",
+			},
+			// A caller that never supplied a SHA has not read this file, so the
+			// error must not hand it one to overwrite with.
+			unexpectedErrMsgs:    []string{"existing123"},
+			expectedRequestCount: 1,
+		},
+		{
+			name: "no sha provided - api error is surfaced",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/owner/repo/contents/docs/example.md": mockResponse(t, http.StatusInternalServerError, map[string]any{
+					"message": "Internal Server Error",
+				}),
+				"GET /repos/{owner}/{repo}/contents/{path:.*}": mockResponse(t, http.StatusInternalServerError, map[string]any{
+					"message": "Internal Server Error",
+				}),
+			}),
+			requestArgs: map[string]any{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"content": "updated",
+				"message": "Update example file",
 				"branch":  "main",
 			},
 			expectError:          true,
-			expectedErrMsg:       "File already exists at docs/example.md",
+			expectedErrMsg:       "failed to check if file exists",
 			expectedRequestCount: 1,
 		},
 		{
@@ -2607,6 +2682,12 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				for _, expectedErrMsg := range tc.expectedErrMsgs {
 					assert.Contains(t, errorText.String(), expectedErrMsg)
 				}
+				for _, unexpectedErrMsg := range tc.unexpectedErrMsgs {
+					assert.NotContains(t, errorText.String(), unexpectedErrMsg)
+				}
+				// The caller of this tool works over the API and has no working
+				// tree, so errors must never ask it to run a local git command.
+				assert.NotContains(t, errorText.String(), "git rev-parse")
 				return
 			}
 
@@ -3599,8 +3680,9 @@ func Test_DeleteRepository(t *testing.T) {
 	assert.True(t, *tool.Annotations.DestructiveHint)
 	assert.Equal(t, inventory.ProtocolVersionMultiRoundTrip, serverTool.MinimumProtocolVersion)
 	assert.Equal(t, inventory.ElicitationModeForm, serverTool.RequiredElicitationMode)
-	assert.ElementsMatch(t, []string{string(scopes.DeleteRepo), string(scopes.Repo)}, serverTool.RequiredScopes)
-	assert.Len(t, serverTool.RequiredScopeGroups, 2)
+	assert.Equal(t, []string{"delete_repo", "repo"}, serverTool.ScopeAccess.Scopes)
+	assert.NotNil(t, serverTool.ScopeAccess.Visible)
+	assert.NotNil(t, serverTool.ScopeAccess.Challenge)
 
 	t.Run("requests exact repository name through elicitation", func(t *testing.T) {
 		client := NewMockedHTTPClient(

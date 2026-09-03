@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/viper"
@@ -56,38 +57,15 @@ func TestAuthorizationServerConfigurationIsHTTPOnly(t *testing.T) {
 	assert.Equal(t, "https://oauth-proxy.example.com", viper.GetString("authorization-server"))
 }
 
-func TestWriteToolDocScopeSemantics(t *testing.T) {
-	tests := []struct {
-		name string
-		tool inventory.ServerTool
-		want string
-	}{
-		{
-			name: "legacy multi-scope tools use any-of",
-			tool: inventory.ServerTool{
-				Tool:           mcp.Tool{Name: "legacy", Annotations: &mcp.ToolAnnotations{Title: "Legacy"}},
-				RequiredScopes: []string{"repo", "read:org"},
-			},
-			want: "**Required OAuth Scopes (any of)**",
-		},
-		{
-			name: "conjunctive scope groups use all-required",
-			tool: inventory.ServerTool{
-				Tool:                mcp.Tool{Name: "conjunctive", Annotations: &mcp.ToolAnnotations{Title: "Conjunctive"}},
-				RequiredScopes:      []string{"delete_repo", "repo"},
-				RequiredScopeGroups: [][]string{{"delete_repo"}, {"repo"}},
-			},
-			want: "**Required OAuth Scopes (all required)**",
-		},
+func TestWriteToolDocScopes(t *testing.T) {
+	tool := inventory.ServerTool{
+		Tool:        mcp.Tool{Name: "delete", Annotations: &mcp.ToolAnnotations{Title: "Delete"}},
+		ScopeAccess: scopes.RequireAll(scopes.DeleteRepo, scopes.Repo),
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var buf strings.Builder
-			writeToolDoc(&buf, tt.tool)
-			assert.Contains(t, buf.String(), tt.want)
-		})
-	}
+	var buf strings.Builder
+	writeToolDoc(&buf, tool)
+	assert.Contains(t, buf.String(), "**OAuth Challenge Scopes**: `delete_repo`, `repo`")
 }
 
 func TestSchemaTypeString(t *testing.T) {

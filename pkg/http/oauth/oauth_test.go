@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
@@ -362,6 +363,43 @@ func TestBuildResourceMetadataURL(t *testing.T) {
 			resourcePath: "",
 			expectedURL:  "http://api.example.com/.well-known/oauth-protected-resource",
 		},
+		{
+			name: "query string is preserved on base URL config",
+			cfg: &Config{
+				BaseURL: "https://custom.example.com",
+			},
+			setupRequest: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet, "/mcp/x/issues?features=issue_dependencies", nil)
+			},
+			resourcePath: "/mcp/x/issues",
+			expectedURL:  "https://custom.example.com/.well-known/oauth-protected-resource/mcp/x/issues?features=issue_dependencies",
+		},
+		{
+			name: "query string is preserved without base URL config",
+			cfg:  &Config{},
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/mcp?features=a,b", nil)
+				req.Host = "api.example.com"
+				return req
+			},
+			resourcePath: "/mcp",
+			expectedURL:  "http://api.example.com/.well-known/oauth-protected-resource/mcp?features=a,b",
+		},
+		{
+			name: "raw query encoding and ordering are preserved",
+			cfg: &Config{
+				BaseURL: "https://custom.example.com",
+			},
+			setupRequest: func() *http.Request {
+				return httptest.NewRequest(
+					http.MethodGet,
+					"/mcp?features=issue_dependencies%2Cfile_blame&client=web%20ide",
+					nil,
+				)
+			},
+			resourcePath: "/mcp",
+			expectedURL:  "https://custom.example.com/.well-known/oauth-protected-resource/mcp?features=issue_dependencies%2Cfile_blame&client=web%20ide",
+		},
 	}
 
 	for _, tc := range tests {
@@ -463,6 +501,20 @@ func TestHandleProtectedResource(t *testing.T) {
 			},
 		},
 		{
+			name: "path with feature query",
+			cfg: &Config{
+				BaseURL: "https://api.example.com",
+			},
+			path:               OAuthProtectedResourcePrefix + "/mcp/x/repos?features=issue_dependencies",
+			host:               "api.example.com",
+			method:             http.MethodGet,
+			expectedStatusCode: http.StatusOK,
+			validateResponse: func(t *testing.T, body map[string]any) {
+				t.Helper()
+				assert.Equal(t, "https://api.example.com/mcp/x/repos?features=issue_dependencies", body["resource"])
+			},
+		},
+		{
 			name: "custom authorization server in response",
 			cfg: &Config{
 				BaseURL:             "https://api.example.com",
@@ -542,37 +594,55 @@ func TestRegisterRoutes(t *testing.T) {
 	router := chi.NewRouter()
 	handler.RegisterRoutes(router)
 
-	// List of expected routes that should be registered
-	expectedRoutes := []string{
-		OAuthProtectedResourcePrefix,
-		OAuthProtectedResourcePrefix + "/",
-		OAuthProtectedResourcePrefix + "/mcp",
-		OAuthProtectedResourcePrefix + "/mcp/",
-		OAuthProtectedResourcePrefix + "/readonly",
-		OAuthProtectedResourcePrefix + "/readonly/",
-		OAuthProtectedResourcePrefix + "/mcp/readonly",
-		OAuthProtectedResourcePrefix + "/mcp/readonly/",
-		OAuthProtectedResourcePrefix + "/x/repos",
-		OAuthProtectedResourcePrefix + "/mcp/x/repos",
+	resourcePaths := []string{
+		"",
+		"/readonly",
+		"/insiders",
+		"/readonly/insiders",
+		"/x/repos",
+		"/x/repos/readonly",
+		"/x/repos/insiders",
+		"/x/repos/readonly/insiders",
 	}
 
-	for _, route := range expectedRoutes {
-		t.Run("route:"+route, func(t *testing.T) {
-			// Test GET
-			req := httptest.NewRequest(http.MethodGet, route, nil)
-			req.Host = "api.example.com"
-			rec := httptest.NewRecorder()
-			router.ServeHTTP(rec, req)
-			assert.Equal(t, http.StatusOK, rec.Code, "GET %s should return 200", route)
+	for _, basePath := range []string{"", "/mcp"} {
+		for _, resourcePath := range resourcePaths {
+			for _, trailingSlash := range []string{"", "/"} {
+				route := OAuthProtectedResourcePrefix + basePath + resourcePath + trailingSlash
+				t.Run("route:"+route, func(t *testing.T) {
+					queryRoute := route + "?features=issue_dependencies"
+					req := httptest.NewRequest(http.MethodGet, queryRoute, nil)
+					req.Host = "api.example.com"
+					rec := httptest.NewRecorder()
+					router.ServeHTTP(rec, req)
+					require.Equal(t, http.StatusOK, rec.Code, "GET %s should return 200", queryRoute)
 
-			// Test OPTIONS (CORS preflight)
-			req = httptest.NewRequest(http.MethodOptions, route, nil)
-			req.Host = "api.example.com"
-			rec = httptest.NewRecorder()
-			router.ServeHTTP(rec, req)
-			assert.Equal(t, http.StatusNoContent, rec.Code, "OPTIONS %s should return 204", route)
-		})
+					var metadata map[string]any
+					require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &metadata))
+					resourcePath := resolveResourcePath(
+						strings.TrimPrefix(route, OAuthProtectedResourcePrefix),
+						"",
+					)
+					assert.Equal(
+						t,
+						"https://api.example.com"+resourcePath+"?features=issue_dependencies",
+						metadata["resource"],
+					)
+
+					req = httptest.NewRequest(http.MethodOptions, route, nil)
+					req.Host = "api.example.com"
+					rec = httptest.NewRecorder()
+					router.ServeHTTP(rec, req)
+					assert.Equal(t, http.StatusNoContent, rec.Code, "OPTIONS %s should return 204", route)
+				})
+			}
+		}
 	}
+
+	req := httptest.NewRequest(http.MethodGet, OAuthProtectedResourcePrefix+"/mcp/unknown", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
 func TestSupportedScopes(t *testing.T) {

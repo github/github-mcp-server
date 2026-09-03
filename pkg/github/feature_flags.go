@@ -34,8 +34,12 @@ const FeatureFlagIssueDependencies = "issue_dependencies"
 // opt-in.
 const FeatureFlagDuplicateDetection = "duplicate_detection"
 
+// FeatureFlagThreadResolutionReason exposes resolution reasons for Copilot review threads.
+const FeatureFlagThreadResolutionReason = "thread_resolution_reason"
+
 // AllowedFeatureFlags is the allowlist of feature flags that can be enabled
-// by users via --features CLI flag or X-MCP-Features HTTP header.
+// by users via --features CLI flag, X-MCP-Features HTTP header, or the
+// features URL query parameter.
 // Only flags in this list are accepted; unknown flags are silently ignored.
 // This is the single source of truth for which flags are user-controllable.
 var AllowedFeatureFlags = []string{
@@ -48,6 +52,7 @@ var AllowedFeatureFlags = []string{
 	FeatureFlagFileBlame,
 	FeatureFlagIssueDependencies,
 	FeatureFlagDuplicateDetection,
+	FeatureFlagThreadResolutionReason,
 }
 
 // InsidersFeatureFlags is the list of feature flags that insiders mode enables.
@@ -67,7 +72,8 @@ type FeatureFlags struct {
 }
 
 // ResolveFeatureFlags computes the effective set of enabled feature flags by:
-//  1. Taking the user-supplied flags (from --features or X-MCP-Features) and
+//  1. Taking the user-supplied flags (from --features or HTTP request
+//     configuration) and
 //     keeping only those present in AllowedFeatureFlags. Unknown or unsafe
 //     flags from request input are silently dropped here.
 //  2. If insiders mode is on, unioning in every flag from InsidersFeatureFlags.

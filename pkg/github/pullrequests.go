@@ -36,7 +36,7 @@ Possible options:
  3. get_status - Get combined commit status of a head commit in a pull request.
  4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
  5. get_commits - Get the list of commits on a pull request. Use with pagination parameters to control the number of results returned.
- 6. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
+ 6. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns thread metadata and comments with nullable current and original line-range coordinates (line, start_line, original_line, original_start_line). Current coordinates are omitted when unavailable, such as for outdated comments. Use cursor-based pagination (perPage, after) to control results.
  7. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
  8. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
  9. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
@@ -78,7 +78,7 @@ Possible options:
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -461,11 +461,14 @@ type reviewThreadNode struct {
 }
 
 type reviewCommentNode struct {
-	ID     githubv4.ID
-	Body   githubv4.String
-	Path   githubv4.String
-	Line   *githubv4.Int
-	Author struct {
+	ID                githubv4.ID
+	Body              githubv4.String
+	Path              githubv4.String
+	Line              *githubv4.Int
+	OriginalLine      *githubv4.Int
+	StartLine         *githubv4.Int
+	OriginalStartLine *githubv4.Int
+	Author            struct {
 		Login githubv4.String
 	}
 	CreatedAt githubv4.DateTime
@@ -706,7 +709,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"owner", "repo", "title", "head", "base"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		publicRepositoryWriteScopeAccess(),
 		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -923,7 +926,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1216,7 +1219,7 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1377,7 +1380,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1513,6 +1516,10 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 				Description: "Merge method",
 				Enum:        []any{"merge", "squash", "rebase"},
 			},
+			"expectedHeadSha": {
+				Type:        "string",
+				Description: "The expected SHA of the pull request's HEAD ref",
+			},
 		},
 		Required: []string{"owner", "repo", "pullNumber"},
 	}
@@ -1529,7 +1536,7 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1555,9 +1562,14 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			expectedHeadSHA, err := OptionalParam[string](args, "expectedHeadSha")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
 			options := &github.PullRequestOptions{
 				CommitTitle: commitTitle,
+				SHA:         expectedHeadSHA,
 				MergeMethod: mergeMethod,
 			}
 
@@ -1651,7 +1663,7 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			options := []searchOption{ifcSearchPostProcessOption(ctx, deps)}
 			fields, err := OptionalStringArrayParam(args, "fields")
@@ -1700,7 +1712,7 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1760,17 +1772,34 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 }
 
 type PullRequestReviewWriteParams struct {
-	Method     string
-	Owner      string
-	Repo       string
-	PullNumber int32
-	Body       string
-	Event      string
-	CommitID   *string
-	ThreadID   string
+	Method           string
+	Owner            string
+	Repo             string
+	PullNumber       int32
+	Body             string
+	Event            string
+	CommitID         *string
+	ThreadID         string
+	ResolutionReason *string
 }
 
 func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return pullRequestReviewWrite(t, false, toolConfig{})
+}
+
+// PullRequestReviewWriteWithResolutionReason creates the feature-gated review write variant with resolution reasons.
+func PullRequestReviewWriteWithResolutionReason(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
+	cfg := newToolConfig(opts)
+	st := pullRequestReviewWrite(t, true, cfg)
+	if cfg.hostType == utils.HostTypeGHES {
+		st.Enabled = func(context.Context) (bool, error) { return false, nil }
+	}
+	return st
+}
+
+func pullRequestReviewWrite(t translations.TranslationHelperFunc, withResolutionReason bool, cfg toolConfig) inventory.ServerTool {
+	withResolutionReason = withResolutionReason && cfg.hostType != utils.HostTypeGHES
+
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1814,6 +1843,12 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.Serv
 		},
 		Required: []string{"method", "owner", "repo", "pullNumber"},
 	}
+	if withResolutionReason {
+		schema.Properties["resolutionReason"] = &jsonschema.Schema{
+			Type:        "string",
+			Description: "Optional reason for resolving a Copilot code review thread: addressed, wont-fix, or invalid.",
+		}
+	}
 
 	st := NewTool(
 		ToolsetMetadataPullRequests,
@@ -1834,7 +1869,7 @@ Available methods:
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params PullRequestReviewWriteParams
 			if err := mapstructure.WeakDecode(args, &params); err != nil {
@@ -1858,7 +1893,11 @@ Available methods:
 				result, err := DeletePendingPullRequestReview(ctx, client, params)
 				return result, nil, err
 			case "resolve_thread":
-				result, err := ResolveReviewThread(ctx, client, params.ThreadID, true)
+				if !withResolutionReason {
+					result, err := ResolveReviewThread(ctx, client, params.ThreadID, true)
+					return result, nil, err
+				}
+				result, err := ResolveReviewThreadWithReason(ctx, client, params.ThreadID, params.ResolutionReason, true)
 				return result, nil, err
 			case "unresolve_thread":
 				result, err := ResolveReviewThread(ctx, client, params.ThreadID, false)
@@ -1867,7 +1906,15 @@ Available methods:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
 			}
 		})
-	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
+	if withResolutionReason {
+		st.FeatureFlagEnable = FeatureFlagThreadResolutionReason
+		st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
+	} else {
+		st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
+		if cfg.hostType != utils.HostTypeGHES {
+			st.FeatureFlagDisable = append(st.FeatureFlagDisable, FeatureFlagThreadResolutionReason)
+		}
+	}
 	return st
 }
 
@@ -2094,8 +2141,19 @@ func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client
 	return utils.NewToolResultText("pending pull request review successfully deleted"), nil
 }
 
+// ResolveReviewThreadInput is the GraphQL input for resolving a review thread.
+type ResolveReviewThreadInput struct {
+	ThreadID         githubv4.ID      `json:"threadId"`
+	ResolutionReason *githubv4.String `json:"resolutionReason,omitempty"`
+}
+
 // ResolveReviewThread resolves or unresolves a PR review thread using GraphQL mutations.
 func ResolveReviewThread(ctx context.Context, client *githubv4.Client, threadID string, resolve bool) (*mcp.CallToolResult, error) {
+	return ResolveReviewThreadWithReason(ctx, client, threadID, nil, resolve)
+}
+
+// ResolveReviewThreadWithReason resolves or unresolves a PR review thread with an optional resolution reason.
+func ResolveReviewThreadWithReason(ctx context.Context, client *githubv4.Client, threadID string, resolutionReason *string, resolve bool) (*mcp.CallToolResult, error) {
 	if threadID == "" {
 		return utils.NewToolResultError("threadId is required for resolve_thread and unresolve_thread methods"), nil
 	}
@@ -2110,8 +2168,9 @@ func ResolveReviewThread(ctx context.Context, client *githubv4.Client, threadID 
 			} `graphql:"resolveReviewThread(input: $input)"`
 		}
 
-		input := githubv4.ResolveReviewThreadInput{
-			ThreadID: githubv4.ID(threadID),
+		input := ResolveReviewThreadInput{
+			ThreadID:         githubv4.ID(threadID),
+			ResolutionReason: newGQLStringlikePtr[githubv4.String](resolutionReason),
 		}
 
 		if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
@@ -2327,7 +2386,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

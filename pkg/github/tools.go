@@ -159,9 +159,9 @@ var (
 	FeatureFlagPullRequestsGranular = "pull_requests_granular"
 )
 
-// HeaderAllowedFeatureFlags returns the feature flags that clients may enable via
-// the X-MCP-Features header. It delegates to AllowedFeatureFlags as the single
-// source of truth.
+// HeaderAllowedFeatureFlags returns the feature flags that clients may enable
+// through the X-MCP-Features header or features URL query parameter. It
+// delegates to AllowedFeatureFlags as the single source of truth.
 func HeaderAllowedFeatureFlags() []string {
 	return slices.Clone(AllowedFeatureFlags)
 }
@@ -210,6 +210,7 @@ func newToolConfig(opts []ToolOption) toolConfig {
 // AllTools returns all tools with their embedded toolset metadata.
 // Tool functions return ServerTool directly with toolset info.
 func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []inventory.ServerTool {
+	cfg := newToolConfig(opts)
 	return withCSVOutput([]inventory.ServerTool{
 		// Context tools
 		GetMe(t),
@@ -272,7 +273,8 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		UpdatePullRequestBranch(t),
 		CreatePullRequest(t),
 		UpdatePullRequest(t),
-		PullRequestReviewWrite(t),
+		pullRequestReviewWrite(t, false, cfg),
+		PullRequestReviewWriteWithResolutionReason(t, opts...),
 		AddCommentToPendingReview(t),
 		AddReplyToPullRequestComment(t),
 
@@ -371,7 +373,8 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GranularSubmitPendingPullRequestReview(t),
 		GranularDeletePendingPullRequestReview(t),
 		GranularAddPullRequestReviewComment(t),
-		GranularResolveReviewThread(t),
+		granularResolveReviewThread(t, false, cfg),
+		GranularResolveReviewThreadWithResolutionReason(t, opts...),
 		GranularUnresolveReviewThread(t),
 		GranularAddPullRequestReviewCommentReaction(t),
 	})

@@ -19,6 +19,33 @@ import (
 // should define their own typed dependencies struct and type-assert as needed.
 type HandlerFunc func(deps any) mcp.ToolHandler
 
+// ScopeVisibility reports whether a token can use any form of a tool.
+type ScopeVisibility func(activeScopes []string) bool
+
+// ScopeChallenge returns the exact scopes to include in an OAuth challenge.
+// An empty result means the call can continue.
+type ScopeChallenge func(arguments map[string]any, activeScopes []string) []string
+
+// ScopeAccess contains scope metadata and the two checks used by the server.
+type ScopeAccess struct {
+	// Scopes is the exhaustive upper bound of every scope this tool may request.
+	// It is used for documentation, the list-scopes command, and bypassing
+	// call-specific challenge evaluation when a token already grants them all.
+	Scopes []string
+
+	// Visible is used when filtering tools for a fixed-scope token.
+	// Nil means the tool remains visible.
+	Visible ScopeVisibility
+
+	// Challenge evaluates one call before its handler runs.
+	// Nil means the call does not use OAuth scope challenges.
+	Challenge ScopeChallenge
+
+	// Dynamic reports whether Challenge depends on tool arguments. Dynamic
+	// policies must declare their exhaustive upper bound in Scopes.
+	Dynamic bool
+}
+
 // ToolHandlerMiddleware wraps an MCP tool handler. Middleware is applied from
 // right to left, so the first middleware passed to RegisterFunc executes first.
 type ToolHandlerMiddleware func(next mcp.ToolHandler) mcp.ToolHandler
@@ -71,13 +98,17 @@ type ServerTool struct {
 	// to be available. If set and the flag is not enabled, the tool is omitted.
 	FeatureFlagEnable string
 
+	// FeatureFlagEnableAll specifies additional feature flags that must all be enabled
+	// for this tool to be available.
+	FeatureFlagEnableAll []string
+
 	// FeatureFlagDisable specifies feature flags that, when any is enabled, cause this
 	// tool to be omitted. Used to disable tools when a feature flag is on.
 	FeatureFlagDisable []string
 
 	// Enabled is an optional function called at build/filter time to determine
 	// if this tool should be available. If nil, the tool is considered enabled
-	// (subject to FeatureFlagEnable/FeatureFlagDisable checks).
+	// (subject to feature flag checks).
 	// The context carries request-scoped information for the consumer to use.
 	// Returns (enabled, error). On error, the tool should be treated as disabled.
 	Enabled func(ctx context.Context) (bool, error)
@@ -90,18 +121,8 @@ type ServerTool struct {
 	// list or call this tool. Empty means the tool does not require elicitation.
 	RequiredElicitationMode ElicitationMode
 
-	// RequiredScopes specifies the minimum OAuth scopes required for this tool.
-	// These are the scopes that must be present for the tool to function.
-	RequiredScopes []string
-
-	// AcceptedScopes specifies all OAuth scopes that can be used with this tool.
-	// This includes the required scopes plus any higher-level scopes that provide
-	// the necessary permissions due to scope hierarchy.
-	AcceptedScopes []string
-
-	// RequiredScopeGroups contains one group of accepted alternatives for each
-	// independently required OAuth scope. Every group must be satisfied.
-	RequiredScopeGroups [][]string
+	// ScopeAccess controls fixed-token visibility and per-call OAuth challenges.
+	ScopeAccess ScopeAccess
 }
 
 // IsReadOnly returns true if this tool is marked as read-only via annotations.
@@ -139,21 +160,20 @@ func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any, middleware ...ToolHa
 	if len(toolCopy.Icons) == 0 {
 		toolCopy.Icons = st.Toolset.Icons()
 	}
-	// Project routing-relevant params to standard MCP-Param-* headers (SEP-2243)
-	// so a remote proxy can read owner/repo from headers instead of re-parsing the
-	// JSON-RPC body. No-op for tools without these params.
+	// Project owner/repo routing params to standard MCP-Param-* headers (SEP-2243)
+	// so a remote proxy can route requests without re-parsing the JSON-RPC body.
+	// No-op for tools without these params.
 	AnnotateHeaderParams(&toolCopy)
 	s.AddTool(&toolCopy, handler)
 }
 
-// HeaderParams maps tool input properties to the MCP-Param-* header name a
-// header-aware proxy reads, avoiding a second parse of the request body. New
-// routing-relevant params should be added here so projection stays automatic
-// for every tool; the enforcement test in pkg/github guards full coverage.
+// HeaderParams maps owner/repo input properties to the MCP-Param-* headers a
+// header-aware proxy reads for repository routing. The enforcement test in
+// pkg/github guards full coverage.
 var HeaderParams = map[string]string{"owner": "owner", "repo": "repo"}
 
-// AnnotateHeaderParams returns a copy of tool whose routing-relevant input
-// properties (per HeaderParams) carry an "x-mcp-header" annotation, which the
+// AnnotateHeaderParams returns a copy of tool whose owner/repo input properties
+// carry an "x-mcp-header" annotation, which the
 // SDK projects onto Mcp-Param-{name} request headers. It never mutates the
 // input tool's schema or any map shared with the original tool definition:
 // callers shallow-copy ServerTool.Tool, so the *jsonschema.Schema (and its

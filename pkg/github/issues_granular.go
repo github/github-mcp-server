@@ -67,7 +67,7 @@ func issueUpdateTool(
 				Required:   required,
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -144,11 +144,24 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 						Type:        "string",
 						Description: "Issue body content (optional)",
 					},
+					"parent_issue_number": {
+						Type:        "number",
+						Description: "Issue number of the parent issue. The new issue is created and attached to this parent in the same operation.",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"parent_owner": {
+						Type:        "string",
+						Description: "Repository owner of the parent issue. Must be provided with parent_repo. Omit both to use owner and repo. Only used when parent_issue_number is provided.",
+					},
+					"parent_repo": {
+						Type:        "string",
+						Description: "Repository name of the parent issue. Must be provided with parent_owner. Omit both to use owner and repo. Only used when parent_issue_number is provided.",
+					},
 				},
 				Required: []string{"owner", "repo", "title"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -163,6 +176,26 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			body, _ := OptionalParam[string](args, "body")
+			parentIssueNumber, err := OptionalIntParam(args, "parent_issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			parentValue, parentProvided := args["parent_issue_number"]
+			parentProvided = parentProvided && parentValue != nil
+			if parentProvided && parentIssueNumber < 1 {
+				return utils.NewToolResultError("parent_issue_number must be greater than 0"), nil, nil
+			}
+			parentOwner, err := OptionalParam[string](args, "parent_owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			parentRepo, err := OptionalParam[string](args, "parent_repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if err := validateParentRepository(parentProvided, parentOwner, parentRepo); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
 			issueReq := github.CreateIssueRequest{
 				Title: title,
@@ -174,6 +207,15 @@ func GranularCreateIssue(t translations.TranslationHelperFunc) inventory.ServerT
 			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			if parentProvided {
+				gqlClient, err := deps.GetGQLClient(ctx)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
+				}
+				result, err := CreateIssueWithParent(ctx, client, gqlClient, owner, repo, title, body, nil, nil, 0, "", parentIssueNumber, parentOwner, parentRepo)
+				return result, nil, err
 			}
 
 			issue, resp, err := client.Issues.Create(ctx, owner, repo, issueReq)
@@ -304,7 +346,7 @@ func GranularUpdateIssueAssignees(t translations.TranslationHelperFunc) inventor
 				Required: []string{"owner", "repo", "issue_number", "assignees"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -522,7 +564,7 @@ func GranularUpdateIssueLabels(t translations.TranslationHelperFunc) inventory.S
 				Required: []string{"owner", "repo", "issue_number", "labels"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -735,7 +777,7 @@ func GranularUpdateIssueType(t translations.TranslationHelperFunc) inventory.Ser
 				Required: []string{"owner", "repo", "issue_number", "issue_type"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -909,7 +951,7 @@ func GranularUpdateIssueState(t translations.TranslationHelperFunc) inventory.Se
 				Required: []string{"owner", "repo", "issue_number", "state"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1067,7 +1109,7 @@ func GranularAddSubIssue(t translations.TranslationHelperFunc) inventory.ServerT
 				Required: []string{"owner", "repo", "issue_number", "sub_issue_id"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1137,7 +1179,7 @@ func GranularRemoveSubIssue(t translations.TranslationHelperFunc) inventory.Serv
 				Required: []string{"owner", "repo", "issue_number", "sub_issue_id"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1214,7 +1256,7 @@ func GranularReprioritizeSubIssue(t translations.TranslationHelperFunc) inventor
 				Required: []string{"owner", "repo", "issue_number", "sub_issue_id"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1379,7 +1421,7 @@ func GranularSetIssueFields(t translations.TranslationHelperFunc) inventory.Serv
 				Required: []string{"owner", "repo", "issue_number", "fields"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1580,7 +1622,7 @@ func GranularAddIssueReaction(t translations.TranslationHelperFunc) inventory.Se
 				Required: []string{"owner", "repo", "issue_number", "content"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1662,7 +1704,7 @@ func GranularAddIssueCommentReaction(t translations.TranslationHelperFunc) inven
 				Required: []string{"owner", "repo", "comment_id", "content"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

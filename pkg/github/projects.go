@@ -341,7 +341,7 @@ Use this tool to list projects for a user or organization, or list project field
 							Type: "string",
 						},
 					},
-					"per_page": {
+					"perPage": {
 						Type:        "number",
 						Description: fmt.Sprintf("Results per page (max %d)", MaxProjectsPerPage),
 					},
@@ -357,7 +357,7 @@ Use this tool to list projects for a user or organization, or list project field
 				Required: []string{"method", "owner"},
 			},
 		},
-		[]scopes.Scope{scopes.ReadProject},
+		scopes.RequireAll(scopes.ReadProject),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -521,7 +521,7 @@ Use this tool to get details about individual projects, project fields, project 
 				Required: []string{"method"},
 			},
 		},
-		[]scopes.Scope{scopes.ReadProject},
+		scopes.RequireAll(scopes.ReadProject),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -891,7 +891,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"method", "owner"},
 			},
 		},
-		[]scopes.Scope{scopes.Project},
+		scopes.RequireAll(scopes.Project),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -1783,7 +1783,7 @@ func listProjectStatusUpdates(ctx context.Context, gqlClient *githubv4.Client, a
 		return utils.NewToolResultError(err.Error()), false, nil, nil
 	}
 
-	perPage, err := OptionalIntParamWithDefault(args, "per_page", MaxProjectsPerPage)
+	perPage, err := optionalProjectsPerPage(args)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), false, nil, nil
 	}
@@ -1940,7 +1940,7 @@ func listProjectViews(ctx context.Context, gqlClient *githubv4.Client, args map[
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), false, nil, nil
 	}
-	perPage, err := OptionalIntParamWithDefault(args, "per_page", MaxProjectsPerPage)
+	perPage, err := optionalProjectsPerPage(args)
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), false, nil, nil
 	}
@@ -2512,8 +2512,23 @@ func invalidIssueFieldValue(field *ResolvedField, hint string) error {
 	)
 }
 
+// optionalProjectsPerPage reads the page size for the projects tools.
+//
+// The schema advertises perPage, the name every other paginated tool uses. The
+// projects tools advertised per_page from September 2025 until this change and
+// clients sending it get the size they asked for today, so it is still read when
+// perPage is absent.
+func optionalProjectsPerPage(args map[string]any) (int, error) {
+	if _, ok := args["perPage"]; !ok {
+		if _, legacy := args["per_page"]; legacy {
+			return OptionalIntParamWithDefault(args, "per_page", MaxProjectsPerPage)
+		}
+	}
+	return OptionalIntParamWithDefault(args, "perPage", MaxProjectsPerPage)
+}
+
 func extractPaginationOptionsFromArgs(args map[string]any) (github.ListProjectsPaginationOptions, error) {
-	perPage, err := OptionalIntParamWithDefault(args, "per_page", MaxProjectsPerPage)
+	perPage, err := optionalProjectsPerPage(args)
 	if err != nil {
 		return github.ListProjectsPaginationOptions{}, err
 	}

@@ -27,6 +27,10 @@
         "description": "Title for merge commit",
         "type": "string"
       },
+      "expectedHeadSha": {
+        "description": "The expected SHA of the pull request's HEAD ref",
+        "type": "string"
+      },
       "merge_method": {
         "description": "Merge method",
         "enum": [

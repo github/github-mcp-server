@@ -82,11 +82,14 @@ func NewAuthHandler(cfg *Config, apiHost utils.APIHostResolver) (*AuthHandler, e
 
 // routePatterns defines the route patterns for OAuth protected resource metadata.
 var routePatterns = []string{
-	"",          // Root: /.well-known/oauth-protected-resource
-	"/readonly", // Read-only mode
-	"/insiders", // Insiders mode
+	"", // Root: /.well-known/oauth-protected-resource
+	"/readonly",
+	"/insiders",
+	"/readonly/insiders",
 	"/x/{toolset}",
 	"/x/{toolset}/readonly",
+	"/x/{toolset}/insiders",
+	"/x/{toolset}/readonly/insiders",
 }
 
 // RegisterRoutes registers the OAuth protected resource metadata routes.
@@ -97,6 +100,7 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 			r.Handle(path, h.metadataHandler())
 		}
 	}
+	r.Handle(OAuthProtectedResourcePrefix+"/*", http.NotFoundHandler())
 }
 
 func (h *AuthHandler) metadataHandler() http.Handler {
@@ -195,7 +199,16 @@ func (h *AuthHandler) buildResourceURL(r *http.Request, resourcePath string) str
 	if !strings.HasPrefix(resourcePath, "/") {
 		resourcePath = "/" + resourcePath
 	}
-	return baseURL + resourcePath
+	return appendRawQuery(baseURL+resourcePath, r.URL.RawQuery)
+}
+
+// appendRawQuery avoids re-encoding the resource identifier that RFC 9728
+// clients compare as an exact string.
+func appendRawQuery(target, rawQuery string) string {
+	if rawQuery == "" {
+		return target
+	}
+	return target + "?" + rawQuery
 }
 
 // GetEffectiveHostAndScheme returns the effective host and scheme for a request.
@@ -244,10 +257,13 @@ func BuildResourceMetadataURL(r *http.Request, cfg *Config, resourcePath string)
 			suffix = resourcePath
 		}
 	}
+	metadataURL := ""
 	if cfg != nil && cfg.BaseURL != "" {
-		return strings.TrimSuffix(cfg.BaseURL, "/") + OAuthProtectedResourcePrefix + suffix
+		metadataURL = strings.TrimSuffix(cfg.BaseURL, "/") + OAuthProtectedResourcePrefix + suffix
+	} else {
+		metadataURL = fmt.Sprintf("%s://%s%s%s", scheme, host, OAuthProtectedResourcePrefix, suffix)
 	}
-	return fmt.Sprintf("%s://%s%s%s", scheme, host, OAuthProtectedResourcePrefix, suffix)
+	return appendRawQuery(metadataURL, r.URL.RawQuery)
 }
 
 func normalizeBasePath(path string) string {

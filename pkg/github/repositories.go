@@ -61,7 +61,7 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "sha"},
 			}),
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -188,7 +188,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -337,7 +337,7 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			}),
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -405,15 +405,14 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // CreateOrUpdateFile creates a tool to create or update a file in a GitHub repository.
 func CreateOrUpdateFile(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	tool := NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name: "create_or_update_file",
 			Description: t("TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION", `Create or update a single file in a GitHub repository. 
 If updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.
 
-In order to obtain the SHA of original file version before updating, use the following git command:
-git rev-parse <branch>:<path to file>
+To obtain the current blob SHA before updating, call the get_file_contents tool with the same owner, repo, and path, and set its ref parameter to this tool's branch value. The first text result reports the blob SHA for the requested path.
 
 SHA MUST be provided for existing file updates.
 `),
@@ -450,7 +449,7 @@ SHA MUST be provided for existing file updates.
 					},
 					"sha": {
 						Type:        "string",
-						Description: "The blob SHA of the file being replaced. Required if the file already exists.",
+						Description: "The blob SHA of the file being replaced. Required if the file already exists. Retrieve it with get_file_contents using the same owner, repo, and path, with ref set to this tool's branch value.",
 					},
 					"allow_symlink_write": {
 						Type:        "boolean",
@@ -461,7 +460,7 @@ SHA MUST be provided for existing file updates.
 				Required: []string{"owner", "repo", "path", "content", "message", "branch"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -474,6 +473,10 @@ SHA MUST be provided for existing file updates.
 			path, err := RequiredParam[string](args, "path")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			path, err = validateRelativePath(path)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("invalid path: %s", err)), nil, nil
 			}
 			content, err := RequiredParam[string](args, "content")
 			if err != nil {
@@ -518,8 +521,6 @@ SHA MUST be provided for existing file updates.
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			path = strings.TrimPrefix(path, "/")
-
 			// SHA validation using Contents API to fetch current file metadata (blob SHA)
 			getOpts := &github.RepositoryContentGetOptions{Ref: branch}
 
@@ -549,8 +550,10 @@ SHA MUST be provided for existing file updates.
 					if currentSHA != sha {
 						return utils.NewToolResultError(fmt.Sprintf(
 							"SHA mismatch: provided SHA %s is stale. Current file SHA is %s. "+
-								"Pull the latest changes and use git rev-parse %s:%s to get the current SHA.",
-							sha, currentSHA, branch, path)), nil, nil
+								"The file changed since you read it. Call get_file_contents with owner=%q, repo=%q, path=%q, and ref=%q; "+
+								"its first text result reports the blob SHA for the requested path. "+
+								"Rebuild your content against what it returns, and retry with the sha parameter set to the SHA that call reports.",
+							sha, currentSHA, owner, repo, path, branch)), nil, nil
 					}
 					if !allowSymlinkWrite {
 						if existingFile.GetType() == "symlink" {
@@ -594,8 +597,10 @@ SHA MUST be provided for existing file updates.
 					// File exists but no SHA was provided - reject to prevent blind overwrites
 					return utils.NewToolResultError(fmt.Sprintf(
 						"File already exists at %s. You must provide the current file's SHA when updating. "+
-							"Use git rev-parse %s:%s to get the blob SHA, then retry with the sha parameter.",
-						path, branch, path)), nil, nil
+							"Call get_file_contents with owner=%q, repo=%q, path=%q, and ref=%q to read the file you are about to overwrite; "+
+							"its first text result reports the blob SHA for the requested path. "+
+							"Then retry with the sha parameter set to the blob SHA that call reports.",
+						path, owner, repo, path, branch)), nil, nil
 				}
 				// If file not found, no previous SHA needed (new file creation)
 			}
@@ -623,6 +628,12 @@ SHA MUST be provided for existing file updates.
 			return MarshalledTextResult(minimalResponse), nil, nil
 		},
 	)
+	tool.ScopeAccess = scopes.DynamicChallenge(
+		[]scopes.Scope{scopes.Repo, scopes.Workflow},
+		tool.ScopeAccess.Visible,
+		workflowScopeChallengeForPath,
+	)
+	return tool
 }
 
 // CreateRepository creates a tool to create a new GitHub repository.
@@ -664,7 +675,7 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"name"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			name, err := RequiredParam[string](args, "name")
 			if err != nil {
@@ -774,7 +785,7 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"owner", "repo"},
 			},
 		},
-		[]scopes.Scope{scopes.DeleteRepo, scopes.Repo},
+		scopes.RequireAll(scopes.DeleteRepo, scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -906,7 +917,6 @@ func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 	)
 	tool.MinimumProtocolVersion = inventory.ProtocolVersionMultiRoundTrip
 	tool.RequiredElicitationMode = inventory.ElicitationModeForm
-	tool.RequiredScopeGroups = scopes.ExpandScopeGroups(scopes.DeleteRepo, scopes.Repo)
 	return tool
 }
 
@@ -985,7 +995,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1222,7 +1232,7 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		publicRepositoryWriteScopeAccess(),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1292,7 +1302,7 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 // The approach implemented here gets automatic commit signing when used with either the github-actions user or as an app,
 // both of which suit an LLM well.
 func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	tool := NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "delete_file",
@@ -1329,7 +1339,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "path", "message", "branch"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1342,6 +1352,10 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 			path, err := RequiredParam[string](args, "path")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			path, err = validateRelativePath(path)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("invalid path: %s", err)), nil, nil
 			}
 			message, err := RequiredParam[string](args, "message")
 			if err != nil {
@@ -1473,6 +1487,12 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
+	tool.ScopeAccess = scopes.DynamicChallenge(
+		[]scopes.Scope{scopes.Repo, scopes.Workflow},
+		tool.ScopeAccess.Visible,
+		workflowScopeChallengeForPath,
+	)
+	return tool
 }
 
 // CreateBranch creates a tool to create a new branch.
@@ -1509,7 +1529,7 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "branch"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		publicRepositoryWriteScopeAccess(),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1590,7 +1610,7 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // PushFiles creates a tool to push multiple files in a single commit to a GitHub repository.
 func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	tool := NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "push_files",
@@ -1641,7 +1661,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "branch", "files", "message"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		publicRepositoryWriteScopeAccess(),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1664,6 +1684,35 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			filesObj, ok := args["files"].([]any)
 			if !ok {
 				return utils.NewToolResultError("files parameter must be an array of objects with path and content"), nil, nil
+			}
+
+			entries := make([]*github.TreeEntry, 0, len(filesObj))
+			for _, file := range filesObj {
+				fileMap, ok := file.(map[string]any)
+				if !ok {
+					return utils.NewToolResultError("each file must be an object with path and content"), nil, nil
+				}
+
+				filePath, ok := fileMap["path"].(string)
+				if !ok || filePath == "" {
+					return utils.NewToolResultError("each file must have a path"), nil, nil
+				}
+				filePath, err = validateRelativePath(filePath)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("invalid file path: %s", err)), nil, nil
+				}
+
+				content, ok := fileMap["content"].(string)
+				if !ok {
+					return utils.NewToolResultError("each file must have content"), nil, nil
+				}
+
+				entries = append(entries, &github.TreeEntry{
+					Path:    github.Ptr(filePath),
+					Mode:    github.Ptr("100644"),
+					Type:    github.Ptr("blob"),
+					Content: github.Ptr(content),
+				})
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -1739,34 +1788,6 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				baseCommit = base
 			}
 
-			// Create tree entries for all files (or remaining files if empty repo)
-			var entries []*github.TreeEntry
-
-			for _, file := range filesObj {
-				fileMap, ok := file.(map[string]any)
-				if !ok {
-					return utils.NewToolResultError("each file must be an object with path and content"), nil, nil
-				}
-
-				path, ok := fileMap["path"].(string)
-				if !ok || path == "" {
-					return utils.NewToolResultError("each file must have a path"), nil, nil
-				}
-
-				content, ok := fileMap["content"].(string)
-				if !ok {
-					return utils.NewToolResultError("each file must have content"), nil, nil
-				}
-
-				// Create a tree entry for the file
-				entries = append(entries, &github.TreeEntry{
-					Path:    github.Ptr(path),
-					Mode:    github.Ptr("100644"), // Regular file mode
-					Type:    github.Ptr("blob"),
-					Content: github.Ptr(content),
-				})
-			}
-
 			// Create a new tree with the file entries (baseCommit is now guaranteed to exist)
 			newTree, resp, err := client.Git.CreateTree(ctx, owner, repo, *baseCommit.Tree.SHA, entries)
 			if err != nil {
@@ -1821,6 +1842,12 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
+	tool.ScopeAccess = scopes.DynamicChallenge(
+		[]scopes.Scope{scopes.Repo, scopes.Workflow},
+		tool.ScopeAccess.Visible,
+		workflowScopeChallengeForFiles,
+	)
+	return tool
 }
 
 // ListTags creates a tool to list tags in a GitHub repository.
@@ -1849,7 +1876,7 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			}),
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1944,7 +1971,7 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "tag"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -2060,7 +2087,7 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			InputSchema: schema,
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -2176,7 +2203,7 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"owner", "repo"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -2254,7 +2281,7 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner", "repo", "tag"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -2342,7 +2369,7 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.Ser
 				},
 			}),
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			username, err := OptionalParam[string](args, "username")
 			if err != nil {
@@ -2482,7 +2509,7 @@ func StarRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -2547,7 +2574,7 @@ func UnstarRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"owner", "repo"},
 			},
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.RequireAll(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -2754,7 +2781,7 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "path"},
 			}),
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -3043,7 +3070,7 @@ func ListRepositoryCollaborators(t translations.TranslationHelperFunc) inventory
 				return schema
 			}(),
 		},
-		[]scopes.Scope{scopes.Repo},
+		scopes.PublicRead(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

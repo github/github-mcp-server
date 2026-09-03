@@ -3,15 +3,21 @@ package http
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -76,6 +82,237 @@ func TestNewOAuthConfig(t *testing.T) {
 			}, cfg)
 		})
 	}
+}
+
+func TestHTTPRouterCORSContract(t *testing.T) {
+	router := newHTTPRouter(
+		func(r chi.Router) {
+			r.Use(middleware.ExtractUserToken(&oauth.Config{
+				BaseURL:      "https://mcp.example.com",
+				ResourcePath: "/mcp",
+			}))
+			r.Post("/", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			})
+		},
+		func(r chi.Router) {
+			r.Get("/metadata", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			})
+			r.Get("/metadata-error", func(w http.ResponseWriter, _ *http.Request) {
+				http.Error(w, "metadata unavailable", http.StatusInternalServerError)
+			})
+		},
+	)
+
+	tests := []struct {
+		name            string
+		method          string
+		path            string
+		requestHeaders  string
+		expectedStatus  int
+		expectChallenge bool
+		expectedAllow   []string
+	}{
+		{
+			name:           "MCP preflight",
+			method:         http.MethodOptions,
+			path:           "/",
+			requestHeaders: "content-type, mcp-method, mcp-name, mcp-param-owner, mcp-param-region",
+			expectedStatus: http.StatusOK,
+			expectedAllow:  []string{"Content-Type", "Mcp-Method", "Mcp-Name", "Mcp-Param-owner", "Mcp-Param-Region"},
+		},
+		{
+			name:           "metadata preflight",
+			method:         http.MethodOptions,
+			path:           "/metadata",
+			requestHeaders: "content-type",
+			expectedStatus: http.StatusOK,
+			expectedAllow:  []string{"Content-Type"},
+		},
+		{
+			name:            "authentication challenge",
+			method:          http.MethodPost,
+			path:            "/",
+			expectedStatus:  http.StatusUnauthorized,
+			expectChallenge: true,
+		},
+		{
+			name:           "metadata success",
+			method:         http.MethodGet,
+			path:           "/metadata",
+			expectedStatus: http.StatusNoContent,
+		},
+		{
+			name:           "metadata error",
+			method:         http.MethodGet,
+			path:           "/metadata-error",
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			name:           "method not allowed",
+			method:         http.MethodPost,
+			path:           "/metadata",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+		{
+			name:           "not found",
+			method:         http.MethodGet,
+			path:           "/not-found",
+			expectedStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			req.Header.Set("Origin", "https://confer.to")
+			if tt.method == http.MethodOptions {
+				req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+				req.Header.Set("Access-Control-Request-Headers", tt.requestHeaders)
+			}
+
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			assert.Equal(t, tt.expectedStatus, rec.Code)
+			assert.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+			assert.Empty(t, rec.Header().Get("Access-Control-Allow-Credentials"))
+			assert.Contains(t, rec.Header().Get("Access-Control-Expose-Headers"), "Mcp-Session-Id")
+			assert.Contains(t, rec.Header().Get("Access-Control-Expose-Headers"), "WWW-Authenticate")
+			for _, header := range tt.expectedAllow {
+				assert.Contains(t, rec.Header().Get("Access-Control-Allow-Headers"), header)
+			}
+			if tt.expectChallenge {
+				assert.Equal(t,
+					`Bearer resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource/mcp"`,
+					rec.Header().Get("WWW-Authenticate"),
+				)
+			}
+		})
+	}
+}
+
+func TestOAuthChallengeMetadataRouteContracts(t *testing.T) {
+	const baseURL = "https://mcp.example.com"
+	oauthCfg := &oauth.Config{
+		BaseURL:      baseURL,
+		ResourcePath: "/mcp",
+	}
+	apiHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+	oauthHandler, err := oauth.NewAuthHandler(oauthCfg, apiHost)
+	require.NoError(t, err)
+
+	resourcePaths := []string{
+		"/",
+		"/readonly",
+		"/insiders",
+		"/readonly/insiders",
+		"/x/repos",
+		"/x/repos/readonly",
+		"/x/repos/insiders",
+		"/x/repos/readonly/insiders",
+	}
+
+	router := newHTTPRouter(
+		func(r chi.Router) {
+			r.Use(middleware.ExtractUserToken(oauthCfg))
+			for _, path := range resourcePaths {
+				r.Post(path, func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNoContent)
+				})
+			}
+		},
+		oauthHandler.RegisterRoutes,
+	)
+
+	for _, path := range resourcePaths {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, path, nil)
+			req.Header.Set("Origin", "https://confer.to")
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusUnauthorized, rec.Code)
+			assert.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+			challenge := rec.Header().Get("WWW-Authenticate")
+			require.True(t, strings.HasPrefix(challenge, `Bearer resource_metadata="`))
+			metadataURL := strings.TrimSuffix(
+				strings.TrimPrefix(challenge, `Bearer resource_metadata="`),
+				`"`,
+			)
+			metadataPath := strings.TrimPrefix(metadataURL, baseURL)
+
+			req = httptest.NewRequest(http.MethodGet, metadataPath, nil)
+			req.Header.Set("Origin", "https://confer.to")
+			rec = httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			assert.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+
+			var metadata map[string]any
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &metadata))
+			expectedResourcePath := "/mcp"
+			if path != "/" {
+				expectedResourcePath += path
+			}
+			assert.Equal(t, baseURL+expectedResourcePath, metadata["resource"])
+		})
+	}
+
+	// Query-bearing MCP server URLs must round-trip: the challenge's
+	// resource_metadata URL and the served metadata document's "resource"
+	// must both carry the exact same query as the URL the client connects to,
+	// because go-sdk validates metadata.resource with exact string equality.
+	queryPath := "/x/repos?features=issue_dependencies"
+	t.Run(queryPath, func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, queryPath, nil)
+		req.Header.Set("Origin", "https://confer.to")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusUnauthorized, rec.Code)
+		challenge := rec.Header().Get("WWW-Authenticate")
+		require.True(t, strings.HasPrefix(challenge, `Bearer resource_metadata="`))
+		metadataURL := strings.TrimSuffix(
+			strings.TrimPrefix(challenge, `Bearer resource_metadata="`),
+			`"`,
+		)
+		assert.Equal(t,
+			baseURL+"/.well-known/oauth-protected-resource/mcp/x/repos?features=issue_dependencies",
+			metadataURL,
+		)
+
+		metadataPaths := []string{
+			strings.TrimPrefix(metadataURL, baseURL),
+			oauth.OAuthProtectedResourcePrefix + queryPath,
+		}
+		for _, metadataPath := range metadataPaths {
+			req = httptest.NewRequest(http.MethodGet, metadataPath, nil)
+			req.Header.Set("Origin", "https://confer.to")
+			rec = httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			var metadata map[string]any
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &metadata))
+			assert.Equal(t, baseURL+"/mcp"+queryPath, metadata["resource"])
+		}
+	})
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		oauth.OAuthProtectedResourcePrefix+"/mcp/unknown",
+		nil,
+	)
+	req.Header.Set("Origin", "https://confer.to")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+	assert.Empty(t, rec.Header().Get("WWW-Authenticate"))
 }
 
 func TestInitGlobalToolScopeMapUsesHost(t *testing.T) {
