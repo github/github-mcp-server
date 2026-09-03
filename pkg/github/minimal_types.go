@@ -204,7 +204,7 @@ type MinimalDiscussionComment struct {
 func newMinimalDiscussionComment(id string, body string, isAnswer bool) MinimalDiscussionComment {
 	return MinimalDiscussionComment{
 		ID:       id,
-		Body:     sanitize.Sanitize(body),
+		Body:     sanitize.Content(body),
 		IsAnswer: isAnswer,
 	}
 }
@@ -1015,7 +1015,7 @@ func convertToMinimalIssuesResponseWithoutFieldValues(fragment issueQueryFragmen
 func convertToMinimalIssueComment(comment *github.IssueComment) MinimalIssueComment {
 	m := MinimalIssueComment{
 		ID:                comment.GetID(),
-		Body:              sanitize.Sanitize(comment.GetBody()),
+		Body:              sanitize.Content(comment.GetBody()),
 		HTMLURL:           comment.GetHTMLURL(),
 		User:              convertToMinimalUser(comment.GetUser()),
 		AuthorAssociation: comment.GetAuthorAssociation(),
@@ -1064,7 +1064,7 @@ func convertToMinimalFileContentResponse(resp *github.RepositoryContentResponse)
 
 	m.Commit = &MinimalFileCommit{
 		SHA:     resp.Commit.GetSHA(),
-		Message: sanitize.Sanitize(resp.Commit.GetMessage()),
+		Message: sanitize.Content(resp.Commit.GetMessage()),
 		HTMLURL: resp.Commit.GetHTMLURL(),
 	}
 
@@ -1794,7 +1794,7 @@ func newMinimalCommitFromCore(sha, htmlURL string, commit *github.Commit, author
 
 	if commit != nil {
 		minimalCommit.Commit = &MinimalCommitInfo{
-			Message: sanitize.Sanitize(commit.GetMessage()),
+			Message: sanitize.Content(commit.GetMessage()),
 		}
 
 		if commit.Author != nil {
@@ -2000,7 +2000,7 @@ func convertToMinimalPullRequestCommits(commits []*github.RepositoryCommit) []Mi
 		}
 
 		if commit.Commit != nil {
-			minimalCommit.Message = sanitize.Sanitize(commit.Commit.GetMessage())
+			minimalCommit.Message = sanitize.Content(commit.Commit.GetMessage())
 			minimalCommit.Author = convertToMinimalCommitAuthor(commit.Commit.Author)
 		}
 
@@ -2095,7 +2095,7 @@ func convertToMinimalWorkflowRun(workflowRun *github.WorkflowRun) MinimalWorkflo
 
 	if headCommit := workflowRun.GetHeadCommit(); headCommit != nil && headCommit.GetMessage() != "" {
 		minimalRun.HeadCommit = &MinimalWorkflowRunHeadCommit{
-			Message: sanitize.Sanitize(headCommit.GetMessage()),
+			Message: sanitize.Content(headCommit.GetMessage()),
 		}
 	}
 
@@ -2280,7 +2280,7 @@ func convertToMinimalReviewThread(thread reviewThreadNode) MinimalReviewThread {
 
 func convertToMinimalReviewComment(c reviewCommentNode) MinimalReviewComment {
 	m := MinimalReviewComment{
-		Body:    sanitize.Sanitize(string(c.Body)),
+		Body:    sanitize.Content(string(c.Body)),
 		Path:    string(c.Path),
 		Author:  string(c.Author.Login),
 		HTMLURL: c.URL.String(),

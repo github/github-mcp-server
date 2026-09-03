@@ -2013,7 +2013,7 @@ func sanitizeSubIssueTitleAndBody(issue *github.SubIssue) {
 		return
 	}
 	if issue.Title != nil {
-		issue.Title = github.Ptr(sanitize.Sanitize(*issue.Title))
+		issue.Title = github.Ptr(sanitize.PlainText(*issue.Title))
 	}
 	if issue.Body != nil {
 		issue.Body = github.Ptr(sanitize.Content(*issue.Body))
