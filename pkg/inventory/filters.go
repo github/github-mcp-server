@@ -61,10 +61,12 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool, feature
 		return false
 	}
 	if availability := tool.availability(); !availability.unrestricted() {
-		if info, ok := ghcontext.MCPMethod(ctx); ok &&
-			(info.Method == MCPMethodToolsList || info.Method == MCPMethodToolsCall) &&
-			!toolAvailable(info.ProtocolVersion, info.ClientCapabilities, availability) {
-			return false
+		if info, ok := ghcontext.MCPMethod(ctx); ok && (info.Method == MCPMethodToolsList || info.Method == MCPMethodToolsCall) {
+			known := (availability.minimumProtocolVersion == "" || info.ProtocolVersion != "") &&
+				(availability.requiredElicitationMode == "" || info.ClientCapabilities != nil)
+			if known && !toolAvailable(info.ProtocolVersion, info.ClientCapabilities, availability) {
+				return false
+			}
 		}
 	}
 	// 4. Check feature availability.

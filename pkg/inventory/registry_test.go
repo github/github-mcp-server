@@ -1959,6 +1959,11 @@ func TestMCPAvailabilityRunsBeforeFeatureChecks(t *testing.T) {
 			})
 			require.Len(t, inv.AvailableTools(ctx), 2)
 			require.Equal(t, 1, calls)
+
+			calls = 0
+			ctx = ghcontext.WithMCPMethodInfo(context.Background(), &ghcontext.MCPMethodInfo{Method: method})
+			require.Len(t, inv.AvailableTools(ctx), 2)
+			require.Equal(t, 1, calls)
 		})
 	}
 }
