@@ -10,6 +10,7 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v89/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -52,6 +53,42 @@ func Test_PullRequestStackWrite_ToolDefinition(t *testing.T) {
 	assert.Equal(t, 100, *schema.Properties["pullNumbers"].MaxItems)
 	assert.True(t, serverTool.ScopeAccess.Visible([]string{"public_repo"}))
 	assert.False(t, serverTool.ScopeAccess.Visible(nil))
+}
+
+func Test_PullRequestStackTools_HostAvailability(t *testing.T) {
+	tests := []struct {
+		name      string
+		host      utils.HostType
+		wantStack bool
+	}{
+		{name: "dotcom", host: utils.HostTypeDotcom, wantStack: true},
+		{name: "GHES", host: utils.HostTypeGHES, wantStack: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inv, err := NewInventory(translations.NullTranslationHelper, WithHost(tt.host)).
+				WithToolsets([]string{"pull_requests"}).
+				WithFeatureChecker(featureCheckerFor()).
+				WithServerInstructions().
+				Build()
+			require.NoError(t, err)
+
+			available := make(map[string]bool)
+			for _, tool := range inv.ToolsForRegistration(context.Background()) {
+				available[tool.Tool.Name] = true
+			}
+			assert.Equal(t, tt.wantStack, available["pull_request_stack_read"])
+			assert.Equal(t, tt.wantStack, available["pull_request_stack_write"])
+			if tt.wantStack {
+				assert.Contains(t, inv.Instructions(), "pull_request_stack_read")
+				assert.Contains(t, inv.Instructions(), "pull_request_stack_write")
+			} else {
+				assert.NotContains(t, inv.Instructions(), "pull_request_stack_read")
+				assert.NotContains(t, inv.Instructions(), "pull_request_stack_write")
+			}
+		})
+	}
 }
 
 func Test_PullRequestStackRead_Get(t *testing.T) {
@@ -197,7 +234,7 @@ func Test_PullRequestStackTool_Validation(t *testing.T) {
 
 	tests := []struct {
 		name string
-		tool func(translations.TranslationHelperFunc) inventory.ServerTool
+		tool pullRequestStackToolConstructor
 		args map[string]any
 		want string
 	}{
@@ -273,14 +310,87 @@ func Test_PullRequestStackTool_APIError(t *testing.T) {
 	assert.Contains(t, getTextResult(t, result).Text, "Pull requests must form a stack")
 }
 
+func Test_PullRequestStackTools_IFCLabels(t *testing.T) {
+	tests := []struct {
+		name   string
+		tool   pullRequestStackToolConstructor
+		args   map[string]any
+		status int
+	}{
+		{
+			name: "read response",
+			tool: PullRequestStackRead,
+			args: map[string]any{
+				"method":      "get",
+				"owner":       "owner",
+				"repo":        "repo",
+				"stackNumber": float64(42),
+			},
+			status: http.StatusOK,
+		},
+		{
+			name: "write response",
+			tool: PullRequestStackWrite,
+			args: map[string]any{
+				"method":      "create",
+				"owner":       "owner",
+				"repo":        "repo",
+				"pullNumbers": []any{float64(101), float64(102)},
+			},
+			status: http.StatusCreated,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := newPullRequestStackTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/repos/owner/repo", "/repositories/owner/repo":
+					w.Header().Set("Content-Type", "application/json")
+					require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+						"name":    "repo",
+						"private": false,
+					}))
+				default:
+					writePullRequestStack(t, w, tt.status)
+				}
+			})
+			deps := BaseDeps{
+				Client:         client,
+				featureChecker: featureCheckerFor(FeatureFlagIFCLabels),
+			}
+
+			result := callPullRequestStackToolWithDeps(t, tt.tool, deps, tt.args)
+
+			require.False(t, result.IsError)
+			require.NotNil(t, result.Meta)
+			ifcMap := unmarshalIFC(t, result.Meta["ifc"])
+			assert.Equal(t, "untrusted", ifcMap["integrity"])
+			assert.Equal(t, "public", ifcMap["confidentiality"])
+		})
+	}
+}
+
+type pullRequestStackToolConstructor func(translations.TranslationHelperFunc, ...ToolOption) inventory.ServerTool
+
 func callPullRequestStackTool(
 	t *testing.T,
-	tool func(translations.TranslationHelperFunc) inventory.ServerTool,
+	tool pullRequestStackToolConstructor,
 	client *github.Client,
 	args map[string]any,
 ) *mcp.CallToolResult {
 	t.Helper()
 	deps := BaseDeps{Client: client}
+	return callPullRequestStackToolWithDeps(t, tool, deps, args)
+}
+
+func callPullRequestStackToolWithDeps(
+	t *testing.T,
+	tool pullRequestStackToolConstructor,
+	deps BaseDeps,
+	args map[string]any,
+) *mcp.CallToolResult {
+	t.Helper()
 	request := createMCPRequest(args)
 	serverTool := tool(translations.NullTranslationHelper)
 	result, err := serverTool.Handler(deps)(ContextWithDeps(context.Background(), deps), &request)

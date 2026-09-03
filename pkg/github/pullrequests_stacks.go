@@ -78,7 +78,8 @@ type pullRequestStackUnstackResult struct {
 }
 
 // PullRequestStackRead creates a tool for reading native pull request stacks.
-func PullRequestStackRead(t translations.TranslationHelperFunc) inventory.ServerTool {
+func PullRequestStackRead(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
+	cfg := newToolConfig(opts)
 	schema := WithPagination(&jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -109,7 +110,7 @@ func PullRequestStackRead(t translations.TranslationHelperFunc) inventory.Server
 		Required: []string{"method", "owner", "repo"},
 	})
 
-	return NewTool(
+	st := NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "pull_request_stack_read",
@@ -178,16 +179,21 @@ func PullRequestStackRead(t translations.TranslationHelperFunc) inventory.Server
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 
-			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoUserContent)
 			return result, nil, nil
 		},
 	)
+	if cfg.hostType == utils.HostTypeGHES {
+		st.Enabled = func(context.Context) (bool, error) { return false, nil }
+	}
+	return st
 }
 
 // PullRequestStackWrite creates a tool for creating, extending, or unstacking
 // native pull request stacks.
-func PullRequestStackWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+func PullRequestStackWrite(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
+	cfg := newToolConfig(opts)
+	st := NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name: "pull_request_stack_write",
@@ -308,10 +314,14 @@ func PullRequestStackWrite(t translations.TranslationHelperFunc) inventory.Serve
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 
-			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoMetadata)
+			result = attachRepoVisibilityIFCLabel(ctx, deps, client, owner, repo, result, ifc.LabelRepoUserContent)
 			return result, nil, nil
 		},
 	)
+	if cfg.hostType == utils.HostTypeGHES {
+		st.Enabled = func(context.Context) (bool, error) { return false, nil }
+	}
+	return st
 }
 
 // GetPullRequestStack gets a native pull request stack by number.
