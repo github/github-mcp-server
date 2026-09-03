@@ -1942,13 +1942,16 @@ type MinimalPageInfo struct {
 
 // MinimalReviewComment is the trimmed output type for PR review comment objects.
 type MinimalReviewComment struct {
-	Body      string `json:"body,omitempty"`
-	Path      string `json:"path"`
-	Line      *int   `json:"line,omitempty"`
-	Author    string `json:"author,omitempty"`
-	CreatedAt string `json:"created_at,omitempty"`
-	UpdatedAt string `json:"updated_at,omitempty"`
-	HTMLURL   string `json:"html_url"`
+	Body              string `json:"body,omitempty"`
+	Path              string `json:"path"`
+	Line              *int   `json:"line,omitempty"`
+	OriginalLine      *int   `json:"original_line,omitempty"`
+	StartLine         *int   `json:"start_line,omitempty"`
+	OriginalStartLine *int   `json:"original_start_line,omitempty"`
+	Author            string `json:"author,omitempty"`
+	CreatedAt         string `json:"created_at,omitempty"`
+	UpdatedAt         string `json:"updated_at,omitempty"`
+	HTMLURL           string `json:"html_url"`
 }
 
 // MinimalReviewThread is the trimmed output type for PR review thread objects.
@@ -2286,6 +2289,18 @@ func convertToMinimalReviewComment(c reviewCommentNode) MinimalReviewComment {
 	if c.Line != nil {
 		line := int(*c.Line)
 		m.Line = &line
+	}
+	if c.OriginalLine != nil {
+		originalLine := int(*c.OriginalLine)
+		m.OriginalLine = &originalLine
+	}
+	if c.StartLine != nil {
+		startLine := int(*c.StartLine)
+		m.StartLine = &startLine
+	}
+	if c.OriginalStartLine != nil {
+		originalStartLine := int(*c.OriginalStartLine)
+		m.OriginalStartLine = &originalStartLine
 	}
 
 	if !c.CreatedAt.IsZero() {

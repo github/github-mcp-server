@@ -15,7 +15,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/observability"
 	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	gogithub "github.com/google/go-github/v89/github"
@@ -230,21 +229,18 @@ func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flagName string) bool {
 // The handler function receives deps extracted from context via MustDepsFromContext.
 // Ensure ContextWithDeps is called to inject deps before any tool handlers are invoked.
 //
-// requiredScopes specifies the minimum OAuth scopes needed for this tool.
-// AcceptedScopes are automatically derived using the scope hierarchy (e.g., if
-// public_repo is required, repo is also accepted since repo grants public_repo).
+// scopeAccess controls fixed-token visibility and per-call OAuth challenges.
 func NewTool[In, Out any](
 	toolset inventory.ToolsetMetadata,
 	tool mcp.Tool,
-	requiredScopes []scopes.Scope,
+	scopeAccess inventory.ScopeAccess,
 	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error),
 ) inventory.ServerTool {
 	st := inventory.NewServerToolWithContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error) {
 		deps := MustDepsFromContext(ctx)
 		return handler(ctx, deps, req, args)
 	})
-	st.RequiredScopes = scopes.ToStringSlice(requiredScopes...)
-	st.AcceptedScopes = scopes.ExpandScopes(requiredScopes...)
+	st.ScopeAccess = scopeAccess
 	return st
 }
 
@@ -254,20 +250,18 @@ func NewTool[In, Out any](
 // The handler function receives deps extracted from context via MustDepsFromContext.
 // Ensure ContextWithDeps is called to inject deps before any tool handlers are invoked.
 //
-// requiredScopes specifies the minimum OAuth scopes needed for this tool.
-// AcceptedScopes are automatically derived using the scope hierarchy.
+// scopeAccess controls fixed-token visibility and per-call OAuth challenges.
 func NewToolFromHandler(
 	toolset inventory.ToolsetMetadata,
 	tool mcp.Tool,
-	requiredScopes []scopes.Scope,
+	scopeAccess inventory.ScopeAccess,
 	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest) (*mcp.CallToolResult, error),
 ) inventory.ServerTool {
 	st := inventory.NewServerTool(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		deps := MustDepsFromContext(ctx)
 		return handler(ctx, deps, req)
 	})
-	st.RequiredScopes = scopes.ToStringSlice(requiredScopes...)
-	st.AcceptedScopes = scopes.ExpandScopes(requiredScopes...)
+	st.ScopeAccess = scopeAccess
 	return st
 }
 

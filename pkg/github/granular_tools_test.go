@@ -23,7 +23,7 @@ import (
 func granularToolsForToolset(toolsetID inventory.ToolsetID, featureFlag string) []inventory.ServerTool {
 	var result []inventory.ServerTool
 	for _, tool := range AllTools(translations.NullTranslationHelper) {
-		if tool.Toolset.ID == toolsetID && tool.FeatureFlagEnable == featureFlag {
+		if tool.Toolset.ID == toolsetID && tool.FeatureFlagEnable == featureFlag && len(tool.FeatureFlagEnableAll) == 0 {
 			result = append(result, tool)
 		}
 	}
@@ -1728,38 +1728,64 @@ func TestGranularAddPullRequestReviewComment(t *testing.T) {
 }
 
 func TestGranularResolveReviewThread(t *testing.T) {
-	mockedClient := githubv4mock.NewMockedHTTPClient(
-		githubv4mock.NewMutationMatcher(
-			struct {
-				ResolveReviewThread struct {
-					Thread struct {
-						ID         githubv4.ID
-						IsResolved githubv4.Boolean
-					}
-				} `graphql:"resolveReviewThread(input: $input)"`
-			}{},
-			githubv4.ResolveReviewThreadInput{
-				ThreadID: githubv4.ID("PRRT_123"),
-			},
-			nil,
-			githubv4mock.DataResponse(map[string]any{
-				"resolveReviewThread": map[string]any{
-					"thread": map[string]any{"id": "PRRT_123", "isResolved": true},
-				},
-			}),
-		),
-	)
-	gqlClient := githubv4.NewClient(mockedClient)
-	deps := BaseDeps{GQLClient: gqlClient}
-	serverTool := GranularResolveReviewThread(translations.NullTranslationHelper)
-	handler := serverTool.Handler(deps)
+	tests := []struct {
+		name                 string
+		withResolutionReason bool
+		resolutionReason     *string
+		expectedReason       *string
+	}{
+		{
+			name:                 "enabled variant forwards resolution reason",
+			withResolutionReason: true,
+			resolutionReason:     gogithub.Ptr("addressed"),
+			expectedReason:       gogithub.Ptr("addressed"),
+		},
+		{name: "default variant omits resolution reason", resolutionReason: gogithub.Ptr("addressed")},
+		{name: "without resolution reason"},
+	}
 
-	request := createMCPRequest(map[string]any{
-		"threadID": "PRRT_123",
-	})
-	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-	require.NoError(t, err)
-	assert.False(t, result.IsError)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockedClient := githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewMutationMatcher(
+					struct {
+						ResolveReviewThread struct {
+							Thread struct {
+								ID         githubv4.ID
+								IsResolved githubv4.Boolean
+							}
+						} `graphql:"resolveReviewThread(input: $input)"`
+					}{},
+					ResolveReviewThreadInput{
+						ThreadID:         githubv4.ID("PRRT_123"),
+						ResolutionReason: newGQLStringlikePtr[githubv4.String](tc.expectedReason),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"resolveReviewThread": map[string]any{
+							"thread": map[string]any{"id": "PRRT_123", "isResolved": true},
+						},
+					}),
+				),
+			)
+			gqlClient := githubv4.NewClient(mockedClient)
+			deps := BaseDeps{GQLClient: gqlClient}
+			serverTool := GranularResolveReviewThread(translations.NullTranslationHelper)
+			if tc.withResolutionReason {
+				serverTool = GranularResolveReviewThreadWithResolutionReason(translations.NullTranslationHelper)
+			}
+			handler := serverTool.Handler(deps)
+
+			args := map[string]any{"threadID": "PRRT_123"}
+			if tc.resolutionReason != nil {
+				args["resolutionReason"] = *tc.resolutionReason
+			}
+			request := createMCPRequest(args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			assert.False(t, result.IsError)
+		})
+	}
 }
 
 func TestGranularUnresolveReviewThread(t *testing.T) {

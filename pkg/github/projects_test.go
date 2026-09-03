@@ -395,6 +395,43 @@ func Test_ProjectsList_ListProjectItems(t *testing.T) {
 	})
 }
 
+func Test_optionalProjectsPerPage(t *testing.T) {
+	tests := []struct {
+		name string
+		args map[string]any
+		want int
+	}{
+		{
+			name: "canonical perPage",
+			args: map[string]any{"perPage": float64(10)},
+			want: 10,
+		},
+		{
+			name: "per_page still read for clients on the previous name",
+			args: map[string]any{"per_page": float64(10)},
+			want: 10,
+		},
+		{
+			name: "perPage wins when both are sent",
+			args: map[string]any{"perPage": float64(10), "per_page": float64(25)},
+			want: 10,
+		},
+		{
+			name: "neither sent falls back to the maximum",
+			args: map[string]any{},
+			want: MaxProjectsPerPage,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := optionalProjectsPerPage(tc.args)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
 func Test_detectOwnerType(t *testing.T) {
 	t.Run("uses organization account type", func(t *testing.T) {
 		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{

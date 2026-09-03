@@ -17,6 +17,19 @@
         "description": "Repository owner (username or organization)",
         "type": "string"
       },
+      "parent_issue_number": {
+        "description": "Issue number of the parent issue. The new issue is created and attached to this parent in the same operation.",
+        "minimum": 1,
+        "type": "number"
+      },
+      "parent_owner": {
+        "description": "Repository owner of the parent issue. Must be provided with parent_repo. Omit both to use owner and repo. Only used when parent_issue_number is provided.",
+        "type": "string"
+      },
+      "parent_repo": {
+        "description": "Repository name of the parent issue. Must be provided with parent_owner. Omit both to use owner and repo. Only used when parent_issue_number is provided.",
+        "type": "string"
+      },
       "repo": {
         "description": "Repository name",
         "type": "string"

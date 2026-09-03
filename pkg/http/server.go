@@ -204,28 +204,22 @@ func RunHTTPServer(cfg ServerConfig) error {
 		WithScopeFetcher(scopeFetcher),
 	}
 
-	r := chi.NewRouter()
 	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, apiHost, append(serverOptions, WithFeatureChecker(featureChecker), WithOAuthConfig(oauthCfg))...)
 	oauthHandler, err := oauth.NewAuthHandler(oauthCfg, apiHost)
 	if err != nil {
 		return fmt.Errorf("failed to create OAuth handler: %w", err)
 	}
 
-	r.Group(func(r chi.Router) {
-		r.Use(middleware.SetCorsHeaders)
-
-		// Register Middleware First, needs to be before route registration
-		handler.RegisterMiddleware(r)
-
-		// Register MCP server routes
-		handler.RegisterRoutes(r)
-	})
+	r := newHTTPRouter(
+		func(r chi.Router) {
+			// Register Middleware First, needs to be before route registration
+			handler.RegisterMiddleware(r)
+			// Register MCP server routes
+			handler.RegisterRoutes(r)
+		},
+		oauthHandler.RegisterRoutes,
+	)
 	logger.Info("MCP endpoints registered", "baseURL", cfg.BaseURL)
-
-	r.Group(func(r chi.Router) {
-		// Register OAuth protected resource metadata endpoints
-		oauthHandler.RegisterRoutes(r)
-	})
 	logger.Info("OAuth protected resource endpoints registered", "baseURL", cfg.BaseURL)
 
 	addr := resolveListenAddress(cfg.ListenHost, cfg.Port)
@@ -257,6 +251,14 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	logger.Info("server stopped gracefully")
 	return nil
+}
+
+func newHTTPRouter(registerMCPRoutes, registerOAuthRoutes func(chi.Router)) chi.Router {
+	r := chi.NewRouter()
+	r.Use(middleware.SetCorsHeaders)
+	r.Group(registerMCPRoutes)
+	r.Group(registerOAuthRoutes)
+	return r
 }
 
 func newOAuthConfig(cfg ServerConfig) *oauth.Config {
@@ -308,13 +310,13 @@ func initGlobalToolScopeMap(t translations.TranslationHelperFunc, hostType utils
 }
 
 // createHTTPFeatureChecker creates a feature checker that resolves static CLI
-// features plus per-request header features and insiders mode.
+// features plus per-request features and insiders mode.
 func createHTTPFeatureChecker(enabledFeatures []string, insidersMode bool) inventory.FeatureFlagChecker {
 	return func(ctx context.Context, flag string) (bool, error) {
-		headerFeatures := ghcontext.GetHeaderFeatures(ctx)
-		features := make([]string, 0, len(enabledFeatures)+len(headerFeatures))
+		requestFeatures := ghcontext.GetHeaderFeatures(ctx)
+		features := make([]string, 0, len(enabledFeatures)+len(requestFeatures))
 		features = append(features, enabledFeatures...)
-		features = append(features, headerFeatures...)
+		features = append(features, requestFeatures...)
 
 		effective := github.ResolveFeatureFlags(features, insidersMode || ghcontext.IsInsidersMode(ctx))
 		return effective[flag], nil

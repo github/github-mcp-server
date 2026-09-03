@@ -76,19 +76,23 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	// Construct REST client. BearerAuthTransport handles both static and
 	// provider-backed tokens so every authentication mode uses the same host
 	// restrictions.
+	//
+	// ETagTransport sits below the user-agent (and auth) layers so that, by the
+	// time it runs, the Authorization header is set and can scope the
+	// conditional-request cache per token. It adds ETag/If-None-Match handling
+	// so unchanged resources are revalidated with a 304 instead of being
+	// re-downloaded in full.
+	//
+	// The conditional-request cache is enabled only for the REST API client on
+	// this long-lived local (stdio) server. The raw-content client below uses a
+	// separate transport without it, so large file bodies are never buffered
+	// into the cache. The hosted, horizontally-scaled server builds a fresh REST
+	// client per request (see pkg/github RequestDeps) and does not use this path.
 	restUATransport := &transport.UserAgentTransport{
-		Transport: http.DefaultTransport,
+		Transport: &transport.ETagTransport{Transport: http.DefaultTransport},
 		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
 	}
-	restClient, err := gogithub.NewClient(
-		gogithub.WithHTTPClient(&http.Client{Transport: &transport.BearerAuthTransport{
-			Transport:     restUATransport,
-			Token:         cfg.Token,
-			TokenProvider: cfg.TokenProvider,
-			AllowedHosts:  allowedHosts,
-		}}),
-		gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
-	)
+	restClient, err := newRESTClient(cfg, restUATransport, restURL.String(), uploadURL.String(), allowedHosts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create REST client: %w", err)
 	}
@@ -108,8 +112,18 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 
 	gqlClient := githubv4.NewEnterpriseClient(graphQLURL.String(), gqlHTTPClient)
 
-	// Create raw content client (shares REST client's HTTP transport)
-	rawClient, err := raw.NewClient(restClient, rawURL)
+	// Create raw content client. It shares the REST client's authentication but
+	// uses a transport without the conditional-request cache: raw file bodies can
+	// be large and are streamed rather than retained in memory.
+	rawUATransport := &transport.UserAgentTransport{
+		Transport: http.DefaultTransport,
+		Agent:     fmt.Sprintf("github-mcp-server/%s", cfg.Version),
+	}
+	rawRESTClient, err := newRESTClient(cfg, rawUATransport, restURL.String(), uploadURL.String(), allowedHosts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create raw REST client: %w", err)
+	}
+	rawClient, err := raw.NewClient(rawRESTClient, rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create raw client: %w", err)
 	}
@@ -134,6 +148,22 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		raw:          rawClient,
 		repoAccess:   repoAccessCache,
 	}, nil
+}
+
+// newRESTClient builds a go-github REST client that sends requests through the
+// supplied user-agent transport. Authentication uses BearerAuthTransport for
+// both static and provider-backed tokens, and allowedHosts scopes the token to
+// the configured GitHub hosts so it is never leaked to off-host redirects.
+func newRESTClient(cfg github.MCPServerConfig, uaTransport *transport.UserAgentTransport, restURL, uploadURL string, allowedHosts []string) (*gogithub.Client, error) {
+	return gogithub.NewClient(
+		gogithub.WithHTTPClient(&http.Client{Transport: &transport.BearerAuthTransport{
+			Transport:     uaTransport,
+			Token:         cfg.Token,
+			TokenProvider: cfg.TokenProvider,
+			AllowedHosts:  allowedHosts,
+		}}),
+		gogithub.WithEnterpriseURLs(restURL, uploadURL),
+	)
 }
 
 func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Server, error) {

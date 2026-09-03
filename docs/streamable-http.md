@@ -80,6 +80,19 @@ The OAuth protected resource metadata's `resource` attribute will be populated w
 
 This allows OAuth clients to discover authentication requirements and endpoint information automatically.
 
+The HTTP server is the OAuth protected resource, not the authorization server. It
+therefore serves `/.well-known/oauth-protected-resource` but does not serve
+`/.well-known/oauth-authorization-server` unless a separately deployed authorization
+server is explicitly hosted on the same origin.
+
+Clients discover authorization-server metadata from the issuer listed in
+`authorization_servers`. For the default `https://github.com/login/oauth` issuer,
+RFC 8414 path insertion produces
+`https://github.com/.well-known/oauth-authorization-server/login/oauth`. Browser-based
+clients require that authorization server and its discovery endpoints to support
+their browser origin through CORS. If the selected authorization server does not,
+configure `--authorization-server` to advertise a browser-compatible OAuth proxy.
+
 ### Behind a Trusted Proxy (advanced)
 
 By default, the server ignores the `X-Forwarded-Host` and `X-Forwarded-Proto` headers when constructing OAuth resource metadata URLs, so an untrusted client cannot influence the URL advertised to MCP clients. For most deployments, setting `--base-url` to the externally visible URL is the right approach.
