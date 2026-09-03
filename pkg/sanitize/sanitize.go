@@ -36,6 +36,45 @@ func Sanitize(input string) string {
 	return FilterCodeFenceMetadata(FilterInvisibleCharacters(normalized))
 }
 
+// Title sanitizes short metadata fields such as issue and pull request titles.
+// It applies the same HTML and invisible-character policy as Sanitize, then
+// restores the punctuation that policy HTML-escapes so visible characters
+// remain as themselves (for example, "can't" instead of "can&#39;t").
+//
+// Angle brackets stay escaped. Decoding &lt; / &gt; would reconstitute markup
+// from entity-encoded tags, including nested &amp;amp;lt; payloads.
+func Title(input string) string {
+	return restoreVisiblePunctuation(Sanitize(input))
+}
+
+// visiblePunctuationUnescaper inverts html.EscapeString for apostrophe, quote,
+// and ampersand only. It must not include &lt; or &gt;.
+var visiblePunctuationUnescaper = strings.NewReplacer(
+	"&#39;", "'",
+	"&#34;", `"`,
+	"&quot;", `"`,
+	"&apos;", "'",
+	"&amp;", "&",
+)
+
+func restoreVisiblePunctuation(input string) string {
+	if !strings.Contains(input, "&") {
+		return input
+	}
+	out := input
+	// Peel stacked &amp; prefixes (&amp;#39; → &#39; → ') without ever
+	// turning &lt; / &gt; into angle brackets. Each Replace shortens the
+	// string or is a no-op, so this is bounded by len(input).
+	for range len(input) {
+		next := visiblePunctuationUnescaper.Replace(out)
+		if next == out {
+			return out
+		}
+		out = next
+	}
+	return out
+}
+
 // FilterInvisibleCharacters removes invisible or control characters that should not appear
 // in user-facing titles or bodies. This includes:
 // - Unicode tag characters: U+E0001, U+E0020–U+E007F

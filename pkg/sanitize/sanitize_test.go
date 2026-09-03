@@ -581,6 +581,10 @@ var invariantCorpus = []string{
 	"surrogate \xed\xa0\x80 encoded",
 	strings.Repeat("clean ascii prose. ", 64),
 	strings.Repeat("caf\u00e9 \u4e16\u754c \U0001F600\uFE0F ", 32),
+	"[bug] can't add a connection to toolkits in desktop app",
+	"&lt;script&gt;alert(1)&lt;/script&gt;",
+	"&amp;lt;script&amp;gt;alert(1)&amp;lt;/script&amp;gt;",
+	"&amp;amp;lt;script&amp;amp;gt;alert(1)&amp;amp;lt;/script&amp;amp;gt;",
 }
 
 // TestHTMLInertBytesAreFixedPointsOfThePolicy is the load-bearing check on the
@@ -718,6 +722,103 @@ func TestSanitizeStillStripsMaliciousContent(t *testing.T) {
 	}
 	for _, in := range payloads {
 		require.NotEqual(t, in, Sanitize(in), "Sanitize left payload %q untouched", in)
+		require.NotEqual(t, in, Title(in), "Title left payload %q untouched", in)
+		require.NotContains(t, Title(in), "<script", "Title reconstituted markup from %q", in)
+	}
+}
+
+func TestTitlePreservesVisibleText(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "apostrophe in issue title",
+			input:    "[bug] can't add a connection to toolkits in desktop app",
+			expected: "[bug] can't add a connection to toolkits in desktop app",
+		},
+		{
+			name:     "quotes and ampersand",
+			input:    `It's a "test" & more`,
+			expected: `It's a "test" & more`,
+		},
+		{
+			name:     "plain-text less-than stays escaped",
+			input:    "if n < 0 return",
+			expected: "if n &lt; 0 return",
+		},
+		{
+			name:     "strips live script tags",
+			input:    "<script>alert(1)</script>Hello",
+			expected: "Hello",
+		},
+		{
+			name:     "leaves entity-encoded tags escaped",
+			input:    "&lt;script&gt;alert(1)&lt;/script&gt;Hello",
+			expected: "&lt;script&gt;alert(1)&lt;/script&gt;Hello",
+		},
+		{
+			name:     "strips invisible characters",
+			input:    "Fix\u200B the bug",
+			expected: "Fix the bug",
+		},
+		{
+			name:     "decodes then strips entity-encoded invisible characters",
+			input:    "Hello&#8203;World",
+			expected: "HelloWorld",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Title(tt.input)
+			assert.Equal(t, tt.expected, got)
+			assert.NotContains(t, got, "&#39;")
+			assert.NotContains(t, got, "&#34;")
+			assert.NotContains(t, got, "&quot;")
+			assert.NotContains(t, got, "<script")
+		})
+	}
+}
+
+func TestTitleDoesNotReconstituteMarkup(t *testing.T) {
+	payloads := []string{
+		"<script>alert(1)</script>",
+		"&lt;script&gt;alert(1)&lt;/script&gt;",
+		"&amp;lt;script&amp;gt;alert(1)&amp;lt;/script&amp;gt;",
+		"&amp;amp;lt;script&amp;amp;gt;alert(1)&amp;amp;lt;/script&amp;amp;gt;",
+		"&amp;amp;amp;lt;script&amp;amp;amp;gt;alert(1)&amp;amp;amp;lt;/script&amp;amp;amp;gt;",
+		"&#60;script&#62;alert(1)&#60;/script&#62;",
+	}
+	for _, in := range payloads {
+		got := Title(in)
+		require.NotContains(t, got, "<script", "Title reconstituted markup from %q -> %q", in, got)
+		require.Equal(t, got, Title(got), "Title not idempotent on nested encoding %q", in)
+	}
+}
+
+func TestTitleIsIdempotent(t *testing.T) {
+	for _, in := range invariantCorpus {
+		once := Title(in)
+		require.Equal(t, once, Title(once), "Title not idempotent on %q", in)
+	}
+}
+
+func TestTitleDoesNotAllocateForCleanASCII(t *testing.T) {
+	clean := []string{
+		"Fix flaky converter test for issue comments on large pages",
+		strings.Repeat("clean ascii prose. ", 512),
+	}
+	for _, in := range clean {
+		require.Equal(t, in, Title(in))
+		require.Zero(t, testing.AllocsPerRun(20, func() { sink = Title(in) }),
+			"Title allocated for clean input %q", in)
 	}
 }
 

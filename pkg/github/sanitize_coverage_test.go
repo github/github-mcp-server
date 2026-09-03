@@ -257,6 +257,111 @@ func Test_SearchIssueResult_SanitizesTitleAndBody(t *testing.T) {
 	assert.Equal(t, sanitizedText, decoded.Body)
 }
 
+func Test_MinimalConverters_TitlePreservesVisibleText(t *testing.T) {
+	title := "[bug] can't add a connection to toolkits in desktop app"
+
+	tests := []struct {
+		name string
+		got  func() string
+	}{
+		{
+			name: "issue title (REST)",
+			got: func() string {
+				return convertToMinimalIssue(&github.Issue{Title: github.Ptr(title)}).Title
+			},
+		},
+		{
+			name: "issue title (GraphQL)",
+			got: func() string {
+				return fragmentWithoutFieldValuesToMinimalIssue(issueFragmentWithoutFieldValues{
+					Title: githubv4.String(title),
+				}).Title
+			},
+		},
+		{
+			name: "pull request title",
+			got: func() string {
+				return convertToMinimalPullRequest(&github.PullRequest{Title: github.Ptr(title)}).Title
+			},
+		},
+		{
+			name: "release name",
+			got: func() string {
+				return convertToMinimalRelease(&github.RepositoryRelease{Name: github.Ptr(title)}).Name
+			},
+		},
+		{
+			name: "project item content title (issue)",
+			got: func() string {
+				return convertIssueToMinimalProjectItemContent(&github.Issue{Title: github.Ptr(title)}).Title
+			},
+		},
+		{
+			name: "project item content title (pull request)",
+			got: func() string {
+				return convertPullRequestToMinimalProjectItemContent(&github.PullRequest{Title: github.Ptr(title)}).Title
+			},
+		},
+		{
+			name: "project item content title (draft issue)",
+			got: func() string {
+				return convertDraftIssueToMinimalProjectItemContent(&github.ProjectV2DraftIssue{Title: github.Ptr(title)}).Title
+			},
+		},
+		{
+			name: "project pull request ref title (from *github.PullRequest)",
+			got: func() string {
+				return minimalProjectPullRequestRefFromPullRequest(&github.PullRequest{Title: github.Ptr(title)}).Title
+			},
+		},
+		{
+			name: "project pull request ref title (from map)",
+			got: func() string {
+				return minimalProjectPullRequestRefFromMap(map[string]any{"title": title}).Title
+			},
+		},
+		{
+			name: "issue ref title (shared constructor)",
+			got: func() string {
+				return newMinimalIssueRef(1, title, "OPEN", "https://github.com/o/r/issues/1", "o/r").Title
+			},
+		},
+		{
+			name: "pull request ref title (shared constructor)",
+			got: func() string {
+				return newMinimalPullRequestRef(1, title, "OPEN", "https://github.com/o/r/pull/1", "o/r").Title
+			},
+		},
+		{
+			name: "issue dependency ref title",
+			got: func() string {
+				return issueToDependencyRef(&github.Issue{Title: github.Ptr(title)}).Title
+			},
+		},
+		{
+			name: "discussion title",
+			got: func() string {
+				discussion := fragmentToDiscussion(NodeFragment{Title: githubv4.String(title)})
+				return discussion.GetTitle()
+			},
+		},
+		{
+			name: "search issue result title",
+			got: func() string {
+				issue := &github.Issue{Title: github.Ptr(title)}
+				sanitizeIssueTitleAndBody(issue)
+				return issue.GetTitle()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, title, tt.got())
+		})
+	}
+}
+
 // Test_SanitizeIssueTitleAndBody exercises the shared helper directly, including its nil-safety,
 // since it backs both search_issues and search_pull_requests.
 func Test_SanitizeIssueTitleAndBody(t *testing.T) {

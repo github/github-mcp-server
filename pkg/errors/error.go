@@ -257,7 +257,7 @@ func formatGitHubValidationDetail(validationErr github.Error) string {
 
 func sanitizeGitHubValidationText(value string) string {
 	// Tool errors are plain text; keep quoted branch patterns readable.
-	sanitized := strings.ReplaceAll(sanitize.Sanitize(value), "&#39;", "'")
+	sanitized := sanitize.Title(value)
 	return strings.Join(strings.Fields(sanitized), " ")
 }
 
