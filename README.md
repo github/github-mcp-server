@@ -1296,6 +1296,24 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `threadId`: The node ID of the review thread (e.g., PRRT_kwDOxxx). Required for resolve_thread and unresolve_thread methods. Get thread IDs from pull_request_read with method get_review_comments. (string, optional)
 
+- **pull_request_stack_read** - Read pull request stacks
+  - **OAuth Challenge Scopes**: `repo`
+  - `method`: The read operation: `get` retrieves one stack by stackNumber; `list` lists repository stacks and can filter by pullNumber. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `pullNumber`: Filter listed stacks to the stack containing this repository pull request number. Used only when method is `list`. (number, optional)
+  - `repo`: Repository name (string, required)
+  - `stackNumber`: Stack number. Required when method is `get`. (number, optional)
+
+- **pull_request_stack_write** - Manage pull request stack
+  - **OAuth Challenge Scopes**: `repo`
+  - `method`: The write operation: `create`, `add`, or `unstack`. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `pullNumbers`: Repository pull request numbers in bottom-to-top order. Required for `create` and `add`. (number[], optional)
+  - `repo`: Repository name (string, required)
+  - `stackNumber`: Stack number. Required for `add` and `unstack`. (number, optional)
+
 - **search_pull_requests** - Search pull requests
   - **OAuth Challenge Scopes**: `repo`
   - `fields`: Subset of fields to return for each pull request result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data. (string[], optional)

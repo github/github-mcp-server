@@ -20,7 +20,7 @@ func generatePullRequestsToolsetInstructions(inv *inventory.Inventory) string {
 
 PR review workflow: Always use 'pull_request_review_write' with method 'create' to create a pending review, then 'add_comment_to_pending_review' to add comments, and finally 'pull_request_review_write' with method 'submit_pending' to submit the review for complex reviews with line-specific comments.
 
-Stacked PRs workflow: Use 'link_stack' to group dependent pull requests into a native GitHub stack, 'get_stack' or 'list_stacks' to inspect stack layers, 'update_stack' to update ordering or base branches, and 'dissolve_stack' to un-group stack layers.`
+Stacked PRs workflow: Use 'pull_request_stack_read' to inspect native stack metadata. Use 'pull_request_stack_write' with method 'create' for 2-100 repository pull requests ordered bottom-to-top, 'add' only to append new pull requests above the current top, and 'unstack' to remove every removable unmerged pull request. Native stack operations require same-repository branches in an existing linear base/head chain; they do not create pull requests, retarget bases, rebase commits, push branches, or merge. After 'unstack', inspect the result because locked or queued pull requests can remain.`
 
 	if inv.HasToolset("repos") {
 		instructions += `
