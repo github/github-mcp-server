@@ -428,185 +428,164 @@ func Test_UpdatePullRequest(t *testing.T) {
 }
 
 func Test_UpdatePullRequest_Draft(t *testing.T) {
-	// Setup mock PR for success case
-	mockUpdatedPR := &github.PullRequest{
-		Number:              github.Ptr(42),
-		Title:               github.Ptr("Test PR Title"),
-		State:               github.Ptr("open"),
-		HTMLURL:             github.Ptr("https://github.com/owner/repo/pull/42"),
-		Body:                github.Ptr("Test PR body."),
-		MaintainerCanModify: github.Ptr(false),
-		Draft:               github.Ptr(false), // Updated to ready for review
-		Base: &github.PullRequestBranch{
-			Ref: github.Ptr("main"),
-		},
-	}
-
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]any
-		expectError    bool
-		expectedPR     *github.PullRequest
-		expectedErrMsg string
+		name                string
+		initialDraftState   bool
+		requestedDraftState bool
+		expectedActionCalls int
+		expectedFinalDraft  bool
+		getStatusCode       int
+		actionStatusCode    int
+		expectError         bool
+		expectedErrContains string
 	}{
 		{
-			name: "successful draft update to ready for review",
-			mockedClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							PullRequest struct {
-								ID      githubv4.ID
-								IsDraft githubv4.Boolean
-							} `graphql:"pullRequest(number: $prNum)"`
-						} `graphql:"repository(owner: $owner, name: $repo)"`
-					}{},
-					map[string]any{
-						"owner": githubv4.String("owner"),
-						"repo":  githubv4.String("repo"),
-						"prNum": githubv4.Int(42),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"pullRequest": map[string]any{
-								"id":      "PR_kwDOA0xdyM50BPaO",
-								"isDraft": true, // Current state is draft
-							},
-						},
-					}),
-				),
-				githubv4mock.NewMutationMatcher(
-					struct {
-						MarkPullRequestReadyForReview struct {
-							PullRequest struct {
-								ID      githubv4.ID
-								IsDraft githubv4.Boolean
-							}
-						} `graphql:"markPullRequestReadyForReview(input: $input)"`
-					}{},
-					githubv4.MarkPullRequestReadyForReviewInput{
-						PullRequestID: "PR_kwDOA0xdyM50BPaO",
-					},
-					nil,
-					githubv4mock.DataResponse(map[string]any{
-						"markPullRequestReadyForReview": map[string]any{
-							"pullRequest": map[string]any{
-								"id":      "PR_kwDOA0xdyM50BPaO",
-								"isDraft": false,
-							},
-						},
-					}),
-				),
-			),
-			requestArgs: map[string]any{
-				"owner":      "owner",
-				"repo":       "repo",
-				"pullNumber": float64(42),
-				"draft":      false,
-			},
-			expectError: false,
-			expectedPR:  mockUpdatedPR,
+			name:                "successful draft update to ready for review",
+			initialDraftState:   true,
+			requestedDraftState: false,
+			expectedActionCalls: 1,
+			expectedFinalDraft:  false,
+			getStatusCode:       http.StatusOK,
+			actionStatusCode:    http.StatusOK,
 		},
 		{
-			name: "successful convert pull request to draft",
-			mockedClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							PullRequest struct {
-								ID      githubv4.ID
-								IsDraft githubv4.Boolean
-							} `graphql:"pullRequest(number: $prNum)"`
-						} `graphql:"repository(owner: $owner, name: $repo)"`
-					}{},
-					map[string]any{
-						"owner": githubv4.String("owner"),
-						"repo":  githubv4.String("repo"),
-						"prNum": githubv4.Int(42),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"pullRequest": map[string]any{
-								"id":      "PR_kwDOA0xdyM50BPaO",
-								"isDraft": false, // Current state is draft
-							},
-						},
-					}),
-				),
-				githubv4mock.NewMutationMatcher(
-					struct {
-						ConvertPullRequestToDraft struct {
-							PullRequest struct {
-								ID      githubv4.ID
-								IsDraft githubv4.Boolean
-							}
-						} `graphql:"convertPullRequestToDraft(input: $input)"`
-					}{},
-					githubv4.ConvertPullRequestToDraftInput{
-						PullRequestID: "PR_kwDOA0xdyM50BPaO",
-					},
-					nil,
-					githubv4mock.DataResponse(map[string]any{
-						"convertPullRequestToDraft": map[string]any{
-							"pullRequest": map[string]any{
-								"id":      "PR_kwDOA0xdyM50BPaO",
-								"isDraft": true,
-							},
-						},
-					}),
-				),
-			),
-			requestArgs: map[string]any{
-				"owner":      "owner",
-				"repo":       "repo",
-				"pullNumber": float64(42),
-				"draft":      true,
-			},
-			expectError: false,
-			expectedPR:  mockUpdatedPR,
+			name:                "successful convert pull request to draft",
+			initialDraftState:   false,
+			requestedDraftState: true,
+			expectedActionCalls: 1,
+			expectedFinalDraft:  true,
+			getStatusCode:       http.StatusOK,
+			actionStatusCode:    http.StatusOK,
+		},
+		{
+			name:                "no-op when already in requested state",
+			initialDraftState:   true,
+			requestedDraftState: true,
+			expectedActionCalls: 0,
+			expectedFinalDraft:  true,
+			getStatusCode:       http.StatusOK,
+			actionStatusCode:    http.StatusOK,
+		},
+		{
+			name:                "returns error when action endpoint is forbidden",
+			initialDraftState:   false,
+			requestedDraftState: true,
+			expectedActionCalls: 1,
+			expectedFinalDraft:  false,
+			getStatusCode:       http.StatusOK,
+			actionStatusCode:    http.StatusForbidden,
+			expectError:         true,
+			expectedErrContains: "failed to convert pull request to draft",
+		},
+		{
+			name:                "returns error when pull request lookup is not found",
+			initialDraftState:   false,
+			requestedDraftState: true,
+			expectedActionCalls: 0,
+			expectedFinalDraft:  false,
+			getStatusCode:       http.StatusNotFound,
+			actionStatusCode:    http.StatusOK,
+			expectError:         true,
+			expectedErrContains: "failed to get pull request",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// For draft-only tests, we need to mock both GraphQL and the final REST GET call
+			getCalls := 0
+			actionCalls := 0
+			convertToDraftCalls := 0
+			readyForReviewCalls := 0
+
 			restClient := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockUpdatedPR),
+				GetReposPullsByOwnerByRepoByPullNumber: func(w http.ResponseWriter, _ *http.Request) {
+					getCalls++
+					if tc.getStatusCode != http.StatusOK {
+						writeJSONResponse(t, w, tc.getStatusCode, map[string]any{"message": "not found"})
+						return
+					}
+					draft := tc.initialDraftState
+					if getCalls > 1 {
+						draft = tc.expectedFinalDraft
+					}
+					pr := &github.PullRequest{
+						Number:              github.Ptr(42),
+						Title:               github.Ptr("Test PR Title"),
+						State:               github.Ptr("open"),
+						HTMLURL:             github.Ptr("https://github.com/owner/repo/pull/42"),
+						Body:                github.Ptr("Test PR body."),
+						MaintainerCanModify: github.Ptr(false),
+						Draft:               github.Ptr(draft),
+						Base: &github.PullRequestBranch{
+							Ref: github.Ptr("main"),
+						},
+					}
+					writeJSONResponse(t, w, http.StatusOK, pr)
+				},
+				PostReposPullsByOwnerByRepoByPullNumberReadyForReview: func(w http.ResponseWriter, _ *http.Request) {
+					actionCalls++
+					readyForReviewCalls++
+					writeJSONResponse(t, w, tc.actionStatusCode, map[string]any{"message": "forbidden"})
+				},
+				PostReposPullsByOwnerByRepoByPullNumberConvertToDraft: func(w http.ResponseWriter, _ *http.Request) {
+					actionCalls++
+					convertToDraftCalls++
+					writeJSONResponse(t, w, tc.actionStatusCode, map[string]any{"message": "forbidden"})
+				},
 			}))
-			gqlClient := githubv4.NewClient(tc.mockedClient)
 
 			serverTool := UpdatePullRequest(translations.NullTranslationHelper)
-			deps := BaseDeps{
-				Client:    restClient,
-				GQLClient: gqlClient,
-			}
+			deps := BaseDeps{Client: restClient}
 			handler := serverTool.Handler(deps)
 
-			request := createMCPRequest(tc.requestArgs)
+			request := createMCPRequest(map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"draft":      tc.requestedDraftState,
+			})
 
 			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-
-			if tc.expectError || tc.expectedErrMsg != "" {
-				require.NoError(t, err)
+			require.NoError(t, err)
+			if tc.expectError {
 				require.True(t, result.IsError)
 				errorContent := getErrorResult(t, result)
-				if tc.expectedErrMsg != "" {
-					assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				assert.Contains(t, errorContent.Text, tc.expectedErrContains)
+				assert.Equal(t, tc.expectedActionCalls, actionCalls)
+				if tc.expectedActionCalls == 1 {
+					if tc.requestedDraftState {
+						assert.Equal(t, 1, convertToDraftCalls)
+						assert.Equal(t, 0, readyForReviewCalls)
+					} else {
+						assert.Equal(t, 0, convertToDraftCalls)
+						assert.Equal(t, 1, readyForReviewCalls)
+					}
+				} else {
+					assert.Equal(t, 0, convertToDraftCalls)
+					assert.Equal(t, 0, readyForReviewCalls)
 				}
 				return
 			}
-
-			require.NoError(t, err)
 			require.False(t, result.IsError)
 
 			textContent := getTextResult(t, result)
-
-			// Unmarshal and verify the minimal result
 			var updateResp MinimalResponse
 			err = json.Unmarshal([]byte(textContent.Text), &updateResp)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expectedPR.GetHTMLURL(), updateResp.URL)
+			assert.Equal(t, "https://github.com/owner/repo/pull/42", updateResp.URL)
+			assert.Equal(t, tc.expectedActionCalls, actionCalls)
+			if tc.expectedActionCalls == 1 {
+				if tc.requestedDraftState {
+					assert.Equal(t, 1, convertToDraftCalls)
+					assert.Equal(t, 0, readyForReviewCalls)
+				} else {
+					assert.Equal(t, 0, convertToDraftCalls)
+					assert.Equal(t, 1, readyForReviewCalls)
+				}
+			} else {
+				assert.Equal(t, 0, convertToDraftCalls)
+				assert.Equal(t, 0, readyForReviewCalls)
+			}
 		})
 	}
 }
