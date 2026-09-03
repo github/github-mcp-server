@@ -215,7 +215,8 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
 
    ```bash
    # CLI usage
-   claude mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=$GITHUB_PAT -- docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server
+   export GITHUB_PERSONAL_ACCESS_TOKEN="$GITHUB_PAT"
+   claude mcp add github -- docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server
 
    # In config files (where supported)
    "env": {
