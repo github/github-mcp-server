@@ -46,6 +46,32 @@ func BenchmarkFeatureInventory(b *testing.B) {
 				b.ReportMetric(float64(calls.Load())/float64(b.N), "checks/op")
 			})
 
+			b.Run("read-only-tools-list", func(b *testing.B) {
+				var calls atomic.Int64
+				checker := func(_ context.Context, flag string) (bool, error) {
+					calls.Add(1)
+					return distribution.enabled["*"] || distribution.enabled[flag], nil
+				}
+				tools := AllTools(translations.NullTranslationHelper)
+				inv, err := inventory.NewBuilder().
+					SetTools(tools).
+					SetResources(AllResources(translations.NullTranslationHelper)).
+					SetPrompts(AllPrompts(translations.NullTranslationHelper)).
+					WithToolsets([]string{"all"}).
+					WithReadOnly(true).
+					WithFeatureChecker(checker).
+					Build()
+				if err != nil {
+					b.Fatal(err)
+				}
+				b.ReportAllocs()
+				b.ResetTimer()
+				for b.Loop() {
+					_ = inv.ForMCPRequest(inventory.MCPMethodToolsList, "").ToolsForRegistration(context.Background())
+				}
+				b.ReportMetric(float64(calls.Load())/float64(b.N), "checks/op")
+			})
+
 			b.Run("unflagged-tool-call", func(b *testing.B) {
 				inv, calls := featureBenchmarkInventory(b, distribution)
 				b.ReportAllocs()

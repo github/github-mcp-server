@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"sort"
+
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 )
 
 // isToolsetEnabled checks if a toolset is enabled based on current filters.
@@ -25,12 +27,11 @@ func (r *Inventory) checkFeatureFlag(ctx context.Context, flagName FeatureFlag) 
 // isToolEnabled checks if a specific tool is enabled based on current filters.
 // Filter evaluation order:
 //  1. Tool.Enabled (tool self-filtering)
-//  2. Functional feature rule
-//  3. Read-only filter
-//  4. Builder filters (via WithFilter)
-//  5. Toolset/additional tools
+//  2. Read-only and builder filters
+//  3. Toolset/additional and MCP availability filters
+//  4. Functional feature rule
 func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool, featureAsBool FeatureResolver) bool {
-	// 1. Check tool's own Enabled function first
+	// 1. Check tool's own Enabled function.
 	if tool.Enabled != nil {
 		enabled, err := tool.Enabled(ctx)
 		if err != nil {
@@ -41,15 +42,10 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool, feature
 			return false
 		}
 	}
-	// 2. Check feature availability.
-	if r.featureChecker != nil && !tool.FeatureRule.Enabled(featureAsBool) {
-		return false
-	}
-	// 3. Check read-only filter (applies to all tools)
+	// 2. Apply static inventory filters.
 	if r.readOnly && !tool.IsReadOnly() {
 		return false
 	}
-	// 4. Apply builder filters.
 	for _, filter := range r.filters {
 		allowed, err := filter(ctx, tool)
 		if err != nil {
@@ -60,12 +56,19 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool, feature
 			return false
 		}
 	}
-	// 5. Check if tool is in additionalTools (bypasses toolset filter)
-	if r.additionalTools != nil && r.additionalTools[tool.Tool.Name] {
-		return true
+	// 3. Apply selection and request-static MCP availability.
+	if (r.additionalTools == nil || !r.additionalTools[tool.Tool.Name]) && !r.isToolsetEnabled(tool.Toolset.ID) {
+		return false
 	}
-	// 6. Check toolset filter
-	if !r.isToolsetEnabled(tool.Toolset.ID) {
+	if availability := tool.availability(); !availability.unrestricted() {
+		if info, ok := ghcontext.MCPMethod(ctx); ok &&
+			(info.Method == MCPMethodToolsList || info.Method == MCPMethodToolsCall) &&
+			!toolAvailable(info.ProtocolVersion, info.ClientCapabilities, availability) {
+			return false
+		}
+	}
+	// 4. Check feature availability.
+	if r.featureChecker != nil && !tool.FeatureRule.Enabled(featureAsBool) {
 		return false
 	}
 	return true
@@ -136,12 +139,13 @@ func (r *Inventory) availableResourceTemplates(ctx context.Context) []ServerReso
 	var result []ServerResourceTemplate
 	for i := range r.resourceTemplates {
 		res := &r.resourceTemplates[i]
+		if !r.isToolsetEnabled(res.Toolset.ID) {
+			continue
+		}
 		if r.featureChecker != nil && !res.FeatureRule.Enabled(featureAsBool) {
 			continue
 		}
-		if r.isToolsetEnabled(res.Toolset.ID) {
-			result = append(result, *res)
-		}
+		result = append(result, *res)
 	}
 
 	// Sort deterministically: by toolset ID, then by template name
@@ -170,12 +174,13 @@ func (r *Inventory) availablePrompts(ctx context.Context) []ServerPrompt {
 	var result []ServerPrompt
 	for i := range r.prompts {
 		prompt := &r.prompts[i]
+		if !r.isToolsetEnabled(prompt.Toolset.ID) {
+			continue
+		}
 		if r.featureChecker != nil && !prompt.FeatureRule.Enabled(featureAsBool) {
 			continue
 		}
-		if r.isToolsetEnabled(prompt.Toolset.ID) {
-			result = append(result, *prompt)
-		}
+		result = append(result, *prompt)
 	}
 
 	// Sort deterministically: by toolset ID, then by prompt name

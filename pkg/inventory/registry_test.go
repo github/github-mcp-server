@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -1784,10 +1785,9 @@ func TestFilteredToolsMatchesAvailableTools(t *testing.T) {
 func TestFilteringOrder(t *testing.T) {
 	// Test that filters are applied in the correct order:
 	// 1. Tool.Enabled
-	// 2. Feature rule
-	// 3. Read-only
-	// 4. Builder filters
-	// 5. Toolset/additional tools
+	// 2. Read-only and builder filters
+	// 3. Toolset and MCP availability filters
+	// 4. Feature rule
 
 	callOrder := []string{}
 
@@ -1819,8 +1819,7 @@ func TestFilteringOrder(t *testing.T) {
 
 	_ = reg.AvailableTools(context.Background())
 
-	// Enabled runs before the lazy feature check; read-only then stops the pipeline.
-	expectedOrder := []string{"Enabled", "FeatureFlag"}
+	expectedOrder := []string{"Enabled"}
 	if len(callOrder) != len(expectedOrder) {
 		t.Errorf("Expected %d checks, got %d: %v", len(expectedOrder), len(callOrder), callOrder)
 	}
@@ -1829,6 +1828,138 @@ func TestFilteringOrder(t *testing.T) {
 		if i >= len(callOrder) || callOrder[i] != expected {
 			t.Errorf("At position %d: expected %s, got %v", i, expected, callOrder)
 		}
+	}
+}
+
+func TestReadOnlySkipsWriteToolFeatureChecks(t *testing.T) {
+	writeTool := mockToolWithFlags("write_tool", "toolset1", false, "write_feature", "")
+	readTool := mockTool("read_tool", "toolset1", true)
+	calls := 0
+	checker := func(_ context.Context, _ string) (bool, error) {
+		calls++
+		return true, nil
+	}
+
+	inv := mustBuild(t, NewBuilder().
+		SetTools([]ServerTool{writeTool, readTool}).
+		WithToolsets([]string{"all"}).
+		WithReadOnly(true).
+		WithFeatureChecker(checker))
+
+	available := inv.AvailableTools(context.Background())
+	require.Len(t, available, 1)
+	require.Equal(t, "read_tool", available[0].Tool.Name)
+	require.Zero(t, calls)
+}
+
+func TestStaticFiltersRunBeforeFeatureChecks(t *testing.T) {
+	rule := func(feature FeatureFlag) FeatureRule {
+		return NewFeatureRule([]FeatureFlag{feature}, func(featureAsBool FeatureResolver) bool {
+			if !featureAsBool(feature) {
+				return false
+			}
+			return featureAsBool(feature)
+		})
+	}
+	readOnlyExcluded := mockTool("write", "enabled", false)
+	readOnlyExcluded.FeatureRule = rule("write")
+	toolsetExcluded := mockTool("wrong_toolset", "disabled", true)
+	toolsetExcluded.FeatureRule = rule("wrong_toolset")
+	filterExcluded := mockTool("filtered", "enabled", true)
+	filterExcluded.FeatureRule = rule("filtered")
+	enabledExcluded := mockTool("enabled_false", "enabled", true)
+	enabledExcluded.FeatureRule = rule("enabled_false")
+	enabledExcluded.Enabled = func(context.Context) (bool, error) { return false, nil }
+	protocolExcluded := mockTool("protocol", "enabled", true)
+	protocolExcluded.FeatureRule = rule("protocol")
+	protocolExcluded.MinimumProtocolVersion = ProtocolVersionMultiRoundTrip
+	elicitationExcluded := mockTool("elicitation", "enabled", true)
+	elicitationExcluded.FeatureRule = rule("elicitation")
+	elicitationExcluded.RequiredElicitationMode = ElicitationModeForm
+	survivor := mockTool("survivor", "enabled", true)
+	survivor.FeatureRule = rule("survivor")
+	resource := mockResource("resource", "disabled", "test://resource")
+	resource.FeatureRule = rule("resource")
+	prompt := mockPrompt("prompt", "disabled")
+	prompt.FeatureRule = rule("prompt")
+
+	calls := make(map[string]int)
+	checker := func(_ context.Context, feature string) (bool, error) {
+		time.Sleep(time.Millisecond)
+		calls[feature]++
+		return true, nil
+	}
+	inv := mustBuild(t, NewBuilder().
+		SetTools([]ServerTool{
+			readOnlyExcluded,
+			toolsetExcluded,
+			filterExcluded,
+			enabledExcluded,
+			protocolExcluded,
+			elicitationExcluded,
+			survivor,
+		}).
+		SetResources([]ServerResourceTemplate{resource}).
+		SetPrompts([]ServerPrompt{prompt}).
+		WithToolsets([]string{"enabled"}).
+		WithReadOnly(true).
+		WithFeatureChecker(checker).
+		WithFilter(func(_ context.Context, tool *ServerTool) (bool, error) {
+			return tool.Tool.Name != "filtered", nil
+		}))
+
+	ctx := ghcontext.WithMCPMethodInfo(context.Background(), &ghcontext.MCPMethodInfo{
+		Method:             MCPMethodToolsList,
+		ProtocolVersion:    "2025-11-25",
+		ClientCapabilities: &mcp.ClientCapabilities{Elicitation: &mcp.ElicitationCapabilities{URL: &mcp.URLElicitationCapabilities{}}},
+	})
+	require.Len(t, inv.AvailableTools(ctx), 1)
+	require.Empty(t, inv.AvailableResourceTemplates(ctx))
+	require.Empty(t, inv.AvailablePrompts(ctx))
+	require.Equal(t, map[string]int{"survivor": 1}, calls)
+}
+
+func TestMCPAvailabilityRunsBeforeFeatureChecks(t *testing.T) {
+	rule := NewFeatureRule([]FeatureFlag{"feature"}, func(featureAsBool FeatureResolver) bool {
+		return featureAsBool("feature")
+	})
+	protocolTool := mockTool("protocol", "toolset1", true)
+	protocolTool.FeatureRule = rule
+	protocolTool.MinimumProtocolVersion = ProtocolVersionMultiRoundTrip
+	elicitationTool := mockTool("elicitation", "toolset1", true)
+	elicitationTool.FeatureRule = rule
+	elicitationTool.RequiredElicitationMode = ElicitationModeForm
+
+	for _, method := range []string{MCPMethodToolsList, MCPMethodToolsCall} {
+		t.Run(method, func(t *testing.T) {
+			calls := 0
+			checker := func(_ context.Context, _ string) (bool, error) {
+				calls++
+				return true, nil
+			}
+			inv := mustBuild(t, NewBuilder().
+				SetTools([]ServerTool{protocolTool, elicitationTool}).
+				WithToolsets([]string{"all"}).
+				WithFeatureChecker(checker))
+			ctx := ghcontext.WithMCPMethodInfo(context.Background(), &ghcontext.MCPMethodInfo{
+				Method:             method,
+				ProtocolVersion:    "2025-11-25",
+				ClientCapabilities: &mcp.ClientCapabilities{Elicitation: &mcp.ElicitationCapabilities{URL: &mcp.URLElicitationCapabilities{}}},
+			})
+
+			require.Empty(t, inv.AvailableTools(ctx))
+			require.Zero(t, calls)
+
+			ctx = ghcontext.WithMCPMethodInfo(context.Background(), &ghcontext.MCPMethodInfo{
+				Method:          method,
+				ProtocolVersion: ProtocolVersionMultiRoundTrip,
+				ClientCapabilities: &mcp.ClientCapabilities{
+					Elicitation: &mcp.ElicitationCapabilities{Form: &mcp.FormElicitationCapabilities{}},
+				},
+			})
+			require.Len(t, inv.AvailableTools(ctx), 2)
+			require.Equal(t, 1, calls)
+		})
 	}
 }
 

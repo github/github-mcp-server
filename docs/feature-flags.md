@@ -57,10 +57,10 @@ Library consumers migrating existing inventory declarations should replace
 `FeatureFlagChecker` and `ToolDependencies.IsFeatureEnabled` continue to accept
 string flag names.
 
-Rules are evaluated lazily after request narrowing. Normal Go short-circuiting
-avoids checks that cannot affect the result, while one request-owned memo ensures
-each flag actually reached is resolved at most once across tools, resources,
-prompts, and `deps.IsFeatureEnabled`.
+Rules are evaluated lazily after request narrowing and static availability
+filters. Normal Go short-circuiting avoids checks that cannot affect the result,
+while one request-owned memo ensures each flag actually reached is resolved at
+most once across tools, resources, prompts, and `deps.IsFeatureEnabled`.
 
 Feature predicates are pure and may depend only on their resolver. Construction
 validates every combination of up to 16 declared flags, so an undeclared lookup

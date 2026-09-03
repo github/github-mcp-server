@@ -71,6 +71,13 @@ func TestFeatureRuleRejectsEmptyFeature(t *testing.T) {
 	})
 }
 
+func TestFeatureRuleRejectsDeclaredFlagsWithoutPredicate(t *testing.T) {
+	assert.PanicsWithValue(t, "feature rule declares flags without a predicate", func() {
+		NewFeatureRule([]FeatureFlag{"declared"}, nil)
+	})
+	assert.True(t, FeatureRule{}.IsZero())
+}
+
 func TestFeatureStateDeduplicatesChecks(t *testing.T) {
 	calls := make(map[FeatureFlag]int)
 	checker := func(_ context.Context, flag string) (bool, error) {

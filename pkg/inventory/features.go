@@ -49,6 +49,9 @@ func NewFeatureRule(features []FeatureFlag, predicate FeaturePredicate) FeatureR
 		features:  declared,
 		predicate: predicate,
 	}
+	if len(declared) > 0 && predicate == nil {
+		panic("feature rule declares flags without a predicate")
+	}
 	rule.validate()
 	return rule
 }

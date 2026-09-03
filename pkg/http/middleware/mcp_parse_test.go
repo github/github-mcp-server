@@ -9,22 +9,25 @@ import (
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestWithMCPParse(t *testing.T) {
 	tests := []struct {
-		name            string
-		method          string
-		path            string
-		body            string
-		expectInfo      bool
-		expectedMethod  string
-		expectedItem    string
-		expectedRaw     string
-		expectedArgs    map[string]any
-		expectArgsError bool
+		name             string
+		method           string
+		path             string
+		body             string
+		expectInfo       bool
+		expectedMethod   string
+		expectedItem     string
+		expectedRaw      string
+		expectedArgs     map[string]any
+		expectedProtocol string
+		expectedForm     bool
+		expectArgsError  bool
 	}{
 		{
 			name:       "health check path is skipped",
@@ -75,6 +78,19 @@ func TestWithMCPParse(t *testing.T) {
 			body:           `{"jsonrpc":"2.0","method":"tools/list"}`,
 			expectInfo:     true,
 			expectedMethod: "tools/list",
+		},
+		{
+			name:   "tools/list parses client availability",
+			method: http.MethodPost,
+			path:   "/mcp",
+			body: `{"jsonrpc":"2.0","method":"tools/list","params":{"_meta":{
+				"io.modelcontextprotocol/protocolVersion":"2026-07-28",
+				"io.modelcontextprotocol/clientCapabilities":{"elicitation":{"form":{}}}
+			}}}`,
+			expectInfo:       true,
+			expectedMethod:   "tools/list",
+			expectedProtocol: "2026-07-28",
+			expectedForm:     true,
 		},
 		{
 			name:           "tools/call parses name",
@@ -158,6 +174,12 @@ func TestWithMCPParse(t *testing.T) {
 				require.NotNil(t, capturedInfo)
 				assert.Equal(t, tt.expectedMethod, capturedInfo.Method)
 				assert.Equal(t, tt.expectedItem, capturedInfo.ItemName)
+				assert.Equal(t, tt.expectedProtocol, capturedInfo.ProtocolVersion)
+				if tt.expectedForm {
+					require.NotNil(t, capturedInfo.ClientCapabilities)
+					require.NotNil(t, capturedInfo.ClientCapabilities.Elicitation)
+					assert.Equal(t, &mcp.FormElicitationCapabilities{}, capturedInfo.ClientCapabilities.Elicitation.Form)
+				}
 				if tt.expectedRaw != "" {
 					assert.JSONEq(t, tt.expectedRaw, string(capturedInfo.RawArguments))
 				}
