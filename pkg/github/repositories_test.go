@@ -5454,6 +5454,84 @@ func Test_GetTrafficReferrers(t *testing.T) {
 	}
 }
 
+func Test_GetTrafficPaths(t *testing.T) {
+	serverTool := GetTrafficPaths(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+
+	assert.Equal(t, "get_traffic_paths", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.NotContains(t, schema.Properties, "per")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
+
+	mockPaths := []*github.TrafficPath{
+		{Path: github.Ptr("/owner/repo"), Title: github.Ptr("owner/repo"), Count: github.Ptr(200), Uniques: github.Ptr(90)},
+		{Path: github.Ptr("/owner/repo/issues"), Title: github.Ptr("Issues"), Count: github.Ptr(50), Uniques: github.Ptr(20)},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]any
+		expectError    bool
+		expectedLen    int
+		expectedErrMsg string
+	}{
+		{
+			name: "successful paths fetch",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatch(GetReposTrafficPopularPathsByOwnerByRepo, mockPaths),
+			),
+			requestArgs: map[string]any{"owner": "owner", "repo": "repo"},
+			expectError: false,
+			expectedLen: 2,
+		},
+		{
+			name: "paths fetch fails without push access",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetReposTrafficPopularPathsByOwnerByRepo,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusForbidden)
+						_, _ = w.Write([]byte(`{"message": "Must have push access to repository"}`))
+					}),
+				),
+			),
+			requestArgs:    map[string]any{"owner": "owner", "repo": "repo"},
+			expectError:    true,
+			expectedErrMsg: "failed to get traffic paths",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			require.NoError(t, err)
+			textContent := getTextResult(t, result)
+			if tc.expectError {
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			var returned []*github.TrafficPath
+			err = json.Unmarshal([]byte(textContent.Text), &returned)
+			require.NoError(t, err)
+			assert.Len(t, returned, tc.expectedLen)
+			assert.Equal(t, "/owner/repo", returned[0].GetPath())
+		})
+	}
+}
+
 func Test_looksLikeSHA(t *testing.T) {
 	tests := []struct {
 		name     string

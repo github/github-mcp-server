@@ -2580,6 +2580,76 @@ func GetTrafficReferrers(t translations.TranslationHelperFunc) inventory.ServerT
 	)
 }
 
+// GetTrafficPaths creates a tool to get the top 10 most-visited paths for a
+// repository over the last 14 days.
+func GetTrafficPaths(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        "get_traffic_paths",
+			Description: t("TOOL_GET_TRAFFIC_PATHS_DESCRIPTION", "Get the top 10 most-visited paths (pages) for a GitHub repository over the last 14 days. Requires push access to the repository."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_GET_TRAFFIC_PATHS_USER_TITLE", "Get repository traffic paths"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+				},
+				Required: []string{"owner", "repo"},
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			paths, resp, err := client.Repositories.ListTrafficPaths(ctx, owner, repo)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get traffic paths", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get traffic paths", resp, body), nil, nil
+			}
+
+			r, err := json.Marshal(paths)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			result := utils.NewToolResultText(string(r))
+			// Traffic analytics require push access to read; never world-readable.
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoTraffic())
+			return result, nil, nil
+		},
+	)
+}
+
 func sanitizeReleaseNameAndBody(release *github.RepositoryRelease) {
 	if release == nil {
 		return
