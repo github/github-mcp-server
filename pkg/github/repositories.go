@@ -2426,6 +2426,90 @@ func GetTrafficViews(t translations.TranslationHelperFunc) inventory.ServerTool 
 	)
 }
 
+// GetTrafficClones creates a tool to get the git clones and unique cloners for
+// a repository over the last 14 days.
+func GetTrafficClones(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        "get_traffic_clones",
+			Description: t("TOOL_GET_TRAFFIC_CLONES_DESCRIPTION", "Get the total git clones and unique cloners for a GitHub repository over the last 14 days. Requires push access to the repository."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_GET_TRAFFIC_CLONES_USER_TITLE", "Get repository traffic clones"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"per": {
+						Type:        "string",
+						Description: "The time frame to aggregate by. Either 'day' or 'week'. Defaults to 'day'.",
+						Enum:        []any{"day", "week"},
+					},
+				},
+				Required: []string{"owner", "repo"},
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			per, err := OptionalParam[string](args, "per")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			var opts *github.TrafficBreakdownOptions
+			if per != "" {
+				opts = &github.TrafficBreakdownOptions{Per: per}
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			clones, resp, err := client.Repositories.ListTrafficClones(ctx, owner, repo, opts)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get traffic clones", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get traffic clones", resp, body), nil, nil
+			}
+
+			r, err := json.Marshal(clones)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			result := utils.NewToolResultText(string(r))
+			// Traffic analytics require push access to read; never world-readable.
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoTraffic())
+			return result, nil, nil
+		},
+	)
+}
+
 func sanitizeReleaseNameAndBody(release *github.RepositoryRelease) {
 	if release == nil {
 		return
