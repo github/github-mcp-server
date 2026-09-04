@@ -1,6 +1,10 @@
 package github
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/github/github-mcp-server/pkg/inventory"
+)
 
 // MCPAppsFeatureFlag is the feature flag name for MCP Apps (interactive UI forms).
 const MCPAppsFeatureFlag = "remote_mcp_ui_apps"
@@ -71,6 +75,33 @@ type FeatureFlags struct {
 	LockdownMode bool
 }
 
+func featureEnabledRule(feature string) inventory.FeatureRule {
+	flag := inventory.FeatureFlag(feature)
+	return inventory.NewFeatureRule(
+		[]inventory.FeatureFlag{flag},
+		func(featureAsBool inventory.FeatureResolver) bool {
+			return featureAsBool(flag)
+		},
+	)
+}
+
+func featureDisabledRule(feature string) inventory.FeatureRule {
+	flag := inventory.FeatureFlag(feature)
+	return inventory.NewFeatureRule(
+		[]inventory.FeatureFlag{flag},
+		func(featureAsBool inventory.FeatureResolver) bool {
+			return !featureAsBool(flag)
+		},
+	)
+}
+
+var (
+	issuesGranularFeatureRule       = featureEnabledRule(FeatureFlagIssuesGranular)
+	issuesConsolidatedFeatureRule   = featureDisabledRule(FeatureFlagIssuesGranular)
+	pullRequestsGranularFeatureRule = featureEnabledRule(FeatureFlagPullRequestsGranular)
+	pullRequestsConsolidatedRule    = featureDisabledRule(FeatureFlagPullRequestsGranular)
+)
+
 // ResolveFeatureFlags computes the effective set of enabled feature flags by:
 //  1. Taking the user-supplied flags (from --features or HTTP request
 //     configuration) and
@@ -89,9 +120,9 @@ type FeatureFlags struct {
 // Returns a set (map) for O(1) lookup by the feature checker.
 func ResolveFeatureFlags(enabledFeatures []string, insidersMode bool) map[string]bool {
 	effective := make(map[string]bool)
-	for _, f := range enabledFeatures {
-		if slices.Contains(AllowedFeatureFlags, f) {
-			effective[f] = true
+	for _, feature := range enabledFeatures {
+		if slices.Contains(AllowedFeatureFlags, feature) {
+			effective[feature] = true
 		}
 	}
 	if insidersMode {

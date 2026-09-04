@@ -1,0 +1,135 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Create repository ruleset"
+  },
+  "description": "Create a new ruleset at the repository, organization, or enterprise level",
+  "inputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "bypass_actors": {
+        "description": "The actors that can bypass the rules in this ruleset",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "actor_id": {
+              "description": "The ID of the actor that can bypass a ruleset",
+              "type": "number"
+            },
+            "actor_type": {
+              "description": "The type of actor that can bypass a ruleset. 'EnterpriseOwner' and 'EnterpriseRole' are only valid for 'enterprise' level rulesets.",
+              "enum": [
+                "Integration",
+                "OrganizationAdmin",
+                "RepositoryRole",
+                "Team",
+                "DeployKey",
+                "User",
+                "EnterpriseOwner",
+                "EnterpriseRole"
+              ],
+              "type": "string"
+            },
+            "bypass_mode": {
+              "description": "When the specified actor can bypass the ruleset. 'pull_request' only applies to branch rulesets and is not valid for the 'DeployKey' actor type. 'exempt' means rules are not run for that actor and no bypass audit entry is created.",
+              "enum": [
+                "always",
+                "pull_request",
+                "exempt"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "actor_type",
+            "bypass_mode"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "conditions": {
+        "description": "Conditions for when this ruleset applies, e.g. {\"ref_name\": {\"include\": [\"refs/heads/main\"], \"exclude\": []}}",
+        "type": "object"
+      },
+      "enforcement": {
+        "description": "The enforcement level of the ruleset. 'evaluate' allows admins to test rules before enforcing them",
+        "enum": [
+          "disabled",
+          "active",
+          "evaluate"
+        ],
+        "type": "string"
+      },
+      "enterprise": {
+        "description": "Enterprise slug. Required when level is 'enterprise'.",
+        "type": "string"
+      },
+      "level": {
+        "description": "The level at which the ruleset is configured:\n- 'repository': A ruleset on a single repository (requires 'owner' and 'repo').\n- 'organization': A ruleset covering repositories in an organization (requires 'org').\n- 'enterprise': A ruleset covering repositories across an enterprise (requires 'enterprise').",
+        "enum": [
+          "repository",
+          "organization",
+          "enterprise"
+        ],
+        "type": "string"
+      },
+      "name": {
+        "description": "The name of the ruleset",
+        "type": "string"
+      },
+      "org": {
+        "description": "Organization name. Required when level is 'organization'.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner. Required when level is 'repository'.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name. Required when level is 'repository'.",
+        "type": "string"
+      },
+      "rules": {
+        "description": "An array of rules within the ruleset. Each rule is an object with a 'type' (e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks') and, for rules that need configuration, a 'parameters' object",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "parameters": {
+              "description": "Parameters for rule types that require additional configuration",
+              "type": "object"
+            },
+            "type": {
+              "description": "The type of rule, e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks'",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "target": {
+        "description": "The target of the ruleset. Defaults to 'branch'. 'repository' is only valid for 'organization' and 'enterprise' level rulesets.",
+        "enum": [
+          "branch",
+          "tag",
+          "push",
+          "repository"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "level",
+      "name",
+      "enforcement",
+      "rules"
+    ],
+    "type": "object"
+  },
+  "name": "create_repository_ruleset"
+}

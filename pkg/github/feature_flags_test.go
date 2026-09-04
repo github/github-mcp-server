@@ -17,12 +17,12 @@ import (
 )
 
 // RemoteMCPEnthusiasticGreeting is a dummy test feature flag .
-const RemoteMCPEnthusiasticGreeting = "remote_mcp_enthusiastic_greeting"
+const RemoteMCPEnthusiasticGreeting inventory.FeatureFlag = "remote_mcp_enthusiastic_greeting"
 
-func featureCheckerFor(enabledFlags ...string) func(context.Context, string) (bool, error) {
+func featureCheckerFor(enabledFlags ...inventory.FeatureFlag) inventory.FeatureFlagChecker {
 	enabled := make(map[string]bool, len(enabledFlags))
 	for _, flag := range enabledFlags {
-		enabled[flag] = true
+		enabled[string(flag)] = true
 	}
 	return func(_ context.Context, flagName string) (bool, error) {
 		return enabled[flagName], nil
@@ -47,7 +47,7 @@ func HelloWorldTool(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			// Check feature flag to determine greeting style
 			greeting := "Hello, world!"
-			if deps.IsFeatureEnabled(ctx, RemoteMCPEnthusiasticGreeting) {
+			if deps.IsFeatureEnabled(ctx, string(RemoteMCPEnthusiasticGreeting)) {
 				greeting += " Welcome to the future of MCP! 🎉"
 			}
 
@@ -91,7 +91,7 @@ func TestHelloWorld_ConditionalBehavior_Featureflag(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var enabledFlags []string
+			var enabledFlags []inventory.FeatureFlag
 			if tt.featureFlagEnabled {
 				enabledFlags = append(enabledFlags, RemoteMCPEnthusiasticGreeting)
 			}
@@ -237,7 +237,7 @@ func TestResolveFeatureFlags(t *testing.T) {
 func TestThreadResolutionReasonToolVariants(t *testing.T) {
 	tests := []struct {
 		name      string
-		flags     []string
+		flags     []inventory.FeatureFlag
 		host      utils.HostType
 		toolName  string
 		hasReason bool
@@ -248,30 +248,30 @@ func TestThreadResolutionReasonToolVariants(t *testing.T) {
 		},
 		{
 			name:      "consolidated flag on",
-			flags:     []string{FeatureFlagThreadResolutionReason},
+			flags:     []inventory.FeatureFlag{FeatureFlagThreadResolutionReason},
 			toolName:  "pull_request_review_write",
 			hasReason: true,
 		},
 		{
 			name:     "granular flag off",
-			flags:    []string{FeatureFlagPullRequestsGranular},
+			flags:    []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular)},
 			toolName: "resolve_review_thread",
 		},
 		{
 			name:      "granular flag on",
-			flags:     []string{FeatureFlagPullRequestsGranular, FeatureFlagThreadResolutionReason},
+			flags:     []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular), FeatureFlagThreadResolutionReason},
 			toolName:  "resolve_review_thread",
 			hasReason: true,
 		},
 		{
 			name:     "consolidated flag on GHES",
-			flags:    []string{FeatureFlagThreadResolutionReason},
+			flags:    []inventory.FeatureFlag{FeatureFlagThreadResolutionReason},
 			host:     utils.HostTypeGHES,
 			toolName: "pull_request_review_write",
 		},
 		{
 			name:     "granular flag on GHES",
-			flags:    []string{FeatureFlagPullRequestsGranular, FeatureFlagThreadResolutionReason},
+			flags:    []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular), FeatureFlagThreadResolutionReason},
 			host:     utils.HostTypeGHES,
 			toolName: "resolve_review_thread",
 		},

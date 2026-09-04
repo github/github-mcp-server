@@ -2233,6 +2233,7 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get latest release", resp, body), nil, nil
 			}
 
+			sanitizeReleaseNameAndBody(release)
 			r, err := json.Marshal(release)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -2319,6 +2320,7 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get release by tag", resp, body), nil, nil
 			}
 
+			sanitizeReleaseNameAndBody(release)
 			r, err := json.Marshal(release)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -2336,6 +2338,18 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 			return result, nil, nil
 		},
 	)
+}
+
+func sanitizeReleaseNameAndBody(release *github.RepositoryRelease) {
+	if release == nil {
+		return
+	}
+	if release.Name != nil {
+		release.Name = github.Ptr(sanitize.PlainText(*release.Name))
+	}
+	if release.Body != nil {
+		release.Body = github.Ptr(sanitize.Content(*release.Body))
+	}
 }
 
 // ListStarredRepositories creates a tool to list starred repositories for the authenticated user or a specified user.
@@ -2981,7 +2995,7 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 					SHA: sha,
 					// Sanitized after truncation so the headline is cut at the author's real
 					// first line break rather than one introduced by sanitization.
-					MessageHeadline: sanitize.Sanitize(headline),
+					MessageHeadline: sanitize.PlainText(headline),
 					CommittedDate:   r.Commit.CommittedDate.Format("2006-01-02T15:04:05Z"),
 					Author: BlameAuthor{
 						Name:  string(r.Commit.Author.Name),
@@ -3030,7 +3044,7 @@ func GetFileBlame(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultText(string(payload)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagFileBlame
+	st.FeatureRule = featureEnabledRule(FeatureFlagFileBlame)
 	return st
 }
 

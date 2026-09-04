@@ -1118,6 +1118,9 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 		subIssues = filteredSubIssues
 	}
 
+	for _, subIssue := range subIssues {
+		sanitizeSubIssueTitleAndBody(subIssue)
+	}
 	r, err := json.Marshal(subIssues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -1194,7 +1197,7 @@ func GetIssueParent(ctx context.Context, client *githubv4.Client, deps ToolDepen
 	return MarshalledTextResult(map[string]any{
 		"parent": map[string]any{
 			"number":     int(parent.Number),
-			"title":      sanitize.Sanitize(string(parent.Title)),
+			"title":      sanitize.PlainText(string(parent.Title)),
 			"state":      string(parent.State),
 			"url":        string(parent.URL),
 			"repository": string(parent.Repository.NameWithOwner),
@@ -1679,7 +1682,7 @@ func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		})
-	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}
+	st.FeatureRule = issuesConsolidatedFeatureRule
 	return st
 }
 
@@ -1708,6 +1711,7 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add sub-issue", resp, body), nil
 	}
 
+	sanitizeSubIssueTitleAndBody(subIssue)
 	r, err := json.Marshal(subIssue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -1739,6 +1743,7 @@ func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, re
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to remove sub-issue", resp, body), nil
 	}
 
+	sanitizeSubIssueTitleAndBody(subIssue)
 	r, err := json.Marshal(subIssue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -1788,6 +1793,7 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to reprioritize sub-issue", resp, body), nil
 	}
 
+	sanitizeSubIssueTitleAndBody(subIssue)
 	r, err := json.Marshal(subIssue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -1995,10 +2001,22 @@ func sanitizeIssueTitleAndBody(issue *github.Issue) {
 		return
 	}
 	if issue.Title != nil {
-		issue.Title = github.Ptr(sanitize.Sanitize(*issue.Title))
+		issue.Title = github.Ptr(sanitize.PlainText(*issue.Title))
 	}
 	if issue.Body != nil {
-		issue.Body = github.Ptr(sanitize.Sanitize(*issue.Body))
+		issue.Body = github.Ptr(sanitize.Content(*issue.Body))
+	}
+}
+
+func sanitizeSubIssueTitleAndBody(issue *github.SubIssue) {
+	if issue == nil {
+		return
+	}
+	if issue.Title != nil {
+		issue.Title = github.Ptr(sanitize.PlainText(*issue.Title))
+	}
+	if issue.Body != nil {
+		issue.Body = github.Ptr(sanitize.Content(*issue.Body))
 	}
 }
 
@@ -2700,7 +2718,7 @@ Options are:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
 			}
 		})
-	st.FeatureFlagDisable = []string{FeatureFlagIssuesGranular}
+	st.FeatureRule = issuesConsolidatedFeatureRule
 	return st
 }
 

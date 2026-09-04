@@ -61,9 +61,8 @@ func generateReadmeDocs(readmePath string) error {
 
 	// The README documents the default user experience: tools that are
 	// enabled with no special flags set. Installing a checker that reports
-	// every flag as disabled excludes tools gated by FeatureFlagEnable and
-	// keeps the legacy variants of tools gated by FeatureFlagDisable, so
-	// flag-gated duplicates don't appear twice.
+	// every flag as disabled keeps the default variants selected by functional
+	// feature rules, so flag-gated duplicates don't appear twice.
 	// Build() can only fail if WithTools specifies invalid tools - not used here
 	r, _ := github.NewInventory(t).
 		WithToolsets([]string{"all"}).

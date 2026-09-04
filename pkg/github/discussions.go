@@ -100,7 +100,7 @@ type WithCategoryNoOrder struct {
 func fragmentToDiscussion(fragment NodeFragment) *github.Discussion {
 	return &github.Discussion{
 		Number:    github.Ptr(int(fragment.Number)),
-		Title:     github.Ptr(sanitize.Sanitize(string(fragment.Title))),
+		Title:     github.Ptr(sanitize.PlainText(string(fragment.Title))),
 		HTMLURL:   github.Ptr(string(fragment.URL)),
 		CreatedAt: &github.Timestamp{Time: fragment.CreatedAt.Time},
 		UpdatedAt: &github.Timestamp{Time: fragment.UpdatedAt.Time},
@@ -361,8 +361,8 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// like ListDiscussions and GetDiscussionComments).
 			response := map[string]any{
 				"number":     int(d.Number),
-				"title":      sanitize.Sanitize(string(d.Title)),
-				"body":       sanitize.Sanitize(string(d.Body)),
+				"title":      sanitize.PlainText(string(d.Title)),
+				"body":       sanitize.Content(string(d.Body)),
 				"url":        string(d.URL),
 				"closed":     bool(d.Closed),
 				"isAnswered": bool(d.IsAnswered),

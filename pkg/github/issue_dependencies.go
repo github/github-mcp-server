@@ -103,7 +103,7 @@ Options are:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		})
-	st.FeatureFlagEnable = FeatureFlagIssueDependencies
+	st.FeatureRule = featureEnabledRule(FeatureFlagIssueDependencies)
 	return st
 }
 
@@ -321,7 +321,7 @@ Options are:
 			result, err := writeIssueDependency(ctx, client, method, blocked, blocking)
 			return result, nil, err
 		})
-	st.FeatureFlagEnable = FeatureFlagIssueDependencies
+	st.FeatureRule = featureEnabledRule(FeatureFlagIssueDependencies)
 	return st
 }
 

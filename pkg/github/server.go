@@ -35,7 +35,7 @@ type MCPServerConfig struct {
 	EnabledTools []string
 
 	// EnabledFeatures is a list of feature flags that are enabled
-	// Items with FeatureFlagEnable matching an entry in this list will be available
+	// Tool feature rules evaluate entries in this list.
 	EnabledFeatures []string
 
 	// ReadOnly indicates if we should only offer read-only tools
@@ -113,6 +113,7 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	// Add middlewares. Order matters - for example, the error context middleware should be applied last so that it runs FIRST (closest to the handler) to ensure all errors are captured,
 	// and any middleware that needs to read or modify the context should be before it.
 	ghServer.AddReceivingMiddleware(middleware...)
+	ghServer.AddReceivingMiddleware(injectFeatureStateMiddleware(inv))
 	ghServer.AddReceivingMiddleware(InjectDepsMiddleware(deps))
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 
@@ -136,6 +137,14 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	}
 
 	return ghServer, nil
+}
+
+func injectFeatureStateMiddleware(inv *inventory.Inventory) mcp.Middleware {
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			return next(inv.WithFeatureState(ctx), method, req)
+		}
+	}
 }
 
 // ResolvedEnabledToolsets determines which toolsets should be enabled based on config.

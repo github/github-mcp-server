@@ -207,6 +207,11 @@ Insiders is a **meta feature flag** — the same shape as `default` or `all` for
 3. **Insiders expansion.** If insiders mode is on (`--insiders`, `/insiders` route, or `X-MCP-Insiders: true`), every flag in [`InsidersFeatureFlags`](../pkg/github/feature_flags.go) is unioned in. The insiders expansion is **not** re-validated against the allowlist — insiders is a server-controlled switch that can reach internal-only flags.
 4. **Server-side fallback (remote server only).** Any flag not yet decided falls back to the remote server's feature manager, which can roll a feature out independently of user input or insiders membership.
 
+For tool availability, functional rules declare the flags they may read and are
+evaluated lazily after request narrowing. Short-circuiting skips unnecessary
+checks, and request-owned state memoizes each flag that is reached. The same
+state backs `deps.IsFeatureEnabled`.
+
 `AllowedFeatureFlags` and `InsidersFeatureFlags` are deliberately independent sets:
 
 - A flag in **`AllowedFeatureFlags` only** is a regular opt-in: users can turn it on, but insiders does not auto-enable it. Granular issues/PRs flags work this way.
@@ -219,5 +224,6 @@ Insiders is a **meta feature flag** — the same shape as `default` or `all` for
 2. Add it to `AllowedFeatureFlags` if end users should be able to opt in via
    `--features`, `X-MCP-Features`, or the `features` URL query parameter.
 3. Add it to `InsidersFeatureFlags` if insiders mode should turn it on automatically.
-4. Gate the behavior on the concrete flag (`deps.IsFeatureEnabled(ctx, FeatureFlagX)`), never on `cfg.InsidersMode`. There is a `TestGitHubPackageDoesNotReadInsidersMode` guard test that fails if `pkg/github` reads `InsidersMode` directly.
-5. The MCP-diff CI workflow picks up new entries in `AllowedFeatureFlags` automatically — see `.github/workflows/mcp-diff.yml`.
+4. For tool availability, attach an `inventory.NewFeatureRule` that declares every flag used by its predicate. For behavior inside a handler, use `deps.IsFeatureEnabled(ctx, FeatureFlagX)`.
+5. Gate on concrete flags, never on `cfg.InsidersMode`. There is a `TestGitHubPackageDoesNotReadInsidersMode` guard test that fails if `pkg/github` reads `InsidersMode` directly.
+6. The MCP-diff CI workflow picks up new entries in `AllowedFeatureFlags` automatically — see `.github/workflows/mcp-diff.yml`.

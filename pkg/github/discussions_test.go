@@ -571,7 +571,7 @@ func Test_GetDiscussion(t *testing.T) {
 			expected: map[string]any{
 				"number":     float64(1),
 				"title":      sanitizedText,
-				"body":       sanitizedText,
+				"body":       sanitizedContentText,
 				"url":        "https://github.com/owner/repo/discussions/1",
 				"closed":     false,
 				"isAnswered": false,

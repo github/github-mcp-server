@@ -1,0 +1,174 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": false,
+    "title": "Set custom properties"
+  },
+  "description": "Create or update custom properties at the repository, organization, or enterprise level. At the repository level this sets the property values on a repository (the properties must already be defined for the organization). Organization and enterprise definition writes preserve omitted writable fields by reading current definitions immediately before updating; concurrent definition updates remain last-write-wins. Select the level with the 'level' parameter.",
+  "inputSchema": {
+    "properties": {
+      "enterprise": {
+        "description": "Enterprise slug. Required when level is 'enterprise'.",
+        "type": "string"
+      },
+      "level": {
+        "description": "The level at which custom properties are managed:\n- 'repository': The custom property VALUES assigned to a repository (requires 'owner' and 'repo').\n- 'organization': The custom property DEFINITIONS (schema) for an organization (requires 'org').\n- 'enterprise': The custom property DEFINITIONS (schema) for an enterprise (requires 'enterprise').",
+        "enum": [
+          "repository",
+          "organization",
+          "enterprise"
+        ],
+        "type": "string"
+      },
+      "org": {
+        "description": "Organization name. Required when level is 'organization'.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner. Required when level is 'repository'.",
+        "type": "string"
+      },
+      "properties": {
+        "description": "The custom properties to create or update. At the repository level each item assigns a value ('property_name' and 'value'); at the organization and enterprise levels each item defines the schema ('property_name' and 'value_type', plus optional definition fields).",
+        "items": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "description": "A repository-level custom property value.",
+              "properties": {
+                "property_name": {
+                  "description": "The name of the custom property.",
+                  "type": "string"
+                },
+                "value": {
+                  "description": "Repository level only: the value to assign. A string, an array of strings, or null to clear the value.",
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "property_name",
+                "value"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "An organization- or enterprise-level custom property definition.",
+              "properties": {
+                "allowed_values": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The ordered list of allowed values for single_select and multi_select properties. Omit when updating to preserve the current list; use null or an empty array to clear it."
+                },
+                "default_value": {
+                  "description": "The value applied when a repository does not set the property. Omit when updating to preserve the current value; use null to clear it.",
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "A short description of the property. Omit when updating to preserve the current description; use null to clear it."
+                },
+                "property_name": {
+                  "description": "The name of the custom property.",
+                  "type": "string"
+                },
+                "require_explicit_values": {
+                  "description": "Whether repositories must explicitly set a value for the property. Omit when updating to preserve the current setting.",
+                  "type": "boolean"
+                },
+                "required": {
+                  "description": "Whether the property must be set on every repository. Omit when updating to preserve the current setting.",
+                  "type": "boolean"
+                },
+                "value_type": {
+                  "description": "The data type of the property. Required for new definitions; omit when updating to preserve the current type.",
+                  "enum": [
+                    "string",
+                    "single_select",
+                    "multi_select",
+                    "true_false",
+                    "url"
+                  ],
+                  "type": "string"
+                },
+                "values_editable_by": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "org_actors",
+                        "org_and_repo_actors"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Who can edit the values of the property. Omit when updating to preserve the current setting; use null to restore the default."
+                }
+              },
+              "required": [
+                "property_name"
+              ],
+              "type": "object"
+            }
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "repo": {
+        "description": "Repository name. Required when level is 'repository'.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "level",
+      "properties"
+    ],
+    "type": "object"
+  },
+  "name": "custom_properties_write"
+}

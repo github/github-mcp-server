@@ -4854,7 +4854,8 @@ func Test_GetLatestRelease(t *testing.T) {
 	mockRelease := &github.RepositoryRelease{
 		ID:      1,
 		TagName: "v1.0.0",
-		Name:    github.Ptr("First Release"),
+		Name:    github.Ptr("<script>alert(1)</script>can't \"quote\" AT&T\u200B"),
+		Body:    github.Ptr("<script>alert(1)</script><details>Notes</details>\u200B"),
 	}
 
 	tests := []struct {
@@ -4922,6 +4923,8 @@ func Test_GetLatestRelease(t *testing.T) {
 			err = json.Unmarshal([]byte(textContent.Text), &returnedRelease)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedResult.TagName, returnedRelease.TagName)
+			assert.Equal(t, "can't \"quote\" AT&T", *returnedRelease.Name)
+			assert.Equal(t, "<script>alert(1)</script><details>Notes</details>", *returnedRelease.Body)
 		})
 	}
 }
@@ -4944,8 +4947,8 @@ func Test_GetReleaseByTag(t *testing.T) {
 	mockRelease := &github.RepositoryRelease{
 		ID:      1,
 		TagName: "v1.0.0",
-		Name:    github.Ptr("Release v1.0.0"),
-		Body:    github.Ptr("This is the first stable release."),
+		Name:    github.Ptr("<script>alert(1)</script>can't \"quote\" AT&T\u200B"),
+		Body:    github.Ptr("<script>alert(1)</script><details>Notes</details>\u200B"),
 		Assets: []*github.ReleaseAsset{
 			{
 				ID:   github.Ptr(int64(1)),
@@ -5085,9 +5088,9 @@ func Test_GetReleaseByTag(t *testing.T) {
 
 			assert.Equal(t, tc.expectedResult.ID, returnedRelease.ID)
 			assert.Equal(t, tc.expectedResult.TagName, returnedRelease.TagName)
-			assert.Equal(t, *tc.expectedResult.Name, *returnedRelease.Name)
+			assert.Equal(t, "can't \"quote\" AT&T", *returnedRelease.Name)
 			if tc.expectedResult.Body != nil {
-				assert.Equal(t, *tc.expectedResult.Body, *returnedRelease.Body)
+				assert.Equal(t, "<script>alert(1)</script><details>Notes</details>", *returnedRelease.Body)
 			}
 			if len(tc.expectedResult.Assets) > 0 {
 				require.Len(t, returnedRelease.Assets, len(tc.expectedResult.Assets))
@@ -5971,7 +5974,7 @@ func Test_GetFileBlame(t *testing.T) {
 
 	// get_file_blame is gated so it is not advertised unless the feature flag
 	// (or insiders mode) opts it in.
-	assert.Equal(t, FeatureFlagFileBlame, serverTool.FeatureFlagEnable, "get_file_blame must be gated behind the file_blame feature flag")
+	assert.Equal(t, []inventory.FeatureFlag{FeatureFlagFileBlame}, serverTool.FeatureRule.Features())
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
