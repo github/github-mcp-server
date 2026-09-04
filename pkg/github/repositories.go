@@ -2340,6 +2340,92 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 	)
 }
 
+// GetTrafficViews creates a tool to get the page views and unique visitors for
+// a repository over the last 14 days.
+func GetTrafficViews(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        "get_traffic_views",
+			Description: t("TOOL_GET_TRAFFIC_VIEWS_DESCRIPTION", "Get the total page views and unique visitors for a GitHub repository over the last 14 days. Requires push access to the repository."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_GET_TRAFFIC_VIEWS_USER_TITLE", "Get repository traffic views"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"per": {
+						Type:        "string",
+						Description: "The time frame to aggregate by. Either 'day' or 'week'. Defaults to 'day'.",
+						Enum:        []any{"day", "week"},
+					},
+				},
+				Required: []string{"owner", "repo"},
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			per, err := OptionalParam[string](args, "per")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			var opts *github.TrafficBreakdownOptions
+			if per != "" {
+				opts = &github.TrafficBreakdownOptions{Per: per}
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			views, resp, err := client.Repositories.ListTrafficViews(ctx, owner, repo, opts)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get traffic views", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get traffic views", resp, body), nil, nil
+			}
+
+			r, err := json.Marshal(views)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			result := utils.NewToolResultText(string(r))
+			// Traffic analytics require push access to read (GitHub gates the
+			// endpoint behind Administration: Read), so the data is never
+			// world-readable, even on a public repository. Always private.
+			result = attachStaticIFCLabel(ctx, deps, result, ifc.LabelRepoTraffic())
+			return result, nil, nil
+		},
+	)
+}
+
 func sanitizeReleaseNameAndBody(release *github.RepositoryRelease) {
 	if release == nil {
 		return
