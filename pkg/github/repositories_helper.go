@@ -457,7 +457,7 @@ func looksLikeSHA(s string) bool {
 //  2. If no `sha` is provided and `ref` does not look like a SHA, the function resolves
 //     the `ref` string into a fully-qualified format (e.g., "refs/heads/main") by trying
 //     the following steps in order:
-//     a). **Empty Ref:** If `ref` is empty, the repository's default branch is used.
+//     a). **Default HEAD:** If `ref` is empty or "HEAD", the repository's default branch is used.
 //     b). **Fully-Qualified:** If `ref` already starts with "refs/", it's considered fully
 //     qualified and used as-is.
 //     c). **Partially-Qualified:** If `ref` starts with "heads/" or "tags/", it is
@@ -492,8 +492,8 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 	var fallbackUsed bool
 
 	switch {
-	case originalRef == "":
-		// 2a) If ref is empty, determine the default branch.
+	case originalRef == "" || originalRef == "HEAD":
+		// 2a) If ref is empty or HEAD, determine the default branch.
 		reference, err = resolveDefaultBranch(ctx, githubClient, owner, repo)
 		if err != nil {
 			return nil, false, err // Error is already wrapped in resolveDefaultBranch.
