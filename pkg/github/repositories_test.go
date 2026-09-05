@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -578,6 +579,72 @@ func Test_GetFileContents(t *testing.T) {
 			case mcp.TextContent:
 				textContent := getErrorResult(t, result)
 				require.Equal(t, textContent, expected)
+			}
+		})
+	}
+}
+
+func Test_GetFileContents_HEAD(t *testing.T) {
+	commitSHA := strings.Repeat("c", 40)
+	content := []byte("default branch content\n")
+	for _, path := range []string{"README.md", "src"} {
+		t.Run(path, func(t *testing.T) {
+			var requests []string
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposByOwnerByRepo: func(w http.ResponseWriter, r *http.Request) {
+					requests = append(requests, r.URL.Path)
+					mockResponse(t, http.StatusOK, `{"default_branch":"develop"}`)(w, r)
+				},
+				GetReposGitRefByOwnerByRepoByRef: func(w http.ResponseWriter, r *http.Request) {
+					requests = append(requests, r.URL.Path)
+					if r.URL.Path != "/repos/owner/repo/git/ref/heads/develop" {
+						mockResponse(t, http.StatusNotFound, `{"message":"Not Found"}`)(w, r)
+						return
+					}
+					mockResponse(t, http.StatusOK, &github.Reference{
+						Ref:    github.Ptr("refs/heads/develop"),
+						Object: &github.GitObject{SHA: github.Ptr(commitSHA)},
+					})(w, r)
+				},
+				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, r *http.Request) {
+					requests = append(requests, r.URL.Path)
+					assert.Equal(t, commitSHA, r.URL.Query().Get("ref"))
+					file := &github.RepositoryContent{
+						Name: github.Ptr("README.md"), Path: github.Ptr("README.md"),
+						Type: github.Ptr("file"), SHA: github.Ptr(gitBlobSHA(content)),
+						Size: github.Ptr(len(content)), Encoding: github.Ptr("base64"),
+						Content: github.Ptr(base64.StdEncoding.EncodeToString(content)),
+					}
+					if path == "src" {
+						mockResponse(t, http.StatusOK, []*github.RepositoryContent{file})(w, r)
+						return
+					}
+					mockResponse(t, http.StatusOK, file)(w, r)
+				},
+			}))
+			deps := BaseDeps{Client: client}
+			request := createMCPRequest(map[string]any{
+				"owner": "owner", "repo": "repo", "path": path, "ref": "HEAD",
+			})
+			tool := GetFileContents(translations.NullTranslationHelper)
+			result, err := tool.Handler(deps)(
+				ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			require.False(t, result.IsError, "%+v", result.Content[0])
+			assert.Equal(t, []string{
+				"/repos/owner/repo", "/repos/owner/repo/git/ref/heads/develop",
+				"/repos/owner/repo/contents/" + path,
+			}, requests)
+			if path == "src" {
+				var entries []*github.RepositoryContent
+				require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &entries))
+				require.Len(t, entries, 1)
+				assert.Equal(t, "README.md", entries[0].GetName())
+			} else {
+				resource := getResourceResult(t, result)
+				assert.Equal(t, string(content), resource.Text)
+				assert.Equal(t, "repo://owner/repo/sha/"+commitSHA+"/contents/README.md", resource.URI)
+				assert.NotContains(t, result.Content[0].(*mcp.TextContent).Text, "does not exist")
 			}
 		})
 	}
@@ -5619,6 +5686,105 @@ func Test_resolveGitReference(t *testing.T) {
 			if tc.expectedOutput.Ref != "" {
 				assert.Equal(t, tc.expectedOutput.Ref, opts.Ref)
 			}
+		})
+	}
+}
+
+func Test_resolveGitReference_HEAD(t *testing.T) {
+	t.Run("transport error", func(t *testing.T) {
+		networkErr := errors.New("connection failed")
+		transport := &repositoryRequestCountingTransport{inner: &errorTransport{err: networkErr}}
+		client := mustNewGHClient(t, &http.Client{Transport: transport})
+		opts, fallback, err := resolveGitReference(context.Background(), client, "owner", "repo", "HEAD", "")
+		require.ErrorIs(t, err, networkErr)
+		assert.Nil(t, opts)
+		assert.False(t, fallback)
+		assert.Equal(t, 1, transport.count)
+	})
+
+	tests := []struct {
+		name          string
+		ref           string
+		sha           string
+		defaultBranch string
+		resolvedRef   string
+		repoStatus    int
+		refStatus     int
+		errorContains string
+	}{
+		{name: "HEAD", ref: "HEAD", defaultBranch: "develop", resolvedRef: "refs/heads/develop"},
+		{name: "omitted ref", defaultBranch: "develop", resolvedRef: "refs/heads/develop"},
+		{name: "default branch with slash", ref: "HEAD", defaultBranch: "release/current", resolvedRef: "refs/heads/release/current"},
+		{name: "default branch named HEAD", ref: "HEAD", defaultBranch: "HEAD", resolvedRef: "refs/heads/HEAD"},
+		{name: "literal branch HEAD", ref: "refs/heads/HEAD", resolvedRef: "refs/heads/HEAD"},
+		{name: "literal tag HEAD", ref: "refs/tags/HEAD", resolvedRef: "refs/tags/HEAD"},
+		{name: "partial branch HEAD", ref: "heads/HEAD", resolvedRef: "refs/heads/HEAD"},
+		{name: "partial tag HEAD", ref: "tags/HEAD", resolvedRef: "refs/tags/HEAD"},
+		{name: "SHA overrides HEAD", ref: "HEAD", sha: "explicit-sha"},
+		{name: "repository unauthorized", ref: "HEAD", repoStatus: http.StatusUnauthorized, errorContains: "failed to get repository info"},
+		{name: "repository forbidden", ref: "HEAD", repoStatus: http.StatusForbidden, errorContains: "failed to get repository info"},
+		{name: "repository not found", ref: "HEAD", repoStatus: http.StatusNotFound, errorContains: "failed to get repository info"},
+		{name: "repository unavailable", ref: "HEAD", repoStatus: http.StatusInternalServerError, errorContains: "failed to get repository info"},
+		{name: "default ref forbidden", ref: "HEAD", defaultBranch: "develop", refStatus: http.StatusForbidden, errorContains: "failed to get default branch reference"},
+		{name: "default ref not found", ref: "HEAD", defaultBranch: "develop", refStatus: http.StatusNotFound, errorContains: "failed to get default branch reference"},
+		{name: "default ref unavailable", ref: "HEAD", defaultBranch: "develop", refStatus: http.StatusInternalServerError, errorContains: "failed to get default branch reference"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var requests []string
+			client := mustNewGHClient(t, MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposByOwnerByRepo: func(w http.ResponseWriter, r *http.Request) {
+					requests = append(requests, r.URL.Path)
+					if tt.repoStatus != 0 {
+						mockResponse(t, tt.repoStatus, `{"message":"lookup failed"}`)(w, r)
+						return
+					}
+					mockResponse(t, http.StatusOK, &github.Repository{DefaultBranch: github.Ptr(tt.defaultBranch)})(w, r)
+				},
+				GetReposGitRefByOwnerByRepoByRef: func(w http.ResponseWriter, r *http.Request) {
+					requests = append(requests, r.URL.Path)
+					if tt.refStatus != 0 {
+						mockResponse(t, tt.refStatus, `{"message":"lookup failed"}`)(w, r)
+						return
+					}
+					mockResponse(t, http.StatusOK, &github.Reference{
+						Ref: github.Ptr(tt.resolvedRef), Object: &github.GitObject{SHA: github.Ptr("resolved-sha")},
+					})(w, r)
+				},
+			}))
+			opts, fallback, err := resolveGitReference(context.Background(), client, "owner", "repo", tt.ref, tt.sha)
+			assert.False(t, fallback)
+			var expectedRequests []string
+			if tt.sha != "" {
+				require.NoError(t, err)
+				assert.Equal(t, &raw.ContentOpts{SHA: tt.sha}, opts)
+			} else {
+				if tt.ref == "" || tt.ref == "HEAD" {
+					expectedRequests = append(expectedRequests, "/repos/owner/repo")
+				}
+				if tt.repoStatus == 0 {
+					ref := tt.resolvedRef
+					if tt.refStatus != 0 {
+						ref = "refs/heads/" + tt.defaultBranch
+					}
+					expectedRequests = append(expectedRequests, "/repos/owner/repo/git/ref/"+strings.TrimPrefix(ref, "refs/"))
+				}
+				if tt.errorContains != "" {
+					require.ErrorContains(t, err, tt.errorContains)
+					assert.Nil(t, opts)
+					var apiErr *github.ErrorResponse
+					require.ErrorAs(t, err, &apiErr)
+					status := tt.repoStatus
+					if status == 0 {
+						status = tt.refStatus
+					}
+					assert.Equal(t, status, apiErr.Response.StatusCode)
+				} else {
+					require.NoError(t, err)
+					assert.Equal(t, &raw.ContentOpts{Ref: tt.resolvedRef, SHA: "resolved-sha"}, opts)
+				}
+			}
+			assert.Equal(t, expectedRequests, requests)
 		})
 	}
 }
