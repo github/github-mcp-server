@@ -237,6 +237,7 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 		GetLatestRelease(t),
 		GetReleaseByTag(t),
 		CreateOrUpdateFile(t),
+		ApplyFilePatch(t),
 		CreateRepository(t),
 		DeleteRepository(t),
 		ForkRepository(t),
@@ -550,8 +551,7 @@ func GetDefaultToolsetIDs() []string {
 }
 
 // RemoteOnlyToolsets returns toolset metadata for toolsets that are only
-// available in the remote MCP server. These are documented but not registered
-// in the local server.
+// available in the remote MCP server but are documented here for consistency.
 func RemoteOnlyToolsets() []inventory.ToolsetMetadata {
 	return []inventory.ToolsetMetadata{
 		ToolsetMetadataCopilotSpaces,
