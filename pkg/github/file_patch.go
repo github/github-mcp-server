@@ -264,7 +264,7 @@ func ApplyFilePatch(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(fmt.Sprintf("patched file would be %d bytes; maximum is %d bytes", len(patched), maxPatchFileBytes)), nil, nil
 			}
 
-			blob, resp, err := client.Git.CreateBlob(ctx, owner, repo, &github.Blob{Content: github.Ptr(patched), Encoding: github.Ptr("utf-8")})
+			blob, resp, err := client.Git.CreateBlob(ctx, owner, repo, github.Blob{Content: github.Ptr(patched), Encoding: github.Ptr("utf-8")})
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create patched blob", resp, err), nil, nil
 			}
