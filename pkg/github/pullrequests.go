@@ -59,6 +59,10 @@ Possible options:
 		Required: []string{"method", "owner", "repo", "pullNumber"},
 	}
 	WithPagination(schema)
+	schema.Properties["fields"] = fieldsSchemaProperty(
+		"Fields to include in each file returned by get_files. Use [\"filename\"] for paths only, or omit patch to reduce response size. Returns all fields when omitted or empty. Ignored by other methods.",
+		pullRequestFilesItemFieldEnum,
+	)
 	// get_review_comments uses GraphQL cursor-based pagination and accepts the
 	// `after` cursor. Other methods rely on the `page`/`perPage` parameters
 	// added by WithPagination and ignore `after`.
@@ -128,7 +132,11 @@ Possible options:
 				result, err := GetPullRequestStatus(ctx, client, owner, repo, pullNumber)
 				return attachIFC(result), nil, err
 			case "get_files":
-				result, err := GetPullRequestFiles(ctx, client, deps, owner, repo, pullNumber, pagination)
+				fields, err := OptionalStringArrayParam(args, "fields")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				result, err := GetPullRequestFiles(ctx, client, deps, owner, repo, pullNumber, pagination, fields)
 				return attachIFC(result), nil, err
 			case "get_commits":
 				result, err := GetPullRequestCommits(ctx, client, deps, owner, repo, pullNumber, pagination)
@@ -369,7 +377,7 @@ func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, 
 	return utils.NewToolResultText(string(r)), nil
 }
 
-func GetPullRequestFiles(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetPullRequestFiles(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination PaginationParams, fields []string) (*mcp.CallToolResult, error) {
 	if restricted, err := enforcePullRequestLockdown(ctx, client, deps, owner, repo, pullNumber); restricted != nil || err != nil {
 		return restricted, err
 	}
@@ -397,6 +405,13 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, deps ToolDe
 	}
 
 	minimalFiles := convertToMinimalPRFiles(files)
+	if len(fields) > 0 {
+		filteredFiles, err := filterEachField(minimalFiles, fields)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr("failed to filter pull request files", err), nil
+		}
+		return MarshalledTextResult(filteredFiles), nil
+	}
 
 	return MarshalledTextResult(minimalFiles), nil
 }

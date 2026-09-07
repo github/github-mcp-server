@@ -27,6 +27,13 @@ var codeSearchItemFieldEnum = []any{"name", "path", "sha", "repository", "text_m
 // the requested path is a directory; ignored for single files.
 var fileContentFieldEnum = []any{"type", "name", "path", "size", "sha", "url", "git_url", "html_url", "download_url"}
 
+// pullRequestFilesItemFieldEnum lists the selectable fields for pull_request_read
+// get_files results, matching MinimalPRFile. Omitting patch reduces response size
+// when only filenames or file metadata are needed.
+var pullRequestFilesItemFieldEnum = []any{
+	"filename", "status", "additions", "deletions", "changes", "patch", "previous_filename",
+}
+
 // listIssuesItemFieldEnum lists the selectable fields for list_issues result
 // items, matching the JSON field names MinimalIssue actually populates via the
 // list_issues GraphQL fragment (fragmentToMinimalIssue). Fields that only the
