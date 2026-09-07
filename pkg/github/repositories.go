@@ -1157,7 +1157,14 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						Text:     string(contentBytes),
 						MIMEType: contentType,
 					}
-					message := fmt.Sprintf("successfully downloaded text file (SHA: %s)%s", fileSHA, successNote)
+					// Carry the body in the text content as well as the embedded
+					// resource. Client surfaces that drop embedded resources
+					// (e.g. Claude voice mode, issue #3189) would otherwise show
+					// only the SHA line while the model never sees the file. When
+					// read.Metadata != nil, repositoryReadMessage replaces the
+					// fallback with JSON metadata, which must stay parseable, so
+					// only plain files gain the inline body.
+					message := fmt.Sprintf("successfully downloaded text file (SHA: %s)%s\n\n%s", fileSHA, successNote, string(contentBytes))
 					message = repositoryReadMessage(read, message, successNote)
 					return attachIFC(utils.NewToolResultResource(message, result)), nil, nil
 				}
