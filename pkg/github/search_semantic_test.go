@@ -68,20 +68,20 @@ func Test_searchIssuesTool_descriptionMatchesEngine(t *testing.T) {
 
 	// The description has to describe the engine the host will actually use.
 	// Steering a lexical-only host toward paraphrased natural language is actively misleading.
-	semantic := SearchIssues(translations.NullTranslationHelper, WithHost(utils.HostTypeDotcom))
+	dotcom := SearchIssues(translations.NullTranslationHelper, WithHost(utils.HostTypeDotcom))
 	lexical := SearchIssues(translations.NullTranslationHelper, WithHost(utils.HostTypeGHES))
 
-	require.Equal(t, "search_issues", semantic.Tool.Name)
+	require.Equal(t, "search_issues", dotcom.Tool.Name)
 	require.Equal(t, "search_issues", lexical.Tool.Name)
 
-	assert.Equal(t, searchIssuesSemanticDescription, semantic.Tool.Description)
+	assert.Equal(t, searchIssuesLexicalDescription, dotcom.Tool.Description)
 	assert.Equal(t, searchIssuesLexicalDescription, lexical.Tool.Description)
 
-	semanticSchema, ok := semantic.Tool.InputSchema.(*jsonschema.Schema)
+	dotcomSchema, ok := dotcom.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok)
 	lexicalSchema, ok := lexical.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok)
 
-	assert.Equal(t, searchIssuesSemanticQueryDescription, semanticSchema.Properties["query"].Description)
+	assert.Equal(t, searchIssuesLexicalQueryDescription, dotcomSchema.Properties["query"].Description)
 	assert.Equal(t, searchIssuesLexicalQueryDescription, lexicalSchema.Properties["query"].Description)
 }

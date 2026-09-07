@@ -1816,15 +1816,10 @@ const (
 )
 
 // SearchIssues creates a tool to search for issues.
-func SearchIssues(t translations.TranslationHelperFunc, opts ...ToolOption) inventory.ServerTool {
-	cfg := newToolConfig(opts)
-
-	// Semantic is the default; however as it is not available on GHES, we fall back to
-	// lexical search for that host type.
-	mode := searchModeSemantic
-	if cfg.hostType == utils.HostTypeGHES {
-		mode = searchModeLexical
-	}
+func SearchIssues(t translations.TranslationHelperFunc, _ ...ToolOption) inventory.ServerTool {
+	// Use GitHub's lexical issues-search contract on every supported host. Semantic
+	// matching does not preserve exact keyword and qualifier semantics.
+	mode := searchModeLexical
 
 	toolDescription := searchIssuesSemanticDescription
 	queryDescription := searchIssuesSemanticQueryDescription

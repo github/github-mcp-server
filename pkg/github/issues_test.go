@@ -1120,6 +1120,22 @@ func Test_SearchIssues(t *testing.T) {
 			},
 		},
 	}
+	keywordSearchResult := &github.IssuesSearchResult{
+		Total:             github.Ptr(1),
+		IncompleteResults: github.Ptr(true),
+		Issues: []*github.Issue{
+			{
+				Number:  github.Ptr(44),
+				Title:   github.Ptr("Transport timeout"),
+				Body:    github.Ptr("The transport retries after a timeout"),
+				State:   github.Ptr("open"),
+				HTMLURL: github.Ptr("https://github.com/modelcontextprotocol/python-sdk/issues/44"),
+				User: &github.User{
+					Login: github.Ptr("user3"),
+				},
+			},
+		},
+	}
 
 	tests := []struct {
 		name           string
@@ -1130,17 +1146,36 @@ func Test_SearchIssues(t *testing.T) {
 		expectedErrMsg string
 	}{
 		{
+			name: "keyword search preserves matching results and truncation",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":        "is:issue repo:modelcontextprotocol/python-sdk transport",
+						"page":     "1",
+						"per_page": "30",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, keywordSearchResult),
+				),
+			}),
+			requestArgs: map[string]any{
+				"query": "repo:modelcontextprotocol/python-sdk transport",
+			},
+			expectError:    false,
+			expectedResult: keywordSearchResult,
+		},
+		{
 			name: "successful issues search with all parameters",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetSearchIssues: expectQueryParams(
 					t,
 					map[string]string{
-						"q":           "is:issue repo:owner/repo is:open",
-						"sort":        "created",
-						"order":       "desc",
-						"page":        "1",
-						"per_page":    "30",
-						"search_type": "semantic",
+						"q":        "is:issue repo:owner/repo is:open",
+						"sort":     "created",
+						"order":    "desc",
+						"page":     "1",
+						"per_page": "30",
 					},
 				).andThen(
 					mockResponse(t, http.StatusOK, mockSearchResult),
@@ -1162,12 +1197,11 @@ func Test_SearchIssues(t *testing.T) {
 				GetSearchIssues: expectQueryParams(
 					t,
 					map[string]string{
-						"q":           "repo:test-owner/test-repo is:issue is:open",
-						"sort":        "created",
-						"order":       "asc",
-						"page":        "1",
-						"per_page":    "30",
-						"search_type": "semantic",
+						"q":        "repo:test-owner/test-repo is:issue is:open",
+						"sort":     "created",
+						"order":    "asc",
+						"page":     "1",
+						"per_page": "30",
 					},
 				).andThen(
 					mockResponse(t, http.StatusOK, mockSearchResult),
@@ -1189,10 +1223,9 @@ func Test_SearchIssues(t *testing.T) {
 				GetSearchIssues: expectQueryParams(
 					t,
 					map[string]string{
-						"q":           "is:issue bug",
-						"page":        "1",
-						"per_page":    "30",
-						"search_type": "semantic",
+						"q":        "is:issue bug",
+						"page":     "1",
+						"per_page": "30",
 					},
 				).andThen(
 					mockResponse(t, http.StatusOK, mockSearchResult),
@@ -1211,10 +1244,9 @@ func Test_SearchIssues(t *testing.T) {
 				GetSearchIssues: expectQueryParams(
 					t,
 					map[string]string{
-						"q":           "is:issue feature",
-						"page":        "1",
-						"per_page":    "30",
-						"search_type": "semantic",
+						"q":        "is:issue feature",
+						"page":     "1",
+						"per_page": "30",
 					},
 				).andThen(
 					mockResponse(t, http.StatusOK, mockSearchResult),
@@ -1244,10 +1276,9 @@ func Test_SearchIssues(t *testing.T) {
 				GetSearchIssues: expectQueryParams(
 					t,
 					map[string]string{
-						"q":           "repo:github/github-mcp-server is:issue is:open (label:critical OR label:urgent)",
-						"page":        "1",
-						"per_page":    "30",
-						"search_type": "semantic",
+						"q":        "repo:github/github-mcp-server is:issue is:open (label:critical OR label:urgent)",
+						"page":     "1",
+						"per_page": "30",
 					},
 				).andThen(
 					mockResponse(t, http.StatusOK, mockSearchResult),
@@ -1265,10 +1296,9 @@ func Test_SearchIssues(t *testing.T) {
 				GetSearchIssues: expectQueryParams(
 					t,
 					map[string]string{
-						"q":           "is:issue repo:github/github-mcp-server critical",
-						"page":        "1",
-						"per_page":    "30",
-						"search_type": "semantic",
+						"q":        "is:issue repo:github/github-mcp-server critical",
+						"page":     "1",
+						"per_page": "30",
 					},
 				).andThen(
 					mockResponse(t, http.StatusOK, mockSearchResult),
@@ -1288,10 +1318,9 @@ func Test_SearchIssues(t *testing.T) {
 				GetSearchIssues: expectQueryParams(
 					t,
 					map[string]string{
-						"q":           "is:issue repo:octocat/Hello-World bug",
-						"page":        "1",
-						"per_page":    "30",
-						"search_type": "semantic",
+						"q":        "is:issue repo:octocat/Hello-World bug",
+						"page":     "1",
+						"per_page": "30",
 					},
 				).andThen(
 					mockResponse(t, http.StatusOK, mockSearchResult),
@@ -1309,10 +1338,9 @@ func Test_SearchIssues(t *testing.T) {
 				GetSearchIssues: expectQueryParams(
 					t,
 					map[string]string{
-						"q":           "repo:github/github-mcp-server is:issue (label:critical OR label:urgent OR label:high-priority OR label:blocker)",
-						"page":        "1",
-						"per_page":    "30",
-						"search_type": "semantic",
+						"q":        "repo:github/github-mcp-server is:issue (label:critical OR label:urgent OR label:high-priority OR label:blocker)",
+						"page":     "1",
+						"per_page": "30",
 					},
 				).andThen(
 					mockResponse(t, http.StatusOK, mockSearchResult),
@@ -1333,7 +1361,6 @@ func Test_SearchIssues(t *testing.T) {
 						"q":               "is:issue field.priority:P1",
 						"page":            "1",
 						"per_page":        "30",
-						"search_type":     "semantic",
 						"advanced_search": "true",
 					},
 				).andThen(
@@ -1347,15 +1374,14 @@ func Test_SearchIssues(t *testing.T) {
 			expectedResult: mockSearchResult,
 		},
 		{
-			name: "semantic search sets search_type",
+			name: "lexical search omits search_type",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetSearchIssues: expectQueryParams(
 					t,
 					map[string]string{
-						"q":           "is:issue is:open",
-						"page":        "1",
-						"per_page":    "30",
-						"search_type": "semantic",
+						"q":        "is:issue is:open",
+						"page":     "1",
+						"per_page": "30",
 					},
 				).andThen(
 					mockResponse(t, http.StatusOK, mockSearchResult),
