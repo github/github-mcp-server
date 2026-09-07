@@ -60,7 +60,7 @@ Possible options:
 	}
 	WithPagination(schema)
 	schema.Properties["fields"] = fieldsSchemaProperty(
-		"Fields to include in each file returned by get_files. Use [\"filename\"] for paths only, or omit patch to reduce response size. Returns all fields when omitted or empty. Ignored by other methods.",
+		"Fields to return for each changed file. Only applies when method is 'get_files'. When a nonempty list is provided, only the listed fields are returned. If 'fields' is omitted or empty, all available fields are returned, including patches.",
 		pullRequestFilesItemFieldEnum,
 	)
 	// get_review_comments uses GraphQL cursor-based pagination and accepts the

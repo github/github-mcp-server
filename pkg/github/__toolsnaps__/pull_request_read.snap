@@ -12,7 +12,7 @@
         "type": "string"
       },
       "fields": {
-        "description": "Fields to include in each file returned by get_files. Use [\"filename\"] for paths only, or omit patch to reduce response size. Returns all fields when omitted or empty. Ignored by other methods.",
+        "description": "Fields to return for each changed file. Only applies when method is 'get_files'. When a nonempty list is provided, only the listed fields are returned. If 'fields' is omitted or empty, all available fields are returned, including patches.",
         "items": {
           "enum": [
             "filename",

@@ -1267,7 +1267,7 @@ The following sets of tools are available:
 - **pull_request_read** - Get details for a single pull request
   - **OAuth Challenge Scopes**: `repo`
   - `after`: Cursor for pagination, used only by the get_review_comments method. Pass the endCursor from the previous page's PageInfo to fetch the next page. (string, optional)
-  - `fields`: Fields to include in each file returned by get_files. Use ["filename"] for paths only, or omit patch to reduce response size. Returns all fields when omitted or empty. Ignored by other methods. (string[], optional)
+  - `fields`: Fields to return for each changed file. Only applies when method is 'get_files'. When a nonempty list is provided, only the listed fields are returned. If 'fields' is omitted or empty, all available fields are returned, including patches. (string[], optional)
   - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
     Possible options: 
      1. get - Get details of a specific pull request.
