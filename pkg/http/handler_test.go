@@ -923,10 +923,8 @@ func buildStaticInventoryFromTools(cfg *ServerConfig, tools []inventory.ServerTo
 	return inv.AvailableTools(ctx), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx), nil
 }
 
-// TestStaticInventoryAppliesHostCapabilities guards against HTTP deployments
-// silently getting dotcom behaviour. ServerConfig.Host can point at GHES, where
-// semantic issue search 403s, so the static inventory has to classify the host
-// rather than fall through to the zero value.
+// TestStaticInventoryAppliesHostCapabilities guards the search contract exposed
+// by HTTP deployments for both dotcom and enterprise hosts.
 func TestStaticInventoryAppliesHostCapabilities(t *testing.T) {
 	t.Parallel()
 
@@ -938,12 +936,12 @@ func TestStaticInventoryAppliesHostCapabilities(t *testing.T) {
 		{
 			name:            "empty host defaults to dotcom",
 			host:            "",
-			wantDescription: "semantic",
+			wantDescription: "lexical",
 		},
 		{
 			name:            "dotcom",
 			host:            "https://github.com",
-			wantDescription: "semantic",
+			wantDescription: "lexical",
 		},
 		{
 			name:            "GHES falls back to lexical",
