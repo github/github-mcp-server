@@ -436,7 +436,7 @@ func TestHandleProtectedResource(t *testing.T) {
 			host:               "api.example.com",
 			method:             http.MethodGet,
 			expectedStatusCode: http.StatusOK,
-			expectedScopes:     SupportedScopes,
+			expectedScopes:     DefaultScopes,
 			validateResponse: func(t *testing.T, body map[string]any) {
 				t.Helper()
 				assert.Equal(t, "GitHub MCP Server", body["resource_name"])
@@ -573,7 +573,12 @@ func TestHandleProtectedResource(t *testing.T) {
 				if tc.expectedScopes != nil {
 					scopes, ok := body["scopes_supported"].([]any)
 					require.True(t, ok)
-					assert.Len(t, scopes, len(tc.expectedScopes))
+					actualScopes := make([]string, len(scopes))
+					for i, scope := range scopes {
+						actualScopes[i], ok = scope.(string)
+						require.True(t, ok)
+					}
+					assert.Equal(t, tc.expectedScopes, actualScopes)
 				}
 			}
 		})
@@ -671,10 +676,20 @@ func TestSupportedScopes(t *testing.T) {
 	assert.Equal(t, expectedScopes, SupportedScopes)
 }
 
-func TestDefaultScopesRequiresExplicitDeleteRepoOptIn(t *testing.T) {
+func TestDefaultScopesRequireExplicitOptIn(t *testing.T) {
 	assert.Subset(t, SupportedScopes, DefaultScopes)
 	assert.Contains(t, SupportedScopes, "delete_repo")
 	assert.NotContains(t, DefaultScopes, "delete_repo")
+	assert.Contains(t, SupportedScopes, "workflow")
+	assert.NotContains(t, DefaultScopes, "workflow")
+	assert.Contains(t, SupportedScopes, "codespace")
+	assert.NotContains(t, DefaultScopes, "codespace")
+	assert.Contains(t, SupportedScopes, "admin:org")
+	assert.NotContains(t, DefaultScopes, "admin:org")
+	assert.Contains(t, SupportedScopes, "read:enterprise")
+	assert.NotContains(t, DefaultScopes, "read:enterprise")
+	assert.Contains(t, SupportedScopes, "admin:enterprise")
+	assert.NotContains(t, DefaultScopes, "admin:enterprise")
 	assert.Contains(t, DefaultScopes, "repo")
 }
 
