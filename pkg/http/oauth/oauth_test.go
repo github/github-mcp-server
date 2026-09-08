@@ -436,7 +436,18 @@ func TestHandleProtectedResource(t *testing.T) {
 			host:               "api.example.com",
 			method:             http.MethodGet,
 			expectedStatusCode: http.StatusOK,
-			expectedScopes:     DefaultScopes,
+expectedScopes: []string{
+				"repo",
+				"read:org",
+				"read:user",
+				"user:email",
+				"read:packages",
+				"write:packages",
+				"read:project",
+				"project",
+				"gist",
+				"notifications",
+			},
 			validateResponse: func(t *testing.T, body map[string]any) {
 				t.Helper()
 				assert.Equal(t, "GitHub MCP Server", body["resource_name"])
