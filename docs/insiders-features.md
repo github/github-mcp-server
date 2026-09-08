@@ -200,10 +200,17 @@ Insiders is a **meta feature flag** — the same shape as `default` or `all` for
 
 1. **User input.** Users may opt into specific features:
    - Local server: `--features=<flag>,<flag>` CLI flag (or `GITHUB_FEATURES` env var).
-   - Self-hosted HTTP server: `X-MCP-Features: <flag>,<flag>` request header.
+   - HTTP server: `X-MCP-Features: <flag>,<flag>` request header or a
+     `?features=<flag>,<flag>` server URL. Header presence takes precedence,
+     and the two request channels are never combined.
 2. **Allowlist filter.** User-supplied flags are filtered against [`AllowedFeatureFlags`](../pkg/github/feature_flags.go). Anything not on the allowlist is silently dropped — flags missing from the allowlist can only be turned on by remote-server feature management, not by end users.
 3. **Insiders expansion.** If insiders mode is on (`--insiders`, `/insiders` route, or `X-MCP-Insiders: true`), every flag in [`InsidersFeatureFlags`](../pkg/github/feature_flags.go) is unioned in. The insiders expansion is **not** re-validated against the allowlist — insiders is a server-controlled switch that can reach internal-only flags.
 4. **Server-side fallback (remote server only).** Any flag not yet decided falls back to the remote server's feature manager, which can roll a feature out independently of user input or insiders membership.
+
+For tool availability, functional rules declare the flags they may read and are
+evaluated lazily after request narrowing. Short-circuiting skips unnecessary
+checks, and request-owned state memoizes each flag that is reached. The same
+state backs `deps.IsFeatureEnabled`.
 
 `AllowedFeatureFlags` and `InsidersFeatureFlags` are deliberately independent sets:
 
@@ -214,7 +221,9 @@ Insiders is a **meta feature flag** — the same shape as `default` or `all` for
 ### Adding a new feature flag
 
 1. Add a constant in `pkg/github/feature_flags.go`.
-2. Add it to `AllowedFeatureFlags` if end users should be able to opt in via `--features` / `X-MCP-Features`.
+2. Add it to `AllowedFeatureFlags` if end users should be able to opt in via
+   `--features`, `X-MCP-Features`, or the `features` URL query parameter.
 3. Add it to `InsidersFeatureFlags` if insiders mode should turn it on automatically.
-4. Gate the behavior on the concrete flag (`deps.IsFeatureEnabled(ctx, FeatureFlagX)`), never on `cfg.InsidersMode`. There is a `TestGitHubPackageDoesNotReadInsidersMode` guard test that fails if `pkg/github` reads `InsidersMode` directly.
-5. The MCP-diff CI workflow picks up new entries in `AllowedFeatureFlags` automatically — see `.github/workflows/mcp-diff.yml`.
+4. For tool availability, attach an `inventory.NewFeatureRule` that declares every flag used by its predicate. For behavior inside a handler, use `deps.IsFeatureEnabled(ctx, FeatureFlagX)`.
+5. Gate on concrete flags, never on `cfg.InsidersMode`. There is a `TestGitHubPackageDoesNotReadInsidersMode` guard test that fails if `pkg/github` reads `InsidersMode` directly.
+6. The MCP-diff CI workflow picks up new entries in `AllowedFeatureFlags` automatically — see `.github/workflows/mcp-diff.yml`.

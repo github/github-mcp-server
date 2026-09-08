@@ -4,7 +4,7 @@
     "readOnlyHint": false,
     "title": "Create or update file"
   },
-  "description": "Create or update a single file in a GitHub repository. \nIf updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.\n\nIn order to obtain the SHA of original file version before updating, use the following git command:\ngit rev-parse \u003cbranch\u003e:\u003cpath to file\u003e\n\nSHA MUST be provided for existing file updates.\n",
+  "description": "Create or update a single file in a GitHub repository. \nIf updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.\n\nTo obtain the current blob SHA before updating, call the get_file_contents tool with the same owner, repo, and path, and set its ref parameter to this tool's branch value. The first text result reports the blob SHA for the requested path.\n\nSHA MUST be provided for existing file updates.\n",
   "inputSchema": {
     "properties": {
       "allow_symlink_write": {
@@ -37,7 +37,7 @@
         "type": "string"
       },
       "sha": {
-        "description": "The blob SHA of the file being replaced. Required if the file already exists.",
+        "description": "The blob SHA of the file being replaced. Required if the file already exists. Retrieve it with get_file_contents using the same owner, repo, and path, with ref set to this tool's branch value.",
         "type": "string"
       }
     },

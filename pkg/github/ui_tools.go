@@ -98,7 +98,7 @@ func UIGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		})
-	st.FeatureFlagEnable = MCPAppsFeatureFlag
+	st.FeatureRule = featureEnabledRule(MCPAppsFeatureFlag)
 	return st
 }
 

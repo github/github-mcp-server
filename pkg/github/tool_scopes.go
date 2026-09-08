@@ -5,6 +5,14 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 )
 
+func publicRepositoryWriteScopeAccess() inventory.ScopeAccess {
+	access := scopes.RequireAll(scopes.Repo)
+	access.Visible = func(activeScopes []string) bool {
+		return scopes.HasAll(activeScopes, scopes.PublicRepo)
+	}
+	return access
+}
+
 func repositoryOrOrganizationScopeAccess() inventory.ScopeAccess {
 	return scopes.DynamicChallenge(
 		[]scopes.Scope{scopes.Repo, scopes.ReadOrg},

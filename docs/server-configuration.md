@@ -13,7 +13,7 @@ We currently support the following ways in which the GitHub MCP Server can be co
 | Read-Only Mode | `X-MCP-Readonly` header or `/readonly` URL | `--read-only` flag or `GITHUB_READ_ONLY` env var |
 | Lockdown Mode | `X-MCP-Lockdown` header | `--lockdown-mode` flag or `GITHUB_LOCKDOWN_MODE` env var |
 | Insiders Mode | `X-MCP-Insiders` header or `/insiders` URL | `--insiders` flag or `GITHUB_INSIDERS` env var |
-| Feature Flags | `X-MCP-Features` header | `--features` flag |
+| Feature Flags | `X-MCP-Features` header or `?features=` URL query parameter | `--features` flag |
 | Scope Filtering | Always enabled | Always enabled |
 | Server Name/Title | Not available | `GITHUB_MCP_SERVER_NAME` / `GITHUB_MCP_SERVER_TITLE` env vars or `github-mcp-server-config.json` |
 

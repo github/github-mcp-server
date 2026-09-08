@@ -73,6 +73,11 @@ var (
 		Description: "GitHub Organization related tools",
 		Icon:        "organization",
 	}
+	ToolsetMetadataGovernance = inventory.ToolsetMetadata{
+		ID:          "governance",
+		Description: "Repository governance tools for managing rulesets and custom properties at the repository, organization, and enterprise levels",
+		Icon:        "law",
+	}
 	ToolsetMetadataActions = inventory.ToolsetMetadata{
 		ID:          "actions",
 		Description: "GitHub Actions workflows and CI/CD operations",
@@ -159,9 +164,9 @@ var (
 	FeatureFlagPullRequestsGranular = "pull_requests_granular"
 )
 
-// HeaderAllowedFeatureFlags returns the feature flags that clients may enable via
-// the X-MCP-Features header. It delegates to AllowedFeatureFlags as the single
-// source of truth.
+// HeaderAllowedFeatureFlags returns the feature flags that clients may enable
+// through the X-MCP-Features header or features URL query parameter. It
+// delegates to AllowedFeatureFlags as the single source of truth.
 func HeaderAllowedFeatureFlags() []string {
 	return slices.Clone(AllowedFeatureFlags)
 }
@@ -264,6 +269,12 @@ func AllTools(t translations.TranslationHelperFunc, opts ...ToolOption) []invent
 
 		// Organization tools
 		SearchOrgs(t),
+
+		// Governance tools
+		RepositoryRulesetRead(t),
+		CreateRepositoryRuleset(t),
+		CustomPropertiesRead(t),
+		CustomPropertiesWrite(t),
 
 		// Pull request tools
 		PullRequestRead(t),

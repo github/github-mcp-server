@@ -73,12 +73,19 @@ func (f *recordingScopesFetcher) FetchTokenScopes(_ context.Context, token strin
 
 var _ scopes.FetcherInterface = (*recordingScopesFetcher)(nil)
 
-func mockToolWithFeatureFlag(name, toolsetID string, readOnly bool, enableFlag, disableFlag string) inventory.ServerTool {
+func mockToolWithFeatureFlag(name, toolsetID string, readOnly bool, enableFlag, disableFlag inventory.FeatureFlag) inventory.ServerTool {
 	tool := mockTool(name, toolsetID, readOnly)
-	tool.FeatureFlagEnable = enableFlag
-	if disableFlag != "" {
-		tool.FeatureFlagDisable = []string{disableFlag}
+	features := make([]inventory.FeatureFlag, 0, 2)
+	if enableFlag != "" {
+		features = append(features, enableFlag)
 	}
+	if disableFlag != "" {
+		features = append(features, disableFlag)
+	}
+	tool.FeatureRule = inventory.NewFeatureRule(features, func(featureAsBool inventory.FeatureResolver) bool {
+		return (enableFlag == "" || featureAsBool(enableFlag)) &&
+			(disableFlag == "" || !featureAsBool(disableFlag))
+	})
 	return tool
 }
 
@@ -190,9 +197,9 @@ func testTools() []inventory.ServerTool {
 		mockTool("create_issue", "issues", false),
 		mockTool("list_pull_requests", "pull_requests", true),
 		mockTool("create_pull_request", "pull_requests", false),
-		// Feature-flagged tools for testing X-MCP-Features header
-		mockToolWithFeatureFlag("needs_holdback", "repos", true, "mcp_holdback_consolidated_projects", ""),
-		mockToolWithFeatureFlag("hidden_by_holdback", "repos", true, "", "mcp_holdback_consolidated_projects"),
+		// Feature-flagged tools for testing per-request feature selection.
+		mockToolWithFeatureFlag("needs_holdback", "repos", true, github.FeatureFlagIssueDependencies, ""),
+		mockToolWithFeatureFlag("hidden_by_holdback", "repos", true, "", github.FeatureFlagIssueDependencies),
 	}
 }
 
@@ -306,13 +313,36 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			name: "X-MCP-Features header enables flagged tool",
 			path: "/",
 			headers: map[string]string{
-				headers.MCPFeaturesHeader: "mcp_holdback_consolidated_projects",
+				headers.MCPFeaturesHeader: github.FeatureFlagIssueDependencies,
 			},
 			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "needs_holdback"},
 		},
 		{
 			name: "X-MCP-Features header with unknown flag is ignored",
 			path: "/",
+			headers: map[string]string{
+				headers.MCPFeaturesHeader: "unknown_flag",
+			},
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "hidden_by_holdback"},
+		},
+		{
+			name:          "features query parameter enables allowlisted feature",
+			path:          "/?features=" + github.FeatureFlagIssueDependencies,
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "needs_holdback"},
+		},
+		{
+			name:          "features query parameter works with toolset and readonly routes",
+			path:          "/x/repos/readonly?features=" + github.FeatureFlagIssueDependencies,
+			expectedTools: []string{"get_file_contents", "needs_holdback"},
+		},
+		{
+			name:          "unknown feature in query parameter is ignored",
+			path:          "/?features=unknown_flag",
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "hidden_by_holdback"},
+		},
+		{
+			name: "unknown header suppresses allowlisted query feature",
+			path: "/?features=" + github.FeatureFlagIssueDependencies,
 			headers: map[string]string{
 				headers.MCPFeaturesHeader: "unknown_flag",
 			},
@@ -359,10 +389,13 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			var capturedInventory *inventory.Inventory
 			var capturedCtx context.Context
 
-			// Create feature checker that reads from context without whitelist validation
-			// (the whitelist is tested separately; here we test the filtering logic)
+			// Match the production allowlist and insiders expansion behavior.
 			featureChecker := func(ctx context.Context, flag string) (bool, error) {
-				return slices.Contains(ghcontext.GetHeaderFeatures(ctx), flag), nil
+				effective := github.ResolveFeatureFlags(
+					ghcontext.GetHeaderFeatures(ctx),
+					ghcontext.IsInsidersMode(ctx),
+				)
+				return effective[flag], nil
 			}
 
 			apiHost, err := utils.NewAPIHost("https://api.github.com")
@@ -750,7 +783,9 @@ func TestStaticInventoryPreservesPerRequestFeatureVariants(t *testing.T) {
 	available := inv.AvailableTools(ctx)
 	require.Len(t, available, 1)
 	assert.Equal(t, "list_issues", available[0].Tool.Name)
-	assert.Equal(t, github.FeatureFlagCSVOutput, available[0].FeatureFlagEnable)
+	assert.True(t, available[0].FeatureRule.Enabled(func(flag inventory.FeatureFlag) bool {
+		return flag == github.FeatureFlagCSVOutput
+	}))
 }
 
 func TestStaticInventoryDisablesOnlyDeleteRepository(t *testing.T) {
@@ -1069,6 +1104,74 @@ func TestStaticTokenFallbackFlowsThroughPATScopeMiddleware(t *testing.T) {
 	assert.Equal(t, staticToken, fetcher.token)
 	assert.Equal(t, 1, fetcher.calls)
 	assert.Equal(t, []string{string(scopes.Repo)}, capturedScopes)
+}
+
+func TestFeatureResolutionUsesOuterHTTPContext(t *testing.T) {
+	type userContextKey struct{}
+	const (
+		userValue   = "remote-user"
+		featureFlag = inventory.FeatureFlag("remote-feature")
+	)
+
+	var checkerCalls int
+	tool := mockTool("feature_tool", "test", true)
+	tool.FeatureRule = inventory.NewFeatureRule(
+		[]inventory.FeatureFlag{featureFlag},
+		func(featureAsBool inventory.FeatureResolver) bool {
+			return featureAsBool(featureFlag)
+		},
+	)
+	inventoryFactory := func(_ *http.Request) (*inventory.Inventory, error) {
+		checker := func(ctx context.Context, flag string) (bool, error) {
+			checkerCalls++
+			return flag == string(featureFlag) && ctx.Value(userContextKey{}) == userValue, nil
+		}
+		return inventory.NewBuilder().
+			SetTools([]inventory.ServerTool{tool}).
+			WithToolsets([]string{"all"}).
+			WithFeatureChecker(checker).
+			Build()
+	}
+
+	apiHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{Version: "test"},
+		nil,
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+		WithInventoryFactory(inventoryFactory),
+		WithGitHubMCPServerFactory(func(r *http.Request, _ github.ToolDependencies, inv *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+			assert.True(t, inventory.ResolveFeature(r.Context(), nil, featureFlag))
+			require.Len(t, inv.AvailableTools(r.Context()), 1)
+			return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+		}),
+		WithScopeFetcher(allScopesFetcher{}),
+	)
+
+	router := chi.NewRouter()
+	router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userContextKey{}, userValue)))
+		})
+	})
+	handler.RegisterMiddleware(router)
+	handler.RegisterRoutes(router)
+
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1.0.0"},"io.modelcontextprotocol/clientCapabilities":{}}}}`
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+	req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
+	req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+	req.Header.Set("Mcp-Protocol-Version", "2026-07-28")
+	req.Header.Set("Mcp-Method", "tools/list")
+	req.Header.Set(headers.AuthorizationHeader, "ghs_test-token")
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusOK, recorder.Code, "response body: %s", recorder.Body.String())
+	assert.Equal(t, 1, checkerCalls)
 }
 
 func TestHTTPToolMinimumProtocolVersion(t *testing.T) {

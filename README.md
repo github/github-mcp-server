@@ -586,6 +586,7 @@ The following sets of tools are available:
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/comment-discussion-light.png"><img src="pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture> | `discussions` | GitHub Discussions related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/logo-gist-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/logo-gist-light.png"><img src="pkg/octicons/icons/logo-gist-light.png" width="20" height="20" alt="logo-gist"></picture> | `gists` | GitHub Gist related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-branch-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-branch-light.png"><img src="pkg/octicons/icons/git-branch-light.png" width="20" height="20" alt="git-branch"></picture> | `git` | GitHub Git API related tools for low-level Git operations |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/law-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/law-light.png"><img src="pkg/octicons/icons/law-light.png" width="20" height="20" alt="law"></picture> | `governance` | Repository governance tools for managing rulesets and custom properties at the repository, organization, and enterprise levels |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/issue-opened-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/issue-opened-light.png"><img src="pkg/octicons/icons/issue-opened-light.png" width="20" height="20" alt="issue-opened"></picture> | `issues` | GitHub Issues related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/tag-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/tag-light.png"><img src="pkg/octicons/icons/tag-light.png" width="20" height="20" alt="tag"></picture> | `labels` | GitHub Labels related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/bell-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/bell-light.png"><img src="pkg/octicons/icons/bell-light.png" width="20" height="20" alt="bell"></picture> | `notifications` | GitHub Notifications related tools |
@@ -631,7 +632,7 @@ The following sets of tools are available:
   - `method`: The action to perform (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (default: 1) (number, optional)
-  - `per_page`: Results per page for pagination (default: 30, max: 100) (number, optional)
+  - `perPage`: Results per page for pagination (default: 30, max: 100) (number, optional)
   - `repo`: Repository name (string, required)
   - `resource_id`: The unique identifier of the resource. This will vary based on the "method" provided, so ensure you provide the correct ID:
     - Do not provide any resource ID for 'list_workflows' method.
@@ -872,6 +873,81 @@ The following sets of tools are available:
 
 <details>
 
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/law-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/law-light.png"><img src="pkg/octicons/icons/law-light.png" width="20" height="20" alt="law"></picture> Governance</summary>
+
+- **create_repository_ruleset** - Create repository ruleset
+  - **OAuth Challenge Scopes**: `repo`, `admin:org`, `admin:enterprise`
+  - `bypass_actors`: The actors that can bypass the rules in this ruleset (object[], optional)
+  - `conditions`: Conditions for when this ruleset applies, e.g. {"ref_name": {"include": ["refs/heads/main"], "exclude": []}} (object, optional)
+  - `enforcement`: The enforcement level of the ruleset. 'evaluate' allows admins to test rules before enforcing them (string, required)
+  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. (string, optional)
+  - `level`: The level at which the ruleset is configured:
+    - 'repository': A ruleset on a single repository (requires 'owner' and 'repo').
+    - 'organization': A ruleset covering repositories in an organization (requires 'org').
+    - 'enterprise': A ruleset covering repositories across an enterprise (requires 'enterprise'). (string, required)
+  - `name`: The name of the ruleset (string, required)
+  - `org`: Organization name. Required when level is 'organization'. (string, optional)
+  - `owner`: Repository owner. Required when level is 'repository'. (string, optional)
+  - `repo`: Repository name. Required when level is 'repository'. (string, optional)
+  - `rules`: An array of rules within the ruleset. Each rule is an object with a 'type' (e.g. 'creation', 'deletion', 'non_fast_forward', 'required_signatures', 'pull_request', 'required_status_checks') and, for rules that need configuration, a 'parameters' object (object[], required)
+  - `target`: The target of the ruleset. Defaults to 'branch'. 'repository' is only valid for 'organization' and 'enterprise' level rulesets. (string, optional)
+
+- **custom_properties_read** - Read custom properties
+  - **OAuth Challenge Scopes**: `repo`, `read:org`, `read:enterprise`
+  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. (string, optional)
+  - `level`: The level at which custom properties are managed:
+    - 'repository': The custom property VALUES assigned to a repository (requires 'owner' and 'repo').
+    - 'organization': The custom property DEFINITIONS (schema) for an organization (requires 'org').
+    - 'enterprise': The custom property DEFINITIONS (schema) for an enterprise (requires 'enterprise'). (string, required)
+  - `org`: Organization name. Required when level is 'organization'. (string, optional)
+  - `owner`: Repository owner. Required when level is 'repository'. (string, optional)
+  - `repo`: Repository name. Required when level is 'repository'. (string, optional)
+
+- **custom_properties_write** - Set custom properties
+  - **OAuth Challenge Scopes**: `repo`, `admin:org`, `admin:enterprise`
+  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. (string, optional)
+  - `level`: The level at which custom properties are managed:
+    - 'repository': The custom property VALUES assigned to a repository (requires 'owner' and 'repo').
+    - 'organization': The custom property DEFINITIONS (schema) for an organization (requires 'org').
+    - 'enterprise': The custom property DEFINITIONS (schema) for an enterprise (requires 'enterprise'). (string, required)
+  - `org`: Organization name. Required when level is 'organization'. (string, optional)
+  - `owner`: Repository owner. Required when level is 'repository'. (string, optional)
+  - `properties`: The custom properties to create or update. At the repository level each item assigns a value ('property_name' and 'value'); at the organization and enterprise levels each item defines the schema ('property_name' and 'value_type', plus optional definition fields). (object[], required)
+  - `repo`: Repository name. Required when level is 'repository'. (string, optional)
+
+- **repository_ruleset_read** - Read repository rulesets
+  - **OAuth Challenge Scopes**: `repo`, `read:org`, `read:enterprise`
+  - `actor_name`: The handle for the GitHub user account to filter rule suites on. Used by the 'list_rule_suites' method. (string, optional)
+  - `branch`: Branch name. Required for the 'get_rules_for_branch' method. (string, optional)
+  - `enterprise`: Enterprise slug. Required when level is 'enterprise'. (string, optional)
+  - `evaluate_status`: Filter rule suites by ruleset evaluation mode. Used by the 'list_rule_suites' method. (string, optional)
+  - `includes_parents`: Include rulesets configured at higher levels that also apply. Defaults to true. Used by the 'get' and 'list' methods at the repository level. (boolean, optional)
+  - `level`: The level at which the ruleset is configured:
+    - 'repository': A ruleset on a single repository (requires 'owner' and 'repo').
+    - 'organization': A ruleset covering repositories in an organization (requires 'org').
+    - 'enterprise': A ruleset covering repositories across an enterprise (requires 'enterprise'). (string, required)
+  - `method`: Operation to perform:
+    - 'get': Get a specific ruleset by ID (requires 'ruleset_id'). Supported at every level.
+    - 'list': List all rulesets. Supported at every level.
+    - 'get_rules_for_branch': Get all rules that apply to a branch (requires 'branch'). Repository level only.
+    - 'list_rule_suites': List rule suites, the evaluations of rules against pushes. Repository and organization levels only.
+    - 'get_rule_suite': Get a specific rule suite by ID (requires 'rule_suite_id'). Repository and organization levels only. (string, required)
+  - `org`: Organization name. Required when level is 'organization'. (string, optional)
+  - `owner`: Repository owner. Required when level is 'repository'. (string, optional)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `ref`: The name of the ref (branch, tag, etc.) to filter rule suites by. Used by the 'list_rule_suites' method. (string, optional)
+  - `repo`: Repository name. Required when level is 'repository'. (string, optional)
+  - `repository_name`: Repository name to filter rule suites by. Used by the 'list_rule_suites' method at the organization level. (string, optional)
+  - `rule_suite_id`: Rule suite ID. Required for the 'get_rule_suite' method. (number, optional)
+  - `rule_suite_result`: The rule suite result to filter by. Used by the 'list_rule_suites' method. (string, optional)
+  - `ruleset_id`: Ruleset ID. Required for the 'get' method. (number, optional)
+  - `time_period`: The time period to filter rule suites by. Used by the 'list_rule_suites' method. (string, optional)
+
+</details>
+
+<details>
+
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/issue-opened-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/issue-opened-light.png"><img src="pkg/octicons/icons/issue-opened-light.png" width="20" height="20" alt="issue-opened"></picture> Issues</summary>
 
 - **add_issue_comment** - Add comment to issue or pull request
@@ -1092,7 +1168,7 @@ The following sets of tools are available:
   - `method`: The action to perform (string, required)
   - `owner`: The owner (user or organization login). The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (user or org). If not provided, will automatically try both. (string, optional)
-  - `per_page`: Results per page (max 50) (number, optional)
+  - `perPage`: Results per page (max 50) (number, optional)
   - `project_number`: The project's number. Required for 'list_project_fields', 'list_project_items', 'list_project_views', and 'list_project_status_updates' methods. (number, optional)
   - `query`: Filter/query string. For list_projects: filter by title text and state (e.g. "roadmap is:open"). For list_project_items: advanced filtering using GitHub's project filtering syntax. (string, optional)
 
@@ -1182,6 +1258,7 @@ The following sets of tools are available:
   - **OAuth Challenge Scopes**: `repo`
   - `commit_message`: Extra detail for merge commit (string, optional)
   - `commit_title`: Title for merge commit (string, optional)
+  - `expectedHeadSha`: The expected SHA of the pull request's HEAD ref (string, optional)
   - `merge_method`: Merge method (string, optional)
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
@@ -1197,7 +1274,7 @@ The following sets of tools are available:
      3. get_status - Get combined commit status of a head commit in a pull request.
      4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
      5. get_commits - Get the list of commits on a pull request. Use with pagination parameters to control the number of results returned.
-     6. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
+     6. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns thread metadata and comments with nullable current and original line-range coordinates (line, start_line, original_line, original_start_line). Current coordinates are omitted when unavailable, such as for outdated comments. Use cursor-based pagination (perPage, after) to control results.
      7. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
      8. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
      9. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
@@ -1272,7 +1349,7 @@ The following sets of tools are available:
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: Path where to create/update the file (string, required)
   - `repo`: Repository name (string, required)
-  - `sha`: The blob SHA of the file being replaced. Required if the file already exists. (string, optional)
+  - `sha`: The blob SHA of the file being replaced. Required if the file already exists. Retrieve it with get_file_contents using the same owner, repo, and path, with ref set to this tool's branch value. (string, optional)
 
 - **create_repository** - Create repository
   - **OAuth Challenge Scopes**: `repo`

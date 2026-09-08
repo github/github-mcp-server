@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -18,6 +19,7 @@ import (
 	"github.com/github/github-mcp-server/internal/ghmcp"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/pkg/utils"
 	gogithub "github.com/google/go-github/v89/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
@@ -62,21 +64,116 @@ func getE2EHost() string {
 }
 
 func getRESTClient(t *testing.T) *gogithub.Client {
-	// Get token and ensure Docker image is built
-	token := getE2EToken(t)
-
-	// Create a new GitHub client with the token
-	ghClient := gogithub.NewClient(nil).WithAuthToken(token)
-
-	if host := getE2EHost(); host != "" && host != "https://github.com" {
-		var err error
-		// Currently this works for GHEC because the API is exposed at the api subdomain and the path prefix
-		// but it would be preferable to extract the host parsing from the main server logic, and use it here.
-		ghClient, err = ghClient.WithEnterpriseURLs(host, host)
-		require.NoError(t, err, "expected to create GitHub client with host")
-	}
+	ghClient, err := newRESTClient(getE2EToken(t), getE2EHost())
+	require.NoError(t, err, "expected to create GitHub client successfully")
 
 	return ghClient
+}
+
+func newRESTClient(token, host string) (*gogithub.Client, error) {
+	apiHost, err := utils.NewAPIHost(host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse API host: %w", err)
+	}
+
+	restURL, err := apiHost.BaseRESTURL(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get base REST URL: %w", err)
+	}
+
+	uploadURL, err := apiHost.UploadURL(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get upload URL: %w", err)
+	}
+
+	return gogithub.NewClient(
+		gogithub.WithAuthToken(token),
+		gogithub.WithEnterpriseURLs(restURL.String(), uploadURL.String()),
+	)
+}
+
+func TestRESTClientURLs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		host          string
+		wantBaseURL   string
+		wantUploadURL string
+	}{
+		{
+			name:          "dotcom default",
+			wantBaseURL:   "https://api.github.com/",
+			wantUploadURL: "https://uploads.github.com/",
+		},
+		{
+			name:          "dotcom explicit",
+			host:          "https://github.com",
+			wantBaseURL:   "https://api.github.com/",
+			wantUploadURL: "https://uploads.github.com/",
+		},
+		{
+			name:          "GHEC",
+			host:          "https://example.ghe.com",
+			wantBaseURL:   "https://api.example.ghe.com/",
+			wantUploadURL: "https://uploads.example.ghe.com/",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, err := newRESTClient("test-token", tt.host)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantBaseURL, client.BaseURL())
+			require.Equal(t, tt.wantUploadURL, client.UploadURL())
+		})
+	}
+}
+
+func TestInProcessStdioServer(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	server, err := ghmcp.NewStdioMCPServer(ctx, github.MCPServerConfig{
+		Version:         "e2e-test",
+		Token:           "test-token",
+		EnabledToolsets: []string{"context"},
+		Translator:      translations.NullTranslationHelper,
+		Logger:          slog.New(slog.DiscardHandler),
+	})
+	require.NoError(t, err)
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- server.Run(ctx, serverTransport)
+	}()
+
+	client := mcp.NewClient(&mcp.Implementation{
+		Name:    "e2e-test-client",
+		Version: "0.0.1",
+	}, nil)
+	session, err := client.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	tools, err := session.ListTools(ctx, nil)
+	require.NoError(t, err)
+	require.True(t, slices.ContainsFunc(tools.Tools, func(tool *mcp.Tool) bool {
+		return tool.Name == "get_me"
+	}))
+
+	require.NoError(t, session.Close())
+	select {
+	case err := <-serverErr:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for the in-process MCP server to stop")
+	}
 }
 
 // waitForRateLimit checks the current rate limit and waits if necessary.
@@ -221,11 +318,13 @@ func setupMCPClient(t *testing.T, options ...clientOption) *mcp.ClientSession {
 			enabledToolsets = github.GetDefaultToolsetIDs()
 		}
 
-		ghServer, err := ghmcp.NewMCPServer(ghmcp.MCPServerConfig{
+		ghServer, err := ghmcp.NewStdioMCPServer(ctx, github.MCPServerConfig{
+			Version:         "e2e-test",
 			Token:           token,
 			EnabledToolsets: enabledToolsets,
 			Host:            getE2EHost(),
 			Translator:      translations.NullTranslationHelper,
+			Logger:          slog.New(slog.DiscardHandler),
 		})
 		require.NoError(t, err, "expected to construct MCP server successfully")
 
@@ -968,7 +1067,7 @@ func TestRequestCopilotReview(t *testing.T) {
 	// Cleanup the repository after the test
 	t.Cleanup(func() {
 		// MCP Server doesn't support deletions, but we can use the GitHub Client
-		ghClient := gogithub.NewClient(nil).WithAuthToken(getE2EToken(t))
+		ghClient := getRESTClient(t)
 		t.Logf("Deleting repository %s/%s...", currentOwner, repoName)
 		_, err := ghClient.Repositories.Delete(context.Background(), currentOwner, repoName)
 		require.NoError(t, err, "expected to delete repository successfully")
@@ -1063,9 +1162,9 @@ func TestRequestCopilotReview(t *testing.T) {
 
 	// Finally, get requested reviews and see copilot is in there
 	// MCP Server doesn't support requesting reviews yet, but we can use the GitHub Client
-	ghClient := gogithub.NewClient(nil).WithAuthToken(getE2EToken(t))
+	ghClient := getRESTClient(t)
 	t.Logf("Getting reviews for pull request in %s/%s...", currentOwner, repoName)
-	reviewRequests, _, err := ghClient.PullRequests.ListReviewers(context.Background(), currentOwner, repoName, 1, nil)
+	reviewRequests, _, err := ghClient.PullRequests.ListReviewers(context.Background(), currentOwner, repoName, 1)
 	require.NoError(t, err, "expected to get review requests successfully")
 
 	// Check if Copilot was added as a reviewer - skip if not available

@@ -23,6 +23,11 @@ import (
 
 const subscriptionsListenMethod = "subscriptions/listen"
 
+// InventoryFactoryFunc builds the inventory for one HTTP request. All context
+// values required by its feature checker must be installed before this runs:
+// feature availability is resolved immediately afterward, before MCP receiving
+// middleware can run. Handler-only lazy checks still see receiving-middleware
+// context.
 type InventoryFactoryFunc func(r *http.Request) (*inventory.Inventory, error)
 
 // GitHubMCPServerFactoryFunc is a function type for creating a new MCP Server instance.
@@ -214,6 +219,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if methodInfo, ok := ghcontext.MCPMethod(r.Context()); ok && methodInfo != nil {
 		invToUse = inv.ForMCPRequest(methodInfo.Method, methodInfo.ItemName)
 	}
+	// Tool registration must know availability before the MCP server exists.
+	// Remote consumers install user identity in HTTP middleware before the
+	// inventory factory, so their per-user checker has its full context here.
+	r = r.WithContext(invToUse.WithFeatureState(r.Context()))
 
 	ghServer, err := h.githubMcpServerFactory(r, h.deps, invToUse, &github.MCPServerConfig{
 		Version:           h.config.Version,

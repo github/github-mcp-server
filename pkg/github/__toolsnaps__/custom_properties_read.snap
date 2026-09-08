@@ -1,0 +1,42 @@
+{
+  "annotations": {
+    "idempotentHint": false,
+    "readOnlyHint": true,
+    "title": "Read custom properties"
+  },
+  "description": "Read custom properties at the repository, organization, or enterprise level. At the repository level this returns the property values assigned to a repository; at the organization and enterprise levels it returns the property definitions (schema). Select the level with the 'level' parameter.",
+  "inputSchema": {
+    "properties": {
+      "enterprise": {
+        "description": "Enterprise slug. Required when level is 'enterprise'.",
+        "type": "string"
+      },
+      "level": {
+        "description": "The level at which custom properties are managed:\n- 'repository': The custom property VALUES assigned to a repository (requires 'owner' and 'repo').\n- 'organization': The custom property DEFINITIONS (schema) for an organization (requires 'org').\n- 'enterprise': The custom property DEFINITIONS (schema) for an enterprise (requires 'enterprise').",
+        "enum": [
+          "repository",
+          "organization",
+          "enterprise"
+        ],
+        "type": "string"
+      },
+      "org": {
+        "description": "Organization name. Required when level is 'organization'.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner. Required when level is 'repository'.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name. Required when level is 'repository'.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "level"
+    ],
+    "type": "object"
+  },
+  "name": "custom_properties_read"
+}

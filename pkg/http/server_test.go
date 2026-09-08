@@ -136,26 +136,29 @@ func TestHTTPRouterCORSContract(t *testing.T) {
 	)
 
 	tests := []struct {
-		name              string
-		method            string
-		path              string
-		expectedStatus    int
-		expectChallenge   bool
-		expectAllowHeader bool
+		name            string
+		method          string
+		path            string
+		requestHeaders  string
+		expectedStatus  int
+		expectChallenge bool
+		expectedAllow   []string
 	}{
 		{
-			name:              "MCP preflight",
-			method:            http.MethodOptions,
-			path:              "/",
-			expectedStatus:    http.StatusOK,
-			expectAllowHeader: true,
+			name:           "MCP preflight",
+			method:         http.MethodOptions,
+			path:           "/",
+			requestHeaders: "content-type, mcp-method, mcp-name, mcp-param-owner, mcp-param-region",
+			expectedStatus: http.StatusOK,
+			expectedAllow:  []string{"Content-Type", "Mcp-Method", "Mcp-Name", "Mcp-Param-owner", "Mcp-Param-Region"},
 		},
 		{
-			name:              "metadata preflight",
-			method:            http.MethodOptions,
-			path:              "/metadata",
-			expectedStatus:    http.StatusOK,
-			expectAllowHeader: true,
+			name:           "metadata preflight",
+			method:         http.MethodOptions,
+			path:           "/metadata",
+			requestHeaders: "content-type",
+			expectedStatus: http.StatusOK,
+			expectedAllow:  []string{"Content-Type"},
 		},
 		{
 			name:            "authentication challenge",
@@ -196,7 +199,7 @@ func TestHTTPRouterCORSContract(t *testing.T) {
 			req.Header.Set("Origin", "https://confer.to")
 			if tt.method == http.MethodOptions {
 				req.Header.Set("Access-Control-Request-Method", http.MethodPost)
-				req.Header.Set("Access-Control-Request-Headers", "content-type")
+				req.Header.Set("Access-Control-Request-Headers", tt.requestHeaders)
 			}
 
 			rec := httptest.NewRecorder()
@@ -207,8 +210,8 @@ func TestHTTPRouterCORSContract(t *testing.T) {
 			assert.Empty(t, rec.Header().Get("Access-Control-Allow-Credentials"))
 			assert.Contains(t, rec.Header().Get("Access-Control-Expose-Headers"), "Mcp-Session-Id")
 			assert.Contains(t, rec.Header().Get("Access-Control-Expose-Headers"), "WWW-Authenticate")
-			if tt.expectAllowHeader {
-				assert.Contains(t, rec.Header().Get("Access-Control-Allow-Headers"), "Content-Type")
+			for _, header := range tt.expectedAllow {
+				assert.Contains(t, rec.Header().Get("Access-Control-Allow-Headers"), header)
 			}
 			if tt.expectChallenge {
 				assert.Equal(t,
@@ -250,6 +253,7 @@ func TestHTTPRouterStaticAuthBrowserGuard(t *testing.T) {
 		expectMCP          bool
 		expectMetadata     bool
 		expectWildcardCORS bool
+		expectedAllow      string
 	}{
 		{
 			name:           "headerless browser request cannot reach MCP handler",
@@ -277,21 +281,22 @@ func TestHTTPRouterStaticAuthBrowserGuard(t *testing.T) {
 			expectWildcardCORS: true,
 		},
 		{
-			name:             "headerless preflight is rejected",
+			name:             "projected headers without authorization do not bypass guard",
 			method:           http.MethodOptions,
 			path:             "/",
 			origin:           "https://example.com",
-			preflightHeaders: "content-type",
+			preflightHeaders: "content-type, mcp-method, mcp-name, mcp-param-region",
 			expectedStatus:   http.StatusForbidden,
 		},
 		{
-			name:               "preflight requesting authorization is allowed",
+			name:               "preflight requesting authorization and projected headers is allowed",
 			method:             http.MethodOptions,
 			path:               "/",
 			origin:             "https://example.com",
-			preflightHeaders:   "content-type, authorization",
+			preflightHeaders:   "content-type, authorization, mcp-method, mcp-name, mcp-param-region",
 			expectedStatus:     http.StatusOK,
 			expectWildcardCORS: true,
+			expectedAllow:      "Content-Type, Mcp-Session-Id, Mcp-Protocol-Version, Mcp-Method, Mcp-Name, Last-Event-ID, Authorization, X-MCP-Readonly, X-MCP-Toolsets, X-MCP-Tools, X-MCP-Exclude-Tools, X-MCP-Features, X-MCP-Lockdown, X-MCP-Insiders, Mcp-Param-owner, Mcp-Param-repo, Mcp-Param-Region",
 		},
 		{
 			name:               "OAuth metadata keeps wildcard CORS",
@@ -330,6 +335,9 @@ func TestHTTPRouterStaticAuthBrowserGuard(t *testing.T) {
 				assert.Equal(t, "*", rr.Header().Get("Access-Control-Allow-Origin"))
 			} else {
 				assert.Empty(t, rr.Header().Get("Access-Control-Allow-Origin"))
+			}
+			if tt.expectedAllow != "" {
+				assert.Equal(t, tt.expectedAllow, rr.Header().Get("Access-Control-Allow-Headers"))
 			}
 		})
 	}
@@ -403,6 +411,46 @@ func TestOAuthChallengeMetadataRouteContracts(t *testing.T) {
 			assert.Equal(t, baseURL+expectedResourcePath, metadata["resource"])
 		})
 	}
+
+	// Query-bearing MCP server URLs must round-trip: the challenge's
+	// resource_metadata URL and the served metadata document's "resource"
+	// must both carry the exact same query as the URL the client connects to,
+	// because go-sdk validates metadata.resource with exact string equality.
+	queryPath := "/x/repos?features=issue_dependencies"
+	t.Run(queryPath, func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, queryPath, nil)
+		req.Header.Set("Origin", "https://confer.to")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusUnauthorized, rec.Code)
+		challenge := rec.Header().Get("WWW-Authenticate")
+		require.True(t, strings.HasPrefix(challenge, `Bearer resource_metadata="`))
+		metadataURL := strings.TrimSuffix(
+			strings.TrimPrefix(challenge, `Bearer resource_metadata="`),
+			`"`,
+		)
+		assert.Equal(t,
+			baseURL+"/.well-known/oauth-protected-resource/mcp/x/repos?features=issue_dependencies",
+			metadataURL,
+		)
+
+		metadataPaths := []string{
+			strings.TrimPrefix(metadataURL, baseURL),
+			oauth.OAuthProtectedResourcePrefix + queryPath,
+		}
+		for _, metadataPath := range metadataPaths {
+			req = httptest.NewRequest(http.MethodGet, metadataPath, nil)
+			req.Header.Set("Origin", "https://confer.to")
+			rec = httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			var metadata map[string]any
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &metadata))
+			assert.Equal(t, baseURL+"/mcp"+queryPath, metadata["resource"])
+		}
+	})
 
 	req := httptest.NewRequest(
 		http.MethodGet,

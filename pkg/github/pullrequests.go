@@ -36,7 +36,7 @@ Possible options:
  3. get_status - Get combined commit status of a head commit in a pull request.
  4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
  5. get_commits - Get the list of commits on a pull request. Use with pagination parameters to control the number of results returned.
- 6. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
+ 6. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns thread metadata and comments with nullable current and original line-range coordinates (line, start_line, original_line, original_start_line). Current coordinates are omitted when unavailable, such as for outdated comments. Use cursor-based pagination (perPage, after) to control results.
  7. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method. Use with pagination parameters to control the number of results returned.
  8. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
  9. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
@@ -461,11 +461,14 @@ type reviewThreadNode struct {
 }
 
 type reviewCommentNode struct {
-	ID     githubv4.ID
-	Body   githubv4.String
-	Path   githubv4.String
-	Line   *githubv4.Int
-	Author struct {
+	ID                githubv4.ID
+	Body              githubv4.String
+	Path              githubv4.String
+	Line              *githubv4.Int
+	OriginalLine      *githubv4.Int
+	StartLine         *githubv4.Int
+	OriginalStartLine *githubv4.Int
+	Author            struct {
 		Login githubv4.String
 	}
 	CreatedAt githubv4.DateTime
@@ -706,7 +709,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"owner", "repo", "title", "head", "base"},
 			},
 		},
-		scopes.RequireAll(scopes.Repo),
+		publicRepositoryWriteScopeAccess(),
 		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1166,7 +1169,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
-	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
+	st.FeatureRule = pullRequestsConsolidatedRule
 	return st
 }
 
@@ -1513,6 +1516,10 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 				Description: "Merge method",
 				Enum:        []any{"merge", "squash", "rebase"},
 			},
+			"expectedHeadSha": {
+				Type:        "string",
+				Description: "The expected SHA of the pull request's HEAD ref",
+			},
 		},
 		Required: []string{"owner", "repo", "pullNumber"},
 	}
@@ -1555,9 +1562,14 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			expectedHeadSHA, err := OptionalParam[string](args, "expectedHeadSha")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
 			options := &github.PullRequestOptions{
 				CommitTitle: commitTitle,
+				SHA:         expectedHeadSHA,
 				MergeMethod: mergeMethod,
 			}
 
@@ -1895,12 +1907,24 @@ Available methods:
 			}
 		})
 	if withResolutionReason {
-		st.FeatureFlagEnable = FeatureFlagThreadResolutionReason
-		st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
+		st.FeatureRule = inventory.NewFeatureRule(
+			[]inventory.FeatureFlag{FeatureFlagThreadResolutionReason, inventory.FeatureFlag(FeatureFlagPullRequestsGranular)},
+			func(featureAsBool inventory.FeatureResolver) bool {
+				return featureAsBool(FeatureFlagThreadResolutionReason) &&
+					!featureAsBool(inventory.FeatureFlag(FeatureFlagPullRequestsGranular))
+			},
+		)
 	} else {
-		st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
-		if cfg.hostType != utils.HostTypeGHES {
-			st.FeatureFlagDisable = append(st.FeatureFlagDisable, FeatureFlagThreadResolutionReason)
+		if cfg.hostType == utils.HostTypeGHES {
+			st.FeatureRule = pullRequestsConsolidatedRule
+		} else {
+			st.FeatureRule = inventory.NewFeatureRule(
+				[]inventory.FeatureFlag{FeatureFlagThreadResolutionReason, inventory.FeatureFlag(FeatureFlagPullRequestsGranular)},
+				func(featureAsBool inventory.FeatureResolver) bool {
+					return !featureAsBool(FeatureFlagThreadResolutionReason) &&
+						!featureAsBool(inventory.FeatureFlag(FeatureFlagPullRequestsGranular))
+				},
+			)
 		}
 	}
 	return st
@@ -2447,7 +2471,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			})
 			return result, nil, err
 		})
-	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
+	st.FeatureRule = pullRequestsConsolidatedRule
 	return st
 }
 
