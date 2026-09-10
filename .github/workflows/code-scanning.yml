@@ -41,10 +41,10 @@ jobs:
             runner: '["ubuntu-22.04"]'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4.37.9
+        uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
@@ -61,18 +61,18 @@ jobs:
             threat-models: [  ]
       - name: Setup proxy for registries
         id: proxy
-        uses: github/codeql-action/start-proxy@v4.37.9
+        uses: github/codeql-action/start-proxy@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           registries_credentials: ${{ secrets.GITHUB_REGISTRIES_PROXY }}
           language: ${{ matrix.language }}
 
       - name: Configure
-        uses: github/codeql-action/resolve-environment@v4.37.9
+        uses: github/codeql-action/resolve-environment@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         id: resolve-environment
         with:
           language: ${{ matrix.language }}
       - name: Setup Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         if: matrix.language == 'go' && fromJSON(steps.resolve-environment.outputs.environment).configuration.go.version
         with:
           go-version: ${{ fromJSON(steps.resolve-environment.outputs.environment).configuration.go.version }}
@@ -80,7 +80,7 @@ jobs:
 
       - name: Set up Node.js (for JavaScript CodeQL)
         if: matrix.language == 'javascript'
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "20"
           cache: "npm"
@@ -91,10 +91,10 @@ jobs:
         uses: ./.github/actions/build-ui
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v4.37.9
+        uses: github/codeql-action/autobuild@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v4.37.9
+        uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         env:
           CODEQL_PROXY_HOST: ${{ steps.proxy.outputs.proxy_host }}
           CODEQL_PROXY_PORT: ${{ steps.proxy.outputs.proxy_port }}
