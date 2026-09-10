@@ -1,6 +1,7 @@
 {
   "annotations": {
     "idempotentHint": false,
+    "openWorldHint": true,
     "readOnlyHint": false,
     "title": "Add review comment to the requester's latest pending pull request review"
   },

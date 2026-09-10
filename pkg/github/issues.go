@@ -827,8 +827,9 @@ func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "issue_read",
 			Description: t("TOOL_ISSUE_READ_DESCRIPTION", "Get information about a specific issue in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ISSUE_READ_USER_TITLE", "Get issue details"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_ISSUE_READ_USER_TITLE", "Get issue details"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: schema,
 		},
@@ -1369,8 +1370,9 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			Name:        "add_issue_comment",
 			Description: t("TOOL_ADD_ISSUE_COMMENT_DESCRIPTION", "Add a comment and/or reaction to a specific issue or issue comment in a GitHub repository. Use this tool with pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add or react to review comments. At least one of body or reaction is required."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ADD_ISSUE_COMMENT_USER_TITLE", "Add comment to issue or pull request"),
-				ReadOnlyHint: false,
+				Title:         t("TOOL_ADD_ISSUE_COMMENT_USER_TITLE", "Add comment to issue or pull request"),
+				ReadOnlyHint:  false,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -2501,8 +2503,9 @@ func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "issue_write",
 			Description: t("TOOL_ISSUE_WRITE_DESCRIPTION", "Create a new or update an existing issue in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ISSUE_WRITE_USER_TITLE", "Create or update issue/pull request"),
-				ReadOnlyHint: false,
+				Title:         t("TOOL_ISSUE_WRITE_USER_TITLE", "Create or update issue/pull request"),
+				ReadOnlyHint:  false,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			Meta: mcp.Meta{
 				"ui": map[string]any{

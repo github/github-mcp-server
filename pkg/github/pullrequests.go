@@ -73,8 +73,9 @@ Possible options:
 			Name:        "pull_request_read",
 			Description: t("TOOL_PULL_REQUEST_READ_DESCRIPTION", "Get information on a specific pull request in GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_PULL_REQUEST_USER_TITLE", "Get details for a single pull request"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_PULL_REQUEST_USER_TITLE", "Get details for a single pull request"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: schema,
 		},
@@ -1214,8 +1215,9 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 			Name:        "add_reply_to_pull_request_comment",
 			Description: t("TOOL_ADD_REPLY_TO_PULL_REQUEST_COMMENT_DESCRIPTION", "Add a reply and/or reaction to an existing pull request comment. This can create a new comment linked as a reply to the specified comment, add an emoji reaction to the specified comment, or do both. At least one of body or reaction is required."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ADD_REPLY_TO_PULL_REQUEST_COMMENT_USER_TITLE", "Add reply to pull request comment"),
-				ReadOnlyHint: false,
+				Title:         t("TOOL_ADD_REPLY_TO_PULL_REQUEST_COMMENT_USER_TITLE", "Add reply to pull request comment"),
+				ReadOnlyHint:  false,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: schema,
 		},
@@ -1864,8 +1866,9 @@ Available methods:
 - unresolve_thread: Unresolve a previously resolved review thread. Requires only "threadId" parameter. The owner, repo, and pullNumber parameters are not used for this method. Unresolving an already-unresolved thread is a no-op.
 `),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews"),
-				ReadOnlyHint: false,
+				Title:         t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews"),
+				ReadOnlyHint:  false,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: schema,
 		},
@@ -2393,8 +2396,9 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			Name:        "add_comment_to_pending_review",
 			Description: t("TOOL_ADD_COMMENT_TO_PENDING_REVIEW_DESCRIPTION", "Add review comment to the requester's latest pending pull request review. A pending review needs to already exist to call this (check with the user if not sure)."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ADD_COMMENT_TO_PENDING_REVIEW_USER_TITLE", "Add review comment to the requester's latest pending pull request review"),
-				ReadOnlyHint: false,
+				Title:         t("TOOL_ADD_COMMENT_TO_PENDING_REVIEW_USER_TITLE", "Add review comment to the requester's latest pending pull request review"),
+				ReadOnlyHint:  false,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: schema,
 		},

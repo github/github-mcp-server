@@ -132,6 +132,9 @@ func Test_GetIssue(t *testing.T) {
 
 	assert.Equal(t, "issue_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.True(t, tool.Annotations.ReadOnlyHint, "issue_read should be read-only")
+	require.NotNil(t, tool.Annotations.OpenWorldHint)
+	assert.True(t, *tool.Annotations.OpenWorldHint, "issue_read returns untrusted issue/comment UGC")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
@@ -1837,6 +1840,9 @@ func Test_CreateIssue(t *testing.T) {
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.False(t, tool.Annotations.ReadOnlyHint, "issue_write should not be read-only")
+	require.NotNil(t, tool.Annotations.OpenWorldHint)
+	assert.True(t, *tool.Annotations.OpenWorldHint, "issue_write publishes issue UGC")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
@@ -6227,6 +6233,9 @@ func TestAddIssueCommentSchema(t *testing.T) {
 
 	assert.Equal(t, "add_issue_comment", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.False(t, tool.Annotations.ReadOnlyHint, "add_issue_comment should not be read-only")
+	require.NotNil(t, tool.Annotations.OpenWorldHint)
+	assert.True(t, *tool.Annotations.OpenWorldHint, "add_issue_comment publishes comment UGC")
 	schema := tool.InputSchema.(*jsonschema.Schema)
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
