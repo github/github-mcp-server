@@ -27,6 +27,9 @@ func Test_GetPullRequest(t *testing.T) {
 
 	assert.Equal(t, "pull_request_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.True(t, tool.Annotations.ReadOnlyHint, "pull_request_read should be read-only")
+	require.NotNil(t, tool.Annotations.OpenWorldHint)
+	assert.True(t, *tool.Annotations.OpenWorldHint, "pull_request_read returns untrusted PR/review UGC")
 	schema := tool.InputSchema.(*jsonschema.Schema)
 	assert.Contains(t, schema.Properties, "method")
 	assert.Contains(t, schema.Properties, "owner")
@@ -3195,6 +3198,9 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 
 	assert.Equal(t, "pull_request_review_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.False(t, tool.Annotations.ReadOnlyHint, "pull_request_review_write should not be read-only")
+	require.NotNil(t, tool.Annotations.OpenWorldHint)
+	assert.True(t, *tool.Annotations.OpenWorldHint, "pull_request_review_write publishes review UGC")
 	schema := tool.InputSchema.(*jsonschema.Schema)
 	assert.Contains(t, schema.Properties, "method")
 	assert.Contains(t, schema.Properties, "owner")
@@ -3646,6 +3652,9 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 
 	assert.Equal(t, "add_comment_to_pending_review", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.False(t, tool.Annotations.ReadOnlyHint, "add_comment_to_pending_review should not be read-only")
+	require.NotNil(t, tool.Annotations.OpenWorldHint)
+	assert.True(t, *tool.Annotations.OpenWorldHint, "add_comment_to_pending_review publishes review comment UGC")
 	schema := tool.InputSchema.(*jsonschema.Schema)
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
@@ -4334,6 +4343,9 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 
 	assert.Equal(t, "add_reply_to_pull_request_comment", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.False(t, tool.Annotations.ReadOnlyHint, "add_reply_to_pull_request_comment should not be read-only")
+	require.NotNil(t, tool.Annotations.OpenWorldHint)
+	assert.True(t, *tool.Annotations.OpenWorldHint, "add_reply_to_pull_request_comment publishes reply UGC")
 	schema := tool.InputSchema.(*jsonschema.Schema)
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")

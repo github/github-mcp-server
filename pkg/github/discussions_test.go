@@ -501,6 +501,9 @@ func Test_GetDiscussion(t *testing.T) {
 
 	assert.Equal(t, "get_discussion", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.True(t, tool.Annotations.ReadOnlyHint, "get_discussion should be read-only")
+	require.NotNil(t, tool.Annotations.OpenWorldHint)
+	assert.True(t, *tool.Annotations.OpenWorldHint, "get_discussion returns untrusted discussion UGC")
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "owner")
@@ -666,6 +669,9 @@ func Test_GetDiscussionComments(t *testing.T) {
 
 	assert.Equal(t, "get_discussion_comments", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.True(t, tool.Annotations.ReadOnlyHint, "get_discussion_comments should be read-only")
+	require.NotNil(t, tool.Annotations.OpenWorldHint)
+	assert.True(t, *tool.Annotations.OpenWorldHint, "get_discussion_comments returns untrusted comment UGC")
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "owner")
@@ -966,6 +972,8 @@ func Test_DiscussionCommentWrite(t *testing.T) {
 	assert.False(t, tool.Annotations.ReadOnlyHint, "discussion_comment_write should not be read-only")
 	require.NotNil(t, tool.Annotations.DestructiveHint)
 	assert.True(t, *tool.Annotations.DestructiveHint, "discussion_comment_write should be destructive")
+	require.NotNil(t, tool.Annotations.OpenWorldHint)
+	assert.True(t, *tool.Annotations.OpenWorldHint, "discussion_comment_write publishes discussion comment UGC")
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "method")

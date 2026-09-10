@@ -2,6 +2,7 @@
   "annotations": {
     "destructiveHint": true,
     "idempotentHint": false,
+    "openWorldHint": true,
     "readOnlyHint": false,
     "title": "Manage discussion comments"
   },

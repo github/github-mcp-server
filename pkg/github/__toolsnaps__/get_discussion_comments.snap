@@ -1,6 +1,7 @@
 {
   "annotations": {
     "idempotentHint": false,
+    "openWorldHint": true,
     "readOnlyHint": true,
     "title": "Get discussion comments"
   },
