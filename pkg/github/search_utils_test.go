@@ -350,3 +350,91 @@ func Test_hasTypeFilter(t *testing.T) {
 		})
 	}
 }
+
+func Test_looksLikeLexicalIssueSearch(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		query    string
+		expected bool
+	}{
+		{name: "plain keywords", query: "transport", expected: false},
+		{name: "natural language", query: "login fails after password reset", expected: false},
+		{name: "repo qualifier", query: "repo:modelcontextprotocol/python-sdk transport", expected: true},
+		{name: "label qualifier", query: "label:bug", expected: true},
+		{name: "boolean OR", query: "hooks OR plugins", expected: true},
+		{name: "is open filter", query: "is:open", expected: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.expected, looksLikeLexicalIssueSearch(tt.query))
+		})
+	}
+}
+
+func Test_resolveIssuesSearchMode(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		defaultMode searchMode
+		args        map[string]any
+		expected    searchMode
+		expectErr   bool
+	}{
+		{
+			name:        "GHES stays lexical",
+			defaultMode: searchModeLexical,
+			args:        map[string]any{"query": "login fails after password reset"},
+			expected:    searchModeLexical,
+		},
+		{
+			name:        "Dotcom natural language stays semantic",
+			defaultMode: searchModeSemantic,
+			args:        map[string]any{"query": "login fails after password reset"},
+			expected:    searchModeSemantic,
+		},
+		{
+			name:        "Dotcom repo syntax uses lexical",
+			defaultMode: searchModeSemantic,
+			args:        map[string]any{"query": "repo:owner/repo transport"},
+			expected:    searchModeLexical,
+		},
+		{
+			name:        "Dotcom owner repo scope uses lexical",
+			defaultMode: searchModeSemantic,
+			args:        map[string]any{"query": "transport", "owner": "o", "repo": "r"},
+			expected:    searchModeLexical,
+		},
+		{
+			name:        "explicit semantic wins over syntax",
+			defaultMode: searchModeSemantic,
+			args:        map[string]any{"query": "label:bug", "search_type": "semantic"},
+			expected:    searchModeSemantic,
+		},
+		{
+			name:        "explicit lexical wins over natural language",
+			defaultMode: searchModeSemantic,
+			args:        map[string]any{"query": "sticky sidebar", "search_type": "lexical"},
+			expected:    searchModeLexical,
+		},
+		{
+			name:        "invalid search_type errors",
+			defaultMode: searchModeSemantic,
+			args:        map[string]any{"query": "x", "search_type": "fuzzy"},
+			expectErr:   true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := resolveIssuesSearchMode(tt.defaultMode, tt.args)
+			if tt.expectErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}

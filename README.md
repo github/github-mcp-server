@@ -1036,8 +1036,9 @@ The following sets of tools are available:
   - `owner`: Optional repository owner. If provided with repo, only issues for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `query`: The search query, as natural language. When the user gives alternative wordings, include them as plain words rather than joining them with OR. (string, required)
+  - `query`: Search query. Prefer GitHub issues search syntax for keywords and filters. For open-ended conceptual questions, plain natural language is fine. Pass search_type=lexical to force keyword search. (string, required)
   - `repo`: Optional repository name. If provided with owner, only issues for this repository are listed. (string, optional)
+  - `search_type`: Search engine. lexical matches GitHub issues search keywords and filters. semantic uses natural-language matching. When omitted, scoped or search-syntax queries use lexical; open-ended conceptual queries use semantic on github.com. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
 
 - **sub_issue_write** - Change sub-issue

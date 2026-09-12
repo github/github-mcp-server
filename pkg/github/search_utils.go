@@ -84,6 +84,63 @@ const (
 	searchModeSemantic
 )
 
+// booleanSearchOpPattern matches OR / AND / NOT as free-standing operators.
+var booleanSearchOpPattern = regexp.MustCompile(`(?i)(^|\s)(OR|AND|NOT)(\s|$)`)
+
+// qualifierPattern matches GitHub search qualifiers such as label:bug or -author:octocat.
+var qualifierPattern = regexp.MustCompile(`(^|\s|\W)-?[\w.]+:\S+`)
+
+// looksLikeLexicalIssueSearch reports whether the raw caller query uses GitHub
+// issues search syntax that semantic search mishandles.
+func looksLikeLexicalIssueSearch(query string) bool {
+	return qualifierPattern.MatchString(query) || booleanSearchOpPattern.MatchString(query)
+}
+
+// resolveIssuesSearchMode chooses lexical vs semantic for search_issues.
+// An explicit search_type wins. Otherwise GHES stays lexical, and Dotcom uses
+// lexical for scoped or syntax-like queries so keyword search matches REST.
+func resolveIssuesSearchMode(defaultMode searchMode, args map[string]any) (searchMode, error) {
+	searchType, err := OptionalParam[string](args, "search_type")
+	if err != nil {
+		return 0, err
+	}
+	switch strings.ToLower(strings.TrimSpace(searchType)) {
+	case "":
+		// fall through to heuristics
+	case "lexical":
+		return searchModeLexical, nil
+	case "semantic":
+		return searchModeSemantic, nil
+	default:
+		return 0, fmt.Errorf(`invalid search_type %q: must be "lexical" or "semantic"`, searchType)
+	}
+
+	if defaultMode == searchModeLexical {
+		return searchModeLexical, nil
+	}
+
+	owner, err := OptionalParam[string](args, "owner")
+	if err != nil {
+		return 0, err
+	}
+	repo, err := OptionalParam[string](args, "repo")
+	if err != nil {
+		return 0, err
+	}
+	if owner != "" && repo != "" {
+		return searchModeLexical, nil
+	}
+
+	query, err := RequiredParam[string](args, "query")
+	if err != nil {
+		return 0, err
+	}
+	if looksLikeLexicalIssueSearch(query) {
+		return searchModeLexical, nil
+	}
+	return searchModeSemantic, nil
+}
+
 // prepareSearchArgs resolves the search query string and REST search options from the tool args,
 // applying the standard is:<type> / repo:<owner>/<repo> munging shared by search_issues and
 // search_pull_requests.
