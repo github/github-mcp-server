@@ -85,7 +85,11 @@ const (
 )
 
 // booleanSearchOpPattern matches OR / AND / NOT as free-standing operators.
-var booleanSearchOpPattern = regexp.MustCompile(`(?i)(^|\s)(OR|AND|NOT)(\s|$)`)
+var booleanSearchOpPattern = regexp.MustCompile(`(^|[\s(])(OR|AND|NOT)([\s()]|$)`)
+
+// quotedIssueSearchText masks literal contents while retaining a nonempty
+// qualifier value (label:"needs triage"). Escaped quotes stay inside the literal.
+var quotedIssueSearchText = regexp.MustCompile(`"(?:\\.|[^"\\])*(?:"|$)`)
 
 // qualifierPattern matches GitHub search qualifiers such as label:bug or -author:octocat.
 var qualifierPattern = regexp.MustCompile(`(^|\s|\W)-?[\w.]+:\S+`)
@@ -93,11 +97,12 @@ var qualifierPattern = regexp.MustCompile(`(^|\s|\W)-?[\w.]+:\S+`)
 // looksLikeLexicalIssueSearch reports whether the raw caller query uses GitHub
 // issues search syntax that semantic search mishandles.
 func looksLikeLexicalIssueSearch(query string) bool {
+	query = quotedIssueSearchText.ReplaceAllString(query, `""`)
 	return qualifierPattern.MatchString(query) || booleanSearchOpPattern.MatchString(query)
 }
 
 // resolveIssuesSearchMode chooses lexical vs semantic for search_issues.
-// An explicit search_type wins. Otherwise GHES stays lexical, and Dotcom uses
+// An explicit search_type wins within the host capability boundary. Dotcom uses
 // lexical for scoped or syntax-like queries so keyword search matches REST.
 func resolveIssuesSearchMode(defaultMode searchMode, args map[string]any) (searchMode, error) {
 	searchType, err := OptionalParam[string](args, "search_type")
@@ -110,6 +115,9 @@ func resolveIssuesSearchMode(defaultMode searchMode, args map[string]any) (searc
 	case "lexical":
 		return searchModeLexical, nil
 	case "semantic":
+		if defaultMode == searchModeLexical {
+			return 0, fmt.Errorf("semantic issue search is not supported on this host")
+		}
 		return searchModeSemantic, nil
 	default:
 		return 0, fmt.Errorf(`invalid search_type %q: must be "lexical" or "semantic"`, searchType)

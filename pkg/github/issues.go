@@ -1969,6 +1969,10 @@ func SearchIssues(t translations.TranslationHelperFunc, opts ...ToolOption) inve
 		},
 		Required: []string{"query"},
 	}
+	if mode == searchModeLexical {
+		schema.Properties["search_type"].Enum = []any{"lexical"}
+		schema.Properties["search_type"].Description = "Search engine. Only lexical search is supported on this host."
+	}
 	schema.Properties["fields"] = fieldsSchemaProperty(
 		"Subset of fields to return for each issue result. If omitted, all fields are returned. Use this to reduce response size when you only need specific fields; omitting 'body', 'reactions', and 'labels' in particular drops the largest per-result data.",
 		searchIssuesItemFieldEnum,
