@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // mcpJSONRPCRequest represents the structure of an MCP JSON-RPC request.
@@ -21,7 +22,11 @@ type mcpJSONRPCRequest struct {
 		// For prompts/get
 		// Name is shared with tools/call
 		// For resources/read
-		URI string `json:"uri,omitempty"`
+		URI  string `json:"uri,omitempty"`
+		Meta struct {
+			ProtocolVersion    string                  `json:"io.modelcontextprotocol/protocolVersion,omitempty"`
+			ClientCapabilities *mcp.ClientCapabilities `json:"io.modelcontextprotocol/clientCapabilities,omitempty"`
+		} `json:"_meta"`
 	} `json:"params"`
 }
 
@@ -101,7 +106,11 @@ func parseMCPMethodInfo(body []byte) (*ghcontext.MCPMethodInfo, error) {
 		return nil, nil
 	}
 
-	methodInfo := &ghcontext.MCPMethodInfo{Method: mcpReq.Method}
+	methodInfo := &ghcontext.MCPMethodInfo{
+		Method:             mcpReq.Method,
+		ProtocolVersion:    mcpReq.Params.Meta.ProtocolVersion,
+		ClientCapabilities: mcpReq.Params.Meta.ClientCapabilities,
+	}
 	switch mcpReq.Method {
 	case "tools/call":
 		methodInfo.ItemName = mcpReq.Params.Name

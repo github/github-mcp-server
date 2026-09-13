@@ -1833,7 +1833,7 @@ func Test_CreateIssue(t *testing.T) {
 	serverTool := IssueWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-	require.Empty(t, serverTool.FeatureFlagEnable)
+	require.Equal(t, []inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagIssuesGranular)}, serverTool.FeatureRule.Features())
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -5774,8 +5774,8 @@ func Test_AddSubIssue(t *testing.T) {
 	// Setup mock issue for success case (matches GitHub API response format)
 	mockIssue := &github.Issue{
 		Number:  github.Ptr(42),
-		Title:   github.Ptr("Parent Issue"),
-		Body:    github.Ptr("This is the parent issue with a sub-issue"),
+		Title:   github.Ptr("<script>alert(1)</script>can't \"quote\" AT&T\u200B"),
+		Body:    github.Ptr("<script>alert(1)</script>This is **Markdown**\u200B"),
 		State:   github.Ptr("open"),
 		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
 		User: &github.User{
@@ -5970,8 +5970,8 @@ func Test_AddSubIssue(t *testing.T) {
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 			require.NoError(t, err)
 			assert.Equal(t, *tc.expectedIssue.Number, *returnedIssue.Number)
-			assert.Equal(t, *tc.expectedIssue.Title, *returnedIssue.Title)
-			assert.Equal(t, *tc.expectedIssue.Body, *returnedIssue.Body)
+			assert.Equal(t, "can't \"quote\" AT&T", *returnedIssue.Title)
+			assert.Equal(t, "<script>alert(1)</script>This is **Markdown**", *returnedIssue.Body)
 			assert.Equal(t, *tc.expectedIssue.State, *returnedIssue.State)
 			assert.Equal(t, *tc.expectedIssue.HTMLURL, *returnedIssue.HTMLURL)
 			assert.Equal(t, *tc.expectedIssue.User.Login, *returnedIssue.User.Login)
@@ -5999,8 +5999,8 @@ func Test_GetSubIssues(t *testing.T) {
 	mockSubIssues := []*github.Issue{
 		{
 			Number:  github.Ptr(123),
-			Title:   github.Ptr("Sub-issue 1"),
-			Body:    github.Ptr("This is the first sub-issue"),
+			Title:   github.Ptr("<script>alert(1)</script>can't \"quote\" AT&T\u200B"),
+			Body:    github.Ptr("<script>alert(1)</script>This is **Markdown**\u200B"),
 			State:   github.Ptr("open"),
 			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
 			User: &github.User{
@@ -6199,12 +6199,17 @@ func Test_GetSubIssues(t *testing.T) {
 			for i, subIssue := range returnedSubIssues {
 				if i < len(tc.expectedSubIssues) {
 					assert.Equal(t, *tc.expectedSubIssues[i].Number, *subIssue.Number)
-					assert.Equal(t, *tc.expectedSubIssues[i].Title, *subIssue.Title)
+					if i == 0 {
+						assert.Equal(t, "can't \"quote\" AT&T", *subIssue.Title)
+						assert.Equal(t, "<script>alert(1)</script>This is **Markdown**", *subIssue.Body)
+					} else {
+						assert.Equal(t, *tc.expectedSubIssues[i].Title, *subIssue.Title)
+					}
 					assert.Equal(t, *tc.expectedSubIssues[i].State, *subIssue.State)
 					assert.Equal(t, *tc.expectedSubIssues[i].HTMLURL, *subIssue.HTMLURL)
 					assert.Equal(t, *tc.expectedSubIssues[i].User.Login, *subIssue.User.Login)
 
-					if tc.expectedSubIssues[i].Body != nil {
+					if i != 0 && tc.expectedSubIssues[i].Body != nil {
 						assert.Equal(t, *tc.expectedSubIssues[i].Body, *subIssue.Body)
 					}
 				}
@@ -6652,8 +6657,8 @@ func Test_RemoveSubIssue(t *testing.T) {
 	// Setup mock issue for success case (matches GitHub API response format - the updated parent issue)
 	mockIssue := &github.Issue{
 		Number:  github.Ptr(42),
-		Title:   github.Ptr("Parent Issue"),
-		Body:    github.Ptr("This is the parent issue after sub-issue removal"),
+		Title:   github.Ptr("<script>alert(1)</script>can't \"quote\" AT&T\u200B"),
+		Body:    github.Ptr("<script>alert(1)</script>This is **Markdown**\u200B"),
 		State:   github.Ptr("open"),
 		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
 		User: &github.User{
@@ -6831,8 +6836,8 @@ func Test_RemoveSubIssue(t *testing.T) {
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 			require.NoError(t, err)
 			assert.Equal(t, *tc.expectedIssue.Number, *returnedIssue.Number)
-			assert.Equal(t, *tc.expectedIssue.Title, *returnedIssue.Title)
-			assert.Equal(t, *tc.expectedIssue.Body, *returnedIssue.Body)
+			assert.Equal(t, "can't \"quote\" AT&T", *returnedIssue.Title)
+			assert.Equal(t, "<script>alert(1)</script>This is **Markdown**", *returnedIssue.Body)
 			assert.Equal(t, *tc.expectedIssue.State, *returnedIssue.State)
 			assert.Equal(t, *tc.expectedIssue.HTMLURL, *returnedIssue.HTMLURL)
 			assert.Equal(t, *tc.expectedIssue.User.Login, *returnedIssue.User.Login)
@@ -6860,8 +6865,8 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 	// Setup mock issue for success case (matches GitHub API response format - the updated parent issue)
 	mockIssue := &github.Issue{
 		Number:  github.Ptr(42),
-		Title:   github.Ptr("Parent Issue"),
-		Body:    github.Ptr("This is the parent issue with reprioritized sub-issues"),
+		Title:   github.Ptr("<script>alert(1)</script>can't \"quote\" AT&T\u200B"),
+		Body:    github.Ptr("<script>alert(1)</script>This is **Markdown**\u200B"),
 		State:   github.Ptr("open"),
 		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
 		User: &github.User{
@@ -7091,8 +7096,8 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 			require.NoError(t, err)
 			assert.Equal(t, *tc.expectedIssue.Number, *returnedIssue.Number)
-			assert.Equal(t, *tc.expectedIssue.Title, *returnedIssue.Title)
-			assert.Equal(t, *tc.expectedIssue.Body, *returnedIssue.Body)
+			assert.Equal(t, "can't \"quote\" AT&T", *returnedIssue.Title)
+			assert.Equal(t, "<script>alert(1)</script>This is **Markdown**", *returnedIssue.Body)
 			assert.Equal(t, *tc.expectedIssue.State, *returnedIssue.State)
 			assert.Equal(t, *tc.expectedIssue.HTMLURL, *returnedIssue.HTMLURL)
 			assert.Equal(t, *tc.expectedIssue.User.Login, *returnedIssue.User.Login)

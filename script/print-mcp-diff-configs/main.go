@@ -141,7 +141,7 @@ func baseEntries() []baseEntry {
 		}},
 	}
 
-	flags := append([]string(nil), github.AllowedFeatureFlags...)
+	flags := github.HeaderAllowedFeatureFlags()
 	sort.Strings(flags)
 	for _, f := range flags {
 		entries = append(entries, baseEntry{
@@ -208,7 +208,7 @@ func (s settings) toHeaders() map[string]string {
 }
 
 func firstFeatureFlag() string {
-	flags := append([]string(nil), github.AllowedFeatureFlags...)
+	flags := github.HeaderAllowedFeatureFlags()
 	if len(flags) == 0 {
 		return ""
 	}

@@ -103,7 +103,7 @@ func prUpdateTool(
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
 }
 
@@ -272,7 +272,7 @@ func GranularUpdatePullRequestDraftState(t translations.TranslationHelperFunc) i
 			return utils.NewToolResultText("pull request marked as ready for review"), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
 }
 
@@ -351,7 +351,7 @@ func GranularRequestPullRequestReviewers(t translations.TranslationHelperFunc) i
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
 }
 
@@ -436,7 +436,7 @@ func GranularCreatePullRequestReview(t translations.TranslationHelperFunc) inven
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
 }
 
@@ -500,7 +500,7 @@ func GranularSubmitPendingPullRequestReview(t translations.TranslationHelperFunc
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
 }
 
@@ -555,7 +555,7 @@ func GranularDeletePendingPullRequestReview(t translations.TranslationHelperFunc
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
 }
 
@@ -666,7 +666,7 @@ func GranularAddPullRequestReviewComment(t translations.TranslationHelperFunc) i
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
 }
 
@@ -748,11 +748,25 @@ func granularResolveReviewThread(t translations.TranslationHelperFunc, withResol
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
-	if withResolutionReason {
-		st.FeatureFlagEnableAll = []string{FeatureFlagThreadResolutionReason}
-	} else if cfg.hostType != utils.HostTypeGHES {
-		st.FeatureFlagDisable = []string{FeatureFlagThreadResolutionReason}
+	switch {
+	case withResolutionReason:
+		st.FeatureRule = inventory.NewFeatureRule(
+			[]inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular), FeatureFlagThreadResolutionReason},
+			func(featureAsBool inventory.FeatureResolver) bool {
+				return featureAsBool(inventory.FeatureFlag(FeatureFlagPullRequestsGranular)) &&
+					featureAsBool(FeatureFlagThreadResolutionReason)
+			},
+		)
+	case cfg.hostType == utils.HostTypeGHES:
+		st.FeatureRule = pullRequestsGranularFeatureRule
+	default:
+		st.FeatureRule = inventory.NewFeatureRule(
+			[]inventory.FeatureFlag{inventory.FeatureFlag(FeatureFlagPullRequestsGranular), FeatureFlagThreadResolutionReason},
+			func(featureAsBool inventory.FeatureResolver) bool {
+				return featureAsBool(inventory.FeatureFlag(FeatureFlagPullRequestsGranular)) &&
+					!featureAsBool(FeatureFlagThreadResolutionReason)
+			},
+		)
 	}
 	return st
 }
@@ -797,7 +811,7 @@ func GranularUnresolveReviewThread(t translations.TranslationHelperFunc) invento
 			return result, nil, err
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
 }
 
@@ -879,6 +893,6 @@ func GranularAddPullRequestReviewCommentReaction(t translations.TranslationHelpe
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	st.FeatureFlagEnable = FeatureFlagPullRequestsGranular
+	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
 }

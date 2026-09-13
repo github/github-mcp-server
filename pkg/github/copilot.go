@@ -214,6 +214,19 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			// owner, repo and issue_number are required, but WeakDecode zero-fills a
+			// missing value, so a missing arg reached the query as a confusing
+			// "Could not resolve to a Repository" error. Reject the zero values.
+			if params.Owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
+			}
+			if params.Repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
+			}
+			if params.IssueNumber == 0 {
+				return utils.NewToolResultError("missing required parameter: issue_number"), nil, nil
+			}
+
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
@@ -586,6 +599,19 @@ func AssignCopilotToIssueWithIntent(t translations.TranslationHelperFunc) invent
 			}
 			if err := mapstructure.WeakDecode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// owner, repo and issue_number are required, but WeakDecode zero-fills a
+			// missing value, so reject the zero values (as with rationale/confidence
+			// below) before they reach the query as a confusing repository error.
+			if params.Owner == "" {
+				return utils.NewToolResultError("missing required parameter: owner"), nil, nil
+			}
+			if params.Repo == "" {
+				return utils.NewToolResultError("missing required parameter: repo"), nil, nil
+			}
+			if params.IssueNumber == 0 {
+				return utils.NewToolResultError("missing required parameter: issue_number"), nil, nil
 			}
 
 			// Validate rationale length (rune count, matching the granular assignee tools).

@@ -60,12 +60,19 @@ func (f allScopesFetcher) FetchTokenScopes(_ context.Context, _ string) ([]strin
 
 var _ scopes.FetcherInterface = allScopesFetcher{}
 
-func mockToolWithFeatureFlag(name, toolsetID string, readOnly bool, enableFlag, disableFlag string) inventory.ServerTool {
+func mockToolWithFeatureFlag(name, toolsetID string, readOnly bool, enableFlag, disableFlag inventory.FeatureFlag) inventory.ServerTool {
 	tool := mockTool(name, toolsetID, readOnly)
-	tool.FeatureFlagEnable = enableFlag
-	if disableFlag != "" {
-		tool.FeatureFlagDisable = []string{disableFlag}
+	features := make([]inventory.FeatureFlag, 0, 2)
+	if enableFlag != "" {
+		features = append(features, enableFlag)
 	}
+	if disableFlag != "" {
+		features = append(features, disableFlag)
+	}
+	tool.FeatureRule = inventory.NewFeatureRule(features, func(featureAsBool inventory.FeatureResolver) bool {
+		return (enableFlag == "" || featureAsBool(enableFlag)) &&
+			(disableFlag == "" || !featureAsBool(disableFlag))
+	})
 	return tool
 }
 
@@ -763,7 +770,9 @@ func TestStaticInventoryPreservesPerRequestFeatureVariants(t *testing.T) {
 	available := inv.AvailableTools(ctx)
 	require.Len(t, available, 1)
 	assert.Equal(t, "list_issues", available[0].Tool.Name)
-	assert.Equal(t, github.FeatureFlagCSVOutput, available[0].FeatureFlagEnable)
+	assert.True(t, available[0].FeatureRule.Enabled(func(flag inventory.FeatureFlag) bool {
+		return flag == github.FeatureFlagCSVOutput
+	}))
 }
 
 func TestStaticInventoryDisablesOnlyDeleteRepository(t *testing.T) {
@@ -1035,6 +1044,74 @@ func TestCrossOriginProtection(t *testing.T) {
 			assert.Equal(t, http.StatusOK, rr.Code, "unexpected status code; body: %s", rr.Body.String())
 		})
 	}
+}
+
+func TestFeatureResolutionUsesOuterHTTPContext(t *testing.T) {
+	type userContextKey struct{}
+	const (
+		userValue   = "remote-user"
+		featureFlag = inventory.FeatureFlag("remote-feature")
+	)
+
+	var checkerCalls int
+	tool := mockTool("feature_tool", "test", true)
+	tool.FeatureRule = inventory.NewFeatureRule(
+		[]inventory.FeatureFlag{featureFlag},
+		func(featureAsBool inventory.FeatureResolver) bool {
+			return featureAsBool(featureFlag)
+		},
+	)
+	inventoryFactory := func(_ *http.Request) (*inventory.Inventory, error) {
+		checker := func(ctx context.Context, flag string) (bool, error) {
+			checkerCalls++
+			return flag == string(featureFlag) && ctx.Value(userContextKey{}) == userValue, nil
+		}
+		return inventory.NewBuilder().
+			SetTools([]inventory.ServerTool{tool}).
+			WithToolsets([]string{"all"}).
+			WithFeatureChecker(checker).
+			Build()
+	}
+
+	apiHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+	handler := NewHTTPMcpHandler(
+		context.Background(),
+		&ServerConfig{Version: "test"},
+		nil,
+		translations.NullTranslationHelper,
+		slog.Default(),
+		apiHost,
+		WithInventoryFactory(inventoryFactory),
+		WithGitHubMCPServerFactory(func(r *http.Request, _ github.ToolDependencies, inv *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+			assert.True(t, inventory.ResolveFeature(r.Context(), nil, featureFlag))
+			require.Len(t, inv.AvailableTools(r.Context()), 1)
+			return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+		}),
+		WithScopeFetcher(allScopesFetcher{}),
+	)
+
+	router := chi.NewRouter()
+	router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userContextKey{}, userValue)))
+		})
+	})
+	handler.RegisterMiddleware(router)
+	handler.RegisterRoutes(router)
+
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1.0.0"},"io.modelcontextprotocol/clientCapabilities":{}}}}`
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+	req.Header.Set(headers.ContentTypeHeader, headers.ContentTypeJSON)
+	req.Header.Set(headers.AcceptHeader, strings.Join([]string{headers.ContentTypeJSON, headers.ContentTypeEventStream}, ", "))
+	req.Header.Set("Mcp-Protocol-Version", "2026-07-28")
+	req.Header.Set("Mcp-Method", "tools/list")
+	req.Header.Set(headers.AuthorizationHeader, "ghs_test-token")
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusOK, recorder.Code, "response body: %s", recorder.Body.String())
+	assert.Equal(t, 1, checkerCalls)
 }
 
 func TestHTTPToolMinimumProtocolVersion(t *testing.T) {
