@@ -436,7 +436,7 @@ func TestHandleProtectedResource(t *testing.T) {
 			host:               "api.example.com",
 			method:             http.MethodGet,
 			expectedStatusCode: http.StatusOK,
-expectedScopes: []string{
+			expectedScopes: []string{
 				"repo",
 				"read:org",
 				"read:user",

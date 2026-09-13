@@ -2180,9 +2180,14 @@ func ResolveReviewThreadWithReason(ctx context.Context, client *githubv4.Client,
 			} `graphql:"resolveReviewThread(input: $input)"`
 		}
 
-		input := ResolveReviewThreadInput{
-			ThreadID:         githubv4.ID(threadID),
-			ResolutionReason: newGQLStringlikePtr[githubv4.String](resolutionReason),
+		var input any
+		if resolutionReason == nil {
+			input = githubv4.ResolveReviewThreadInput{ThreadID: githubv4.ID(threadID)}
+		} else {
+			input = ResolveReviewThreadInput{
+				ThreadID:         githubv4.ID(threadID),
+				ResolutionReason: newGQLStringlikePtr[githubv4.String](resolutionReason),
+			}
 		}
 
 		if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
