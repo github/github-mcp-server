@@ -703,13 +703,13 @@ func TestNewGitHubAPIErrorResponse_ValidationMessages(t *testing.T) {
 
 		originalErr := &github.ErrorResponse{
 			Response: response,
-			Message:  "Validation <script>secret-script</script>Failed\u202e",
+			Message:  "Validation <script>secret-script</script>Failed\u202e for AT&T",
 			Errors: []github.Error{
 				{
 					Resource: "GitRef",
 					Field:    "ref",
 					Code:     "custom",
-					Message:  "ref name does not match the required pattern 'feature/*'\u202e",
+					Message:  `ref name does not match the required pattern 'feature/*' or "release/*"` + "\u202e",
 				},
 			},
 			DocumentationURL: "https://docs.github.test/private?token=secret-doc-token",
@@ -724,7 +724,8 @@ func TestNewGitHubAPIErrorResponse_ValidationMessages(t *testing.T) {
 		)
 
 		text := requireErrorText(t, result)
-		assert.Equal(t, "failed to create branch: Validation Failed\nGitRef.ref (custom): ref name does not match the required pattern 'feature/*'", text)
+		assert.Equal(t, `failed to create branch: Validation Failed for AT&T
+GitRef.ref (custom): ref name does not match the required pattern 'feature/*' or "release/*"`, text)
 		assert.NotContains(t, text, "create ref")
 		assert.NotContains(t, text, "https://")
 		assert.NotContains(t, text, "secret-")

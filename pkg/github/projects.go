@@ -266,7 +266,7 @@ func convertToMinimalStatusUpdate(node statusUpdateNode) MinimalProjectStatusUpd
 
 	return MinimalProjectStatusUpdate{
 		ID:         fmt.Sprintf("%v", node.ID),
-		Body:       sanitize.Sanitize(derefString(node.Body)),
+		Body:       sanitize.Content(derefString(node.Body)),
 		Status:     derefString(node.Status),
 		CreatedAt:  node.CreatedAt.Time.Format(time.RFC3339),
 		StartDate:  derefString(node.StartDate),

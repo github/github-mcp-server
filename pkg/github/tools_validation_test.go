@@ -166,34 +166,78 @@ func TestToolReadOnlyHintConsistency(t *testing.T) {
 	}
 }
 
-// TestNoDuplicateToolNames ensures all tools have unique names
+// TestNoDuplicateToolNames ensures duplicate names cannot be enabled together.
 func TestNoDuplicateToolNames(t *testing.T) {
 	tools := AllTools(stubTranslation)
-	seen := make(map[string]bool)
-	featureFlagged := make(map[string]bool)
+	toolsByName := make(map[string][]inventory.ServerTool)
+	for _, tool := range tools {
+		toolsByName[tool.Tool.Name] = append(toolsByName[tool.Tool.Name], tool)
+	}
 
 	// get_label is intentionally in both issues and labels toolsets for conformance
 	// with original behavior where it was registered in both
-	allowedDuplicates := map[string]bool{
-		"get_label": true,
+	for name, variants := range toolsByName {
+		if name == "get_label" || len(variants) < 2 {
+			continue
+		}
+		assert.False(t, featureDeclarationsOverlap(variants), "tool variants for %q can be enabled together", name)
 	}
+}
 
-	// First pass: identify tools that have feature flags (mutually exclusive at runtime)
-	for _, tool := range tools {
-		if tool.FeatureFlagEnable != "" || len(tool.FeatureFlagDisable) > 0 {
-			featureFlagged[tool.Tool.Name] = true
+func featureDeclarationsOverlap(variants []inventory.ServerTool) bool {
+	positions := make(map[inventory.FeatureFlag]uint)
+	for _, variant := range variants {
+		for _, feature := range variant.FeatureRule.Features() {
+			if _, ok := positions[feature]; !ok {
+				positions[feature] = uint(len(positions))
+			}
 		}
 	}
-
-	for _, tool := range tools {
-		name := tool.Tool.Name
-		// Allow duplicates for explicitly allowed tools and feature-flagged tools
-		if !allowedDuplicates[name] && !featureFlagged[name] {
-			assert.False(t, seen[name],
-				"Duplicate tool name found: %q", name)
-		}
-		seen[name] = true
+	if len(positions) > 16 {
+		return true
 	}
+
+	for assignment := range 1 << len(positions) {
+		enabled := 0
+		featureAsBool := func(feature inventory.FeatureFlag) bool {
+			return assignment&(1<<positions[feature]) != 0
+		}
+		for _, variant := range variants {
+			if variant.FeatureRule.IsZero() || variant.FeatureRule.Enabled(featureAsBool) {
+				enabled++
+			}
+		}
+		if enabled > 1 {
+			return true
+		}
+	}
+	return false
+}
+
+func TestFeatureRulesOverlap(t *testing.T) {
+	flag := inventory.FeatureFlag("flag")
+	enabled := inventory.ServerTool{FeatureRule: inventory.NewFeatureRule([]inventory.FeatureFlag{flag}, func(featureAsBool inventory.FeatureResolver) bool {
+		return featureAsBool(flag)
+	})}
+	disabled := inventory.ServerTool{FeatureRule: inventory.NewFeatureRule([]inventory.FeatureFlag{flag}, func(featureAsBool inventory.FeatureResolver) bool {
+		return !featureAsBool(flag)
+	})}
+	otherFlag := inventory.FeatureFlag("other")
+	otherEnabled := inventory.ServerTool{FeatureRule: inventory.NewFeatureRule([]inventory.FeatureFlag{otherFlag}, func(featureAsBool inventory.FeatureResolver) bool {
+		return featureAsBool(otherFlag)
+	})}
+	ungated := inventory.ServerTool{}
+
+	assert.True(t, featureDeclarationsOverlap([]inventory.ServerTool{enabled, enabled}))
+	assert.True(t, featureDeclarationsOverlap([]inventory.ServerTool{enabled, otherEnabled}))
+	assert.True(t, featureDeclarationsOverlap([]inventory.ServerTool{ungated, enabled}))
+	assert.False(t, featureDeclarationsOverlap([]inventory.ServerTool{enabled, disabled}))
+}
+
+func TestMCPAppsFeatureFlagMatchesInventory(t *testing.T) {
+	inv, err := NewInventory(stubTranslation).Build()
+	require.NoError(t, err)
+	assert.Contains(t, inv.RequiredFeatures(), inventory.FeatureFlag(MCPAppsFeatureFlag))
 }
 
 // TestNoDuplicateResourceNames ensures all resources have unique names

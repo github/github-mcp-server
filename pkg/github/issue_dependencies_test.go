@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
@@ -34,8 +35,8 @@ func Test_IssueDependencyRead(t *testing.T) {
 	// Verify tool definition once (flag-gated variant snap)
 	serverTool := IssueDependencyRead(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueDependencies, tool))
-	require.Equal(t, FeatureFlagIssueDependencies, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+string(FeatureFlagIssueDependencies), tool))
+	require.Equal(t, []inventory.FeatureFlag{FeatureFlagIssueDependencies}, serverTool.FeatureRule.Features())
 
 	assert.Equal(t, "issue_dependency_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -189,8 +190,8 @@ func Test_IssueDependencyWrite(t *testing.T) {
 	// Verify tool definition once (flag-gated variant snap)
 	serverTool := IssueDependencyWrite(translations.NullTranslationHelper)
 	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+FeatureFlagIssueDependencies, tool))
-	require.Equal(t, FeatureFlagIssueDependencies, serverTool.FeatureFlagEnable)
+	require.NoError(t, toolsnaps.Test(tool.Name+"_ff_"+string(FeatureFlagIssueDependencies), tool))
+	require.Equal(t, []inventory.FeatureFlag{FeatureFlagIssueDependencies}, serverTool.FeatureRule.Features())
 
 	assert.Equal(t, "issue_dependency_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -26,6 +27,14 @@ type toolAvailability struct {
 	requiredElicitationMode ElicitationMode
 }
 
+type toolFeatureDecision uint8
+
+const (
+	evaluateToolFeatureRule toolFeatureDecision = iota
+	excludeToolBeforeFeatureRule
+	includeToolWithoutFeatureRule
+)
+
 func (st *ServerTool) availability() toolAvailability {
 	return toolAvailability{
 		minimumProtocolVersion:  st.MinimumProtocolVersion,
@@ -35,6 +44,40 @@ func (st *ServerTool) availability() toolAvailability {
 
 func (a toolAvailability) unrestricted() bool {
 	return a.minimumProtocolVersion == "" && a.requiredElicitationMode == ""
+}
+
+func featureDecisionForToolAvailability(ctx context.Context, availability toolAvailability) toolFeatureDecision {
+	if availability.unrestricted() {
+		return evaluateToolFeatureRule
+	}
+	info, ok := ghcontext.MCPMethod(ctx)
+	if !ok || info == nil || (info.Method != MCPMethodToolsList && info.Method != MCPMethodToolsCall) {
+		return evaluateToolFeatureRule
+	}
+
+	available, known := knownToolAvailability(info.ProtocolVersion, info.ClientCapabilities, availability)
+	if !known || available {
+		return evaluateToolFeatureRule
+	}
+	if info.Method == MCPMethodToolsCall {
+		return includeToolWithoutFeatureRule
+	}
+	return excludeToolBeforeFeatureRule
+}
+
+func knownToolAvailability(protocolVersion string, capabilities *mcp.ClientCapabilities, availability toolAvailability) (bool, bool) {
+	protocolKnown := availability.minimumProtocolVersion == "" || protocolVersion != ""
+	if protocolKnown && !protocolVersionAllowed(protocolVersion, availability.minimumProtocolVersion) {
+		return false, true
+	}
+	capabilitiesKnown := availability.requiredElicitationMode == "" || capabilities != nil
+	if capabilitiesKnown && !elicitationModeSupported(capabilities, availability.requiredElicitationMode) {
+		return false, true
+	}
+	if !protocolKnown || !capabilitiesKnown {
+		return false, false
+	}
+	return true, true
 }
 
 func addToolAvailabilityMiddleware(server *mcp.Server, tools []ServerTool) {

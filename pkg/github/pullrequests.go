@@ -1169,7 +1169,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
-	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
+	st.FeatureRule = pullRequestsConsolidatedRule
 	return st
 }
 
@@ -1907,12 +1907,24 @@ Available methods:
 			}
 		})
 	if withResolutionReason {
-		st.FeatureFlagEnable = FeatureFlagThreadResolutionReason
-		st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
+		st.FeatureRule = inventory.NewFeatureRule(
+			[]inventory.FeatureFlag{FeatureFlagThreadResolutionReason, inventory.FeatureFlag(FeatureFlagPullRequestsGranular)},
+			func(featureAsBool inventory.FeatureResolver) bool {
+				return featureAsBool(FeatureFlagThreadResolutionReason) &&
+					!featureAsBool(inventory.FeatureFlag(FeatureFlagPullRequestsGranular))
+			},
+		)
 	} else {
-		st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
-		if cfg.hostType != utils.HostTypeGHES {
-			st.FeatureFlagDisable = append(st.FeatureFlagDisable, FeatureFlagThreadResolutionReason)
+		if cfg.hostType == utils.HostTypeGHES {
+			st.FeatureRule = pullRequestsConsolidatedRule
+		} else {
+			st.FeatureRule = inventory.NewFeatureRule(
+				[]inventory.FeatureFlag{FeatureFlagThreadResolutionReason, inventory.FeatureFlag(FeatureFlagPullRequestsGranular)},
+				func(featureAsBool inventory.FeatureResolver) bool {
+					return !featureAsBool(FeatureFlagThreadResolutionReason) &&
+						!featureAsBool(inventory.FeatureFlag(FeatureFlagPullRequestsGranular))
+				},
+			)
 		}
 	}
 	return st
@@ -2459,7 +2471,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			})
 			return result, nil, err
 		})
-	st.FeatureFlagDisable = []string{FeatureFlagPullRequestsGranular}
+	st.FeatureRule = pullRequestsConsolidatedRule
 	return st
 }
 
