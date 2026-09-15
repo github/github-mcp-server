@@ -960,10 +960,12 @@ func GranularRemovePullRequestReviewCommentReaction(t translations.TranslationHe
 			}
 
 			resp, err := client.Reactions.DeletePullRequestCommentReaction(ctx, owner, repo, commentID, reactionID)
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to remove reaction from pull request review comment", resp, err), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
 
 			return utils.NewToolResultText("reaction successfully removed from pull request review comment"), nil, nil
 		},

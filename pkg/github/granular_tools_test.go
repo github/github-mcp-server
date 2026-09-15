@@ -2633,6 +2633,19 @@ func TestGranularRemoveIssueCommentReaction(t *testing.T) {
 			},
 			expectedErrMsg: "missing required parameter: comment_id",
 		},
+		{
+			name: "API error",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusNotFound, `{"message":"Not Found"}`),
+			}),
+			args: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"comment_id":  float64(999),
+				"reaction_id": float64(67890),
+			},
+			expectedErrMsg: "failed to remove reaction from issue comment",
+		},
 	}
 
 	for _, tc := range tests {
@@ -2745,6 +2758,19 @@ func TestGranularRemovePullRequestReviewCommentReaction(t *testing.T) {
 				"reaction_id": float64(54321),
 			},
 			expectedErrMsg: "missing required parameter: repo",
+		},
+		{
+			name: "API error",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposPullsCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusNotFound, `{"message":"Not Found"}`),
+			}),
+			args: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"comment_id":  float64(888),
+				"reaction_id": float64(54321),
+			},
+			expectedErrMsg: "failed to remove reaction from pull request review comment",
 		},
 	}
 

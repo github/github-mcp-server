@@ -1729,10 +1729,12 @@ func GranularRemoveIssueReaction(t translations.TranslationHelperFunc) inventory
 			}
 
 			resp, err := client.Reactions.DeleteIssueReaction(ctx, owner, repo, issueNumber, reactionID)
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to remove reaction from issue", resp, err), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
 
 			return utils.NewToolResultText("reaction successfully removed from issue"), nil, nil
 		},
@@ -1886,10 +1888,12 @@ func GranularRemoveIssueCommentReaction(t translations.TranslationHelperFunc) in
 			}
 
 			resp, err := client.Reactions.DeleteIssueCommentReaction(ctx, owner, repo, commentID, reactionID)
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to remove reaction from issue comment", resp, err), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
 
 			return utils.NewToolResultText("reaction successfully removed from issue comment"), nil, nil
 		},
