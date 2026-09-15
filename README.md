@@ -1057,6 +1057,13 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `sub_issue_id`: The ID of the sub-issue to add. ID is not the same as issue number (number, required)
 
+- **update_issue_comment** - Update issue comment
+  - **OAuth Challenge Scopes**: `repo`
+  - `body`: New comment content (string, required)
+  - `comment_id`: The numeric ID of the issue or pull request comment to update (integer, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
 </details>
 
 <details>

@@ -6639,6 +6639,184 @@ func TestAddIssueCommentHandler(t *testing.T) {
 	}
 }
 
+func TestUpdateIssueCommentSchema(t *testing.T) {
+	t.Parallel()
+
+	tool := UpdateIssueComment(translations.NullTranslationHelper).Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "update_issue_comment", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "comment_id")
+	assert.Contains(t, schema.Properties, "body")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "comment_id", "body"})
+
+	resolved, err := schema.Resolve(nil)
+	require.NoError(t, err)
+
+	baseArgs := map[string]any{
+		"owner":      "owner",
+		"repo":       "repo",
+		"comment_id": 456,
+		"body":       "Updated comment",
+	}
+	tests := []struct {
+		name    string
+		args    map[string]any
+		isValid bool
+	}{
+		{
+			name:    "valid arguments",
+			args:    map[string]any{},
+			isValid: true,
+		},
+		{
+			name:    "missing required body",
+			args:    map[string]any{"body": nil},
+			isValid: false,
+		},
+		{
+			name:    "empty body",
+			args:    map[string]any{"body": ""},
+			isValid: false,
+		},
+		{
+			name:    "zero comment ID",
+			args:    map[string]any{"comment_id": 0},
+			isValid: false,
+		},
+		{
+			name:    "fractional comment ID",
+			args:    map[string]any{"comment_id": 1.5},
+			isValid: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			args := maps.Clone(baseArgs)
+			maps.Copy(args, tc.args)
+			err := resolved.Validate(args)
+			if tc.isValid {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestUpdateIssueCommentHandler(t *testing.T) {
+	t.Parallel()
+
+	updatedComment := &github.IssueComment{
+		ID:      github.Ptr(int64(456)),
+		Body:    github.Ptr("Updated comment"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42#issuecomment-456"),
+	}
+
+	tests := []struct {
+		name               string
+		mockedClient       *http.Client
+		requestArgs        map[string]any
+		expectToolError    bool
+		expectedToolErrMsg string
+	}{
+		{
+			name: "successful update",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesCommentByOwnerByRepoByCommentID: expectRequestBody(t, map[string]any{
+					"body": "Updated comment",
+				}).andThen(mockResponse(t, http.StatusOK, updatedComment)),
+			}),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(456),
+				"body":       "Updated comment",
+			},
+		},
+		{
+			name: "missing body",
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(456),
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: body",
+		},
+		{
+			name: "negative comment ID",
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(-1),
+				"body":       "Updated comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "comment_id must be greater than 0",
+		},
+		{
+			name: "fractional comment ID",
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(1.5),
+				"body":       "Updated comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "parameter comment_id is not a valid number",
+		},
+		{
+			name: "API error",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesCommentByOwnerByRepoByCommentID: mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
+			}),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(456),
+				"body":       "Updated comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to update issue comment",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			serverTool := UpdateIssueComment(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			if tc.expectToolError {
+				require.True(t, result.IsError)
+				assert.Contains(t, getErrorResult(t, result).Text, tc.expectedToolErrMsg)
+				return
+			}
+
+			require.False(t, result.IsError)
+			var response MinimalResponse
+			require.NoError(t, json.Unmarshal([]byte(getTextResult(t, result).Text), &response))
+			assert.Equal(t, "456", response.ID)
+			assert.Equal(t, "https://github.com/owner/repo/issues/42#issuecomment-456", response.URL)
+		})
+	}
+}
+
 func Test_RemoveSubIssue(t *testing.T) {
 	// Verify tool definition once
 	serverTool := SubIssueWrite(translations.NullTranslationHelper)
