@@ -1552,13 +1552,13 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 		})
 }
 
-// UpdateIssueComment creates a tool to update an issue or pull request comment.
+// UpdateIssueComment creates a tool to update an issue or pull request conversation comment.
 func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "update_issue_comment",
-			Description: t("TOOL_UPDATE_ISSUE_COMMENT_DESCRIPTION", "Update the body of an existing issue or pull request comment."),
+			Description: t("TOOL_UPDATE_ISSUE_COMMENT_DESCRIPTION", "Update the body of an existing issue or pull request conversation comment. This tool cannot update pull request review comments."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_UPDATE_ISSUE_COMMENT_USER_TITLE", "Update issue comment"),
 				ReadOnlyHint: false,
@@ -1576,7 +1576,7 @@ func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTo
 					},
 					"comment_id": {
 						Type:        "integer",
-						Description: "The numeric ID of the issue or pull request comment to update",
+						Description: "The numeric ID of the issue or pull request conversation comment to update. Do not use a pull request review comment ID.",
 						Minimum:     jsonschema.Ptr(1.0),
 					},
 					"body": {
@@ -1605,9 +1605,15 @@ func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTo
 			if commentID < 1 {
 				return utils.NewToolResultError("comment_id must be greater than 0"), nil, nil
 			}
-			body, err := RequiredParam[string](args, "body")
+			body, hasBody, err := OptionalParamOK[string](args, "body")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if !hasBody {
+				return utils.NewToolResultError("missing required parameter: body"), nil, nil
+			}
+			if body == "" {
+				return utils.NewToolResultError("body cannot be empty when provided"), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)

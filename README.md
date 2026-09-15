@@ -1060,7 +1060,7 @@ The following sets of tools are available:
 - **update_issue_comment** - Update issue comment
   - **OAuth Challenge Scopes**: `repo`
   - `body`: New comment content (string, required)
-  - `comment_id`: The numeric ID of the issue or pull request comment to update (integer, required)
+  - `comment_id`: The numeric ID of the issue or pull request conversation comment to update. Do not use a pull request review comment ID. (integer, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 

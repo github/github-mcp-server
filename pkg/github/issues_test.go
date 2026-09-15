@@ -6752,6 +6752,17 @@ func TestUpdateIssueCommentHandler(t *testing.T) {
 			expectedToolErrMsg: "missing required parameter: body",
 		},
 		{
+			name: "empty body",
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(456),
+				"body":       "",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "body cannot be empty when provided",
+		},
+		{
 			name: "negative comment ID",
 			requestArgs: map[string]any{
 				"owner":      "owner",

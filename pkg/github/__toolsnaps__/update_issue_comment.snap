@@ -4,7 +4,7 @@
     "readOnlyHint": false,
     "title": "Update issue comment"
   },
-  "description": "Update the body of an existing issue or pull request comment.",
+  "description": "Update the body of an existing issue or pull request conversation comment. This tool cannot update pull request review comments.",
   "inputSchema": {
     "properties": {
       "body": {
@@ -13,7 +13,7 @@
         "type": "string"
       },
       "comment_id": {
-        "description": "The numeric ID of the issue or pull request comment to update",
+        "description": "The numeric ID of the issue or pull request conversation comment to update. Do not use a pull request review comment ID.",
         "minimum": 1,
         "type": "integer"
       },
