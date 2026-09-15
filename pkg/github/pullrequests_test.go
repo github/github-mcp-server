@@ -1,8 +1,10 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -18,6 +20,31 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type captureGraphQLTransport struct {
+	response  string
+	variables map[string]any
+}
+
+func (t *captureGraphQLTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	var request struct {
+		Variables map[string]any `json:"variables"`
+	}
+	if err := json.Unmarshal(body, &request); err != nil {
+		return nil, err
+	}
+	t.variables = request.Variables
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewBufferString(t.response)),
+		Request:    req,
+	}, nil
+}
 
 func Test_GetPullRequest(t *testing.T) {
 	// Verify tool definition once
@@ -4876,4 +4903,20 @@ func TestResolveReviewThread(t *testing.T) {
 			assert.Equal(t, tc.expectedResult, textContent.Text)
 		})
 	}
+}
+
+func TestResolveReviewThreadWithoutReasonOmitsOptionalInputField(t *testing.T) {
+	transport := &captureGraphQLTransport{
+		response: `{"data":{"resolveReviewThread":{"thread":{"id":"PRRT_test","isResolved":true}}}}`,
+	}
+	client := githubv4.NewClient(&http.Client{Transport: transport})
+
+	result, err := ResolveReviewThread(context.Background(), client, "PRRT_test", true)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	require.NotNil(t, transport.variables)
+	input, ok := transport.variables["input"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "PRRT_test", input["threadId"])
+	assert.NotContains(t, input, "resolutionReason")
 }
