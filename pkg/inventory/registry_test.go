@@ -2547,3 +2547,68 @@ func TestForMCPRequest_PreservesInstructions(t *testing.T) {
 			"instructions must be preserved for %s (server identity)", m)
 	}
 }
+
+func TestWithReadOnlyToolsets(t *testing.T) {
+	tools := []ServerTool{
+		mockToolWithDefault("issue_read", "issues", true, true),
+		mockToolWithDefault("issue_write", "issues", false, true),
+		mockTool("repo_read", "repos", true),
+		mockTool("repo_write", "repos", false),
+	}
+	unannotated := mockTool("unannotated", "issues", false)
+	unannotated.Tool.Annotations = nil
+	tools = append(tools, unannotated)
+	tests := []struct {
+		name       string
+		policy     []string
+		enabled    []string
+		additional []string
+		global     bool
+		want       []string
+	}{
+		{name: "unset preserves writes", enabled: []string{"all"}, want: []string{"issue_read", "issue_write", "unannotated", "repo_read", "repo_write"}},
+		{name: "mixed policy", policy: []string{" issues ", "issues", ""}, enabled: []string{"all"}, want: []string{"issue_read", "repo_read", "repo_write"}},
+		{name: "global wins", policy: []string{"issues"}, enabled: []string{"all"}, global: true, want: []string{"issue_read", "repo_read"}},
+		{name: "explicit tools and aliases cannot bypass", policy: []string{"issues"}, enabled: []string{"repos"}, additional: []string{"old_issue_write", "unannotated", "issue_read"}, want: []string{"issue_read", "repo_read", "repo_write"}},
+		{name: "does not enable toolset", policy: []string{"issues"}, enabled: []string{"repos"}, want: []string{"repo_read", "repo_write"}},
+		{name: "all", policy: []string{"all"}, enabled: []string{"all"}, want: []string{"issue_read", "repo_read"}},
+		{name: "default", policy: []string{"default"}, enabled: []string{"all"}, want: []string{"issue_read", "repo_read", "repo_write"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inv := mustBuild(t, NewBuilder().SetTools(tools).
+				WithDeprecatedAliases(map[string]string{"old_issue_write": "issue_write"}).
+				WithToolsets(tt.enabled).WithTools(tt.additional).
+				WithReadOnly(tt.global).WithReadOnlyToolsets(tt.policy))
+			names := []string{}
+			for _, tool := range inv.AvailableTools(context.Background()) {
+				names = append(names, tool.Tool.Name)
+			}
+			require.ElementsMatch(t, tt.want, names)
+			// Request-specific inventories must preserve the same policy for direct calls.
+			for _, tool := range tools {
+				allowed := false
+				for _, name := range tt.want {
+					if name == tool.Tool.Name {
+						allowed = true
+					}
+				}
+				called := inv.ForMCPRequest(MCPMethodToolsCall, tool.Tool.Name).AvailableTools(context.Background())
+				require.Equal(t, allowed, len(called) == 1, tool.Tool.Name)
+			}
+			if len(tt.policy) > 0 {
+				require.Empty(t, inv.ForMCPRequest(MCPMethodToolsCall, "old_issue_write").AvailableTools(context.Background()))
+			}
+		})
+	}
+}
+
+func TestWithReadOnlyToolsetsRejectsUnknownNames(t *testing.T) {
+	for _, policy := range [][]string{{"issues", "pull-request"}, {"all", "pull-request"}, {"default", "pull-request"}} {
+		inv, err := NewBuilder().SetTools([]ServerTool{mockTool("issue_write", "issues", false)}).
+			WithReadOnlyToolsets(policy).Build()
+		require.ErrorIs(t, err, ErrUnknownReadOnlyToolsets)
+		require.ErrorContains(t, err, "pull-request")
+		require.Nil(t, inv)
+	}
+}

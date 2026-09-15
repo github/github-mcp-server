@@ -41,6 +41,9 @@ type MCPServerConfig struct {
 	// ReadOnly indicates if we should only offer read-only tools
 	ReadOnly bool
 
+	// ReadOnlyToolsets restricts write tools in the listed toolsets.
+	ReadOnlyToolsets []string
+
 	// Translator provides translated text for the server tooling
 	Translator translations.TranslationHelperFunc
 

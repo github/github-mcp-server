@@ -339,7 +339,7 @@ func NewDefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHel
 
 		// Filter request tool names to only those in the static universe,
 		// so requests for statically-excluded tools degrade gracefully.
-		if hasStaticFilters {
+		if hasStaticFilters || len(cfg.ReadOnlyToolsets) > 0 {
 			r = filterRequestTools(r, validToolNames)
 		}
 
@@ -372,7 +372,8 @@ func filterRequestTools(r *http.Request, validNames map[string]bool) *http.Reque
 	return r.WithContext(ctx)
 }
 
-// hasStaticConfig returns true if any static filtering flags are set on the ServerConfig.
+// hasStaticConfig reports whether static configuration sets the toolset bounds.
+// Per-toolset read-only policy alone preserves per-request toolset selection.
 func hasStaticConfig(cfg *ServerConfig) bool {
 	return cfg.ReadOnly ||
 		cfg.EnabledToolsets != nil ||
@@ -407,7 +408,7 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 		})
 	}
 
-	if !hasStaticConfig(cfg) {
+	if !hasStaticConfig(cfg) && len(cfg.ReadOnlyToolsets) == 0 {
 		return filterUnavailable(tools), github.AllResources(t), github.AllPrompts(t), nil
 	}
 
@@ -416,7 +417,13 @@ func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFun
 		SetResources(github.AllResources(t)).
 		SetPrompts(github.AllPrompts(t)).
 		WithReadOnly(cfg.ReadOnly).
+		WithReadOnlyToolsets(cfg.ReadOnlyToolsets).
 		WithToolsets(github.ResolvedEnabledToolsets(cfg.EnabledToolsets, cfg.EnabledTools))
+	if !hasStaticConfig(cfg) {
+		// Apply the policy to the full catalogue; request defaults and headers
+		// still determine which toolsets are selected.
+		b = b.WithToolsets([]string{"all"})
+	}
 
 	if len(cfg.EnabledTools) > 0 {
 		b = b.WithTools(github.CleanTools(cfg.EnabledTools))

@@ -12,6 +12,9 @@ import (
 var (
 	// ErrUnknownTools is returned when tools specified via WithTools() are not recognized.
 	ErrUnknownTools = errors.New("unknown tools specified in WithTools")
+
+	// ErrUnknownReadOnlyToolsets is returned for invalid read-only policy toolsets.
+	ErrUnknownReadOnlyToolsets = errors.New("unknown toolsets specified in WithReadOnlyToolsets")
 )
 
 // mcpAppsFeatureFlag is the feature flag name that controls MCP Apps UI metadata.
@@ -47,6 +50,7 @@ type Builder struct {
 
 	// Configuration options (processed at Build time)
 	readOnly             bool
+	readOnlyToolsets     []string
 	toolsetIDs           []string // raw input, processed at Build()
 	toolsetIDsIsNil      bool     // tracks if nil was passed (nil = defaults)
 	additionalTools      []string // raw input, processed at Build()
@@ -92,6 +96,15 @@ func (b *Builder) WithDeprecatedAliases(aliases map[string]string) *Builder {
 // When true, write tools are filtered out. Returns self for chaining.
 func (b *Builder) WithReadOnly(readOnly bool) *Builder {
 	b.readOnly = readOnly
+	return b
+}
+
+// WithReadOnlyToolsets restricts write tools in the specified toolsets.
+// It does not enable toolsets or override global read-only mode. Names are
+// trimmed and deduplicated at Build time; "all" and "default" expand to the
+// corresponding toolsets. Unknown names cause Build to fail.
+func (b *Builder) WithReadOnlyToolsets(toolsetIDs []string) *Builder {
+	b.readOnlyToolsets = slices.Clone(toolsetIDs)
 	return b
 }
 
@@ -202,7 +215,8 @@ func cleanTools(tools []string) []string {
 // AvailableTools(), RegisterAll(), etc.
 //
 // Build returns an error if any tools specified via WithTools() are not recognized
-// (i.e., they don't exist in the tool set and are not deprecated aliases).
+// (i.e., they don't exist in the tool set and are not deprecated aliases), or
+// WithReadOnlyToolsets() contains an unknown toolset.
 // This ensures invalid tool configurations fail fast at build time.
 func (b *Builder) Build() (*Inventory, error) {
 	tools := b.tools
@@ -221,6 +235,28 @@ func (b *Builder) Build() (*Inventory, error) {
 
 	// Process toolsets and pre-compute metadata in a single pass
 	r.enabledToolsets, r.unrecognizedToolsets, r.toolsetIDs, r.toolsetIDSet, r.defaultToolsetIDs, r.toolsetDescriptions = b.processToolsets()
+
+	r.readOnlyToolsets = make(map[ToolsetID]bool)
+	var unknownReadOnlyToolsets []string
+	for _, id := range cleanTools(b.readOnlyToolsets) {
+		switch id {
+		case "all":
+			maps.Copy(r.readOnlyToolsets, r.toolsetIDSet)
+		case "default":
+			for _, defaultID := range r.defaultToolsetIDs {
+				r.readOnlyToolsets[defaultID] = true
+			}
+		default:
+			if !r.toolsetIDSet[ToolsetID(id)] {
+				unknownReadOnlyToolsets = append(unknownReadOnlyToolsets, id)
+			} else {
+				r.readOnlyToolsets[ToolsetID(id)] = true
+			}
+		}
+	}
+	if len(unknownReadOnlyToolsets) > 0 {
+		return nil, fmt.Errorf("%w: %s", ErrUnknownReadOnlyToolsets, strings.Join(unknownReadOnlyToolsets, ", "))
+	}
 
 	// Build set of valid tool names for validation
 	validToolNames := make(map[string]bool, len(tools))

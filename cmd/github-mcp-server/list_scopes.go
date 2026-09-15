@@ -99,6 +99,11 @@ func runListScopes() error {
 		}
 	}
 
+	var readOnlyToolsets []string
+	if err := viper.UnmarshalKey("read-only-toolsets", &readOnlyToolsets); err != nil {
+		return fmt.Errorf("failed to unmarshal read-only-toolsets: %w", err)
+	}
+
 	readOnly := viper.GetBool("read-only")
 	outputFormat := viper.GetString("list-scopes-output")
 
@@ -107,7 +112,8 @@ func runListScopes() error {
 
 	// Build inventory using the same logic as the stdio server
 	inventoryBuilder := github.NewInventory(t).
-		WithReadOnly(readOnly)
+		WithReadOnly(readOnly).
+		WithReadOnlyToolsets(readOnlyToolsets)
 
 	// Configure toolsets (same as stdio)
 	if enabledToolsets != nil {

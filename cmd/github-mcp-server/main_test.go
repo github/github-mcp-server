@@ -10,6 +10,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -92,4 +93,25 @@ func TestSchemaTypeString(t *testing.T) {
 			assert.Equal(t, tc.want, schemaTypeString(tc.schema))
 		})
 	}
+}
+
+func TestReadOnlyToolsetsConfiguration(t *testing.T) {
+	initConfig()
+	flag := rootCmd.PersistentFlags().Lookup("read-only-toolsets")
+	require.NotNil(t, flag)
+	originalValue, err := rootCmd.PersistentFlags().GetStringSlice("read-only-toolsets")
+	require.NoError(t, err)
+	originalChanged := flag.Changed
+	t.Cleanup(func() {
+		require.NoError(t, flag.Value.(pflag.SliceValue).Replace(originalValue))
+		flag.Changed = originalChanged
+	})
+	t.Setenv("GITHUB_READ_ONLY_TOOLSETS", "issues,pull_requests")
+	var toolsets []string
+	require.NoError(t, viper.UnmarshalKey("read-only-toolsets", &toolsets))
+	require.Equal(t, []string{"issues", "pull_requests"}, toolsets)
+
+	require.NoError(t, rootCmd.PersistentFlags().Set("read-only-toolsets", "repos"))
+	require.NoError(t, viper.UnmarshalKey("read-only-toolsets", &toolsets))
+	require.Equal(t, []string{"repos"}, toolsets, "CLI flag takes precedence over environment")
 }

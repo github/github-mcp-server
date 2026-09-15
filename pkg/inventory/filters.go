@@ -41,7 +41,7 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool, feature
 		}
 	}
 	// 2. Apply static inventory filters.
-	if r.readOnly && !tool.IsReadOnly() {
+	if (r.readOnly || r.readOnlyToolsets[tool.Toolset.ID]) && !tool.IsReadOnly() {
 		return false
 	}
 	for _, filter := range r.filters {
