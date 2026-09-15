@@ -896,3 +896,78 @@ func GranularAddPullRequestReviewCommentReaction(t translations.TranslationHelpe
 	st.FeatureRule = pullRequestsGranularFeatureRule
 	return st
 }
+
+// GranularRemovePullRequestReviewCommentReaction removes a reaction from a pull request review comment.
+func GranularRemovePullRequestReviewCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataPullRequests,
+		mcp.Tool{
+			Name:        "remove_pull_request_review_comment_reaction",
+			Description: t("TOOL_REMOVE_PULL_REQUEST_REVIEW_COMMENT_REACTION_DESCRIPTION", "Remove a reaction from a pull request review comment."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_REMOVE_PULL_REQUEST_REVIEW_COMMENT_REACTION_USER_TITLE", "Remove Pull Request Review Comment Reaction"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(true),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"comment_id": {
+						Type:        "number",
+						Description: "The numeric pull request review comment ID. Use the number from a #discussion_r... anchor, not the GraphQL thread node ID (PRRT_...).",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"reaction_id": {
+						Type:        "number",
+						Description: "The reaction ID to remove",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+				},
+				Required: []string{"owner", "repo", "comment_id", "reaction_id"},
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			commentID, err := RequiredBigInt(args, "comment_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			reactionID, err := RequiredBigInt(args, "reaction_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			resp, err := client.Reactions.DeletePullRequestCommentReaction(ctx, owner, repo, commentID, reactionID)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to remove reaction from pull request review comment", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			return utils.NewToolResultText("reaction successfully removed from pull request review comment"), nil, nil
+		},
+	)
+	st.FeatureRule = pullRequestsGranularFeatureRule
+	return st
+}

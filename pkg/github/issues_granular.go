@@ -1666,6 +1666,81 @@ func GranularAddIssueReaction(t translations.TranslationHelperFunc) inventory.Se
 	return st
 }
 
+// GranularRemoveIssueReaction removes a reaction from an issue or pull request.
+func GranularRemoveIssueReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "remove_issue_reaction",
+			Description: t("TOOL_REMOVE_ISSUE_REACTION_DESCRIPTION", "Remove a reaction from an issue or pull request."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_REMOVE_ISSUE_REACTION_USER_TITLE", "Remove Reaction from Issue or Pull Request"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(true),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"issue_number": {
+						Type:        "number",
+						Description: "The issue number",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"reaction_id": {
+						Type:        "number",
+						Description: "The reaction ID to remove",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+				},
+				Required: []string{"owner", "repo", "issue_number", "reaction_id"},
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			reactionID, err := RequiredBigInt(args, "reaction_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			resp, err := client.Reactions.DeleteIssueReaction(ctx, owner, repo, issueNumber, reactionID)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to remove reaction from issue", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			return utils.NewToolResultText("reaction successfully removed from issue"), nil, nil
+		},
+	)
+	st.FeatureRule = issuesGranularFeatureRule
+	return st
+}
+
 // GranularAddIssueCommentReaction adds a reaction to an issue or pull request comment.
 func GranularAddIssueCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
 	st := NewTool(
@@ -1742,6 +1817,81 @@ func GranularAddIssueCommentReaction(t translations.TranslationHelperFunc) inven
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 			return utils.NewToolResultText(string(r)), nil, nil
+		},
+	)
+	st.FeatureRule = issuesGranularFeatureRule
+	return st
+}
+
+// GranularRemoveIssueCommentReaction removes a reaction from an issue or pull request comment.
+func GranularRemoveIssueCommentReaction(t translations.TranslationHelperFunc) inventory.ServerTool {
+	st := NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "remove_issue_comment_reaction",
+			Description: t("TOOL_REMOVE_ISSUE_COMMENT_REACTION_DESCRIPTION", "Remove a reaction from an issue or pull request comment."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_REMOVE_ISSUE_COMMENT_REACTION_USER_TITLE", "Remove Reaction from Issue or Pull Request Comment"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(true),
+				OpenWorldHint:   jsonschema.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"comment_id": {
+						Type:        "number",
+						Description: "The issue or pull request comment ID",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+					"reaction_id": {
+						Type:        "number",
+						Description: "The reaction ID to remove",
+						Minimum:     jsonschema.Ptr(1.0),
+					},
+				},
+				Required: []string{"owner", "repo", "comment_id", "reaction_id"},
+			},
+		},
+		scopes.RequireAll(scopes.Repo),
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			commentID, err := RequiredBigInt(args, "comment_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			reactionID, err := RequiredBigInt(args, "reaction_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			resp, err := client.Reactions.DeleteIssueCommentReaction(ctx, owner, repo, commentID, reactionID)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to remove reaction from issue comment", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			return utils.NewToolResultText("reaction successfully removed from issue comment"), nil, nil
 		},
 	)
 	st.FeatureRule = issuesGranularFeatureRule

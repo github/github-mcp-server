@@ -53,7 +53,9 @@ func TestGranularToolSnaps(t *testing.T) {
 		GranularReprioritizeSubIssue,
 		GranularSetIssueFields,
 		GranularAddIssueReaction,
+		GranularRemoveIssueReaction,
 		GranularAddIssueCommentReaction,
+		GranularRemoveIssueCommentReaction,
 		GranularUpdatePullRequestTitle,
 		GranularUpdatePullRequestBody,
 		GranularUpdatePullRequestState,
@@ -66,6 +68,7 @@ func TestGranularToolSnaps(t *testing.T) {
 		GranularResolveReviewThread,
 		GranularUnresolveReviewThread,
 		GranularAddPullRequestReviewCommentReaction,
+		GranularRemovePullRequestReviewCommentReaction,
 	}
 
 	for _, constructor := range toolConstructors {
@@ -99,7 +102,9 @@ func TestIssuesGranularToolset(t *testing.T) {
 			"reprioritize_sub_issue",
 			"set_issue_fields",
 			"add_issue_reaction",
+			"remove_issue_reaction",
 			"add_issue_comment_reaction",
+			"remove_issue_comment_reaction",
 		}
 		for _, name := range expected {
 			assert.Contains(t, toolNames, name)
@@ -136,6 +141,7 @@ func TestPullRequestsGranularToolset(t *testing.T) {
 			"resolve_review_thread",
 			"unresolve_review_thread",
 			"add_pull_request_review_comment_reaction",
+			"remove_pull_request_review_comment_reaction",
 		}
 		for _, name := range expected {
 			assert.Contains(t, toolNames, name)
@@ -2472,6 +2478,72 @@ func TestGranularAddIssueReaction(t *testing.T) {
 	}
 }
 
+func TestGranularRemoveIssueReaction(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		args           map[string]any
+		expectedErrMsg string
+	}{
+		{
+			name: "remove reaction from issue successfully",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesReactionsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNoContent, nil),
+			}),
+			args: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"reaction_id":  float64(12345),
+			},
+		},
+		{
+			name:         "missing reaction_id returns error",
+			mockedClient: MockHTTPClientWithHandlers(nil),
+			args: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectedErrMsg: "missing required parameter: reaction_id",
+		},
+		{
+			name: "API error",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesReactionsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message":"Not Found"}`),
+			}),
+			args: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"reaction_id":  float64(12345),
+			},
+			expectedErrMsg: "failed to remove reaction from issue",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			serverTool := GranularRemoveIssueReaction(translations.NullTranslationHelper)
+			require.NotNil(t, serverTool.Tool.Annotations.DestructiveHint)
+			assert.True(t, *serverTool.Tool.Annotations.DestructiveHint)
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(tc.args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			if tc.expectedErrMsg != "" {
+				require.True(t, result.IsError)
+				assert.Contains(t, getErrorResult(t, result).Text, tc.expectedErrMsg)
+				return
+			}
+			require.False(t, result.IsError)
+			assert.Equal(t, "reaction successfully removed from issue", getTextResult(t, result).Text)
+		})
+	}
+}
+
 func TestGranularAddIssueCommentReaction(t *testing.T) {
 	mockReaction := &gogithub.Reaction{
 		ID:      gogithub.Ptr(int64(67890)),
@@ -2532,6 +2604,59 @@ func TestGranularAddIssueCommentReaction(t *testing.T) {
 	}
 }
 
+func TestGranularRemoveIssueCommentReaction(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		args           map[string]any
+		expectedErrMsg string
+	}{
+		{
+			name: "remove reaction from issue comment successfully",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusNoContent, nil),
+			}),
+			args: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"comment_id":  float64(999),
+				"reaction_id": float64(67890),
+			},
+		},
+		{
+			name:         "missing comment_id returns error",
+			mockedClient: MockHTTPClientWithHandlers(nil),
+			args: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"reaction_id": float64(67890),
+			},
+			expectedErrMsg: "missing required parameter: comment_id",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			serverTool := GranularRemoveIssueCommentReaction(translations.NullTranslationHelper)
+			require.NotNil(t, serverTool.Tool.Annotations.DestructiveHint)
+			assert.True(t, *serverTool.Tool.Annotations.DestructiveHint)
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(tc.args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			if tc.expectedErrMsg != "" {
+				require.True(t, result.IsError)
+				assert.Contains(t, getErrorResult(t, result).Text, tc.expectedErrMsg)
+				return
+			}
+			require.False(t, result.IsError)
+			assert.Equal(t, "reaction successfully removed from issue comment", getTextResult(t, result).Text)
+		})
+	}
+}
+
 func TestGranularAddPullRequestReviewCommentReaction(t *testing.T) {
 	mockReaction := &gogithub.Reaction{
 		ID:      gogithub.Ptr(int64(54321)),
@@ -2588,6 +2713,59 @@ func TestGranularAddPullRequestReviewCommentReaction(t *testing.T) {
 				assert.Equal(t, "54321", response.ID)
 				assert.Equal(t, "https://api.github.com/repos/owner/repo/pulls/comments/888/reactions/54321", response.URL)
 			}
+		})
+	}
+}
+
+func TestGranularRemovePullRequestReviewCommentReaction(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		args           map[string]any
+		expectedErrMsg string
+	}{
+		{
+			name: "remove reaction from PR review comment successfully",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposPullsCommentsReactionsByOwnerByRepoByCommentID: mockResponse(t, http.StatusNoContent, nil),
+			}),
+			args: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"comment_id":  float64(888),
+				"reaction_id": float64(54321),
+			},
+		},
+		{
+			name:         "missing repo returns error",
+			mockedClient: MockHTTPClientWithHandlers(nil),
+			args: map[string]any{
+				"owner":       "owner",
+				"comment_id":  float64(888),
+				"reaction_id": float64(54321),
+			},
+			expectedErrMsg: "missing required parameter: repo",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := mustNewGHClient(t, tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			serverTool := GranularRemovePullRequestReviewCommentReaction(translations.NullTranslationHelper)
+			require.NotNil(t, serverTool.Tool.Annotations.DestructiveHint)
+			assert.True(t, *serverTool.Tool.Annotations.DestructiveHint)
+			handler := serverTool.Handler(deps)
+			request := createMCPRequest(tc.args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			if tc.expectedErrMsg != "" {
+				require.True(t, result.IsError)
+				assert.Contains(t, getErrorResult(t, result).Text, tc.expectedErrMsg)
+				return
+			}
+			require.False(t, result.IsError)
+			assert.Equal(t, "reaction successfully removed from pull request review comment", getTextResult(t, result).Text)
 		})
 	}
 }
