@@ -1618,10 +1618,12 @@ func UpdateIssueComment(t translations.TranslationHelperFunc) inventory.ServerTo
 			updatedComment, resp, err := client.Issues.EditComment(ctx, owner, repo, commentID, &github.IssueComment{
 				Body: github.Ptr(body),
 			})
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update issue comment", resp, err), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
 
 			r, err := json.Marshal(MinimalResponse{
 				ID:  fmt.Sprintf("%d", updatedComment.GetID()),
