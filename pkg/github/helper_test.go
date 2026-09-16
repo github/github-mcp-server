@@ -113,6 +113,12 @@ const (
 	GetReposReleasesLatestByOwnerByRepo    = "GET /repos/{owner}/{repo}/releases/latest"
 	GetReposReleasesTagsByOwnerByRepoByTag = "GET /repos/{owner}/{repo}/releases/tags/{tag}"
 
+	// Traffic endpoints
+	GetReposTrafficViewsByOwnerByRepo            = "GET /repos/{owner}/{repo}/traffic/views"
+	GetReposTrafficClonesByOwnerByRepo           = "GET /repos/{owner}/{repo}/traffic/clones"
+	GetReposTrafficPopularReferrersByOwnerByRepo = "GET /repos/{owner}/{repo}/traffic/popular/referrers"
+	GetReposTrafficPopularPathsByOwnerByRepo     = "GET /repos/{owner}/{repo}/traffic/popular/paths"
+
 	// Code quality endpoints
 	GetReposCodeQualityFindingsByOwnerByRepoByFindingNumber = "GET /repos/{owner}/{repo}/code-quality/findings/{finding_number}"
 
