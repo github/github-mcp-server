@@ -166,6 +166,11 @@ var (
 		Short: "Start HTTP server",
 		Long:  `Start an HTTP server that listens for MCP requests over HTTP.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			staticToken, err := resolveHTTPStaticToken(viper.GetBool("static-auth"), viper.GetString("personal_access_token"))
+			if err != nil {
+				return err
+			}
+
 			// Parse toolsets (same approach as stdio — see comment there)
 			var enabledToolsets []string
 			if viper.IsSet("toolsets") {
@@ -199,6 +204,7 @@ var (
 			httpConfig := ghhttp.ServerConfig{
 				Version:              version,
 				Host:                 viper.GetString("host"),
+				StaticToken:          staticToken,
 				Port:                 viper.GetInt("port"),
 				ListenHost:           viper.GetString("listen-host"),
 				BaseURL:              viper.GetString("base-url"),
@@ -268,6 +274,7 @@ func init() {
 	httpCmd.Flags().String("authorization-server", "", "Override the authorization server URL in OAuth resource metadata. Useful when deploying behind an OAuth proxy (e.g. for GHES). Env: GITHUB_AUTHORIZATION_SERVER")
 	httpCmd.Flags().Bool("scope-challenge", false, "Enable OAuth scope challenge responses")
 	httpCmd.Flags().Bool("trust-proxy-headers", false, "Honor X-Forwarded-Host and X-Forwarded-Proto when constructing OAuth resource metadata URLs. Only enable when the server is deployed behind a trusted proxy that sets these headers. Ignored when --base-url is set.")
+	httpCmd.Flags().Bool("static-auth", false, "Allow requests without an Authorization header to use GITHUB_PERSONAL_ACCESS_TOKEN. For single-tenant deployments behind a trusted access boundary only. Env: GITHUB_STATIC_AUTH")
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
@@ -297,6 +304,7 @@ func init() {
 	_ = viper.BindPFlag("authorization-server", httpCmd.Flags().Lookup("authorization-server"))
 	_ = viper.BindPFlag("scope-challenge", httpCmd.Flags().Lookup("scope-challenge"))
 	_ = viper.BindPFlag("trust-proxy-headers", httpCmd.Flags().Lookup("trust-proxy-headers"))
+	_ = viper.BindPFlag("static-auth", httpCmd.Flags().Lookup("static-auth"))
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
 	rootCmd.AddCommand(httpCmd)
@@ -307,6 +315,19 @@ func initConfig() {
 	viper.SetEnvPrefix("github")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
+}
+
+func resolveHTTPStaticToken(enabled bool, token string) (string, error) {
+	if !enabled {
+		return "", nil
+	}
+	if token == "" {
+		return "", errors.New("HTTP static auth requires GITHUB_PERSONAL_ACCESS_TOKEN")
+	}
+	if _, err := utils.ParseToken(token); err != nil {
+		return "", fmt.Errorf("invalid GITHUB_PERSONAL_ACCESS_TOKEN for HTTP static auth: %w", err)
+	}
+	return token, nil
 }
 
 func main() {

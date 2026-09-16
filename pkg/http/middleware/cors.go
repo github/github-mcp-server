@@ -33,7 +33,8 @@ var corsAllowedRequestHeaders = []string{
 // SetCorsHeaders is middleware that sets CORS headers to allow browser-based
 // MCP clients to connect from any origin. This is safe because the server
 // authenticates via bearer tokens (not cookies), so cross-origin requests
-// cannot exploit ambient credentials.
+// cannot exploit ambient credentials. Static auth installs its browser guard
+// before this middleware.
 func SetCorsHeaders(h http.Handler) http.Handler {
 	fixedAllowHeaders := strings.Join(corsAllowedRequestHeaders, ", ")
 

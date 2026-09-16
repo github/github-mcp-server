@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
@@ -230,6 +231,118 @@ func TestExtractUserToken_NilOAuthConfig(t *testing.T) {
 	require.True(t, tokenInfoCaptured)
 	require.NotNil(t, capturedTokenInfo)
 	assert.Equal(t, utils.TokenTypePersonalAccessToken, capturedTokenInfo.TokenType)
+}
+
+func TestExtractUserTokenWithFallback(t *testing.T) {
+	const staticToken = "ghp_staticxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+	const upstreamToken = "gho_upstreamxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+	headerToken := strings.Join([]string{"github", "pat", "headerxxxxxxxxxxxxxxxxxxxxxxxx"}, "_")
+
+	tests := []struct {
+		name               string
+		fallbackToken      string
+		authHeader         string
+		setAuthHeader      bool
+		upstreamTokenInfo  *ghcontext.TokenInfo
+		expectedStatusCode int
+		expectedToken      string
+		expectedTokenType  utils.TokenType
+		expectTokenInfo    bool
+		expectChallenge    bool
+	}{
+		{
+			name:               "missing header uses static token",
+			fallbackToken:      staticToken,
+			expectedStatusCode: http.StatusOK,
+			expectedToken:      staticToken,
+			expectedTokenType:  utils.TokenTypePersonalAccessToken,
+			expectTokenInfo:    true,
+		},
+		{
+			name:               "missing header without static token preserves challenge",
+			expectedStatusCode: http.StatusUnauthorized,
+			expectChallenge:    true,
+		},
+		{
+			name:               "request header takes precedence",
+			fallbackToken:      staticToken,
+			authHeader:         "Bearer " + headerToken,
+			setAuthHeader:      true,
+			expectedStatusCode: http.StatusOK,
+			expectedToken:      headerToken,
+			expectedTokenType:  utils.TokenTypeFineGrainedPersonalAccessToken,
+			expectTokenInfo:    true,
+		},
+		{
+			name:               "blank request header does not fall back",
+			fallbackToken:      staticToken,
+			setAuthHeader:      true,
+			expectedStatusCode: http.StatusUnauthorized,
+			expectChallenge:    true,
+		},
+		{
+			name:               "malformed request header does not fall back",
+			fallbackToken:      staticToken,
+			authHeader:         "Bearer invalid-token",
+			setAuthHeader:      true,
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:               "unsupported request header does not fall back",
+			fallbackToken:      staticToken,
+			authHeader:         "GitHub-Bearer encrypted-token",
+			setAuthHeader:      true,
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:          "upstream token context takes precedence",
+			fallbackToken: staticToken,
+			authHeader:    "Bearer " + headerToken,
+			setAuthHeader: true,
+			upstreamTokenInfo: &ghcontext.TokenInfo{
+				Token:     upstreamToken,
+				TokenType: utils.TokenTypeOAuthAccessToken,
+			},
+			expectedStatusCode: http.StatusOK,
+			expectedToken:      upstreamToken,
+			expectedTokenType:  utils.TokenTypeOAuthAccessToken,
+			expectTokenInfo:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedTokenInfo *ghcontext.TokenInfo
+			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				capturedTokenInfo, _ = ghcontext.GetTokenInfo(r.Context())
+				w.WriteHeader(http.StatusOK)
+			})
+
+			handler := ExtractUserTokenWithFallback(nil, tt.fallbackToken)(nextHandler)
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			if tt.setAuthHeader {
+				req.Header[headers.AuthorizationHeader] = []string{tt.authHeader}
+			}
+			if tt.upstreamTokenInfo != nil {
+				req = req.WithContext(ghcontext.WithTokenInfo(req.Context(), tt.upstreamTokenInfo))
+			}
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectedStatusCode, rr.Code)
+			if tt.expectChallenge {
+				assert.NotEmpty(t, rr.Header().Get("WWW-Authenticate"))
+			}
+			if tt.expectTokenInfo {
+				require.NotNil(t, capturedTokenInfo)
+				assert.Equal(t, tt.expectedToken, capturedTokenInfo.Token)
+				assert.Equal(t, tt.expectedTokenType, capturedTokenInfo.TokenType)
+			} else {
+				assert.Nil(t, capturedTokenInfo)
+			}
+		})
+	}
 }
 
 func TestExtractUserToken_MissingAuthHeader_WWWAuthenticateFormat(t *testing.T) {

@@ -60,16 +60,24 @@ func ParseAuthorizationHeader(req *http.Request) (tokenType TokenType, token str
 		}
 	}
 
+	tokenType, err := ParseToken(token)
+	if err != nil {
+		return 0, "", err
+	}
+	return tokenType, token, nil
+}
+
+// ParseToken identifies a GitHub token by its prefix or legacy format.
+func ParseToken(token string) (TokenType, error) {
 	for prefix, tokenType := range supportedGitHubPrefixes {
 		if strings.HasPrefix(token, prefix) {
-			return tokenType, token, nil
+			return tokenType, nil
 		}
 	}
 
-	matchesOldTokenPattern := oldPatternRegexp.MatchString(token)
-	if matchesOldTokenPattern {
-		return TokenTypePersonalAccessToken, token, nil
+	if oldPatternRegexp.MatchString(token) {
+		return TokenTypePersonalAccessToken, nil
 	}
 
-	return 0, "", ErrBadAuthorizationHeader
+	return TokenTypeUnknown, ErrBadAuthorizationHeader
 }

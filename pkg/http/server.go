@@ -38,6 +38,10 @@ type ServerConfig struct {
 	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
 	Host string
 
+	// StaticToken is a shared GitHub credential used only when a request has no
+	// Authorization header. A per-request token always takes precedence.
+	StaticToken string
+
 	// Port to listen on (default: 8082).
 	Port int
 
@@ -123,6 +127,10 @@ type ServerConfig struct {
 }
 
 func RunHTTPServer(cfg ServerConfig) error {
+	if err := validateStaticToken(cfg.StaticToken); err != nil {
+		return err
+	}
+
 	// Create app context
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -210,6 +218,11 @@ func RunHTTPServer(cfg ServerConfig) error {
 		return fmt.Errorf("failed to create OAuth handler: %w", err)
 	}
 
+	var mcpMiddleware []func(http.Handler) http.Handler
+	if cfg.StaticToken != "" {
+		mcpMiddleware = append(mcpMiddleware, middleware.StaticAuthBrowserGuard)
+	}
+
 	r := newHTTPRouter(
 		func(r chi.Router) {
 			// Register Middleware First, needs to be before route registration
@@ -218,6 +231,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 			handler.RegisterRoutes(r)
 		},
 		oauthHandler.RegisterRoutes,
+		mcpMiddleware...,
 	)
 	logger.Info("MCP endpoints registered", "baseURL", cfg.BaseURL)
 	logger.Info("OAuth protected resource endpoints registered", "baseURL", cfg.BaseURL)
@@ -253,8 +267,19 @@ func RunHTTPServer(cfg ServerConfig) error {
 	return nil
 }
 
-func newHTTPRouter(registerMCPRoutes, registerOAuthRoutes func(chi.Router)) chi.Router {
+func validateStaticToken(token string) error {
+	if token == "" {
+		return nil
+	}
+	if _, err := utils.ParseToken(token); err != nil {
+		return fmt.Errorf("invalid static token configuration: %w", err)
+	}
+	return nil
+}
+
+func newHTTPRouter(registerMCPRoutes, registerOAuthRoutes func(chi.Router), mcpMiddleware ...func(http.Handler) http.Handler) chi.Router {
 	r := chi.NewRouter()
+	r.Use(mcpMiddleware...)
 	r.Use(middleware.SetCorsHeaders)
 	r.Group(registerMCPRoutes)
 	r.Group(registerOAuthRoutes)
