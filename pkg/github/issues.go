@@ -1369,8 +1369,9 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 			Name:        "add_issue_comment",
 			Description: t("TOOL_ADD_ISSUE_COMMENT_DESCRIPTION", "Add a comment and/or reaction to a specific issue or issue comment in a GitHub repository. Use this tool with pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add or react to review comments. At least one of body or reaction is required."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ADD_ISSUE_COMMENT_USER_TITLE", "Add comment to issue or pull request"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_ADD_ISSUE_COMMENT_USER_TITLE", "Add comment to issue or pull request"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
