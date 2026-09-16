@@ -175,8 +175,9 @@ func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "create_gist",
 			Description: t("TOOL_CREATE_GIST_DESCRIPTION", "Create a new gist"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_CREATE_GIST", "Create Gist"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_CREATE_GIST", "Create Gist"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",

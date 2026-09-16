@@ -644,8 +644,9 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 			Name:        "create_repository",
 			Description: t("TOOL_CREATE_REPOSITORY_DESCRIPTION", "Create a new GitHub repository in your account or specified organization"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_CREATE_REPOSITORY_USER_TITLE", "Create repository"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_CREATE_REPOSITORY_USER_TITLE", "Create repository"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -1210,8 +1211,9 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Description: t("TOOL_FORK_REPOSITORY_DESCRIPTION", "Fork a GitHub repository to your account or specified organization"),
 			Icons:       octicons.Icons("repo-forked"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_FORK_REPOSITORY_USER_TITLE", "Fork repository"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_FORK_REPOSITORY_USER_TITLE", "Fork repository"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -1503,8 +1505,9 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "create_branch",
 			Description: t("TOOL_CREATE_BRANCH_DESCRIPTION", "Create a new branch in a GitHub repository"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_CREATE_BRANCH_USER_TITLE", "Create branch"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_CREATE_BRANCH_USER_TITLE", "Create branch"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -2505,8 +2508,9 @@ func StarRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Description: t("TOOL_STAR_REPOSITORY_DESCRIPTION", "Star a GitHub repository"),
 			Icons:       octicons.Icons("star-fill"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_STAR_REPOSITORY_USER_TITLE", "Star repository"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_STAR_REPOSITORY_USER_TITLE", "Star repository"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(false),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
